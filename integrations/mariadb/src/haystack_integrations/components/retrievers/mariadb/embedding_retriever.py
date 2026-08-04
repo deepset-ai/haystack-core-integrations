@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -10,7 +10,6 @@ from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
-from haystack_integrations.document_stores.mariadb.document_store import VALID_VECTOR_FUNCTIONS
 
 
 @component
@@ -41,7 +40,6 @@ class MariaDBEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         score_threshold: float | None = None,
-        vector_function: Literal["cosine", "euclidean"] | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
@@ -51,23 +49,17 @@ class MariaDBEmbeddingRetriever:
         :param filters: Default Haystack metadata filters applied to every query.
         :param top_k: Maximum number of documents to return.
         :param score_threshold: Minimum score to include a document. Documents below this score are excluded.
-        :param vector_function: Override the store's default vector function for this retriever.
         :param filter_policy: How runtime filters interact with init-time filters.
-        :raises ValueError: If `document_store` is not a `MariaDBDocumentStore` or
-            `vector_function` is invalid.
+        :raises ValueError: If `document_store` is not a `MariaDBDocumentStore`.
         """
         if not isinstance(document_store, MariaDBDocumentStore):
             msg = "document_store must be an instance of MariaDBDocumentStore"
-            raise ValueError(msg)
-        if vector_function and vector_function not in VALID_VECTOR_FUNCTIONS:
-            msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}"
             raise ValueError(msg)
 
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
         self.score_threshold = score_threshold
-        self.vector_function = vector_function or document_store.vector_function
         self.filter_policy = (
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
@@ -79,7 +71,6 @@ class MariaDBEmbeddingRetriever:
             filters=self.filters,
             top_k=self.top_k,
             score_threshold=self.score_threshold,
-            vector_function=self.vector_function,
             filter_policy=self.filter_policy.value,
             document_store=self.document_store.to_dict(),
         )
@@ -100,7 +91,6 @@ class MariaDBEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
         score_threshold: float | None = None,
-        vector_function: Literal["cosine", "euclidean"] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents similar to the query embedding.
@@ -109,7 +99,6 @@ class MariaDBEmbeddingRetriever:
         :param filters: Runtime filters merged with init-time filters per `filter_policy`.
         :param top_k: Override the retriever's `top_k`.
         :param score_threshold: Override the retriever's `score_threshold`.
-        :param vector_function: Override the vector function for this call.
         :returns: Dictionary with `"documents"` key containing the ranked results.
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
@@ -119,6 +108,5 @@ class MariaDBEmbeddingRetriever:
                 filters=filters,
                 top_k=top_k or self.top_k,
                 score_threshold=score_threshold if score_threshold is not None else self.score_threshold,
-                vector_function=vector_function or self.vector_function,
             )
         }

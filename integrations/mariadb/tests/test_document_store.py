@@ -16,6 +16,7 @@ from haystack.testing.document_store import (
     FilterDocumentsTest,
     WriteDocumentsTest,
 )
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
 from haystack_integrations.document_stores.mariadb.document_store import (
@@ -25,17 +26,13 @@ from haystack_integrations.document_stores.mariadb.document_store import (
     _rows_to_documents,
 )
 
-# ---------------------------------------------------------------------------
-# Helper: build a store with a mocked DB connection
-# ---------------------------------------------------------------------------
-
 
 def _mock_store(**kwargs) -> MariaDBDocumentStore:
     store = MariaDBDocumentStore(
         host="localhost",
         database="test_db",
-        user="root",
-        password="secret",
+        user=Secret.from_token("root"),
+        password=Secret.from_token("secret"),
         **kwargs,
     )
     mock_conn = MagicMock()
@@ -46,11 +43,6 @@ def _mock_store(**kwargs) -> MariaDBDocumentStore:
     store._cursor = mock_cursor
     store._table_initialized = True
     return store
-
-
-# ---------------------------------------------------------------------------
-# Serialization
-# ---------------------------------------------------------------------------
 
 
 class TestSerialization:
@@ -76,12 +68,9 @@ class TestSerialization:
 
     def test_invalid_vector_function_raises(self):
         with pytest.raises(ValueError, match="vector_function must be one of"):
-            MariaDBDocumentStore(user="u", password="p", vector_function="bad_func")
-
-
-# ---------------------------------------------------------------------------
-# Embedding helpers
-# ---------------------------------------------------------------------------
+            MariaDBDocumentStore(
+                user=Secret.from_token("u"), password=Secret.from_token("p"), vector_function="bad_func"
+            )
 
 
 class TestEmbeddingHelpers:
@@ -97,11 +86,6 @@ class TestEmbeddingHelpers:
         emb = [1.0] * 8
         raw = _embedding_to_bytes(emb)
         assert len(raw) == 8 * 4  # 4 bytes per float32
-
-
-# ---------------------------------------------------------------------------
-# Document conversion helpers
-# ---------------------------------------------------------------------------
 
 
 class TestDocumentHelpers:
@@ -197,11 +181,6 @@ class TestDocumentHelpers:
         assert docs[0].blob.mime_type == "image/png"
 
 
-# ---------------------------------------------------------------------------
-# count_documents
-# ---------------------------------------------------------------------------
-
-
 class TestCountDocuments:
     def test_count_documents(self):
         store = _mock_store()
@@ -212,11 +191,6 @@ class TestCountDocuments:
         store = _mock_store()
         store._cursor.fetchone.return_value = {"cnt": 0}
         assert store.count_documents() == 0
-
-
-# ---------------------------------------------------------------------------
-# write_documents
-# ---------------------------------------------------------------------------
 
 
 class TestWriteDocuments:
@@ -261,11 +235,6 @@ class TestWriteDocuments:
             store.write_documents(["not a doc"])  # type: ignore[list-item]
 
 
-# ---------------------------------------------------------------------------
-# delete_documents
-# ---------------------------------------------------------------------------
-
-
 class TestDeleteDocuments:
     def test_delete_empty_noop(self):
         store = _mock_store()
@@ -278,11 +247,6 @@ class TestDeleteDocuments:
         call_args = store._cursor.execute.call_args[0]
         assert "DELETE FROM" in call_args[0]
         assert "IN (?, ?)" in call_args[0]
-
-
-# ---------------------------------------------------------------------------
-# filter_documents
-# ---------------------------------------------------------------------------
 
 
 class TestFilterDocuments:
@@ -300,11 +264,6 @@ class TestFilterDocuments:
         store.filter_documents(filters={"field": "meta.x", "operator": "==", "value": 1})
         call_args = store._cursor.execute.call_args[0]
         assert "WHERE" in call_args[0]
-
-
-# ---------------------------------------------------------------------------
-# Integration tests (require real MariaDB — fixture in conftest.py)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration

@@ -5,6 +5,7 @@
 import os
 
 import pytest
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
 
@@ -22,8 +23,8 @@ def document_store(request):
         host=MARIADB_HOST,
         port=MARIADB_PORT,
         database=MARIADB_DB,
-        user=MARIADB_USER,
-        password=MARIADB_PASSWORD,
+        user=Secret.from_token(MARIADB_USER),
+        password=Secret.from_token(MARIADB_PASSWORD),
         table_name=table_name,
         embedding_dimension=768,
         recreate_table=True,

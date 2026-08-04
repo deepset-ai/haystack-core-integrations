@@ -26,6 +26,7 @@ classifiers = [
 dependencies = [
   "haystack-ai>=2.28.0",
   "mariadb>=1.1.6",
+  "packaging",
 ]
 
 [project.urls]
@@ -65,7 +66,6 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "packaging",
 ]
 
 [tool.hatch.envs.test.scripts]

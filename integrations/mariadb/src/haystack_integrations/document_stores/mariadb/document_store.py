@@ -7,13 +7,12 @@ import struct
 from dataclasses import replace
 from typing import Any, Literal
 
+import mariadb
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
-from haystack.document_stores.types import DocumentStore, DuplicatePolicy
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
-
-import mariadb
 
 from .filters import _convert_filters_to_where_clause_and_params, _validate_filters
 
@@ -49,7 +48,7 @@ CREATE TABLE IF NOT EXISTS `{table_name}` (
     blob_mime_type VARCHAR(255),
     meta JSON,
     FULLTEXT KEY content_ft_idx (content),
-    VECTOR INDEX vec_idx (embedding) COMMENT 'MHNSW(distance={distance})'
+    VECTOR INDEX (embedding)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
@@ -82,6 +81,7 @@ KEYWORD_QUERY = """
 SELECT *, MATCH(content) AGAINST(? IN NATURAL LANGUAGE MODE) AS score
 FROM `{table_name}`
 {where_clause}
+HAVING score > 0
 ORDER BY score DESC
 LIMIT ?
 """
@@ -96,7 +96,7 @@ LIMIT ?
 """
 
 
-class MariaDBDocumentStore(DocumentStore):
+class MariaDBDocumentStore:
     """
     A Document Store backed by MariaDB 11.7+ using native VECTOR support.
 
@@ -128,8 +128,8 @@ class MariaDBDocumentStore(DocumentStore):
         host: str = "localhost",
         port: int = 3306,
         database: str = "haystack",
-        user: Secret | str = Secret.from_env_var("MARIADB_USER"),
-        password: Secret | str = Secret.from_env_var("MARIADB_PASSWORD"),
+        user: Secret = Secret.from_env_var("MARIADB_USER"),
+        password: Secret = Secret.from_env_var("MARIADB_PASSWORD"),
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
         vector_function: Literal["cosine", "euclidean"] = "cosine",
@@ -162,8 +162,8 @@ class MariaDBDocumentStore(DocumentStore):
         self.host = host
         self.port = port
         self.database = database
-        self.user = Secret.from_token(user) if isinstance(user, str) else user
-        self.password = Secret.from_token(password) if isinstance(password, str) else password
+        self.user = user
+        self.password = password
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
         self.vector_function = vector_function
@@ -230,7 +230,6 @@ class MariaDBDocumentStore(DocumentStore):
             sql = CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT.format(
                 table_name=self.table_name,
                 embedding_dimension=self.embedding_dimension,
-                distance=self.vector_function,
             )
         else:
             sql = CREATE_TABLE_STATEMENT.format(
@@ -372,7 +371,6 @@ class MariaDBDocumentStore(DocumentStore):
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         score_threshold: float | None = None,
-        vector_function: str | None = None,
     ) -> list[Document]:
         """
         Retrieve documents by vector similarity.
@@ -381,13 +379,12 @@ class MariaDBDocumentStore(DocumentStore):
         :param filters: Optional Haystack filters.
         :param top_k: Maximum results.
         :param score_threshold: Minimum score to include a document. Documents below this score are excluded.
-        :param vector_function: Override the store's vector function for this query.
         :returns: List of Documents ordered by similarity (most similar first).
         """
         _validate_filters(filters)
         self._ensure_connection()
 
-        vec_func = VECTOR_FUNCTION_TO_SQL[vector_function or self.vector_function]
+        vec_func = VECTOR_FUNCTION_TO_SQL[self.vector_function]
         embedding_bytes = _embedding_to_bytes(query_embedding)
 
         extra_where = ""
