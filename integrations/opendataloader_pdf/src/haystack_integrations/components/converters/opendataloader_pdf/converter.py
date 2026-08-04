@@ -32,6 +32,7 @@ class OpenDataLoaderConverter:
 
     def __init__(
         self,
+        *,
         output_format: OutputFormat = "markdown",
         convert_kwargs: dict[str, Any] | None = None,
     ) -> None:
