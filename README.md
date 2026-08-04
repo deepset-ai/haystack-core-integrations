@@ -7,8 +7,8 @@
 | src/haystack\_integrations/tools/mirage/\_async.py     |       40 |       11 |        4 |        1 |     73% |40-41, 61-64, 73-78 |
 | src/haystack\_integrations/tools/mirage/errors.py      |        3 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/tools/mirage/shell\_tool.py |       70 |        1 |       26 |        6 |     93% |35-\>41, 36-\>35, 38-\>40, 154, 164-\>169, 165-\>164, 226-\>exit |
-| src/haystack\_integrations/tools/mirage/workspace.py   |      146 |       10 |       48 |        6 |     92% |102, 224, 233-235, 250-\>255, 252-253, 335, 345, 348 |
-| **TOTAL**                                              |  **259** |   **22** |   **78** |   **13** | **90%** |           |
+| src/haystack\_integrations/tools/mirage/workspace.py   |      146 |        9 |       48 |        5 |     93% |224, 233-235, 250-\>255, 252-253, 335, 345, 348 |
+| **TOTAL**                                              |  **259** |   **21** |   **78** |   **12** | **90%** |           |
 
 
 ## Setup coverage badge
