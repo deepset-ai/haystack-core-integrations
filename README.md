@@ -7,8 +7,8 @@
 | src/haystack\_integrations/common/microsoft\_sharepoint/errors.py                   |        6 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/common/microsoft\_sharepoint/utils.py                    |       61 |        4 |       16 |        4 |     90% |64, 76-\>84, 91-92, 101 |
 | src/haystack\_integrations/components/fetchers/microsoft\_sharepoint/fetcher.py     |      258 |        1 |       70 |        4 |     98% |334, 344-\>347, 422-\>425, 434-\>432 |
-| src/haystack\_integrations/components/retrievers/microsoft\_sharepoint/retriever.py |      139 |        3 |       32 |        3 |     96% |196, 226, 262 |
-| **TOTAL**                                                                           |  **464** |    **8** |  **118** |   **11** | **97%** |           |
+| src/haystack\_integrations/components/retrievers/microsoft\_sharepoint/retriever.py |      142 |        3 |       34 |        3 |     97% |202, 234, 270 |
+| **TOTAL**                                                                           |  **467** |    **8** |  **120** |   **11** | **97%** |           |
 
 
 ## Setup coverage badge
