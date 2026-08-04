@@ -2,29 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Amazon Bedrock Knowledge Base Retriever for Haystack.
-
-Retrieves documents from an Amazon Bedrock Managed Knowledge Base.
-Supports both Managed (recommended) and Vector knowledge base types.
-
-Usage:
-    from haystack_integrations.components.retrievers.amazon_bedrock import BedrockKnowledgeBaseRetriever
-
-    retriever = BedrockKnowledgeBaseRetriever(
-        knowledge_base_id="ABCDEFGHIJ",
-        region_name="us-west-2",
-    )
-
-    result = retriever.run(query="What is retrieval augmented generation?")
-    documents = result["documents"]
-"""
-
-import logging
 import os
 from typing import Any
 
-from haystack import Document, component, default_to_dict
+from botocore.config import Config
+from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack.utils import Secret
+
+from haystack_integrations.common.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+)
+from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 
 logger = logging.getLogger(__name__)
 
@@ -52,20 +41,18 @@ def _get_source_uri(result: dict) -> str:
 @component
 class BedrockKnowledgeBaseRetriever:
     """
-    Retrieves documents from an Amazon Bedrock Knowledge Base.
+    Retrieves documents from an Amazon Bedrock Managed Knowledge Base.
 
-    Supports Managed Knowledge Bases (recommended, no external vector store needed)
-    and traditional Vector Knowledge Bases.
+    Uses AgenticRetrieveStream when available, falling back to the standard Retrieve API otherwise.
 
-    ### Usage example
-
+    Usage example:
     ```python
+    from haystack.utils import Secret
     from haystack_integrations.components.retrievers.amazon_bedrock import BedrockKnowledgeBaseRetriever
 
     retriever = BedrockKnowledgeBaseRetriever(
         knowledge_base_id="ABCDEFGHIJ",
-        region_name="us-west-2",
-        knowledge_base_type="MANAGED",
+        aws_region_name=Secret.from_token("eu-central-1"),
     )
 
     result = retriever.run(query="What are the benefits of managed knowledge bases?")
@@ -74,26 +61,51 @@ class BedrockKnowledgeBaseRetriever:
         print(doc.meta["source"])
         print(doc.score)
     ```
+
+    BedrockKnowledgeBaseRetriever uses AWS for authentication. You can use the AWS CLI to authenticate through
+    your IAM. For more information on setting up an IAM identity-based policy, see [Amazon Bedrock documentation]
+    (https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_id-based-policy-examples.html).
+
+    If the AWS environment is configured correctly, the AWS credentials are not required as they're loaded
+    automatically from the environment or the AWS configuration file.
+    If the AWS environment is not configured, set `aws_access_key_id`, `aws_secret_access_key`,
+    and `aws_region_name` as environment variables or pass them as
+    [Secret](https://docs.haystack.deepset.ai/docs/secret-management) arguments.
     """
 
     def __init__(
         self,
         knowledge_base_id: str | None = None,
-        region_name: str | None = None,
+        aws_access_key_id: Secret | None = Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
+            "AWS_SECRET_ACCESS_KEY", strict=False
+        ),
+        aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         number_of_results: int = 5,
         use_agentic_retrieval: bool | None = None,
     ) -> None:
         """
         Create the BedrockKnowledgeBaseRetriever component.
 
-        :param knowledge_base_id: The ID of the Bedrock Knowledge Base. Falls back to KNOWLEDGE_BASE_ID env var.
-        :param region_name: AWS region. Falls back to AWS_REGION env var or us-east-1.
+        :param knowledge_base_id: The ID of the Bedrock Knowledge Base. Falls back to the KNOWLEDGE_BASE_ID
+            environment variable.
+        :param aws_access_key_id: AWS access key ID.
+        :param aws_secret_access_key: AWS secret access key.
+        :param aws_session_token: AWS session token.
+        :param aws_region_name: AWS region name.
+        :param aws_profile_name: AWS profile name.
         :param number_of_results: Maximum number of results to return.
         :param use_agentic_retrieval: If True, try AgenticRetrieveStream before plain Retrieve.
-            Defaults to USE_AGENTIC_RETRIEVAL env var or True.
+            Defaults to the USE_AGENTIC_RETRIEVAL environment variable, or True.
         """
         self.knowledge_base_id = knowledge_base_id or os.environ.get("KNOWLEDGE_BASE_ID", "")
-        self.region_name = region_name or os.environ.get("AWS_REGION", "us-east-1")
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
+        self.aws_region_name = aws_region_name
+        self.aws_profile_name = aws_profile_name
         self.number_of_results = number_of_results
         self.knowledge_base_type = "MANAGED"
         self.use_agentic_retrieval = (
@@ -101,22 +113,28 @@ class BedrockKnowledgeBaseRetriever:
             if use_agentic_retrieval is not None
             else os.environ.get("USE_AGENTIC_RETRIEVAL", "true").lower() != "false"
         )
-        self._client = None
 
-    def _get_client(self) -> Any:
-        if self._client is None:
-            try:
-                import boto3  # noqa: PLC0415
-                from botocore.config import Config  # noqa: PLC0415
-            except ImportError as err:
-                msg = "boto3 is required for BedrockKnowledgeBaseRetriever. Install with: pip install boto3>=1.43.2"
-                raise ImportError(msg) from err
-            self._client = boto3.client(
-                "bedrock-agent-runtime",
-                region_name=self.region_name,
-                config=Config(user_agent_extra="haystack/bedrock-kb"),
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
+
+        try:
+            session = get_aws_session(
+                aws_access_key_id=resolve_secret(aws_access_key_id),
+                aws_secret_access_key=resolve_secret(aws_secret_access_key),
+                aws_session_token=resolve_secret(aws_session_token),
+                aws_region_name=resolve_secret(aws_region_name),
+                aws_profile_name=resolve_secret(aws_profile_name),
             )
-        return self._client
+            self._client = session.client(
+                "bedrock-agent-runtime",
+                config=Config(user_agent_extra="x-client-framework:haystack"),
+            )
+        except Exception as exception:
+            msg = (
+                "Could not connect to Amazon Bedrock. Make sure the AWS environment is configured correctly. "
+                "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
+            )
+            raise AmazonBedrockConfigurationError(msg) from exception
 
     @component.output_types(documents=list[Document])
     def run(self, query: str, top_k: int | None = None) -> dict[str, list[Document]]:
@@ -126,14 +144,14 @@ class BedrockKnowledgeBaseRetriever:
         :param query: The search query.
         :param top_k: Maximum number of results. Overrides number_of_results if provided.
         :returns: A dictionary with a "documents" key containing the retrieved Documents.
+        :raises AmazonBedrockInferenceError: If the retrieval call fails.
         """
         k = top_k or self.number_of_results
-        client = self._get_client()
 
         # Try agentic retrieval first
         if self.use_agentic_retrieval:
             try:
-                response = client.agentic_retrieve_stream(
+                response = self._client.agentic_retrieve_stream(
                     messages=[{"content": {"text": query}, "role": "user"}],
                     generateResponse=False,
                     retrievers=[
@@ -176,14 +194,17 @@ class BedrockKnowledgeBaseRetriever:
         retrieval_config: dict[str, Any] = {"managedSearchConfiguration": {"numberOfResults": k}}
 
         try:
-            response = client.retrieve(
+            response = self._client.retrieve(
                 knowledgeBaseId=self.knowledge_base_id,
                 retrievalQuery={"text": query},
                 retrievalConfiguration=retrieval_config,
             )
-        except Exception as e:
-            logger.error(f"Error retrieving from Bedrock Knowledge Base: {e}")
-            return {"documents": []}
+        except Exception as exception:
+            msg = (
+                f"Could not retrieve documents from Amazon Bedrock Knowledge Base "
+                f"'{self.knowledge_base_id}' due to:\n{exception}"
+            )
+            raise AmazonBedrockInferenceError(msg) from exception
 
         documents = []
         for result in response.get("retrievalResults", []):
@@ -205,12 +226,29 @@ class BedrockKnowledgeBaseRetriever:
         return {"documents": documents}
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this component to a dictionary."""
+        """
+        Serializes the component to a dictionary.
+
+        :returns: Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             knowledge_base_id=self.knowledge_base_id,
-            region_name=self.region_name,
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            aws_session_token=self.aws_session_token,
+            aws_region_name=self.aws_region_name,
+            aws_profile_name=self.aws_profile_name,
             number_of_results=self.number_of_results,
-            knowledge_base_type=self.knowledge_base_type,
             use_agentic_retrieval=self.use_agentic_retrieval,
         )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BedrockKnowledgeBaseRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data: The dictionary to deserialize from.
+        :returns: The deserialized component.
+        """
+        return default_from_dict(cls, data)

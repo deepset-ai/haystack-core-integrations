@@ -6,7 +6,7 @@ Adds a Haystack retriever component that queries Amazon Bedrock Knowledge Bases 
 ## Usage
 ```python
 from haystack import Pipeline
-from haystack.components.retrievers import BedrockKnowledgeBaseRetriever
+from haystack_integrations.components.retrievers.amazon_bedrock import BedrockKnowledgeBaseRetriever
 
 retriever = BedrockKnowledgeBaseRetriever(knowledge_base_id="YOUR_KB_ID")
 pipeline = Pipeline()
@@ -19,10 +19,12 @@ docs = result["retriever"]["documents"]
 | Variable | Description | Default |
 |---|---|---|
 | KNOWLEDGE_BASE_ID | Bedrock Knowledge Base ID | None |
-| AWS_REGION | AWS region for the KB | us-east-1 |
+| AWS_ACCESS_KEY_ID | AWS access key ID | None |
+| AWS_SECRET_ACCESS_KEY | AWS secret access key | None |
+| AWS_SESSION_TOKEN | AWS session token | None |
+| AWS_DEFAULT_REGION | AWS region for the KB | None |
 | AWS_PROFILE | AWS credentials profile | None |
 | USE_AGENTIC_RETRIEVAL | Enable agentic retrieval | true |
-| MAX_RESULTS | Maximum retrieval results | 5 |
 
 ## Features
 - Managed search (no vector store needed)

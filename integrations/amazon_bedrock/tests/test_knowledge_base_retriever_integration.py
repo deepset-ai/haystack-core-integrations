@@ -23,7 +23,7 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
         """Test standard Retrieve API on a managed knowledge base."""
         retriever = BedrockKnowledgeBaseRetriever(
             knowledge_base_id=os.environ["KNOWLEDGE_BASE_ID"],
-            region_name=os.environ.get("AWS_REGION", "us-west-2"),
+            aws_region_name=os.environ.get("AWS_REGION", "us-west-2"),
             use_agentic_retrieval=False,
             number_of_results=3,
         )
@@ -39,7 +39,7 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
         """Test AgenticRetrieveStream on a managed knowledge base."""
         retriever = BedrockKnowledgeBaseRetriever(
             knowledge_base_id=os.environ["KNOWLEDGE_BASE_ID"],
-            region_name=os.environ.get("AWS_REGION", "us-west-2"),
+            aws_region_name=os.environ.get("AWS_REGION", "us-west-2"),
             use_agentic_retrieval=True,
             number_of_results=5,
         )
@@ -54,11 +54,8 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
         """Verify user-agent header is set correctly."""
         retriever = BedrockKnowledgeBaseRetriever(
             knowledge_base_id=os.environ["KNOWLEDGE_BASE_ID"],
-            region_name=os.environ.get("AWS_REGION", "us-west-2"),
+            aws_region_name=os.environ.get("AWS_REGION", "us-west-2"),
         )
 
-        # Trigger client creation
-        retriever.run(query="test")
-
         ua = retriever._client._client_config.user_agent_extra
-        assert "haystack/bedrock-kb" in ua
+        assert "x-client-framework:haystack" in ua
