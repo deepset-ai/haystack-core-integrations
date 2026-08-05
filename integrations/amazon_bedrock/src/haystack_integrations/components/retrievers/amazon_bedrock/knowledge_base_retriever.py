@@ -89,7 +89,7 @@ class BedrockKnowledgeBaseRetriever:
         """
         Create the BedrockKnowledgeBaseRetriever component.
 
-        :param knowledge_base_id: The ID of the Bedrock Knowledge Base. Falls back to the KNOWLEDGE_BASE_ID
+        :param knowledge_base_id: The ID of the Bedrock Knowledge Base. Falls back to the AWS_KNOWLEDGE_BASE_ID
             environment variable.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
@@ -100,7 +100,7 @@ class BedrockKnowledgeBaseRetriever:
         :param use_agentic_retrieval: If True, try AgenticRetrieveStream before plain Retrieve.
             Defaults to the USE_AGENTIC_RETRIEVAL environment variable, or True.
         """
-        self.knowledge_base_id = knowledge_base_id or os.environ.get("KNOWLEDGE_BASE_ID", "")
+        self.knowledge_base_id = knowledge_base_id or os.environ.get("AWS_KNOWLEDGE_BASE_ID", "")
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token

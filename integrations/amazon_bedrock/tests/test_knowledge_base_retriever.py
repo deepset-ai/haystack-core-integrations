@@ -31,7 +31,7 @@ class TestBedrockKnowledgeBaseRetriever:
         assert retriever.number_of_results == 5
         assert retriever.knowledge_base_type == "MANAGED"
 
-    @patch.dict("os.environ", {"KNOWLEDGE_BASE_ID": "ENV_KB", "AWS_DEFAULT_REGION": "eu-west-1"})
+    @patch.dict("os.environ", {"AWS_KNOWLEDGE_BASE_ID": "ENV_KB", "AWS_DEFAULT_REGION": "eu-west-1"})
     def test_init_from_env(self, mock_aws_session):
         retriever = BedrockKnowledgeBaseRetriever()
         assert retriever.knowledge_base_id == "ENV_KB"
@@ -148,8 +148,9 @@ class TestBedrockKnowledgeBaseRetriever:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not os.environ.get("KNOWLEDGE_BASE_ID"),
-    reason="Set KNOWLEDGE_BASE_ID env var to run integration tests",
+@pytest.mark.skipif(
+    not os.environ.get("AWS_KNOWLEDGE_BASE_ID"),
+    reason="Set AWS_KNOWLEDGE_BASE_ID env var to run integration tests",
 )
 class TestBedrockKnowledgeBaseRetrieverIntegration:
     """Integration tests for BedrockKnowledgeBaseRetriever against a live managed KB."""
@@ -157,8 +158,8 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
     def test_standard_retrieve(self):
         """Test standard Retrieve API on a managed knowledge base."""
         retriever = BedrockKnowledgeBaseRetriever(
-            knowledge_base_id=os.environ["KNOWLEDGE_BASE_ID"],
-            aws_region_name=os.environ.get("AWS_REGION", "us-west-2"),
+            knowledge_base_id=os.environ["AWS_KNOWLEDGE_BASE_ID"],
+            aws_region_name=os.environ["AWS_REGION"],
             use_agentic_retrieval=False,
             number_of_results=3,
         )
@@ -173,8 +174,8 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
     def test_agentic_retrieve(self):
         """Test AgenticRetrieveStream on a managed knowledge base."""
         retriever = BedrockKnowledgeBaseRetriever(
-            knowledge_base_id=os.environ["KNOWLEDGE_BASE_ID"],
-            aws_region_name=os.environ.get("AWS_REGION", "us-west-2"),
+            knowledge_base_id=os.environ["AWS_KNOWLEDGE_BASE_ID"],
+            aws_region_name=os.environ["AWS_REGION"],
             use_agentic_retrieval=True,
             number_of_results=5,
         )
@@ -188,8 +189,8 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
     def test_user_agent(self):
         """Verify user-agent header is set correctly."""
         retriever = BedrockKnowledgeBaseRetriever(
-            knowledge_base_id=os.environ["KNOWLEDGE_BASE_ID"],
-            aws_region_name=os.environ.get("AWS_REGION", "us-west-2"),
+            knowledge_base_id=os.environ["AWS_KNOWLEDGE_BASE_ID"],
+            aws_region_name=os.environ["AWS_REGION"],
         )
 
         ua = retriever._client._client_config.user_agent_extra
