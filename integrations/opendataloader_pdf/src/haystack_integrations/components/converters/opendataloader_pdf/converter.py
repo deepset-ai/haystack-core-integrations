@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Literal
@@ -106,6 +107,20 @@ class OpenDataLoaderConverter:
 
         return pdf_paths
 
+    @staticmethod
+    def _check_java_available() -> None:
+        """
+        Check whether Java is available on PATH.
+
+        OpenDataLoader PDF requires Java 11 or a version that's newer.
+        """
+        if shutil.which("java") is None:
+            message = (
+                "Java 11 or newer is required to use OpenDataLoaderConverter. "
+                "Install Java and ensure `java` is available on PATH."
+            )
+            raise RuntimeError(message)
+
     def _read_output(
         self,
         output_dir: Path,
@@ -169,6 +184,8 @@ class OpenDataLoaderConverter:
                 sources,
                 input_dir,
             )
+
+            self._check_java_available()
 
             opendataloader_pdf.convert(
                 input_path=[str(path) for path in pdf_paths],

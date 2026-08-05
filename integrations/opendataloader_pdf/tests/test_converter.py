@@ -10,6 +10,11 @@ from haystack_integrations.components.converters.opendataloader_pdf import (
 
 @pytest.fixture
 def _mock_opendataloader(monkeypatch):
+    monkeypatch.setattr(
+        "shutil.which",
+        lambda _command: "java",
+    )
+
     def fake_convert(
         input_path,
         output_dir,
@@ -69,6 +74,24 @@ def test_converter_with_bytestream(
     assert len(result["documents"]) == 1
     document = result["documents"][0]
     assert document.content == "This is extracted PDF content"
+
+
+def test_converter_raises_when_java_is_unavailable(
+    tmp_path,
+    monkeypatch,
+):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    monkeypatch.setattr(
+        "shutil.which",
+        lambda _command: None,
+    )
+    converter = OpenDataLoaderConverter()
+    with pytest.raises(
+        RuntimeError,
+        match=r"Java.*required",
+    ):
+        converter.run(sources=[pdf_file])
 
 
 def test_converter_passes_options(

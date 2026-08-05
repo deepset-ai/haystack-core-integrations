@@ -103,6 +103,12 @@ jobs:
           name: coverage-comment-opendataloader_pdf
           path: python-coverage-comment-action-opendataloader_pdf.txt
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
 
