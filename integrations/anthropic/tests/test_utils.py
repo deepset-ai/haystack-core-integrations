@@ -50,6 +50,7 @@ from haystack_integrations.components.generators.anthropic.chat.utils import (
     _convert_image_content_to_anthropic_format,
     _convert_messages_to_anthropic_format,
     _finalize_reasoning_group,
+    _get_openai_compatible_usage,
     _has_server_tool_blocks,
 )
 
@@ -1334,3 +1335,85 @@ class TestFinalizeReasoningGroup:
         formatted: list = []
         _finalize_reasoning_group(formatted, "", None, None)
         assert len(formatted) == 0
+
+
+class TestOpenAICompatibleUsage:
+    @pytest.mark.parametrize(
+        ("usage", "expected_prompt_tokens"),
+        [
+            pytest.param(
+                {"input_tokens": 3, "output_tokens": 120, "cache_read_input_tokens": 20000},
+                20003,
+                id="cache_read_is_billed",
+            ),
+            pytest.param(
+                {"input_tokens": 10, "output_tokens": 5, "cache_creation_input_tokens": 1500},
+                1510,
+                id="cache_creation_is_billed",
+            ),
+            pytest.param(
+                {
+                    "input_tokens": 3,
+                    "output_tokens": 120,
+                    "cache_read_input_tokens": 20000,
+                    "cache_creation_input_tokens": 1500,
+                },
+                21503,
+                id="both_cache_fields",
+            ),
+            pytest.param(
+                {
+                    "input_tokens": 57,
+                    "output_tokens": 40,
+                    "cache_read_input_tokens": None,
+                    "cache_creation_input_tokens": None,
+                },
+                57,
+                id="null_cache_fields",
+            ),
+            pytest.param(
+                {
+                    "input_tokens": 57,
+                    "output_tokens": 40,
+                    "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                },
+                57,
+                id="zero_cache_fields",
+            ),
+            pytest.param(
+                {"input_tokens": 100, "output_tokens": 50},
+                100,
+                id="no_cache_in_play",
+            ),
+        ],
+    )
+    def test_cached_tokens_are_included_in_prompt_tokens(self, usage, expected_prompt_tokens):
+        """Anthropic reports `input_tokens` net of the cache; OpenAI's `prompt_tokens` is not."""
+        # Read before the call: the conversion pops the Anthropic keys off the dict it is given.
+        expected_completion_tokens = usage["output_tokens"]
+
+        result = _get_openai_compatible_usage({"usage": usage})
+
+        assert result["prompt_tokens"] == expected_prompt_tokens
+        assert result["completion_tokens"] == expected_completion_tokens
+
+    def test_anthropic_native_keys_are_preserved(self):
+        """`example/prompt_caching.py` reads these directly, so they must survive."""
+        result = _get_openai_compatible_usage(
+            {
+                "usage": {
+                    "input_tokens": 3,
+                    "output_tokens": 120,
+                    "cache_read_input_tokens": 20000,
+                    "cache_creation_input_tokens": 1500,
+                }
+            }
+        )
+
+        assert result["cache_read_input_tokens"] == 20000
+        assert result["cache_creation_input_tokens"] == 1500
+
+    @pytest.mark.parametrize("response_dict", [{}, {"usage": {}}], ids=["no_usage_key", "empty_usage"])
+    def test_empty_usage_is_unchanged(self, response_dict):
+        assert _get_openai_compatible_usage(response_dict) == {}
