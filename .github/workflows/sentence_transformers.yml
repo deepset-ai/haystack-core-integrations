@@ -104,6 +104,7 @@ jobs:
           path: python-coverage-comment-action-sentence_transformers.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

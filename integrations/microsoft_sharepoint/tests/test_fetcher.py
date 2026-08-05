@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import asyncio
 import base64
 import json
 import os
@@ -458,6 +459,60 @@ class TestPipeline:
 
 @pytest.mark.asyncio
 class TestRunAsync:
+    async def test_failure_cancels_and_drains_siblings(self):
+        fetcher = MSSharePointFetcher(max_retries=0)
+        slow_started = asyncio.Event()
+        slow_cancelled = False
+        current_task = asyncio.current_task()
+        tasks_before = asyncio.all_tasks() - {current_task}
+        slow_url = "https://host/slow.docx"
+        slow_marker = _encode_share_url(slow_url)
+
+        async def get(url, *_args, **_kwargs):
+            nonlocal slow_cancelled
+            if slow_marker in url:
+                slow_started.set()
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    slow_cancelled = True
+                    raise
+            await slow_started.wait()
+            msg = "failed"
+            raise httpx.ReadError(msg)
+
+        targets = [
+            _drive_item_document(url=slow_url),
+            _drive_item_document(url="https://host/failing.docx"),
+        ]
+        with patch.object(httpx.AsyncClient, "get", AsyncMock(side_effect=get)):
+            with pytest.raises(httpx.ReadError):
+                await fetcher.run_async(access_token="tok", targets=targets)
+
+        assert slow_cancelled is True
+        assert asyncio.all_tasks() - {current_task} == tasks_before
+
+    async def test_raise_on_failure_false_skips_failed_items(self):
+        fetcher = MSSharePointFetcher(max_retries=0, raise_on_failure=False)
+        missing_url = "https://host/missing.docx"
+        missing_marker = _encode_share_url(missing_url)
+
+        async def get(url, *_args, **_kwargs):
+            if missing_marker in url:
+                msg = "failed"
+                raise httpx.ReadError(msg)
+            return _binary_response(content=b"ok")
+
+        targets = [
+            _drive_item_document(url=missing_url),
+            _drive_item_document(url="https://host/healthy.docx"),
+        ]
+        with patch.object(httpx.AsyncClient, "get", AsyncMock(side_effect=get)):
+            streams = (await fetcher.run_async(access_token="tok", targets=targets))["streams"]
+
+        assert len(streams) == 1
+        assert streams[0].data == b"ok"
+
     async def test_downloads_drive_item(self):
         fetcher = MSSharePointFetcher()
         get = AsyncMock(return_value=_binary_response(content=b"async-bytes"))

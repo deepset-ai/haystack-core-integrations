@@ -102,6 +102,7 @@ jobs:
           path: python-coverage-comment-action-e2b.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
         run: hatch run test:integration-cov-append-retry

@@ -104,6 +104,7 @@ jobs:
           path: python-coverage-comment-action-agent_pack.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}

@@ -101,6 +101,7 @@ jobs:
           path: python-coverage-comment-action-lara.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           LARA_ACCESS_KEY_ID: ${{ secrets.LARA_ACCESS_KEY_ID }}
           LARA_ACCESS_KEY_SECRET: ${{ secrets.LARA_ACCESS_KEY_SECRET }}

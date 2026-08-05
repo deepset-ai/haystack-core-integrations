@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/nvidia-v1.3.0] - 2026-08-04
+
+### 🐛 Bug Fixes
+
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Fix Nvidia NimBackend type error (#3719)
+- NvidiaRanker missing /ranking path for local NIM deployments (#3483)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+
+
 ## [integrations/nvidia-v1.2.0] - 2026-06-05
 
 ### 🧹 Chores

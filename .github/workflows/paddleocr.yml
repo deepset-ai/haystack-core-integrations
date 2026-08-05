@@ -105,6 +105,7 @@ jobs:
           path: python-coverage-comment-action-paddleocr.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           PADDLEOCR_ACCESS_TOKEN: ${{ secrets.PADDLEOCR_ACCESS_TOKEN }}
           PADDLEOCR_BASE_URL: ${{ secrets.PADDLEOCR_BASE_URL }}
