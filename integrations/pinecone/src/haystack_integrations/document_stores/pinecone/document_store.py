@@ -1070,7 +1070,12 @@ class PineconeDocumentStore:
         return self._get_metadata_field_min_max_impl(documents, metadata_field)
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a metadata field with optional search and pagination.
@@ -1082,13 +1087,19 @@ class PineconeDocumentStore:
         :param search_term: Optional search term to filter values (case-insensitive substring match).
         :param from_: Starting offset for pagination (default: 0).
         :param size: Number of values to return (default: 10).
+        :param filters: Optional filters to restrict the documents considered.
         :returns: Tuple of (list of unique values in their original type, total count of matching values).
         """
-        documents = self.filter_documents(filters=None)
+        documents = self.filter_documents(filters=filters)
         return self._get_metadata_field_unique_values_impl(documents, metadata_field, search_term, from_, size)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronously retrieves unique values for a metadata field with optional search and pagination.
@@ -1100,7 +1111,8 @@ class PineconeDocumentStore:
         :param search_term: Optional search term to filter values (case-insensitive substring match).
         :param from_: Starting offset for pagination (default: 0).
         :param size: Number of values to return (default: 10).
+        :param filters: Optional filters to restrict the documents considered.
         :returns: Tuple of (list of unique values in their original type, total count of matching values).
         """
-        documents = await self.filter_documents_async(filters=None)
+        documents = await self.filter_documents_async(filters=filters)
         return self._get_metadata_field_unique_values_impl(documents, metadata_field, search_term, from_, size)
