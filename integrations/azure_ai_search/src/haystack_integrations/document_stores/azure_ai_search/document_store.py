@@ -560,7 +560,12 @@ class AzureAISearchDocumentStore:
         return self._get_min_max_from_documents(documents, field_name)
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a metadata field with optional search and pagination.
@@ -569,12 +574,13 @@ class AzureAISearchDocumentStore:
         :param search_term: Optional search term to filter unique values.
         :param from_: Starting offset for pagination.
         :param size: Number of values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: Tuple of (list of unique values in their original type, total count of matching values).
         """
         field_name = _normalize_metadata_field_name(metadata_field)
         self._validate_index_fields([field_name])
 
-        documents = self._fetch_raw_documents(select=[field_name])
+        documents = self._fetch_raw_documents(filters=filters, select=[field_name])
         unique_values = sorted(self._collect_unique_values(documents, field_name))
 
         if search_term:
