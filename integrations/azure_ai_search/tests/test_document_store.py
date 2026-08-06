@@ -261,6 +261,47 @@ def test_init():
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
+def test_close():
+    store = AzureAISearchDocumentStore(
+        api_key=Secret.from_token("fake-api-key"),
+        azure_endpoint=Secret.from_token("fake-endpoint"),
+    )
+    client = Mock()
+    index_client = Mock()
+    store._client = client
+    store._index_client = index_client
+
+    store.close()
+
+    client.close.assert_called_once()
+    index_client.close.assert_called_once()
+    assert store._client is None
+    assert store._index_client is None
+
+    store.close()
+
+    client.close.assert_called_once()
+    index_client.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    store = AzureAISearchDocumentStore(
+        api_key=Secret.from_token("fake-api-key"),
+        azure_endpoint=Secret.from_token("fake-endpoint"),
+    )
+    client = Mock()
+    client.close.side_effect = RuntimeError("boom")
+    index_client = Mock()
+    index_client.close.side_effect = RuntimeError("boom")
+    store._client = client
+    store._index_client = index_client
+
+    store.close()
+
+    assert store._client is None
+    assert store._index_client is None
+
+
 def test_token_credential_takes_priority_over_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
     monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
@@ -318,6 +359,25 @@ def test_get_metadata_field_unique_values():
 
     assert values == ["docs"]
     assert total_count == 1
+
+
+def test_get_metadata_field_unique_values_preserves_non_string_types():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="priority", type=SearchFieldDataType.Int32, filterable=True),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    search_client.search.return_value = [
+        {"priority": 1},
+        {"priority": 2},
+        {"priority": 1},
+    ]
+
+    values, total_count = document_store.get_metadata_field_unique_values(metadata_field="meta.priority")
+
+    assert values == [1, 2]
+    assert total_count == 2
 
 
 def test_query_sql_raises_not_implemented():
@@ -495,6 +555,13 @@ class TestDocumentStore(
 ):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
+
+    def test_close_and_reopen(self, document_store: AzureAISearchDocumentStore):
+        assert document_store.count_documents() == 0
+        document_store.close()
+        assert document_store._client is None
+        assert document_store._index_client is None
+        assert document_store.count_documents() == 0
 
     def test_write_documents(self, document_store: AzureAISearchDocumentStore):
         docs = [Document(id="1")]

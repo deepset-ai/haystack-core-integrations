@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/qdrant-v10.5.0] - 2026-08-03
+
+### 🚀 Features
+
+- *(qdrant)* Expose RRF k and weights parameters in QdrantHybridRetriever (#3702)
+
+### 🐛 Bug Fixes
+
+- `Qdrant` normalisation of .meta usage in `get_metadata_field_unique_values()` (#3642)
+- `Qdrant` adding offset based pagination to `get_metadata_field_unique_values()` (#3697)
+
+
+## [integrations/qdrant-v10.4.0] - 2026-07-27
+
+### 🚀 Features
+
+- Add closing methods for Qdrant (#3671)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+
 ## [integrations/qdrant-v10.3.1] - 2026-07-06
 
 ### 🐛 Bug Fixes

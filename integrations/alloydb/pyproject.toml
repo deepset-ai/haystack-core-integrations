@@ -149,6 +149,7 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  "PLR0917",
   # ignore function-call-in-default-argument
   "B008",
   # ignore assertions
