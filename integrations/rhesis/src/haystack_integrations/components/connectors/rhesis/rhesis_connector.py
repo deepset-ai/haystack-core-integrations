@@ -5,15 +5,30 @@
 import os
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict, logging, tracing
+from haystack import DeserializationError, component, default_from_dict, default_to_dict, logging, tracing
+from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
 
 from haystack_integrations.tracing.rhesis import RhesisTracer, SpanHandler
 from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, resolve_frontend_url, tracing_context_var
 from rhesis.telemetry.provider import get_tracer_provider
 
 logger = logging.getLogger(__name__)
+
+
+# haystack 3.0 dropped ``serialize_class_instance``/``deserialize_class_instance`` from
+# ``haystack.utils.base_serialization``. The span handler is an arbitrary user class rather than a
+# component, so it still needs the type-tagged envelope those helpers produced.
+def _serialize_span_handler(span_handler: SpanHandler) -> dict[str, Any]:
+    return {"type": generate_qualified_class_name(type(span_handler)), "data": span_handler.to_dict()}
+
+
+def _deserialize_span_handler(serialized: dict[str, Any]) -> SpanHandler:
+    handler_class = import_class_by_name(serialized["type"])
+    if not issubclass(handler_class, SpanHandler):
+        msg = f"Class '{serialized['type']}' is not a subclass of SpanHandler."
+        raise DeserializationError(msg)
+    return handler_class.from_dict(serialized["data"])
 
 
 @component
@@ -128,7 +143,7 @@ class RhesisConnector:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
-        span_handler = serialize_class_instance(self.span_handler) if self.span_handler else None
+        span_handler = _serialize_span_handler(self.span_handler) if self.span_handler else None
         return default_to_dict(
             self,
             name=self.name,
@@ -146,5 +161,5 @@ class RhesisConnector:
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["api_key"])
         if init_params.get("span_handler") is not None:
-            init_params["span_handler"] = deserialize_class_instance(init_params["span_handler"])
+            init_params["span_handler"] = _deserialize_span_handler(init_params["span_handler"])
         return default_from_dict(cls, data)
