@@ -179,9 +179,7 @@ class TestDocumentStoreAsync(
         await document_store_async.write_documents_async(docs)
 
         filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = await document_store_async.get_metadata_field_unique_values_async(
-            "category", filters=filters
-        )
+        values, total = await document_store_async.get_metadata_field_unique_values_async("category", filters=filters)
         assert set(values) == {"A", "B"}
         assert total == 2
 
