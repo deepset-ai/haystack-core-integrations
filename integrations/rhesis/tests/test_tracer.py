@@ -28,6 +28,9 @@ from haystack_integrations.tracing.rhesis.tracer import (
 _AGENT_INPUT_KEY = "haystack.agent.input"
 _AGENT_OUTPUT_KEY = "haystack.agent.output"
 
+_PIPELINE_INPUT_KEY = "haystack.pipeline.input_data"
+_PIPELINE_OUTPUT_KEY = "haystack.pipeline.output_data"
+
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _COMPONENT_INPUT_KEY = "haystack.component.input"
 _COMPONENT_NAME_KEY = "haystack.component.name"
@@ -166,12 +169,12 @@ class TestDefaultSpanHandler:
         recording = RecordingSpan()
         span = RhesisSpan(RecordingContextManager(recording))
         span._data = {
-            "haystack.pipeline.input_data": {"query": "hello"},
-            "haystack.pipeline.output_data": {"answer": "world"},
+            _PIPELINE_INPUT_KEY: {"chat": {"messages": [ChatMessage.from_user("hello")]}},
+            _PIPELINE_OUTPUT_KEY: {"chat": {"messages": [ChatMessage.from_assistant("world")]}},
         }
         handler.handle(span, component_type=None)
-        assert ConversationContext.SpanAttributes.CONVERSATION_INPUT in recording.attributes
-        assert ConversationContext.SpanAttributes.CONVERSATION_OUTPUT in recording.attributes
+        assert recording.attributes[ConversationContext.SpanAttributes.CONVERSATION_INPUT] == "hello"
+        assert recording.attributes[ConversationContext.SpanAttributes.CONVERSATION_OUTPUT] == "world"
 
     def test_handle_agent_conversation_io(self):
         handler = DefaultSpanHandler()
@@ -195,6 +198,102 @@ class TestDefaultSpanHandler:
         )
         assert recording.attributes[ConversationContext.SpanAttributes.IS_TURN_ROOT] is True
         assert recording.attributes[ConversationContext.SpanAttributes.CONVERSATION_ID] == "sess-agent"
+
+    def test_handle_pipeline_conversation_io_extracts_message_text(self):
+        """A pipeline root owning the turn must publish text, not a serialized payload."""
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span._data = {
+            _PIPELINE_INPUT_KEY: {
+                "chat": {
+                    "messages": [ChatMessage.from_user("Plan a trip to Rome")],
+                    "slots": {"city": None},
+                }
+            },
+            _PIPELINE_OUTPUT_KEY: {
+                "chat": {
+                    "messages": [
+                        ChatMessage.from_assistant("Here is your Rome itinerary."),
+                    ],
+                    "tool_call_counts": {"search": 1},
+                }
+            },
+        }
+        token = tracing_context_var.set({"session_id": "sess-pipeline"})
+        try:
+            handler.handle(span, component_type=None)
+        finally:
+            tracing_context_var.reset(token)
+
+        attrs = ConversationContext.SpanAttributes
+        assert recording.attributes[attrs.CONVERSATION_INPUT] == "Plan a trip to Rome"
+        assert recording.attributes[attrs.CONVERSATION_OUTPUT] == "Here is your Rome itinerary."
+        assert recording.attributes[attrs.IS_TURN_ROOT] is True
+        assert recording.attributes[attrs.CONVERSATION_ID] == "sess-pipeline"
+
+    def test_handle_pipeline_conversation_io_prefers_last_message(self):
+        """An Agent inside the pipeline reports its closing turn as `last_message`."""
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span._data = {
+            _PIPELINE_INPUT_KEY: {"agent": {"messages": [ChatMessage.from_user("hello")]}},
+            _PIPELINE_OUTPUT_KEY: {"agent": {"last_message": ChatMessage.from_assistant("Hi there.")}},
+        }
+        token = tracing_context_var.set({"session_id": "sess-last"})
+        try:
+            handler.handle(span, component_type=None)
+        finally:
+            tracing_context_var.reset(token)
+
+        attrs = ConversationContext.SpanAttributes
+        assert recording.attributes[attrs.CONVERSATION_INPUT] == "hello"
+        assert recording.attributes[attrs.CONVERSATION_OUTPUT] == "Hi there."
+
+    def test_handle_pipeline_conversation_io_skips_tool_call_only_turns(self):
+        """An assistant message that only requests tools has no text worth showing."""
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span._data = {
+            _PIPELINE_INPUT_KEY: {"agent": {"messages": [ChatMessage.from_user("hello")]}},
+            _PIPELINE_OUTPUT_KEY: {
+                "agent": {
+                    "messages": [
+                        ChatMessage.from_assistant("The real reply."),
+                        ChatMessage.from_assistant(tool_calls=[ToolCall(id="1", tool_name="search", arguments={})]),
+                    ]
+                }
+            },
+        }
+        token = tracing_context_var.set({"session_id": "sess-tools"})
+        try:
+            handler.handle(span, component_type=None)
+        finally:
+            tracing_context_var.reset(token)
+
+        attrs = ConversationContext.SpanAttributes
+        assert recording.attributes[attrs.CONVERSATION_OUTPUT] == "The real reply."
+
+    def test_handle_pipeline_conversation_io_stamps_nothing_without_messages(self):
+        """No chat history means no conversation text: a dict dump is never a valid rendering."""
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span._data = {
+            _PIPELINE_INPUT_KEY: {"ranker": {"query": "rome", "top_k": 5}},
+            _PIPELINE_OUTPUT_KEY: {"ranker": {"documents": ["a", "b"]}},
+        }
+        token = tracing_context_var.set({"session_id": "sess-nodocs"})
+        try:
+            handler.handle(span, component_type=None)
+        finally:
+            tracing_context_var.reset(token)
+
+        attrs = ConversationContext.SpanAttributes
+        assert attrs.CONVERSATION_INPUT not in recording.attributes
+        assert attrs.CONVERSATION_OUTPUT not in recording.attributes
 
     def test_handle_chat_generator(self):
         handler = DefaultSpanHandler()

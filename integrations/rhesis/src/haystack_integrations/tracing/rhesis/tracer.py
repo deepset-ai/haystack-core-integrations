@@ -109,24 +109,76 @@ def _messages_from_agent_payload(payload: Any) -> list[Any]:
     return []
 
 
+def _role_message_text(message: Any, role: ChatRole) -> str:
+    """Return a message's text when it carries ``role``, else an empty string."""
+    if isinstance(message, ChatMessage) and message.is_from(role):
+        return _message_text(message)
+    if isinstance(message, dict) and message.get("role") == role.value:
+        return _message_text(message)
+    return ""
+
+
+def _last_role_text(messages: list[Any], role: ChatRole) -> str:
+    """
+    Return the text of the last message carrying ``role`` that actually has text.
+
+    Messages without text are skipped rather than ending the search: an assistant turn that
+    only requests tool calls carries no text, and the reply worth showing is further back.
+    """
+    for message in reversed(messages):
+        text = _role_message_text(message, role)
+        if text:
+            return text
+    return ""
+
+
 def _extract_agent_conversation_io(data: dict[str, Any]) -> tuple[str, str]:
     """Return user input and assistant output text from agent span tags."""
+    conv_input = _last_role_text(_messages_from_agent_payload(data.get(_AGENT_INPUT_KEY)), ChatRole.USER)
+    conv_output = _last_role_text(_messages_from_agent_payload(data.get(_AGENT_OUTPUT_KEY)), ChatRole.ASSISTANT)
+    return conv_input, conv_output
+
+
+def _component_payloads(value: Any) -> list[Any]:
+    """
+    Return the payloads to search in a pipeline input/output mapping.
+
+    Pipeline I/O is keyed by component name — ``{"chat": {"messages": [...]}}`` — so the
+    per-component values are what hold a chat history. The mapping itself is tried first for
+    the case where a caller passes a payload straight through.
+    """
+    if not isinstance(value, dict):
+        return []
+    return [value, *value.values()]
+
+
+def _extract_pipeline_conversation_io(data: dict[str, Any]) -> tuple[str, str]:
+    """
+    Return user input and assistant output text from pipeline span tags.
+
+    Returns empty strings when no chat messages can be found, so the caller stamps no
+    conversation text at all. A serialized pipeline payload is never a valid rendering of what
+    the user said, and showing nothing beats showing a dict dump.
+
+    This is a fallback for pipelines traced without a Rhesis SDK endpoint above them, not an
+    authoritative record: only the application knows how it derives its reply, which may be a
+    tool result or a value it keeps in Agent state rather than the last assistant message.
+    """
     conv_input = ""
-    for message in reversed(_messages_from_agent_payload(data.get(_AGENT_INPUT_KEY))):
-        if isinstance(message, ChatMessage) and message.is_from(ChatRole.USER):
-            conv_input = _message_text(message)
-            break
-        if isinstance(message, dict) and message.get("role") == "user":
-            conv_input = _message_text(message)
+    for payload in _component_payloads(data.get(_PIPELINE_INPUT_KEY)):
+        conv_input = _last_role_text(_messages_from_agent_payload(payload), ChatRole.USER)
+        if conv_input:
             break
 
     conv_output = ""
-    for message in reversed(_messages_from_agent_payload(data.get(_AGENT_OUTPUT_KEY))):
-        if isinstance(message, ChatMessage) and message.is_from(ChatRole.ASSISTANT):
-            conv_output = _message_text(message)
-            break
-        if isinstance(message, dict) and message.get("role") == "assistant":
-            conv_output = _message_text(message)
+    for payload in _component_payloads(data.get(_PIPELINE_OUTPUT_KEY)):
+        if isinstance(payload, dict):
+            # An Agent reports its closing turn as `last_message`.
+            conv_output = _role_message_text(payload.get("last_message"), ChatRole.ASSISTANT)
+            if conv_output:
+                break
+        conv_output = _last_role_text(_messages_from_agent_payload(payload), ChatRole.ASSISTANT)
+        if conv_output:
             break
 
     return conv_input, conv_output
@@ -587,8 +639,7 @@ class DefaultSpanHandler(SpanHandler):
         conv_input = ""
         conv_output = ""
         if data.get(_PIPELINE_INPUT_KEY) is not None:
-            conv_input = _stringify_content(data.get(_PIPELINE_INPUT_KEY))
-            conv_output = _stringify_content(data.get(_PIPELINE_OUTPUT_KEY))
+            conv_input, conv_output = _extract_pipeline_conversation_io(data)
         elif data.get(_AGENT_INPUT_KEY) is not None and _is_outermost_agent_turn_span():
             conv_input, conv_output = _extract_agent_conversation_io(data)
 
