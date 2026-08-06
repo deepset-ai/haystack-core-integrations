@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from rhesis.sdk.telemetry.attributes import AIAttributes
@@ -75,7 +75,7 @@ APPENDIX_A_OPERATIONS: frozenset[str] = frozenset(
 )
 
 
-class MappingPromotion(str, Enum):
+class MappingPromotion(StrEnum):
     FIRST_CLASS = "first-class"
     METADATA = "metadata"
     MIXED = "mixed"
