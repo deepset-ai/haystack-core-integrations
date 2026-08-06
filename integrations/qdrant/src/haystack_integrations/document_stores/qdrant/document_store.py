@@ -54,6 +54,21 @@ def get_batches_from_generator(iterable: list, n: int) -> Generator:
         x = tuple(islice(it, n))
 
 
+def _build_rrf_query(
+    rrf_k: int | None = None,
+    rrf_weights: list[float] | None = None,
+) -> Any:
+    """Build a Qdrant RRF query object, using custom params when provided."""
+    if rrf_k is not None or rrf_weights is not None:
+        rrf_kwargs: dict[str, Any] = {}
+        if rrf_k is not None:
+            rrf_kwargs["k"] = rrf_k
+        if rrf_weights is not None:
+            rrf_kwargs["weights"] = rrf_weights
+        return rest.RrfQuery(rrf=rest.Rrf(**rrf_kwargs))
+    return rest.FusionQuery(fusion=rest.Fusion.RRF)
+
+
 class QdrantDocumentStore:
     """
     A QdrantDocumentStore implementation that you can use with any Qdrant instance.
@@ -726,11 +741,9 @@ class QdrantDocumentStore:
         metadata_field: str,
         unique_values: list[Any],
         unique_values_set: set[Any],
-        offset: int,
-        limit: int,
         search_term: str | None = None,
-    ) -> bool:
-        """Collect unique values from a batch of records. Returns True when len(unique_values) >= offset + limit."""
+    ) -> None:
+        """Collect unique values from a batch of records into unique_values / unique_values_set."""
         for record in records:
             if record.payload and "meta" in record.payload:
                 meta = record.payload["meta"]
@@ -743,9 +756,6 @@ class QdrantDocumentStore:
                         if hashable_value not in unique_values_set:
                             unique_values_set.add(hashable_value)
                             unique_values.append(value)
-                            if len(unique_values) >= offset + limit:
-                                return True
-        return False
 
     @staticmethod
     def _create_updated_point_from_record(record: Any, meta: dict[str, Any]) -> rest.PointStruct:
@@ -1289,24 +1299,27 @@ class QdrantDocumentStore:
     def get_metadata_field_unique_values(
         self,
         metadata_field: str,
-        filters: dict[str, Any] | None = None,
         search_term: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> list[Any]:
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
-        Returns unique values for a metadata field, with optional filters and offset/limit pagination.
+        Returns unique values for a metadata field, with optional filters, search term and pagination.
 
-        Unique values are ordered by first occurrence during scroll. Pagination is offset-based over that order.
+        Unique values are ordered by first occurrence during scroll.
+
+        **Note**: This operation can be expensive for metadata fields with many unique values, since all
+        matching documents must be scrolled through to compute the total count.
 
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
+        :param from_: The offset for pagination (0-based). Defaults to 0.
+        :param size: The maximum number of unique values to return. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
-        :param limit: Maximum number of unique values to return per page. Defaults to 100.
-        :param offset: Number of unique values to skip (for pagination). Defaults to 0.
 
-        :returns: A list of unique values for the field (at most ``limit`` items, starting at ``offset``).
+        :returns: A tuple containing (list of unique values, total count of unique matching values).
         """
         self._initialize_client()
         assert self._client is not None
@@ -1318,7 +1331,7 @@ class QdrantDocumentStore:
 
         try:
             next_offset = None
-            while len(unique_values) < offset + limit:
+            while True:
                 records, next_offset = self._client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -1327,39 +1340,40 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-                if self._process_records_unique_values(
-                    records, field_name, unique_values, unique_values_set, offset, limit, search_term
-                ):
-                    break
+                self._process_records_unique_values(records, field_name, unique_values, unique_values_set, search_term)
                 if self._check_stop_scrolling(next_offset):
                     break
 
-            return unique_values[offset : offset + limit]
+            total_count = len(unique_values)
+            return unique_values[from_ : from_ + size], total_count
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_unique_values()")
-            return []
+            return [], 0
 
     async def get_metadata_field_unique_values_async(
         self,
         metadata_field: str,
-        filters: dict[str, Any] | None = None,
         search_term: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> list[Any]:
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
-        Asynchronously returns unique values for a metadata field, with optional filters and offset/limit pagination.
+        Asynchronously returns unique values for a metadata field, with optional filters, search term and pagination.
 
-        Unique values are ordered by first occurrence during scroll. Pagination is offset-based over that order.
+        Unique values are ordered by first occurrence during scroll.
+
+        **Note**: This operation can be expensive for metadata fields with many unique values, since all
+        matching documents must be scrolled through to compute the total count.
 
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
+        :param from_: The offset for pagination (0-based). Defaults to 0.
+        :param size: The maximum number of unique values to return. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
-        :param limit: Maximum number of unique values to return per page. Defaults to 100.
-        :param offset: Number of unique values to skip (for pagination). Defaults to 0.
 
-        :returns: A list of unique values for the field (at most ``limit`` items, starting at ``offset``).
+        :returns: A tuple containing (list of unique values, total count of unique matching values).
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1371,7 +1385,7 @@ class QdrantDocumentStore:
 
         try:
             next_offset = None
-            while len(unique_values) < offset + limit:
+            while True:
                 records, next_offset = await self._async_client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -1380,17 +1394,15 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-                if self._process_records_unique_values(
-                    records, field_name, unique_values, unique_values_set, offset, limit, search_term
-                ):
-                    break
+                self._process_records_unique_values(records, field_name, unique_values, unique_values_set, search_term)
                 if self._check_stop_scrolling(next_offset):
                     break
 
-            return unique_values[offset : offset + limit]
+            total_count = len(unique_values)
+            return unique_values[from_ : from_ + size], total_count
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_unique_values_async()")
-            return []
+            return [], 0
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "QdrantDocumentStore":
@@ -1711,6 +1723,8 @@ class QdrantDocumentStore:
         score_threshold: float | None = None,
         group_by: str | None = None,
         group_size: int | None = None,
+        rrf_k: int | None = None,
+        rrf_weights: list[float] | None = None,
     ) -> list[Document]:
         """
         Retrieves documents based on dense and sparse embeddings and fuses the results using Reciprocal Rank Fusion.
@@ -1731,6 +1745,10 @@ class QdrantDocumentStore:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
+        :param rrf_k: The `k` constant for Reciprocal Rank Fusion. Controls the ranking formula smoothing.
+            Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Per-prefetch weights for RRF fusion. Must have 2 elements: [sparse_weight, dense_weight].
+            Requires Qdrant server >= 1.17.0.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -1752,6 +1770,7 @@ class QdrantDocumentStore:
             raise QdrantStoreError(message)
 
         qdrant_filters = convert_filters_to_qdrant(filters)
+        rrf_query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
 
         try:
             if group_by:
@@ -1772,7 +1791,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     group_by=group_by,
                     group_size=group_size or DEFAULT_GROUP_SIZE,
@@ -1798,7 +1817,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     score_threshold=score_threshold,
                     with_payload=True,
@@ -1965,6 +1984,8 @@ class QdrantDocumentStore:
         score_threshold: float | None = None,
         group_by: str | None = None,
         group_size: int | None = None,
+        rrf_k: int | None = None,
+        rrf_weights: list[float] | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents based on dense and sparse embeddings.
@@ -1987,6 +2008,8 @@ class QdrantDocumentStore:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
+        :param rrf_k: The `k` constant for Reciprocal Rank Fusion. Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Per-prefetch weights for RRF fusion. Requires Qdrant server >= 1.17.0.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -2005,6 +2028,7 @@ class QdrantDocumentStore:
             raise QdrantStoreError(message)
 
         qdrant_filters = convert_filters_to_qdrant(filters)
+        rrf_query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
 
         try:
             if group_by:
@@ -2025,7 +2049,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     group_by=group_by,
                     group_size=group_size or DEFAULT_GROUP_SIZE,
@@ -2052,7 +2076,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     score_threshold=score_threshold,
                     with_payload=True,

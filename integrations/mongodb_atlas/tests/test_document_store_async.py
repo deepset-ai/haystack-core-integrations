@@ -97,6 +97,17 @@ class TestMongoDBDocumentStoreAsyncUnit:
         assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
         assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
 
+    async def test_get_metadata_field_unique_values_preserves_non_string_types(self, mocked_store_collection_async):
+        store, collection = mocked_store_collection_async
+        cursor = MagicMock()
+        cursor.to_list = AsyncMock(return_value=[{"count": [{"count": 2}], "values": [{"_id": 1}, {"_id": 2}]}])
+        collection.aggregate = AsyncMock(return_value=cursor)
+
+        values, count = await store.get_metadata_field_unique_values_async("priority")
+
+        assert values == [1, 2]
+        assert count == 2
+
     async def test_close_async(self, local_store):
         connection = AsyncMock()
         local_store._connection_async = connection
@@ -184,3 +195,16 @@ class TestDocumentStoreAsync(
         await document_store.close_async()
         assert document_store._connection_async is None
         assert await document_store.count_documents_async() == 0
+
+    async def test_get_metadata_field_unique_values_with_filters(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await document_store.get_metadata_field_unique_values_async("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

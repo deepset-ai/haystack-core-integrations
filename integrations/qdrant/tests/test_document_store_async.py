@@ -148,7 +148,7 @@ class TestQdrantDocumentStoreAsyncUnit:
             ("get_metadata_fields_info_async", (), {}),
             ("get_metadata_field_min_max_async", ("score",), {}),
             ("count_unique_metadata_by_filter_async", ({}, ["category"]), {"category": 0}),
-            ("get_metadata_field_unique_values_async", ("category",), []),
+            ("get_metadata_field_unique_values_async", ("category",), ([], 0)),
         ],
     )
     async def test_metadata_methods_async_absorb_client_errors(self, method_name, args, expected):
@@ -351,8 +351,9 @@ class TestQdrantDocumentStoreAsync(
         ]
         await document_store.write_documents_async(docs)
 
-        values = await document_store.get_metadata_field_unique_values_async("meta.category")
+        values, total = await document_store.get_metadata_field_unique_values_async("meta.category")
         assert set(values) == {"A", "B"}
+        assert total == 2
 
     async def test_get_metadata_field_unique_values_with_search_term_async(self, document_store: QdrantDocumentStore):
         """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
@@ -363,8 +364,12 @@ class TestQdrantDocumentStoreAsync(
         ]
         await document_store.write_documents_async(docs)
 
-        values = await document_store.get_metadata_field_unique_values_async("category", search_term="ap")
+        values, total = await document_store.get_metadata_field_unique_values_async("category", search_term="ap")
         assert set(values) == {"Apple", "Apricot"}
+        assert total == 2
 
-        values = await document_store.get_metadata_field_unique_values_async("category", search_term="nonexistent")
+        values, total = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="nonexistent"
+        )
         assert values == []
+        assert total == 0

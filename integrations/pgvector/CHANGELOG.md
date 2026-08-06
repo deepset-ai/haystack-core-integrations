@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/pgvector-v6.5.0] - 2026-08-03
+
+### 🚀 Features
+
+- Add array_contains and array_overlaps operators to pgvector filters (#3459)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `PGVectorDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3709)
+
+
 ## [integrations/pgvector-v6.4.1] - 2026-07-23
 
 ### 🐛 Bug Fixes

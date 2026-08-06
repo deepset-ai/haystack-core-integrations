@@ -866,3 +866,21 @@ class TestMetadataOperations:
         values, total = populated_store.get_metadata_field_unique_values("category", from_=10, size=10)
         assert values == []  # No values beyond offset
         assert total == 3  # Total count is still 3
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, populated_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        values, total = populated_store.get_metadata_field_unique_values("priority", from_=0, size=10)
+        assert set(values) == {1, 2, 3}
+        assert total == 3
+
+    def test_get_metadata_field_unique_values_with_filters(self, populated_store):
+        """Test that filters restrict which documents' values are considered"""
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B", "C"}
+        assert total == 3
+
+        filters = {"field": "meta.status", "operator": "==", "value": "inactive"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

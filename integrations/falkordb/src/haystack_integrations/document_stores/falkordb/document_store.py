@@ -609,7 +609,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
 
@@ -618,8 +618,9 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             field's own value.
         :param from_: The offset for pagination (0-based).
         :param size: Maximum number of values to return per page. Defaults to 10.
-        :returns: Tuple of `(values, total_count)`. `total_count` is the number of distinct
-            values matching the filter, independent of pagination.
+        :returns: Tuple of `(values, total_count)`. Values are returned in their original type.
+            `total_count` is the number of distinct values matching the filter, independent of
+            pagination.
         """
         self._ensure_connected()
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field

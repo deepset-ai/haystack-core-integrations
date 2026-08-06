@@ -14,6 +14,7 @@ from haystack.utils import Secret
 from haystack_integrations.common.google_drive.errors import GoogleDriveConfigError, GoogleDriveRequestError
 from haystack_integrations.common.google_drive.utils import (
     DEFAULT_API_BASE_URL,
+    _gather_tasks_with_cancel,
     build_async_retrying,
     build_retrying,
     resolve_access_token,
@@ -197,7 +198,8 @@ class GoogleDriveFetcher:
                 return await self._process_async(client, token, file_id, hints)
 
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-            results = await asyncio.gather(*(fetch_one(client, file_id, hints) for file_id, hints in resolved))
+            tasks = [asyncio.create_task(fetch_one(client, file_id, hints)) for file_id, hints in resolved]
+            results = await _gather_tasks_with_cancel(tasks)
 
         return {"streams": [stream for stream in results if stream is not None]}
 
