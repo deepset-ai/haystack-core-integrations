@@ -75,6 +75,7 @@ long-running services, disable per-span flush and flush on shutdown:
 
 ```python
 import os
+
 os.environ["HAYSTACK_RHESIS_ENFORCE_FLUSH"] = "false"
 
 from haystack.tracing import tracer
@@ -90,10 +91,12 @@ finally:
 ```python
 from haystack_integrations.tracing.rhesis import DefaultSpanHandler, RhesisSpan
 
+
 class CustomSpanHandler(DefaultSpanHandler):
     def handle(self, span: RhesisSpan, component_type: str | None) -> None:
         super().handle(span, component_type)
         # add custom attributes here
+
 
 connector = RhesisConnector("My app", span_handler=CustomSpanHandler())
 ```
