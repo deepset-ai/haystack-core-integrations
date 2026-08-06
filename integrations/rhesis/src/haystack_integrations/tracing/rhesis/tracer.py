@@ -41,6 +41,7 @@ from haystack_integrations.tracing.rhesis.mapping import (
     resolve_span_name,
 )
 from rhesis.sdk.telemetry.attributes import AIAttributes, AIEvents
+from rhesis.sdk.telemetry.context import get_root_trace_id
 from rhesis.sdk.telemetry.utils.token_extraction import extract_token_usage
 from rhesis.telemetry.constants import ConversationContext
 from rhesis.telemetry.schemas import AIOperationType
@@ -190,6 +191,23 @@ def _is_outermost_agent_turn_span() -> bool:
     return len(stack) <= _OUTERMOST_AGENT_STACK_DEPTH
 
 
+def _external_turn_root_active() -> bool:
+    """
+    True when a Rhesis SDK span already owns the conversation turn.
+
+    ``get_root_trace_id`` is a ``ContextVar`` the SDK tracer sets when it opens the root span of an
+    ``@endpoint`` / ``@observe`` call, so it is visible to everything that call runs — including the
+    Haystack pipeline it invokes. Exactly one span per turn may carry ``is_turn_root``: the outermost
+    one. When the SDK already opened it, the Haystack root span is a child of that turn, not a turn
+    of its own, and must not claim the flag or restate the turn's input/output.
+
+    Deliberately keyed on the SDK context rather than ``trace.get_current_span()``: only a span that
+    actually claims the turn should suppress the flag, so unrelated ambient instrumentation (an HTTP
+    server span, say) cannot leave a turn with no root at all.
+    """
+    return get_root_trace_id() is not None
+
+
 def _apply_conversation_turn_attributes(otel_span: trace.Span) -> None:
     tracing_ctx = tracing_context_var.get({})
     session = tracing_ctx.get("session_id") or tracing_ctx.get("conversation_id")
@@ -263,6 +281,11 @@ class RhesisSpan(Span):
         # Retained so post-run enrichment can tell haystack 3.0 agent-loop spans apart: they share the
         # same (absent) component type, so operation name is the only discriminator available.
         self.operation_name = operation_name
+        # Whether this span may claim the conversation turn. Decided once at creation (see
+        # DefaultSpanHandler.create_span) because by enrichment time this span is the current one and
+        # the enclosing context can no longer be inspected. Defaults to True: standalone Haystack, with
+        # nothing above it, owns the turn.
+        self.owns_conversation_turn = True
 
     def set_tag(self, key: str, value: Any) -> None:
         """Set a generic tag for this span."""
@@ -588,6 +611,7 @@ class DefaultSpanHandler(SpanHandler):
             kind=trace.SpanKind.INTERNAL,
         )
         rhesis_span = RhesisSpan(span_cm, operation_name=context.operation_name)
+        rhesis_span.owns_conversation_turn = not _external_turn_root_active()
         otel_span = rhesis_span.raw_span()
 
         operation_type = resolve_operation_type(span_name)
@@ -598,6 +622,11 @@ class DefaultSpanHandler(SpanHandler):
             otel_span.set_attribute("haystack.trace.name", context.trace_name)
             tracing_ctx = tracing_context_var.get({})
             mapped = map_invocation_context(tracing_ctx)
+            if not rhesis_span.owns_conversation_turn:
+                # Session and conversation ids stay: they are useful on a nested span and the exporter
+                # propagates them anyway. The turn-root flag must not, or the exporter strips this
+                # span's real parent and the Haystack subtree detaches into a second turn.
+                mapped.pop(ConversationContext.SpanAttributes.IS_TURN_ROOT, None)
             for key, value in mapped.items():
                 otel_span.set_attribute(key, _coerce_attribute_value(value))
 
@@ -636,17 +665,20 @@ class DefaultSpanHandler(SpanHandler):
         otel_span = span.raw_span()
         data = span.get_data()
 
-        conv_input = ""
-        conv_output = ""
-        if data.get(_PIPELINE_INPUT_KEY) is not None:
-            conv_input, conv_output = _extract_pipeline_conversation_io(data)
-        elif data.get(_AGENT_INPUT_KEY) is not None and _is_outermost_agent_turn_span():
-            conv_input, conv_output = _extract_agent_conversation_io(data)
+        # Skipped entirely when an SDK span owns the turn: it already carries the mapped user message
+        # and reply, whereas the promotion below would restate them as raw pipeline dumps.
+        if span.owns_conversation_turn:
+            conv_input = ""
+            conv_output = ""
+            if data.get(_PIPELINE_INPUT_KEY) is not None:
+                conv_input, conv_output = _extract_pipeline_conversation_io(data)
+            elif data.get(_AGENT_INPUT_KEY) is not None and _is_outermost_agent_turn_span():
+                conv_input, conv_output = _extract_agent_conversation_io(data)
 
-        if conv_input or conv_output:
-            _stamp_conversation_io(otel_span, conv_input, conv_output)
-            if data.get(_PIPELINE_INPUT_KEY) is not None or _is_outermost_agent_turn_span():
-                _apply_conversation_turn_attributes(otel_span)
+            if conv_input or conv_output:
+                _stamp_conversation_io(otel_span, conv_input, conv_output)
+                if data.get(_PIPELINE_INPUT_KEY) is not None or _is_outermost_agent_turn_span():
+                    _apply_conversation_turn_attributes(otel_span)
 
         if component_type == "ToolInvoker":
             tool_names: list[str] = []

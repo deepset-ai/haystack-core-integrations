@@ -12,6 +12,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from rhesis.sdk.telemetry.attributes import AIAttributes
+from rhesis.sdk.telemetry.context import set_root_trace_id
 from rhesis.telemetry.constants import ConversationContext
 
 from haystack_integrations.tracing.rhesis.tracer import (
@@ -79,6 +80,16 @@ class RecordingContextManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         return None
+
+
+@pytest.fixture
+def sdk_endpoint_span_open():
+    """Simulate a Rhesis SDK root span (``@endpoint``) already tracing this call."""
+    set_root_trace_id("a" * 32)
+    try:
+        yield
+    finally:
+        set_root_trace_id(None)
 
 
 def _make_telemetry() -> RhesisTelemetry:
@@ -164,6 +175,61 @@ class TestDefaultSpanHandler:
             finally:
                 tracing_context_var.reset(token)
 
+    def test_root_pipeline_span_claims_turn_when_standalone(self):
+        telemetry = _make_telemetry()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(telemetry)
+
+        with patch.object(telemetry.otel_tracer, "start_as_current_span") as mock_start:
+            recording = RecordingSpan()
+            mock_start.return_value = RecordingContextManager(recording)
+            context = SpanContext(
+                name="haystack.pipeline.run",
+                operation_name="haystack.pipeline.run",
+                component_type=None,
+                tags={},
+                parent_span=None,
+                is_root=True,
+            )
+            token = tracing_context_var.set({"session_id": "sess-1"})
+            try:
+                span = handler.create_span(context)
+            finally:
+                tracing_context_var.reset(token)
+
+        assert span.owns_conversation_turn is True
+        assert recording.attributes[ConversationContext.SpanAttributes.IS_TURN_ROOT] is True
+        assert recording.attributes[ConversationContext.SpanAttributes.CONVERSATION_ID] == "sess-1"
+
+    def test_root_pipeline_span_yields_turn_to_sdk_endpoint(self, sdk_endpoint_span_open):
+        telemetry = _make_telemetry()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(telemetry)
+
+        with patch.object(telemetry.otel_tracer, "start_as_current_span") as mock_start:
+            recording = RecordingSpan()
+            mock_start.return_value = RecordingContextManager(recording)
+            context = SpanContext(
+                name="haystack.pipeline.run",
+                operation_name="haystack.pipeline.run",
+                component_type=None,
+                tags={},
+                parent_span=None,
+                is_root=True,
+            )
+            token = tracing_context_var.set({"session_id": "sess-1"})
+            try:
+                span = handler.create_span(context)
+            finally:
+                tracing_context_var.reset(token)
+
+        # No turn-root flag: the exporter would strip this span's real parent and the Haystack
+        # subtree would surface as a second conversation turn.
+        assert span.owns_conversation_turn is False
+        assert ConversationContext.SpanAttributes.IS_TURN_ROOT not in recording.attributes
+        assert recording.attributes[ConversationContext.SpanAttributes.CONVERSATION_ID] == "sess-1"
+        assert recording.attributes[AIAttributes.SESSION_ID] == "sess-1"
+
     def test_handle_pipeline_io(self):
         handler = DefaultSpanHandler()
         recording = RecordingSpan()
@@ -175,6 +241,27 @@ class TestDefaultSpanHandler:
         handler.handle(span, component_type=None)
         assert recording.attributes[ConversationContext.SpanAttributes.CONVERSATION_INPUT] == "hello"
         assert recording.attributes[ConversationContext.SpanAttributes.CONVERSATION_OUTPUT] == "world"
+
+    def test_handle_pipeline_io_skipped_when_sdk_owns_turn(self):
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span.owns_conversation_turn = False
+        span._data = {
+            "haystack.pipeline.input_data": {"query": "hello"},
+            "haystack.pipeline.output_data": {"answer": "world"},
+        }
+        token = tracing_context_var.set({"session_id": "sess-1"})
+        try:
+            handler.handle(span, component_type=None)
+        finally:
+            tracing_context_var.reset(token)
+
+        # The SDK endpoint span carries the mapped user message and reply; restating them here as raw
+        # pipeline dumps is what produced duplicate, unreadable turns.
+        assert ConversationContext.SpanAttributes.CONVERSATION_INPUT not in recording.attributes
+        assert ConversationContext.SpanAttributes.CONVERSATION_OUTPUT not in recording.attributes
+        assert ConversationContext.SpanAttributes.IS_TURN_ROOT not in recording.attributes
 
     def test_handle_agent_conversation_io(self):
         handler = DefaultSpanHandler()
@@ -294,6 +381,27 @@ class TestDefaultSpanHandler:
         attrs = ConversationContext.SpanAttributes
         assert attrs.CONVERSATION_INPUT not in recording.attributes
         assert attrs.CONVERSATION_OUTPUT not in recording.attributes
+
+    def test_handle_agent_conversation_io_skipped_when_sdk_owns_turn(self):
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span.owns_conversation_turn = False
+        span._data = {
+            _AGENT_INPUT_KEY: {"messages": [ChatMessage.from_user("Plan a trip to Rome")]},
+            _AGENT_OUTPUT_KEY: {"messages": [ChatMessage.from_assistant("Here is your Rome itinerary.")]},
+        }
+        token = tracing_context_var.set({"session_id": "sess-agent"})
+        stack_token = span_stack_var.set([RhesisSpan(RecordingContextManager(RecordingSpan())), span])
+        try:
+            handler.handle(span, component_type="Agent")
+        finally:
+            span_stack_var.reset(stack_token)
+            tracing_context_var.reset(token)
+
+        assert ConversationContext.SpanAttributes.CONVERSATION_INPUT not in recording.attributes
+        assert ConversationContext.SpanAttributes.CONVERSATION_OUTPUT not in recording.attributes
+        assert ConversationContext.SpanAttributes.IS_TURN_ROOT not in recording.attributes
 
     def test_handle_chat_generator(self):
         handler = DefaultSpanHandler()
