@@ -522,6 +522,20 @@ class TestWeaviateDocumentStoreAsync(
         assert set(values).isdisjoint(set(values2))
 
     @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_with_filters_async(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await document_store.get_metadata_field_unique_values_async("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
+    @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async_field_not_found(self, document_store):
         with pytest.raises(ValueError, match="not found in collection schema"):
             await document_store.get_metadata_field_unique_values_async("nonexistent_field")
