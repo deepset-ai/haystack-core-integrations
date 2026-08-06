@@ -475,6 +475,20 @@ class TestOracleDocumentStore(
         assert set(values) == {1, 2}
         assert total == 2
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store):
+        document_store.write_documents(
+            [
+                _doc(_uid("R001"), meta={"category": "A", "status": "active"}),
+                _doc(_uid("R002"), meta={"category": "B", "status": "active"}),
+                _doc(_uid("R003"), meta={"category": "C", "status": "inactive"}),
+            ]
+        )
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
 
 @pytest.mark.integration
 class TestOracleDocumentStoreAsync(
@@ -518,3 +532,18 @@ class TestOracleDocumentStoreAsync(
         await embedding_store.write_documents_async([_doc(doc_id, embedding=[0.5, 0.5, 0.0, 0.0])])
         results = await embedding_store._embedding_retrieval_async([0.5, 0.5, 0.0, 0.0], top_k=1)
         assert len(results) >= 1
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_with_filters_async(self, embedding_store):
+        await embedding_store.write_documents_async(
+            [
+                _doc(_uid("S001"), meta={"category": "A", "status": "active"}),
+                _doc(_uid("S002"), meta={"category": "B", "status": "active"}),
+                _doc(_uid("S003"), meta={"category": "C", "status": "inactive"}),
+            ]
+        )
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await embedding_store.get_metadata_field_unique_values_async("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
