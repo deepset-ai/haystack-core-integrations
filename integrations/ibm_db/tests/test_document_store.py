@@ -309,6 +309,19 @@ class TestDocumentStore(
         assert set(values) == {1, 2}
         assert total == 2
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: IBMDb2DocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     def test_get_metadata_field_unique_values_invalid_field_name(self, document_store: IBMDb2DocumentStore):
         with pytest.raises(ValueError, match="Invalid metadata field name"):
             document_store.get_metadata_field_unique_values("field' OR '1'='1")
