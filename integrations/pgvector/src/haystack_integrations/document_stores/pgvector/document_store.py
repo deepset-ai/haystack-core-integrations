@@ -1959,9 +1959,7 @@ class PgvectorDocumentStore:
         params: tuple = ()
         if filters:
             _validate_filters(filters)
-            filters_where_clause, filters_params = _convert_filters_to_where_clause_and_params(
-                filters, operator="AND"
-            )
+            filters_where_clause, filters_params = _convert_filters_to_where_clause_and_params(filters, operator="AND")
             sql_where += filters_where_clause
             params += filters_params
 
