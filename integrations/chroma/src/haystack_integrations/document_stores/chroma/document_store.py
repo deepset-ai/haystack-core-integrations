@@ -1302,24 +1302,6 @@ class ChromaDocumentStore:
         result = await self._async_collection.get(include=["metadatas"])
         return self._compute_field_min_max(result.get("metadatas", []), field_name)
 
-    @staticmethod
-    def _prepare_get_metadatas_kwargs(filters: dict[str, Any] | None = None) -> dict[str, Any]:
-        """
-        Prepare kwargs for a metadata-only Chroma get operation, optionally restricted by filters.
-        """
-        kwargs: dict[str, Any] = {"include": ["metadatas"]}
-
-        if filters:
-            chroma_filter = _convert_filters(filters)
-            kwargs["where"] = chroma_filter.where
-
-            if chroma_filter.ids:
-                kwargs["ids"] = chroma_filter.ids
-            if chroma_filter.where_document:
-                kwargs["where_document"] = chroma_filter.where_document
-
-        return kwargs
-
     def get_metadata_field_unique_values(
         self,
         metadata_field: str,
@@ -1345,7 +1327,8 @@ class ChromaDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        kwargs = ChromaDocumentStore._prepare_get_metadatas_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
         result = self._collection.get(**kwargs)
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
@@ -1376,7 +1359,8 @@ class ChromaDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        kwargs = ChromaDocumentStore._prepare_get_metadatas_kwargs(filters)
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
         result = await self._async_collection.get(**kwargs)
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
