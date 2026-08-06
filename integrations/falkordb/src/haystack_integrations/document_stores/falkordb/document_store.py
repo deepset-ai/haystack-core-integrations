@@ -609,6 +609,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
@@ -618,6 +619,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             field's own value.
         :param from_: The offset for pagination (0-based).
         :param size: Maximum number of values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: Tuple of `(values, total_count)`. Values are returned in their original type.
             `total_count` is the number of distinct values matching the filter, independent of
             pagination.
@@ -627,6 +629,12 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         query_params: dict[str, Any] = {"from_": from_, "size": size}
         where_parts = [f"d.{field} IS NOT NULL"]
+
+        if filters:
+            filters_where_clause, filters_params = _convert_filters(filters)
+            where_parts.append(filters_where_clause)
+            query_params.update(filters_params)
+
         if search_term:
             where_parts.append(f"toLower(toString(d.{field})) CONTAINS toLower($search_term)")
             query_params["search_term"] = search_term
