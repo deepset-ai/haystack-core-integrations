@@ -782,7 +782,12 @@ class OracleDocumentStore:
             return {"min": _try_parse_number(row[0]), "max": _try_parse_number(row[1])}
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int | None = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Return a paginated list of distinct values for a metadata field, plus the total distinct count.
@@ -793,6 +798,7 @@ class OracleDocumentStore:
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
         :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
             from ``from_`` onward are returned.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
             values in their original type and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
@@ -801,6 +807,10 @@ class OracleDocumentStore:
         _validate_field_path(field_path)
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
         params: dict[str, Any] = {}
+        if filters:
+            counter = [0]
+            filters_fragment = FilterTranslator().translate(filters, params, counter)
+            base_sql += f" AND {filters_fragment}"
         if search_term:
             base_sql += f" AND UPPER(JSON_VALUE(metadata, '$.{field_path}')) LIKE UPPER(:search)"
             params["search"] = f"%{search_term}%"
@@ -856,7 +866,12 @@ class OracleDocumentStore:
         return await asyncio.to_thread(self.get_metadata_field_min_max, metadata_field)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int | None = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronously returns a paginated list of distinct values for a metadata field, plus the total count.
@@ -867,11 +882,14 @@ class OracleDocumentStore:
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
         :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
             from ``from_`` onward are returned.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
             values in their original type and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
         """
-        return await asyncio.to_thread(self.get_metadata_field_unique_values, metadata_field, search_term, from_, size)
+        return await asyncio.to_thread(
+            self.get_metadata_field_unique_values, metadata_field, search_term, from_, size, filters
+        )
 
     def _embedding_retrieval(
         self,
