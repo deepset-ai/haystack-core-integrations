@@ -4,6 +4,7 @@
 
 """End-to-end span tree for a nested Agent-as-tool under RhesisTracer (Haystack 3.0)."""
 
+from importlib.util import find_spec
 from typing import Any
 
 import pytest
@@ -19,6 +20,14 @@ from rhesis.sdk.telemetry.attributes import AIAttributes
 from rhesis.telemetry.schemas import AIOperationType
 
 from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, RhesisTracer
+
+# The agent loop only emits `haystack.agent.step*` spans from Haystack 3.0 on, where the tool-calling
+# logic moved into its own module. On 2.x an agent traces its tool calls as one batched ToolInvoker
+# component span, so this whole tree — per-tool spans and the handoff promoted from one — is absent.
+pytestmark = pytest.mark.skipif(
+    find_spec("haystack.components.agents.tool_calling") is None,
+    reason="haystack-ai < 3.0 does not emit the agent-loop spans this span tree asserts",
+)
 
 
 @component
