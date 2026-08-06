@@ -62,6 +62,15 @@ _AGENT_INPUT_KEY = "haystack.agent.input"
 _AGENT_OUTPUT_KEY = "haystack.agent.output"
 _AGENT_RUN_KEY = "haystack.agent.run"
 
+# haystack 3.0 agent-loop operations. These spans carry none of the ``haystack.component.*`` tags,
+# so they are recognised by operation name rather than component type.
+_AGENT_STEP_LLM_KEY = "haystack.agent.step.llm"
+_AGENT_STEP_TOOL_KEY = "haystack.agent.step.tool"
+_AGENT_STEP_LLM_OUTPUT_KEY = "haystack.agent.step.llm.output"
+_AGENT_STEP_TOOL_INPUT_KEY = "haystack.agent.step.tool.input"
+_AGENT_STEP_TOOL_OUTPUT_KEY = "haystack.agent.step.tool.output"
+_TOOL_NAME_KEY = "haystack.tool.name"
+
 tracing_context_var: ContextVar[dict[Any, Any]] = ContextVar("rhesis_tracing_context")
 span_stack_var: ContextVar[list[RhesisSpan] | None] = ContextVar("rhesis_span_stack", default=None)
 
@@ -194,10 +203,13 @@ def build_trace_url(frontend_url: str, trace_id: str, project_id: str | None) ->
 class RhesisSpan(Span):
     """Bridge between Haystack's span API and OpenTelemetry spans for Rhesis."""
 
-    def __init__(self, context_manager: AbstractContextManager[Any]) -> None:
+    def __init__(self, context_manager: AbstractContextManager[Any], operation_name: str = "") -> None:
         self._span = context_manager.__enter__()
         self._data: dict[str, Any] = {}
         self._context_manager = context_manager
+        # Retained so post-run enrichment can tell haystack 3.0 agent-loop spans apart: they share the
+        # same (absent) component type, so operation name is the only discriminator available.
+        self.operation_name = operation_name
 
     def set_tag(self, key: str, value: Any) -> None:
         """Set a generic tag for this span."""
@@ -227,6 +239,14 @@ class RhesisSpan(Span):
                 )
             return
 
+        # Tool arguments are not a prompt, so they get the tool content attribute rather than
+        # ai.prompt events.
+        if key == _AGENT_STEP_TOOL_INPUT_KEY:
+            text = _stringify_content(value)
+            if text:
+                self._span.set_attribute(AIAttributes.TOOL_INPUT_CONTENT, text[:MAX_CONTENT_LENGTH])
+            return
+
         if isinstance(value, dict) and "messages" in value:
             messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in (value.get("messages") or [])]
             payload: Any
@@ -249,6 +269,12 @@ class RhesisSpan(Span):
                     AIEvents.AGENT_OUTPUT,
                     {AIAttributes.AGENT_OUTPUT_CONTENT: text[:MAX_CONTENT_LENGTH]},
                 )
+            return
+
+        if key == _AGENT_STEP_TOOL_OUTPUT_KEY:
+            text = _stringify_content(value)
+            if text:
+                self._span.set_attribute(AIAttributes.TOOL_OUTPUT_CONTENT, text[:MAX_CONTENT_LENGTH])
             return
 
         if isinstance(value, dict) and "replies" in value:
@@ -423,6 +449,22 @@ def _set_token_attributes(span: trace.Span, usage: dict[str, Any] | None) -> Non
         span.set_attribute(key, value)
 
 
+def _apply_chat_reply_metadata(otel_span: trace.Span, replies: list[Any]) -> None:
+    """Promote model name, timing, and token usage from the first chat reply's metadata."""
+    meta = replies[0].meta
+    completion_start_time = meta.get("completion_start_time")
+    if completion_start_time:
+        try:
+            parsed = datetime.fromisoformat(completion_start_time)
+            otel_span.set_attribute("haystack.llm.completion_start_time", parsed.isoformat())
+        except ValueError:
+            logger.error("Failed to parse completion_start_time: {value}", value=completion_start_time)
+    model = meta.get("model")
+    if model:
+        otel_span.set_attribute(AIAttributes.MODEL_NAME, model)
+    _set_token_attributes(otel_span, meta.get("usage"))
+
+
 class DefaultSpanHandler(SpanHandler):
     """Default Rhesis tracing behavior for Haystack pipelines."""
 
@@ -452,7 +494,7 @@ class DefaultSpanHandler(SpanHandler):
             context=parent_context,
             kind=trace.SpanKind.INTERNAL,
         )
-        rhesis_span = RhesisSpan(span_cm)
+        rhesis_span = RhesisSpan(span_cm, operation_name=context.operation_name)
         otel_span = rhesis_span.raw_span()
 
         operation_type = resolve_operation_type(span_name)
@@ -466,8 +508,16 @@ class DefaultSpanHandler(SpanHandler):
             for key, value in mapped.items():
                 otel_span.set_attribute(key, _coerce_attribute_value(value))
 
+        # haystack 2.x routed tool calls through a ToolInvoker component span.
         if context.component_type == "ToolInvoker":
             otel_span.set_attribute(AIAttributes.TOOL_NAME, context.name)
+            otel_span.set_attribute(AIAttributes.TOOL_TYPE, "haystack")
+
+        # haystack 3.0 traces each tool call individually and names it in the span tags.
+        if context.operation_name == _AGENT_STEP_TOOL_KEY:
+            tool_name = context.tags.get(_TOOL_NAME_KEY)
+            if tool_name:
+                otel_span.set_attribute(AIAttributes.TOOL_NAME, str(tool_name))
             otel_span.set_attribute(AIAttributes.TOOL_TYPE, "haystack")
 
         return rhesis_span
@@ -506,21 +556,18 @@ class DefaultSpanHandler(SpanHandler):
                 if hasattr(otel_span, "update_name"):
                     otel_span.update_name(new_name)
 
-        if component_type and component_type.endswith("ChatGenerator"):
+        # In haystack 3.0 the agent calls its chat generator directly, so the reply metadata arrives on
+        # the agent-loop LLM span instead of a ChatGenerator component span.
+        if span.operation_name == _AGENT_STEP_LLM_KEY:
+            llm_output = data.get(_AGENT_STEP_LLM_OUTPUT_KEY)
+            replies = llm_output.get("replies") if isinstance(llm_output, dict) else None
+            if replies:
+                _apply_chat_reply_metadata(otel_span, replies)
+
+        elif component_type and component_type.endswith("ChatGenerator"):
             replies = data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
             if replies:
-                meta = replies[0].meta
-                completion_start_time = meta.get("completion_start_time")
-                if completion_start_time:
-                    try:
-                        parsed = datetime.fromisoformat(completion_start_time)
-                        otel_span.set_attribute("haystack.llm.completion_start_time", parsed.isoformat())
-                    except ValueError:
-                        logger.error("Failed to parse completion_start_time: {value}", value=completion_start_time)
-                model = meta.get("model")
-                if model:
-                    otel_span.set_attribute(AIAttributes.MODEL_NAME, model)
-                _set_token_attributes(otel_span, meta.get("usage"))
+                _apply_chat_reply_metadata(otel_span, replies)
 
         elif component_type and component_type.endswith("Generator"):
             meta = data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")

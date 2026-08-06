@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack_integrations.tracing.rhesis.mapping import (
+    AGENT_STEP_SPAN_NAME,
     APPENDIX_A_HAYSTACK_TAGS,
     APPENDIX_A_OPERATIONS,
     HAYSTACK_OPERATION_MAPPING,
@@ -60,6 +61,45 @@ class TestResolveSpanName:
         )
         assert name == "ai.llm.invoke"
         assert resolve_operation_type(name) == "llm.invoke"
+
+    def test_tool_invoker_child_haystack_2x(self):
+        name = resolve_span_name(
+            operation_name="haystack.component.run",
+            component_type="ToolInvoker",
+            component_name="tools",
+            is_root=False,
+        )
+        assert name == "ai.tool.invoke"
+        assert resolve_operation_type(name) == "tool.invoke"
+
+    def test_agent_step_matched_by_operation_alone(self):
+        name = resolve_span_name(
+            operation_name="haystack.agent.step",
+            component_type=None,
+            component_name="haystack.agent.step",
+            is_root=False,
+        )
+        assert name == AGENT_STEP_SPAN_NAME
+
+    def test_agent_step_llm_matched_by_operation_alone(self):
+        name = resolve_span_name(
+            operation_name="haystack.agent.step.llm",
+            component_type=None,
+            component_name="haystack.agent.step.llm",
+            is_root=False,
+        )
+        assert name == "ai.llm.invoke"
+        assert resolve_operation_type(name) == "llm.invoke"
+
+    def test_agent_step_tool_matched_by_operation_alone(self):
+        name = resolve_span_name(
+            operation_name="haystack.agent.step.tool",
+            component_type=None,
+            component_name="haystack.agent.step.tool",
+            is_root=False,
+        )
+        assert name == "ai.tool.invoke"
+        assert resolve_operation_type(name) == "tool.invoke"
 
     def test_generic_component_fallback(self):
         name = resolve_span_name(

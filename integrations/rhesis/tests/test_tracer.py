@@ -214,6 +214,47 @@ class TestDefaultSpanHandler:
         assert recording.attributes[AIAttributes.MODEL_NAME] == "gpt-4o-mini"
         assert recording.attributes[AIAttributes.LLM_TOKENS_INPUT] == 3
 
+    def test_handle_agent_step_llm_promotes_model_and_tokens(self):
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording), operation_name="haystack.agent.step.llm")
+        span._data = {
+            "haystack.agent.step.llm.output": {
+                "replies": [
+                    ChatMessage.from_assistant(
+                        "answer",
+                        meta={"model": "gemini-flash", "usage": {"prompt_tokens": 4, "completion_tokens": 6}},
+                    )
+                ]
+            }
+        }
+        handler.handle(span, component_type=None)
+        assert recording.attributes[AIAttributes.MODEL_NAME] == "gemini-flash"
+        assert recording.attributes[AIAttributes.LLM_TOKENS_INPUT] == 4
+
+    def test_create_agent_step_tool_span_sets_tool_name(self):
+        telemetry = _make_telemetry()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(telemetry)
+
+        with patch.object(telemetry.otel_tracer, "start_as_current_span") as mock_start:
+            recording = RecordingSpan()
+            mock_start.return_value = RecordingContextManager(recording)
+            context = SpanContext(
+                name="haystack.agent.step.tool",
+                operation_name="haystack.agent.step.tool",
+                component_type=None,
+                tags={"haystack.tool.name": "research", "haystack.tool.description": "Delegate research"},
+                parent_span=None,
+                is_root=False,
+            )
+            span = handler.create_span(context)
+            assert isinstance(span, RhesisSpan)
+            assert mock_start.call_args.kwargs["name"] == "ai.tool.invoke"
+            assert recording.attributes[AIAttributes.TOOL_NAME] == "research"
+            assert recording.attributes[AIAttributes.TOOL_TYPE] == "haystack"
+            assert recording.attributes[AIAttributes.OPERATION_TYPE] == AIAttributes.OPERATION_TOOL_INVOKE
+
     def test_handle_tool_invoker_rename(self):
         handler = DefaultSpanHandler()
         recording = RecordingSpan()

@@ -22,7 +22,19 @@ _COMPONENT_RUN_KEY = "haystack.component.run"
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 
-# Every Haystack tag emitted per Appendix A (haystack 2.30.x). Used by completeness tests.
+# Haystack 3.0 moved the Agent loop off ``Pipeline._run_component``: each iteration now opens its own
+# span, and the LLM call and every tool call are traced directly instead of through a ``ToolInvoker``
+# component span. These operations carry no ``haystack.component.name``/``.type`` tags, so they are
+# matched on operation name alone (see ``_OPERATION_ONLY``).
+_AGENT_STEP_KEY = "haystack.agent.step"
+_AGENT_STEP_LLM_KEY = "haystack.agent.step.llm"
+_AGENT_STEP_TOOL_KEY = "haystack.agent.step.tool"
+_TOOL_NAME_KEY = "haystack.tool.name"
+_TOOL_DESCRIPTION_KEY = "haystack.tool.description"
+
+AGENT_STEP_SPAN_NAME = "function.haystack.agent.step"
+
+# Every Haystack tag emitted per Appendix A (haystack 2.30.x and 3.0.x). Used by completeness tests.
 APPENDIX_A_HAYSTACK_TAGS: frozenset[str] = frozenset(
     {
         "haystack.pipeline.input_data",
@@ -39,6 +51,14 @@ APPENDIX_A_HAYSTACK_TAGS: frozenset[str] = frozenset(
         "haystack.component.output",
         "haystack.agent.input",
         "haystack.agent.output",
+        # Haystack 3.0 agent loop
+        _AGENT_STEP_KEY,
+        "haystack.agent.step.llm.input",
+        "haystack.agent.step.llm.output",
+        "haystack.agent.step.tool.input",
+        "haystack.agent.step.tool.output",
+        _TOOL_NAME_KEY,
+        _TOOL_DESCRIPTION_KEY,
     }
 )
 
@@ -48,6 +68,9 @@ APPENDIX_A_OPERATIONS: frozenset[str] = frozenset(
         _ASYNC_PIPELINE_RUN_KEY,
         _COMPONENT_RUN_KEY,
         _AGENT_RUN_KEY,
+        _AGENT_STEP_KEY,
+        _AGENT_STEP_LLM_KEY,
+        _AGENT_STEP_TOOL_KEY,
     }
 )
 
@@ -130,6 +153,39 @@ HAYSTACK_TAG_MAPPING: dict[str, MappingTarget] = {
         AIAttributes.AGENT_OUTPUT_CONTENT,
         MappingPromotion.FIRST_CLASS,
     ),
+    _AGENT_STEP_KEY: MappingTarget(
+        _AGENT_STEP_KEY,
+        MappingPromotion.METADATA,
+        "Zero-based iteration counter of the Agent loop",
+    ),
+    "haystack.agent.step.llm.input": MappingTarget(
+        "ai.prompt events / content attributes",
+        MappingPromotion.MIXED,
+        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
+    ),
+    "haystack.agent.step.llm.output": MappingTarget(
+        "ai.completion events / content attributes",
+        MappingPromotion.MIXED,
+        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
+    ),
+    "haystack.agent.step.tool.input": MappingTarget(
+        AIAttributes.TOOL_INPUT_CONTENT,
+        MappingPromotion.MIXED,
+        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
+    ),
+    "haystack.agent.step.tool.output": MappingTarget(
+        AIAttributes.TOOL_OUTPUT_CONTENT,
+        MappingPromotion.MIXED,
+        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
+    ),
+    _TOOL_NAME_KEY: MappingTarget(
+        AIAttributes.TOOL_NAME,
+        MappingPromotion.FIRST_CLASS,
+    ),
+    _TOOL_DESCRIPTION_KEY: MappingTarget(
+        _TOOL_DESCRIPTION_KEY,
+        MappingPromotion.METADATA,
+    ),
 }
 
 # Operation-level mapping for span naming / kinds.
@@ -148,6 +204,21 @@ HAYSTACK_OPERATION_MAPPING: dict[str, MappingTarget] = {
         MappingPromotion.FIRST_CLASS,
         "ai.operation.type=agent.invoke",
     ),
+    _AGENT_STEP_KEY: MappingTarget(
+        AGENT_STEP_SPAN_NAME,
+        MappingPromotion.FIRST_CLASS,
+        "Agent loop iteration; grouping span with no ai.* operation type",
+    ),
+    _AGENT_STEP_LLM_KEY: MappingTarget(
+        AIOperationType.LLM_INVOKE,
+        MappingPromotion.FIRST_CLASS,
+        "ai.operation.type=llm.invoke (haystack 3.0 in-agent LLM call)",
+    ),
+    _AGENT_STEP_TOOL_KEY: MappingTarget(
+        AIOperationType.TOOL_INVOKE,
+        MappingPromotion.FIRST_CLASS,
+        "ai.operation.type=tool.invoke (haystack 3.0 in-agent tool call)",
+    ),
     _COMPONENT_RUN_KEY: MappingTarget(
         "resolved per component type",
         MappingPromotion.MIXED,
@@ -155,12 +226,20 @@ HAYSTACK_OPERATION_MAPPING: dict[str, MappingTarget] = {
     ),
 }
 
+# Sentinel for rules keyed on operation name alone, used by the haystack 3.0 agent-loop spans which
+# carry no component tags at all.
+_OPERATION_ONLY = "__operation__"
+
 # Ordered span-kind rules (first match wins). Unit-tested independently of inline conditionals.
 SPAN_KIND_RULES: tuple[tuple[str, str, str], ...] = (
     # (operation_name, component_type predicate suffix or exact, rhesis span name)
     (_AGENT_RUN_KEY, "__root__", AIOperationType.AGENT_INVOKE),
     (_PIPELINE_RUN_KEY, "__root__", "function.haystack.pipeline.run"),
     (_ASYNC_PIPELINE_RUN_KEY, "__root__", "function.haystack.async_pipeline.run"),
+    (_AGENT_STEP_LLM_KEY, _OPERATION_ONLY, AIOperationType.LLM_INVOKE),
+    (_AGENT_STEP_TOOL_KEY, _OPERATION_ONLY, AIOperationType.TOOL_INVOKE),
+    (_AGENT_STEP_KEY, _OPERATION_ONLY, AGENT_STEP_SPAN_NAME),
+    # haystack 2.x emitted tool calls as a ToolInvoker component span; kept for backwards compatibility.
     (_COMPONENT_RUN_KEY, "ToolInvoker", AIOperationType.TOOL_INVOKE),
     (_AGENT_RUN_KEY, "__any__", AIOperationType.AGENT_INVOKE),
     (_COMPONENT_RUN_KEY, "Retriever", AIOperationType.RETRIEVAL),
@@ -215,7 +294,7 @@ def resolve_span_name(
             continue
         if rule_type == "__root__":
             continue
-        if rule_type == "__any__":
+        if rule_type in ("__any__", _OPERATION_ONLY):
             return span_name
         if component_type and component_type.endswith(rule_type):
             return span_name
