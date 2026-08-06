@@ -780,9 +780,15 @@ class TestValkeyDocumentStore(
     def test_get_metadata_field_unique_values_with_filters(self, document_store):
         """Test get_metadata_field_unique_values restricts documents using the filters param."""
         docs = [
-            Document(id="gmvf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "A", "status": "active"}),
-            Document(id="gmvf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "B", "status": "active"}),
-            Document(id="gmvf3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "C", "status": "inactive"}),
+            Document(
+                id="gmvf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "A", "status": "active"}
+            ),
+            Document(
+                id="gmvf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "B", "status": "active"}
+            ),
+            Document(
+                id="gmvf3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "C", "status": "inactive"}
+            ),
         ]
         document_store.write_documents(docs)
 
