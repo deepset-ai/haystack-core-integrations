@@ -255,6 +255,45 @@ class TestDefaultSpanHandler:
             assert recording.attributes[AIAttributes.TOOL_TYPE] == "haystack"
             assert recording.attributes[AIAttributes.OPERATION_TYPE] == AIAttributes.OPERATION_TOOL_INVOKE
 
+    def test_nested_agent_promotes_parent_tool_to_handoff(self):
+        telemetry = _make_telemetry()
+        handler = DefaultSpanHandler()
+        handler.init_tracer(telemetry)
+
+        tool_recording = RecordingSpan()
+        tool_recording.name = "ai.tool.invoke"
+        tool_span = RhesisSpan(RecordingContextManager(tool_recording), operation_name="haystack.agent.step.tool")
+        tool_span._data = {"haystack.tool.name": "research"}
+        tool_recording.attributes[AIAttributes.TOOL_NAME] = "research"
+
+        component_recording = RecordingSpan()
+        component_span = RhesisSpan(
+            RecordingContextManager(component_recording), operation_name="haystack.component.run"
+        )
+        component_span._data = {"haystack.component.name": "coordinator"}
+
+        stack_token = span_stack_var.set([component_span, tool_span])
+        try:
+            with patch.object(telemetry.otel_tracer, "start_as_current_span") as mock_start:
+                agent_recording = RecordingSpan()
+                mock_start.return_value = RecordingContextManager(agent_recording)
+                context = SpanContext(
+                    name="haystack.agent.run",
+                    operation_name="haystack.agent.run",
+                    component_type=None,
+                    tags={},
+                    parent_span=tool_span,
+                    is_root=False,
+                )
+                handler.create_span(context)
+                assert tool_recording.name == "ai.agent.handoff"
+                assert tool_recording.attributes[AIAttributes.OPERATION_TYPE] == AIAttributes.OPERATION_AGENT_HANDOFF
+                assert tool_recording.attributes[AIAttributes.AGENT_HANDOFF_TO] == "research"
+                assert tool_recording.attributes[AIAttributes.AGENT_HANDOFF_FROM] == "coordinator"
+                assert agent_recording.attributes[AIAttributes.AGENT_NAME] == "research"
+        finally:
+            span_stack_var.reset(stack_token)
+
     def test_handle_tool_invoker_rename(self):
         handler = DefaultSpanHandler()
         recording = RecordingSpan()

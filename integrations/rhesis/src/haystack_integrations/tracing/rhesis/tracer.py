@@ -43,6 +43,7 @@ from haystack_integrations.tracing.rhesis.mapping import (
 from rhesis.sdk.telemetry.attributes import AIAttributes, AIEvents
 from rhesis.sdk.telemetry.utils.token_extraction import extract_token_usage
 from rhesis.telemetry.constants import ConversationContext
+from rhesis.telemetry.schemas import AIOperationType
 
 logger = haystack_logging.getLogger(__name__)
 
@@ -465,6 +466,46 @@ def _apply_chat_reply_metadata(otel_span: trace.Span, replies: list[Any]) -> Non
     _set_token_attributes(otel_span, meta.get("usage"))
 
 
+def _enclosing_agent_label(parent: RhesisSpan) -> str:
+    """
+    Name the agent that owns ``parent``, for the ``ai.agent.handoff.from`` attribute.
+
+    Walks the ancestor stack outwards from ``parent``. A specialist agent is reached through the tool
+    span that invoked it, so the nearest enclosing tool span names it; a top-level agent is reached as
+    a pipeline component, so the nearest component name names it.
+    """
+    stack = span_stack_var.get() or []
+    for span in reversed(stack):
+        if span is parent:
+            continue
+        if span.operation_name == _AGENT_STEP_TOOL_KEY:
+            return str(span.get_data().get(_TOOL_NAME_KEY, ""))
+        component_name = span.get_data().get(_COMPONENT_NAME_KEY)
+        if component_name:
+            return str(component_name)
+    return ""
+
+
+def _promote_tool_span_to_handoff(parent: RhesisSpan) -> str:
+    """
+    Re-label a tool span as an agent handoff and return the target agent's name.
+
+    Called when an ``Agent`` starts running inside a tool invocation, which is how Haystack models a
+    handoff to a specialist agent. The span is still open at this point, so renaming it is safe.
+    """
+    tool_name = str(parent.get_data().get(_TOOL_NAME_KEY, ""))
+    otel_parent = parent.raw_span()
+    if hasattr(otel_parent, "update_name"):
+        otel_parent.update_name(AIOperationType.AGENT_HANDOFF)
+    otel_parent.set_attribute(AIAttributes.OPERATION_TYPE, AIAttributes.OPERATION_AGENT_HANDOFF)
+    if tool_name:
+        otel_parent.set_attribute(AIAttributes.AGENT_HANDOFF_TO, tool_name)
+    handoff_from = _enclosing_agent_label(parent)
+    if handoff_from:
+        otel_parent.set_attribute(AIAttributes.AGENT_HANDOFF_FROM, handoff_from)
+    return tool_name
+
+
 class DefaultSpanHandler(SpanHandler):
     """Default Rhesis tracing behavior for Haystack pipelines."""
 
@@ -520,7 +561,23 @@ class DefaultSpanHandler(SpanHandler):
                 otel_span.set_attribute(AIAttributes.TOOL_NAME, str(tool_name))
             otel_span.set_attribute(AIAttributes.TOOL_TYPE, "haystack")
 
+        if context.operation_name == _AGENT_RUN_KEY:
+            self._label_agent_span(otel_span, context)
+
         return rhesis_span
+
+    @staticmethod
+    def _label_agent_span(otel_span: trace.Span, context: SpanContext) -> None:
+        """Name an agent span, and mark its caller as a handoff when one agent invoked another."""
+        parent = context.parent_span
+        if not isinstance(parent, RhesisSpan):
+            return
+        if parent.operation_name == _AGENT_STEP_TOOL_KEY:
+            agent_name = _promote_tool_span_to_handoff(parent)
+        else:
+            agent_name = str(parent.get_data().get(_COMPONENT_NAME_KEY, ""))
+        if agent_name:
+            otel_span.set_attribute(AIAttributes.AGENT_NAME, agent_name)
 
     def handle(self, span: RhesisSpan, component_type: str | None) -> None:
         """Process and enrich a span after component execution."""

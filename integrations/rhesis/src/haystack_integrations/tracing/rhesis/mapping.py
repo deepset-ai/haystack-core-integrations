@@ -217,7 +217,7 @@ HAYSTACK_OPERATION_MAPPING: dict[str, MappingTarget] = {
     _AGENT_STEP_TOOL_KEY: MappingTarget(
         AIOperationType.TOOL_INVOKE,
         MappingPromotion.FIRST_CLASS,
-        "ai.operation.type=tool.invoke (haystack 3.0 in-agent tool call)",
+        "ai.operation.type=tool.invoke; promoted to agent.handoff when the tool runs an Agent",
     ),
     _COMPONENT_RUN_KEY: MappingTarget(
         "resolved per component type",
@@ -253,6 +253,7 @@ _OPERATION_TYPE_BY_SPAN_NAME: dict[str, str] = {
     AIOperationType.RETRIEVAL: AIAttributes.OPERATION_RETRIEVAL,
     AIOperationType.EMBEDDING_GENERATE: AIAttributes.OPERATION_EMBEDDING_CREATE,
     AIOperationType.AGENT_INVOKE: AIAttributes.OPERATION_AGENT_INVOKE,
+    AIOperationType.AGENT_HANDOFF: AIAttributes.OPERATION_AGENT_HANDOFF,
 }
 
 _INVOCATION_CONTEXT_FIELD_MAP: dict[str, str] = {
