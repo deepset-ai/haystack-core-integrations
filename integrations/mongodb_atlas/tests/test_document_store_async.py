@@ -97,6 +97,17 @@ class TestMongoDBDocumentStoreAsyncUnit:
         assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
         assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
 
+    async def test_get_metadata_field_unique_values_preserves_non_string_types(self, mocked_store_collection_async):
+        store, collection = mocked_store_collection_async
+        cursor = MagicMock()
+        cursor.to_list = AsyncMock(return_value=[{"count": [{"count": 2}], "values": [{"_id": 1}, {"_id": 2}]}])
+        collection.aggregate = AsyncMock(return_value=cursor)
+
+        values, count = await store.get_metadata_field_unique_values_async("priority")
+
+        assert values == [1, 2]
+        assert count == 2
+
     async def test_close_async(self, local_store):
         connection = AsyncMock()
         local_store._connection_async = connection
