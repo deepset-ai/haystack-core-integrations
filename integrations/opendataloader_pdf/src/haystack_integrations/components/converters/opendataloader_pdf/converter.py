@@ -30,8 +30,7 @@ class OpenDataLoaderConverter:
         Supported formats are markdown, text, json, and html.
     :param convert_kwargs:
         Additional arguments passed to `opendataloader_pdf.convert`.
-        See the [OpenDataLoader PDF Python options]
-        (https://opendataloader.org/docs/quick-start-python).
+        See the [OpenDataLoader PDF Python options](https://opendataloader.org/docs/quick-start-python).
     """
 
     def __init__(
