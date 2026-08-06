@@ -872,3 +872,15 @@ class TestMetadataOperations:
         values, total = populated_store.get_metadata_field_unique_values("priority", from_=0, size=10)
         assert set(values) == {1, 2, 3}
         assert total == 3
+
+    def test_get_metadata_field_unique_values_with_filters(self, populated_store):
+        """Test that filters restrict which documents' values are considered"""
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B", "C"}
+        assert total == 3
+
+        filters = {"field": "meta.status", "operator": "==", "value": "inactive"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
