@@ -289,14 +289,8 @@ class TestOpenRouterChatGeneratorUnit:
         assert api_args["response_format"] == response_format
 
     def test_serde_in_pipeline(self, monkeypatch):
-        """
-        Test serialization/deserialization of OpenRouterChatGenerator in a Pipeline,
-        including YAML conversion and detailed dictionary validation
-        """
-        # Set mock API key
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
 
-        # Create a test tool
         tool = Tool(
             name="weather",
             description="useful to determine the weather in a given location",
@@ -304,18 +298,15 @@ class TestOpenRouterChatGeneratorUnit:
             function=weather,
         )
 
-        # Create generator with specific configuration
         generator = OpenRouterChatGenerator(
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
         )
 
-        # Create and configure pipeline
         pipeline = Pipeline()
         pipeline.add_component("generator", generator)
 
-        # Get pipeline dictionary and verify its structure
         pipeline_dict = pipeline.to_dict()
 
         # the Tool serialization format is owned by haystack-ai and varies across its versions; the
@@ -328,7 +319,10 @@ class TestOpenRouterChatGeneratorUnit:
             "connection_type_validation": True,
             "components": {
                 "generator": {
-                    "type": "haystack_integrations.components.generators.openrouter.chat.chat_generator.OpenRouterChatGenerator",  # noqa: E501
+                    "type": (
+                        "haystack_integrations.components.generators.openrouter.chat.chat_generator"
+                        ".OpenRouterChatGenerator"
+                    ),
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["OPENROUTER_API_KEY"], "strict": True},
                         "model": "openai/gpt-5-mini",
@@ -350,12 +344,10 @@ class TestOpenRouterChatGeneratorUnit:
 
         assert pipeline_dict == expected_dict
 
-        # Test YAML serialization/deserialization
         pipeline_yaml = pipeline.dumps()
         new_pipeline = Pipeline.loads(pipeline_yaml)
         assert new_pipeline == pipeline
 
-        # Verify the loaded pipeline's generator has the same configuration
         loaded_generator = new_pipeline.get_component("generator")
         assert loaded_generator.model == generator.model
         assert loaded_generator.generation_kwargs == generator.generation_kwargs
