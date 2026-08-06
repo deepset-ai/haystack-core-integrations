@@ -612,7 +612,12 @@ class AstraDocumentStore:
         return {"min": min(comparable_values), "max": max(comparable_values)}
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search term or all possible values if no search term is given.
@@ -621,10 +626,17 @@ class AstraDocumentStore:
         :param search_term: Optional case-insensitive substring search term.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing the paginated values (in their original type) and the total count.
         """
         field = metadata_field.removeprefix("meta.")
-        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{field}"))
+        converted_filters = None
+        if filters:
+            normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
+            converted_filters = _convert_filters(normalized_filters)
+        values = AstraDocumentStore._normalize_distinct_values(
+            self.index.distinct(f"meta.{field}", filters=converted_filters)
+        )
         if search_term:
             search_term_lower = search_term.lower()
             values = [value for value in values if search_term_lower in str(value).lower()]
