@@ -3,17 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import warnings
 from dataclasses import replace
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, NimBackend, is_hosted, url_validation
-
-logger = logging.getLogger(__name__)
 
 
 @component
@@ -84,6 +81,8 @@ class NvidiaRanker:
         :param timeout:
             Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
             or set to 60 by default.
+
+        :raises ValueError: If `top_k` is not > 0.
         """
         if model is not None and not isinstance(model, str):
             msg = "Ranker expects the `model` parameter to be a string."
@@ -96,6 +95,9 @@ class NvidiaRanker:
         if not isinstance(top_k, int):
             msg = "Ranker expects the `top_k` parameter to be an integer."
             raise TypeError(msg)
+        if top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
 
         # todo: detect default in non-hosted case (when api_url is provided)
         self.truncate = truncate
@@ -202,6 +204,7 @@ class NvidiaRanker:
         :param top_k: The number of documents to return.
 
         :raises TypeError: If the arguments are of the wrong type.
+        :raises ValueError: If `top_k` is not > 0.
 
         :returns: A dictionary containing the ranked documents.
         """
@@ -224,11 +227,10 @@ class NvidiaRanker:
         if len(documents) == 0:
             return {"documents": []}
 
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
         top_k = top_k if top_k is not None else self.top_k
-        if top_k < 1:
-            logger.warning("top_k should be at least 1, returning nothing")
-            warnings.warn("top_k should be at least 1, returning nothing", stacklevel=2)
-            return {"documents": []}
 
         assert self.backend is not None
 
