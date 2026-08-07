@@ -1308,6 +1308,7 @@ class ChromaDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Return unique metadata field values, optionally filtered by a search term, with pagination.
@@ -1318,6 +1319,7 @@ class ChromaDocumentStore:
             case-insensitive substring against the metadata field's value.
         :param from_: The offset to start returning values from (for pagination).
         :param size: The maximum number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing list of unique values (in their original type) and total count of unique values.
         """
         self._ensure_initialized()
@@ -1325,7 +1327,9 @@ class ChromaDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        result = self._collection.get(include=["metadatas"])
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
+        result = self._collection.get(**kwargs)
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
     async def get_metadata_field_unique_values_async(
@@ -1334,6 +1338,7 @@ class ChromaDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronously return unique metadata field values, optionally filtered by a search term, with pagination.
@@ -1346,6 +1351,7 @@ class ChromaDocumentStore:
             case-insensitive substring against the metadata field's value.
         :param from_: The offset to start returning values from (for pagination).
         :param size: The maximum number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing list of unique values (in their original type) and total count of unique values.
         """
         await self._ensure_initialized_async()
@@ -1353,7 +1359,9 @@ class ChromaDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        result = await self._async_collection.get(include=["metadatas"])
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
+        result = await self._async_collection.get(**kwargs)
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
     @classmethod
