@@ -3,11 +3,13 @@ import os
 from dataclasses import dataclass
 
 import pytest
-from deepeval.evaluate.types import EvaluationResult, TestResult
+from deepeval.evaluate.types import EvaluationResult, MetricData, TestResult
 from deepeval.metrics import BaseMetric
+from deepeval.test_case import LLMTestCase
 from haystack import DeserializationError
 
 from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator
+from haystack_integrations.components.evaluators.deepeval import evaluator as deepeval_evaluator_module
 from haystack_integrations.components.evaluators.deepeval.metrics import DeepEvalMetric, InputConverters
 
 DEFAULT_QUESTIONS = [
@@ -84,6 +86,16 @@ class MockBackend:
             )
             out.append(r)
         return EvaluationResult(test_results=out, confident_link=None, test_run_id=None)
+
+
+class MockAsyncBackend:
+    """Async wrapper around ``MockBackend`` for ``run_async`` tests."""
+
+    def __init__(self, metric: DeepEvalMetric) -> None:
+        self._backend = MockBackend(metric)
+
+    async def eval(self, test_cases, metric) -> EvaluationResult:
+        return self._backend.eval(test_cases, metric)
 
 
 def test_evaluator_metric_init_params(monkeypatch):
@@ -282,6 +294,148 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
         expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
         got = {(x["name"], x["score"], x["explanation"]) for x in r}
         assert got == expected
+
+
+@pytest.mark.parametrize(
+    "metric, inputs, expected_outputs, metric_params",
+    [
+        (
+            DeepEvalMetric.ANSWER_RELEVANCY,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            [[(None, 0.5, "1")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.FAITHFULNESS,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            [[(None, 0.1, "2")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_PRECISION,
+            {
+                "questions": DEFAULT_QUESTIONS,
+                "contexts": DEFAULT_CONTEXTS,
+                "responses": DEFAULT_RESPONSES,
+                "ground_truths": DEFAULT_GROUND_TRUTHS,
+            },
+            [[(None, 0.2, "3")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_RECALL,
+            {
+                "questions": DEFAULT_QUESTIONS,
+                "contexts": DEFAULT_CONTEXTS,
+                "responses": DEFAULT_RESPONSES,
+                "ground_truths": DEFAULT_GROUND_TRUTHS,
+            },
+            [[(None, 35, "4")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_RELEVANCE,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            [[(None, 1.5, "5")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_evaluator_outputs_async(metric, inputs, expected_outputs, metric_params, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+
+    init_params = {
+        "metric": metric,
+        "metric_params": metric_params,
+    }
+    evaluator = DeepEvalEvaluator(**init_params)
+    backend = MockAsyncBackend(metric)
+    evaluator._backend_callable_async = backend.eval
+    results = (await evaluator.run_async(**inputs))["results"]
+
+    assert isinstance(results, type(expected_outputs))
+    assert len(results) == len(expected_outputs)
+
+    for r, o in zip(results, expected_outputs, strict=True):
+        assert len(r) == len(o)
+
+        expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
+        got = {(x["name"], x["score"], x["explanation"]) for x in r}
+        assert got == expected
+
+
+def test_invoke_deepeval(monkeypatch):
+    """The sync helper should delegate to ``deepeval.evaluate.evaluate``."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+
+    metric = DeepEvalMetric.ANSWER_RELEVANCY
+    evaluator = DeepEvalEvaluator(metric, metric_params={"model": "gpt-4o"})
+    test_cases = [
+        LLMTestCase(input="Which sport?", actual_output="Football."),
+    ]
+
+    expected = EvaluationResult(
+        test_results=[
+            TestResult(
+                name="tc-1",
+                success=True,
+                conversational=False,
+                metrics_data=[MetricData.model_construct(name="AnswerRelevancyMetric", score=0.5, reason="ok")],
+                input="Which sport?",
+                actual_output="Football.",
+                expected_output=None,
+                context=None,
+                retrieval_context=None,
+            ),
+        ],
+        confident_link=None,
+        test_run_id=None,
+    )
+
+    def fake_evaluate(test_cases: list, metrics: list):
+        assert len(test_cases) == 1
+        assert metrics == [evaluator._backend_metric]
+        return expected
+
+    monkeypatch.setattr(deepeval_evaluator_module, "evaluate", fake_evaluate)
+    result = DeepEvalEvaluator._invoke_deepeval(test_cases, evaluator._backend_metric)
+    assert result == expected
+
+
+@pytest.mark.asyncio
+async def test_invoke_deepeval_async(monkeypatch):
+    """The async helper should evaluate each test case concurrently with a copied metric."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+
+    metric = DeepEvalMetric.ANSWER_RELEVANCY
+    evaluator = DeepEvalEvaluator(metric, metric_params={"model": "gpt-4o"})
+    test_cases = [
+        LLMTestCase(input="Which sport?", actual_output="Football."),
+        LLMTestCase(input="Who created Python?", actual_output="Guido van Rossum."),
+    ]
+
+    class FakeMetric:
+        def __init__(self):
+            self.score = 0.8
+            self.reason = "looks good"
+
+        async def a_measure(self, test_case: LLMTestCase) -> None:
+            pass
+
+    def fake_copy_metrics(_metrics: list):
+        return [FakeMetric()]
+
+    monkeypatch.setattr(deepeval_evaluator_module, "copy_metrics", fake_copy_metrics)
+    result = await DeepEvalEvaluator._invoke_deepeval_async(test_cases, evaluator._backend_metric)
+
+    assert len(result.test_results) == 2
+    for test_case, test_result in zip(test_cases, result.test_results, strict=True):
+        assert test_result.input == test_case.input
+        assert test_result.actual_output == test_case.actual_output
+        assert test_result.metrics_data[0].name == "FakeMetric"
+        assert test_result.metrics_data[0].score == 0.8
+        assert test_result.metrics_data[0].reason == "looks good"
 
 
 # This integration test validates the evaluator by running it against the

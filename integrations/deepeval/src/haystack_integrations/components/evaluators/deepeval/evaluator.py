@@ -1,12 +1,14 @@
+import asyncio
 import json
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, cast
 
 from haystack import DeserializationError, component, default_from_dict, default_to_dict
 
 from deepeval.evaluate import evaluate
-from deepeval.evaluate.types import EvaluationResult
+from deepeval.evaluate.types import EvaluationResult, MetricData, TestResult
 from deepeval.metrics import BaseMetric
+from deepeval.metrics.utils import copy_metrics
 from deepeval.test_case import LLMTestCase
 
 from .metrics import (
@@ -51,6 +53,7 @@ class DeepEvalEvaluator:
     _backend_metric: BaseMetric
     # Wrapped for easy mocking.
     _backend_callable: Callable[[list[LLMTestCase], BaseMetric], EvaluationResult]
+    _backend_callable_async: Callable[[list[LLMTestCase], BaseMetric], Awaitable[EvaluationResult]]
 
     def __init__(
         self,
@@ -97,11 +100,40 @@ class DeepEvalEvaluator:
         converted_inputs: list[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
 
         results = self._backend_callable(converted_inputs, self._backend_metric)
-        converted_results = [
-            [result.to_dict() for result in self.descriptor.output_converter(x)] for x in results.test_results
-        ]
+        converted_results = self._convert_results(results)
 
         return {"results": converted_results}
+
+    @component.output_types(results=list[list[dict[str, Any]]])
+    async def run_async(self, **inputs: Any) -> dict[str, Any]:
+        """
+        Run the DeepEval evaluator asynchronously on the provided inputs.
+
+        Each test case is evaluated concurrently using the metric's async
+        ``a_measure`` method. A separate metric copy is used per test case
+        because DeepEval metrics keep state (``score``, ``reason``) on the
+        metric instance.
+
+        :param inputs:
+            The inputs to evaluate. These are determined by the
+            metric being calculated. See `DeepEvalMetric` for more
+            information.
+        :returns:
+            A dictionary with a single `results` entry that contains
+            a nested list of metric results. The shape matches the
+            output of :meth:`run`.
+        """
+        InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
+        converted_inputs: list[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
+
+        results = await self._backend_callable_async(converted_inputs, self._backend_metric)
+        converted_results = self._convert_results(results)
+
+        return {"results": converted_results}
+
+    def _convert_results(self, results: EvaluationResult) -> list[list[dict[str, Any]]]:
+        """Convert an ``EvaluationResult`` to the evaluator's output format."""
+        return [[result.to_dict() for result in self.descriptor.output_converter(x)] for x in results.test_results]
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -146,6 +178,35 @@ class DeepEvalEvaluator:
     def _invoke_deepeval(test_cases: list[LLMTestCase], metric: BaseMetric) -> EvaluationResult:
         return evaluate(test_cases=test_cases, metrics=[metric])
 
+    @staticmethod
+    async def _invoke_deepeval_async(test_cases: list[LLMTestCase], metric: BaseMetric) -> EvaluationResult:
+        """Evaluate ``test_cases`` concurrently using the metric's ``a_measure``."""
+
+        async def _evaluate_one(test_case: LLMTestCase) -> TestResult:
+            # DeepEval metrics keep their result state on the instance, so each
+            # concurrent evaluation needs its own copy.
+            metric_copy = cast(BaseMetric, copy_metrics([metric])[0])
+            await metric_copy.a_measure(test_case)
+            metric_data = MetricData.model_construct(
+                name=metric_copy.__class__.__name__,
+                score=metric_copy.score,
+                reason=metric_copy.reason,
+            )
+            return TestResult(
+                name=test_case.name or "",
+                success=False,
+                conversational=False,
+                metrics_data=[metric_data],
+                input=test_case.input,
+                actual_output=test_case.actual_output,
+                expected_output=test_case.expected_output,
+                context=test_case.context,
+                retrieval_context=cast(list[str] | None, test_case.retrieval_context),
+            )
+
+        results = await asyncio.gather(*[_evaluate_one(tc) for tc in test_cases])
+        return EvaluationResult(test_results=list(results), confident_link=None, test_run_id=None)
+
     def _init_backend(self) -> None:
         """
         Initialize the DeepEval backend.
@@ -167,3 +228,4 @@ class DeepEvalEvaluator:
         backend_metric_params["threshold"] = 0.0
         self._backend_metric = self.descriptor.backend(**backend_metric_params)
         self._backend_callable = DeepEvalEvaluator._invoke_deepeval
+        self._backend_callable_async = DeepEvalEvaluator._invoke_deepeval_async
