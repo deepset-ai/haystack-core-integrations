@@ -54,7 +54,13 @@ class CohereRanker:
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
         :param max_tokens_per_doc: The maximum number of tokens to embed for each document defaults to 4096.
+
+        :raises ValueError: If `top_k` is not > 0.
         """
+        if top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
+
         self.model_name = model
         self.api_key = api_key
         self.api_base_url = api_base_url
@@ -116,10 +122,10 @@ class CohereRanker:
         :return: A tuple of (list of strings to be given as input to Cohere model, resolved top_k).
         :raises ValueError: If `top_k` is not > 0.
         """
-        top_k = top_k or self.top_k
-        if top_k <= 0:
+        if top_k is not None and top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+        top_k = self.top_k if top_k is None else top_k
 
         concatenated_input_list = []
         for doc in documents:
