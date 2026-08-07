@@ -158,6 +158,25 @@ def test_amazon_bedrock_ranker_invalid_top_k(mock_aws_session):
         ranker.run(query="q", documents=[Document(content="x")], top_k=-1)
 
 
+@pytest.mark.parametrize("top_k", [0, -1])
+def test_amazon_bedrock_ranker_init_invalid_top_k(mock_aws_session, top_k):
+    with pytest.raises(ValueError, match=rf"top_k must be > 0, but got {top_k}"):
+        AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"), top_k=top_k)
+
+
+def test_amazon_bedrock_ranker_run_zero_top_k(mock_aws_session):
+    ranker = AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"))
+    with pytest.raises(ValueError, match="top_k must be > 0, but got 0"):
+        ranker.run(query="q", documents=[Document(content="x")], top_k=0)
+
+
+def test_amazon_bedrock_ranker_run_zero_top_k_does_not_fall_back_to_instance_top_k(mock_aws_session):
+    # a runtime top_k=0 must raise, not silently fall back to the instance top_k
+    ranker = AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"), top_k=5)
+    with pytest.raises(ValueError, match="top_k must be > 0, but got 0"):
+        ranker.run(query="q", documents=[Document(content="x")], top_k=0)
+
+
 def test_amazon_bedrock_ranker_truncates_large_input(mock_aws_session, caplog):
     ranker = AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"))
     mock_aws_session.rerank.return_value = {"results": []}
