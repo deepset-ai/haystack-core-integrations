@@ -57,6 +57,19 @@ class TestFastembedRanker:
         assert ranker.meta_data_separator == " | "
         assert ranker.score_threshold == 0.5
 
+    def test_init_with_model_kwargs_parameters(self):
+        """
+        Test initialization of FastembedRanker with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CUDAExecutionProvider"]}
+
+        ranker = FastembedRanker(
+            model_name="BAAI/bge-reranker-base",
+            model_kwargs=model_kwargs,
+        )
+
+        assert ranker.model_kwargs == model_kwargs
+
     def test_init_with_incorrect_input(self):
         """
         Test for checking incorrect input format on init
@@ -92,6 +105,7 @@ class TestFastembedRanker:
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
                 "score_threshold": None,
+                "model_kwargs": None,
             },
         }
 
@@ -110,6 +124,7 @@ class TestFastembedRanker:
             meta_fields_to_embed=["test_field"],
             meta_data_separator=" | ",
             score_threshold=0.5,
+            model_kwargs={"providers": ["CUDAExecutionProvider"]},
         )
         ranker_dict = ranker.to_dict()
         assert ranker_dict == {
@@ -125,6 +140,7 @@ class TestFastembedRanker:
                 "meta_fields_to_embed": ["test_field"],
                 "meta_data_separator": " | ",
                 "score_threshold": 0.5,
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
 
@@ -176,6 +192,7 @@ class TestFastembedRanker:
                 "meta_fields_to_embed": ["test_field"],
                 "meta_data_separator": " | ",
                 "score_threshold": 0.5,
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
         ranker = default_from_dict(FastembedRanker, ranker_dict)
@@ -189,6 +206,7 @@ class TestFastembedRanker:
         assert ranker.meta_fields_to_embed == ["test_field"]
         assert ranker.meta_data_separator == " | "
         assert ranker.score_threshold == 0.5
+        assert ranker.model_kwargs == {"providers": ["CUDAExecutionProvider"]}
 
     def test_run_incorrect_input_format(self):
         """
@@ -294,6 +312,24 @@ class TestFastembedRanker:
             ranker.run(query="test query", documents=[Document(content="test document")])
 
         mock_warm_up.assert_called_once()
+
+    @patch("haystack_integrations.components.rankers.fastembed.ranker.TextCrossEncoder")
+    def test_warm_up_forwards_model_kwargs(self, mocked_cross_encoder):
+        """
+        Test that model_kwargs (e.g. GPU providers) are forwarded to the underlying Fastembed model.
+        """
+        ranker = FastembedRanker(
+            model_name="BAAI/bge-reranker-base",
+            model_kwargs={"providers": ["CUDAExecutionProvider"]},
+        )
+        ranker.warm_up()
+        mocked_cross_encoder.assert_called_once_with(
+            model_name="BAAI/bge-reranker-base",
+            cache_dir=None,
+            threads=None,
+            local_files_only=False,
+            providers=["CUDAExecutionProvider"],
+        )
 
     @pytest.mark.integration
     def test_run(self):
