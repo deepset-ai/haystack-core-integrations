@@ -507,6 +507,19 @@ class TestDocumentStore(
         assert document_store.client is None
         assert document_store.count_documents() == 0
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     @pytest.fixture
     def embedding_store(self):
         host = os.environ.get("FALKORDB_HOST", "localhost")
