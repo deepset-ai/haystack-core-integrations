@@ -78,6 +78,7 @@ on:
       - "Test / pyversity"
       - "Test / qdrant"
       - "Test / ragas"
+      - "Test / rhesis"
       - "Test / searchapi"
       - "Test / sentence_transformers"
       - "Test / serperdev"
