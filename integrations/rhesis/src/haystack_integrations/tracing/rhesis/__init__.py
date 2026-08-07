@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from .conversation import DEFAULT_TURN_SPAN_NAME, ConversationTurn, RhesisTracing
 from .tracer import (
     DefaultSpanHandler,
     RhesisSpan,
@@ -13,9 +14,12 @@ from .tracer import (
 )
 
 __all__ = [
+    "DEFAULT_TURN_SPAN_NAME",
+    "ConversationTurn",
     "DefaultSpanHandler",
     "RhesisSpan",
     "RhesisTracer",
+    "RhesisTracing",
     "SpanContext",
     "SpanHandler",
     "rhesis_invocation_context",

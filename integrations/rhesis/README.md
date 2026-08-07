@@ -68,6 +68,44 @@ print(response["tracer"]["trace_url"])
 print(response["tracer"]["trace_id"])
 ```
 
+## Conversations
+
+`RhesisConnector` traces each pipeline run. An application that owns its own loop — a chat REPL, a
+batch script, a server handling one turn per request — needs two more things a component inside the
+pipeline cannot give it: tracing switched on without a pipeline to attach to, and a span wrapping a
+whole pipeline run so a conversation turn has a root of its own.
+
+Without that root, the pipeline span claims the turn and reports the serialized pipeline input and
+output as the conversation text.
+
+```python
+import os
+
+os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
+
+from haystack_integrations.tracing.rhesis import RhesisTracing
+
+tracing = RhesisTracing("My Assistant")  # no-op when RHESIS_API_KEY is unset
+tracing.start_conversation("conversation-1")
+
+for message in ["I have a headache", "It started three days ago"]:
+    with tracing.turn(message) as turn:
+        result = pipeline.run(...)
+        turn.output = extract_reply(result)  # what the user actually sees
+
+tracing.flush()
+```
+
+Every turn after the first joins the first one's trace, so a conversation reads as one trace rather
+than one per exchange. Call `start_conversation` again to begin a new one.
+
+Assign `turn.output` yourself: only the application knows which part of a pipeline result is the
+reply — it may be a tool result, or a value held in agent state rather than the last assistant
+message.
+
+Pass `enabled=False` to build a no-op instance when your own configuration says tracing should be
+off, and `turn_span_name=...` to name the turn spans after your application.
+
 ## Flush behavior
 
 By default spans are flushed after each component (`HAYSTACK_RHESIS_ENFORCE_FLUSH=true`). For
