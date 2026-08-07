@@ -253,6 +253,33 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert restored._tools[0].name == "tool1"
         assert len(restored._tools[1]) == 1
 
+    def test_init_with_google_server_tools(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        server_tool = {"google_search": {}}
+        component = GoogleGenAIChatGenerator(google_server_tools=[server_tool])
+        assert component._google_server_tools == [server_tool]
+
+    def test_to_dict_with_google_server_tools(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        server_tool = {"google_search": {}}
+        component = GoogleGenAIChatGenerator(google_server_tools=[server_tool])
+        data = component.to_dict()
+        assert data["init_parameters"]["google_server_tools"] == [server_tool]
+
+    def test_from_dict_with_google_server_tools(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        server_tool = {"google_search": {}}
+        component = GoogleGenAIChatGenerator(google_server_tools=[server_tool])
+        data = component.to_dict()
+        restored = GoogleGenAIChatGenerator.from_dict(data)
+        assert restored._google_server_tools == [server_tool]
+
+    def test_to_dict_default_google_server_tools_is_none(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        data = component.to_dict()
+        assert data["init_parameters"]["google_server_tools"] is None
+
     def test_to_dict_with_response_format_pydantic(self, monkeypatch):
         """Test that to_dict serializes a Pydantic response_format to a JSON schema dict."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -364,6 +391,34 @@ class TestGoogleGenAIChatGeneratorRun:
         call_kwargs = component._client.models.generate_content.call_args
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.tools is not None
+
+    def test_run_with_google_server_tools(self, monkeypatch, mock_response):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        server_tool = {"google_search": {}}
+        component = GoogleGenAIChatGenerator(google_server_tools=[server_tool])
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        component.run([ChatMessage.from_user("Search for AI news")])
+
+        call_kwargs = component._client.models.generate_content.call_args
+        config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
+        assert config.tools is not None
+        assert len(config.tools) == 1
+
+    def test_run_merges_haystack_and_google_server_tools(self, monkeypatch, mock_response, tools):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        server_tool = {"google_search": {}}
+        component = GoogleGenAIChatGenerator(google_server_tools=[server_tool])
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        component.run([ChatMessage.from_user("Search for AI news")], tools=tools)
+
+        call_kwargs = component._client.models.generate_content.call_args
+        config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
+        assert config.tools is not None
+        # _convert_tools_to_google_genai_format bundles all function declarations into one Tool object,
+        # plus one Tool object for google_search
+        assert len(config.tools) == 2
 
     def test_run_with_safety_settings(self, monkeypatch, mock_response):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -782,6 +837,19 @@ class TestGoogleGenAIChatGeneratorInference:
         assert final_message.text and "paris" in final_message.text.lower() and "berlin" in final_message.text.lower()
         # Check that the response mentions both temperature readings
         assert "22" in final_message.text and "15" in final_message.text
+
+    def test_live_run_with_google_server_tools(self):
+        """
+        Integration test that google_server_tools (Google Search) is accepted by the API and produces a response.
+        """
+        component = GoogleGenAIChatGenerator(google_server_tools=[{"google_search": {}}])
+        results = component.run([ChatMessage.from_user("What is the capital of France?")])
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert message.text
+        assert message.meta["model"]
+        assert message.meta["finish_reason"] == "stop"
 
     def test_live_run_with_thinking(self):
         """
