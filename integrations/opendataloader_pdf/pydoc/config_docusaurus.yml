@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.opendataloader_pdf.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Opendataloader Pdf integration for Haystack
+  id: integrations-opendataloader-pdf
+  filename: opendataloader_pdf.md
+  title: Opendataloader Pdf
