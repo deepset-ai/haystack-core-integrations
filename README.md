@@ -6,9 +6,9 @@
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/arcadedb/embedding\_retriever.py |       33 |        2 |        8 |        4 |     85% |94, 96, 142-\>144, 144-\>146 |
 | src/haystack\_integrations/document\_stores/arcadedb/converters.py                |       14 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      348 |        6 |      134 |        4 |     98% |193-\>201, 201-\>208, 204-205, 217-218, 227-228, 300-\>293, 308-\>291 |
+| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      355 |        8 |      136 |        4 |     98% |193-\>201, 201-\>208, 204-205, 217-218, 227-228, 300-\>293, 308-\>291, 603-604 |
 | src/haystack\_integrations/document\_stores/arcadedb/filters.py                   |       89 |        0 |       56 |        0 |    100% |           |
-| **TOTAL**                                                                         |  **484** |    **8** |  **202** |    **8** | **98%** |           |
+| **TOTAL**                                                                         |  **491** |   **10** |  **204** |    **8** | **97%** |           |
 
 
 ## Setup coverage badge
