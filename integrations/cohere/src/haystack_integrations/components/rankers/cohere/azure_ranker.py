@@ -164,6 +164,21 @@ class CohereAzureRanker:
     def run(
         self, query: str, documents: list[Document], top_k: int | None = None
     ) -> dict[str, list[Document]]:
+        """
+        Use the Azure-hosted Cohere reranker to re-rank the list of documents based on the query.
+
+        :param query:
+            Query string.
+        :param documents:
+            List of Documents.
+        :param top_k:
+            The maximum number of Documents you want the Ranker to return.
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given query in descending order of similarity.
+
+        :raises ValueError: If `top_k` is not > 0.
+        """
         if not documents:
             return {"documents": []}
 
@@ -183,6 +198,24 @@ class CohereAzureRanker:
     async def run_async(
         self, query: str, documents: list[Document], top_k: int | None = None
     ) -> dict[str, list[Document]]:
+        """
+        Asynchronously re-rank the list of documents based on the query.
+
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
+
+        :param query:
+            Query string.
+        :param documents:
+            List of Documents.
+        :param top_k:
+            The maximum number of Documents you want the Ranker to return.
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given query in descending order of similarity.
+
+        :raises ValueError: If `top_k` is not > 0.
+        """
         if not documents:
             return {"documents": []}
 
