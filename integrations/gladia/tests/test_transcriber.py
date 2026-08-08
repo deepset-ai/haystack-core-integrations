@@ -80,7 +80,10 @@ class TestGladiaTranscriber:
 
         mock_post_resp = Mock()
         mock_post_resp.status_code = 200
-        mock_post_resp.json.return_value = {"id": "job-123", "result_url": "https://api.gladia.io/v2/transcription/job-123"}
+        mock_post_resp.json.return_value = {
+            "id": "job-123",
+            "result_url": "https://api.gladia.io/v2/transcription/job-123",
+        }
 
         mock_poll_resp = Mock()
         mock_poll_resp.status_code = 200
@@ -111,7 +114,10 @@ class TestGladiaTranscriber:
 
         mock_post_resp = Mock()
         mock_post_resp.status_code = 200
-        mock_post_resp.json.return_value = {"id": "job-456", "result_url": "https://api.gladia.io/v2/transcription/job-456"}
+        mock_post_resp.json.return_value = {
+            "id": "job-456",
+            "result_url": "https://api.gladia.io/v2/transcription/job-456",
+        }
 
         mock_poll_resp = Mock()
         mock_poll_resp.status_code = 200
@@ -138,7 +144,10 @@ class TestGladiaTranscriber:
 
         mock_post_resp = Mock()
         mock_post_resp.status_code = 200
-        mock_post_resp.json.return_value = {"id": "job-789", "result_url": "https://api.gladia.io/v2/transcription/job-789"}
+        mock_post_resp.json.return_value = {
+            "id": "job-789",
+            "result_url": "https://api.gladia.io/v2/transcription/job-789",
+        }
 
         mock_poll_resp = Mock()
         mock_poll_resp.status_code = 200
@@ -161,7 +170,10 @@ class TestGladiaTranscriber:
 
         mock_post_resp = Mock()
         mock_post_resp.status_code = 200
-        mock_post_resp.json.return_value = {"id": "job-async", "result_url": "https://api.gladia.io/v2/transcription/job-async"}
+        mock_post_resp.json.return_value = {
+            "id": "job-async",
+            "result_url": "https://api.gladia.io/v2/transcription/job-async",
+        }
 
         mock_poll_resp = Mock()
         mock_poll_resp.status_code = 200
@@ -183,12 +195,18 @@ class TestGladiaTranscriber:
 
         mock_post_resp = Mock()
         mock_post_resp.status_code = 200
-        mock_post_resp.json.return_value = {"id": "job-err", "result_url": "https://api.gladia.io/v2/transcription/job-err"}
+        mock_post_resp.json.return_value = {
+            "id": "job-err",
+            "result_url": "https://api.gladia.io/v2/transcription/job-err",
+        }
 
         mock_poll_resp = Mock()
         mock_poll_resp.status_code = 200
         mock_poll_resp.json.return_value = {"status": "error", "error": "Corrupt audio format"}
 
-        with patch("httpx.Client.post", return_value=mock_post_resp), patch("httpx.Client.get", return_value=mock_poll_resp):
+        with (
+            patch("httpx.Client.post", return_value=mock_post_resp),
+            patch("httpx.Client.get", return_value=mock_poll_resp),
+        ):
             with pytest.raises(RuntimeError, match="Gladia transcription failed: Corrupt audio format"):
                 transcriber.run(sources=["https://example.com/audio.mp3"])
