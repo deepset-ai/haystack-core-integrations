@@ -98,9 +98,7 @@ class CohereAzureRanker:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _prepare_cohere_input_docs(
-        self, documents: list[Document], top_k: int | None = None
-    ) -> tuple[list[str], int]:
+    def _prepare_cohere_input_docs(self, documents: list[Document], top_k: int | None = None) -> tuple[list[str], int]:
         top_k = top_k or self.top_k
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
@@ -161,9 +159,7 @@ class CohereAzureRanker:
         return {"documents": sorted_docs}
 
     @component.output_types(documents=list[Document])
-    def run(
-        self, query: str, documents: list[Document], top_k: int | None = None
-    ) -> dict[str, list[Document]]:
+    def run(self, query: str, documents: list[Document], top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Use the Azure-hosted Cohere reranker to re-rank the list of documents based on the query.
 
