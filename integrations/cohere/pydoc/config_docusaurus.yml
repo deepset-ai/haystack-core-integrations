@@ -6,6 +6,7 @@ loaders:
       - haystack_integrations.components.embedders.cohere.utils
       - haystack_integrations.components.generators.cohere.generator
       - haystack_integrations.components.generators.cohere.chat.chat_generator
+      - haystack_integrations.components.rankers.cohere.azure_ranker
       - haystack_integrations.components.rankers.cohere.ranker
     search_path: [../src]
 processors:

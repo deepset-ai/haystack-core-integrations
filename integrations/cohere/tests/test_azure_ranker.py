@@ -54,7 +54,11 @@ class TestCohereAzureRanker:
             "type": "haystack_integrations.components.rankers.cohere.azure_ranker.CohereAzureRanker",
             "init_parameters": {
                 "api_base_url": AZURE_COHERE_API_URL,
-                "api_key": {"env_vars": ["COHERE_AZURE_API_KEY", "AZURE_COHERE_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["COHERE_AZURE_API_KEY", "AZURE_COHERE_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "model": "rerank-v3.5",
                 "top_k": 10,
                 "meta_fields_to_embed": [],
@@ -70,7 +74,11 @@ class TestCohereAzureRanker:
             "type": "haystack_integrations.components.rankers.cohere.azure_ranker.CohereAzureRanker",
             "init_parameters": {
                 "api_base_url": AZURE_COHERE_API_URL,
-                "api_key": {"env_vars": ["COHERE_AZURE_API_KEY", "AZURE_COHERE_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["COHERE_AZURE_API_KEY", "AZURE_COHERE_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
                 "model": "rerank-v3.5",
                 "top_k": 5,
             },
@@ -166,7 +174,9 @@ class TestCohereAzureRanker:
 
         mock_response = Mock()
         mock_response.status_code = 401
-        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError("Unauthorized", request=Mock(), response=mock_response)
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Unauthorized", request=Mock(), response=mock_response
+        )
 
         with patch("httpx.Client.post", return_value=mock_response):
             with pytest.raises(httpx.HTTPStatusError):
