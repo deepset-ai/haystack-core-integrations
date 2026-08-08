@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.audio.gladia.transcriber
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Gladia integration for Haystack
+  id: integrations-gladia
+  filename: gladia.md
+  title: Gladia
