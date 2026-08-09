@@ -93,7 +93,9 @@ class MongoDBAtlasDocumentStore:
             It can be particularly useful when integrating with an existing collection for retrieval. We discourage
             using this parameter when working with collections created by Haystack.
         :param meta_project_mapping: A dictionary mapping metadata fields in the Haystack Document (keys)
-            to custom fields in the MongoDB document (values). Default is None.
+            to custom fields in the MongoDB document (values). Values must be bare field paths, e.g.
+            ``"source"`` or ``"metadata.author"``. A leading ``"$"`` is accepted for backward compatibility
+            and is stripped once during initialization. Default is None.
         :raises ValueError: If the collection name contains invalid characters.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
@@ -108,7 +110,14 @@ class MongoDBAtlasDocumentStore:
         self.full_text_search_index = full_text_search_index
         self.embedding_field = embedding_field
         self.content_field = content_field
-        self.meta_project_mapping = meta_project_mapping
+        # Normalize meta_project_mapping values once: strip a leading "$" if present so that all
+        # downstream code can assume clean bare field paths.
+        if meta_project_mapping is not None:
+            self.meta_project_mapping: dict[str, str] | None = {
+                k: (v[1:] if v.startswith("$") else v) for k, v in meta_project_mapping.items()
+            }
+        else:
+            self.meta_project_mapping = None
         self._connection: MongoClient | None = None
         self._connection_async: AsyncMongoClient | None = None
         self._collection: Collection | None = None
@@ -323,8 +332,6 @@ class MongoDBAtlasDocumentStore:
         for field in metadata_fields:
             if self.meta_project_mapping and field in self.meta_project_mapping:
                 mongo_field = self.meta_project_mapping[field]
-                if mongo_field.startswith("$"):
-                    mongo_field = mongo_field[1:]
             else:
                 mongo_field = f"meta.{field}"
             facet_stages[field] = [{"$group": {"_id": f"${mongo_field}"}}, {"$count": "count"}]
@@ -423,8 +430,7 @@ class MongoDBAtlasDocumentStore:
             projection = {"meta": 1}
             if self.meta_project_mapping:
                 for mongo_field in self.meta_project_mapping.values():
-                    field_name = mongo_field[1:] if mongo_field.startswith("$") else mongo_field
-                    projection[field_name] = 1
+                    projection[mongo_field] = 1
             cursor = self._collection.find({}, projection).sort("_id", -1).limit(50)
             return self._compute_metadata_fields_info(list(cursor))
         except Exception as e:
@@ -447,8 +453,7 @@ class MongoDBAtlasDocumentStore:
             projection = {"meta": 1}
             if self.meta_project_mapping:
                 for mongo_field in self.meta_project_mapping.values():
-                    field_name = mongo_field[1:] if mongo_field.startswith("$") else mongo_field
-                    projection[field_name] = 1
+                    projection[mongo_field] = 1
             cursor = self._collection_async.find({}, projection).sort("_id", -1).limit(50)
             docs = await cursor.to_list(length=50)
             return self._compute_metadata_fields_info(docs)
@@ -459,9 +464,7 @@ class MongoDBAtlasDocumentStore:
     def _create_min_max_pipeline(self, metadata_field: str) -> list[dict[str, Any]]:
         clean_key = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         if self.meta_project_mapping and clean_key in self.meta_project_mapping:
-            mongo_field = self.meta_project_mapping[clean_key]
-            if not mongo_field.startswith("$"):
-                mongo_field = f"${mongo_field}"
+            mongo_field = f"${self.meta_project_mapping[clean_key]}"
         elif metadata_field.startswith("meta."):
             mongo_field = f"${metadata_field}"
         else:
@@ -525,9 +528,7 @@ class MongoDBAtlasDocumentStore:
     ) -> list[dict[str, Any]]:
         clean_key = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         if self.meta_project_mapping and clean_key in self.meta_project_mapping:
-            mongo_field = self.meta_project_mapping[clean_key]
-            if not mongo_field.startswith("$"):
-                mongo_field = f"${mongo_field}"
+            mongo_field = f"${self.meta_project_mapping[clean_key]}"
         elif metadata_field.startswith("meta."):
             mongo_field = f"${metadata_field}"
         else:
@@ -827,10 +828,7 @@ class MongoDBAtlasDocumentStore:
             update_fields = {}
             for key, value in meta.items():
                 if self.meta_project_mapping and key in self.meta_project_mapping:
-                    mongo_field = self.meta_project_mapping[key]
-                    if mongo_field.startswith("$"):
-                        mongo_field = mongo_field[1:]
-                    update_fields[mongo_field] = value
+                    update_fields[self.meta_project_mapping[key]] = value
                 else:
                     update_fields[f"meta.{key}"] = value
             result = self._collection.update_many(filter=normalized_filters, update={"$set": update_fields})
@@ -864,10 +862,7 @@ class MongoDBAtlasDocumentStore:
             update_fields = {}
             for key, value in meta.items():
                 if self.meta_project_mapping and key in self.meta_project_mapping:
-                    mongo_field = self.meta_project_mapping[key]
-                    if mongo_field.startswith("$"):
-                        mongo_field = mongo_field[1:]
-                    update_fields[mongo_field] = value
+                    update_fields[self.meta_project_mapping[key]] = value
                 else:
                     update_fields[f"meta.{key}"] = value
             result = await self._collection_async.update_many(filter=normalized_filters, update={"$set": update_fields})
@@ -1277,11 +1272,11 @@ class MongoDBAtlasDocumentStore:
 
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
-    def _get_nested_value(self, doc: dict[str, Any], path: str) -> Any:
-        if path.startswith("$"):
-            path = path[1:]
+    @staticmethod
+    def _get_nested_value(doc: dict[str, Any], path: str) -> Any:
+        """Return the value at *path* (dot-separated) in *doc*, or ``None`` if absent."""
         parts = path.split(".")
-        val = doc
+        val: Any = doc
         for part in parts:
             if isinstance(val, dict) and part in val:
                 val = val[part]
@@ -1289,9 +1284,9 @@ class MongoDBAtlasDocumentStore:
                 return None
         return val
 
-    def _set_nested_value(self, doc: dict[str, Any], path: str, value: Any) -> None:
-        if path.startswith("$"):
-            path = path[1:]
+    @staticmethod
+    def _set_nested_value(doc: dict[str, Any], path: str, value: Any) -> None:
+        """Set *value* at *path* (dot-separated) in *doc*, creating intermediate dicts as needed."""
         parts = path.split(".")
         val = doc
         for part in parts[:-1]:
@@ -1300,9 +1295,14 @@ class MongoDBAtlasDocumentStore:
             val = val[part]
         val[parts[-1]] = value
 
-    def _pop_nested_value(self, doc: dict[str, Any], path: str) -> Any:
-        if path.startswith("$"):
-            path = path[1:]
+    @staticmethod
+    def _pop_nested_value(doc: dict[str, Any], path: str) -> Any:
+        """
+        Remove and return the value at *path* (dot-separated) in *doc*.
+
+        Empty intermediate dicts are pruned after removal.
+        Returns ``None`` if the path does not exist.
+        """
         parts = path.split(".")
 
         def rec_pop(d: dict[str, Any], path_parts: list[str]) -> tuple[Any, bool]:
@@ -1343,13 +1343,15 @@ class MongoDBAtlasDocumentStore:
             if field.startswith("meta."):
                 meta_key = field[5:]
                 if meta_key in self.meta_project_mapping:
-                    mongo_field = self.meta_project_mapping[meta_key]
-                    if mongo_field.startswith("$"):
-                        mongo_field = mongo_field[1:]
-                    translated["field"] = mongo_field
+                    translated["field"] = self.meta_project_mapping[meta_key]
         elif "conditions" in translated:
             translated["conditions"] = [self._translate_filters(c) for c in translated["conditions"]]
         return translated
+
+    # Fields that Document.from_dict() recognises as named parameters (not flattened metadata).
+    _DOCUMENT_FIELDS: frozenset[str] = frozenset(
+        {"id", "content", "blob", "meta", "score", "embedding", "sparse_embedding"}
+    )
 
     def _mongo_doc_to_haystack_doc(self, mongo_doc: dict[str, Any]) -> Document:
         """
@@ -1370,6 +1372,15 @@ class MongoDBAtlasDocumentStore:
                 val = self._pop_nested_value(mongo_doc, mongo_field)
                 if val is not None:
                     meta[meta_key] = val
+
+            # Document.from_dict() raises ValueError when a non-empty 'meta' dict coexists with
+            # unrecognised top-level keys (it treats them as flattened metadata).  When the
+            # mapping has populated meta, drop any leftover root-level fields that are not
+            # recognised Haystack Document fields so that reconstruction always succeeds.
+            if meta:
+                for key in list(mongo_doc.keys()):
+                    if key not in self._DOCUMENT_FIELDS:
+                        mongo_doc.pop(key)
 
         return Document.from_dict(mongo_doc)
 

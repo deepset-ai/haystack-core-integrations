@@ -297,61 +297,39 @@ class TestMongoDBDocumentStoreConversion:
 
 class TestMongoDBDocumentStoreHelpers:
     def test_get_nested_value(self):
-        store = MongoDBAtlasDocumentStore(
-            mongo_connection_string=Secret.from_token("test"),
-            database_name="test_db",
-            collection_name="test_collection",
-            vector_search_index="test_index",
-            full_text_search_index="test_index",
-        )
         doc = {"a": {"b": {"c": 123}}, "x": "y"}
-        assert store._get_nested_value(doc, "a.b.c") == 123
-        assert store._get_nested_value(doc, "$a.b.c") == 123
-        assert store._get_nested_value(doc, "x") == "y"
-        assert store._get_nested_value(doc, "a.b.d") is None
-        assert store._get_nested_value(doc, "non_existent") is None
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "a.b.c") == 123
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "x") == "y"
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "a.b.d") is None
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "non_existent") is None
 
     def test_set_nested_value(self):
-        store = MongoDBAtlasDocumentStore(
-            mongo_connection_string=Secret.from_token("test"),
-            database_name="test_db",
-            collection_name="test_collection",
-            vector_search_index="test_index",
-            full_text_search_index="test_index",
-        )
-        doc = {}
-        store._set_nested_value(doc, "a.b.c", 123)
+        doc: dict = {}
+        MongoDBAtlasDocumentStore._set_nested_value(doc, "a.b.c", 123)
         assert doc == {"a": {"b": {"c": 123}}}
 
-        store._set_nested_value(doc, "$x", "y")
+        MongoDBAtlasDocumentStore._set_nested_value(doc, "x", "y")
         assert doc == {"a": {"b": {"c": 123}}, "x": "y"}
 
         # overwrite existing value or modify intermediate type
-        store._set_nested_value(doc, "a.b", "new_val")
+        MongoDBAtlasDocumentStore._set_nested_value(doc, "a.b", "new_val")
         assert doc == {"a": {"b": "new_val"}, "x": "y"}
 
     def test_pop_nested_value(self):
-        store = MongoDBAtlasDocumentStore(
-            mongo_connection_string=Secret.from_token("test"),
-            database_name="test_db",
-            collection_name="test_collection",
-            vector_search_index="test_index",
-            full_text_search_index="test_index",
-        )
         doc = {"a": {"b": {"c": 123, "d": 456}}, "x": "y"}
 
         # Pop sibling leaves
-        val = store._pop_nested_value(doc, "a.b.c")
+        val = MongoDBAtlasDocumentStore._pop_nested_value(doc, "a.b.c")
         assert val == 123
         assert doc == {"a": {"b": {"d": 456}}, "x": "y"}
 
         # Pop remaining sibling, which should recursively delete parent dicts
-        val = store._pop_nested_value(doc, "$a.b.d")
+        val = MongoDBAtlasDocumentStore._pop_nested_value(doc, "a.b.d")
         assert val == 456
         assert doc == {"x": "y"}
 
         # Pop root field
-        val = store._pop_nested_value(doc, "x")
+        val = MongoDBAtlasDocumentStore._pop_nested_value(doc, "x")
         assert val == "y"
         assert doc == {}
 
@@ -373,9 +351,17 @@ class TestMongoDBDocumentStoreHelpers:
         translated = store._translate_filters(filters)
         assert translated == {"field": "source", "operator": "==", "value": "url"}
 
-        # With leading $ in mapping (should be stripped)
-        store.meta_project_mapping = {"source": "$source", "author": "$metadata.author"}
-        translated = store._translate_filters(filters)
+        # With leading $ in mapping values - normalization happens at __init__ so the
+        # store with "$source" / "$metadata.author" behaves identically.
+        store_dollar = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            meta_project_mapping={"source": "$source", "author": "$metadata.author"},
+        )
+        translated = store_dollar._translate_filters(filters)
         assert translated == {"field": "source", "operator": "==", "value": "url"}
 
         # Nested condition
@@ -471,6 +457,153 @@ class TestMongoDBDocumentStoreHelpers:
         assert info["source"] == {"type": "keyword"}
         assert info["author"] == {"type": "keyword"}
         assert info["unmapped"] == {"type": "keyword"}
+
+
+class TestNestedHelperStaticMethods:
+    """Requirement 1 - helpers are static and callable without an instance."""
+
+    def test_get_nested_value_is_static(self):
+        # Callable on the class itself (no instance needed)
+        doc = {"a": {"b": 42}}
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "a.b") == 42
+
+    def test_set_nested_value_is_static(self):
+        doc: dict = {}
+        MongoDBAtlasDocumentStore._set_nested_value(doc, "x.y", "val")
+        assert doc == {"x": {"y": "val"}}
+
+    def test_pop_nested_value_is_static(self):
+        doc = {"a": {"b": 1, "c": 2}}
+        val = MongoDBAtlasDocumentStore._pop_nested_value(doc, "a.b")
+        assert val == 1
+        assert doc == {"a": {"c": 2}}
+
+    def test_helpers_do_not_strip_dollar(self):
+        """Helpers receive clean bare paths; they do not strip a leading '$' from path strings."""
+        doc = {"a": {"b": 10}, "field": "plain_val"}
+        # Clean paths work as expected
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "field") == "plain_val"
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "a.b") == 10
+        # A path starting with '$' is NOT stripped; it is treated as a literal key lookup,
+        # so a non-existent key returns None.
+        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "$field") is None
+
+
+class TestMetaProjectMappingNormalization:
+    """Requirement 2 - meta_project_mapping values are normalized once at init."""
+
+    def _make_store(self, mapping):
+        return MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="db",
+            collection_name="col",
+            vector_search_index="idx",
+            full_text_search_index="idx",
+            meta_project_mapping=mapping,
+        )
+
+    def test_bare_field_path_unchanged(self):
+        store = self._make_store({"source": "source_field", "author": "meta.author"})
+        assert store.meta_project_mapping == {"source": "source_field", "author": "meta.author"}
+
+    def test_dollar_prefixed_values_are_stripped(self):
+        store = self._make_store({"source": "$source_field", "author": "$meta.author"})
+        assert store.meta_project_mapping == {"source": "source_field", "author": "meta.author"}
+
+    def test_dollar_and_bare_produce_identical_mapping(self):
+        bare_store = self._make_store({"source": "source_field", "author": "nested.author"})
+        dollar_store = self._make_store({"source": "$source_field", "author": "$nested.author"})
+        assert bare_store.meta_project_mapping == dollar_store.meta_project_mapping
+
+    def test_none_mapping_stays_none(self):
+        store = self._make_store(None)
+        assert store.meta_project_mapping is None
+
+    def test_to_dict_serializes_normalized_values(self):
+        """Serialized mapping should contain the already-normalized (bare) values."""
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING"),
+            database_name="db",
+            collection_name="col",
+            vector_search_index="idx",
+            full_text_search_index="idx",
+            meta_project_mapping={"source": "$source_field"},
+        )
+        d = store.to_dict()
+        assert d["init_parameters"]["meta_project_mapping"] == {"source": "source_field"}
+
+
+class TestMongoDocToHaystackDocReconstructionFix:
+    """Requirement 3 - unmapped root-level MongoDB fields do not cause ValueError."""
+
+    def _make_store(self, mapping):
+        return MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="db",
+            collection_name="col",
+            vector_search_index="idx",
+            full_text_search_index="idx",
+            meta_project_mapping=mapping,
+        )
+
+    def test_mapped_field_plus_unmapped_root_field_does_not_raise(self):
+        """Mapped meta + leftover root-level field must not raise ValueError."""
+        store = self._make_store({"source": "source_field"})
+        mongo_doc = {
+            "id": "doc-1",
+            "content": "hello",
+            "source_field": "url",  # consumed by mapping → goes into meta
+            "stale_root_key": "ignored",  # NOT a Document field; should be dropped
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.id == "doc-1"
+        assert doc.content == "hello"
+        assert doc.meta["source"] == "url"
+
+    def test_no_mapped_value_populated_preserves_unmapped_root_fields(self):
+        """When the mapped field is absent, meta stays empty and no fields are stripped."""
+        store = self._make_store({"source": "source_field"})
+        mongo_doc = {
+            "id": "doc-2",
+            "content": "world",
+            # source_field is absent - mapping produces nothing
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.id == "doc-2"
+        assert doc.content == "world"
+        assert doc.meta == {}
+
+    def test_nested_mapped_field_still_works(self):
+        """Nested path mapping (e.g. 'meta.author') continues to work correctly."""
+        store = self._make_store({"author": "nested.author"})
+        mongo_doc = {
+            "id": "doc-3",
+            "content": "text",
+            "nested": {"author": "Alice"},
+            "extra_root": "drop_me",
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.meta["author"] == "Alice"
+
+    def test_legitimate_document_fields_preserved(self):
+        """id, content, embedding, score, blob, meta, sparse_embedding are all kept."""
+        store = self._make_store({"tag": "tag_field"})
+        mongo_doc = {
+            "id": "doc-4",
+            "content": "c",
+            "embedding": [0.1, 0.2],
+            "score": 0.99,
+            "meta": {"existing": "val"},
+            "tag_field": "sports",
+            "junk_field": "remove_me",
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.id == "doc-4"
+        assert doc.content == "c"
+        assert doc.embedding == [0.1, 0.2]
+        assert doc.score == 0.99
+        assert doc.meta["existing"] == "val"
+        assert doc.meta["tag"] == "sports"
 
 
 @pytest.mark.skipif(
