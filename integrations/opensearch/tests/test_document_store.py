@@ -299,17 +299,17 @@ def test_bm25_retrieval_reraises_other_transport_errors(_mock_opensearch_client)
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-def test_get_metadata_field_unique_values_no_search_term_builds_query_without_include(_mock_opensearch_client):
+def test_get_metadata_field_unique_values_no_search_term_uses_match_all_query(_mock_opensearch_client):
     """Composite aggregation terms sources don't support `include`/`exclude`, so with no search_term
-    the request body must have neither a `query` filter nor an `include` clause on the terms source."""
+    the request body must use a plain `match_all` query and no `include` clause on the terms source."""
     store = OpenSearchDocumentStore(hosts="testhost")
     store._client = MagicMock()
     store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    store.get_metadata_field_unique_values("category", None, 10)
+    store.get_metadata_field_unique_values("category", search_term=None, size=10)
 
     body = store._client.search.call_args.kwargs["body"]
-    assert "query" not in body
+    assert body["query"] == {"match_all": {}}
     terms_source = body["aggs"]["unique_values"]["composite"]["sources"][0]["category"]["terms"]
     assert "include" not in terms_source
     assert terms_source["field"] == "category"
@@ -321,7 +321,7 @@ def test_get_metadata_field_unique_values_search_term_filters_on_field_value_not
     store._client = MagicMock()
     store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    store.get_metadata_field_unique_values("category", "needle", 10)
+    store.get_metadata_field_unique_values("category", search_term="needle", size=10)
 
     body = store._client.search.call_args.kwargs["body"]
     # Composite aggregation terms sources don't support `include`/`exclude`, so the substring match
@@ -339,7 +339,7 @@ def test_get_metadata_field_unique_values_search_term_is_lowercased_for_case_ins
     store._client = MagicMock()
     store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    store.get_metadata_field_unique_values("category", "NeEdLe", 10)
+    store.get_metadata_field_unique_values("category", search_term="NeEdLe", size=10)
 
     body = store._client.search.call_args.kwargs["body"]
     script = body["query"]["script"]["script"]
@@ -355,7 +355,7 @@ def test_get_metadata_field_unique_values_search_term_with_regex_metacharacters(
     store._client = MagicMock()
     store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    store.get_metadata_field_unique_values("category", "a.b*c", 10)
+    store.get_metadata_field_unique_values("category", search_term="a.b*c", size=10)
 
     body = store._client.search.call_args.kwargs["body"]
     assert body["query"]["script"]["script"]["params"]["term"] == "a.b*c"
@@ -1187,45 +1187,75 @@ class TestDocumentStore(
         document_store.write_documents(docs)
 
         # Test getting all unique values without search term
-        unique_values, after_key = document_store.get_metadata_field_unique_values("meta.category", None, 10)
+        unique_values, total_count = document_store.get_metadata_field_unique_values(
+            metadata_field="category", search_term=None, from_=0, size=10
+        )
         assert set(unique_values) == {"A", "B", "C"}
-        # after_key should be None when all results are returned
-        assert after_key is None
+        assert total_count == 3
 
-        # Test with "meta." prefix
-        unique_languages, _ = document_store.get_metadata_field_unique_values("meta.language", None, 10)
+        # Test field name normalization - the "meta." prefix is optional and must give identical results
+        unique_values_prefixed, total_count_prefixed = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=0, size=10
+        )
+        assert set(unique_values_prefixed) == set(unique_values)
+        assert total_count_prefixed == total_count
+
+        unique_languages, total_languages = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.language", search_term=None, from_=0, size=10
+        )
         assert set(unique_languages) == {"Python", "Java", "JavaScript"}
+        assert total_languages == 3
 
         # Test pagination - first page
-        unique_values_page1, after_key_page1 = document_store.get_metadata_field_unique_values("meta.category", None, 2)
+        unique_values_page1, total_count_page1 = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=0, size=2
+        )
         assert len(unique_values_page1) == 2
         assert all(val in ["A", "B", "C"] for val in unique_values_page1)
-        # Should have an after_key for pagination
-        assert after_key_page1 is not None
+        assert total_count_page1 == 3
 
-        # Test pagination - second page using after_key
-        unique_values_page2, after_key_page2 = document_store.get_metadata_field_unique_values(
-            "meta.category", None, 2, after=after_key_page1
+        # Test pagination - second page, via from_ (triggers the offset-walk internally)
+        unique_values_page2, total_count_page2 = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=2, size=2
         )
         assert len(unique_values_page2) == 1
         assert unique_values_page2[0] in ["A", "B", "C"]
-        # Should have no more results
-        assert after_key_page2 is None
+        assert total_count_page2 == 3
+
+        # Pages don't overlap and together cover all values
+        assert not set(unique_values_page1).intersection(set(unique_values_page2))
+        assert set(unique_values_page1) | set(unique_values_page2) == {"A", "B", "C"}
+
+        # Test pagination - from_ beyond total count (should return empty, but a valid total_count)
+        unique_values_beyond, total_beyond = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=10, size=10
+        )
+        assert len(unique_values_beyond) == 0
+        assert total_beyond == 3
 
         # Test with search term - filter by the metadata field's own VALUE matching "Python"
         # ("language" values are "Python"/"Java"/"JavaScript", so searching "Python" against
         # the "category" field's values ("A"/"B"/"C") should match nothing)
-        unique_values_filtered, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
+        unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term="Python", from_=0, size=10
+        )
         assert set(unique_values_filtered) == set()
+        assert total_filtered == 0
 
         # Searching "language" values themselves for the substring "Java" must match both
         # "Java" and "JavaScript" (substring match on the field's own value).
-        unique_languages_filtered, _ = document_store.get_metadata_field_unique_values("meta.language", "Java", 10)
+        unique_languages_filtered, total_java = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.language", search_term="Java", from_=0, size=10
+        )
         assert set(unique_languages_filtered) == {"Java", "JavaScript"}
+        assert total_java == 2
 
         # Case-insensitivity: a lowercase search term must still match the differently-cased values above.
-        unique_languages_lower, _ = document_store.get_metadata_field_unique_values("meta.language", "java", 10)
+        unique_languages_lower, total_lower = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.language", search_term="java", from_=0, size=10
+        )
         assert set(unique_languages_lower) == {"Java", "JavaScript"}
+        assert total_lower == 2
 
         # Test with integer values
         int_docs = [
@@ -1235,17 +1265,27 @@ class TestDocumentStore(
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         document_store.write_documents(int_docs)
-        unique_priorities, _ = document_store.get_metadata_field_unique_values("meta.priority", None, 10)
-        assert set(unique_priorities) == {"1", "2", "3"}
+        unique_priorities, total_priorities = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.priority", search_term=None, from_=0, size=10
+        )
+        assert set(unique_priorities) == {1, 2, 3}
+        assert total_priorities == 3
 
         # search_term now matches against the field's own value, not the content, so searching
         # for content text ("Doc 1") against the "priority" field's values ("1"/"2"/"3") matches nothing.
-        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
+        unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.priority", search_term="Doc 1", from_=0, size=10
+        )
         assert set(unique_priorities_filtered) == set()
+        assert total_priorities_filtered == 0
 
-        # search_term matching the field's own value (e.g. "1") does match.
-        unique_priorities_by_value, _ = document_store.get_metadata_field_unique_values("meta.priority", "1", 10)
-        assert set(unique_priorities_by_value) == {"1"}
+        # search_term matching the field's own (stringified) value (e.g. "1") does match, but the
+        # returned value itself keeps its original type (int here).
+        unique_priorities_by_value, total_priorities_by_value = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.priority", search_term="1", from_=0, size=10
+        )
+        assert set(unique_priorities_by_value) == {1}
+        assert total_priorities_by_value == 1
 
         # Prove the semantic change explicitly with a document whose CONTENT contains the search
         # term but whose target metadata field value does NOT: it must now be EXCLUDED.
@@ -1253,8 +1293,11 @@ class TestDocumentStore(
             Document(content="This mentions needle in the text", meta={"topic": "unrelated"}),
         ]
         document_store.write_documents(content_match_docs)
-        unique_topics_content_only, _ = document_store.get_metadata_field_unique_values("meta.topic", "needle", 10)
+        unique_topics_content_only, total_topics_content_only = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.topic", search_term="needle", from_=0, size=10
+        )
         assert set(unique_topics_content_only) == set()
+        assert total_topics_content_only == 0
 
         # And a document whose metadata field VALUE contains the search term but whose content does
         # NOT: it must now be INCLUDED.
@@ -1262,8 +1305,11 @@ class TestDocumentStore(
             Document(content="Nothing special here", meta={"topic": "needle-in-haystack"}),
         ]
         document_store.write_documents(value_match_docs)
-        unique_topics_value_only, _ = document_store.get_metadata_field_unique_values("meta.topic", "needle", 10)
+        unique_topics_value_only, total_topics_value_only = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.topic", search_term="needle", from_=0, size=10
+        )
         assert set(unique_topics_value_only) == {"needle-in-haystack"}
+        assert total_topics_value_only == 1
 
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""
