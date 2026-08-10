@@ -1846,8 +1846,7 @@ class ElasticsearchDocumentStore:
         field_name: str, search_term: str | None, filters: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
-        Builds a query matching documents whose metadata field's own value contains `search_term`,
-        optionally restricted further by `filters`.
+        Builds a query matching docs whose metadata field's contains `search_term`, optionally restricted `filters`.
 
         Matching is a case-insensitive substring match (not against the document content).
         """
