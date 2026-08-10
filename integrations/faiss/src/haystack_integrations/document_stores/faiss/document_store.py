@@ -488,7 +488,7 @@ class FAISSDocumentStore:
             unique values.
         """
         values = []
-        for doc in self.filter_documents(filters):
+        for doc in self.filter_documents(filters=filters):
             val = FAISSDocumentStore._get_doc_value(doc, metadata_field)
             if val is not None:
                 values.append(val)
