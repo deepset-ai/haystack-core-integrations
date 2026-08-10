@@ -609,6 +609,7 @@ class IBMDb2DocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Get unique values for a given metadata field, optionally filtered by a search term.
@@ -619,6 +620,7 @@ class IBMDb2DocumentStore:
             are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :return: A tuple containing (list of unique values in their original JSON type, total count of
             unique values matching `search_term`).
         """
@@ -628,12 +630,19 @@ class IBMDb2DocumentStore:
         # applied directly to a JSON_VALUE(...) expression derived from the BLOB `meta` column. Wrapping
         # the extraction in a derived table materializes it as a plain VARCHAR column first, so DISTINCT
         # and ORDER BY in the outer query operate on that column instead of the LOB-derived expression.
+        # `filters` is applied inside this subquery (not the outer one) since it references the raw
+        # `meta` column, which only exists at this level — the outer query only sees the extracted `value`.
+        params: list[Any] = []
+        filter_where = ""
+        if filters:
+            filter_expression = FilterTranslator().translate(filters, params)
+            filter_where = f" WHERE {filter_expression}"
+
         value_subquery = (
             f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS value "
-            f"FROM {self.table_name}"
+            f"FROM {self.table_name}{filter_where}"
         )
 
-        params: list[Any] = []
         search_clause = ""
         if search_term is not None:
             search_clause = " AND LOCATE(UPPER(?), UPPER(value)) > 0"
