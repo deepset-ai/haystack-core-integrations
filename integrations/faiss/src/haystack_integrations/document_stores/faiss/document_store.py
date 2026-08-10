@@ -473,6 +473,7 @@ class FAISSDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term, with pagination.
@@ -482,11 +483,12 @@ class FAISSDocumentStore:
             against the metadata field's value.
         :param from_: The offset to start returning values from (for pagination).
         :param size: The maximum number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing list of unique values (in their original type) and total count of
             unique values.
         """
         values = []
-        for doc in self.documents.values():
+        for doc in self.filter_documents(filters):
             val = FAISSDocumentStore._get_doc_value(doc, metadata_field)
             if val is not None:
                 values.append(val)
