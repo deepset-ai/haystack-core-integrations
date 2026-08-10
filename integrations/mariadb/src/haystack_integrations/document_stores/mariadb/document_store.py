@@ -400,9 +400,7 @@ class MariaDBDocumentStore:
         docs = _rows_to_documents(records)
         # VEC_DISTANCE_COSINE returns distance (lower = more similar); convert to a 0-1 score
         docs = [
-            replace(doc, score=float(1.0 - record["score"]))
-            if record.get("score") is not None
-            else doc
+            replace(doc, score=float(1.0 - record["score"])) if record.get("score") is not None else doc
             for doc, record in zip(docs, records, strict=True)
         ]
         if score_threshold is not None:

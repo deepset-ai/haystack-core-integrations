@@ -67,9 +67,7 @@ class TestSerialization:
 
     def test_invalid_table_name_raises(self):
         with pytest.raises(ValueError, match="table_name must contain only"):
-            MariaDBDocumentStore(
-                user=Secret.from_token("u"), password=Secret.from_token("p"), table_name="bad-table!"
-            )
+            MariaDBDocumentStore(user=Secret.from_token("u"), password=Secret.from_token("p"), table_name="bad-table!")
 
 
 class TestEmbeddingHelpers:
