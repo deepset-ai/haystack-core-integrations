@@ -668,6 +668,7 @@ class WeaviateDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field with pagination support.
@@ -680,6 +681,7 @@ class WeaviateDocumentStore:
             Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
@@ -691,12 +693,19 @@ class WeaviateDocumentStore:
             msg = f"Field '{field_name}' not found in collection schema"
             raise ValueError(msg)
 
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
+
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
         # since the number of unique values cannot exceed the number of documents.
-        doc_count = self.collection.aggregate.over_all(total_count=True).total_count or 0
+        doc_count = self.collection.aggregate.over_all(filters=weaviate_filter, total_count=True).total_count or 0
 
-        agg_result = self.collection.aggregate.over_all(group_by=GroupByAggregate(prop=field_name, limit=doc_count))
+        agg_result = self.collection.aggregate.over_all(
+            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
+        )
 
         return self._compute_field_unique_values(agg_result, search_term, from_, size)
 
@@ -706,6 +715,7 @@ class WeaviateDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a metadata field with pagination support.
@@ -718,6 +728,7 @@ class WeaviateDocumentStore:
             Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
@@ -730,13 +741,20 @@ class WeaviateDocumentStore:
             msg = f"Field '{field_name}' not found in collection schema"
             raise ValueError(msg)
 
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
+
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
         # since the number of unique values cannot exceed the number of documents.
-        doc_count_result = await collection.aggregate.over_all(total_count=True)
+        doc_count_result = await collection.aggregate.over_all(filters=weaviate_filter, total_count=True)
         doc_count = doc_count_result.total_count or 0
 
-        agg_result = await collection.aggregate.over_all(group_by=GroupByAggregate(prop=field_name, limit=doc_count))
+        agg_result = await collection.aggregate.over_all(
+            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
+        )
 
         return self._compute_field_unique_values(agg_result, search_term, from_, size)
 

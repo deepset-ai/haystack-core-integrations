@@ -372,6 +372,19 @@ class TestDocumentStore(
         assert len(values_page) == 1
         assert values_page[0] in ["alpha", "beta", "gamma"]
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     def test_custom_content_field(self, real_collection):
         database_name, collection_name, client = real_collection
         custom_store = MongoDBAtlasDocumentStore(

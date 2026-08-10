@@ -616,3 +616,16 @@ class TestDocumentStore(
         values, total = document_store.get_metadata_field_unique_values("tags", size=10)
         assert total == 4  # python, java, rust, go
         assert set(values) == {"go", "java", "python", "rust"}
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
