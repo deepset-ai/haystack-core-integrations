@@ -1842,26 +1842,39 @@ class ElasticsearchDocumentStore:
         return self._extract_min_max_from_stats(stats)
 
     @staticmethod
-    def _build_unique_values_field_query(field_name: str, search_term: str | None) -> dict[str, Any]:
+    def _build_unique_values_field_query(
+        field_name: str, search_term: str | None, filters: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
-        Builds a query matching documents whose metadata field's own value contains `search_term`.
+        Builds a query matching documents whose metadata field's own value contains `search_term`,
+        optionally restricted further by `filters`.
 
         Matching is a case-insensitive substring match (not against the document content).
         """
-        if not search_term:
-            return {"match_all": {}}
-        return {
-            "script": {
-                "script": {
-                    "source": (
-                        "def v = doc[params.field]; "
-                        "if (v.size() == 0) { return false; } "
-                        "return v.value.toString().toLowerCase().contains(params.term)"
-                    ),
-                    "params": {"field": field_name, "term": search_term.lower()},
+        clauses: list[dict[str, Any]] = []
+        if filters:
+            clauses.append(_normalize_filters(filters))
+        if search_term:
+            clauses.append(
+                {
+                    "script": {
+                        "script": {
+                            "source": (
+                                "def v = doc[params.field]; "
+                                "if (v.size() == 0) { return false; } "
+                                "return v.value.toString().toLowerCase().contains(params.term)"
+                            ),
+                            "params": {"field": field_name, "term": search_term.lower()},
+                        }
+                    }
                 }
-            }
-        }
+            )
+
+        if not clauses:
+            return {"match_all": {}}
+        if len(clauses) == 1:
+            return clauses[0]
+        return {"bool": {"filter": clauses}}
 
     @staticmethod
     def _build_composite_agg_body(
@@ -1946,6 +1959,7 @@ class ElasticsearchDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term.
@@ -1965,15 +1979,19 @@ class ElasticsearchDocumentStore:
             "meta." prefix.
         :param search_term: Optional case-insensitive substring to filter the returned values by, matched
             against the metadata field's own value (not the document content).
+            NOTE: The matching is done with a server-side script to accomplish the substring matching on the value
+            of the field and this operation is quite expensive for a large corpus
+
         :param from_: Offset to start returning values from. Defaults to 0.
         :param size: The number of unique values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of distinct values
             for the field matching `search_term`).
         """
         self._ensure_initialized()
 
         field_name = _normalize_metadata_field_name(metadata_field)
-        query = self._build_unique_values_field_query(field_name, search_term)
+        query = self._build_unique_values_field_query(field_name, search_term, filters)
 
         after_key = self._skip_unique_values(field_name, query, from_) if from_ > 0 else None
 
@@ -1987,6 +2005,7 @@ class ElasticsearchDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronous counterpart of `get_metadata_field_unique_values`.
@@ -1995,15 +2014,19 @@ class ElasticsearchDocumentStore:
             "meta." prefix.
         :param search_term: Optional case-insensitive substring to filter the returned values by, matched
             against the metadata field's own value (not the document content).
+            NOTE: The matching is done with a server-side script to accomplish the substring matching on the value
+            of the field and this operation is quite expensive for a large corpus
+
         :param from_: Offset to start returning values from. Defaults to 0.
         :param size: The number of unique values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of distinct values
             for the field matching `search_term`).
         """
         await self._ensure_initialized_async()
 
         field_name = _normalize_metadata_field_name(metadata_field)
-        query = self._build_unique_values_field_query(field_name, search_term)
+        query = self._build_unique_values_field_query(field_name, search_term, filters)
 
         after_key = await self._skip_unique_values_async(field_name, query, from_) if from_ > 0 else None
 
