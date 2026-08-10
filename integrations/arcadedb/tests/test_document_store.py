@@ -536,6 +536,19 @@ class TestArcadeDBDocumentStore(
         assert set(values) == {1, 2}
         assert total == 2
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: ArcadeDBDocumentStore):
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(id="2", content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(id="3", content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     def test_write_documents_none_embedding_is_zero_padded(self, document_store: ArcadeDBDocumentStore):
         """Documents written without an embedding get a zero vector of the correct dimension."""
         dim = document_store._embedding_dimension
