@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import re
 import struct
 from dataclasses import replace
-import re
 from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
