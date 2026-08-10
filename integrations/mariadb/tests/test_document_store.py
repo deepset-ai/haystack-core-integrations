@@ -55,7 +55,6 @@ class TestSerialization:
         params = d["init_parameters"]
         assert params["host"] == "localhost"
         assert params["embedding_dimension"] == 768
-        assert params["vector_function"] == "cosine"
 
     def test_from_dict_roundtrip(self, monkeypatch):
         monkeypatch.setenv("MARIADB_USER", "test_user")
@@ -66,10 +65,10 @@ class TestSerialization:
         assert restored.embedding_dimension == 512
         assert restored.host == "localhost"
 
-    def test_invalid_vector_function_raises(self):
-        with pytest.raises(ValueError, match="vector_function must be one of"):
+    def test_invalid_table_name_raises(self):
+        with pytest.raises(ValueError, match="table_name must contain only"):
             MariaDBDocumentStore(
-                user=Secret.from_token("u"), password=Secret.from_token("p"), vector_function="bad_func"
+                user=Secret.from_token("u"), password=Secret.from_token("p"), table_name="bad-table!"
             )
 
 

@@ -5,7 +5,8 @@
 import json
 import struct
 from dataclasses import replace
-from typing import Any, Literal
+import re
+from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
@@ -19,12 +20,7 @@ from .filters import _convert_filters_to_where_clause_and_params, _validate_filt
 
 logger = logging.getLogger(__name__)
 
-VALID_VECTOR_FUNCTIONS = ["cosine", "euclidean"]
-
-VECTOR_FUNCTION_TO_SQL = {
-    "cosine": "VEC_DISTANCE_COSINE",
-    "euclidean": "VEC_DISTANCE_EUCLIDEAN",
-}
+_VALID_TABLE_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 CREATE_TABLE_STATEMENT = """
 CREATE TABLE IF NOT EXISTS `{table_name}` (
@@ -49,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `{table_name}` (
     blob_mime_type VARCHAR(255),
     meta JSON,
     FULLTEXT KEY content_ft_idx (content),
-    VECTOR INDEX (embedding)
+    VECTOR INDEX (embedding) DISTANCE=cosine
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
@@ -88,7 +84,7 @@ LIMIT ?
 """
 
 EMBEDDING_QUERY = """
-SELECT *, {vec_func}(embedding, ?) AS score
+SELECT *, VEC_DISTANCE_COSINE(embedding, ?) AS score
 FROM `{table_name}`
 WHERE embedding IS NOT NULL
 {extra_where}
@@ -133,7 +129,6 @@ class MariaDBDocumentStore:
         password: Secret = Secret.from_env_var("MARIADB_PASSWORD"),
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
-        vector_function: Literal["cosine", "euclidean"] = "cosine",
         recreate_table: bool = False,
         create_vector_index: bool = False,
     ) -> None:
@@ -145,19 +140,18 @@ class MariaDBDocumentStore:
         :param database: Database name.
         :param user: Database user. Reads `MARIADB_USER` env var by default.
         :param password: Database password. Reads `MARIADB_PASSWORD` env var by default.
-        :param table_name: Table used to store documents.
+        :param table_name: Table used to store documents. Must contain only letters, digits, and underscores.
         :param embedding_dimension: Dimension of embedding vectors.
-        :param vector_function: Similarity function — `"cosine"` or `"euclidean"`.
         :param recreate_table: Drop and recreate the table on init. **Deletes all data.**
-        :param create_vector_index: If `True`, creates a real MHNSW vector index for fast ANN search.
-            Requires every document to have a non-null embedding. Defaults to `False`.
+        :param create_vector_index: If `True`, creates an MHNSW vector index (cosine distance) for fast ANN
+            search. Requires every document to have a non-null embedding. Defaults to `False`.
         """
         self._connection: Any = None
         self._cursor: Any = None
         self._table_initialized = False
 
-        if vector_function not in VALID_VECTOR_FUNCTIONS:
-            msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, got '{vector_function}'"
+        if not _VALID_TABLE_NAME_RE.match(table_name):
+            msg = f"table_name must contain only letters, digits, and underscores, got '{table_name}'"
             raise ValueError(msg)
 
         self.host = host
@@ -167,7 +161,6 @@ class MariaDBDocumentStore:
         self.password = password
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
-        self.vector_function = vector_function
         self.recreate_table = recreate_table
         self.create_vector_index = create_vector_index
 
@@ -182,7 +175,6 @@ class MariaDBDocumentStore:
             password=self.password.to_dict(),
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
-            vector_function=self.vector_function,
             recreate_table=self.recreate_table,
             create_vector_index=self.create_vector_index,
         )
@@ -385,7 +377,6 @@ class MariaDBDocumentStore:
         _validate_filters(filters)
         self._ensure_connection()
 
-        vec_func = VECTOR_FUNCTION_TO_SQL[self.vector_function]
         embedding_bytes = _embedding_to_bytes(query_embedding)
 
         extra_where = ""
@@ -399,7 +390,6 @@ class MariaDBDocumentStore:
         params.append(top_k)
 
         sql = EMBEDDING_QUERY.format(
-            vec_func=vec_func,
             table_name=self.table_name,
             extra_where=extra_where,
         )
@@ -408,9 +398,9 @@ class MariaDBDocumentStore:
         records = self._cursor.fetchall()
 
         docs = _rows_to_documents(records)
-        # VEC_DISTANCE_* returns distance (lower = more similar); convert to a positive score
+        # VEC_DISTANCE_COSINE returns distance (lower = more similar); convert to a 0-1 score
         docs = [
-            replace(doc, score=float(1.0 - record["score"]) if "COSINE" in vec_func else float(-record["score"]))
+            replace(doc, score=float(1.0 - record["score"]))
             if record.get("score") is not None
             else doc
             for doc, record in zip(docs, records, strict=True)

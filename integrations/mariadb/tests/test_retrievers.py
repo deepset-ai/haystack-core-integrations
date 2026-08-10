@@ -196,27 +196,6 @@ def integration_store():
     store.close()
 
 
-@pytest.fixture
-def integration_store_l2():
-    store = MariaDBDocumentStore(
-        host=MARIADB_HOST,
-        port=MARIADB_PORT,
-        database=MARIADB_DB,
-        user=Secret.from_token(MARIADB_USER),
-        password=Secret.from_token(MARIADB_PASSWORD),
-        table_name="test_retrievers_l2_docs",
-        embedding_dimension=4,
-        vector_function="euclidean",
-        recreate_table=True,
-    )
-    yield store
-    try:
-        store._cursor.execute("DROP TABLE IF EXISTS `test_retrievers_l2_docs`")
-    except Exception:  # noqa: S110
-        pass
-    store.close()
-
-
 @pytest.mark.integration
 class TestIntegrationRetrievers:
     def test_embedding_retriever(self, integration_store):
@@ -240,13 +219,3 @@ class TestIntegrationRetrievers:
         retriever = MariaDBKeywordRetriever(document_store=integration_store, top_k=5)
         result = retriever.run(query="language")
         assert any("language" in d.content for d in result["documents"])
-
-    def test_embedding_retriever_l2(self, integration_store_l2):
-        docs = [
-            Document(content="near origin", embedding=[0.1, 0.1, 0.1, 0.1]),
-            Document(content="far origin", embedding=[10.0, 10.0, 10.0, 10.0]),
-        ]
-        integration_store_l2.write_documents(docs)
-        retriever = MariaDBEmbeddingRetriever(document_store=integration_store_l2, top_k=1)
-        result = retriever.run(query_embedding=[0.0, 0.0, 0.0, 0.0])
-        assert result["documents"][0].content == "near origin"
