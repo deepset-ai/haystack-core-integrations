@@ -16,9 +16,9 @@
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py       |      189 |       11 |       50 |        2 |     94% |605-606, 685-691, 701-703 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/utils.py                 |      308 |       20 |      182 |       19 |     91% |88, 203, 211-\>208, 214-215, 244-\>242, 336-337, 383-384, 425-\>427, 449-\>521, 451-\>521, 491-\>477, 494-\>477, 497-\>495, 503-\>510, 506-\>510, 548-\>639, 592-\>639, 622-\>632, 636-\>639, 680-\>687, 709-722 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/generator.py                  |       98 |        0 |       16 |        0 |    100% |           |
-| src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                        |       79 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                        |       82 |        0 |       14 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/amazon\_bedrock/knowledge\_base\_retriever.py |       82 |       24 |       24 |        4 |     60% |27-38, 132-137, 152-\>194, 174-188, 190-192 |
-| **TOTAL**                                                                                      | **1422** |   **78** |  **434** |   **40** | **92%** |           |
+| **TOTAL**                                                                                      | **1425** |   **78** |  **436** |   **40** | **92%** |           |
 
 
 ## Setup coverage badge
