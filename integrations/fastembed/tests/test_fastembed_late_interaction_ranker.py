@@ -222,6 +222,25 @@ class TestFastembedLateInteractionRanker:
         ):
             ranker.run(query=query, documents=list_document, top_k=-3)
 
+        with pytest.raises(
+            ValueError,
+            match="top_k must be > 0, but got 0",
+        ):
+            ranker.run(query=query, documents=list_document, top_k=0)
+
+    def test_run_runtime_top_k_zero_does_not_fall_back_to_instance_top_k(self):
+        """
+        A runtime top_k=0 must raise, not silently fall back to the instance top_k.
+        """
+        ranker = FastembedLateInteractionRanker(model_name="colbert-ir/colbertv2.0", top_k=5)
+        ranker._model = "mock_model"
+
+        with pytest.raises(
+            ValueError,
+            match="top_k must be > 0, but got 0",
+        ):
+            ranker.run(query="query", documents=[Document("Document 1")], top_k=0)
+
     def test_run_empty_document_list(self):
         """
         Test for no error when sending no documents.
