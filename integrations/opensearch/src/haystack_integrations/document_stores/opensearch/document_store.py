@@ -2172,6 +2172,7 @@ class OpenSearchDocumentStore:
         **Note**: To keep this signature uniform across document stores, offset-based pagination is
         emulated on top of the cursor by re-fetching and discarding every bucket before `from_` on each
         call, requiring additional search round-trips proportional to `from_`.
+        Performance may degrade for high-cardinality metadata fields and large from_ values.
 
         **Note**: `total_count` is computed via an approximate cardinality aggregation; for fields with
         very high cardinality it may not be exact.
