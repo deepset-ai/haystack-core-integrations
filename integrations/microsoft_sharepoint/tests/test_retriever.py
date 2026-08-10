@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+import requests
 from haystack import Document, Pipeline
 from haystack.utils import Secret
 
@@ -100,6 +101,7 @@ class TestInit:
         assert retriever.top_k == 10
         assert retriever.fields is None
         assert retriever.query_template is None
+        assert retriever.region is None
         assert retriever.graph_url == "https://graph.microsoft.com/v1.0"
         assert retriever.timeout == 30.0
         assert retriever.max_retries == 3
@@ -140,11 +142,17 @@ class TestSerialization:
                 "top_k": 5,
                 "fields": ["title"],
                 "query_template": '{searchTerms} path:"https://x"',
+                "region": None,
                 "graph_url": "https://graph.microsoft.us/v1.0",
                 "timeout": 10.0,
                 "max_retries": 1,
             },
         }
+
+    def test_to_dict_with_region(self):
+        retriever = MSSharePointRetriever(region="NAM")
+        data = retriever.to_dict()
+        assert data["init_parameters"]["region"] == "NAM"
 
     def test_from_dict_round_trip(self):
         retriever = MSSharePointRetriever(entity_types=["site"], top_k=7, query_template="{searchTerms}")
@@ -240,6 +248,19 @@ class TestRun:
             retriever.run(query="contoso", access_token="tok")
         assert "queryTemplate" not in mock_post.call_args.kwargs["json"]["requests"][0]["query"]
         assert "fields" not in mock_post.call_args.kwargs["json"]["requests"][0]
+
+    def test_region_included_in_request_body_when_set(self):
+        retriever = MSSharePointRetriever(region="NAM")
+        with patch.object(httpx.Client, "post", return_value=_make_response(json_body=EMPTY_RESPONSE)) as mock_post:
+            retriever.run(query="q", access_token="tok")
+        request = mock_post.call_args.kwargs["json"]["requests"][0]
+        assert request["region"] == "NAM"
+
+    def test_region_omitted_from_request_body_when_none(self):
+        retriever = MSSharePointRetriever()
+        with patch.object(httpx.Client, "post", return_value=_make_response(json_body=EMPTY_RESPONSE)) as mock_post:
+            retriever.run(query="q", access_token="tok")
+        assert "region" not in mock_post.call_args.kwargs["json"]["requests"][0]
 
     def test_empty_results(self):
         retriever = MSSharePointRetriever()
@@ -406,6 +427,56 @@ class TestLive:
     def test_run_against_microsoft_graph(self):
         retriever = MSSharePointRetriever(top_k=3)
         documents = retriever.run(query="haystack", access_token=os.environ["MS_SHAREPOINT_ACCESS_TOKEN"])["documents"]
+        assert isinstance(documents, list)
+        for doc in documents:
+            assert isinstance(doc, Document)
+            assert "web_url" in doc.meta
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not all(os.environ.get(v) for v in ("MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET")),
+    reason="MS_GRAPH_TENANT_ID / MS_GRAPH_CLIENT_ID / MS_GRAPH_CLIENT_SECRET not set",
+)
+class TestLiveAppOnly:
+    """
+    End-to-end tests using app-only (client credentials) authentication.
+
+    Set these env vars before running:
+        MS_GRAPH_TENANT_ID     — Azure AD tenant ID
+        MS_GRAPH_CLIENT_ID     — App registration client ID
+        MS_GRAPH_CLIENT_SECRET — App registration client secret
+        MS_GRAPH_REGION        — Search region, e.g. "NAM" (default: "DEU")
+
+    Run with:
+        hatch run test:integration
+    """
+
+    @staticmethod
+    def _get_app_token() -> str:
+        tenant_id = os.environ["MS_GRAPH_TENANT_ID"]
+        client_id = os.environ["MS_GRAPH_CLIENT_ID"]
+        client_secret = os.environ["MS_GRAPH_CLIENT_SECRET"]
+        response = requests.post(
+            f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "scope": "https://graph.microsoft.com/.default",
+                "grant_type": "client_credentials",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()["access_token"]
+
+    def test_app_only_search_with_region_succeeds(self):
+        token = self._get_app_token()
+        region = os.environ.get("MS_GRAPH_REGION", "DEU")
+
+        # With region, the request should succeed.
+        retriever = MSSharePointRetriever(top_k=3, region=region, max_retries=0)
+        documents = retriever.run(query="test", access_token=token)["documents"]
         assert isinstance(documents, list)
         for doc in documents:
             assert isinstance(doc, Document)

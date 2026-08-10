@@ -29,7 +29,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "macos-latest", "windows-latest"]'
   TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
 
@@ -114,7 +113,7 @@ jobs:
       # On any skipped run the token stays unset and `TestLiveGoogleDrive` skips itself.
       - name: Authenticate to Google Cloud
         id: gdrive_auth
-        if: env.HAS_GOOGLE_DRIVE_SECRET == 'true' && matrix.python-version == '3.14' && runner.os == 'Linux'
+        if: env.HAS_GOOGLE_DRIVE_SECRET == 'true' && matrix.python-version == '3.11' && runner.os == 'Linux'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           credentials_json: ${{ secrets.GOOGLE_DRIVE_SA_KEY }}
@@ -122,8 +121,10 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/drive.readonly
 
       - name: Run integration tests
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         env:
           GOOGLE_DRIVE_ACCESS_TOKEN: ${{ steps.gdrive_auth.outputs.access_token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

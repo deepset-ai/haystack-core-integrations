@@ -43,14 +43,18 @@ jobs:
           pip install hatch requests --uploaded-prior-to=P1D
 
       - name: Validate version number
-        run: python .github/utils/validate_version.py --tag ${{ github.ref_name }}
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: python .github/utils/validate_version.py --tag "$REF_NAME"
 
       - name: Get project folder
         id: pathfinder
         shell: python
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           import os
-          project_path = "${{ github.ref_name }}".rsplit("-", maxsplit=1)[0]
+          project_path = os.environ["REF_NAME"].rsplit("-", maxsplit=1)[0]
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             print(f'project_path={project_path}', file=f)
 
@@ -59,7 +63,7 @@ jobs:
         run: hatch build
 
       - name: Publish on PyPi
-        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: ${{ steps.pathfinder.outputs.project_path }}/dist
 

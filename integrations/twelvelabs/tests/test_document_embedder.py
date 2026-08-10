@@ -98,6 +98,24 @@ async def test_run_async_rejects_non_documents():
         await embedder.run_async(documents="a string")
 
 
+@pytest.mark.asyncio
+async def test_run_async_propagates_exception_and_waits_for_all_tasks():
+    embedder = TwelveLabsDocumentEmbedder(api_key=Secret.from_token("tlk_test"))
+    docs = [Document(content="first"), Document(content="second")]
+
+    async def fake_embed(text: str, _model: str, _api_key: str) -> list[float]:
+        if text == "first":
+            msg = "boom"
+            raise ValueError(msg)
+        return [0.2] * 8
+
+    with patch(ASYNC_PATCH_TARGET, new_callable=AsyncMock, side_effect=fake_embed) as mock_embed:
+        with pytest.raises(ValueError, match="boom"):
+            await embedder.run_async(documents=docs)
+
+    assert mock_embed.await_count == 2
+
+
 @pytest.mark.skipif(not os.environ.get("TWELVELABS_API_KEY"), reason="TWELVELABS_API_KEY env var not set")
 @pytest.mark.integration
 def test_run_integration():

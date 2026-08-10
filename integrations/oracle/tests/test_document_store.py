@@ -202,6 +202,18 @@ class TestOracleDocumentStoreUnit:
         assert count_params["search"] == "%bar%"
         assert vals_params["search"] == "%bar%"
 
+    def test_get_metadata_field_unique_values_parses_json_scalar_types(self, patched_store, mock_pool):
+        """Numeric/boolean JSON_VALUE results (returned by Oracle as text) are parsed back to their
+        original type; plain strings (not valid JSON when unquoted) are left as-is."""
+        _, _, cursor = mock_pool
+        cursor.fetchone.return_value = (3,)
+        cursor.fetchall.return_value = [("1",), ("true",), ("bar",)]
+
+        values, total = patched_store.get_metadata_field_unique_values("priority")
+
+        assert values == [1, True, "bar"]
+        assert total == 3
+
     def test_delete_table_executes_drop_and_index_sql(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         patched_store.delete_table()
@@ -450,6 +462,33 @@ class TestOracleDocumentStore(
         assert values == ["Apple-Tart"]
         assert total == 1
 
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        document_store.write_documents(
+            [
+                _doc(_uid("P001"), content="one", meta={"priority": 1}),
+                _doc(_uid("P002"), content="two", meta={"priority": 2}),
+                _doc(_uid("P003"), content="three", meta={"priority": 1}),
+            ]
+        )
+        values, total = document_store.get_metadata_field_unique_values("priority")
+        assert set(values) == {1, 2}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store):
+        document_store.write_documents(
+            [
+                _doc(_uid("R001"), meta={"category": "A", "status": "active"}),
+                _doc(_uid("R002"), meta={"category": "B", "status": "active"}),
+                _doc(_uid("R003"), meta={"category": "C", "status": "inactive"}),
+            ]
+        )
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
 
 @pytest.mark.integration
 class TestOracleDocumentStoreAsync(
@@ -493,3 +532,18 @@ class TestOracleDocumentStoreAsync(
         await embedding_store.write_documents_async([_doc(doc_id, embedding=[0.5, 0.5, 0.0, 0.0])])
         results = await embedding_store._embedding_retrieval_async([0.5, 0.5, 0.0, 0.0], top_k=1)
         assert len(results) >= 1
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_with_filters_async(self, embedding_store):
+        await embedding_store.write_documents_async(
+            [
+                _doc(_uid("S001"), meta={"category": "A", "status": "active"}),
+                _doc(_uid("S002"), meta={"category": "B", "status": "active"}),
+                _doc(_uid("S003"), meta={"category": "C", "status": "inactive"}),
+            ]
+        )
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await embedding_store.get_metadata_field_unique_values_async("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

@@ -248,36 +248,39 @@ class TestCohereRanker:
         assert texts == []
         assert top_k == 10
 
-    def test_run_negative_topk_in_init(self, monkeypatch):
+    def test_init_negative_topk(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
-        ranker = CohereRanker(top_k=-2)
-        query = "test"
-        documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
-            ranker.run(query, documents)
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got -2"):
+            CohereRanker(top_k=-2)
 
-    def test_run_zero_topk_in_init(self, monkeypatch):
+    def test_init_zero_topk(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
-        ranker = CohereRanker(top_k=0)
-        query = "test"
-        documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
-            ranker.run(query, documents)
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got 0"):
+            CohereRanker(top_k=0)
 
     def test_run_negative_topk_in_run(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         ranker = CohereRanker()
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got -3"):
             ranker.run(query, documents, -3)
 
-    def test_run_zero_topk_in_run_and_init(self, monkeypatch):
+    def test_run_zero_topk_in_run(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
-        ranker = CohereRanker(top_k=0)
+        ranker = CohereRanker()
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got 0"):
+            ranker.run(query, documents, 0)
+
+    def test_run_zero_topk_does_not_fall_back_to_instance_topk(self, monkeypatch):
+        # a runtime top_k=0 must raise, not silently fall back to the instance top_k
+        monkeypatch.setenv("CO_API_KEY", "test-api-key")
+        ranker = CohereRanker(top_k=5)
+        query = "test"
+        documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got 0"):
             ranker.run(query, documents, 0)
 
     def test_run_documents_provided(self, monkeypatch, mock_ranker_response):  # noqa: ARG002
@@ -360,11 +363,21 @@ class TestCohereRanker:
     @pytest.mark.asyncio
     async def test_run_async_negative_topk(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
-        ranker = CohereRanker(top_k=-2)
+        ranker = CohereRanker()
         query = "test"
         documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
-        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
-            await ranker.run_async(query, documents)
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got -3"):
+            await ranker.run_async(query, documents, -3)
+
+    @pytest.mark.asyncio
+    async def test_run_async_zero_topk_does_not_fall_back_to_instance_topk(self, monkeypatch):
+        # a runtime top_k=0 must raise, not silently fall back to the instance top_k
+        monkeypatch.setenv("CO_API_KEY", "test-api-key")
+        ranker = CohereRanker(top_k=5)
+        query = "test"
+        documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got 0"):
+            await ranker.run_async(query, documents, 0)
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),

@@ -362,7 +362,7 @@ class ChromaDocumentStore:
         search_term: str | None,
         from_: int,
         size: int,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Computes paginated unique values for a metadata field from a Chroma get result.
 
@@ -372,7 +372,7 @@ class ChromaDocumentStore:
             substring against the value of `field_name`.
         :param from_: The offset to start returning values from.
         :param size: The maximum number of unique values to return.
-        :returns: A tuple of the paginated unique values list and the total count.
+        :returns: A tuple of the paginated unique values (in their original type) list and the total count.
         """
         metadatas = result.get("metadatas", [])
 
@@ -394,12 +394,12 @@ class ChromaDocumentStore:
             return [], 0
 
         unique_values = {
-            str(meta.get(field_name))
+            meta.get(field_name)
             for meta in metadatas
             if meta and field_name in meta and meta.get(field_name) is not None
         }
 
-        sorted_values = sorted(unique_values)
+        sorted_values = sorted(unique_values, key=str)
         total_count = len(sorted_values)
         end = from_ + size
         paginated_values = sorted_values[from_:end]
@@ -1308,7 +1308,8 @@ class ChromaDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Return unique metadata field values, optionally filtered by a search term, with pagination.
 
@@ -1318,14 +1319,17 @@ class ChromaDocumentStore:
             case-insensitive substring against the metadata field's value.
         :param from_: The offset to start returning values from (for pagination).
         :param size: The maximum number of unique values to return.
-        :returns: A tuple containing list of unique values and total count of unique values.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing list of unique values (in their original type) and total count of unique values.
         """
         self._ensure_initialized()
         assert self._collection is not None
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        result = self._collection.get(include=["metadatas"])
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
+        result = self._collection.get(**kwargs)
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
     async def get_metadata_field_unique_values_async(
@@ -1334,7 +1338,8 @@ class ChromaDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously return unique metadata field values, optionally filtered by a search term, with pagination.
 
@@ -1346,14 +1351,17 @@ class ChromaDocumentStore:
             case-insensitive substring against the metadata field's value.
         :param from_: The offset to start returning values from (for pagination).
         :param size: The maximum number of unique values to return.
-        :returns: A tuple containing list of unique values and total count of unique values.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing list of unique values (in their original type) and total count of unique values.
         """
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        result = await self._async_collection.get(include=["metadatas"])
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
+        result = await self._async_collection.get(**kwargs)
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
     @classmethod

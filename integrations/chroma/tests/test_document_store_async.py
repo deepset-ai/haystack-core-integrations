@@ -249,3 +249,31 @@ class TestDocumentStoreAsync(
         )
         assert values == ["special-value"]
         assert total == 1
+
+    async def test_get_metadata_field_unique_values_async_preserves_non_string_types(
+        self, document_store: ChromaDocumentStore
+    ):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total = await document_store.get_metadata_field_unique_values_async("priority", from_=0, size=10)
+        assert set(values) == {1, 2}
+        assert total == 2
+
+    async def test_get_metadata_field_unique_values_with_filters_async(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await document_store.get_metadata_field_unique_values_async("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

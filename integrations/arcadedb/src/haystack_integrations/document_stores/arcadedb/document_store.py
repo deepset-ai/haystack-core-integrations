@@ -254,19 +254,19 @@ class ArcadeDBDocumentStore:
         return 0
 
     @staticmethod
-    def _extract_distinct_values(rows: list[dict[str, Any]]) -> set[str]:
+    def _extract_distinct_values(rows: list[dict[str, Any]]) -> set[Any]:
         """
-        Extracts and flattens unique non-None strings from 'val' column result rows.
+        Extracts and flattens unique non-None values from 'val' column result rows.
         :param rows: Raw result rows from ``_command``.
-        :returns: A set of unique string values.
+        :returns: A set of unique values, preserving their original type.
         """
-        result: set[str] = set()
+        result: set[Any] = set()
         for row in rows:
             val = row.get("val")
             if isinstance(val, list):
-                result.update(str(item) for item in val if item is not None)
+                result.update(item for item in val if item is not None)
             elif val is not None:
-                result.add(str(val))
+                result.add(val)
         return result
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
@@ -575,8 +575,13 @@ class ArcadeDBDocumentStore:
         return {"min": rows[0].get("min_value"), "max": rows[0].get("max_value")}
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search term or all possible values
         if no search term is given.
@@ -584,17 +589,27 @@ class ArcadeDBDocumentStore:
         :param search_term: Optional case-insensitive substring search term.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing the paginated values and the total count.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing the paginated values (in their original type) and the total count.
         """
         self._ensure_initialized()
 
         metadata_field = metadata_field.removeprefix("meta.")
         field_ref = f"meta[{_sql_str(metadata_field)}]"
-        where = ""
+        conditions = []
+
+        try:
+            filters_where = _convert_filters(filters)
+        except ValueError as e:
+            raise FilterError(str(e)) from e
+        if filters_where:
+            conditions.append(filters_where)
 
         if search_term:
             search_val = _sql_str(f"%{search_term}%")
-            where = f" WHERE {field_ref} ILIKE {search_val}"
+            conditions.append(f"{field_ref} ILIKE {search_val}")
+
+        where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
 
         sql = f"SELECT DISTINCT {field_ref} AS val FROM `{self._type_name}`{where}"
         rows = self._command(sql)

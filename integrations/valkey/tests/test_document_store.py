@@ -777,6 +777,38 @@ class TestValkeyDocumentStore(
         assert total == 2
         assert set(values) == {"apple_pie", "apple_jam"}
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store):
+        """Test get_metadata_field_unique_values restricts documents using the filters param."""
+        docs = [
+            Document(
+                id="gmvf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "A", "status": "active"}
+            ),
+            Document(
+                id="gmvf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "B", "status": "active"}
+            ),
+            Document(
+                id="gmvf3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "C", "status": "inactive"}
+            ),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(id="gmvt1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"priority": 1}),
+            Document(id="gmvt2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"priority": 2}),
+            Document(id="gmvt3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+        values, total = document_store.get_metadata_field_unique_values("priority")
+        assert total == 2
+        assert set(values) == {1, 2}
+
     def test_get_metadata_field_unique_values_unknown_field_raises(self, document_store):
         """Test get_metadata_field_unique_values raises for unconfigured field."""
         with pytest.raises(ValueError, match="not configured for filtering"):
