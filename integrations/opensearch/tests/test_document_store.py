@@ -1311,6 +1311,19 @@ class TestDocumentStore(
         assert set(unique_topics_value_only) == {"needle-in-haystack"}
         assert total_topics_value_only == 1
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""
         docs = [

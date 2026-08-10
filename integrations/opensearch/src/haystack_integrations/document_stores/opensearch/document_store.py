@@ -2049,32 +2049,43 @@ class OpenSearchDocumentStore:
 
         return self._extract_min_max_from_stats(stats)
 
-    @staticmethod
-    def _build_unique_values_field_query(field_name: str, search_term: str | None) -> dict[str, Any]:
+    def _build_unique_values_field_query(
+        self, field_name: str, search_term: str | None, filters: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
-        Builds a query matching documents whose metadata field's own value contains `search_term`.
+        Builds a query matching docs whose metadata field's contains `search_term`, optionally restricted by `filters`.
 
         Matching is a case-insensitive substring match (not against the document content).
         """
-        if not search_term:
-            return {"match_all": {}}
-        # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
-        # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
-        # numeric ones. A doc-value script query works uniformly across field types by stringifying the
-        # field's value, matching the case-insensitive substring semantics documented above. The term is
-        # lower-cased once here rather than per-document in the script.
-        return {
-            "script": {
-                "script": {
-                    "source": (
-                        "def v = doc[params.field]; "
-                        "if (v.size() == 0) { return false; } "
-                        "return v.value.toString().toLowerCase().contains(params.term)"
-                    ),
-                    "params": {"field": field_name, "term": search_term.lower()},
+        clauses: list[dict[str, Any]] = []
+        if filters:
+            clauses.append({"bool": {"filter": normalize_filters(filters, nested_fields=self._resolved_nested_fields)}})
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-insensitive substring semantics documented above. The term is
+            # lower-cased once here rather than per-document in the script.
+            clauses.append(
+                {
+                    "script": {
+                        "script": {
+                            "source": (
+                                "def v = doc[params.field]; "
+                                "if (v.size() == 0) { return false; } "
+                                "return v.value.toString().toLowerCase().contains(params.term)"
+                            ),
+                            "params": {"field": field_name, "term": search_term.lower()},
+                        }
+                    }
                 }
-            }
-        }
+            )
+
+        if not clauses:
+            return {"match_all": {}}
+        if len(clauses) == 1:
+            return clauses[0]
+        return {"bool": {"filter": clauses}}
 
     @staticmethod
     def _build_composite_agg_body(
@@ -2161,6 +2172,7 @@ class OpenSearchDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term.
@@ -2184,6 +2196,7 @@ class OpenSearchDocumentStore:
             with a server-side script and is quite expensive for a large corpus.
         :param from_: Offset to start returning values from. Defaults to 0.
         :param size: The number of unique values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of distinct values
             for the field matching `search_term`).
         """
@@ -2191,7 +2204,7 @@ class OpenSearchDocumentStore:
         assert self._client is not None
 
         field_name = _normalize_metadata_field_name(metadata_field)
-        query = self._build_unique_values_field_query(field_name, search_term)
+        query = self._build_unique_values_field_query(field_name, search_term, filters)
 
         after_key = self._skip_unique_values(field_name, query, from_) if from_ > 0 else None
 
@@ -2205,6 +2218,7 @@ class OpenSearchDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronous counterpart of `get_metadata_field_unique_values`.
@@ -2216,6 +2230,7 @@ class OpenSearchDocumentStore:
             with a server-side script and is quite expensive for a large corpus.
         :param from_: Offset to start returning values from. Defaults to 0.
         :param size: The number of unique values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of distinct values
             for the field matching `search_term`).
         """
@@ -2223,7 +2238,7 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
 
         field_name = _normalize_metadata_field_name(metadata_field)
-        query = self._build_unique_values_field_query(field_name, search_term)
+        query = self._build_unique_values_field_query(field_name, search_term, filters)
 
         after_key = await self._skip_unique_values_async(field_name, query, from_) if from_ > 0 else None
 
