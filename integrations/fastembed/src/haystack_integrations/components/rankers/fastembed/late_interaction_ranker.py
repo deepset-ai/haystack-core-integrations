@@ -212,10 +212,10 @@ class FastembedLateInteractionRanker:
         if not documents:
             return {"documents": []}
 
-        top_k = top_k or self.top_k
-        if top_k <= 0:
+        if top_k is not None and top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+        top_k = self.top_k if top_k is None else top_k
 
         if self._model is None:
             self.warm_up()

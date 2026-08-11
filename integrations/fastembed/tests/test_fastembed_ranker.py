@@ -244,6 +244,12 @@ class TestFastembedRanker:
         ):
             ranker.run(query=query, documents=list_document, top_k=-3)
 
+        with pytest.raises(
+            ValueError,
+            match="top_k must be > 0, but got 0",
+        ):
+            ranker.run(query=query, documents=list_document, top_k=0)
+
     def test_run_empty_document_list(self):
         """
         Test for no error when sending no documents.
