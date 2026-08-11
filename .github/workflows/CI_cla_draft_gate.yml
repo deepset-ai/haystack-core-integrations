@@ -360,6 +360,11 @@ jobs:
                   if (await claSigned(pr.head.sha)) {
                     await restore(pr);
                   } else if (pr.draft) {
+                    // Also re-run the release: it heals PRs that were gated before
+                    // this ran on any linked issues, and issues that got re-claimed
+                    // while the PR was briefly readied.
+                    const comment = await findMarkerComment(pr.number);
+                    await releaseLinkedIssues(pr, comment ? parseMarker(comment.body) : {});
                     await escalate(pr);
                   } else {
                     // Readied without signing: put it back in draft, then escalate.
