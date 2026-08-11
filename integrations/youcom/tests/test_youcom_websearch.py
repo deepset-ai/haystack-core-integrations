@@ -285,7 +285,7 @@ class TestYouComWebSearchIntegration:
         assert len(result["links"]) > 0
         assert result["documents"][0].content
 
-    @pytest.mark.skipif("YDC_API_KEY" not in os.environ, reason="YDC_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("YDC_API_KEY"), reason="YDC_API_KEY not set")
     def test_keyed_live_search(self):
         component = YouComWebSearch(top_k=2)
         result = component.run(query="What is Haystack by deepset?")
@@ -293,7 +293,7 @@ class TestYouComWebSearchIntegration:
         assert len(result["documents"]) > 0
         assert len(result["links"]) > 0
 
-    @pytest.mark.skipif("YDC_API_KEY" not in os.environ, reason="YDC_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("YDC_API_KEY"), reason="YDC_API_KEY not set")
     async def test_keyed_live_search_async(self):
         component = YouComWebSearch(top_k=2)
         result = await component.run_async(query="What is Haystack by deepset?")
