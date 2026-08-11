@@ -12,7 +12,7 @@ from haystack.utils.requests_utils import async_request_with_retry, request_with
 
 logger = logging.getLogger(__name__)
 
-YOUCOM_KEYED_SEARCH_URL = "https://ydc-index.io/v1/search"
+YOUCOM_KEYED_SEARCH_URL = "https://api.you.com/v1/search"
 YOUCOM_KEYLESS_SEARCH_URL = "https://api.you.com/v1/agents/search"
 
 try:
