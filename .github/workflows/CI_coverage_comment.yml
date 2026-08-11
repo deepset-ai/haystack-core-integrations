@@ -99,6 +99,7 @@ on:
       - "Test / weave"
       - "Test / weaviate"
       - "Test / whisper"
+      - "Test / youcom"
     types: [completed]
 
 jobs:
