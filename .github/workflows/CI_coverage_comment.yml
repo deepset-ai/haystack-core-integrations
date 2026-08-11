@@ -80,6 +80,7 @@ on:
       - "Test / ragas"
       - "Test / searchapi"
       - "Test / sentence_transformers"
+      - "Test / serpbase"
       - "Test / serperdev"
       - "Test / snowflake"
       - "Test / spacy"

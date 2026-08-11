@@ -388,6 +388,11 @@ integration:sentence-transformers:
       - any-glob-to-any-file: "integrations/sentence_transformers/**/*"
       - any-glob-to-any-file: ".github/workflows/sentence_transformers.yml"
 
+integration:serpbase:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/serpbase/**/*"
+      - any-glob-to-any-file: ".github/workflows/serpbase.yml"
+
 integration:serperdev:
   - changed-files:
       - any-glob-to-any-file: "integrations/serperdev/**/*"
