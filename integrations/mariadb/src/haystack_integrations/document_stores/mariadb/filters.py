@@ -80,6 +80,9 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> tuple[str, list[An
         raise FilterError(msg)
 
     value: Any = condition["value"]
+    # MariaDB stores JSON booleans as the literals 'true'/'false'; convert before comparison.
+    if isinstance(value, bool):
+        value = "true" if value else "false"
     sql_field = _build_field_expr(field, value)
     clause, val = COMPARISON_OPERATORS[operator](sql_field, value)
     # _in/_not_in return the value list directly; flatten it so params stay flat
@@ -101,8 +104,6 @@ def _build_field_expr(field: str, value: Any) -> str:
         # JSON_UNQUOTE(JSON_EXTRACT(meta, '$.field')) returns the value as a string.
         # Cast to numeric types when the comparison value is numeric.
         base = f"JSON_UNQUOTE(JSON_EXTRACT(meta, '$.{field_name}'))"
-        if isinstance(value, bool):
-            return base
         if isinstance(value, int):
             return f"CAST({base} AS SIGNED)"
         if isinstance(value, float):

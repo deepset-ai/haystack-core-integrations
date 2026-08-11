@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 _VALID_TABLE_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
+VALID_DISTANCES = ("cosine", "euclidean")
+
+DISTANCE_TO_SQL = {
+    "cosine": "VEC_DISTANCE_COSINE",
+    "euclidean": "VEC_DISTANCE_EUCLIDEAN",
+}
+
 CREATE_TABLE_STATEMENT = """
 CREATE TABLE IF NOT EXISTS `{table_name}` (
     id VARCHAR(128) PRIMARY KEY,
@@ -45,7 +52,7 @@ CREATE TABLE IF NOT EXISTS `{table_name}` (
     blob_mime_type VARCHAR(255),
     meta JSON,
     FULLTEXT KEY content_ft_idx (content),
-    VECTOR INDEX (embedding) DISTANCE=cosine
+    VECTOR INDEX (embedding) DISTANCE={distance}
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
@@ -84,7 +91,7 @@ LIMIT ?
 """
 
 EMBEDDING_QUERY = """
-SELECT *, VEC_DISTANCE_COSINE(embedding, ?) AS score
+SELECT *, {vec_func}(embedding, ?) AS score
 FROM `{table_name}`
 WHERE embedding IS NOT NULL
 {extra_where}
@@ -129,6 +136,7 @@ class MariaDBDocumentStore:
         password: Secret = Secret.from_env_var("MARIADB_PASSWORD"),
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
+        distance: str = "cosine",
         recreate_table: bool = False,
         create_vector_index: bool = False,
     ) -> None:
@@ -142,9 +150,11 @@ class MariaDBDocumentStore:
         :param password: Database password. Reads `MARIADB_PASSWORD` env var by default.
         :param table_name: Table used to store documents. Must contain only letters, digits, and underscores.
         :param embedding_dimension: Dimension of embedding vectors.
+        :param distance: Distance function for vector similarity — `"cosine"` or `"euclidean"`. Used when
+            creating the table (sets the MHNSW index distance) and when querying. Defaults to `"cosine"`.
         :param recreate_table: Drop and recreate the table on init. **Deletes all data.**
-        :param create_vector_index: If `True`, creates an MHNSW vector index (cosine distance) for fast ANN
-            search. Requires every document to have a non-null embedding. Defaults to `False`.
+        :param create_vector_index: If `True`, creates an MHNSW vector index for fast ANN search.
+            Requires every document to have a non-null embedding. Defaults to `False`.
         """
         self._connection: Any = None
         self._cursor: Any = None
@@ -152,6 +162,9 @@ class MariaDBDocumentStore:
 
         if not _VALID_TABLE_NAME_RE.match(table_name):
             msg = f"table_name must contain only letters, digits, and underscores, got '{table_name}'"
+            raise ValueError(msg)
+        if distance not in VALID_DISTANCES:
+            msg = f"distance must be one of {VALID_DISTANCES}, got '{distance}'"
             raise ValueError(msg)
 
         self.host = host
@@ -161,6 +174,7 @@ class MariaDBDocumentStore:
         self.password = password
         self.table_name = table_name
         self.embedding_dimension = embedding_dimension
+        self.distance = distance
         self.recreate_table = recreate_table
         self.create_vector_index = create_vector_index
 
@@ -175,6 +189,7 @@ class MariaDBDocumentStore:
             password=self.password.to_dict(),
             table_name=self.table_name,
             embedding_dimension=self.embedding_dimension,
+            distance=self.distance,
             recreate_table=self.recreate_table,
             create_vector_index=self.create_vector_index,
         )
@@ -223,6 +238,7 @@ class MariaDBDocumentStore:
             sql = CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT.format(
                 table_name=self.table_name,
                 embedding_dimension=self.embedding_dimension,
+                distance=self.distance,
             )
         else:
             sql = CREATE_TABLE_STATEMENT.format(
@@ -374,9 +390,17 @@ class MariaDBDocumentStore:
         :param score_threshold: Minimum score to include a document. Documents below this score are excluded.
         :returns: List of Documents ordered by similarity (most similar first).
         """
+        if len(query_embedding) != self.embedding_dimension:
+            msg = (
+                f"query_embedding has {len(query_embedding)} dimensions but the store "
+                f"was configured with embedding_dimension={self.embedding_dimension}"
+            )
+            raise ValueError(msg)
+
         _validate_filters(filters)
         self._ensure_connection()
 
+        vec_func = DISTANCE_TO_SQL[self.distance]
         embedding_bytes = _embedding_to_bytes(query_embedding)
 
         extra_where = ""
@@ -390,6 +414,7 @@ class MariaDBDocumentStore:
         params.append(top_k)
 
         sql = EMBEDDING_QUERY.format(
+            vec_func=vec_func,
             table_name=self.table_name,
             extra_where=extra_where,
         )
@@ -398,9 +423,11 @@ class MariaDBDocumentStore:
         records = self._cursor.fetchall()
 
         docs = _rows_to_documents(records)
-        # VEC_DISTANCE_COSINE returns distance (lower = more similar); convert to a 0-1 score
+        # VEC_DISTANCE_* returns distance (lower = more similar); convert to a positive score
         docs = [
-            replace(doc, score=float(1.0 - record["score"])) if record.get("score") is not None else doc
+            replace(doc, score=float(1.0 - record["score"]) if self.distance == "cosine" else float(-record["score"]))
+            if record.get("score") is not None
+            else doc
             for doc, record in zip(docs, records, strict=True)
         ]
         if score_threshold is not None:

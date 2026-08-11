@@ -55,19 +55,25 @@ class TestSerialization:
         params = d["init_parameters"]
         assert params["host"] == "localhost"
         assert params["embedding_dimension"] == 768
+        assert params["distance"] == "cosine"
 
     def test_from_dict_roundtrip(self, monkeypatch):
         monkeypatch.setenv("MARIADB_USER", "test_user")
         monkeypatch.setenv("MARIADB_PASSWORD", "test_pass")
-        store = MariaDBDocumentStore(embedding_dimension=512)
+        store = MariaDBDocumentStore(embedding_dimension=512, distance="euclidean")
         d = store.to_dict()
         restored = MariaDBDocumentStore.from_dict(d)
         assert restored.embedding_dimension == 512
         assert restored.host == "localhost"
+        assert restored.distance == "euclidean"
 
     def test_invalid_table_name_raises(self):
         with pytest.raises(ValueError, match="table_name must contain only"):
             MariaDBDocumentStore(user=Secret.from_token("u"), password=Secret.from_token("p"), table_name="bad-table!")
+
+    def test_invalid_distance_raises(self):
+        with pytest.raises(ValueError, match="distance must be one of"):
+            MariaDBDocumentStore(user=Secret.from_token("u"), password=Secret.from_token("p"), distance="manhattan")
 
 
 class TestEmbeddingHelpers:
@@ -244,6 +250,13 @@ class TestDeleteDocuments:
         call_args = store._cursor.execute.call_args[0]
         assert "DELETE FROM" in call_args[0]
         assert "IN (?, ?)" in call_args[0]
+
+
+class TestEmbeddingRetrieval:
+    def test_dimension_mismatch_raises(self):
+        store = _mock_store(embedding_dimension=4)
+        with pytest.raises(ValueError, match="query_embedding has 3 dimensions"):
+            store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3])
 
 
 class TestFilterDocuments:
