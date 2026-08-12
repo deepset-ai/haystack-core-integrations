@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
-from typing import Any, Literal, overload
 from contextlib import suppress
-from typing import Any, Literal, overloaf
+from typing import Any, Literal, overload
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
