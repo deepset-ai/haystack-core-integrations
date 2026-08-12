@@ -69,6 +69,29 @@ print(response["tracer"]["trace_url"])
 print(response["tracer"]["trace_id"])
 ```
 
+## Agents, and tracing without a pipeline
+
+Constructing `RhesisConnector` is what installs the tracer, so a standalone `Agent` needs nothing
+else — build one and never mention it again. There is no pipeline to carry the `invocation_context`
+input socket, so attach session and test metadata with `rhesis_invocation_context` instead:
+
+```python
+from haystack_integrations.components.connectors.rhesis import RhesisConnector
+from haystack_integrations.tracing.rhesis import rhesis_invocation_context
+
+RhesisConnector("Agent example")  # installs the tracer; never added to a pipeline
+
+with rhesis_invocation_context({"session_id": "agent-example", "test_run_id": "tr-1"}):
+    result = agent.run(messages=[ChatMessage.from_user("What is the weather in Berlin?")])
+```
+
+Every span opened inside the block joins that session, and the context is restored on exit. The
+same context manager works around a `pipeline.run()` call if you would rather not put Rhesis keys
+in the pipeline's input payload — the two are equivalent, and the socket applies only to the run
+that supplied it.
+
+See [`example/agent.py`](./example/agent.py) for a runnable version with two tools.
+
 ## Conversations
 
 `RhesisConnector` traces each pipeline run. An application that owns its own loop — a chat REPL, a
