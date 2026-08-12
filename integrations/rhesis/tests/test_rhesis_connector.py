@@ -55,13 +55,48 @@ class TestRhesisConnector:
                     "env_vars": ["RHESIS_API_KEY"],
                     "strict": True,
                 },
-                "base_url": "http://localhost:8080",
+                "base_url": None,
                 "project_id": None,
-                "environment": "development",
+                "environment": None,
                 "frontend_url": None,
                 "span_handler": None,
             },
         }
+
+    def test_to_dict_does_not_bake_in_this_machines_environment(self, monkeypatch):
+        """
+        A pipeline dumped where `RHESIS_BASE_URL` points at a laptop must not carry that to prod.
+
+        Anything the caller left to the environment stays `None` in the serialized form, so
+        deserializing resolves it wherever the pipeline actually runs.
+        """
+        monkeypatch.setenv("RHESIS_API_KEY", "test-key")
+        monkeypatch.setenv("RHESIS_BASE_URL", "http://localhost:8080")
+        monkeypatch.setenv("RHESIS_ENVIRONMENT", "laptop")
+        monkeypatch.setenv("RHESIS_PROJECT_ID", "local-project")
+        with patch(_PROVIDER_PATH):
+            connector = RhesisConnector(name="Chat example")
+            serialized = connector.to_dict()["init_parameters"]
+
+        # Resolved for this process...
+        assert connector.base_url == "http://localhost:8080"
+        assert connector.environment == "laptop"
+        assert connector.project_id == "local-project"
+        # ...but not written into the pipeline definition.
+        assert serialized["base_url"] is None
+        assert serialized["environment"] is None
+        assert serialized["project_id"] is None
+
+    def test_to_dict_keeps_explicit_arguments(self, monkeypatch):
+        """What the caller passed explicitly is theirs, and must survive the round trip."""
+        monkeypatch.setenv("RHESIS_API_KEY", "test-key")
+        monkeypatch.setenv("RHESIS_BASE_URL", "http://localhost:8080")
+        with patch(_PROVIDER_PATH):
+            connector = RhesisConnector(name="Chat example", base_url="https://api.rhesis.ai", environment="prod")
+            serialized = connector.to_dict()["init_parameters"]
+
+        assert serialized["base_url"] == "https://api.rhesis.ai"
+        assert serialized["environment"] == "prod"
 
     def test_to_dict_with_custom_handler(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")

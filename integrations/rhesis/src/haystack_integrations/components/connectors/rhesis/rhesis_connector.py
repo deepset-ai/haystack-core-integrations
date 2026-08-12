@@ -87,6 +87,14 @@ class RhesisConnector:
         """
         self.name = name
         self.api_key = api_key
+        # Kept exactly as passed, so to_dict serializes the caller's intent rather than this
+        # machine's environment. A pipeline dumped on a laptop would otherwise carry
+        # `http://localhost:8080` into production, where the environment can no longer correct it.
+        self._base_url_arg = base_url
+        self._environment_arg = environment
+        self._project_id_arg = project_id
+        self._frontend_url_arg = frontend_url
+
         resolved_base_url = base_url if base_url is not None else os.getenv("RHESIS_BASE_URL", "http://localhost:8080")
         resolved_environment = (
             environment if environment is not None else os.getenv("RHESIS_ENVIRONMENT", "development")
@@ -148,16 +156,22 @@ class RhesisConnector:
         }
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this component to a dictionary."""
+        """
+        Serialize this component to a dictionary.
+
+        Records the arguments as they were passed, not as they were resolved: anything left to the
+        environment stays ``None`` so that deserializing on another machine resolves it there. This
+        mirrors how ``Secret.from_env_var`` serializes a reference rather than the secret's value.
+        """
         span_handler = _serialize_span_handler(self.span_handler) if self.span_handler else None
         return default_to_dict(
             self,
             name=self.name,
             api_key=self.api_key.to_dict() if self.api_key else None,
-            base_url=self.base_url,
-            project_id=self.project_id,
-            environment=self.environment,
-            frontend_url=self.frontend_url,
+            base_url=self._base_url_arg,
+            project_id=self._project_id_arg,
+            environment=self._environment_arg,
+            frontend_url=self._frontend_url_arg,
             span_handler=span_handler,
         )
 
