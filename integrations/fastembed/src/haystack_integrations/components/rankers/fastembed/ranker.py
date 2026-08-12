@@ -35,6 +35,21 @@ class FastembedRanker:
 
     # Berlin
     ```
+
+    Running on GPU:
+    ```python
+    # NVIDIA GPU (requires onnxruntime-gpu)
+    ranker = FastembedRanker(
+        model_name="Xenova/ms-marco-MiniLM-L-6-v2",
+        model_kwargs={"providers": ["CUDAExecutionProvider"]},
+    )
+
+    # Intel GPU / XPU (requires onnxruntime-openvino)
+    ranker = FastembedRanker(
+        model_name="Xenova/ms-marco-MiniLM-L-6-v2",
+        model_kwargs={"providers": ["OpenVINOExecutionProvider"]},
+    )
+    ```
     """
 
     def __init__(
@@ -49,6 +64,7 @@ class FastembedRanker:
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
         score_threshold: float | None = None,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates an instance of the 'FastembedRanker'.
@@ -71,6 +87,9 @@ class FastembedRanker:
             to the Document content.
         :param score_threshold: If provided, only documents with a score above the threshold are returned.
             Applied after `top_k`, so the output may contain fewer than `top_k` documents.
+        :param model_kwargs: Dictionary containing additional keyword arguments to pass to the Fastembed model,
+                such as `providers` (e.g. `["CUDAExecutionProvider"]` to run on an NVIDIA GPU or
+                `["OpenVINOExecutionProvider"]` to run on an Intel GPU), `cuda`, or `device_ids`.
         """
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
@@ -86,6 +105,7 @@ class FastembedRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
         self.score_threshold = score_threshold
+        self.model_kwargs = model_kwargs
         self._model: TextCrossEncoder | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -107,6 +127,7 @@ class FastembedRanker:
             meta_fields_to_embed=self.meta_fields_to_embed,
             meta_data_separator=self.meta_data_separator,
             score_threshold=self.score_threshold,
+            model_kwargs=self.model_kwargs,
         )
 
     @classmethod
@@ -126,11 +147,13 @@ class FastembedRanker:
         Initializes the component.
         """
         if self._model is None:
+            model_kwargs = self.model_kwargs or {}
             self._model = TextCrossEncoder(
                 model_name=self.model_name,
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                **model_kwargs,
             )
 
     def _prepare_fastembed_input_docs(self, documents: list[Document]) -> list[str]:
