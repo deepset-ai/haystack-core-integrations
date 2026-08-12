@@ -267,28 +267,30 @@ class TestAsyncPipeline:
     """`haystack.async_pipeline.run` was only ever exercised as a string in a mapping table."""
 
     @staticmethod
-    def _run_async(pipe: Pipeline, data: dict[str, Any]) -> None:
+    def _async_pipeline() -> Any:
         """
-        Drive the pipeline through whichever async entry point this Haystack offers.
+        Build a pipeline with whichever async entry point this Haystack offers.
 
-        3.0 folded `AsyncPipeline` into `Pipeline.run_async`; 2.x has the separate class.
+        3.0 folded `AsyncPipeline` into `Pipeline.run_async`; 2.x has the separate class. Chosen up
+        front rather than by moving components afterwards — Haystack refuses to share a component
+        instance between two pipelines.
         """
-        import asyncio
-
-        if hasattr(pipe, "run_async"):
-            asyncio.run(pipe.run_async(data))
-            return
+        if hasattr(Pipeline, "run_async"):
+            return Pipeline()
         from haystack import AsyncPipeline
 
-        async_pipe = AsyncPipeline()
-        for name, instance in pipe.walk():
-            async_pipe.add_component(name, instance)
-        asyncio.run(async_pipe.run_async(data))
+        return AsyncPipeline()
+
+    @staticmethod
+    def _run_async(pipe: Any, data: dict[str, Any]) -> None:
+        import asyncio
+
+        asyncio.run(pipe.run_async(data))
 
     def test_async_run_emits_exactly_one_root(self, traced_exporter):
         exporter, _ = traced_exporter
 
-        pipe = Pipeline()
+        pipe = self._async_pipeline()
         pipe.add_component("llm", StubChatGenerator())
         self._run_async(pipe, {"llm": {"messages": [ChatMessage.from_user("hi")]}})
 
@@ -301,7 +303,7 @@ class TestAsyncPipeline:
     def test_async_children_parent_to_the_root(self, traced_exporter):
         exporter, _ = traced_exporter
 
-        pipe = Pipeline()
+        pipe = self._async_pipeline()
         pipe.add_component("llm", StubChatGenerator())
         pipe.add_component("embedder", StubTextEmbedder())
         self._run_async(
@@ -323,7 +325,7 @@ class TestAsyncPipeline:
         """The root-span enrichment has to work on the async path too, not only the sync one."""
         exporter, _ = traced_exporter
 
-        pipe = Pipeline()
+        pipe = self._async_pipeline()
         pipe.add_component("llm", StubChatGenerator())
         with rhesis_invocation_context({"session_id": "async-1"}):
             self._run_async(pipe, {"llm": {"messages": [ChatMessage.from_user("hi")]}})
