@@ -311,19 +311,26 @@ def resolve_operation_type(span_name: str) -> str | None:
 
 
 def map_invocation_context(context: dict[str, Any]) -> dict[str, Any]:
-    """Translate connector invocation_context keys to Rhesis span attributes."""
+    """
+    Translate connector invocation_context keys to Rhesis span attributes.
+
+    The mapped identifiers are stringified. They land on typed string columns in the Rhesis span
+    schema, and the exporter validates a whole export batch at once — so one span carrying, say, an
+    integer database row id as ``session_id`` would fail validation and take every other span in its
+    batch down with it. Unmapped keys pass through unchanged into free-form attributes.
+    """
     attrs: dict[str, Any] = {}
     for key, value in context.items():
         if value is None:
             continue
         mapped = _INVOCATION_CONTEXT_FIELD_MAP.get(key)
         if mapped:
-            attrs[mapped] = value
+            attrs[mapped] = str(value)
         else:
             attrs[f"haystack.invocation.{key}"] = value
 
     session = context.get("session_id") or context.get("conversation_id")
     if session:
-        attrs[AIAttributes.SESSION_ID] = session
+        attrs[AIAttributes.SESSION_ID] = str(session)
         attrs[ConversationContext.SpanAttributes.IS_TURN_ROOT] = True
     return attrs
