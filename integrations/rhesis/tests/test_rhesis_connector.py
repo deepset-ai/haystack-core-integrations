@@ -182,6 +182,31 @@ class TestInvocationContext:
         assert first[ConversationContext.SpanAttributes.CONVERSATION_ID] == "alice"
         assert ConversationContext.SpanAttributes.CONVERSATION_ID not in second
 
+    def test_content_flag_off_keeps_the_message_off_rhesis_attributes(self, monkeypatch):
+        """
+        With content tracing off, the user's message must not reach `rhesis.conversation.*`.
+
+        `handle()` promotes that text out of `span.get_data()`, which `set_tag` fills whether the
+        flag is set or not, so the promotion has to check the flag itself. The README tells users
+        this flag controls exactly this.
+
+        `haystack.pipeline.input_data` is deliberately not asserted absent: Haystack hands pipeline
+        I/O over as an ordinary tag rather than a content tag, so it is stamped regardless — the same
+        behaviour as the langfuse integration. README "Limitations" records it.
+        """
+        monkeypatch.setattr("haystack.tracing.tracer.is_content_tracing_enabled", False)
+        secret = "SENSITIVE-USER-QUERY-12345"
+
+        pipe, exporter = self._traced_pipeline(_Echo(), "echo")
+        pipe.run({"echo": {"messages": [ChatMessage.from_user(secret)]}})
+
+        attrs = ConversationContext.SpanAttributes
+        for span in exporter.get_finished_spans():
+            for key in (attrs.CONVERSATION_INPUT, attrs.CONVERSATION_OUTPUT):
+                assert secret not in str(span.attributes.get(key, ""))
+            for event in span.events:
+                assert secret not in str(dict(event.attributes or {}))
+
     def test_context_lands_without_any_chat_messages(self):
         """
         Test-run correlation must not depend on the pipeline happening to carry chat messages.

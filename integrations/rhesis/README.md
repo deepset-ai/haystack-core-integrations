@@ -25,10 +25,11 @@ Set these before running your application:
 | `RHESIS_ENVIRONMENT` | No | Environment label (default `development`) |
 | `RHESIS_FRONTEND_URL` | No | Frontend URL for `trace_url` deep links |
 | `HAYSTACK_CONTENT_TRACING_ENABLED` | Yes | Must be `"true"` **before importing Haystack** |
-| `HAYSTACK_RHESIS_ENFORCE_FLUSH` | No | Default `"true"`; set `"false"` in long-running services |
+| `HAYSTACK_RHESIS_ENFORCE_FLUSH` | No | Default `"true"`; exports once per run. See [Flush behavior](#flush-behavior) |
 
 > **Important:** Set `HAYSTACK_CONTENT_TRACING_ENABLED=true` before any `haystack` import, otherwise
-> input/output content tags are no-ops.
+> input/output content tags are no-ops. Haystack reads this variable once, when `haystack.tracing`
+> is first imported, so setting it afterwards has no effect.
 
 ## Quickstart
 
@@ -162,11 +163,37 @@ connector = RhesisConnector("My app", span_handler=CustomSpanHandler())
 | `*Embedder` | `ai.embedding.generate` | First-class |
 | `ToolInvoker` | `ai.tool.invoke` | First-class |
 | `haystack.component.input/output` | `ai.prompt` / `ai.completion` events | First-class (content-gated) |
-| `haystack.pipeline.input_data/output_data` | `rhesis.conversation.input/output` | First-class |
+| `haystack.pipeline.input_data/output_data` | `rhesis.conversation.input/output` | First-class (content-gated) |
 | `invocation_context.session_id` | `rhesis.conversation.id` | First-class |
 | Other Haystack tags | `haystack.*` metadata | Metadata |
 
 See [`mapping.py`](./src/haystack_integrations/tracing/rhesis/mapping.py) for the full, authoritative mapping table.
+
+## Limitations
+
+What this integration does and does not do, so none of it arrives as a surprise:
+
+- **The content flag is read once, at Haystack import.** Setting
+  `HAYSTACK_CONTENT_TRACING_ENABLED` after `haystack.tracing` has been imported has no effect, and
+  the integration cannot detect the mistake — by the time `RhesisConnector` is importable the value
+  has already been read. It warns at construction when the flag is off.
+- **Content tracing gates our attributes, not Haystack's tags.** With the flag off, no `ai.prompt`
+  or `ai.completion` events are recorded and nothing is promoted to `rhesis.conversation.input` /
+  `.output`. Haystack still passes pipeline I/O as an ordinary span tag, so
+  `haystack.pipeline.input_data` carries the run payload either way — the same behaviour as the
+  langfuse integration. Truncated to 8 000 characters.
+- **Content leaves the process verbatim.** With the flag on, prompts, tool arguments and retrieved
+  documents are sent to Rhesis as written. There is no redaction hook; use a custom `SpanHandler` if
+  you need one.
+- **Conversation grouping needs a `session_id`.** Without one a run is traced but not grouped. Turns
+  share a trace only when driven through `RhesisTracing`.
+- **`ComponentTool` invocations are flattened.** The tool span is recorded; the component it wraps
+  gets no span of its own, so the tree does not nest there.
+- **Construction fails closed on a missing API key.** `RhesisConnector(...)` raises `ValueError` when
+  no key resolves, so `Pipeline.from_dict` on a YAML containing it needs credentials present. An
+  invalid key only logs — it is rejected at export time, not construction.
+- **Truncation is silent.** Conversation attributes are capped at 10 000 characters and content
+  events at 8 000; nothing marks a value as truncated.
 
 ## Local development
 

@@ -300,6 +300,12 @@ class RhesisSpan(Span):
     def set_tag(self, key: str, value: Any) -> None:
         """Set a generic tag for this span."""
         coerced_value = tracing_utils.coerce_tag_value(value)
+        # Haystack hands pipeline I/O over as an ordinary tag rather than a content tag, so it
+        # arrives here whole and uncapped — a RAG run with real documents produced a 60 000-character
+        # attribute. Cap it to the same bound as content events. `_data` keeps the full structured
+        # value, which is what the conversation-text extraction reads.
+        if key in (_PIPELINE_INPUT_KEY, _PIPELINE_OUTPUT_KEY) and isinstance(coerced_value, str):
+            coerced_value = coerced_value[:MAX_CONTENT_LENGTH]
         self._span.set_attribute(key, _coerce_attribute_value(coerced_value))
         self._data[key] = value
 
@@ -701,9 +707,13 @@ class DefaultSpanHandler(SpanHandler):
         if span.is_root:
             _apply_invocation_context(otel_span, owns_conversation_turn=span.owns_conversation_turn)
 
+        # Promoting the turn's text onto `rhesis.conversation.*` is content tracing, so it obeys the
+        # content flag. `_data` is filled by set_tag regardless of the flag, so without this check a
+        # user who opted out still got their message on a first-class, prominently named attribute.
+        #
         # Skipped entirely when an SDK span owns the turn: it already carries the mapped user message
         # and reply, whereas the promotion below would restate them as raw pipeline dumps.
-        if span.owns_conversation_turn:
+        if span.owns_conversation_turn and proxy_tracer.is_content_tracing_enabled:
             conv_input = ""
             conv_output = ""
             if data.get(_PIPELINE_INPUT_KEY) is not None:

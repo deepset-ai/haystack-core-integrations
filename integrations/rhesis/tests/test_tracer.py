@@ -17,6 +17,7 @@ from rhesis.sdk.telemetry.context import set_root_trace_id
 from rhesis.telemetry.constants import ConversationContext
 
 from haystack_integrations.tracing.rhesis.tracer import (
+    MAX_CONTENT_LENGTH,
     DefaultSpanHandler,
     RhesisSpan,
     RhesisTelemetry,
@@ -149,6 +150,20 @@ class TestRhesisSpan:
         data = span.get_correlation_data_for_logs()
         assert "trace_id" in data
         assert "span_id" in data
+
+    def test_set_tag_caps_pipeline_payloads(self):
+        """
+        Pipeline I/O arrives as an ordinary tag, so nothing else bounds it.
+
+        A RAG run with real documents produced a 60 000-character attribute.
+        """
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span.set_tag(_PIPELINE_INPUT_KEY, "x" * 60_000)
+
+        assert len(recording.attributes[_PIPELINE_INPUT_KEY]) == MAX_CONTENT_LENGTH
+        # The extraction helpers read the structured value, so `_data` must stay whole.
+        assert len(span.get_data()[_PIPELINE_INPUT_KEY]) == 60_000
 
 
 class TestDefaultSpanHandler:
