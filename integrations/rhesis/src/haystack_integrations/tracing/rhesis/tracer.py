@@ -845,7 +845,11 @@ class RhesisTracer(Tracer):
                 trace_id_var.reset(trace_id_token)
             if context_token is not None:
                 tracing_context_var.reset(context_token)
-            if self.enforce_flush:
+            # Root span only. Flushing every span turns one nine-span agent run into eleven
+            # sequential single-span exports and leaves the SDK's BatchSpanProcessor nothing to
+            # batch; gating on the root keeps the "everything is exported by the time the run
+            # returns" guarantee for one export instead of eleven.
+            if self.enforce_flush and is_root_span:
                 self.flush()
 
     def _record_exception(self, span: RhesisSpan, exc_info: tuple[Any, Any, Any]) -> None:

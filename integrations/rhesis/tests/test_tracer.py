@@ -581,6 +581,27 @@ class TestRhesisTracer:
             pass
         telemetry.flush.assert_called_once()
 
+    def test_enforce_flush_exports_once_per_run_not_once_per_span(self):
+        """
+        A nested span must not trigger its own export.
+
+        Flushing in every span's ``finally`` made a ten-component pipeline block on ten separate
+        round trips and left the BatchSpanProcessor nothing to batch.
+        """
+        telemetry = _make_telemetry()
+        telemetry.flush = Mock()
+        tracer = RhesisTracer(telemetry=telemetry, name="test")
+        tracer.enforce_flush = True
+        tracer._span_handler.create_span = lambda ctx: RhesisSpan(RecordingContextManager())  # type: ignore
+        tracer._span_handler.handle = lambda span, ct: None  # type: ignore
+
+        with tracer.trace("haystack.pipeline.run"):
+            for name in ("retriever", "prompt_builder", "llm"):
+                with tracer.trace("haystack.component.run", tags={_COMPONENT_NAME_KEY: name}):
+                    telemetry.flush.assert_not_called()
+
+        telemetry.flush.assert_called_once()
+
     def test_no_flush_when_disabled(self):
         telemetry = _make_telemetry()
         telemetry.flush = Mock()

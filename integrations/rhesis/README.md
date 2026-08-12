@@ -108,8 +108,19 @@ off, and `turn_span_name=...` to name the turn spans after your application.
 
 ## Flush behavior
 
-By default spans are flushed after each component (`HAYSTACK_RHESIS_ENFORCE_FLUSH=true`). For
-long-running services, disable per-span flush and flush on shutdown:
+By default (`HAYSTACK_RHESIS_ENFORCE_FLUSH=true`) the tracer exports once per pipeline run, when
+the root span closes, so everything the run produced is on the backend by the time `run()` returns.
+That costs one blocking round trip per run.
+
+Set it to `false` to hand exporting to the SDK's `BatchSpanProcessor` instead and pay nothing on the
+request path. Spans are then batched and sent in the background, and OpenTelemetry's `atexit` hook
+flushes what is left when the process exits normally — so a short script loses nothing either way.
+
+Turn it off when the round trip matters and normal exit is guaranteed; leave it on when it is not:
+
+- the process can be hard-killed (`os._exit`, `SIGKILL`, a container OOM kill),
+- a serverless runtime freezes the sandbox after the response is returned,
+- you cannot call `flush()` yourself at shutdown.
 
 ```python
 import os

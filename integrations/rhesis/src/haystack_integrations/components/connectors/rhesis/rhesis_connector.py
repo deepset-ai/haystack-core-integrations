@@ -47,8 +47,9 @@ class RhesisConnector:
     - ``RHESIS_FRONTEND_URL``: Optional frontend URL used to build ``trace_url`` deep links.
     - ``HAYSTACK_CONTENT_TRACING_ENABLED``: Must be ``"true"`` **before importing Haystack** to
       capture input/output on spans.
-    - ``HAYSTACK_RHESIS_ENFORCE_FLUSH``: When ``"true"`` (default), flushes after each span.
-      Set to ``"false"`` in long-running services and flush on shutdown instead.
+    - ``HAYSTACK_RHESIS_ENFORCE_FLUSH``: When ``"true"`` (default), exports once per pipeline run,
+      as the root span closes. Set to ``"false"`` to leave exporting to the batch processor and
+      flush on shutdown instead.
 
     Example shutdown flush for FastAPI:
 
