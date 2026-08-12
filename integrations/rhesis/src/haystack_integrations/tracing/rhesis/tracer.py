@@ -535,9 +535,31 @@ def _set_token_attributes(span: trace.Span, usage: dict[str, Any] | None) -> Non
         span.set_attribute(key, value)
 
 
+def _reply_meta(reply: Any) -> dict[str, Any]:
+    """
+    Return a chat reply's metadata, whether it arrived as a ``ChatMessage`` or a plain mapping.
+
+    Component spans carry replies Haystack has already typed, but the haystack 3.0 agent-loop LLM
+    span reports whatever the generator put in its span tags, which need not be ``ChatMessage``
+    instances. Reaching straight for ``.meta`` there raised ``AttributeError`` into the enrichment
+    phase's catch-all, so the model name and token counts were dropped and the only trace of it was
+    a generic "Error during span cleanup" warning.
+    """
+    meta: Any
+    if isinstance(reply, ChatMessage):
+        meta = reply.meta
+    elif isinstance(reply, dict):
+        meta = reply.get("meta")
+    else:
+        return {}
+    return meta if isinstance(meta, dict) else {}
+
+
 def _apply_chat_reply_metadata(otel_span: trace.Span, replies: list[Any]) -> None:
     """Promote model name, timing, and token usage from the first chat reply's metadata."""
-    meta = replies[0].meta
+    meta = _reply_meta(replies[0])
+    if not meta:
+        return
     completion_start_time = meta.get("completion_start_time")
     if completion_start_time:
         try:

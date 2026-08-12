@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import logging
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -442,6 +443,48 @@ class TestDefaultSpanHandler:
         handler.handle(span, component_type=None)
         assert recording.attributes[AIAttributes.MODEL_NAME] == "gemini-flash"
         assert recording.attributes[AIAttributes.LLM_TOKENS_INPUT] == 4
+
+    def test_handle_agent_step_llm_reads_dict_replies(self, caplog):
+        """
+        Replies on the agent-loop LLM span need not be ChatMessage instances.
+
+        They come from raw span-tag data, so reaching straight for `.meta` raised AttributeError
+        into the enrichment phase's catch-all: the model name and token counts were dropped and all
+        the user saw was a generic "Error during span cleanup".
+        """
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording), operation_name="haystack.agent.step.llm")
+        span._data = {
+            "haystack.agent.step.llm.output": {
+                "replies": [
+                    {
+                        "role": "assistant",
+                        "content": "answer",
+                        "meta": {"model": "gemini-flash", "usage": {"prompt_tokens": 4, "completion_tokens": 6}},
+                    }
+                ]
+            }
+        }
+        with caplog.at_level(logging.WARNING):
+            handler.handle(span, component_type=None)
+
+        assert recording.attributes[AIAttributes.MODEL_NAME] == "gemini-flash"
+        assert recording.attributes[AIAttributes.LLM_TOKENS_INPUT] == 4
+        assert "cleanup" not in caplog.text
+
+    def test_handle_agent_step_llm_tolerates_unreadable_replies(self, caplog):
+        """An unrecognised reply shape sets no attributes and raises nothing."""
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording), operation_name="haystack.agent.step.llm")
+        span._data = {"haystack.agent.step.llm.output": {"replies": ["just a string"]}}
+
+        with caplog.at_level(logging.WARNING):
+            handler.handle(span, component_type=None)
+
+        assert AIAttributes.MODEL_NAME not in recording.attributes
+        assert "cleanup" not in caplog.text
 
     def test_create_agent_step_tool_span_sets_tool_name(self):
         telemetry = _make_telemetry()
