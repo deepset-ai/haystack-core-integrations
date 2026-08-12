@@ -221,20 +221,27 @@ class TestNvidiaRanker:
         assert len(response) == 2
         assert {response[0].content, response[1].content} == {documents[0].content, documents[1].content}
 
-    def test_top_k_warn(self, monkeypatch) -> None:
+    @pytest.mark.parametrize("top_k", [0, -1])
+    def test_top_k_init_invalid(self, monkeypatch, top_k: int) -> None:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        with pytest.raises(ValueError, match=rf"top_k must be > 0, but got {top_k}"):
+            NvidiaRanker(top_k=top_k)
 
-        client = NvidiaRanker(top_k=0)
+    @pytest.mark.parametrize("top_k", [0, -1])
+    def test_top_k_run_invalid(self, monkeypatch, top_k: int) -> None:
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        client = NvidiaRanker()
         client.warm_up()
-        with pytest.warns(UserWarning) as record0:
-            client.run("query", [Document(content="doc")])
-        assert "top_k should be at least 1" in str(record0[0].message)
+        with pytest.raises(ValueError, match=rf"top_k must be > 0, but got {top_k}"):
+            client.run("query", [Document(content="doc")], top_k=top_k)
 
-        client = NvidiaRanker(top_k=1)
+    def test_top_k_zero_at_run_does_not_fall_back_to_instance_top_k(self, monkeypatch) -> None:
+        # a runtime top_k=0 must raise, not silently fall back to the instance top_k
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        client = NvidiaRanker(top_k=5)
         client.warm_up()
-        with pytest.warns(UserWarning) as record1:
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got 0"):
             client.run("query", [Document(content="doc")], top_k=0)
-        assert "top_k should be at least 1" in str(record1[0].message)
 
     def test_model_typeerror(self) -> None:
         with pytest.raises(TypeError) as e:
