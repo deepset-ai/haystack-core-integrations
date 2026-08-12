@@ -10,7 +10,7 @@ from haystack.core.serialization import generate_qualified_class_name, import_cl
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.tracing.rhesis import RhesisTracer, SpanHandler
-from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, resolve_frontend_url, tracing_context_var
+from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, tracing_context_var
 from rhesis.telemetry.provider import get_tracer_provider
 
 logger = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ class RhesisConnector:
             project_id=self.project_id,
             environment=self.environment,
             base_url=self.base_url,
-            frontend_url=resolve_frontend_url(self.base_url, self.frontend_url),
+            frontend_url=self.frontend_url,
         )
         self.tracer = RhesisTracer(telemetry=telemetry, name=name, span_handler=span_handler)
         tracing.enable_tracing(self.tracer)

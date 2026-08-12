@@ -27,7 +27,7 @@ from urllib.parse import urlencode
 
 from haystack import default_from_dict, default_to_dict
 from haystack import logging as haystack_logging
-from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
@@ -35,12 +35,14 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import Status, StatusCode
 
+from haystack_integrations.tracing.rhesis import _extraction
+from haystack_integrations.tracing.rhesis import _haystack_tags as hs
 from haystack_integrations.tracing.rhesis.mapping import (
     map_invocation_context,
     resolve_operation_type,
     resolve_span_name,
 )
-from rhesis.sdk.telemetry.attributes import AIAttributes, AIEvents
+from rhesis.sdk.telemetry.attributes import MAX_CONTENT_LENGTH, AIAttributes, AIEvents
 from rhesis.sdk.telemetry.context import get_root_trace_id
 from rhesis.sdk.telemetry.utils.token_extraction import extract_token_usage
 from rhesis.telemetry.constants import ConversationContext
@@ -49,29 +51,14 @@ from rhesis.telemetry.schemas import AIOperationType
 logger = haystack_logging.getLogger(__name__)
 
 HAYSTACK_RHESIS_ENFORCE_FLUSH_ENV_VAR = "HAYSTACK_RHESIS_ENFORCE_FLUSH"
-MAX_CONTENT_LENGTH = 8000
+
+# Two bounds, deliberately: MAX_CONTENT_LENGTH is the SDK's framework-agnostic cap on span-event
+# content and is shared with every other Rhesis integration, while ConversationContext.MAX_IO_LENGTH
+# is the backend's own limit for the `rhesis.conversation.*` columns. Neither is redefined here, so
+# raising either one upstream takes effect without an edit in this package.
 
 # Root span plus the top-level agent span; anything deeper is a nested agent turn.
 _OUTERMOST_AGENT_STACK_DEPTH = 2
-
-_PIPELINE_INPUT_KEY = "haystack.pipeline.input_data"
-_PIPELINE_OUTPUT_KEY = "haystack.pipeline.output_data"
-_COMPONENT_NAME_KEY = "haystack.component.name"
-_COMPONENT_TYPE_KEY = "haystack.component.type"
-_COMPONENT_OUTPUT_KEY = "haystack.component.output"
-_COMPONENT_INPUT_KEY = "haystack.component.input"
-_AGENT_INPUT_KEY = "haystack.agent.input"
-_AGENT_OUTPUT_KEY = "haystack.agent.output"
-_AGENT_RUN_KEY = "haystack.agent.run"
-
-# haystack 3.0 agent-loop operations. These spans carry none of the ``haystack.component.*`` tags,
-# so they are recognised by operation name rather than component type.
-_AGENT_STEP_LLM_KEY = "haystack.agent.step.llm"
-_AGENT_STEP_TOOL_KEY = "haystack.agent.step.tool"
-_AGENT_STEP_LLM_OUTPUT_KEY = "haystack.agent.step.llm.output"
-_AGENT_STEP_TOOL_INPUT_KEY = "haystack.agent.step.tool.input"
-_AGENT_STEP_TOOL_OUTPUT_KEY = "haystack.agent.step.tool.output"
-_TOOL_NAME_KEY = "haystack.tool.name"
 
 tracing_context_var: ContextVar[dict[Any, Any]] = ContextVar("rhesis_tracing_context")
 span_stack_var: ContextVar[list[RhesisSpan] | None] = ContextVar("rhesis_span_stack", default=None)
@@ -89,115 +76,6 @@ def rhesis_invocation_context(invocation_context: dict[str, Any] | None = None) 
         yield
     finally:
         tracing_context_var.reset(token)
-
-
-def _message_text(message: Any) -> str:
-    if isinstance(message, ChatMessage):
-        return message.text or ""
-    if isinstance(message, dict):
-        content = message.get("content", "")
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts = [part.get("text", "") for part in content if isinstance(part, dict)]
-            return "\n".join(part for part in parts if part)
-        return str(content)
-    return str(message)
-
-
-def _messages_from_agent_payload(payload: Any) -> list[Any]:
-    """
-    Return the chat messages carried by a component or pipeline payload.
-
-    ``replies`` is checked as well as ``messages``: that is the socket a ChatGenerator publishes its
-    answer on, and a prompt-builder-into-generator pipeline — the shape of the README quickstart —
-    has no ``messages`` anywhere in its output. Without it the turn recorded the user's question and
-    left the answer blank.
-    """
-    if isinstance(payload, dict):
-        for key in ("messages", "replies"):
-            value = payload.get(key)
-            if isinstance(value, list):
-                return value
-        return []
-    if isinstance(payload, list):
-        return payload
-    return []
-
-
-def _role_message_text(message: Any, role: ChatRole) -> str:
-    """Return a message's text when it carries ``role``, else an empty string."""
-    if isinstance(message, ChatMessage) and message.is_from(role):
-        return _message_text(message)
-    if isinstance(message, dict) and message.get("role") == role.value:
-        return _message_text(message)
-    return ""
-
-
-def _last_role_text(messages: list[Any], role: ChatRole) -> str:
-    """
-    Return the text of the last message carrying ``role`` that actually has text.
-
-    Messages without text are skipped rather than ending the search: an assistant turn that
-    only requests tool calls carries no text, and the reply worth showing is further back.
-    """
-    for message in reversed(messages):
-        text = _role_message_text(message, role)
-        if text:
-            return text
-    return ""
-
-
-def _extract_agent_conversation_io(data: dict[str, Any]) -> tuple[str, str]:
-    """Return user input and assistant output text from agent span tags."""
-    conv_input = _last_role_text(_messages_from_agent_payload(data.get(_AGENT_INPUT_KEY)), ChatRole.USER)
-    conv_output = _last_role_text(_messages_from_agent_payload(data.get(_AGENT_OUTPUT_KEY)), ChatRole.ASSISTANT)
-    return conv_input, conv_output
-
-
-def _component_payloads(value: Any) -> list[Any]:
-    """
-    Return the payloads to search in a pipeline input/output mapping.
-
-    Pipeline I/O is keyed by component name — ``{"chat": {"messages": [...]}}`` — so the
-    per-component values are what hold a chat history. The mapping itself is tried first for
-    the case where a caller passes a payload straight through.
-    """
-    if not isinstance(value, dict):
-        return []
-    return [value, *value.values()]
-
-
-def _extract_pipeline_conversation_io(data: dict[str, Any]) -> tuple[str, str]:
-    """
-    Return user input and assistant output text from pipeline span tags.
-
-    Returns empty strings when no chat messages can be found, so the caller stamps no
-    conversation text at all. A serialized pipeline payload is never a valid rendering of what
-    the user said, and showing nothing beats showing a dict dump.
-
-    This is a fallback for pipelines traced without a Rhesis SDK endpoint above them, not an
-    authoritative record: only the application knows how it derives its reply, which may be a
-    tool result or a value it keeps in Agent state rather than the last assistant message.
-    """
-    conv_input = ""
-    for payload in _component_payloads(data.get(_PIPELINE_INPUT_KEY)):
-        conv_input = _last_role_text(_messages_from_agent_payload(payload), ChatRole.USER)
-        if conv_input:
-            break
-
-    conv_output = ""
-    for payload in _component_payloads(data.get(_PIPELINE_OUTPUT_KEY)):
-        if isinstance(payload, dict):
-            # An Agent reports its closing turn as `last_message`.
-            conv_output = _role_message_text(payload.get("last_message"), ChatRole.ASSISTANT)
-            if conv_output:
-                break
-        conv_output = _last_role_text(_messages_from_agent_payload(payload), ChatRole.ASSISTANT)
-        if conv_output:
-            break
-
-    return conv_input, conv_output
 
 
 def _is_outermost_agent_turn_span() -> bool:
@@ -259,6 +137,10 @@ class RhesisTelemetry:
     base_url: str
     frontend_url: str | None = None
 
+    def __post_init__(self) -> None:
+        """Resolve ``frontend_url`` once, so readers never have to wonder whether it is raw."""
+        self.frontend_url = resolve_frontend_url(self.base_url, self.frontend_url)
+
     def flush(self) -> None:
         """Flush pending spans to the Rhesis backend."""
         try:
@@ -268,7 +150,16 @@ class RhesisTelemetry:
 
 
 def resolve_frontend_url(base_url: str, frontend_url: str | None) -> str:
-    """Resolve the Rhesis frontend base URL for trace deep links."""
+    """
+    Resolve the Rhesis frontend base URL for trace deep links.
+
+    Only the two well-known deployments are derived from ``base_url``. Any other backend returns an
+    empty string — and therefore an empty ``trace_url`` — unless ``RHESIS_FRONTEND_URL`` is set.
+
+    :param base_url: The Rhesis backend base URL.
+    :param frontend_url: An explicit frontend origin, which always wins when given.
+    :returns: The frontend origin without a trailing slash, or ``""`` when it cannot be derived.
+    """
     if frontend_url:
         return frontend_url.rstrip("/")
     normalized = base_url.rstrip("/")
@@ -315,7 +206,7 @@ class RhesisSpan(Span):
         # arrives here whole and uncapped — a RAG run with real documents produced a 60 000-character
         # attribute. Cap it to the same bound as content events. `_data` keeps the full structured
         # value, which is what the conversation-text extraction reads.
-        if key in (_PIPELINE_INPUT_KEY, _PIPELINE_OUTPUT_KEY) and isinstance(coerced_value, str):
+        if key in (hs.PIPELINE_INPUT, hs.PIPELINE_OUTPUT) and isinstance(coerced_value, str):
             coerced_value = coerced_value[:MAX_CONTENT_LENGTH]
         self._span.set_attribute(key, _coerce_attribute_value(coerced_value))
         self._data[key] = value
@@ -333,7 +224,7 @@ class RhesisSpan(Span):
             self._set_output_content(key, value)
 
     def _set_input_content(self, key: str, value: Any) -> None:
-        if key == _AGENT_INPUT_KEY:
+        if key == hs.AGENT_INPUT:
             text = _stringify_content(value)
             if text:
                 self._span.set_attribute(AIAttributes.AGENT_INPUT_CONTENT, text[: ConversationContext.MAX_IO_LENGTH])
@@ -344,7 +235,7 @@ class RhesisSpan(Span):
 
         # Tool arguments are not a prompt, so they get the tool content attribute rather than
         # ai.prompt events.
-        if key == _AGENT_STEP_TOOL_INPUT_KEY:
+        if key == hs.AGENT_STEP_TOOL_INPUT:
             text = _stringify_content(value)
             if text:
                 self._span.set_attribute(AIAttributes.TOOL_INPUT_CONTENT, text[:MAX_CONTENT_LENGTH])
@@ -364,7 +255,7 @@ class RhesisSpan(Span):
         self._add_prompt_events(coerced_value)
 
     def _set_output_content(self, key: str, value: Any) -> None:
-        if key == _AGENT_OUTPUT_KEY:
+        if key == hs.AGENT_OUTPUT:
             text = _stringify_content(value)
             if text:
                 self._span.set_attribute(AIAttributes.AGENT_OUTPUT_CONTENT, text[: ConversationContext.MAX_IO_LENGTH])
@@ -374,7 +265,7 @@ class RhesisSpan(Span):
                 )
             return
 
-        if key == _AGENT_STEP_TOOL_OUTPUT_KEY:
+        if key == hs.AGENT_STEP_TOOL_OUTPUT:
             text = _stringify_content(value)
             if text:
                 self._span.set_attribute(AIAttributes.TOOL_OUTPUT_CONTENT, text[:MAX_CONTENT_LENGTH])
@@ -431,6 +322,16 @@ class RhesisSpan(Span):
     def raw_span(self) -> trace.Span:
         """Return the underlying OpenTelemetry span instance."""
         return self._span
+
+    def close(self, exc_info: tuple[Any, Any, Any] | None = None) -> None:
+        """
+        End the underlying OpenTelemetry span.
+
+        :param exc_info: The ``sys.exc_info()`` triple when the span is closing because of an
+            exception, so the context manager sees it; ``None`` on the success path.
+        """
+        if self._context_manager is not None:
+            self._context_manager.__exit__(*(exc_info or (None, None, None)))
 
     def get_data(self) -> dict[str, Any]:
         """Return the raw Haystack tag data collected for this span."""
@@ -602,9 +503,9 @@ def _enclosing_agent_label(parent: RhesisSpan) -> str:
     for span in reversed(stack):
         if span is parent:
             continue
-        if span.operation_name == _AGENT_STEP_TOOL_KEY:
-            return str(span.get_data().get(_TOOL_NAME_KEY, ""))
-        component_name = span.get_data().get(_COMPONENT_NAME_KEY)
+        if span.operation_name == hs.AGENT_STEP_TOOL:
+            return str(span.get_data().get(hs.TOOL_NAME, ""))
+        component_name = span.get_data().get(hs.COMPONENT_NAME)
         if component_name:
             return str(component_name)
     return ""
@@ -617,7 +518,7 @@ def _promote_tool_span_to_handoff(parent: RhesisSpan) -> str:
     Called when an ``Agent`` starts running inside a tool invocation, which is how Haystack models a
     handoff to a specialist agent. The span is still open at this point, so renaming it is safe.
     """
-    tool_name = str(parent.get_data().get(_TOOL_NAME_KEY, ""))
+    tool_name = str(parent.get_data().get(hs.TOOL_NAME, ""))
     otel_parent = parent.raw_span()
     if hasattr(otel_parent, "update_name"):
         # `.value`, not the member: AIOperationType is a (str, Enum), so the member renders as
@@ -683,13 +584,13 @@ class DefaultSpanHandler(SpanHandler):
             otel_span.set_attribute(AIAttributes.TOOL_TYPE, "haystack")
 
         # haystack 3.0 traces each tool call individually and names it in the span tags.
-        if context.operation_name == _AGENT_STEP_TOOL_KEY:
-            tool_name = context.tags.get(_TOOL_NAME_KEY)
+        if context.operation_name == hs.AGENT_STEP_TOOL:
+            tool_name = context.tags.get(hs.TOOL_NAME)
             if tool_name:
                 otel_span.set_attribute(AIAttributes.TOOL_NAME, str(tool_name))
             otel_span.set_attribute(AIAttributes.TOOL_TYPE, "haystack")
 
-        if context.operation_name == _AGENT_RUN_KEY:
+        if context.operation_name == hs.AGENT_RUN:
             self._label_agent_span(otel_span, context)
 
         return rhesis_span
@@ -700,74 +601,102 @@ class DefaultSpanHandler(SpanHandler):
         parent = context.parent_span
         if not isinstance(parent, RhesisSpan):
             return
-        if parent.operation_name == _AGENT_STEP_TOOL_KEY:
+        if parent.operation_name == hs.AGENT_STEP_TOOL:
             agent_name = _promote_tool_span_to_handoff(parent)
         else:
-            agent_name = str(parent.get_data().get(_COMPONENT_NAME_KEY, ""))
+            agent_name = str(parent.get_data().get(hs.COMPONENT_NAME, ""))
         if agent_name:
             otel_span.set_attribute(AIAttributes.AGENT_NAME, agent_name)
 
     def handle(self, span: RhesisSpan, component_type: str | None) -> None:
         """Process and enrich a span after component execution."""
+        self._apply_invocation_context(span)
+        self._promote_conversation_io(span)
+        self._rename_tool_invoker(span, component_type)
+        self._apply_model_metadata(span, component_type)
+
+    @staticmethod
+    def _apply_invocation_context(span: RhesisSpan) -> None:
+        """
+        Stamp the run's ``invocation_context`` on the root span.
+
+        Re-read here rather than trusting what ``create_span`` saw: the connector component supplies
+        the context from inside the pipeline run, so at root-span creation it was not set yet.
+        ``RhesisTracer.trace`` scopes the ContextVar to this root span, so what is read here belongs
+        to this run and no other. Applied whether or not conversation text was found — test-run
+        correlation on a pipeline that carries no chat messages is still worth having.
+        """
+        if span.is_root:
+            _apply_invocation_context(span.raw_span(), owns_conversation_turn=span.owns_conversation_turn)
+
+    @staticmethod
+    def _promote_conversation_io(span: RhesisSpan) -> None:
+        """
+        Promote the turn's user message and reply onto ``rhesis.conversation.input``/``.output``.
+
+        This is content tracing, so it obeys the content flag: ``span.get_data()`` is filled by
+        ``set_tag`` regardless of the flag, so without that check a user who opted out still got
+        their message on the most prominently named attribute the integration emits.
+
+        Skipped entirely when a Rhesis SDK span owns the turn — it already carries the mapped user
+        message and reply, and restating them here produced duplicate, unreadable turns.
+        """
+        if not (span.owns_conversation_turn and proxy_tracer.is_content_tracing_enabled):
+            return
+
+        data = span.get_data()
+        conv_input = ""
+        conv_output = ""
+        if data.get(hs.PIPELINE_INPUT) is not None:
+            conv_input, conv_output = _extraction.pipeline_conversation_io(data)
+        elif data.get(hs.AGENT_INPUT) is not None and _is_outermost_agent_turn_span():
+            conv_input, conv_output = _extraction.agent_conversation_io(data)
+
+        if conv_input or conv_output:
+            _stamp_conversation_io(span.raw_span(), conv_input, conv_output)
+
+    @staticmethod
+    def _rename_tool_invoker(span: RhesisSpan, component_type: str | None) -> None:
+        """Rename a haystack 2.x ``ToolInvoker`` span after the tools it actually called."""
+        if component_type != "ToolInvoker":
+            return
+
+        data = span.get_data()
+        tool_names: list[str] = []
+        for message in data.get(hs.COMPONENT_INPUT, {}).get("messages", []):
+            if isinstance(message, ChatMessage) and message.tool_calls:
+                tool_names.extend(call.tool_name for call in message.tool_calls)
+        if not tool_names:
+            return
+
+        tool_counts = Counter(tool_names)
+        formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in sorted(tool_counts.items())]
+        new_name = f"{data.get(hs.COMPONENT_NAME, 'ToolInvoker')} - [{', '.join(formatted_names)}]"
+        otel_span = span.raw_span()
+        if hasattr(otel_span, "update_name"):
+            otel_span.update_name(new_name)
+
+    @staticmethod
+    def _apply_model_metadata(span: RhesisSpan, component_type: str | None) -> None:
+        """Promote the model name and token usage a generator or embedder reported."""
         otel_span = span.raw_span()
         data = span.get_data()
 
-        # Re-read the invocation context now rather than trusting what create_span saw. The connector
-        # component supplies it from inside the pipeline run, so at root-span creation it was not set
-        # yet; RhesisTracer.trace scopes the ContextVar to this root span, so what is read here
-        # belongs to this run and no other. Applied whether or not conversation text was found —
-        # test-run correlation on a pipeline that passes no chat messages is still worth having.
-        if span.is_root:
-            _apply_invocation_context(otel_span, owns_conversation_turn=span.owns_conversation_turn)
-
-        # Promoting the turn's text onto `rhesis.conversation.*` is content tracing, so it obeys the
-        # content flag. `_data` is filled by set_tag regardless of the flag, so without this check a
-        # user who opted out still got their message on a first-class, prominently named attribute.
-        #
-        # Skipped entirely when an SDK span owns the turn: it already carries the mapped user message
-        # and reply, whereas the promotion below would restate them as raw pipeline dumps.
-        if span.owns_conversation_turn and proxy_tracer.is_content_tracing_enabled:
-            conv_input = ""
-            conv_output = ""
-            if data.get(_PIPELINE_INPUT_KEY) is not None:
-                conv_input, conv_output = _extract_pipeline_conversation_io(data)
-            elif data.get(_AGENT_INPUT_KEY) is not None and _is_outermost_agent_turn_span():
-                conv_input, conv_output = _extract_agent_conversation_io(data)
-
-            if conv_input or conv_output:
-                _stamp_conversation_io(otel_span, conv_input, conv_output)
-
-        if component_type == "ToolInvoker":
-            tool_names: list[str] = []
-            messages = data.get(_COMPONENT_INPUT_KEY, {}).get("messages", [])
-            for message in messages:
-                if isinstance(message, ChatMessage) and message.tool_calls:
-                    tool_names.extend(call.tool_name for call in message.tool_calls)
-            if tool_names:
-                tool_invoker_name = data.get(_COMPONENT_NAME_KEY, "ToolInvoker")
-                tool_counts = Counter(tool_names)
-                formatted_names = [
-                    f"{name} (x{count})" if count > 1 else name for name, count in sorted(tool_counts.items())
-                ]
-                new_name = f"{tool_invoker_name} - [{', '.join(formatted_names)}]"
-                if hasattr(otel_span, "update_name"):
-                    otel_span.update_name(new_name)
-
         # In haystack 3.0 the agent calls its chat generator directly, so the reply metadata arrives on
         # the agent-loop LLM span instead of a ChatGenerator component span.
-        if span.operation_name == _AGENT_STEP_LLM_KEY:
-            llm_output = data.get(_AGENT_STEP_LLM_OUTPUT_KEY)
+        if span.operation_name == hs.AGENT_STEP_LLM:
+            llm_output = data.get(hs.AGENT_STEP_LLM_OUTPUT)
             replies = llm_output.get("replies") if isinstance(llm_output, dict) else None
             if replies:
                 _apply_chat_reply_metadata(otel_span, replies)
 
         elif component_type and component_type.endswith("ChatGenerator"):
-            replies = data.get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
+            replies = data.get(hs.COMPONENT_OUTPUT, {}).get("replies")
             if replies:
                 _apply_chat_reply_metadata(otel_span, replies)
 
         elif component_type and component_type.endswith("Generator"):
-            meta = data.get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
+            meta = data.get(hs.COMPONENT_OUTPUT, {}).get("meta")
             if meta:
                 model = meta[0].get("model")
                 if model:
@@ -775,11 +704,9 @@ class DefaultSpanHandler(SpanHandler):
                 _set_token_attributes(otel_span, meta[0].get("usage"))
 
         elif component_type and component_type.endswith("Embedder"):
-            output = data.get(_COMPONENT_OUTPUT_KEY, {})
-            meta = output.get("meta")
+            meta = data.get(hs.COMPONENT_OUTPUT, {}).get("meta")
             if meta and isinstance(meta, dict):
-                usage = meta.get("usage") or meta.get("billed_units")
-                _set_token_attributes(otel_span, usage)
+                _set_token_attributes(otel_span, meta.get("usage") or meta.get("billed_units"))
                 model = meta.get("model")
                 if model and isinstance(model, str):
                     otel_span.set_attribute(AIAttributes.MODEL_NAME, model)
@@ -819,8 +746,8 @@ class RhesisTracer(Tracer):
     ) -> Iterator[Span]:
         """Create and manage a tracing span as a context manager."""
         tags = tags or {}
-        span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
-        component_type = tags.get(_COMPONENT_TYPE_KEY)
+        span_name = tags.get(hs.COMPONENT_NAME, operation_name)
+        component_type = tags.get(hs.COMPONENT_TYPE)
         current = parent_span or self.current_span()
         is_root_span = not (parent_span or self.current_span())
 
@@ -907,8 +834,7 @@ class RhesisTracer(Tracer):
         otel_span.set_attribute(AIAttributes.ERROR_TYPE, exc_type.__name__)
 
     def _close_span(self, span: RhesisSpan, exc_info: tuple[Any, Any, Any] | None) -> None:
-        if span._context_manager is not None:
-            span._context_manager.__exit__(*exc_info if exc_info else (None, None, None))
+        span.close(exc_info)
 
     def flush(self) -> None:
         """Flush all pending spans to Rhesis."""
@@ -921,8 +847,9 @@ class RhesisTracer(Tracer):
 
     def get_trace_url(self) -> str:
         """Return the frontend URL for the current trace, when available."""
-        frontend = resolve_frontend_url(self._telemetry.base_url, self._telemetry.frontend_url)
-        return build_trace_url(frontend, self.get_trace_id(), self._telemetry.project_id)
+        # `RhesisTelemetry.frontend_url` is already resolved by the connector; re-resolving it here
+        # was idempotent but implied the stored value was raw.
+        return build_trace_url(self._telemetry.frontend_url or "", self.get_trace_id(), self._telemetry.project_id)
 
     def get_trace_id(self) -> str:
         """Return the trace ID of the root span currently open in this context."""
