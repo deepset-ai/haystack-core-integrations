@@ -124,13 +124,22 @@ class TestRhesisConnector:
             assert restored.environment == connector.environment
             assert restored.frontend_url == connector.frontend_url
 
-    def test_missing_api_key_raises(self, monkeypatch):
+    def test_unset_api_key_env_var_raises(self, monkeypatch):
+        """`Secret.from_env_var` is strict, so Haystack rejects it before the connector looks."""
         monkeypatch.delenv("RHESIS_API_KEY", raising=False)
         with (
-            patch("haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"),
-            pytest.raises(Exception),
+            patch(_PROVIDER_PATH),
+            pytest.raises(ValueError, match="authentication environment variables are set"),
         ):
             RhesisConnector(name="Chat example", api_key=Secret.from_env_var("RHESIS_API_KEY"))
+
+    def test_api_key_none_raises(self):
+        """Passing `api_key=None` explicitly is the path the connector's own check exists for."""
+        with (
+            patch(_PROVIDER_PATH),
+            pytest.raises(ValueError, match="RHESIS_API_KEY is required"),
+        ):
+            RhesisConnector(name="Chat example", api_key=None)
 
     def test_pipeline_serialization_round_trip(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")

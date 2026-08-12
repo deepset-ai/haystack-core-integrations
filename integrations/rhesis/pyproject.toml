@@ -113,8 +113,6 @@ select = [
 ignore = [
     # Allow non-abstract empty methods in abstract base classes
     "B027",
-    # Allow function calls in argument defaults (common Haystack pattern for Secret.from_env_var)
-    "B008",
     # Ignore checks for possible passwords
     "S105",
     "S106",
@@ -138,7 +136,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, relative imports, and don't need type annotations
-"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN", "ARG", "EM", "RUF059", "B017"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN", "ARG", "EM", "RUF059"]
 # Examples can print their output
 "example/**" = ["T201", "ANN", "D"]
 

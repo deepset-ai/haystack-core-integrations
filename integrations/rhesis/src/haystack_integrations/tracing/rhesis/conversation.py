@@ -135,6 +135,12 @@ class RhesisTracing:
         Construction never raises on a missing or rejected configuration: an application should
         run untraced rather than fail to start. Check :attr:`enabled` to report it.
 
+        This is the opposite of :class:`~haystack_integrations.components.connectors.rhesis.RhesisConnector`,
+        which raises when no API key resolves, and deliberately so. The connector is a component the
+        user put in a pipeline; failing loudly there is the honest signal that the thing they wired
+        up will not do its job. Here tracing wraps an application's own loop and is not in its data
+        path, so the same failure should cost the application nothing.
+
         :param name: Trace name shown in the Rhesis UI.
         :param enabled: Set to ``False`` to build a no-op instance, so an application can gate
             tracing on its own policy without branching around every call.

@@ -65,7 +65,7 @@ class RhesisConnector:
     def __init__(
         self,
         name: str,
-        api_key: Secret | None = Secret.from_env_var("RHESIS_API_KEY"),
+        api_key: Secret | None = Secret.from_env_var("RHESIS_API_KEY"),  # noqa: B008
         base_url: str | None = None,
         project_id: str | None = None,
         environment: str | None = None,
@@ -84,6 +84,12 @@ class RhesisConnector:
             ``development``.
         :param frontend_url: Frontend base URL for ``trace_url``. Defaults to ``RHESIS_FRONTEND_URL``.
         :param span_handler: Optional custom span handler. Uses :class:`DefaultSpanHandler` when omitted.
+        :raises ValueError: If no API key resolves. A component the user explicitly added to a
+            pipeline should say so rather than silently trace nothing — but it does mean
+            ``Pipeline.from_dict`` on a YAML containing this component needs credentials present.
+            :class:`~haystack_integrations.tracing.rhesis.RhesisTracing` deliberately does the
+            opposite and degrades to a no-op, because there the caller did not put tracing in the
+            data path.
         """
         self.name = name
         self.api_key = api_key
