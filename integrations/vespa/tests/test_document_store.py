@@ -24,6 +24,18 @@ from .conftest import VESPA_URL, DummyResponse
 VESPA_TEST_EMBEDDING_DIM = 3
 
 
+class HttprStyleStatusError(Exception):
+    """Stand-in for `httpr.HTTPStatusError`, which carries only a message and no response object."""
+
+
+class RequestsStyleHTTPError(Exception):
+    """Stand-in for `requests.exceptions.HTTPError`, which carries the response that caused it."""
+
+    def __init__(self, status_code: int):
+        super().__init__(f"{status_code} Client Error: Not Found for url: http://localhost:8080")
+        self.response = DummyResponse({}, status_code=status_code)
+
+
 def _random_embeddings_vespa() -> list[float]:
     return [random.random() for _ in range(VESPA_TEST_EMBEDDING_DIM)]  # noqa: S311
 
@@ -213,6 +225,30 @@ class TestVespaDocumentStoreUnit:
         with pytest.raises(VespaDocumentStoreError):
             mock_store.write_documents([Document(id="1", content="hello")], policy=DuplicatePolicy.SKIP)
 
+    def test_write_documents_when_client_raises_on_missing_document(self, mock_store):
+        mock_store._app.feed_data_point.return_value = DummyResponse({})
+        mock_store._app.get_data.side_effect = HttprStyleStatusError(
+            "Client error '404 Not Found' for url 'http://localhost:8080/document/v1/docs/docs/docid/1'"
+        )
+
+        assert mock_store.write_documents([Document(id="1", content="hello")]) == 1
+
+    def test_write_documents_when_requests_client_raises_on_missing_document(self, mock_store):
+        mock_store._app.feed_data_point.return_value = DummyResponse({})
+        mock_store._app.get_data.side_effect = RequestsStyleHTTPError(404)
+
+        assert mock_store.write_documents([Document(id="1", content="hello")]) == 1
+
+    def test_write_documents_duplicate_check_propagates_non_404_client_error(self, mock_store):
+        mock_store._app.get_data.side_effect = HttprStyleStatusError(
+            "Server error '500 Internal Server Error' for url 'http://localhost:8080/document/v1/docs/docs/docid/1'"
+        )
+
+        with pytest.raises(HttprStyleStatusError):
+            mock_store.write_documents([Document(id="1", content="hello")])
+
+        mock_store._app.feed_data_point.assert_not_called()
+
     def test_write_documents_invalid_inputs_raise(self, mock_store):
         mock_store._app.get_data.return_value = DummyResponse({}, status_code=404)
 
@@ -256,6 +292,26 @@ class TestVespaDocumentStoreUnit:
 
         assert [doc.id for doc in documents] == ["1"]
         assert documents[0].meta == {"author": "sam"}
+
+    def test_get_documents_by_id_skips_documents_the_client_raises_on(self, mock_store):
+        mock_store._app.get_data.side_effect = [
+            HttprStyleStatusError(
+                "Client error '404 Not Found' for url 'http://localhost:8080/document/v1/docs/docs/docid/missing'"
+            ),
+            DummyResponse({"fields": {"id": "1", "content": "hello"}}),
+        ]
+
+        documents = mock_store.get_documents_by_id(["missing", "1"])
+
+        assert [doc.id for doc in documents] == ["1"]
+
+    def test_get_documents_by_id_propagates_non_404_client_error(self, mock_store):
+        mock_store._app.get_data.side_effect = HttprStyleStatusError(
+            "Server error '500 Internal Server Error' for url 'http://localhost:8080/document/v1/docs/docs/docid/1'"
+        )
+
+        with pytest.raises(HttprStyleStatusError):
+            mock_store.get_documents_by_id(["1"])
 
     def test_delete_by_filter(self, mock_store):
         mock_store._app.query.side_effect = [

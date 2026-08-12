@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
@@ -29,6 +30,24 @@ HTTP_NOT_FOUND = 404
 DEFAULT_BM25_RANKING = "bm25"
 DEFAULT_SEMANTIC_RANKING = "semantic"
 VESPA_CLOUD_SECRET_TOKEN_ENV = "VESPA_CLOUD_SECRET_TOKEN"
+# Matches the status code in messages such as `Client error '404 Not Found' for url ...` (`httpr`, `httpx`) and
+# `404 Client Error: Not Found for url: ...` (`requests`), without matching digits inside the URL itself.
+_NOT_FOUND_MESSAGE_PATTERN = re.compile(rf"""(?:^|['"\s]){HTTP_NOT_FOUND}\s""")
+
+
+def _is_not_found_error(error: Exception) -> bool:
+    """
+    Check whether an error raised by `pyvespa` corresponds to an HTTP 404 response.
+
+    `pyvespa` only honours `raise_on_not_found=False` for errors raised by the `requests` HTTP client: the
+    `httpr` client it uses since 1.2.4 raises `httpr.HTTPStatusError`, which `pyvespa` does not catch, so a
+    missing document surfaces as an error instead of a 404 response. `httpr` errors carry no response object,
+    hence the fallback to the status code in the error message.
+    """
+    status_code = getattr(getattr(error, "response", None), "status_code", None)
+    if isinstance(status_code, int):
+        return status_code == HTTP_NOT_FOUND
+    return _NOT_FOUND_MESSAGE_PATTERN.search(str(error)) is not None
 
 
 def _filters_need_python_fallback(filters: dict[str, Any]) -> bool:
@@ -297,15 +316,8 @@ class VespaDocumentStore:
         """
         documents: list[Document] = []
         for document_id in document_ids:
-            response = self.app.get_data(
-                schema=self.schema,
-                namespace=self.namespace,
-                groupname=self.groupname,
-                data_id=document_id,
-                raise_on_not_found=False,
-            )
-            status_code = getattr(response, "status_code", 200)
-            if status_code == HTTP_NOT_FOUND:
+            response = self._get_data(document_id)
+            if response is None:
                 continue
             self._ensure_success(response, f"Failed to retrieve document '{document_id}' from Vespa")
             payload = response.get_json() if hasattr(response, "get_json") else getattr(response, "json", {})
@@ -449,16 +461,29 @@ class VespaDocumentStore:
             return response.get_json()
         return getattr(response, "json", {})
 
+    def _get_data(self, document_id: str) -> Any | None:
+        """
+        Fetch the raw Vespa response for a document id, or `None` if the document does not exist.
+        """
+        try:
+            response = self.app.get_data(
+                schema=self.schema,
+                namespace=self.namespace,
+                groupname=self.groupname,
+                data_id=document_id,
+                raise_on_not_found=False,
+            )
+        except Exception as error:
+            if _is_not_found_error(error):
+                return None
+            raise
+        if getattr(response, "status_code", 200) == HTTP_NOT_FOUND:
+            return None
+        return response
+
     def _document_exists(self, document_id: str) -> bool:
-        response = self.app.get_data(
-            schema=self.schema,
-            namespace=self.namespace,
-            groupname=self.groupname,
-            data_id=document_id,
-            raise_on_not_found=False,
-        )
-        status_code = getattr(response, "status_code", 200)
-        if status_code == HTTP_NOT_FOUND:
+        response = self._get_data(document_id)
+        if response is None:
             return False
         self._ensure_success(response, f"Failed to check whether document '{document_id}' exists in Vespa")
         return True
