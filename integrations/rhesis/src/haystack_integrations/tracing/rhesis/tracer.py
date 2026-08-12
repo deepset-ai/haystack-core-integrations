@@ -75,6 +75,10 @@ _TOOL_NAME_KEY = "haystack.tool.name"
 
 tracing_context_var: ContextVar[dict[Any, Any]] = ContextVar("rhesis_tracing_context")
 span_stack_var: ContextVar[list[RhesisSpan] | None] = ContextVar("rhesis_span_stack", default=None)
+# Context-local, not tracer state: the connector installs one tracer process-wide via
+# ``tracing.enable_tracing``, so instance state here would hand one request another request's trace
+# id and deep link under concurrent runs (hayhooks, FastAPI, AsyncPipeline).
+trace_id_var: ContextVar[str] = ContextVar("rhesis_trace_id", default="")
 
 
 @contextmanager
@@ -752,7 +756,6 @@ class RhesisTracer(Tracer):
             )
         self._telemetry = telemetry
         self._name = name
-        self._trace_id: str = ""
         self.enforce_flush = os.getenv(HAYSTACK_RHESIS_ENFORCE_FLUSH_ENV_VAR, "true").lower() == "true"
         self._span_handler = span_handler or DefaultSpanHandler()
         self._span_handler.init_tracer(telemetry)
@@ -785,12 +788,15 @@ class RhesisTracer(Tracer):
         new_stack.append(span)
         token = span_stack_var.set(new_stack)
 
+        # Published for the duration of the root span, which is exactly when RhesisConnector.run()
+        # executes as a pipeline component and reads it back.
+        trace_id_token = None
         if is_root_span:
             try:
                 raw_trace_id = span.raw_span().get_span_context().trace_id
-                self._trace_id = format(raw_trace_id, "032x")
+                trace_id_token = trace_id_var.set(format(raw_trace_id, "032x"))
             except (AttributeError, TypeError):
-                self._trace_id = ""
+                trace_id_token = trace_id_var.set("")
 
         span.set_tags(tags)
 
@@ -821,6 +827,8 @@ class RhesisTracer(Tracer):
                 )
         finally:
             span_stack_var.reset(token)
+            if trace_id_token is not None:
+                trace_id_var.reset(trace_id_token)
             if self.enforce_flush:
                 self.flush()
 
@@ -852,5 +860,5 @@ class RhesisTracer(Tracer):
         return build_trace_url(frontend, self.get_trace_id(), self._telemetry.project_id)
 
     def get_trace_id(self) -> str:
-        """Return the current trace ID."""
-        return self._trace_id
+        """Return the trace ID of the root span currently open in this context."""
+        return trace_id_var.get()

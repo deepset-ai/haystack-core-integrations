@@ -23,6 +23,7 @@ from haystack_integrations.tracing.rhesis.tracer import (
     SpanContext,
     _sanitize_usage_data,
     span_stack_var,
+    trace_id_var,
     tracing_context_var,
 )
 
@@ -592,10 +593,44 @@ class TestRhesisTracer:
     def test_get_trace_url(self):
         telemetry = _make_telemetry()
         tracer = RhesisTracer(telemetry=telemetry, name="test")
-        tracer._trace_id = "abc123"
-        url = tracer.get_trace_url()
+        token = trace_id_var.set("abc123")
+        try:
+            url = tracer.get_trace_url()
+        finally:
+            trace_id_var.reset(token)
         assert "open_trace=abc123" in url
         assert "project_id=proj-1" in url
+
+    def test_trace_id_is_context_local_across_concurrent_root_spans(self):
+        """
+        Two concurrent root spans through *one* tracer each report their own trace id.
+
+        The connector installs a single tracer process-wide, so instance state here would let one
+        request return another request's trace id and deep link. test_concurrent_span_stacks below
+        uses two tracer instances and so cannot reach this case.
+        """
+        telemetry = _make_telemetry()
+        tracer = RhesisTracer(telemetry=telemetry, name="shared")
+        tracer.enforce_flush = False
+
+        async def run_trace(label: str) -> tuple[str, str]:
+            with tracer.trace(label, tags={"haystack.component.name": label}) as span:
+                await asyncio.sleep(0.01)
+                # Read it back the way RhesisConnector.run() does, while the root span is open.
+                observed = tracer.get_trace_id()
+                actual = format(span.raw_span().get_span_context().trace_id, "032x")
+                return observed, actual
+
+        async def main() -> list[tuple[str, str]]:
+            return await asyncio.gather(run_trace("a"), run_trace("b"))
+
+        (observed_a, actual_a), (observed_b, actual_b) = asyncio.run(main())
+
+        assert observed_a == actual_a
+        assert observed_b == actual_b
+        assert observed_a != observed_b
+        # And nothing leaks out of the runs that produced it.
+        assert tracer.get_trace_id() == ""
 
     def test_concurrent_span_stacks(self):
         telemetry = _make_telemetry()
