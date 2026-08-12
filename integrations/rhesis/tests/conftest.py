@@ -6,6 +6,8 @@ import pytest
 from haystack import tracing
 from haystack.tracing import disable_tracing
 
+from haystack_integrations.tracing.rhesis.tracer import tracing_context_var
+
 
 @pytest.fixture(autouse=True)
 def allow_deserialization_of_test_modules(monkeypatch):
@@ -30,6 +32,21 @@ def content_tracing_enabled(monkeypatch):
     patch it back themselves.
     """
     monkeypatch.setattr(tracing.tracer, "is_content_tracing_enabled", True)
+
+
+@pytest.fixture(autouse=True)
+def reset_invocation_context():
+    """
+    Give every test an empty Rhesis invocation context.
+
+    The tracer scopes the ContextVar to a pipeline run's root span, but the two callers that set it
+    outside one — ``RhesisConnector.run()`` invoked directly, and ``RhesisTracing.start_conversation``,
+    which deliberately spans many turns — have no such scope. Pytest runs the whole session in one
+    context, so without this those values would carry into later tests.
+    """
+    token = tracing_context_var.set({})
+    yield
+    tracing_context_var.reset(token)
 
 
 @pytest.fixture(autouse=True)

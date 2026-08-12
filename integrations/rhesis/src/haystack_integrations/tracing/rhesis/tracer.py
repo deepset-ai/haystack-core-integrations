@@ -212,12 +212,15 @@ def _external_turn_root_active() -> bool:
     return get_root_trace_id() is not None
 
 
-def _apply_conversation_turn_attributes(otel_span: trace.Span) -> None:
-    tracing_ctx = tracing_context_var.get({})
-    session = tracing_ctx.get("session_id") or tracing_ctx.get("conversation_id")
-    if not session:
-        return
-    for key, value in map_invocation_context(tracing_ctx).items():
+def _apply_invocation_context(otel_span: trace.Span, *, owns_conversation_turn: bool) -> None:
+    """Stamp the mapped ``invocation_context`` on a root span."""
+    mapped = map_invocation_context(tracing_context_var.get({}))
+    if not owns_conversation_turn:
+        # Session and conversation ids stay: they are useful on a nested span and the exporter
+        # propagates them anyway. The turn-root flag must not, or the exporter strips this
+        # span's real parent and the Haystack subtree detaches into a second turn.
+        mapped.pop(ConversationContext.SpanAttributes.IS_TURN_ROOT, None)
+    for key, value in mapped.items():
         otel_span.set_attribute(key, _coerce_attribute_value(value))
 
 
@@ -290,6 +293,9 @@ class RhesisSpan(Span):
         # the enclosing context can no longer be inspected. Defaults to True: standalone Haystack, with
         # nothing above it, owns the turn.
         self.owns_conversation_turn = True
+        # Recorded at creation for the same reason: the enrichment phase needs to know whether this
+        # span is the trace root, and SpanContext is no longer in scope by then.
+        self.is_root = False
 
     def set_tag(self, key: str, value: Any) -> None:
         """Set a generic tag for this span."""
@@ -616,6 +622,7 @@ class DefaultSpanHandler(SpanHandler):
         )
         rhesis_span = RhesisSpan(span_cm, operation_name=context.operation_name)
         rhesis_span.owns_conversation_turn = not _external_turn_root_active()
+        rhesis_span.is_root = context.is_root
         otel_span = rhesis_span.raw_span()
 
         operation_type = resolve_operation_type(span_name)
@@ -624,15 +631,10 @@ class DefaultSpanHandler(SpanHandler):
 
         if context.is_root:
             otel_span.set_attribute("haystack.trace.name", context.trace_name)
-            tracing_ctx = tracing_context_var.get({})
-            mapped = map_invocation_context(tracing_ctx)
-            if not rhesis_span.owns_conversation_turn:
-                # Session and conversation ids stay: they are useful on a nested span and the exporter
-                # propagates them anyway. The turn-root flag must not, or the exporter strips this
-                # span's real parent and the Haystack subtree detaches into a second turn.
-                mapped.pop(ConversationContext.SpanAttributes.IS_TURN_ROOT, None)
-            for key, value in mapped.items():
-                otel_span.set_attribute(key, _coerce_attribute_value(value))
+            # Covers callers that scope the context around the run with rhesis_invocation_context().
+            # The connector's input socket sets it from inside the run instead, so it is not visible
+            # yet — handle() re-applies it when this span closes.
+            _apply_invocation_context(otel_span, owns_conversation_turn=rhesis_span.owns_conversation_turn)
 
         # haystack 2.x routed tool calls through a ToolInvoker component span.
         if context.component_type == "ToolInvoker":
@@ -669,6 +671,14 @@ class DefaultSpanHandler(SpanHandler):
         otel_span = span.raw_span()
         data = span.get_data()
 
+        # Re-read the invocation context now rather than trusting what create_span saw. The connector
+        # component supplies it from inside the pipeline run, so at root-span creation it was not set
+        # yet; RhesisTracer.trace scopes the ContextVar to this root span, so what is read here
+        # belongs to this run and no other. Applied whether or not conversation text was found —
+        # test-run correlation on a pipeline that passes no chat messages is still worth having.
+        if span.is_root:
+            _apply_invocation_context(otel_span, owns_conversation_turn=span.owns_conversation_turn)
+
         # Skipped entirely when an SDK span owns the turn: it already carries the mapped user message
         # and reply, whereas the promotion below would restate them as raw pipeline dumps.
         if span.owns_conversation_turn:
@@ -681,8 +691,6 @@ class DefaultSpanHandler(SpanHandler):
 
             if conv_input or conv_output:
                 _stamp_conversation_io(otel_span, conv_input, conv_output)
-                if data.get(_PIPELINE_INPUT_KEY) is not None or _is_outermost_agent_turn_span():
-                    _apply_conversation_turn_attributes(otel_span)
 
         if component_type == "ToolInvoker":
             tool_names: list[str] = []
@@ -791,7 +799,13 @@ class RhesisTracer(Tracer):
         # Published for the duration of the root span, which is exactly when RhesisConnector.run()
         # executes as a pipeline component and reads it back.
         trace_id_token = None
+        # Give each run its own copy of the invocation context. RhesisConnector.run() sets it from
+        # inside the pipeline and has no teardown hook of its own, so without this restore point the
+        # value would still be set when the *next* run's root span reads it — attributing one user's
+        # turn to the previous user's conversation.
+        context_token = None
         if is_root_span:
+            context_token = tracing_context_var.set(dict(tracing_context_var.get({})))
             try:
                 raw_trace_id = span.raw_span().get_span_context().trace_id
                 trace_id_token = trace_id_var.set(format(raw_trace_id, "032x"))
@@ -829,6 +843,8 @@ class RhesisTracer(Tracer):
             span_stack_var.reset(token)
             if trace_id_token is not None:
                 trace_id_var.reset(trace_id_token)
+            if context_token is not None:
+                tracing_context_var.reset(context_token)
             if self.enforce_flush:
                 self.flush()
 

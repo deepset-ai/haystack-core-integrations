@@ -5,12 +5,19 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from haystack import Pipeline
+from haystack import Pipeline, component
 from haystack.components.builders import ChatPromptBuilder
+from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 
 from haystack_integrations.components.connectors.rhesis import RhesisConnector
 from haystack_integrations.tracing.rhesis import DefaultSpanHandler
+
+_PROVIDER_PATH = "haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"
 
 
 class CustomSpanHandler(DefaultSpanHandler):
@@ -113,3 +120,83 @@ class TestRhesisConnector:
         ):
             RhesisConnector(name="Chat example")
             mock_enable.assert_called_once()
+
+
+@component
+class _Echo:
+    """Chat-shaped component, so the pipeline root can extract conversation text."""
+
+    @component.output_types(replies=list)
+    def run(self, messages: list[ChatMessage]) -> dict:
+        return {"replies": [ChatMessage.from_assistant("ok")]}
+
+
+@component
+class _Upper:
+    """No chat messages anywhere, so no conversation text is extractable."""
+
+    @component.output_types(text=str)
+    def run(self, text: str) -> dict:
+        return {"text": text.upper()}
+
+
+class TestInvocationContext:
+    """The ``invocation_context`` input socket, end to end through a real pipeline."""
+
+    @staticmethod
+    def _traced_pipeline(worker, name):
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        with patch(_PROVIDER_PATH, return_value=provider):
+            connector = RhesisConnector(name="test", api_key=Secret.from_token("test-key"))
+        pipe = Pipeline()
+        pipe.add_component("tracer", connector)
+        pipe.add_component(name, worker)
+        return pipe, exporter
+
+    @staticmethod
+    def _root_attributes(exporter):
+        roots = [span for span in exporter.get_finished_spans() if span.parent is None]
+        assert len(roots) == 1, f"expected exactly one root span, got {len(roots)}"
+        return dict(roots[0].attributes)
+
+    def test_context_does_not_leak_into_the_next_run(self):
+        """
+        A run that passes no ``invocation_context`` must not inherit the previous run's.
+
+        ``run()`` sets a ContextVar from inside the pipeline and has no teardown hook of its own, so
+        before the tracer scoped it to the root span, run N+1 was stamped with run N's session — one
+        user's turn filed under another user's conversation.
+        """
+        pipe, exporter = self._traced_pipeline(_Echo(), "echo")
+        payload = {"echo": {"messages": [ChatMessage.from_user("hi")]}}
+
+        pipe.run({**payload, "tracer": {"invocation_context": {"session_id": "alice"}}})
+        first = self._root_attributes(exporter)
+
+        exporter.clear()
+        pipe.run(payload)
+        second = self._root_attributes(exporter)
+
+        assert first[ConversationContext.SpanAttributes.CONVERSATION_ID] == "alice"
+        assert ConversationContext.SpanAttributes.CONVERSATION_ID not in second
+
+    def test_context_lands_without_any_chat_messages(self):
+        """
+        Test-run correlation must not depend on the pipeline happening to carry chat messages.
+
+        The mapped attributes used to be stamped only alongside extracted conversation text, so a
+        pipeline of plain components dropped ``invocation_context`` entirely.
+        """
+        pipe, exporter = self._traced_pipeline(_Upper(), "up")
+        pipe.run(
+            {
+                "up": {"text": "hello"},
+                "tracer": {"invocation_context": {"session_id": "carol", "test_run_id": "tr-1"}},
+            }
+        )
+        attributes = self._root_attributes(exporter)
+
+        assert attributes[ConversationContext.SpanAttributes.CONVERSATION_ID] == "carol"
+        assert attributes[TestExecutionContext.SpanAttributes.TEST_RUN_ID] == "tr-1"

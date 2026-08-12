@@ -247,6 +247,7 @@ class TestDefaultSpanHandler:
         handler = DefaultSpanHandler()
         recording = RecordingSpan()
         span = RhesisSpan(RecordingContextManager(recording))
+        span.is_root = True
         span.owns_conversation_turn = False
         span._data = {
             "haystack.pipeline.input_data": {"query": "hello"},
@@ -268,6 +269,7 @@ class TestDefaultSpanHandler:
         handler = DefaultSpanHandler()
         recording = RecordingSpan()
         span = RhesisSpan(RecordingContextManager(recording))
+        span.is_root = True
         span._data = {
             _AGENT_INPUT_KEY: {"messages": [ChatMessage.from_user("Plan a trip to Rome")]},
             _AGENT_OUTPUT_KEY: {"messages": [ChatMessage.from_assistant("Here is your Rome itinerary.")]},
@@ -292,6 +294,7 @@ class TestDefaultSpanHandler:
         handler = DefaultSpanHandler()
         recording = RecordingSpan()
         span = RhesisSpan(RecordingContextManager(recording))
+        span.is_root = True
         span._data = {
             _PIPELINE_INPUT_KEY: {
                 "chat": {

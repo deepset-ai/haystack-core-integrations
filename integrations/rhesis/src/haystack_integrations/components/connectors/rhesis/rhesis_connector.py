@@ -125,6 +125,11 @@ class RhesisConnector:
         """
         Run the connector and return trace metadata.
 
+        The context applies to the pipeline run that invoked this component and no other: the
+        tracer scopes it to the run's root span and discards it when that span closes. To attach
+        metadata to work that is not a pipeline run — a standalone ``Agent``, say — wrap the call
+        in :func:`~haystack_integrations.tracing.rhesis.rhesis_invocation_context` instead.
+
         :param invocation_context: Optional key-value metadata attached to the root trace
             (session, test run identifiers, tags, etc.).
         :returns: Dictionary with ``name``, ``trace_url``, and ``trace_id``.
