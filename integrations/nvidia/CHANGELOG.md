@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/nvidia-v1.4.0] - 2026-08-11
+
+### 🐛 Bug Fixes
+
+- NvidiaRanker reordered the top_k fallback to happen after validation (#3749)
+
+
 ## [integrations/nvidia-v1.3.0] - 2026-08-04
 
 ### 🐛 Bug Fixes
