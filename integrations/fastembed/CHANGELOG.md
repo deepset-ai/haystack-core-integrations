@@ -1,6 +1,10 @@
 # Changelog
 
-## [unreleased]
+## [integrations/fastembed-v2.6.0] - 2026-08-12
+
+### 🚀 Features
+
+- Add GPU/XPU support to fastembed rankers via `model_kwargs` (#3728)
 
 ### 🐛 Bug Fixes
 
@@ -10,6 +14,8 @@
 ### 📚 Documentation
 
 - Fix TypeError in FastembedSparseDocumentEmbedder usage example (#3731)
+
+### 🌀 Miscellaneous
 
 
 ## [integrations/fastembed-v2.4.0] - 2026-07-30
