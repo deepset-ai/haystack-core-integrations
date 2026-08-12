@@ -1,5 +1,17 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- `FastembedLateInteractionRanker` reordered the top_k fallback to happen after validation (#3746)
+- `FastEmbedder` reordered the top_k fallback to happen after validation (#3745)
+
+### 📚 Documentation
+
+- Fix TypeError in FastembedSparseDocumentEmbedder usage example (#3731)
+
+
 ## [integrations/fastembed-v2.4.0] - 2026-07-30
 
 ### 🚀 Features
