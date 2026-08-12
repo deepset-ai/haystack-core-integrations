@@ -587,6 +587,54 @@ class TestDefaultSpanHandler:
         assert "search (x2)" in recording.name
         assert "calc" in recording.name
 
+    def test_handle_tool_invoker_replaces_content_with_the_calls_and_results(self):
+        """
+        On haystack 2.x a whole batch of tool calls arrives as one component span.
+
+        Its raw input is the entire message history and its output the entire tool-message list,
+        which is unreadable in a trace viewer and impossible to index by tool name. langfuse
+        replaces both for the same reason.
+        """
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        origin = ToolCall(id="1", tool_name="search", arguments={"q": "berlin"})
+        span._data = {
+            _COMPONENT_NAME_KEY: "tools",
+            _COMPONENT_INPUT_KEY: {"messages": [ChatMessage.from_assistant(tool_calls=[origin])]},
+            _COMPONENT_OUTPUT_KEY: {
+                "tool_messages": [ChatMessage.from_tool(tool_result="Berlin is in Germany.", origin=origin)]
+            },
+        }
+        handler.handle(span, component_type="ToolInvoker")
+
+        tool_input = recording.attributes[AIAttributes.TOOL_INPUT_CONTENT]
+        assert "search" in tool_input
+        assert "berlin" in tool_input
+
+        tool_output = recording.attributes[AIAttributes.TOOL_OUTPUT_CONTENT]
+        assert "Berlin is in Germany." in tool_output
+        assert "search" in tool_output
+
+    def test_handle_tool_invoker_content_obeys_the_content_flag(self):
+        """The span is still renamed — that is structure, not content — but nothing is copied."""
+        handler = DefaultSpanHandler()
+        recording = RecordingSpan()
+        span = RhesisSpan(RecordingContextManager(recording))
+        span._data = {
+            _COMPONENT_NAME_KEY: "tools",
+            _COMPONENT_INPUT_KEY: {
+                "messages": [
+                    ChatMessage.from_assistant(tool_calls=[ToolCall(id="1", tool_name="search", arguments={"q": "x"})])
+                ]
+            },
+        }
+        with patch("haystack_integrations.tracing.rhesis.tracer.proxy_tracer.is_content_tracing_enabled", False):
+            handler.handle(span, component_type="ToolInvoker")
+
+        assert "search" in recording.name
+        assert AIAttributes.TOOL_INPUT_CONTENT not in recording.attributes
+
 
 class TestRhesisTracer:
     def test_span_stack_isolation(self):

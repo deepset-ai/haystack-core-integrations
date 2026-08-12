@@ -668,24 +668,56 @@ class DefaultSpanHandler(SpanHandler):
 
     @staticmethod
     def _rename_tool_invoker(span: RhesisSpan, component_type: str | None) -> None:
-        """Rename a haystack 2.x ``ToolInvoker`` span after the tools it actually called."""
+        """
+        Describe a haystack 2.x ``ToolInvoker`` span by the tools it actually called.
+
+        On 2.x an agent's tool calls arrive batched through one component span, whose input is the
+        whole message history and whose output is the whole tool-message list. That is unreadable in
+        a trace viewer and impossible to index by tool. Renaming the span and replacing its content
+        with the calls and their results is what langfuse does, for the same reason.
+
+        haystack 3.0 needs none of this: it opens an ``ai.tool.invoke`` span per call.
+        """
         if component_type != "ToolInvoker":
             return
 
         data = span.get_data()
-        tool_names: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
         for message in data.get(hs.COMPONENT_INPUT, {}).get("messages", []):
             if isinstance(message, ChatMessage) and message.tool_calls:
-                tool_names.extend(call.tool_name for call in message.tool_calls)
-        if not tool_names:
+                tool_calls.extend(
+                    {"id": call.id, "name": call.tool_name, "arguments": call.arguments} for call in message.tool_calls
+                )
+        if not tool_calls:
             return
 
-        tool_counts = Counter(tool_names)
-        formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in sorted(tool_counts.items())]
-        new_name = f"{data.get(hs.COMPONENT_NAME, 'ToolInvoker')} - [{', '.join(formatted_names)}]"
         otel_span = span.raw_span()
+        tool_counts = Counter(call["name"] for call in tool_calls)
+        formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in sorted(tool_counts.items())]
         if hasattr(otel_span, "update_name"):
-            otel_span.update_name(new_name)
+            otel_span.update_name(f"{data.get(hs.COMPONENT_NAME, 'ToolInvoker')} - [{', '.join(formatted_names)}]")
+
+        if not proxy_tracer.is_content_tracing_enabled:
+            return
+
+        otel_span.set_attribute(AIAttributes.TOOL_INPUT_CONTENT, _stringify_content(tool_calls)[:MAX_CONTENT_LENGTH])
+
+        results: list[dict[str, Any]] = []
+        for message in data.get(hs.COMPONENT_OUTPUT, {}).get("tool_messages", []):
+            if isinstance(message, ChatMessage) and message.tool_call_results:
+                for result in message.tool_call_results:
+                    origin = result.origin
+                    results.append(
+                        {
+                            "id": origin.id if origin else None,
+                            "name": origin.tool_name if origin else None,
+                            "arguments": origin.arguments if origin else None,
+                            "result": result.result,
+                            "error": result.error,
+                        }
+                    )
+        if results:
+            otel_span.set_attribute(AIAttributes.TOOL_OUTPUT_CONTENT, _stringify_content(results)[:MAX_CONTENT_LENGTH])
 
     @staticmethod
     def _apply_model_metadata(span: RhesisSpan, component_type: str | None) -> None:
