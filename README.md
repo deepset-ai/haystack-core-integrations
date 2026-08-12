@@ -9,9 +9,9 @@
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_sparse\_document\_embedder.py |       43 |        0 |       10 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_sparse\_text\_embedder.py     |       29 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_text\_embedder.py             |       31 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/rankers/fastembed/late\_interaction\_ranker.py               |       76 |        3 |       20 |        1 |     96% |126, 162, 228 |
-| src/haystack\_integrations/components/rankers/fastembed/ranker.py                                  |       62 |        3 |       18 |        0 |     94% |122, 128-129 |
-| **TOTAL**                                                                                          |  **331** |   **13** |   **78** |    **3** | **95%** |           |
+| src/haystack\_integrations/components/rankers/fastembed/late\_interaction\_ranker.py               |       78 |        3 |       20 |        1 |     96% |147, 185, 251 |
+| src/haystack\_integrations/components/rankers/fastembed/ranker.py                                  |       64 |        1 |       18 |        1 |     98% |143, 149-\>exit |
+| **TOTAL**                                                                                          |  **335** |   **11** |   **78** |    **4** | **96%** |           |
 
 
 ## Setup coverage badge
