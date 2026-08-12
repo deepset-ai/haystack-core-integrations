@@ -2,10 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-
-os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
-
 from unittest.mock import Mock, patch
 
 import pytest

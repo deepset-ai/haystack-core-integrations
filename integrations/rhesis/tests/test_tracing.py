@@ -12,8 +12,6 @@ from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.connectors.rhesis import RhesisConnector
 
-os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
-
 
 @component
 class StubChatGenerator:
