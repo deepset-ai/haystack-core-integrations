@@ -85,10 +85,25 @@ with rhesis_invocation_context({"session_id": "agent-example", "test_run_id": "t
     result = agent.run(messages=[ChatMessage.from_user("What is the weather in Berlin?")])
 ```
 
-Every span opened inside the block joins that session, and the context is restored on exit. The
-same context manager works around a `pipeline.run()` call if you would rather not put Rhesis keys
-in the pipeline's input payload — the two are equivalent, and the socket applies only to the run
-that supplied it.
+Every span opened inside the block joins that session, and the context is restored on exit.
+
+The same context manager works around a `pipeline.run()` call, and there it does something the
+input socket cannot. Both attach the context to the run's root span, which is what conversation
+grouping and the `trace_url` need. But the socket supplies its value from *inside* the run, so a
+component whose span closed before the connector executed has already been exported without it.
+Wrapping the call instead means no span opens without the context:
+
+```python
+with rhesis_invocation_context({"session_id": "chat-42", "test_run_id": "tr-1"}):
+    result = pipe.run({"prompt_builder": {...}})
+```
+
+Use the socket when you only need the run grouped; use the context manager when you want to filter
+a trace's individual spans by your own ids.
+
+Keys the mapping knows — `session_id`, `conversation_id`, `test_run_id`, `test_id`,
+`test_result_id`, `test_configuration_id` — become first-class Rhesis attributes. Anything else,
+`user_id` and `tags` included, travels as `haystack.invocation.<key>`.
 
 See [`example/agent.py`](./example/agent.py) for a runnable version with two tools.
 

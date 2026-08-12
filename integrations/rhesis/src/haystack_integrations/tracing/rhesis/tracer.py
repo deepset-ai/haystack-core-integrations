@@ -101,13 +101,18 @@ def _external_turn_root_active() -> bool:
     return get_root_trace_id() is not None
 
 
-def _apply_invocation_context(otel_span: trace.Span, *, owns_conversation_turn: bool) -> None:
-    """Stamp the mapped ``invocation_context`` on a root span."""
+def _apply_invocation_context(otel_span: trace.Span, *, is_turn_root: bool) -> None:
+    """
+    Stamp the mapped ``invocation_context`` on a span.
+
+    :param otel_span: The span to stamp.
+    :param is_turn_root: Whether this span is the root of a conversation turn. Only the outermost
+        span in a turn may carry the turn-root flag; on any other span the exporter would strip its
+        real parent and detach the subtree into a turn of its own.
+    """
     mapped = map_invocation_context(tracing_context_var.get({}))
-    if not owns_conversation_turn:
-        # Session and conversation ids stay: they are useful on a nested span and the exporter
-        # propagates them anyway. The turn-root flag must not, or the exporter strips this
-        # span's real parent and the Haystack subtree detaches into a second turn.
+    if not is_turn_root:
+        # Session, conversation and test ids stay — filtering child spans by them is the point.
         mapped.pop(ConversationContext.SpanAttributes.IS_TURN_ROOT, None)
     for key, value in mapped.items():
         otel_span.set_attribute(key, _coerce_attribute_value(value))
@@ -576,7 +581,7 @@ class DefaultSpanHandler(SpanHandler):
             # Covers callers that scope the context around the run with rhesis_invocation_context().
             # The connector's input socket sets it from inside the run instead, so it is not visible
             # yet — handle() re-applies it when this span closes.
-            _apply_invocation_context(otel_span, owns_conversation_turn=rhesis_span.owns_conversation_turn)
+            _apply_invocation_context(otel_span, is_turn_root=rhesis_span.owns_conversation_turn)
 
         # haystack 2.x routed tool calls through a ToolInvoker component span.
         if context.component_type == "ToolInvoker":
@@ -618,16 +623,22 @@ class DefaultSpanHandler(SpanHandler):
     @staticmethod
     def _apply_invocation_context(span: RhesisSpan) -> None:
         """
-        Stamp the run's ``invocation_context`` on the root span.
+        Stamp the run's ``invocation_context`` on this span.
+
+        Applied to every span, not just the root: filtering a trace's child spans by your own run id
+        or session is the reason for passing one, and on the root alone that query returns nothing.
+        Langfuse gets the same effect from ``propagate_attributes``.
 
         Re-read here rather than trusting what ``create_span`` saw: the connector component supplies
         the context from inside the pipeline run, so at root-span creation it was not set yet.
-        ``RhesisTracer.trace`` scopes the ContextVar to this root span, so what is read here belongs
-        to this run and no other. Applied whether or not conversation text was found — test-run
-        correlation on a pipeline that carries no chat messages is still worth having.
+        ``RhesisTracer.trace`` scopes the ContextVar to the run's root span, so what is read here
+        belongs to this run and no other. Applied whether or not conversation text was found —
+        test-run correlation on a pipeline that carries no chat messages is still worth having.
         """
-        if span.is_root:
-            _apply_invocation_context(span.raw_span(), owns_conversation_turn=span.owns_conversation_turn)
+        _apply_invocation_context(
+            span.raw_span(),
+            is_turn_root=span.is_root and span.owns_conversation_turn,
+        )
 
     @staticmethod
     def _promote_conversation_io(span: RhesisSpan) -> None:

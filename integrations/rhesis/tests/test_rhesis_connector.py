@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 
 from haystack_integrations.components.connectors.rhesis import RhesisConnector
-from haystack_integrations.tracing.rhesis import DefaultSpanHandler
+from haystack_integrations.tracing.rhesis import DefaultSpanHandler, rhesis_invocation_context
 
 _PROVIDER_PATH = "haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"
 
@@ -250,6 +250,55 @@ class TestInvocationContext:
                 assert secret not in str(span.attributes.get(key, ""))
             for event in span.events:
                 assert secret not in str(dict(event.attributes or {}))
+
+    def test_scoped_context_reaches_every_span(self):
+        """
+        Filtering a trace's child spans by your own run id is the point of passing one.
+
+        The mapped attributes used to land on the root span only, so that query returned nothing.
+        `rhesis_invocation_context` is the path that can guarantee full coverage: it is set before
+        the run starts, so no span opens without it.
+
+        The turn-root flag stays on the root alone — on a child the exporter would strip its real
+        parent and detach the subtree into a turn of its own.
+        """
+        pipe, exporter = self._traced_pipeline(_Echo(), "echo")
+        with rhesis_invocation_context({"session_id": "dave", "test_run_id": "tr-9", "user_id": "u-1"}):
+            pipe.run({"echo": {"messages": [ChatMessage.from_user("hi")]}})
+
+        attrs = ConversationContext.SpanAttributes
+        spans = exporter.get_finished_spans()
+        children = [span for span in spans if span.parent is not None]
+        assert children, "expected at least one child span"
+
+        for span in spans:
+            assert span.attributes[attrs.CONVERSATION_ID] == "dave"
+            assert span.attributes[TestExecutionContext.SpanAttributes.TEST_RUN_ID] == "tr-9"
+            # Unmapped keys travel too, under the haystack namespace.
+            assert span.attributes["haystack.invocation.user_id"] == "u-1"
+
+        assert exporter.get_finished_spans()[-1].attributes[attrs.IS_TURN_ROOT] is True
+        for child in children:
+            assert attrs.IS_TURN_ROOT not in child.attributes
+
+    def test_socket_context_reaches_the_root_and_later_components(self):
+        """
+        The input socket supplies the context from inside the run, so it cannot reach backwards.
+
+        A component whose span closed before the connector executed is already exported. The root
+        span always gets it — it closes last — which is what conversation grouping needs. Callers
+        who want it on every span use `rhesis_invocation_context` instead, as the README says.
+        """
+        pipe, exporter = self._traced_pipeline(_Echo(), "echo")
+        pipe.run(
+            {
+                "echo": {"messages": [ChatMessage.from_user("hi")]},
+                "tracer": {"invocation_context": {"session_id": "dave"}},
+            }
+        )
+
+        root = self._root_attributes(exporter)
+        assert root[ConversationContext.SpanAttributes.CONVERSATION_ID] == "dave"
 
     def test_context_lands_without_any_chat_messages(self):
         """
