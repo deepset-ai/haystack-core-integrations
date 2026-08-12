@@ -609,7 +609,9 @@ def _promote_tool_span_to_handoff(parent: RhesisSpan) -> str:
     tool_name = str(parent.get_data().get(_TOOL_NAME_KEY, ""))
     otel_parent = parent.raw_span()
     if hasattr(otel_parent, "update_name"):
-        otel_parent.update_name(AIOperationType.AGENT_HANDOFF)
+        # `.value`, not the member: AIOperationType is a (str, Enum), so the member renders as
+        # "AIOperationType.AGENT_HANDOFF" anywhere the name is formatted into text.
+        otel_parent.update_name(AIOperationType.AGENT_HANDOFF.value)
     otel_parent.set_attribute(AIAttributes.OPERATION_TYPE, AIAttributes.OPERATION_AGENT_HANDOFF)
     if tool_name:
         otel_parent.set_attribute(AIAttributes.AGENT_HANDOFF_TO, tool_name)

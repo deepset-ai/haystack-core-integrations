@@ -7,25 +7,11 @@ from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 
 from haystack_integrations.tracing.rhesis.mapping import (
     AGENT_STEP_SPAN_NAME,
-    APPENDIX_A_HAYSTACK_TAGS,
-    APPENDIX_A_OPERATIONS,
-    HAYSTACK_OPERATION_MAPPING,
-    HAYSTACK_TAG_MAPPING,
     map_invocation_context,
     resolve_operation_type,
     resolve_span_name,
     sanitize_function_span_name,
 )
-
-
-class TestMappingCompleteness:
-    def test_every_appendix_a_tag_has_mapping(self):
-        for tag in APPENDIX_A_HAYSTACK_TAGS:
-            assert tag in HAYSTACK_TAG_MAPPING, f"Missing mapping for {tag}"
-
-    def test_every_appendix_a_operation_has_mapping(self):
-        for operation in APPENDIX_A_OPERATIONS:
-            assert operation in HAYSTACK_OPERATION_MAPPING, f"Missing mapping for {operation}"
 
 
 class TestResolveSpanName:

@@ -7,8 +7,6 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from enum import StrEnum
 from typing import Any
 
 from rhesis.sdk.telemetry.attributes import AIAttributes
@@ -34,226 +32,46 @@ _TOOL_DESCRIPTION_KEY = "haystack.tool.description"
 
 AGENT_STEP_SPAN_NAME = "function.haystack.agent.step"
 
-# Every Haystack tag emitted per Appendix A (haystack 2.30.x and 3.0.x). Used by completeness tests.
-APPENDIX_A_HAYSTACK_TAGS: frozenset[str] = frozenset(
-    {
-        "haystack.pipeline.input_data",
-        "haystack.pipeline.output_data",
-        "haystack.pipeline.metadata",
-        "haystack.pipeline.max_runs_per_component",
-        "haystack.component.name",
-        "haystack.component.type",
-        "haystack.component.fully_qualified_type",
-        "haystack.component.input_types",
-        "haystack.component.input_spec",
-        "haystack.component.output_spec",
-        "haystack.component.input",
-        "haystack.component.output",
-        "haystack.agent.input",
-        "haystack.agent.output",
-        # Haystack 3.0 agent loop
-        _AGENT_STEP_KEY,
-        "haystack.agent.step.llm.input",
-        "haystack.agent.step.llm.output",
-        "haystack.agent.step.tool.input",
-        "haystack.agent.step.tool.output",
-        _TOOL_NAME_KEY,
-        _TOOL_DESCRIPTION_KEY,
-    }
-)
-
-APPENDIX_A_OPERATIONS: frozenset[str] = frozenset(
-    {
-        _PIPELINE_RUN_KEY,
-        _ASYNC_PIPELINE_RUN_KEY,
-        _COMPONENT_RUN_KEY,
-        _AGENT_RUN_KEY,
-        _AGENT_STEP_KEY,
-        _AGENT_STEP_LLM_KEY,
-        _AGENT_STEP_TOOL_KEY,
-    }
-)
-
-
-class MappingPromotion(StrEnum):
-    FIRST_CLASS = "first-class"
-    METADATA = "metadata"
-    MIXED = "mixed"
-
-
-@dataclass(frozen=True)
-class MappingTarget:
-    """Describes how a Haystack tag maps onto Rhesis semantics."""
-
-    rhesis_target: str
-    promotion: MappingPromotion
-    notes: str = ""
-
-
-# Authoritative tag mapping (also summarized in README.md).
-HAYSTACK_TAG_MAPPING: dict[str, MappingTarget] = {
-    "haystack.pipeline.input_data": MappingTarget(
-        ConversationContext.SpanAttributes.CONVERSATION_INPUT,
-        MappingPromotion.FIRST_CLASS,
-        "Promoted on root span at handler phase",
-    ),
-    "haystack.pipeline.output_data": MappingTarget(
-        ConversationContext.SpanAttributes.CONVERSATION_OUTPUT,
-        MappingPromotion.FIRST_CLASS,
-        "Promoted on root span at handler phase",
-    ),
-    "haystack.pipeline.metadata": MappingTarget(
-        "haystack.pipeline.metadata",
-        MappingPromotion.METADATA,
-    ),
-    "haystack.pipeline.max_runs_per_component": MappingTarget(
-        "haystack.pipeline.max_runs_per_component",
-        MappingPromotion.METADATA,
-    ),
-    "haystack.component.name": MappingTarget(
-        _COMPONENT_NAME_KEY,
-        MappingPromotion.MIXED,
-        "Used as OTel span name and metadata",
-    ),
-    "haystack.component.type": MappingTarget(
-        "haystack.component.type",
-        MappingPromotion.METADATA,
-    ),
-    "haystack.component.fully_qualified_type": MappingTarget(
-        "haystack.component.fully_qualified_type",
-        MappingPromotion.METADATA,
-    ),
-    "haystack.component.input_types": MappingTarget(
-        "haystack.component.input_types",
-        MappingPromotion.METADATA,
-    ),
-    "haystack.component.input_spec": MappingTarget(
-        "haystack.component.input_spec",
-        MappingPromotion.METADATA,
-    ),
-    "haystack.component.output_spec": MappingTarget(
-        "haystack.component.output_spec",
-        MappingPromotion.METADATA,
-    ),
-    "haystack.component.input": MappingTarget(
-        "ai.prompt events / content attributes",
-        MappingPromotion.MIXED,
-        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
-    ),
-    "haystack.component.output": MappingTarget(
-        "ai.completion events / content attributes",
-        MappingPromotion.MIXED,
-        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
-    ),
-    "haystack.agent.input": MappingTarget(
-        AIAttributes.AGENT_INPUT_CONTENT,
-        MappingPromotion.FIRST_CLASS,
-    ),
-    "haystack.agent.output": MappingTarget(
-        AIAttributes.AGENT_OUTPUT_CONTENT,
-        MappingPromotion.FIRST_CLASS,
-    ),
-    _AGENT_STEP_KEY: MappingTarget(
-        _AGENT_STEP_KEY,
-        MappingPromotion.METADATA,
-        "Zero-based iteration counter of the Agent loop",
-    ),
-    "haystack.agent.step.llm.input": MappingTarget(
-        "ai.prompt events / content attributes",
-        MappingPromotion.MIXED,
-        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
-    ),
-    "haystack.agent.step.llm.output": MappingTarget(
-        "ai.completion events / content attributes",
-        MappingPromotion.MIXED,
-        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
-    ),
-    "haystack.agent.step.tool.input": MappingTarget(
-        AIAttributes.TOOL_INPUT_CONTENT,
-        MappingPromotion.MIXED,
-        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
-    ),
-    "haystack.agent.step.tool.output": MappingTarget(
-        AIAttributes.TOOL_OUTPUT_CONTENT,
-        MappingPromotion.MIXED,
-        "Content-gated via HAYSTACK_CONTENT_TRACING_ENABLED",
-    ),
-    _TOOL_NAME_KEY: MappingTarget(
-        AIAttributes.TOOL_NAME,
-        MappingPromotion.FIRST_CLASS,
-    ),
-    _TOOL_DESCRIPTION_KEY: MappingTarget(
-        _TOOL_DESCRIPTION_KEY,
-        MappingPromotion.METADATA,
-    ),
-}
-
-# Operation-level mapping for span naming / kinds.
-HAYSTACK_OPERATION_MAPPING: dict[str, MappingTarget] = {
-    _PIPELINE_RUN_KEY: MappingTarget(
-        "function.haystack.pipeline.run",
-        MappingPromotion.FIRST_CLASS,
-        "pipeline forbidden in ai.* namespace",
-    ),
-    _ASYNC_PIPELINE_RUN_KEY: MappingTarget(
-        "function.haystack.async_pipeline.run",
-        MappingPromotion.FIRST_CLASS,
-    ),
-    _AGENT_RUN_KEY: MappingTarget(
-        AIOperationType.AGENT_INVOKE,
-        MappingPromotion.FIRST_CLASS,
-        "ai.operation.type=agent.invoke",
-    ),
-    _AGENT_STEP_KEY: MappingTarget(
-        AGENT_STEP_SPAN_NAME,
-        MappingPromotion.FIRST_CLASS,
-        "Agent loop iteration; grouping span with no ai.* operation type",
-    ),
-    _AGENT_STEP_LLM_KEY: MappingTarget(
-        AIOperationType.LLM_INVOKE,
-        MappingPromotion.FIRST_CLASS,
-        "ai.operation.type=llm.invoke (haystack 3.0 in-agent LLM call)",
-    ),
-    _AGENT_STEP_TOOL_KEY: MappingTarget(
-        AIOperationType.TOOL_INVOKE,
-        MappingPromotion.FIRST_CLASS,
-        "ai.operation.type=tool.invoke; promoted to agent.handoff when the tool runs an Agent",
-    ),
-    _COMPONENT_RUN_KEY: MappingTarget(
-        "resolved per component type",
-        MappingPromotion.MIXED,
-        "See SPAN_KIND_RULES",
-    ),
-}
+# The tables below hold `AIOperationType.<X>.value`, never the member. `AIOperationType` is a
+# `(str, Enum)` rather than a `StrEnum`, so `str(member)` renders as "AIOperationType.LLM_INVOKE".
+# Comparisons, dict lookups and the OTLP encoder all resolve to the value, which is why this went
+# unnoticed — but anything that formats a span name into text gets the enum repr instead.
 
 # Sentinel for rules keyed on operation name alone, used by the haystack 3.0 agent-loop spans which
 # carry no component tags at all.
 _OPERATION_ONLY = "__operation__"
 
+# A trace root is named by its operation alone, whatever component happens to be running. Kept
+# separate from SPAN_KIND_RULES because these three win over every rule below, and expressing that
+# in an ordered first-match table needed rows the matcher then had to skip.
+ROOT_SPAN_NAMES: dict[str, str] = {
+    _AGENT_RUN_KEY: AIOperationType.AGENT_INVOKE.value,
+    _PIPELINE_RUN_KEY: "function.haystack.pipeline.run",
+    _ASYNC_PIPELINE_RUN_KEY: "function.haystack.async_pipeline.run",
+}
+
 # Ordered span-kind rules (first match wins). Unit-tested independently of inline conditionals.
+# Root spans are named by ROOT_SPAN_NAMES above, not from here.
 SPAN_KIND_RULES: tuple[tuple[str, str, str], ...] = (
-    # (operation_name, component_type predicate suffix or exact, rhesis span name)
-    (_AGENT_RUN_KEY, "__root__", AIOperationType.AGENT_INVOKE),
-    (_PIPELINE_RUN_KEY, "__root__", "function.haystack.pipeline.run"),
-    (_ASYNC_PIPELINE_RUN_KEY, "__root__", "function.haystack.async_pipeline.run"),
-    (_AGENT_STEP_LLM_KEY, _OPERATION_ONLY, AIOperationType.LLM_INVOKE),
-    (_AGENT_STEP_TOOL_KEY, _OPERATION_ONLY, AIOperationType.TOOL_INVOKE),
+    # (operation_name, component_type suffix, rhesis span name)
+    (_AGENT_STEP_LLM_KEY, _OPERATION_ONLY, AIOperationType.LLM_INVOKE.value),
+    (_AGENT_STEP_TOOL_KEY, _OPERATION_ONLY, AIOperationType.TOOL_INVOKE.value),
     (_AGENT_STEP_KEY, _OPERATION_ONLY, AGENT_STEP_SPAN_NAME),
     # haystack 2.x emitted tool calls as a ToolInvoker component span; kept for backwards compatibility.
-    (_COMPONENT_RUN_KEY, "ToolInvoker", AIOperationType.TOOL_INVOKE),
-    (_AGENT_RUN_KEY, "__any__", AIOperationType.AGENT_INVOKE),
-    (_COMPONENT_RUN_KEY, "Retriever", AIOperationType.RETRIEVAL),
-    (_COMPONENT_RUN_KEY, "Embedder", AIOperationType.EMBEDDING_GENERATE),
-    (_COMPONENT_RUN_KEY, "Generator", AIOperationType.LLM_INVOKE),
+    (_COMPONENT_RUN_KEY, "ToolInvoker", AIOperationType.TOOL_INVOKE.value),
+    (_AGENT_RUN_KEY, "__any__", AIOperationType.AGENT_INVOKE.value),
+    (_COMPONENT_RUN_KEY, "Retriever", AIOperationType.RETRIEVAL.value),
+    (_COMPONENT_RUN_KEY, "Embedder", AIOperationType.EMBEDDING_GENERATE.value),
+    (_COMPONENT_RUN_KEY, "Generator", AIOperationType.LLM_INVOKE.value),
 )
 
 _OPERATION_TYPE_BY_SPAN_NAME: dict[str, str] = {
-    AIOperationType.LLM_INVOKE: AIAttributes.OPERATION_LLM_INVOKE,
-    AIOperationType.TOOL_INVOKE: AIAttributes.OPERATION_TOOL_INVOKE,
-    AIOperationType.RETRIEVAL: AIAttributes.OPERATION_RETRIEVAL,
-    AIOperationType.EMBEDDING_GENERATE: AIAttributes.OPERATION_EMBEDDING_CREATE,
-    AIOperationType.AGENT_INVOKE: AIAttributes.OPERATION_AGENT_INVOKE,
-    AIOperationType.AGENT_HANDOFF: AIAttributes.OPERATION_AGENT_HANDOFF,
+    AIOperationType.LLM_INVOKE.value: AIAttributes.OPERATION_LLM_INVOKE,
+    AIOperationType.TOOL_INVOKE.value: AIAttributes.OPERATION_TOOL_INVOKE,
+    AIOperationType.RETRIEVAL.value: AIAttributes.OPERATION_RETRIEVAL,
+    AIOperationType.EMBEDDING_GENERATE.value: AIAttributes.OPERATION_EMBEDDING_CREATE,
+    AIOperationType.AGENT_INVOKE.value: AIAttributes.OPERATION_AGENT_INVOKE,
+    AIOperationType.AGENT_HANDOFF.value: AIAttributes.OPERATION_AGENT_HANDOFF,
 }
 
 _INVOCATION_CONTEXT_FIELD_MAP: dict[str, str] = {
@@ -282,24 +100,16 @@ def resolve_span_name(
     is_root: bool,
 ) -> str:
     """Return the Rhesis-compliant OTel span name for a Haystack operation."""
-    if is_root:
-        if operation_name == _AGENT_RUN_KEY:
-            return AIOperationType.AGENT_INVOKE
-        if operation_name == _PIPELINE_RUN_KEY:
-            return "function.haystack.pipeline.run"
-        if operation_name == _ASYNC_PIPELINE_RUN_KEY:
-            return "function.haystack.async_pipeline.run"
+    if is_root and operation_name in ROOT_SPAN_NAMES:
+        return ROOT_SPAN_NAMES[operation_name]
 
     for rule_op, rule_type, span_name in SPAN_KIND_RULES:
         if rule_op != operation_name:
             continue
-        if rule_type == "__root__":
-            continue
         if rule_type in ("__any__", _OPERATION_ONLY):
             return span_name
+        # `endswith` covers the exact match too, since a string ends with itself.
         if component_type and component_type.endswith(rule_type):
-            return span_name
-        if component_type == rule_type:
             return span_name
 
     return sanitize_function_span_name(component_name)

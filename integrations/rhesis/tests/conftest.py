@@ -5,8 +5,11 @@
 import pytest
 from haystack import tracing
 from haystack.tracing import disable_tracing
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from haystack_integrations.tracing.rhesis.tracer import tracing_context_var
+from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, RhesisTracer, tracing_context_var
 
 
 @pytest.fixture(autouse=True)
@@ -59,3 +62,25 @@ def reset_global_tracer():
     """
     yield
     disable_tracing()
+
+
+@pytest.fixture
+def traced_exporter():
+    """Install a RhesisTracer backed by an in-memory OTel exporter for one test."""
+    provider = TracerProvider()
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    telemetry = RhesisTelemetry(
+        provider=provider,
+        otel_tracer=provider.get_tracer("rhesis-tests"),
+        project_id="proj-test",
+        environment="test",
+        base_url="http://localhost:8080",
+    )
+    rhesis_tracer = RhesisTracer(telemetry=telemetry, name="rhesis-tests")
+    rhesis_tracer.enforce_flush = False
+    tracing.enable_tracing(rhesis_tracer)
+    try:
+        yield exporter, rhesis_tracer
+    finally:
+        exporter.clear()
