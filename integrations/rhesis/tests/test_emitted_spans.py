@@ -149,6 +149,9 @@ class TestEmittedAttributes:
         attrs = ConversationContext.SpanAttributes
         root = _spans_by_name(exporter)["function.haystack.pipeline.run"]
         assert root.attributes[attrs.CONVERSATION_INPUT] == "What is the capital of Germany?"
+        # A ChatGenerator answers on `replies`, not `messages`. Only `messages` used to be read, so
+        # the quickstart's own pipeline shape recorded the question and left the answer blank.
+        assert root.attributes[attrs.CONVERSATION_OUTPUT] == "Berlin is the capital of Germany."
 
     @pytest.mark.parametrize("key", sorted(PROMOTED_ATTRIBUTE_KEYS))
     def test_promoted_attribute_keys_keep_their_names(self, key):

@@ -106,9 +106,20 @@ def _message_text(message: Any) -> str:
 
 
 def _messages_from_agent_payload(payload: Any) -> list[Any]:
+    """
+    Return the chat messages carried by a component or pipeline payload.
+
+    ``replies`` is checked as well as ``messages``: that is the socket a ChatGenerator publishes its
+    answer on, and a prompt-builder-into-generator pipeline — the shape of the README quickstart —
+    has no ``messages`` anywhere in its output. Without it the turn recorded the user's question and
+    left the answer blank.
+    """
     if isinstance(payload, dict):
-        messages = payload.get("messages")
-        return messages if isinstance(messages, list) else []
+        for key in ("messages", "replies"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+        return []
     if isinstance(payload, list):
         return payload
     return []
