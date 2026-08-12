@@ -31,6 +31,13 @@ from haystack_integrations.document_stores.azure_ai_search.filters import _norma
             "date gt 2020-01-01T00:00:00Z",
         ),
         ({"field": "bare_field", "operator": "==", "value": "x"}, "bare_field eq 'x'"),
+        # Single quotes in string values must be escaped (doubled) to stay valid OData.
+        ({"field": "meta.name", "operator": "==", "value": "O'Brien"}, "name eq 'O''Brien'"),
+        ({"field": "meta.name", "operator": "!=", "value": "O'Brien"}, "not (name eq 'O''Brien')"),
+        (
+            {"field": "meta.name", "operator": "in", "value": ["O'Brien", "d'Arc"]},
+            "search.in(name,'O''Brien,d''Arc',',')",
+        ),
     ],
 )
 def test_normalize_filters_comparison_conditions(filters, expected):

@@ -4,6 +4,8 @@
 
 import re
 from typing import Any, Literal, overload
+from contextlib import suppress
+from typing import Any, Literal, overloaf
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
@@ -123,12 +125,25 @@ class MongoDBAtlasDocumentStore:
         self._collection: Collection | None = None
         self._collection_async: AsyncCollection | None = None
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         """
-        Destructor method to close MongoDB connections when the instance is destroyed.
+        Release the associated synchronous resources.
         """
-        if self._connection:
-            self._connection.close()
+        if self._connection is not None:
+            with suppress(Exception):
+                self._connection.close()
+            self._connection = None
+            self._collection = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._connection_async is not None:
+            with suppress(Exception):
+                await self._connection_async.close()
+            self._connection_async = None
+            self._collection_async = None
 
     @property
     def connection(self) -> AsyncMongoClient | MongoClient:
@@ -524,7 +539,12 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _create_unique_values_pipeline(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
+        self,
+        metadata_field: str,
+        search_term: str | None,
+        from_: int,
+        size: int,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         clean_key = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         if self.meta_project_mapping and clean_key in self.meta_project_mapping:
@@ -533,9 +553,12 @@ class MongoDBAtlasDocumentStore:
             mongo_field = f"${metadata_field}"
         else:
             mongo_field = f"$meta.{metadata_field}"
-        pipeline: list[dict[str, Any]] = [
-            {"$group": {"_id": mongo_field}},
-        ]
+        pipeline: list[dict[str, Any]] = []
+
+        if filters:
+            pipeline.append({"$match": _normalize_filters(filters)})
+
+        pipeline.append({"$group": {"_id": mongo_field}})
 
         if search_term:
             pipeline.append({"$match": {"_id": {"$regex": re.escape(search_term), "$options": "i"}}})
@@ -550,7 +573,7 @@ class MongoDBAtlasDocumentStore:
         )
         return pipeline
 
-    def _process_unique_values_result(self, result: list[Any]) -> tuple[list[str], int]:
+    def _process_unique_values_result(self, result: list[Any]) -> tuple[list[Any], int]:
         if not result or not result[0]["values"]:
             return [], 0
 
@@ -560,8 +583,13 @@ class MongoDBAtlasDocumentStore:
         return values, total_count
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search_term or all possible values if no search term is given.
 
@@ -569,13 +597,14 @@ class MongoDBAtlasDocumentStore:
         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing a list of unique values and the total count of unique values matching the
-        search term.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing a list of unique values (in their original type) and the total count
+            of unique values matching the search term.
         """
         self._ensure_connection_setup()
         assert self._collection is not None
 
-        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size)
+        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size, filters)
 
         try:
             result = list(self._collection.aggregate(pipeline))
@@ -585,8 +614,13 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
 
@@ -594,13 +628,14 @@ class MongoDBAtlasDocumentStore:
         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing a list of unique values and the total count of unique values matching the
-        search term.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing a list of unique values (in their original type) and the total count
+            of unique values matching the search term.
         """
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None
 
-        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size)
+        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size, filters)
 
         try:
             cursor = await self._collection_async.aggregate(pipeline)

@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/ragas-v4.1.2] - 2026-07-20
+
+### 🐛 Bug Fixes
+
+- Adapt optimum, ragas, elasticsearch, opensearch to APIs removed in Haystack 3.0 (#3538)
+- Fix RagasEvaluator output edge type (#3606)
+
+
 ## [integrations/ragas-v4.1.1] - 2026-05-26
 
 ### 🐛 Bug Fixes

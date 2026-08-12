@@ -20,6 +20,7 @@ Also, if there's any new terminology involved, define it here.
 ## Checklist
 
 If the request is accepted, ensure the following checklist is complete before closing this issue.
+Follow the instructions in https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md#create-a-new-integration and use our scaffolding script for the implementation.
 
 ### Tasks
 - [ ] The code is documented with docstrings and was merged in the `main` branch

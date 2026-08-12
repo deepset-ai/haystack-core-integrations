@@ -65,6 +65,7 @@ class TestFastembedTextEmbedder:
                 "progress_bar": True,
                 "parallel": None,
                 "local_files_only": False,
+                "model_kwargs": None,
             },
         }
 
@@ -81,6 +82,7 @@ class TestFastembedTextEmbedder:
             progress_bar=False,
             parallel=1,
             local_files_only=True,
+            model_kwargs={"providers": ["CUDAExecutionProvider"]},
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
@@ -94,6 +96,7 @@ class TestFastembedTextEmbedder:
                 "progress_bar": False,
                 "parallel": 1,
                 "local_files_only": True,
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
 
@@ -136,6 +139,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "suffix",
                 "progress_bar": False,
                 "parallel": 1,
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
@@ -146,6 +150,20 @@ class TestFastembedTextEmbedder:
         assert embedder.suffix == "suffix"
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
+        assert embedder.model_kwargs == {"providers": ["CUDAExecutionProvider"]}
+
+    def test_init_with_model_kwargs_parameters(self):
+        """
+        Test initialization of FastembedTextEmbedder with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CUDAExecutionProvider"]}
+
+        embedder = FastembedTextEmbedder(
+            model="BAAI/bge-small-en-v1.5",
+            model_kwargs=model_kwargs,
+        )
+
+        assert embedder.model_kwargs == model_kwargs
 
     @patch(
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder._FastembedEmbeddingBackendFactory"
@@ -158,7 +176,7 @@ class TestFastembedTextEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False
+            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False, model_kwargs=None
         )
 
     @patch(
@@ -215,6 +233,28 @@ class TestFastembedTextEmbedder:
             embedder.run(text="test text")
 
         mock_warm_up.assert_called_once()
+
+    @pytest.mark.integration
+    def test_run_with_model_kwargs(self):
+        """
+        Integration test to check the embedding with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CPUExecutionProvider"], "lazy_load": True}
+
+        embedder = FastembedTextEmbedder(
+            model="BAAI/bge-small-en-v1.5",
+            model_kwargs=model_kwargs,
+        )
+        embedder.warm_up()
+
+        text = "Parton energy loss in QCD matter"
+
+        result = embedder.run(text=text)
+        embedding = result["embedding"]
+
+        assert isinstance(embedding, list)
+        assert len(embedding) == 384
+        assert all(isinstance(emb, float) for emb in embedding)
 
     @pytest.mark.integration
     def test_run(self):

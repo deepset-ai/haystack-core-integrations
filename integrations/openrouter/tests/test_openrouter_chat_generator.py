@@ -9,11 +9,6 @@ import pytest
 import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, ReasoningContent, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
@@ -107,7 +102,7 @@ def mock_chat_completion():
         yield mock_chat_completion_create
 
 
-class TestOpenRouterChatGenerator:
+class TestOpenRouterChatGeneratorUnit:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key")
         component = OpenRouterChatGenerator()
@@ -293,92 +288,115 @@ class TestOpenRouterChatGenerator:
         assert api_args["openai_endpoint"] == "create"
         assert api_args["response_format"] == response_format
 
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run(self):
-        chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = OpenRouterChatGenerator()
-        results = component.run(chat_messages)
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-        assert "openai/gpt-5-mini" in message.meta["model"]
-        assert message.meta["finish_reason"] == "stop"
+    def test_serde_in_pipeline(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
 
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_wrong_model(self, chat_messages):
-        component = OpenRouterChatGenerator(model="something-obviously-wrong")
-        with pytest.raises(OpenAIError):
-            component.run(chat_messages)
+        tool = Tool(
+            name="weather",
+            description="useful to determine the weather in a given location",
+            parameters={"city": {"type": "string"}},
+            function=weather,
+        )
 
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_streaming(self):
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
+        generator = OpenRouterChatGenerator(
+            generation_kwargs={"temperature": 0.7},
+            streaming_callback=print_streaming_chunk,
+            tools=[tool],
+        )
 
-            def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                self.responses += chunk.content if chunk.content else ""
+        pipeline = Pipeline()
+        pipeline.add_component("generator", generator)
 
-        callback = Callback()
-        component = OpenRouterChatGenerator(streaming_callback=callback)
+        pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
+        expected_dict = {
+            "metadata": {},
+            "max_runs_per_component": 100,
+            "connection_type_validation": True,
+            "components": {
+                "generator": {
+                    "type": (
+                        "haystack_integrations.components.generators.openrouter.chat.chat_generator"
+                        ".OpenRouterChatGenerator"
+                    ),
+                    "init_parameters": {
+                        "api_key": {"type": "env_var", "env_vars": ["OPENROUTER_API_KEY"], "strict": True},
+                        "model": "openai/gpt-5-mini",
+                        "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                        "api_base_url": "https://openrouter.ai/api/v1",
+                        "generation_kwargs": {"temperature": 0.7},
+                        "http_client_kwargs": None,
+                        "extra_headers": None,
+                        "timeout": None,
+                        "max_retries": None,
+                    },
+                }
+            },
+            "connections": [],
+        }
+
+        if not hasattr(pipeline, "_connection_type_validation"):
+            expected_dict.pop("connection_type_validation")
+
+        assert pipeline_dict == expected_dict
+
+        pipeline_yaml = pipeline.dumps()
+        new_pipeline = Pipeline.loads(pipeline_yaml)
+        assert new_pipeline == pipeline
+
+        loaded_generator = new_pipeline.get_component("generator")
+        assert loaded_generator.model == generator.model
+        assert loaded_generator.generation_kwargs == generator.generation_kwargs
+        assert loaded_generator.streaming_callback == generator.streaming_callback
+        assert len(loaded_generator.tools) == len(generator.tools)
+        assert loaded_generator.tools[0].name == generator.tools[0].name
+        assert loaded_generator.tools[0].description == generator.tools[0].description
+        assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
+
+
+@pytest.mark.skipif(
+    not os.environ.get("OPENROUTER_API_KEY", None),
+    reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+)
+@pytest.mark.integration
+class TestOpenRouterChatGeneratorIntegration:
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run(self, streaming):
+        callback = CollectorCallback() if streaming else None
+        component = OpenRouterChatGenerator(streaming_callback=callback, generation_kwargs={"max_tokens": 1000})
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-
         assert "openai/gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
-        assert callback.counter > 1
-        assert "Paris" in callback.responses
+        if streaming:
+            assert len(callback.chunks) > 1
+            assert "Paris" in "".join(chunk.content for chunk in callback.chunks)
 
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_tools(self, tools):
-        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = OpenRouterChatGenerator(tools=tools)
-        results = component.run(chat_messages)
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-        assert not message.text
+    def test_live_run_wrong_model(self, chat_messages):
+        component = OpenRouterChatGenerator(model="something-obviously-wrong")
+        with pytest.raises(OpenAIError):
+            component.run(chat_messages)
 
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.tool_name == "weather"
-        assert "paris" in tool_call.arguments["city"].lower(), f"Expected 'paris' in city: {tool_call.arguments}"
-        assert message.meta["finish_reason"] == "tool_calls"
-
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_tools_and_response(self, tools):
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    def test_live_run_with_tools_and_response(self, tools, streaming_callback):
         """
         Integration test that the OpenRouterChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-        component = OpenRouterChatGenerator(tools=tools)
-        results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
+        component = OpenRouterChatGenerator(
+            tools=tools,
+            streaming_callback=streaming_callback,
+            generation_kwargs={"max_tokens": 1000, "tool_choice": "auto"},
+        )
+        results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) == 1
 
@@ -386,6 +404,8 @@ class TestOpenRouterChatGenerator:
         tool_message = results["replies"][0]
 
         assert isinstance(tool_message, ChatMessage)
+        assert tool_message.meta["finish_reason"] == "tool_calls"
+        assert not tool_message.text
         tool_calls = tool_message.tool_calls
         assert len(tool_calls) == 2
         assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT)
@@ -420,16 +440,11 @@ class TestOpenRouterChatGenerator:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_with_reasoning(self):
         chat_messages = [ChatMessage.from_user("If x + 3 = 7, what is x?")]
         component = OpenRouterChatGenerator(
             model="deepseek/deepseek-r1",
-            generation_kwargs={"reasoning": {"effort": "high"}},
+            generation_kwargs={"reasoning": {"effort": "high"}, "max_tokens": 1000},
         )
         results = component.run(chat_messages)
 
@@ -442,79 +457,6 @@ class TestOpenRouterChatGenerator:
         assert "4" in message.text
         assert message.meta["finish_reason"] == "stop"
 
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_tools_streaming(self, tools):
-        """
-        Integration test that the OpenRouterChatGenerator component can run with tools and streaming.
-        """
-        component = OpenRouterChatGenerator(tools=tools, streaming_callback=print_streaming_chunk)
-        results = component.run(
-            [ChatMessage.from_user("What's the weather like in Paris and Berlin?")],
-            generation_kwargs={"tool_choice": "auto"},
-        )
-
-        assert len(results["replies"]) == 1
-
-        # Find the message with tool calls
-        tool_message = results["replies"][0]
-
-        assert isinstance(tool_message, ChatMessage)
-        tool_calls = tool_message.tool_calls
-        assert len(tool_calls) == 2
-        assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT)
-
-        for tool_call in tool_calls:
-            assert tool_call.id is not None
-            assert isinstance(tool_call, ToolCall)
-            assert tool_call.tool_name == "weather"
-
-        arguments = [tool_call.arguments for tool_call in tool_calls]
-        # Extract city names and check they contain the expected cities
-        # (LLM may return "Paris, France" or "Berlin, Germany" instead of just city names)
-        cities = [arg["city"].lower() for arg in arguments]
-        assert len(cities) == 2
-        assert any("berlin" in city for city in cities), f"Expected 'berlin' in one of {cities}"
-        assert any("paris" in city for city in cities), f"Expected 'paris' in one of {cities}"
-        assert tool_message.meta["finish_reason"] == "tool_calls"
-
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
-    def test_pipeline_with_openrouter_chat_generator(self, tools):
-        """
-        Test that the OpenRouterChatGenerator component can be used in a pipeline
-        """
-        pipeline = Pipeline()
-        pipeline.add_component("generator", OpenRouterChatGenerator(tools=tools))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
-
-        pipeline.connect("generator", "tool_invoker")
-
-        results = pipeline.run(
-            data={
-                "generator": {
-                    "messages": [ChatMessage.from_user("What's the weather like in Paris?")],
-                    "generation_kwargs": {"tool_choice": "auto"},
-                }
-            }
-        )
-
-        result = results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        assert "paris" in result.lower(), f"Expected 'paris' in result: {result}"
-        assert "sunny and 32°c" in result.lower(), f"Expected 'sunny and 32°c' in result: {result}"
-
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_with_response_format_json_schema(self):
         response_schema = {
             "type": "json_schema",
@@ -543,7 +485,7 @@ class TestOpenRouterChatGenerator:
             )
         ]
         comp = OpenRouterChatGenerator(
-            model="openai/gpt-5-mini", generation_kwargs={"response_format": response_schema}
+            model="openai/gpt-5-mini", generation_kwargs={"response_format": response_schema, "max_tokens": 1000}
         )
         results = comp.run(chat_messages)
         assert len(results["replies"]) == 1
@@ -565,88 +507,6 @@ class TestOpenRouterChatGenerator:
         assert "france" in msg["country"].lower(), f"Expected 'France' in country field, got: {msg['country']}"
         assert message.meta["finish_reason"] == "stop"
 
-    def test_serde_in_pipeline(self, monkeypatch):
-        """
-        Test serialization/deserialization of OpenRouterChatGenerator in a Pipeline,
-        including YAML conversion and detailed dictionary validation
-        """
-        # Set mock API key
-        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-
-        # Create a test tool
-        tool = Tool(
-            name="weather",
-            description="useful to determine the weather in a given location",
-            parameters={"city": {"type": "string"}},
-            function=weather,
-        )
-
-        # Create generator with specific configuration
-        generator = OpenRouterChatGenerator(
-            generation_kwargs={"temperature": 0.7},
-            streaming_callback=print_streaming_chunk,
-            tools=[tool],
-        )
-
-        # Create and configure pipeline
-        pipeline = Pipeline()
-        pipeline.add_component("generator", generator)
-
-        # Get pipeline dictionary and verify its structure
-        pipeline_dict = pipeline.to_dict()
-
-        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
-        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
-        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
-        assert len(tools_entries) == 1
-        expected_dict = {
-            "metadata": {},
-            "max_runs_per_component": 100,
-            "connection_type_validation": True,
-            "components": {
-                "generator": {
-                    "type": "haystack_integrations.components.generators.openrouter.chat.chat_generator.OpenRouterChatGenerator",  # noqa: E501
-                    "init_parameters": {
-                        "api_key": {"type": "env_var", "env_vars": ["OPENROUTER_API_KEY"], "strict": True},
-                        "model": "openai/gpt-5-mini",
-                        "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                        "api_base_url": "https://openrouter.ai/api/v1",
-                        "generation_kwargs": {"temperature": 0.7},
-                        "http_client_kwargs": None,
-                        "extra_headers": None,
-                        "timeout": None,
-                        "max_retries": None,
-                    },
-                }
-            },
-            "connections": [],
-        }
-
-        if not hasattr(pipeline, "_connection_type_validation"):
-            expected_dict.pop("connection_type_validation")
-
-        assert pipeline_dict == expected_dict
-
-        # Test YAML serialization/deserialization
-        pipeline_yaml = pipeline.dumps()
-        new_pipeline = Pipeline.loads(pipeline_yaml)
-        assert new_pipeline == pipeline
-
-        # Verify the loaded pipeline's generator has the same configuration
-        loaded_generator = new_pipeline.get_component("generator")
-        assert loaded_generator.model == generator.model
-        assert loaded_generator.generation_kwargs == generator.generation_kwargs
-        assert loaded_generator.streaming_callback == generator.streaming_callback
-        assert len(loaded_generator.tools) == len(generator.tools)
-        assert loaded_generator.tools[0].name == generator.tools[0].name
-        assert loaded_generator.tools[0].description == generator.tools[0].description
-        assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
-
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
         # Use a more explicit prompt that emphasizes JSON structure requirement
         chat_messages = [
@@ -657,7 +517,7 @@ class TestOpenRouterChatGenerator:
             )
         ]
         component = OpenRouterChatGenerator(
-            model="openai/gpt-5-mini", generation_kwargs={"response_format": calendar_event_model}
+            model="openai/gpt-5-mini", generation_kwargs={"response_format": calendar_event_model, "max_tokens": 1000}
         )
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
@@ -685,11 +545,6 @@ class TestOpenRouterChatGenerator:
             f"Expected event_location to be string, got: {type(msg['event_location'])}"
         )
 
-    @pytest.mark.skipif(
-        not os.environ.get("OPENROUTER_API_KEY", None),
-        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_integration_mixing_tools_and_toolset(self):
         """Test mixing Tool list and Toolset at runtime."""
 
@@ -731,7 +586,7 @@ class TestOpenRouterChatGenerator:
         toolset = Toolset([weather_tool, time_tool])
 
         # Initialize with no tools, we'll pass them at runtime
-        component = OpenRouterChatGenerator()
+        component = OpenRouterChatGenerator(generation_kwargs={"max_tokens": 1000})
 
         # Pass mixed list: echo_tool (individual) and toolset (weather + time) at runtime
         # This tests that both individual tools and toolsets can be combined
@@ -1067,6 +922,10 @@ class TestChatCompletionChunkConversion:
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None
+
+        # Normalize usage details since cache_write_tokens is not always present in the response
+        result.meta["usage"]["prompt_tokens_details"].setdefault("cache_write_tokens", None)
+
         assert result.meta["usage"] == {
             "completion_tokens": 42,
             "prompt_tokens": 55,
@@ -1079,6 +938,7 @@ class TestChatCompletionChunkConversion:
             },
             "prompt_tokens_details": {
                 "audio_tokens": None,
+                "cache_write_tokens": None,
                 "cached_tokens": 0,
             },
         }

@@ -111,3 +111,9 @@ class FalkorDBCypherRetriever:
         )
 
         return {"documents": docs}
+
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self.document_store.close()

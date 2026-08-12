@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import suppress
 from copy import copy
 from dataclasses import replace
 from typing import Any, Literal
@@ -151,18 +152,20 @@ class PineconeDocumentStore:
 
     def close(self) -> None:
         """
-        Close the associated synchronous resources.
+        Release the associated synchronous resources.
         """
-        if self._index:
-            self._index.close()
+        if self._index is not None:
+            with suppress(Exception):
+                self._index.close()
             self._index = None
 
     async def close_async(self) -> None:
         """
-        Close the associated asynchronous resources. To be invoked manually when the Document Store is no longer needed.
+        Release the associated asynchronous resources.
         """
-        if self._async_index:
-            await self._async_index.close()
+        if self._async_index is not None:
+            with suppress(Exception):
+                await self._async_index.close()
             self._async_index = None
 
     @staticmethod
@@ -888,25 +891,26 @@ class PineconeDocumentStore:
     @staticmethod
     def _get_metadata_field_unique_values_impl(
         documents: list[Document], metadata_field: str, search_term: str | None, from_: int, size: int
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """Helper method to get unique values for a metadata field with search and pagination."""
-        unique_values: set[str] = set()
+        field_name = metadata_field.removeprefix("meta.")
+        unique_values: set[Any] = set()
         for doc in documents:
-            if doc.meta and metadata_field in doc.meta:
-                value = doc.meta[metadata_field]
+            if doc.meta and field_name in doc.meta:
+                value = doc.meta[field_name]
                 # Handle list values
                 if isinstance(value, list):
-                    unique_values.update(str(v) for v in value)
+                    unique_values.update(value)
                 else:
-                    unique_values.add(str(value))
+                    unique_values.add(value)
 
         # Convert to sorted list
-        unique_values_list = sorted(unique_values)
+        unique_values_list = sorted(unique_values, key=str)
 
         # Apply search term filter if provided
         if search_term:
             search_term_lower = search_term.lower()
-            unique_values_list = [v for v in unique_values_list if search_term_lower in v.lower()]
+            unique_values_list = [v for v in unique_values_list if search_term_lower in str(v).lower()]
 
         total_count = len(unique_values_list)
 
@@ -1066,8 +1070,13 @@ class PineconeDocumentStore:
         return self._get_metadata_field_min_max_impl(documents, metadata_field)
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a metadata field with optional search and pagination.
 
@@ -1078,14 +1087,20 @@ class PineconeDocumentStore:
         :param search_term: Optional search term to filter values (case-insensitive substring match).
         :param from_: Starting offset for pagination (default: 0).
         :param size: Number of values to return (default: 10).
-        :returns: Tuple of (list of unique values, total count of matching values).
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: Tuple of (list of unique values in their original type, total count of matching values).
         """
-        documents = self.filter_documents(filters=None)
+        documents = self.filter_documents(filters=filters)
         return self._get_metadata_field_unique_values_impl(documents, metadata_field, search_term, from_, size)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously retrieves unique values for a metadata field with optional search and pagination.
 
@@ -1096,7 +1111,8 @@ class PineconeDocumentStore:
         :param search_term: Optional search term to filter values (case-insensitive substring match).
         :param from_: Starting offset for pagination (default: 0).
         :param size: Number of values to return (default: 10).
-        :returns: Tuple of (list of unique values, total count of matching values).
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: Tuple of (list of unique values in their original type, total count of matching values).
         """
-        documents = await self.filter_documents_async(filters=None)
+        documents = await self.filter_documents_async(filters=filters)
         return self._get_metadata_field_unique_values_impl(documents, metadata_field, search_term, from_, size)

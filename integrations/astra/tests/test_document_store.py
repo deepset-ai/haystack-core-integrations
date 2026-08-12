@@ -123,7 +123,18 @@ def test_get_metadata_field_unique_values(mocked_store):
 
     assert values == ["alpha", "alphabet"]
     assert total_count == 2
-    mock_index.distinct.assert_called_once_with("meta.category")
+    mock_index.distinct.assert_called_once_with("meta.category", filters=None)
+
+
+def test_get_metadata_field_unique_values_preserves_non_string_types(mocked_store):
+    store, mock_index = mocked_store
+    mock_index.distinct.return_value = [1, 2, 1, 3]
+
+    values, total_count = store.get_metadata_field_unique_values("priority")
+
+    assert values == [1, 2, 3]
+    assert total_count == 3
+    mock_index.distinct.assert_called_once_with("meta.priority", filters=None)
 
 
 @pytest.mark.parametrize(
@@ -399,3 +410,16 @@ class TestDocumentStore(
         TestDocumentStore.assert_documents_are_equal(
             result, [d for d in filterable_docs if d.meta.get("number") is None]
         )
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

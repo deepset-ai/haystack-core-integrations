@@ -130,6 +130,18 @@ class QdrantEmbeddingRetriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self._document_store.close()
+
+    async def close_async(self) -> None:
+        """
+        Release the asynchronous resources of the underlying Document Store.
+        """
+        await self._document_store.close_async()
+
     @component.output_types(documents=list[Document])
     def run(
         self,
@@ -358,6 +370,18 @@ class QdrantSparseEmbeddingRetriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self._document_store.close()
+
+    async def close_async(self) -> None:
+        """
+        Release the asynchronous resources of the underlying Document Store.
+        """
+        await self._document_store.close_async()
+
     @component.output_types(documents=list[Document])
     def run(
         self,
@@ -523,6 +547,8 @@ class QdrantHybridRetriever:
         score_threshold: float | None = None,
         group_by: str | None = None,
         group_size: int | None = None,
+        rrf_k: int | None = None,
+        rrf_weights: list[float] | None = None,
     ) -> None:
         """
         Create a QdrantHybridRetriever component.
@@ -540,6 +566,12 @@ class QdrantHybridRetriever:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
+        :param rrf_k: The `k` constant for Reciprocal Rank Fusion. Controls ranking formula smoothing.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-constant-k.
+            Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Per-prefetch weights for RRF fusion — `[sparse_weight, dense_weight]`.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
+            Requires Qdrant server >= 1.17.0.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
@@ -558,6 +590,8 @@ class QdrantHybridRetriever:
         self._score_threshold = score_threshold
         self._group_by = group_by
         self._group_size = group_size
+        self._rrf_k = rrf_k
+        self._rrf_weights = rrf_weights
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -576,6 +610,8 @@ class QdrantHybridRetriever:
             score_threshold=self._score_threshold,
             group_by=self._group_by,
             group_size=self._group_size,
+            rrf_k=self._rrf_k,
+            rrf_weights=self._rrf_weights,
         )
 
     @classmethod
@@ -596,6 +632,18 @@ class QdrantHybridRetriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self._document_store.close()
+
+    async def close_async(self) -> None:
+        """
+        Release the asynchronous resources of the underlying Document Store.
+        """
+        await self._document_store.close_async()
+
     @component.output_types(documents=list[Document])
     def run(
         self,
@@ -607,6 +655,8 @@ class QdrantHybridRetriever:
         score_threshold: float | None = None,
         group_by: str | None = None,
         group_size: int | None = None,
+        rrf_k: int | None = None,
+        rrf_weights: list[float] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the Sparse Embedding Retriever on the given input data.
@@ -626,6 +676,12 @@ class QdrantHybridRetriever:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
+        :param rrf_k: Override the init-time `rrf_k` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-constant-k.
+            Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Override the init-time `rrf_weights` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
+            Requires Qdrant server >= 1.17.0.
         :returns:
             The retrieved documents.
 
@@ -652,6 +708,8 @@ class QdrantHybridRetriever:
             score_threshold=score_threshold or self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
+            rrf_k=rrf_k if rrf_k is not None else self._rrf_k,
+            rrf_weights=rrf_weights if rrf_weights is not None else self._rrf_weights,
         )
 
         return {"documents": docs}
@@ -667,6 +725,8 @@ class QdrantHybridRetriever:
         score_threshold: float | None = None,
         group_by: str | None = None,
         group_size: int | None = None,
+        rrf_k: int | None = None,
+        rrf_weights: list[float] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously run the Sparse Embedding Retriever on the given input data.
@@ -686,6 +746,12 @@ class QdrantHybridRetriever:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
+        :param rrf_k: Override the init-time `rrf_k` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-constant-k.
+            Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Override the init-time `rrf_weights` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
+            Requires Qdrant server >= 1.17.0.
         :returns:
             The retrieved documents.
 
@@ -712,6 +778,8 @@ class QdrantHybridRetriever:
             score_threshold=score_threshold or self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
+            rrf_k=rrf_k if rrf_k is not None else self._rrf_k,
+            rrf_weights=rrf_weights if rrf_weights is not None else self._rrf_weights,
         )
 
         return {"documents": docs}

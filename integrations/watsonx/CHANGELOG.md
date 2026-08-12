@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/watsonx-v1.7.0] - 2026-08-07
+
+### 🚀 Features
+
+- Add Python 3.14 support for WatsonX integration (#3744)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Fix failing test watsonx integration (#3414)
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+
+### 🧹 Chores
+
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+
+### 🌀 Miscellaneous
+
+
 ## [integrations/watsonx-v1.5.0] - 2026-06-04
 
 ### 🚀 Features

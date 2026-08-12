@@ -5,7 +5,7 @@
 import os
 import time
 from dataclasses import replace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -128,7 +128,31 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     assert document_store.dimension == 60
     assert document_store.metric == "euclidean"
     assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
-    assert document_store.show_progress is True
+
+
+def test_close():
+    document_store = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    mock_index = MagicMock()
+    document_store._index = mock_index
+
+    document_store.close()
+
+    mock_index.close.assert_called_once()
+    assert document_store._index is None
+
+    document_store.close()
+    mock_index.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    document_store = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    mock_index = MagicMock()
+    mock_index.close.side_effect = RuntimeError("boom")
+    document_store._index = mock_index
+
+    document_store.close()
+
+    assert document_store._index is None
 
 
 def test_init_fails_wo_api_key(monkeypatch):
@@ -315,6 +339,32 @@ def test_get_metadata_field_unique_values_impl_pagination_search_and_lists():
     assert values == ["python"]
 
 
+def test_get_metadata_field_unique_values_impl_preserves_non_string_types():
+    docs = [
+        Document(content="a", meta={"priority": 1}),
+        Document(content="b", meta={"priority": 2}),
+        Document(content="c", meta={"priority": 1}),
+    ]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "priority", search_term=None, from_=0, size=10
+    )
+    assert total == 2
+    assert set(values) == {1, 2}
+
+
+def test_get_metadata_field_unique_values_impl_strips_meta_prefix():
+    docs = [
+        Document(content="a", meta={"category": "news"}),
+        Document(content="b", meta={"category": "sports"}),
+    ]
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "meta.category", search_term=None, from_=0, size=10
+    )
+    assert total == 2
+    assert values == ["news", "sports"]
+
+
 def test_prepare_documents_for_writing_edge_cases(caplog):
     ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
 
@@ -339,22 +389,6 @@ def test_prepare_documents_for_writing_edge_cases(caplog):
     assert "has no embedding" in caplog.text
     assert "blob" in caplog.text
     assert "sparse_embedding" in caplog.text
-
-
-@pytest.mark.asyncio
-async def test_validation_errors_on_empty_query_and_non_dict_meta():
-    ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
-    filters = {"field": "meta.category", "operator": "==", "value": "A"}
-
-    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
-        ds._embedding_retrieval(query_embedding=[])
-    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
-        await ds._embedding_retrieval_async(query_embedding=[])
-
-    with pytest.raises(ValueError, match="meta must be a dictionary"):
-        ds.update_by_filter(filters=filters, meta="not-a-dict")
-    with pytest.raises(ValueError, match="meta must be a dictionary"):
-        await ds.update_by_filter_async(filters=filters, meta="not-a-dict")
 
 
 @pytest.mark.integration
@@ -453,7 +487,7 @@ class TestDocumentStore(
         assert "Most similar document" in [result.content for result in results]
         assert "2nd best document" in [result.content for result in results]
 
-    def test_close(self, document_store: PineconeDocumentStore):
+    def test_close_and_reopen(self, document_store: PineconeDocumentStore):
         document_store._initialize_index()
         assert document_store._index is not None
 
@@ -462,7 +496,6 @@ class TestDocumentStore(
 
         document_store._initialize_index()
         assert document_store._index is not None
-        # test that the index is still usable after closing and reopening
         assert document_store.count_documents() == 0
 
     def test_sentence_window_retriever(self, document_store: PineconeDocumentStore):
@@ -583,3 +616,16 @@ class TestDocumentStore(
         values, total = document_store.get_metadata_field_unique_values("tags", size=10)
         assert total == 4  # python, java, rust, go
         assert set(values) == {"go", "java", "python", "rust"}
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: PineconeDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

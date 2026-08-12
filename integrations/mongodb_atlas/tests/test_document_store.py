@@ -174,6 +174,42 @@ class TestMongoDBDocumentStoreUnit:
         assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
         assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
 
+    def test_close(self, local_store):
+        connection = MagicMock()
+        local_store._connection = connection
+        local_store.close()
+        connection.close.assert_called_once()
+        assert local_store._connection is None
+        local_store.close()
+        connection.close.assert_called_once()
+
+    def test_close_is_exception_safe(self, local_store):
+        connection = MagicMock()
+        connection.close.side_effect = RuntimeError("boom")
+        local_store._connection = connection
+        local_store.close()
+        assert local_store._connection is None
+
+    def test_get_metadata_field_unique_values_with_meta_prefix(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        collection.aggregate.return_value = [{"count": [{"count": 2}], "values": [{"_id": "val1"}, {"_id": "val2"}]}]
+
+        values, count = store.get_metadata_field_unique_values("meta.category")
+
+        assert values == ["val1", "val2"]
+        assert count == 2
+        pipeline = collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$group"] == {"_id": "$meta.category"}
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        collection.aggregate.return_value = [{"count": [{"count": 2}], "values": [{"_id": 1}, {"_id": 2}]}]
+
+        values, count = store.get_metadata_field_unique_values("priority")
+
+        assert values == [1, 2]
+        assert count == 2
+
 
 class TestMongoDBDocumentStoreConversion:
     def test_haystack_doc_to_mongo_doc_with_unsupported_fields(self, local_store):
@@ -746,6 +782,19 @@ class TestDocumentStore(
         assert len(values_page) == 1
         assert values_page[0] in ["alpha", "beta", "gamma"]
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     def test_custom_content_field(self, real_collection):
         database_name, collection_name, client = real_collection
         custom_store = MongoDBAtlasDocumentStore(
@@ -781,3 +830,10 @@ class TestDocumentStore(
         new_docs = [Document(id="3", content="third doc")]
         document_store.write_documents(new_docs)
         assert document_store.count_documents() == 1
+
+    def test_close_and_reopen(self, document_store: MongoDBAtlasDocumentStore):
+        document_store.count_documents()
+        assert document_store._connection is not None
+        document_store.close()
+        assert document_store._connection is None
+        assert document_store.count_documents() == 0
