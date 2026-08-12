@@ -11,6 +11,10 @@ tests run real pipelines and assert against the spans that come out, so a rename
 dropped promotion or a new Haystack tag fails here.
 """
 
+# Imports inside test bodies are deliberate here: the agent-loop modules only exist on
+# haystack 3.0 and sit behind an importorskip, and the async entry point differs by version.
+# ruff: noqa: PLC0415
+
 from typing import Any
 
 import pytest
@@ -18,6 +22,8 @@ from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage
 from rhesis.sdk.telemetry.attributes import AIAttributes
 from rhesis.telemetry.constants import ConversationContext
+
+from haystack_integrations.tracing.rhesis import rhesis_invocation_context
 
 # Every attribute key the integration promises. A silent rename breaks this list, which is the
 # point: these are the names the Rhesis backend indexes and the README documents.
@@ -162,3 +168,168 @@ class TestEmittedAttributes:
         so renaming one in the SDK has to be a deliberate, visible change here too.
         """
         assert key.startswith(("ai.", "rhesis.")), f"{key} is outside the namespaces Rhesis accepts"
+
+
+class TestStandaloneAgent:
+    """
+    An `Agent` traced with no pipeline around it.
+
+    This is the case the integration handles best and had no coverage at all: the connector is
+    constructed and never used again, so `ai.agent.invoke` is the trace root rather than a child of
+    `function.haystack.pipeline.run`.
+    """
+
+    @pytest.fixture
+    def agent(self):
+        pytest.importorskip(
+            "haystack.components.agents.tool_calling",
+            reason="haystack-ai < 3.0 does not emit the agent-loop spans this asserts",
+        )
+        from haystack.components.agents import Agent
+        from haystack.dataclasses import ToolCall
+        from haystack.tools import Tool
+
+        def echo(text: str) -> str:
+            return text
+
+        echo_tool = Tool(
+            name="echo",
+            description="Echo the given text.",
+            parameters={
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+                "required": ["text"],
+            },
+            function=echo,
+        )
+
+        @component
+        class ScriptedChatGenerator:
+            def __init__(self, replies):
+                self._replies = list(replies)
+                self._index = 0
+
+            @component.output_types(replies=list[ChatMessage])
+            def run(self, messages, tools=None, generation_kwargs=None, **kwargs):
+                if self._index >= len(self._replies):
+                    return {"replies": [ChatMessage.from_assistant("done")]}
+                reply = self._replies[self._index]
+                self._index += 1
+                return {"replies": [reply]}
+
+        return Agent(
+            chat_generator=ScriptedChatGenerator(
+                [
+                    ChatMessage.from_assistant(
+                        tool_calls=[ToolCall(id="c1", tool_name="echo", arguments={"text": "hello"})]
+                    ),
+                    ChatMessage.from_assistant("All done."),
+                ]
+            ),
+            tools=[echo_tool],
+            system_prompt="Use echo, then answer.",
+            max_agent_steps=5,
+        )
+
+    def test_agent_invoke_is_the_trace_root(self, traced_exporter, agent):
+        exporter, _ = traced_exporter
+        agent.run(messages=[ChatMessage.from_user("say hello")])
+
+        spans = exporter.get_finished_spans()
+        roots = [span for span in spans if span.parent is None]
+        assert len(roots) == 1
+        assert roots[0].name == "ai.agent.invoke"
+        assert roots[0].attributes[AIAttributes.OPERATION_TYPE] == AIAttributes.OPERATION_AGENT_INVOKE
+
+    def test_the_loop_emits_a_span_per_step_and_per_tool_call(self, traced_exporter, agent):
+        exporter, _ = traced_exporter
+        agent.run(messages=[ChatMessage.from_user("say hello")])
+
+        names = [span.name for span in exporter.get_finished_spans()]
+        assert names.count("function.haystack.agent.step") >= 2
+        assert "ai.llm.invoke" in names
+        assert "ai.tool.invoke" in names
+
+    def test_the_agent_root_carries_the_turn(self, traced_exporter, agent):
+        exporter, _ = traced_exporter
+        with rhesis_invocation_context({"session_id": "standalone-1"}):
+            agent.run(messages=[ChatMessage.from_user("say hello")])
+
+        attrs = ConversationContext.SpanAttributes
+        root = next(span for span in exporter.get_finished_spans() if span.parent is None)
+        assert root.attributes[attrs.CONVERSATION_ID] == "standalone-1"
+        assert root.attributes[attrs.IS_TURN_ROOT] is True
+        assert root.attributes[attrs.CONVERSATION_INPUT] == "say hello"
+        assert root.attributes[attrs.CONVERSATION_OUTPUT] == "All done."
+
+
+class TestAsyncPipeline:
+    """`haystack.async_pipeline.run` was only ever exercised as a string in a mapping table."""
+
+    @staticmethod
+    def _run_async(pipe: Pipeline, data: dict[str, Any]) -> None:
+        """
+        Drive the pipeline through whichever async entry point this Haystack offers.
+
+        3.0 folded `AsyncPipeline` into `Pipeline.run_async`; 2.x has the separate class.
+        """
+        import asyncio
+
+        if hasattr(pipe, "run_async"):
+            asyncio.run(pipe.run_async(data))
+            return
+        from haystack import AsyncPipeline
+
+        async_pipe = AsyncPipeline()
+        for name, instance in pipe.walk():
+            async_pipe.add_component(name, instance)
+        asyncio.run(async_pipe.run_async(data))
+
+    def test_async_run_emits_exactly_one_root(self, traced_exporter):
+        exporter, _ = traced_exporter
+
+        pipe = Pipeline()
+        pipe.add_component("llm", StubChatGenerator())
+        self._run_async(pipe, {"llm": {"messages": [ChatMessage.from_user("hi")]}})
+
+        roots = [span for span in exporter.get_finished_spans() if span.parent is None]
+        assert len(roots) == 1
+        # 3.0 reports async as `haystack.pipeline.run` with an execution-mode tag; 2.x has its own
+        # operation. Either is a valid root name, but it has to be one of them.
+        assert roots[0].name in ("function.haystack.pipeline.run", "function.haystack.async_pipeline.run")
+
+    def test_async_children_parent_to_the_root(self, traced_exporter):
+        exporter, _ = traced_exporter
+
+        pipe = Pipeline()
+        pipe.add_component("llm", StubChatGenerator())
+        pipe.add_component("embedder", StubTextEmbedder())
+        self._run_async(
+            pipe,
+            {
+                "llm": {"messages": [ChatMessage.from_user("hi")]},
+                "embedder": {"text": "hi"},
+            },
+        )
+
+        spans = exporter.get_finished_spans()
+        root = next(span for span in spans if span.parent is None)
+        children = [span for span in spans if span.parent is not None]
+        assert len(children) >= 2
+        for child in children:
+            assert child.parent.span_id == root.context.span_id
+
+    def test_async_run_promotes_the_turn(self, traced_exporter):
+        """The root-span enrichment has to work on the async path too, not only the sync one."""
+        exporter, _ = traced_exporter
+
+        pipe = Pipeline()
+        pipe.add_component("llm", StubChatGenerator())
+        with rhesis_invocation_context({"session_id": "async-1"}):
+            self._run_async(pipe, {"llm": {"messages": [ChatMessage.from_user("hi")]}})
+
+        attrs = ConversationContext.SpanAttributes
+        root = next(span for span in exporter.get_finished_spans() if span.parent is None)
+        assert root.attributes[attrs.CONVERSATION_ID] == "async-1"
+        assert root.attributes[attrs.CONVERSATION_INPUT] == "hi"
+        assert root.attributes[attrs.CONVERSATION_OUTPUT] == "Berlin is the capital of Germany."
