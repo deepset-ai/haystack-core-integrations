@@ -121,6 +121,7 @@ class TestYouComWebSearch:
         headers = mock_request.call_args.kwargs["headers"]
         assert headers["User-Agent"] == USER_AGENT
         assert USER_AGENT.startswith("youcom-haystack/")
+        assert USER_AGENT.endswith(" youdotcom-integration/deepset-ai-haystack-core-integrations")
 
     @patch("haystack_integrations.components.websearch.youcom.youcom_websearch.request_with_retry")
     def test_run_builds_params(self, mock_request):

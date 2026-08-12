@@ -20,7 +20,7 @@ try:
 except PackageNotFoundError:  # pragma: no cover
     _VERSION = "0.0.0-dev"
 
-USER_AGENT = f"youcom-haystack/{_VERSION}"
+USER_AGENT = f"youcom-haystack/{_VERSION} youdotcom-integration/deepset-ai-haystack-core-integrations"
 
 _RATE_LIMIT_STATUSES = (402, 429)
 _UPGRADE_HINT = (
