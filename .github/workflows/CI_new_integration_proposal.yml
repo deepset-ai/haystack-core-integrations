@@ -132,8 +132,8 @@ jobs:
             and fill it out? The **Adoption signals** section (GitHub stars, PyPI downloads over the last 30 days,
             release activity, community demand) is what helps us decide whether to add the integration to Haystack.
 
-            Then link the issue from this PR — for example by adding `Related to #<issue-number>` to the PR description —
-            and this comment will disappear automatically.
+            Then reference the issue in this PR's description (for example, by adding `Related to #<issue-number>`)
+           and this comment will disappear automatically.
 
       - name: Remove stale comment
         if: steps.check.outputs.missing != 'true'
