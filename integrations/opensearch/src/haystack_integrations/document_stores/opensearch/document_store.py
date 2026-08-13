@@ -2198,7 +2198,8 @@ class OpenSearchDocumentStore:
         :param size: The number of unique values to return per page. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of distinct values
-            for the field matching `search_term`).
+            for the field matching `search_term`). Note that filters also narrows down the number of documents
+            against which the search term is matched.
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -2232,7 +2233,8 @@ class OpenSearchDocumentStore:
         :param size: The number of unique values to return per page. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of distinct values
-            for the field matching `search_term`).
+            for the field matching `search_term`). Note that filters also narrows down the number of documents
+            against which the search term is matched.
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None

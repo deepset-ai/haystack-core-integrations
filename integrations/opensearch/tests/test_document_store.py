@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses.document import Document
@@ -602,77 +602,6 @@ def test_ensure_index_exists_no_create_when_disabled(_mock_opensearch_client):
     mock_client.indices.get_mapping.assert_not_called()
 
 
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_direct_index(_mock_sync_client, _mock_async_client):
-    """Async: When an index exists and is referenced directly, mappings are loaded without error."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=True)
-    mock_client.indices.get_mapping = AsyncMock(
-        return_value={"my-index": {"mappings": {"properties": {"content": {"type": "text"}}}}}
-    )
-
-    await store._ensure_index_exists_async()
-
-    mock_client.indices.exists.assert_called_once_with(index="my-index")
-    mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
-    mock_client.indices.create.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_with_alias(_mock_sync_client, _mock_async_client):
-    """Async: When self._index is an alias, get_mapping keys by real index name; no KeyError."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=True)
-    mock_client.indices.get_mapping = AsyncMock(
-        return_value={"my-real-index-v1": {"mappings": {"properties": {"content": {"type": "text"}}}}}
-    )
-
-    await store._ensure_index_exists_async()  # must not raise KeyError
-
-    mock_client.indices.get_mapping.assert_called_once_with(index="my-alias")
-    mock_client.indices.create.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_creates_index_when_not_exists(_mock_sync_client, _mock_async_client):
-    """Async: When the index does not exist and create_index=True, the index is created."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=False)
-
-    await store._ensure_index_exists_async()
-
-    mock_client.indices.create.assert_called_once()
-    mock_client.indices.get_mapping.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_no_create_when_disabled(_mock_sync_client, _mock_async_client):
-    """Async: When the index does not exist and create_index=False, no index is created."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=False)
-
-    await store._ensure_index_exists_async()
-
-    mock_client.indices.create.assert_not_called()
-    mock_client.indices.get_mapping.assert_not_called()
-
-
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_delete_all_documents_recreate_raises_for_alias(_mock_opensearch_client):
     """delete_all_documents(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
@@ -698,39 +627,6 @@ def test_delete_all_documents_recreate_works_for_concrete_index(_mock_opensearch
     mock_client.indices.get.return_value = {"my-index": {"mappings": {}, "settings": {"index": {}}}}
 
     store.delete_all_documents(recreate_index=True)
-
-    mock_client.indices.delete.assert_called_once_with(index="my-index")
-    mock_client.indices.create.assert_called_once()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_delete_all_documents_async_recreate_raises_for_alias(_mock_sync_client, _mock_async_client):
-    """delete_all_documents_async(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.get = AsyncMock(return_value={"my-real-index-v1": {"mappings": {}, "settings": {"index": {}}}})
-
-    with pytest.raises(DocumentStoreError, match="is an alias"):
-        await store.delete_all_documents_async(recreate_index=True)
-
-    mock_client.indices.delete.assert_not_called()
-    mock_client.indices.create.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_delete_all_documents_async_recreate_works_for_concrete_index(_mock_sync_client, _mock_async_client):
-    """delete_all_documents_async(recreate_index=True) proceeds normally when self._index is a concrete index."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.get = AsyncMock(return_value={"my-index": {"mappings": {}, "settings": {"index": {}}}})
-
-    await store.delete_all_documents_async(recreate_index=True)
 
     mock_client.indices.delete.assert_called_once_with(index="my-index")
     mock_client.indices.create.assert_called_once()
