@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -53,6 +53,110 @@ async def test_close_async_is_exception_safe():
     await store.close_async()
 
     assert store._async_client is None
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_direct_index(_mock_sync_client, _mock_async_client):
+    """Async: When an index exists and is referenced directly, mappings are loaded without error."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=True)
+    mock_client.indices.get_mapping = AsyncMock(
+        return_value={"my-index": {"mappings": {"properties": {"content": {"type": "text"}}}}}
+    )
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.exists.assert_called_once_with(index="my-index")
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_with_alias(_mock_sync_client, _mock_async_client):
+    """Async: When self._index is an alias, get_mapping keys by real index name; no KeyError."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=True)
+    mock_client.indices.get_mapping = AsyncMock(
+        return_value={"my-real-index-v1": {"mappings": {"properties": {"content": {"type": "text"}}}}}
+    )
+
+    await store._ensure_index_exists_async()  # must not raise KeyError
+
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-alias")
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_creates_index_when_not_exists(_mock_sync_client, _mock_async_client):
+    """Async: When the index does not exist and create_index=True, the index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=False)
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.create.assert_called_once()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_no_create_when_disabled(_mock_sync_client, _mock_async_client):
+    """Async: When the index does not exist and create_index=False, no index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=False)
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.create.assert_not_called()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_delete_all_documents_async_recreate_raises_for_alias(_mock_sync_client, _mock_async_client):
+    """delete_all_documents_async(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.get = AsyncMock(return_value={"my-real-index-v1": {"mappings": {}, "settings": {"index": {}}}})
+
+    with pytest.raises(DocumentStoreError, match="is an alias"):
+        await store.delete_all_documents_async(recreate_index=True)
+
+    mock_client.indices.delete.assert_not_called()
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_delete_all_documents_async_recreate_works_for_concrete_index(_mock_sync_client, _mock_async_client):
+    """delete_all_documents_async(recreate_index=True) proceeds normally when self._index is a concrete index."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.get = AsyncMock(return_value={"my-index": {"mappings": {}, "settings": {"index": {}}}})
+
+    await store.delete_all_documents_async(recreate_index=True)
+
+    mock_client.indices.delete.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_called_once()
 
 
 @pytest.mark.integration
@@ -948,3 +1052,17 @@ class TestDocumentStoreAsync(
         )
         assert set(unique_topics_value_only) == {"needle-in-haystack"}
         assert total_topics_value_only == 1
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_with_filters_async(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await document_store.get_metadata_field_unique_values_async("meta.category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

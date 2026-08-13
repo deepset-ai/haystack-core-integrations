@@ -10,7 +10,7 @@ services:
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
       - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=SecureHaystack!2026"
     healthcheck:
-        test: curl --fail https://localhost:9200/_cat/health -ku admin:admin || exit 1
+        test: curl --fail https://localhost:9200/_cat/health -ku admin:SecureHaystack!2026 || exit 1
         interval: 10s
         timeout: 1s
         retries: 10
