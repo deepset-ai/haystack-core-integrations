@@ -388,7 +388,6 @@ class TestElasticsearchDocumentStoreAsync(
         assert unique_values == ["Python-based"]
         assert "Backend" not in unique_values
 
-
     @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async(self, document_store: ElasticsearchDocumentStore):
         docs = [
