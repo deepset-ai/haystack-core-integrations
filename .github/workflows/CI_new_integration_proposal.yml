@@ -133,7 +133,7 @@ jobs:
             release activity, community demand) is what helps us decide whether to add the integration to Haystack.
 
             Then reference the issue in this PR's description (for example, by adding `Related to #<issue-number>`)
-           and this comment will disappear automatically.
+            and this comment will disappear automatically.
 
       - name: Remove stale comment
         if: steps.check.outputs.missing != 'true'
