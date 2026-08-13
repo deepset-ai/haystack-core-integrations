@@ -28,7 +28,7 @@ technologies with a healthy and growing user base. Please share adoption signals
 
 > Example: [`elasticsearch-py`](https://github.com/elastic/elasticsearch-py) has 4.4k GitHub stars and
 > [54 million monthly PyPI downloads](https://pypistats.org/packages/elasticsearch), with releases every
-> few weeks and Elastic maintaining it. A similar integration is available for (other frameworks)[https://github.com/langchain-ai/langchain-elastic].
+> few weeks and Elastic maintaining it. A similar integration is available for [other frameworks](https://github.com/langchain-ai/langchain-elastic).
 
 If the technology is very new and these numbers are still small, please tell us when and why you expect community interest to grow.
 
