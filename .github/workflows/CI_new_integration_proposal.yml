@@ -13,7 +13,7 @@ name: Core / New integration proposal check
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, edited, ready_for_review]
+    types: [opened, reopened, synchronize, edited, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -83,7 +83,7 @@ jobs:
                 .map((issue) => issue.number),
             );
             const body = pr.body ?? "";
-            for (const m of body.matchAll(/(?:^|\s)#(\d+)\b/g)) referenced.add(Number(m[1]));
+            for (const m of body.matchAll(/(?:^|[^\w])#(\d+)\b/g)) referenced.add(Number(m[1]));
             const urlPattern = new RegExp(
               `https://github\\.com/${owner}/${repo}/issues/(\\d+)`, "g",
             );
