@@ -91,9 +91,14 @@ class AmazonBedrockRanker:
             with the document content for reranking.
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
+
+        :raises ValueError: If `model` is empty or if `top_k` is not > 0.
         """
         if not model:
             msg = "'model' cannot be None or empty string"
+            raise ValueError(msg)
+        if top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
         self.model_name = model
         self.aws_access_key_id = aws_access_key_id
@@ -193,10 +198,10 @@ class AmazonBedrockRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
-        top_k = top_k or self.top_k
-        if top_k <= 0:
+        if top_k is not None and top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+        top_k = self.top_k if top_k is None else top_k
 
         if not documents:
             return {"documents": []}
