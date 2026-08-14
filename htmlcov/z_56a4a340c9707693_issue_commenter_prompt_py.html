@@ -66,8 +66,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_56a4a340c9707693_issue_viewer_prompt_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-07-29 10:35 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-14 13:35 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -82,28 +82,28 @@
     </div>
 </header>
 <main id="source">
-    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="com"># SPDX-FileCopyrightText: 2023-present deepset GmbH &lt;info@deepset.ai></span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="com"># SPDX-FileCopyrightText: 2023-present deepset GmbH &lt;info@deepset.ai&gt;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="com">#</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t"><span class="com"># SPDX-License-Identifier: Apache-2.0</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="nam">ISSUE_COMMENTER_PROMPT</span> <span class="op">=</span> <span class="str">"""Haystack-Agent uses this tool to post a comment to a GitHub-issue discussion.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="nam">ISSUE_COMMENTER_PROMPT</span> <span class="op">=</span> <span class="str">&quot;&quot;&quot;Haystack-Agent uses this tool to post a comment to a GitHub-issue discussion.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="str">&lt;usage></span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="str">&lt;usage&gt;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="str">Pass a `comment` string and a `url` string to post a comment to a GitHub issue.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">&lt;/usage></span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">&lt;/usage&gt;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="str">IMPORTANT</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="str">Haystack-Agent MUST pass "comment" and "url" to this tool. Otherwise, comment creation fails.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">Haystack-Agent always passes the contents of the comment to the "comment" parameter and</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="str"> the URL of the GitHub issue to the "url" parameter when calling this tool.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="str">Haystack-Agent MUST pass &quot;comment&quot; and &quot;url&quot; to this tool. Otherwise, comment creation fails.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="str">Haystack-Agent always passes the contents of the comment to the &quot;comment&quot; parameter and</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="str"> the URL of the GitHub issue to the &quot;url&quot; parameter when calling this tool.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="nam">ISSUE_COMMENTER_SCHEMA</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">    <span class="str">"properties"</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">        <span class="str">"comment"</span><span class="op">:</span> <span class="op">{</span><span class="str">"type"</span><span class="op">:</span> <span class="str">"string"</span><span class="op">,</span> <span class="str">"description"</span><span class="op">:</span> <span class="str">"The contents of the comment that you want to create."</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">        <span class="str">"url"</span><span class="op">:</span> <span class="op">{</span><span class="str">"type"</span><span class="op">:</span> <span class="str">"string"</span><span class="op">,</span> <span class="str">"description"</span><span class="op">:</span> <span class="str">"URL of the GitHub issue to comment on."</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">    <span class="str">&quot;properties&quot;</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">        <span class="str">&quot;comment&quot;</span><span class="op">:</span> <span class="op">{</span><span class="str">&quot;type&quot;</span><span class="op">:</span> <span class="str">&quot;string&quot;</span><span class="op">,</span> <span class="str">&quot;description&quot;</span><span class="op">:</span> <span class="str">&quot;The contents of the comment that you want to create.&quot;</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">        <span class="str">&quot;url&quot;</span><span class="op">:</span> <span class="op">{</span><span class="str">&quot;type&quot;</span><span class="op">:</span> <span class="str">&quot;string&quot;</span><span class="op">,</span> <span class="str">&quot;description&quot;</span><span class="op">:</span> <span class="str">&quot;URL of the GitHub issue to comment on.&quot;</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="str">"required"</span><span class="op">:</span> <span class="op">[</span><span class="str">"comment"</span><span class="op">,</span> <span class="str">"url"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">    <span class="str">"type"</span><span class="op">:</span> <span class="str">"object"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="str">&quot;required&quot;</span><span class="op">:</span> <span class="op">[</span><span class="str">&quot;comment&quot;</span><span class="op">,</span> <span class="str">&quot;url&quot;</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">    <span class="str">&quot;type&quot;</span><span class="op">:</span> <span class="str">&quot;object&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
@@ -113,8 +113,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_56a4a340c9707693_issue_viewer_prompt_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.2">coverage.py v7.15.2</a>,
-            created at 2026-07-29 10:35 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
+            created at 2026-08-14 13:35 +0000
         </p>
     </div>
 </footer>
