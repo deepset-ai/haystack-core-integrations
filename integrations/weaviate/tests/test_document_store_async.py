@@ -469,9 +469,7 @@ class TestWeaviateDocumentStoreAsync(
         ]
         await document_store.write_documents_async(docs)
 
-        values, total_count = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="priority"
-        )
+        values, total_count = await document_store.get_metadata_field_unique_values_async(metadata_field="priority")
 
         assert set(values) == {1, 2}
         assert all(isinstance(value, int) for value in values)
@@ -496,9 +494,7 @@ class TestWeaviateDocumentStoreAsync(
         ]
         await document_store.write_documents_async(docs)
 
-        values, total_count = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="priority"
-        )
+        values, total_count = await document_store.get_metadata_field_unique_values_async(metadata_field="priority")
 
         assert total_count == 4
         assert len(values) == 4
