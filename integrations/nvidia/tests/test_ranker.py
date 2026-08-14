@@ -120,6 +120,36 @@ class TestNvidiaRanker:
         assert response[0].content == documents[1].content
         assert response[0].score == 4.2
 
+    @pytest.mark.parametrize(
+        ("model", "api_url", "expected_url"),
+        [
+            (
+                _DEFAULT_MODEL,
+                None,
+                "https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking",
+            ),
+            ("custom-rerank-model", "http://localhost:8000/v1", "http://localhost:8000/v1/ranking"),
+        ],
+        ids=["hosted", "local-nim"],
+    )
+    def test_ranking_url(self, requests_mock, monkeypatch, model, api_url, expected_url) -> None:
+        # Hosted models are assigned a per-model endpoint that already includes the full path,
+        # while local/self-hosted NIM deployments get no such override and need `/ranking`
+        # appended to the base URL. Registering only the exact expected URL means any other
+        # URL raises NoMockAddress instead of silently passing.
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        requests_mock.post(expected_url, json={"rankings": [{"index": 0, "logit": 1.0}]}, complete_qs=True)
+
+        api_url_param = {} if api_url is None else {"api_url": api_url}
+        client = NvidiaRanker(model=model, top_k=1, **api_url_param)
+        client.warm_up()
+
+        response = client.run(query="q", documents=[Document(content="doc")])["documents"]
+
+        assert len(response) == 1
+        assert requests_mock.last_request is not None
+        assert requests_mock.last_request.url == expected_url
+
     @pytest.mark.parametrize("truncate", [True, False, 1, 0, 1.0, "START", "BOGUS"])
     def test_truncate_invalid(self, truncate: Any) -> None:
         with pytest.raises(ValueError) as e:
@@ -181,6 +211,7 @@ class TestNvidiaRanker:
         client = NvidiaRanker(
             model=os.environ["NVIDIA_NIM_RANKER_MODEL"],
             api_url=os.environ["NVIDIA_NIM_RANKER_ENDPOINT_URL"],
+            api_key=None,
             top_k=2,
         )
         client.warm_up()
@@ -190,20 +221,27 @@ class TestNvidiaRanker:
         assert len(response) == 2
         assert {response[0].content, response[1].content} == {documents[0].content, documents[1].content}
 
-    def test_top_k_warn(self, monkeypatch) -> None:
+    @pytest.mark.parametrize("top_k", [0, -1])
+    def test_top_k_init_invalid(self, monkeypatch, top_k: int) -> None:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        with pytest.raises(ValueError, match=rf"top_k must be > 0, but got {top_k}"):
+            NvidiaRanker(top_k=top_k)
 
-        client = NvidiaRanker(top_k=0)
+    @pytest.mark.parametrize("top_k", [0, -1])
+    def test_top_k_run_invalid(self, monkeypatch, top_k: int) -> None:
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        client = NvidiaRanker()
         client.warm_up()
-        with pytest.warns(UserWarning) as record0:
-            client.run("query", [Document(content="doc")])
-        assert "top_k should be at least 1" in str(record0[0].message)
+        with pytest.raises(ValueError, match=rf"top_k must be > 0, but got {top_k}"):
+            client.run("query", [Document(content="doc")], top_k=top_k)
 
-        client = NvidiaRanker(top_k=1)
+    def test_top_k_zero_at_run_does_not_fall_back_to_instance_top_k(self, monkeypatch) -> None:
+        # a runtime top_k=0 must raise, not silently fall back to the instance top_k
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        client = NvidiaRanker(top_k=5)
         client.warm_up()
-        with pytest.warns(UserWarning) as record1:
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got 0"):
             client.run("query", [Document(content="doc")], top_k=0)
-        assert "top_k should be at least 1" in str(record1[0].message)
 
     def test_model_typeerror(self) -> None:
         with pytest.raises(TypeError) as e:

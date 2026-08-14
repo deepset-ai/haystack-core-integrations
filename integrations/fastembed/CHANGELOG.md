@@ -1,5 +1,38 @@
 # Changelog
 
+## [integrations/fastembed-v2.6.0] - 2026-08-12
+
+### 🚀 Features
+
+- Add GPU/XPU support to fastembed rankers via `model_kwargs` (#3728)
+
+### 🐛 Bug Fixes
+
+- `FastembedLateInteractionRanker` reordered the top_k fallback to happen after validation (#3746)
+- `FastEmbedder` reordered the top_k fallback to happen after validation (#3745)
+
+### 📚 Documentation
+
+- Fix TypeError in FastembedSparseDocumentEmbedder usage example (#3731)
+
+### 🌀 Miscellaneous
+
+
+## [integrations/fastembed-v2.4.0] - 2026-07-30
+
+### 🚀 Features
+
+- *(fastembed)* Allow passing model_kwargs to dense embedders (#3558)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 📚 Documentation
+
+- Fix wrong class references in Fastembed sparse embedder messages and docstrings (#3610)
+
+
 ## [integrations/fastembed-v2.3.0] - 2026-04-30
 
 ### 🚀 Features

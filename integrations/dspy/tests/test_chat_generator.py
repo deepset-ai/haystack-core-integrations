@@ -1,9 +1,14 @@
 import os
+from importlib import metadata
 from unittest.mock import MagicMock, patch
 
 import dspy
 import pytest
+from haystack import Document, Pipeline, component
+from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
+from haystack.core.errors import DeserializationError
 from haystack.dataclasses import ChatMessage
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.components.generators.dspy.chat.chat_generator import (
     VALID_MODULE_TYPES,
@@ -11,6 +16,17 @@ from haystack_integrations.components.generators.dspy.chat.chat_generator import
     _create_dspy_lm,
     _get_dspy_module_class,
 )
+
+# haystack-ai >= 3.0 gates class imports during deserialization behind a trusted-module allowlist.
+# 2.x has no allowlist and imports any resolvable class path, so allowlist tests do not apply there.
+HAYSTACK_GATES_DESERIALIZATION = int(metadata.version("haystack-ai").split(".")[0]) >= 3
+
+
+class UntrustedQASignature(dspy.Signature):
+    """A signature class living in this test module, which is not on the default allowlist."""
+
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
 
 
 @pytest.fixture
@@ -199,6 +215,7 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {},
                 "module_kwargs": {},
                 "input_mapping": None,
+                "pipeline_inputs": None,
             },
         }
 
@@ -224,6 +241,7 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "module_kwargs": {},
                 "input_mapping": {"context": "context", "question": "question"},
+                "pipeline_inputs": None,
             },
         }
 
@@ -296,6 +314,30 @@ class TestDSPySignatureChatGenerator:
         component = DSPySignatureChatGenerator.from_dict(data)
         assert component.signature is dspy.Signature
 
+    @pytest.mark.skipif(
+        not HAYSTACK_GATES_DESERIALIZATION,
+        reason="The deserialization allowlist was introduced in haystack-ai 3.0",
+    )
+    def test_from_dict_refuses_signature_class_from_untrusted_module(self, mock_dspy_module, monkeypatch):
+        """Test that from_dict refuses a signature class whose module is not on the allowlist."""
+        # Drop the allowlist that tests/conftest.py installs, so this test module becomes untrusted.
+        # The signature class itself is importable, so an allowlist refusal is the only way this fails.
+        monkeypatch.delenv("HAYSTACK_DESERIALIZATION_ALLOWLIST", raising=False)
+        data = {
+            "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
+            "init_parameters": {
+                "signature": {"type": "class", "value": f"{__name__}.UntrustedQASignature"},
+                "model": "openai/gpt-5-mini",
+                "module_type": "Predict",
+                "output_field": "answer",
+                "generation_kwargs": {},
+                "module_kwargs": {},
+                "input_mapping": None,
+            },
+        }
+        with pytest.raises(DeserializationError, match="not on the trusted-module allowlist"):
+            DSPySignatureChatGenerator.from_dict(data)
+
     def test_from_dict_with_unknown_signature_type(self, mock_dspy_module):
         """Test that from_dict raises an error for unknown signature types."""
         data = {
@@ -312,6 +354,16 @@ class TestDSPySignatureChatGenerator:
         }
         with pytest.raises(ValueError, match="Unknown signature type 'unknown'"):
             DSPySignatureChatGenerator.from_dict(data)
+
+    def test_to_dict_from_dict_roundtrip_restores_pipeline_inputs(self, mock_dspy_module):
+        original = DSPySignatureChatGenerator(
+            signature="question, my_context -> answer",
+            pipeline_inputs=["my_context"],
+        )
+        restored = DSPySignatureChatGenerator.from_dict(original.to_dict())
+
+        assert restored.pipeline_inputs == ["my_context"]
+        assert "my_context" in restored.__haystack_input__
 
     def test_run(self, chat_messages, mock_dspy_module):
         component = DSPySignatureChatGenerator(
@@ -427,6 +479,51 @@ class TestDSPySignatureChatGenerator:
         call_kwargs = mock_dspy_module.call_args.kwargs
         assert call_kwargs.get("context") == "Machine learning is a subset of AI."
         assert call_kwargs.get("question") == "What is ML?"
+
+    def test_rag_pipeline_question_with_dependent_context(self, mock_dspy_module):
+        """
+        Test case where the context passed to DSPy is dynamic and depends on the question asked by the user.
+        """
+
+        doc_store = InMemoryDocumentStore()
+        doc_store.write_documents(
+            [
+                Document(content="Paris is the capital of France."),
+                Document(content="Tokyo is the capital of Japan."),
+                Document(content="Bananas are yellow fruits."),
+            ]
+        )
+
+        @component
+        class DocsToString:
+            @component.output_types(text=str)
+            def run(self, documents: list[Document]) -> dict:
+                return {"text": "\n".join(d.content for d in documents)}
+
+        generator = DSPySignatureChatGenerator(
+            signature="question, my_context -> answer",
+            pipeline_inputs=["my_context"],
+        )
+
+        pipeline = Pipeline()
+        pipeline.add_component("retriever", InMemoryBM25Retriever(doc_store, top_k=1))
+        pipeline.add_component("docs_to_text", DocsToString())
+        pipeline.add_component("llm", generator)
+        pipeline.connect("retriever.documents", "docs_to_text.documents")
+        pipeline.connect("docs_to_text.text", "llm.my_context")
+
+        question = "What is the capital of Japan?"  # context should be Japan-related
+        pipeline.run(
+            {
+                "retriever": {"query": question},
+                "llm": {"messages": [ChatMessage.from_user(question)]},
+            }
+        )
+
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert call_kwargs["question"] == question
+        assert "Tokyo is the capital of Japan." in call_kwargs["my_context"]
+        assert "Paris" not in call_kwargs["my_context"]
 
     def test_run_with_wrong_model(self, mock_dspy_module):
         mock_dspy_module.side_effect = Exception("Invalid model name")

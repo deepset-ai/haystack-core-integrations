@@ -28,6 +28,21 @@ from psycopg.sql import SQL
 from haystack_integrations.document_stores.alloydb import AlloyDBDocumentStore
 
 
+def test_process_unique_values_result_preserves_non_string_types():
+    """Non-string metadata values (e.g. ints) are returned in their original type, not stringified.
+
+    Unit test (no live AlloyDB instance needed) since `_process_unique_values_result` is a pure
+    static method operating on already-fetched rows.
+    """
+    count_result = {"total": 2}
+    records = [{"value": 1}, {"value": 2}]
+
+    values, total = AlloyDBDocumentStore._process_unique_values_result(count_result, records)
+
+    assert set(values) == {1, 2}
+    assert total == 2
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     CountDocumentsTest,
@@ -81,6 +96,78 @@ class TestDocumentStore(
 
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
+
+    def test_get_metadata_field_unique_values_search_term(self, document_store: AlloyDBDocumentStore):
+        docs = [
+            Document(content="This document mentions Python explicitly", meta={"language": "Python"}),
+            Document(content="Unrelated content about recipes", meta={"language": "Java"}),
+            Document(content="Another one", meta={"language": "JavaScript"}),
+        ]
+        document_store.write_documents(docs)
+
+        # case-insensitive substring match against the metadata field's OWN value, not content
+        values, total = document_store.get_metadata_field_unique_values("meta.language", search_term="python")
+        assert set(values) == {"Python"}
+        assert total == 1
+
+        # substring match: "Java" is a substring of both "Java" and "JavaScript"
+        values, total = document_store.get_metadata_field_unique_values("meta.language", search_term="Java")
+        assert set(values) == {"Java", "JavaScript"}
+        assert total == 2
+
+        # search_term must not match against document content
+        values, total = document_store.get_metadata_field_unique_values("meta.language", search_term="recipes")
+        assert values == []
+        assert total == 0
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store: AlloyDBDocumentStore):
+        docs = [Document(content=f"Doc {i}", meta={"category": c}) for i, c in enumerate(["A", "B", "C"])]
+        document_store.write_documents(docs)
+
+        page1, total = document_store.get_metadata_field_unique_values("meta.category", from_=0, size=2)
+        assert len(page1) == 2
+        assert total == 3
+
+        page2, total = document_store.get_metadata_field_unique_values("meta.category", from_=2, size=2)
+        assert len(page2) == 1
+        assert total == 3
+
+    def test_get_metadata_field_unique_values_with_and_without_meta_prefix(self, document_store: AlloyDBDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        prefixed = document_store.get_metadata_field_unique_values("meta.category")
+        unprefixed = document_store.get_metadata_field_unique_values("category")
+        assert prefixed == unprefixed == (["A", "B"], 2)
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: AlloyDBDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "language": "Python"}),
+            Document(content="Doc 2", meta={"category": "B", "language": "Java"}),
+            Document(content="Doc 3", meta={"category": "C", "language": "Python"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.language", "operator": "==", "value": "Python"}
+        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
+        assert set(values) == {"A", "C"}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store: AlloyDBDocumentStore):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("meta.priority")
+        assert set(values) == {1, 2}
+        assert total == 2
 
 
 @pytest.mark.usefixtures("patches_for_unit_tests")

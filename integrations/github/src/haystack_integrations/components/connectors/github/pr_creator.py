@@ -248,7 +248,7 @@ class GitHubPRCreator:
             # For cross-repository PRs, head must be in the format username:branch
             head = f"{fork_owner}:{branch}"
 
-            pr_data = {
+            pr_data: dict[str, Any] = {
                 "title": title,
                 "body": body,
                 "head": head,

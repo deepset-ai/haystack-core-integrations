@@ -161,6 +161,15 @@ class TestMongoDBDocumentStoreUnit:
         pipeline = collection.aggregate.call_args[0][0]
         assert pipeline[0]["$group"] == {"_id": "$meta.category"}
 
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        collection.aggregate.return_value = [{"count": [{"count": 2}], "values": [{"_id": 1}, {"_id": 2}]}]
+
+        values, count = store.get_metadata_field_unique_values("priority")
+
+        assert values == [1, 2]
+        assert count == 2
+
 
 class TestMongoDBDocumentStoreConversion:
     def test_haystack_doc_to_mongo_doc_with_unsupported_fields(self, local_store):
@@ -362,6 +371,19 @@ class TestDocumentStore(
         assert count_page == 3
         assert len(values_page) == 1
         assert values_page[0] in ["alpha", "beta", "gamma"]
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
 
     def test_custom_content_field(self, real_collection):
         database_name, collection_name, client = real_collection

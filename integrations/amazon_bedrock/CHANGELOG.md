@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.16.1] - 2026-08-14
+
+### 🚀 Features
+
+- Add Bedrock Knowledge Base retriever to amazon-bedrock integration (#3582)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- AmazonBedRockRanker reordered the top_k fallback to happen after validation (#3748)
+- ValidationException on invalid bedrock tool result json (#3766)
+
+### 🧪 Testing
+
+- Fix cohere, amazon_bedrock, mirage, and ollama tests under Haystack 3.0 (#3566)
+
+### 🌀 Miscellaneous
+
+
 ## [integrations/amazon_bedrock-v6.15.1] - 2026-07-07
 
 ### 🐛 Bug Fixes
