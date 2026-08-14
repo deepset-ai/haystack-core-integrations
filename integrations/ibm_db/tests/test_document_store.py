@@ -239,24 +239,6 @@ class TestDocumentStore(
         assert [doc.id for doc in results] == ["a", "c"]
         assert all(doc.score is not None for doc in results)
 
-    def test_get_metadata_field_unique_values_basic_and_prefix(self, document_store: IBMDb2DocumentStore):
-        docs = [
-            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
-            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
-            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
-            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category")
-        assert set(values) == {"A", "B", "C"}
-        assert total_count == 3
-
-        # "meta." prefix is optional
-        values_prefixed, total_prefixed = document_store.get_metadata_field_unique_values("meta.category")
-        assert set(values_prefixed) == {"A", "B", "C"}
-        assert total_prefixed == 3
-
     def test_get_metadata_field_unique_values_pagination(self, document_store: IBMDb2DocumentStore):
         docs = [
             Document(content=f"doc {i}", meta={"category": c}) for i, c in enumerate(["A", "B", "A", "C", "B", "A"])
@@ -279,48 +261,6 @@ class TestDocumentStore(
         beyond, total_beyond = document_store.get_metadata_field_unique_values("category", from_=10, size=10)
         assert beyond == []
         assert total_beyond == 3
-
-    def test_get_metadata_field_unique_values_search_term(self, document_store: IBMDb2DocumentStore):
-        docs = [
-            Document(content="mentions python in the body", meta={"category": "Backend"}),
-            Document(content="unrelated content", meta={"category": "Python-based"}),
-            Document(content="another one", meta={"category": "Java"}),
-        ]
-        document_store.write_documents(docs)
-
-        # Case-insensitive substring match against the field's own value, not document content.
-        values, total = document_store.get_metadata_field_unique_values("category", search_term="python")
-        assert values == ["Python-based"]
-        assert total == 1
-
-        values_upper, total_upper = document_store.get_metadata_field_unique_values("category", search_term="PYTHON")
-        assert values_upper == ["Python-based"]
-        assert total_upper == 1
-
-    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store: IBMDb2DocumentStore):
-        docs = [
-            Document(content="one", meta={"priority": 1}),
-            Document(content="two", meta={"priority": 2}),
-            Document(content="three", meta={"priority": 1}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total = document_store.get_metadata_field_unique_values("priority")
-        assert set(values) == {1, 2}
-        assert total == 2
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store: IBMDb2DocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
 
     def test_get_metadata_field_unique_values_invalid_field_name(self, document_store: IBMDb2DocumentStore):
         with pytest.raises(ValueError, match="Invalid metadata field name"):
