@@ -11,3 +11,5 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
+
+To run integration tests locally, you need to export the `AZURE_DI_ENDPOINT` and `AZURE_DI_API_KEY` environment variables.

@@ -11,3 +11,6 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
+
+To run integration tests locally, you need a Docker container running PostgreSQL with the `pgvector` extension.
+Use the provided `docker-compose.yml` file to start the container: `docker compose up -d`.

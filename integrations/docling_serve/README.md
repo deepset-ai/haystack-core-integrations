@@ -11,3 +11,12 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
+
+To run integration tests locally, you need a Docker container running docling-serve.
+You can start it using Docker:
+
+```console
+docker run -d -p 5001:5001 ghcr.io/docling-project/docling-serve-cpu:latest
+```
+
+Then export the `DOCLING_SERVE_URL` environment variable: `export DOCLING_SERVE_URL=http://localhost:5001`.
