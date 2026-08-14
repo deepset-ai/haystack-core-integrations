@@ -10,7 +10,7 @@ from haystack.core.serialization import generate_qualified_class_name, import_cl
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.tracing.rhesis import RhesisTracer, SpanHandler
-from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, tracing_context_var
+from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, span_stack_var, tracing_context_var
 from rhesis.telemetry.provider import build_tracer_provider
 
 logger = logging.getLogger(__name__)
@@ -151,21 +151,33 @@ class RhesisConnector:
         """
         Run the connector and return trace metadata.
 
-        The context applies to the pipeline run that invoked this component and no other: the
-        tracer scopes it to the run's root span and discards it when that span closes. To attach
-        metadata to work that is not a pipeline run — a standalone ``Agent``, say — wrap the call
-        in :func:`~haystack_integrations.tracing.rhesis.rhesis_invocation_context` instead.
+        The context applies to the pipeline run that invoked this component and no other. The
+        ContextVar it is written to is set by ``RhesisTracer.trace`` when the run's root span opens
+        and restored when that span closes, so this write lands inside that scope and cannot outlive
+        the run — which is why the context is only honoured when a root span is open. Outside one
+        there is nothing to scope it to and nothing to stamp it on, so it is ignored rather than left
+        behind for the next caller to inherit. To attach metadata to work that is not a pipeline run
+        — a standalone ``Agent``, say — wrap the call in
+        :func:`~haystack_integrations.tracing.rhesis.rhesis_invocation_context` instead, which scopes
+        the value to its own block.
 
         :param invocation_context: Optional key-value metadata attached to the root trace
             (session, test run identifiers, tags, etc.).
         :returns: Dictionary with ``name``, ``trace_url``, and ``trace_id``.
         """
         if invocation_context:
-            tracing_context_var.set(invocation_context)
-            logger.debug(
-                "Rhesis tracer invoked with context: '{invocation_context}'",
-                invocation_context=invocation_context,
-            )
+            if span_stack_var.get():
+                tracing_context_var.set(invocation_context)
+                logger.debug(
+                    "Rhesis tracer invoked with context: '{invocation_context}'",
+                    invocation_context=invocation_context,
+                )
+            else:
+                logger.warning(
+                    "RhesisConnector.run() was called outside a traced run, so its "
+                    "invocation_context was ignored. Use rhesis_invocation_context() to attach "
+                    "metadata to work that a pipeline run does not wrap."
+                )
         return {
             "name": self.name,
             "trace_url": self.tracer.get_trace_url(),

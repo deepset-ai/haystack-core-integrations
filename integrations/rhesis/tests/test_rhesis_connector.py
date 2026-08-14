@@ -17,6 +17,7 @@ from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 
 from haystack_integrations.components.connectors.rhesis import RhesisConnector
 from haystack_integrations.tracing.rhesis import DefaultSpanHandler, rhesis_invocation_context
+from haystack_integrations.tracing.rhesis.tracer import tracing_context_var
 
 _PROVIDER_PATH = "haystack_integrations.components.connectors.rhesis.rhesis_connector.build_tracer_provider"
 
@@ -210,6 +211,22 @@ class TestProviderOwnership:
         finally:
             first.tracer.telemetry.provider.shutdown()
             second.tracer.telemetry.provider.shutdown()
+
+    def test_invocation_context_outside_a_traced_run_is_ignored(self, caplog):
+        """
+        ``run()`` called with no root span open has nowhere to put the context, so it drops it.
+
+        The ContextVar is scoped by ``RhesisTracer.trace``, which sets a restore point when the root
+        span opens. Written outside that scope there is no restore point, and the value would become
+        the default for every later run in the process that supplies none.
+        """
+        with patch(_PROVIDER_PATH):
+            connector = self._connector(name="Chat example")
+
+        connector.run(invocation_context={"session_id": "alice"})
+
+        assert tracing_context_var.get({}) == {}
+        assert "outside a traced run" in caplog.text
 
 
 @component
