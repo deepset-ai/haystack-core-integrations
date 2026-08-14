@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import mariadb
 import pytest
 from haystack.dataclasses import ByteStream, Document
-from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
@@ -183,6 +183,36 @@ class TestDocumentHelpers:
         assert docs[0].blob.data == b"data"
         assert docs[0].blob.mime_type == "image/png"
 
+    def test_rows_to_documents_meta_none_vector_obj_and_dict_blob_meta(self):
+        class FakeVec:
+            def tolist(self):
+                return [0.1, 0.2]
+
+        records = [
+            {
+                "id": "v",
+                "content": "c",
+                "embedding": FakeVec(),
+                "blob_data": None,
+                "blob_meta": None,
+                "blob_mime_type": None,
+                "meta": None,
+            },
+            {
+                "id": "b",
+                "content": None,
+                "embedding": None,
+                "blob_data": b"d",
+                "blob_meta": {"k": "v"},
+                "blob_mime_type": "image/png",
+                "meta": "{}",
+            },
+        ]
+        docs = _rows_to_documents(records)
+        assert docs[0].embedding == [0.1, 0.2]
+        assert docs[0].meta == {}
+        assert docs[1].blob.meta == {"k": "v"}
+
 
 class TestCountDocuments:
     def test_count_documents(self):
@@ -252,11 +282,75 @@ class TestDeleteDocuments:
         assert "IN (?, ?)" in call_args[0]
 
 
+def _record(**kwargs):
+    base = {
+        "id": "x",
+        "content": "c",
+        "embedding": None,
+        "blob_data": None,
+        "blob_meta": None,
+        "blob_mime_type": None,
+        "meta": "{}",
+    }
+    base.update(kwargs)
+    return base
+
+
 class TestEmbeddingRetrieval:
     def test_dimension_mismatch_raises(self):
         store = _mock_store(embedding_dimension=4)
         with pytest.raises(ValueError, match="query_embedding has 3 dimensions"):
             store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3])
+
+    def test_filters_and_score_threshold(self):
+        store = _mock_store(embedding_dimension=2)
+        store._cursor.fetchall.return_value = [
+            _record(id="keep", content="keep", score=0.1),
+            _record(id="drop", content="drop", score=0.8),
+        ]
+        results = store._embedding_retrieval(
+            query_embedding=[0.1, 0.2],
+            filters={"field": "meta.x", "operator": "==", "value": 1},
+            score_threshold=0.5,
+        )
+        assert [d.id for d in results] == ["keep"]
+        assert "AND" in store._cursor.execute.call_args[0][0]
+
+
+class TestConnectionAndErrors:
+    @pytest.mark.parametrize("op", ["write", "delete", "create", "drop"])
+    def test_db_error_wrapped(self, op):
+        store = _mock_store()
+        store._cursor.executemany.side_effect = mariadb.Error("boom")
+        store._cursor.execute.side_effect = mariadb.Error("boom")
+        with pytest.raises(DocumentStoreError):
+            if op == "write":
+                store.write_documents([Document(content="x")])
+            elif op == "delete":
+                store.delete_documents(["a"])
+            elif op == "create":
+                store._initialize_table()
+            else:
+                store._drop_table()
+
+    def test_connect_failure_wrapped(self, monkeypatch):
+        monkeypatch.setattr(mariadb, "connect", MagicMock(side_effect=mariadb.Error("no")))
+        store = MariaDBDocumentStore(user=Secret.from_token("u"), password=Secret.from_token("p"))
+        with pytest.raises(DocumentStoreError):
+            store._ensure_connection()
+
+    def test_create_vector_index_ddl(self):
+        store = _mock_store(create_vector_index=True)
+        store._table_initialized = False
+        store._initialize_table()
+        assert "VECTOR INDEX" in store._cursor.execute.call_args[0][0]
+
+    def test_close_swallows_errors(self):
+        store = _mock_store()
+        store._cursor.close.side_effect = Exception("x")
+        store._connection.close.side_effect = Exception("y")
+        store.close()
+        assert store._connection is None
 
 
 class TestFilterDocuments:

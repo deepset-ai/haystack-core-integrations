@@ -25,11 +25,6 @@ env:
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
-  MARIADB_HOST: "127.0.0.1"
-  MARIADB_PORT: "3306"
-  MARIADB_DATABASE: "haystack"
-  MARIADB_USER: "root"
-  MARIADB_PASSWORD: "password"
 
 defaults:
   run:
