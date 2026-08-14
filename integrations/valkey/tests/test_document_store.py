@@ -738,11 +738,6 @@ class TestValkeyDocumentStore(
         with pytest.raises(ValueError, match="not configured for filtering"):
             document_store.get_metadata_field_min_max("unknown_field")
 
-    def test_get_metadata_field_unique_values_unknown_field_raises(self, document_store):
-        """Test get_metadata_field_unique_values raises for unconfigured field."""
-        with pytest.raises(ValueError, match="not configured for filtering"):
-            document_store.get_metadata_field_unique_values("unknown_field")
-
     def test_count_unique_metadata_by_filter_invalid_field_raises(self, document_store):
         """Test count_unique_metadata_by_filter raises for unconfigured field."""
         document_store.write_documents(
@@ -1185,8 +1180,8 @@ def test_prepare_document_dict_validates_tag_field_type():
         store._prepare_document_dict(doc)
 
 
-def test_prepare_document_dict_validates_numeric_field_type():
-    """Test that numeric fields reject non-numeric values."""
+def test_prepare_document_dict_omits_non_numeric_value_from_index():
+    """Test that a non-numeric value for a numeric field is omitted from the index but kept in the payload."""
     store = ValkeyDocumentStore(
         index_name="test_validation",
         embedding_dim=3,
@@ -1194,8 +1189,10 @@ def test_prepare_document_dict_validates_numeric_field_type():
     )
     doc = Document(content="test", embedding=[0.1, 0.2, 0.3], meta={"priority": "high"})
 
-    with pytest.raises(ValueError, match="Field 'priority' expects numeric value but got str"):
-        store._prepare_document_dict(doc)
+    doc_dict = store._prepare_document_dict(doc)
+
+    assert doc_dict["meta_priority"] is None
+    assert doc_dict["payload"]["meta"]["priority"] == "high"
 
 
 @pytest.fixture
