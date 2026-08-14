@@ -9,6 +9,7 @@ from haystack import Pipeline, component
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
+from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -17,7 +18,7 @@ from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 from haystack_integrations.components.connectors.rhesis import RhesisConnector
 from haystack_integrations.tracing.rhesis import DefaultSpanHandler, rhesis_invocation_context
 
-_PROVIDER_PATH = "haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"
+_PROVIDER_PATH = "haystack_integrations.components.connectors.rhesis.rhesis_connector.build_tracer_provider"
 
 
 class CustomSpanHandler(DefaultSpanHandler):
@@ -28,7 +29,7 @@ class CustomSpanHandler(DefaultSpanHandler):
 class TestRhesisConnector:
     def test_run(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")
-        with patch("haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"):
+        with patch(_PROVIDER_PATH):
             connector = RhesisConnector(name="Chat example")
             mock_tracer = Mock()
             mock_tracer.get_trace_url.return_value = "http://localhost:3000/traces?open_trace=abc"
@@ -42,7 +43,7 @@ class TestRhesisConnector:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")
-        with patch("haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"):
+        with patch(_PROVIDER_PATH):
             connector = RhesisConnector(name="Chat example")
             serialized = connector.to_dict()
 
@@ -100,7 +101,7 @@ class TestRhesisConnector:
 
     def test_to_dict_with_custom_handler(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")
-        with patch("haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"):
+        with patch(_PROVIDER_PATH):
             connector = RhesisConnector(name="Chat example", span_handler=CustomSpanHandler())
             serialized = connector.to_dict()
 
@@ -108,7 +109,7 @@ class TestRhesisConnector:
 
     def test_from_dict_round_trip(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")
-        with patch("haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"):
+        with patch(_PROVIDER_PATH):
             connector = RhesisConnector(
                 name="Chat example",
                 base_url="http://localhost:8080",
@@ -143,7 +144,7 @@ class TestRhesisConnector:
 
     def test_pipeline_serialization_round_trip(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")
-        with patch("haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"):
+        with patch(_PROVIDER_PATH):
             pipe = Pipeline()
             pipe.add_component("tracer", RhesisConnector("Chat example"))
             pipe.add_component("prompt_builder", ChatPromptBuilder())
@@ -157,13 +158,58 @@ class TestRhesisConnector:
     def test_enable_tracing_called(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")
         with (
-            patch("haystack_integrations.components.connectors.rhesis.rhesis_connector.get_tracer_provider"),
+            patch(_PROVIDER_PATH),
             patch(
                 "haystack_integrations.components.connectors.rhesis.rhesis_connector.tracing.enable_tracing"
             ) as mock_enable,
         ):
             RhesisConnector(name="Chat example")
             mock_enable.assert_called_once()
+
+
+class TestProviderOwnership:
+    """The connector owns its OTel provider instead of claiming the process-wide one."""
+
+    @staticmethod
+    def _connector(**kwargs):
+        """A connector on the real ``build_tracer_provider`` path, with its provider disposed after."""
+        return RhesisConnector(api_key=Secret.from_token("test-key"), **kwargs)
+
+    def test_construction_leaves_the_otel_global_alone(self):
+        """
+        A Haystack user with their own APM must keep it.
+
+        ``get_tracer_provider`` called ``trace.set_tracer_provider``, so whichever of Rhesis and the
+        host's instrumentation initialised first won the global and OpenTelemetry refused the other's
+        override — silently sending the host's spans here, or losing ours to them. Nothing in this
+        integration needs the global: spans go through ``telemetry.otel_tracer``.
+        """
+        before = trace.get_tracer_provider()
+
+        connector = self._connector(name="Chat example")
+        try:
+            assert trace.get_tracer_provider() is before
+            assert connector.tracer.telemetry.provider is not trace.get_tracer_provider()
+        finally:
+            connector.tracer.telemetry.provider.shutdown()
+
+    def test_each_connector_gets_its_own_provider(self):
+        """
+        Two connectors in one process must route to their own projects.
+
+        ``get_tracer_provider`` cached the first provider it built, and the exporter that stamps
+        ``project_id`` and holds the endpoint and API key is created with it — so a second connector's
+        project, base URL and key were discarded and its spans went to the first one's project.
+        """
+        first = self._connector(name="first", project_id="project-AAA")
+        second = self._connector(name="second", project_id="project-BBB")
+        try:
+            assert first.tracer.telemetry.provider is not second.tracer.telemetry.provider
+            assert first.tracer.telemetry.project_id == "project-AAA"
+            assert second.tracer.telemetry.project_id == "project-BBB"
+        finally:
+            first.tracer.telemetry.provider.shutdown()
+            second.tracer.telemetry.provider.shutdown()
 
 
 @component

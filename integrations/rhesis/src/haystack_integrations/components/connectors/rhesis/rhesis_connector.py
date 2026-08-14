@@ -11,7 +11,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.tracing.rhesis import RhesisTracer, SpanHandler
 from haystack_integrations.tracing.rhesis.tracer import RhesisTelemetry, tracing_context_var
-from rhesis.telemetry.provider import get_tracer_provider
+from rhesis.telemetry.provider import build_tracer_provider
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,18 @@ class RhesisConnector:
             msg = "RHESIS_API_KEY is required for RhesisConnector"
             raise ValueError(msg)
 
-        provider = get_tracer_provider(
+        # ``build_tracer_provider``, not ``get_tracer_provider``: the latter caches one provider per
+        # process and installs it as the OpenTelemetry global. Both are wrong for a library. The
+        # global means whichever of Rhesis and the host application's own APM initialises first wins,
+        # and OpenTelemetry refuses the loser's override — so adding this component could silently
+        # redirect a user's Datadog spans here, or lose ours to them. The cache means a second
+        # connector with a different ``project_id`` would quietly export to the first one's project.
+        # A provider owned by this connector has neither problem, and nothing here needs the global:
+        # spans are opened through ``telemetry.otel_tracer`` and flushed through
+        # ``telemetry.provider``, while parent-child nesting travels in the OTel *context*, which is
+        # shared across providers — so a pipeline running inside a Rhesis SDK ``@endpoint`` span
+        # still nests under it.
+        provider = build_tracer_provider(
             service_name="rhesis-haystack",
             api_key=resolved_api_key,
             base_url=self.base_url,

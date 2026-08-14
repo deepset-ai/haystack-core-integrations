@@ -223,6 +223,13 @@ What this integration does and does not do, so none of it arrives as a surprise:
 - **Content leaves the process verbatim.** With the flag on, prompts, tool arguments and retrieved
   documents are sent to Rhesis as written. There is no redaction hook; use a custom `SpanHandler` if
   you need one.
+- **The tracer provider belongs to the connector, not to the process.** `RhesisConnector` builds its
+  own OpenTelemetry `TracerProvider` and never calls `trace.set_tracer_provider`, so an application
+  that already runs Datadog, Honeycomb or its own OTel pipeline keeps the global provider and every
+  span it produces. The other side of that: Haystack spans go to Rhesis only — they do not appear in
+  your collector, and spans your instrumentation opens do not appear in Rhesis. Nesting still works
+  across the two, because parent-child relationships travel in the OpenTelemetry context rather than
+  in the provider, so a Haystack pipeline running inside one of your spans is still its child.
 - **Conversation grouping needs a `session_id`.** Without one a run is traced but not grouped. Turns
   share a trace only when driven through `RhesisTracing`.
 - **`ComponentTool` invocations are flattened.** The tool span is recorded; the component it wraps

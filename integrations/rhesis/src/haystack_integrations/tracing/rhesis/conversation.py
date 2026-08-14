@@ -165,8 +165,10 @@ class RhesisTracing:
         from haystack_integrations.components.connectors.rhesis import RhesisConnector  # noqa: PLC0415
 
         try:
-            # Constructing the connector installs the tracer provider and enables Haystack
-            # tracing globally. It is never added to a pipeline.
+            # Constructing the connector builds the Rhesis tracer provider and registers the tracer
+            # with Haystack. Only the Haystack registration is process-wide; the OTel provider
+            # belongs to the connector, which is why the turn spans below borrow its tracer. The
+            # component is never added to a pipeline.
             self._tracer = RhesisConnector(name, **connector_kwargs).tracer
         except Exception as exc:  # tracing must never break the application
             logger.warning("Could not enable Rhesis tracing: {error}", error=exc)
@@ -205,7 +207,8 @@ class RhesisTracing:
 
         :param user_input: The user's message, recorded as the turn's conversation input.
         """
-        if not self.enabled:
+        tracer = self._tracer
+        if tracer is None:
             yield ConversationTurn()
             return
 
@@ -213,9 +216,12 @@ class RhesisTracing:
         parent_context = (
             _conversation_parent_context(self._conversation_trace_id) if self._conversation_trace_id else None
         )
-        # The connector installs its provider as the global one, so this span is exported and
-        # flushed alongside the Haystack spans nested inside it.
-        otel_tracer = trace.get_tracer("haystack_integrations.tracing.rhesis")
+        # Opened through the connector's own tracer rather than ``trace.get_tracer()``: the connector
+        # builds a provider it keeps to itself instead of installing it as the OpenTelemetry global,
+        # so the global tracer here would be a no-op and every turn root would silently vanish while
+        # the Haystack spans nested inside it were still exported. Sharing the tracer also means a
+        # turn is flushed by the same provider as its children.
+        otel_tracer = tracer.telemetry.otel_tracer
         previous_root = get_root_trace_id()
 
         with otel_tracer.start_as_current_span(self.turn_span_name, context=parent_context) as span:

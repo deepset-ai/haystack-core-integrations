@@ -783,6 +783,19 @@ class RhesisTracer(Tracer):
         self._span_handler = span_handler or DefaultSpanHandler()
         self._span_handler.init_tracer(telemetry)
 
+    @property
+    def telemetry(self) -> RhesisTelemetry:
+        """
+        The Rhesis OTel provider and tracer backing this tracer.
+
+        Public because the provider is private to this tracer: it is not installed as the
+        OpenTelemetry global, so anything that needs to open a span destined for Rhesis — the
+        conversation turn spans in :class:`~haystack_integrations.tracing.rhesis.RhesisTracing`, or a
+        custom :class:`SpanHandler` — has to reach it through here rather than through
+        ``trace.get_tracer()``.
+        """
+        return self._telemetry
+
     @contextlib.contextmanager
     def trace(
         self, operation_name: str, tags: dict[str, Any] | None = None, parent_span: Span | None = None

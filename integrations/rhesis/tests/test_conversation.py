@@ -7,7 +7,6 @@
 from typing import Any
 
 import pytest
-from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -20,23 +19,43 @@ from haystack_integrations.tracing.rhesis.tracer import tracing_context_var
 ATTRS = ConversationContext.SpanAttributes
 
 
-@pytest.fixture
-def exporter(monkeypatch):
-    """A RhesisTracing wired to an in-memory exporter, with no backend involved."""
-    provider = TracerProvider()
-    in_memory = InMemorySpanExporter()
-    provider.add_span_processor(SimpleSpanProcessor(in_memory))
-    monkeypatch.setattr(trace, "get_tracer", lambda *args, **kwargs: provider.get_tracer("test"))
-    return in_memory
+class _StubTelemetry:
+    """
+    Stands in for ``RhesisTelemetry``, collecting spans in memory instead of exporting them.
+
+    A turn span is opened through the connector's own ``otel_tracer``, not ``trace.get_tracer()``:
+    the connector's provider is private to it and never installed as the OpenTelemetry global. So the
+    stub has to carry a real provider — patching the global would test a path the code no longer uses,
+    and would pass just as happily if turn spans had stopped being recorded altogether.
+    """
+
+    def __init__(self) -> None:
+        self.provider = TracerProvider()
+        self.exporter = InMemorySpanExporter()
+        self.provider.add_span_processor(SimpleSpanProcessor(self.exporter))
+        self.otel_tracer = self.provider.get_tracer("test")
 
 
 @pytest.fixture
-def tracing(exporter, monkeypatch):
+def telemetry():
+    """The stand-in telemetry the stub connector below hands to ``RhesisTracing``."""
+    return _StubTelemetry()
+
+
+@pytest.fixture
+def exporter(telemetry):
+    """The in-memory spans, with no backend involved."""
+    return telemetry.exporter
+
+
+@pytest.fixture
+def tracing(telemetry, monkeypatch):
     """A RhesisTracing whose connector construction is stubbed out."""
 
     class _StubTracer:
         def __init__(self) -> None:
             self.flushed = 0
+            self.telemetry = telemetry
 
         def flush(self) -> None:
             self.flushed += 1
@@ -171,11 +190,11 @@ class TestConversationTraceContinuity:
         assert first.context.trace_id != second.context.trace_id
         assert second.parent is None
 
-    def test_work_inside_a_turn_joins_the_turn_trace(self, tracing, exporter):
+    def test_work_inside_a_turn_joins_the_turn_trace(self, tracing, telemetry, exporter):
         """Spans opened during the turn nest under it, so a conversation is one trace."""
         tracing.start_conversation("conv-1")
         with tracing.turn("first") as turn:
-            trace.get_tracer("test").start_span("inner").end()
+            telemetry.otel_tracer.start_span("inner").end()
             expected = turn.span.get_span_context().trace_id
 
         inner = next(s for s in exporter.get_finished_spans() if s.name == "inner")
