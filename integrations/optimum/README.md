@@ -8,6 +8,7 @@
 
 ---
 
-## Contributing
-
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
+
+
+

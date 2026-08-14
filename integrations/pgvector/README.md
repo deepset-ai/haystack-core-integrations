@@ -8,8 +8,6 @@
 
 ---
 
-## Contributing
-
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
 To run integration tests locally, you need to have a PostgreSQL DB running with the `pgvector` extension.
