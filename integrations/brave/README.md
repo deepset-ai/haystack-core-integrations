@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/brave-haystack.svg)](https://pypi.org/project/brave-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/brave-haystack.svg)](https://pypi.org/project/brave-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/brave)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/brave/CHANGELOG.md)
 
 ---
