@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
   "haystack-ai>=2.28.0",
   "mariadb>=1.1.6",
-  "packaging>=21.3",
+  # "packaging>=21.3",
 ]
 
 [project.urls]
@@ -47,6 +47,9 @@ git_describe_command = 'git describe --tags --match="integrations/mariadb-v[0-9]
 
 [tool.hatch.envs.default]
 installer = "uv"
+# Don't install the project here: at build time, it would need the MariaDB system library, which is not available
+# in the API reference workflow. haystack-pydoc-tools and ruff just need to parse the source, so it's OK.
+skip-install = true
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
@@ -55,6 +58,7 @@ fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
+skip-install = false
 dependencies = [
     "pytest",
     "pytest-asyncio",
