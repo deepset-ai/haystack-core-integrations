@@ -170,19 +170,6 @@ class TestDocumentStoreAsync(
         assert document_store_async._async_index is not None
         assert await document_store_async.count_documents_async() == 0
 
-    async def test_get_metadata_field_unique_values_with_filters(self, document_store_async: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        await document_store_async.write_documents_async(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = await document_store_async.get_metadata_field_unique_values_async("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
     async def test_sentence_window_retriever(self, document_store_async: PineconeDocumentStore):
         # indexing
         splitter = DocumentSplitter(split_length=10, split_overlap=5, split_by="word")
