@@ -9,7 +9,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
 
-MARIADB_HOST = os.environ.get("MARIADB_HOST", "localhost")
+MARIADB_HOST = os.environ.get("MARIADB_HOST", "127.0.0.1")
 MARIADB_PORT = int(os.environ.get("MARIADB_PORT", "3306"))
 MARIADB_DB = os.environ.get("MARIADB_DATABASE", "haystack")
 MARIADB_USER = os.environ.get("MARIADB_USER", "root")

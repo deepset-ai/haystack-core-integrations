@@ -22,14 +22,14 @@ logger = logging.getLogger(__name__)
 
 _VALID_TABLE_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
-VALID_DISTANCES = ("cosine", "euclidean")
+_VALID_DISTANCES = ("cosine", "euclidean")
 
-DISTANCE_TO_SQL = {
+_DISTANCE_TO_SQL = {
     "cosine": "VEC_DISTANCE_COSINE",
     "euclidean": "VEC_DISTANCE_EUCLIDEAN",
 }
 
-CREATE_TABLE_STATEMENT = """
+_CREATE_TABLE_STATEMENT = """
 CREATE TABLE IF NOT EXISTS `{table_name}` (
     id VARCHAR(128) PRIMARY KEY,
     embedding VECTOR({embedding_dimension}),
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS `{table_name}` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
-CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT = """
+_CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT = """
 CREATE TABLE IF NOT EXISTS `{table_name}` (
     id VARCHAR(128) PRIMARY KEY,
     embedding VECTOR({embedding_dimension}) NOT NULL,
@@ -56,19 +56,19 @@ CREATE TABLE IF NOT EXISTS `{table_name}` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
-INSERT_STATEMENT = """
+_INSERT_STATEMENT = """
 INSERT INTO `{table_name}`
 (id, embedding, content, blob_data, blob_meta, blob_mime_type, meta)
 VALUES (?, ?, ?, ?, ?, ?, ?)
 """
 
-INSERT_IGNORE_STATEMENT = """
+_INSERT_IGNORE_STATEMENT = """
 INSERT IGNORE INTO `{table_name}`
 (id, embedding, content, blob_data, blob_meta, blob_mime_type, meta)
 VALUES (?, ?, ?, ?, ?, ?, ?)
 """
 
-UPSERT_STATEMENT = """
+_UPSERT_STATEMENT = """
 INSERT INTO `{table_name}`
 (id, embedding, content, blob_data, blob_meta, blob_mime_type, meta)
 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -81,7 +81,7 @@ ON DUPLICATE KEY UPDATE
     meta = VALUES(meta)
 """
 
-KEYWORD_QUERY = """
+_KEYWORD_QUERY = """
 SELECT *, MATCH(content) AGAINST(? IN NATURAL LANGUAGE MODE) AS score
 FROM `{table_name}`
 {where_clause}
@@ -90,7 +90,7 @@ ORDER BY score DESC
 LIMIT ?
 """
 
-EMBEDDING_QUERY = """
+_EMBEDDING_QUERY = """
 SELECT *, {vec_func}(embedding, ?) AS score
 FROM `{table_name}`
 WHERE embedding IS NOT NULL
@@ -106,10 +106,6 @@ class MariaDBDocumentStore:
 
     Uses MariaDB's `VECTOR` datatype with `MHNSW` indexing for approximate nearest-neighbour
     vector search, and `MATCH ... AGAINST` for full-text keyword search.
-
-    Requires MariaDB 11.7 or later. Connect string parameters are passed individually;
-    credentials are managed via Haystack `Secret` (defaults to `MARIADB_USER` and
-    `MARIADB_PASSWORD` environment variables).
 
     ### Usage example
 
@@ -135,26 +131,28 @@ class MariaDBDocumentStore:
         user: Secret = Secret.from_env_var("MARIADB_USER"),
         password: Secret = Secret.from_env_var("MARIADB_PASSWORD"),
         table_name: str = "haystack_documents",
+        recreate_table: bool = False,
         embedding_dimension: int = 768,
         distance: str = "cosine",
-        recreate_table: bool = False,
         create_vector_index: bool = False,
     ) -> None:
         """
         Initialize the MariaDBDocumentStore.
 
-        :param host: MariaDB host. Defaults to `"localhost"`.
-        :param port: MariaDB port. Defaults to `3306`.
+        :param host: MariaDB host.
+        :param port: MariaDB port.
         :param database: Database name.
-        :param user: Database user. Reads `MARIADB_USER` env var by default.
-        :param password: Database password. Reads `MARIADB_PASSWORD` env var by default.
+        :param user: Database user, read from the `MARIADB_USER` environment variable.
+        :param password: Database password, read from the `MARIADB_PASSWORD` environment variable.
         :param table_name: Table used to store documents. Must contain only letters, digits, and underscores.
-        :param embedding_dimension: Dimension of embedding vectors.
-        :param distance: Distance function for vector similarity — `"cosine"` or `"euclidean"`. Used when
-            creating the table (sets the MHNSW index distance) and when querying. Defaults to `"cosine"`.
         :param recreate_table: Drop and recreate the table on init. **Deletes all data.**
-        :param create_vector_index: If `True`, creates an MHNSW vector index for fast ANN search.
-            Requires every document to have a non-null embedding. Defaults to `False`.
+        :param embedding_dimension: Dimension of embedding vectors. Applied only when the table is created;
+            ignored on an existing table.
+        :param distance: Distance function for vector similarity — `"cosine"` or `"euclidean"`. Applied only when
+            the table is created; ignored on an existing table.
+        :param create_vector_index: If `True`, creates an MHNSW vector index for fast ANN search. Requires every
+            document to have a non-null embedding. Applied only when the table is created; ignored on an existing
+            table.
         """
         self._connection: Any = None
         self._cursor: Any = None
@@ -163,8 +161,8 @@ class MariaDBDocumentStore:
         if not _VALID_TABLE_NAME_RE.match(table_name):
             msg = f"table_name must contain only letters, digits, and underscores, got '{table_name}'"
             raise ValueError(msg)
-        if distance not in VALID_DISTANCES:
-            msg = f"distance must be one of {VALID_DISTANCES}, got '{distance}'"
+        if distance not in _VALID_DISTANCES:
+            msg = f"distance must be one of {_VALID_DISTANCES}, got '{distance}'"
             raise ValueError(msg)
 
         self.host = host
@@ -179,7 +177,11 @@ class MariaDBDocumentStore:
         self.create_vector_index = create_vector_index
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the component to a dictionary."""
+        """
+        Serialize this document store to a dictionary.
+
+        :returns: Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             host=self.host,
@@ -196,7 +198,12 @@ class MariaDBDocumentStore:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MariaDBDocumentStore":
-        """Deserialize the component from a dictionary."""
+        """
+        Deserialize this document store from a dictionary.
+
+        :param data: Dictionary to deserialize from.
+        :returns: Deserialized document store.
+        """
         deserialize_secrets_inplace(data["init_parameters"], ["user", "password"])
         return default_from_dict(cls, data)
 
@@ -235,13 +242,13 @@ class MariaDBDocumentStore:
             self._drop_table()
 
         if self.create_vector_index:
-            sql = CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT.format(
+            sql = _CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT.format(
                 table_name=self.table_name,
                 embedding_dimension=self.embedding_dimension,
                 distance=self.distance,
             )
         else:
-            sql = CREATE_TABLE_STATEMENT.format(
+            sql = _CREATE_TABLE_STATEMENT.format(
                 table_name=self.table_name,
                 embedding_dimension=self.embedding_dimension,
             )
@@ -276,16 +283,22 @@ class MariaDBDocumentStore:
         self._table_initialized = False
 
     def close(self) -> None:
-        """Close the database connection."""
+        """
+        Release the associated synchronous resources.
+        """
         self._close_connection()
 
     def delete_table(self) -> None:
-        """Drop the documents table. Useful for test teardown."""
+        """Drop the documents table"""
         self._ensure_connection()
         self._drop_table()
 
     def count_documents(self) -> int:
-        """Return the number of documents in the store."""
+        """
+        Return how many documents are present in the document store.
+
+        :returns: Number of documents in the document store.
+        """
         self._ensure_connection()
         self._cursor.execute(f"SELECT COUNT(*) AS cnt FROM `{self.table_name}`")  # noqa: S608
         row = self._cursor.fetchone()
@@ -293,10 +306,15 @@ class MariaDBDocumentStore:
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
-        Return documents matching the given Haystack filters.
+        Return the documents that match the filters provided.
 
-        :param filters: Optional Haystack metadata filters.
-        :returns: List of matching Documents.
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+
+        :param filters: The filters to apply to the document list.
+        :raises TypeError: If `filters` is not a dictionary.
+        :raises ValueError: If `filters` syntax is invalid.
+        :returns: A list of Documents that match the given filters.
         """
         _validate_filters(filters)
         self._ensure_connection()
@@ -312,13 +330,17 @@ class MariaDBDocumentStore:
         records = self._cursor.fetchall()
         return _rows_to_documents(records)
 
-    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.FAIL) -> int:
+    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Write documents to the store.
 
-        :param documents: Documents to write.
-        :param policy: `FAIL`, `OVERWRITE`, or `SKIP`.
-        :returns: Number of documents written.
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+        :raises ValueError: If `documents` contains objects that are not of type `Document`.
+        :raises DuplicateDocumentError: If a document with the same id already exists in the document store
+             and the policy is set to `DuplicatePolicy.FAIL` (or not specified).
+        :raises DocumentStoreError: If the write operation fails for any other reason.
+        :returns: The number of documents written to the document store.
         """
         if not documents:
             return 0
@@ -326,14 +348,17 @@ class MariaDBDocumentStore:
             msg = "param 'documents' must be a list of Document objects"
             raise ValueError(msg)
 
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
+
         self._ensure_connection()
 
         if policy == DuplicatePolicy.OVERWRITE:
-            sql = UPSERT_STATEMENT.format(table_name=self.table_name)
+            sql = _UPSERT_STATEMENT.format(table_name=self.table_name)
         elif policy == DuplicatePolicy.SKIP:
-            sql = INSERT_IGNORE_STATEMENT.format(table_name=self.table_name)
+            sql = _INSERT_IGNORE_STATEMENT.format(table_name=self.table_name)
         else:
-            sql = INSERT_STATEMENT.format(table_name=self.table_name)
+            sql = _INSERT_STATEMENT.format(table_name=self.table_name)
 
         rows = [_document_to_row(doc) for doc in documents]
         try:
@@ -356,9 +381,9 @@ class MariaDBDocumentStore:
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
-        Delete documents by ID.
+        Delete documents that match the provided `document_ids` from the document store.
 
-        :param document_ids: IDs to delete.
+        :param document_ids: The document ids to delete.
         """
         if not document_ids:
             return
@@ -400,7 +425,7 @@ class MariaDBDocumentStore:
         _validate_filters(filters)
         self._ensure_connection()
 
-        vec_func = DISTANCE_TO_SQL[self.distance]
+        vec_func = _DISTANCE_TO_SQL[self.distance]
         embedding_bytes = _embedding_to_bytes(query_embedding)
 
         extra_where = ""
@@ -413,7 +438,7 @@ class MariaDBDocumentStore:
 
         params.append(top_k)
 
-        sql = EMBEDDING_QUERY.format(
+        sql = _EMBEDDING_QUERY.format(
             vec_func=vec_func,
             table_name=self.table_name,
             extra_where=extra_where,
@@ -461,7 +486,7 @@ class MariaDBDocumentStore:
 
         params.append(top_k)
 
-        sql = KEYWORD_QUERY.format(table_name=self.table_name, where_clause=where_clause)
+        sql = _KEYWORD_QUERY.format(table_name=self.table_name, where_clause=where_clause)
         self._cursor.execute(sql, params)
         records = self._cursor.fetchall()
 

@@ -47,9 +47,6 @@ git_describe_command = 'git describe --tags --match="integrations/mariadb-v[0-9]
 
 [tool.hatch.envs.default]
 installer = "uv"
-# skip-install prevents hatch from installing the project (and thus the mariadb C extension)
-# in the docs environment. The pydoc search_path points to src/ so modules are found directly.
-skip-install = true
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
@@ -58,7 +55,6 @@ fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
-skip-install = false
 dependencies = [
     "pytest",
     "pytest-asyncio",
