@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,55 +16,42 @@ from haystack_integrations.components.retrievers.mariadb import (
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
 
 
-def _make_store(**kwargs) -> MariaDBDocumentStore:
-    os.environ.setdefault("MARIADB_USER", "test_user")
-    os.environ.setdefault("MARIADB_PASSWORD", "test_pass")
-    return MariaDBDocumentStore(**kwargs)
-
-
 class TestEmbeddingRetrieverInit:
     def test_requires_mariadb_store(self):
         with pytest.raises(ValueError, match="MariaDBDocumentStore"):
             MariaDBEmbeddingRetriever(document_store=MagicMock())
 
-    def test_defaults(self):
-        store = _make_store()
-        r = MariaDBEmbeddingRetriever(document_store=store)
+    def test_defaults(self, mock_store):
+        r = MariaDBEmbeddingRetriever(document_store=mock_store())
         assert r.top_k == 10
         assert r.filter_policy == FilterPolicy.REPLACE
         assert r.score_threshold is None
 
 
 class TestEmbeddingRetrieverSerialization:
-    def test_to_dict(self):
-        store = _make_store()
-        r = MariaDBEmbeddingRetriever(document_store=store, top_k=3)
+    def test_to_dict(self, mock_store):
+        r = MariaDBEmbeddingRetriever(document_store=mock_store(), top_k=3)
         d = r.to_dict()
         assert d["init_parameters"]["top_k"] == 3
         assert "document_store" in d["init_parameters"]
 
-    def test_from_dict_roundtrip(self):
-        store = _make_store()
-        r = MariaDBEmbeddingRetriever(document_store=store, top_k=5)
-        d = r.to_dict()
-        restored = MariaDBEmbeddingRetriever.from_dict(d)
+    def test_from_dict_roundtrip(self, mock_store):
+        r = MariaDBEmbeddingRetriever(document_store=mock_store(), top_k=5)
+        restored = MariaDBEmbeddingRetriever.from_dict(r.to_dict())
         assert restored.top_k == 5
 
-    def test_from_dict_with_filter_policy(self):
-        store = _make_store()
-        r = MariaDBEmbeddingRetriever(document_store=store, filter_policy=FilterPolicy.MERGE)
-        d = r.to_dict()
-        restored = MariaDBEmbeddingRetriever.from_dict(d)
+    def test_from_dict_with_filter_policy(self, mock_store):
+        r = MariaDBEmbeddingRetriever(document_store=mock_store(), filter_policy=FilterPolicy.MERGE)
+        restored = MariaDBEmbeddingRetriever.from_dict(r.to_dict())
         assert restored.filter_policy == FilterPolicy.MERGE
 
 
 class TestEmbeddingRetrieverRun:
-    def test_run_calls_embedding_retrieval(self):
-        store = _make_store()
+    def test_run_calls_embedding_retrieval(self, mock_store):
+        store = mock_store()
         store._embedding_retrieval = MagicMock(return_value=[Document(content="hit")])
         r = MariaDBEmbeddingRetriever(document_store=store, top_k=3)
         result = r.run(query_embedding=[0.1, 0.2])
-        assert "documents" in result
         assert len(result["documents"]) == 1
         store._embedding_retrieval.assert_called_once_with(
             query_embedding=[0.1, 0.2],
@@ -74,16 +60,15 @@ class TestEmbeddingRetrieverRun:
             score_threshold=None,
         )
 
-    def test_run_with_runtime_top_k(self):
-        store = _make_store()
+    def test_run_with_runtime_top_k(self, mock_store):
+        store = mock_store()
         store._embedding_retrieval = MagicMock(return_value=[])
         r = MariaDBEmbeddingRetriever(document_store=store, top_k=5)
         r.run(query_embedding=[0.1], top_k=2)
-        call_kwargs = store._embedding_retrieval.call_args[1]
-        assert call_kwargs["top_k"] == 2
+        assert store._embedding_retrieval.call_args[1]["top_k"] == 2
 
-    def test_filter_policy_replace(self):
-        store = _make_store()
+    def test_filter_policy_replace(self, mock_store):
+        store = mock_store()
         store._embedding_retrieval = MagicMock(return_value=[])
         r = MariaDBEmbeddingRetriever(
             document_store=store,
@@ -92,22 +77,19 @@ class TestEmbeddingRetrieverRun:
         )
         runtime_filter = {"field": "meta.y", "operator": "==", "value": 2}
         r.run(query_embedding=[0.1], filters=runtime_filter)
-        call_kwargs = store._embedding_retrieval.call_args[1]
-        assert call_kwargs["filters"] == runtime_filter
+        assert store._embedding_retrieval.call_args[1]["filters"] == runtime_filter
 
-    def test_filter_policy_merge(self):
-        store = _make_store()
+    def test_filter_policy_merge(self, mock_store):
+        store = mock_store()
         store._embedding_retrieval = MagicMock(return_value=[])
-        init_filter = {"field": "meta.x", "operator": "==", "value": 1}
         r = MariaDBEmbeddingRetriever(
             document_store=store,
-            filters=init_filter,
+            filters={"field": "meta.x", "operator": "==", "value": 1},
             filter_policy=FilterPolicy.MERGE,
         )
         runtime_filter = {"field": "meta.y", "operator": "==", "value": 2}
         r.run(query_embedding=[0.1], filters=runtime_filter)
-        call_kwargs = store._embedding_retrieval.call_args[1]
-        assert call_kwargs["filters"]["operator"] == "AND"
+        assert store._embedding_retrieval.call_args[1]["filters"]["operator"] == "AND"
 
 
 class TestKeywordRetrieverInit:
@@ -115,35 +97,29 @@ class TestKeywordRetrieverInit:
         with pytest.raises(ValueError, match="MariaDBDocumentStore"):
             MariaDBKeywordRetriever(document_store=MagicMock())
 
-    def test_defaults(self):
-        store = _make_store()
-        r = MariaDBKeywordRetriever(document_store=store)
+    def test_defaults(self, mock_store):
+        r = MariaDBKeywordRetriever(document_store=mock_store())
         assert r.top_k == 10
         assert r.filter_policy == FilterPolicy.REPLACE
 
 
 class TestKeywordRetrieverSerialization:
-    def test_to_dict(self):
-        store = _make_store()
-        r = MariaDBKeywordRetriever(document_store=store, top_k=7)
-        d = r.to_dict()
-        assert d["init_parameters"]["top_k"] == 7
+    def test_to_dict(self, mock_store):
+        r = MariaDBKeywordRetriever(document_store=mock_store(), top_k=7)
+        assert r.to_dict()["init_parameters"]["top_k"] == 7
 
-    def test_from_dict_roundtrip(self):
-        store = _make_store()
-        r = MariaDBKeywordRetriever(document_store=store, top_k=4)
-        d = r.to_dict()
-        restored = MariaDBKeywordRetriever.from_dict(d)
+    def test_from_dict_roundtrip(self, mock_store):
+        r = MariaDBKeywordRetriever(document_store=mock_store(), top_k=4)
+        restored = MariaDBKeywordRetriever.from_dict(r.to_dict())
         assert restored.top_k == 4
 
 
 class TestKeywordRetrieverRun:
-    def test_run_calls_keyword_retrieval(self):
-        store = _make_store()
+    def test_run_calls_keyword_retrieval(self, mock_store):
+        store = mock_store()
         store._keyword_retrieval = MagicMock(return_value=[Document(content="result")])
         r = MariaDBKeywordRetriever(document_store=store, top_k=5)
         result = r.run(query="haystack")
-        assert "documents" in result
         assert len(result["documents"]) == 1
         store._keyword_retrieval.assert_called_once_with(
             query="haystack",
@@ -151,22 +127,20 @@ class TestKeywordRetrieverRun:
             top_k=5,
         )
 
-    def test_run_with_runtime_top_k(self):
-        store = _make_store()
+    def test_run_with_runtime_top_k(self, mock_store):
+        store = mock_store()
         store._keyword_retrieval = MagicMock(return_value=[])
         r = MariaDBKeywordRetriever(document_store=store, top_k=10)
         r.run(query="test", top_k=3)
-        call_kwargs = store._keyword_retrieval.call_args[1]
-        assert call_kwargs["top_k"] == 3
+        assert store._keyword_retrieval.call_args[1]["top_k"] == 3
 
-    def test_run_with_runtime_filters(self):
-        store = _make_store()
+    def test_run_with_runtime_filters(self, mock_store):
+        store = mock_store()
         store._keyword_retrieval = MagicMock(return_value=[])
         r = MariaDBKeywordRetriever(document_store=store)
         runtime_filter = {"field": "meta.lang", "operator": "==", "value": "en"}
         r.run(query="test", filters=runtime_filter)
-        call_kwargs = store._keyword_retrieval.call_args[1]
-        assert call_kwargs["filters"] == runtime_filter
+        assert store._keyword_retrieval.call_args[1]["filters"] == runtime_filter
 
 
 @pytest.fixture
