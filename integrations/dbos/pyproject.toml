@@ -23,7 +23,9 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=3.0.0", "dbos>=2.0.0,<3.0.0"]
+# dbos 2.9.0 is the first release exporting `StepOptions` and `DBOS.run_step`, which this integration uses to take
+# a step without registering a decorated function.
+dependencies = ["haystack-ai>=3.0.0", "dbos>=2.9.0,<3.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/dbos#readme"
