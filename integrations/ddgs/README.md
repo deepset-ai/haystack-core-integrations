@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/ddgs-haystack.svg)](https://pypi.org/project/ddgs-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/ddgs-haystack.svg)](https://pypi.org/project/ddgs-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/ddgs)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/ddgs/CHANGELOG.md)
 
 ---

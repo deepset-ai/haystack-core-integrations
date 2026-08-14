@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/supabase-haystack.svg)](https://pypi.org/project/supabase-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/supabase-haystack.svg)](https://pypi.org/project/supabase-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/supabase)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/supabase/CHANGELOG.md)
 
 ---

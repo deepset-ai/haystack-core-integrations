@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/azure-doc-intelligence-haystack.svg)](https://pypi.org/project/azure-doc-intelligence-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/azure-doc-intelligence-haystack.svg)](https://pypi.org/project/azure-doc-intelligence-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/azure-doc-intelligence)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/azure_doc_intelligence/CHANGELOG.md)
 
 ---

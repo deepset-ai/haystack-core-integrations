@@ -5,6 +5,7 @@
 
 - [Integration page](https://haystack.deepset.ai/integrations/deepeval)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/deepeval/CHANGELOG.md)
+
 ---
 
 ## Contributing

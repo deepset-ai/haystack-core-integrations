@@ -5,6 +5,7 @@
 
 Haystack DocumentStore backed by [Oracle AI Vector Search](https://www.oracle.com/database/ai-vector-search/), available in Oracle Database 23ai and later.
 
+- [Integration page](https://haystack.deepset.ai/integrations/oracle)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/oracle/CHANGELOG.md)
 
 ---

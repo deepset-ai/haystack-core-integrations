@@ -16,6 +16,7 @@
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/google_ai/CHANGELOG.md)
 
 ---
+
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
