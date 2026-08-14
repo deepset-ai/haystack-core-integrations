@@ -123,9 +123,7 @@ class TestDocumentStoreAsync(
         assert store._async_client.get_settings().anonymized_telemetry is False
 
     async def test_search_async(self):
-        document_store = ChromaDocumentStore(
-            host="localhost", port=8000, collection_name=f"{uuid.uuid1()}-search"
-        )
+        document_store = ChromaDocumentStore(host="localhost", port=8000, collection_name=f"{uuid.uuid1()}-search")
 
         documents = [
             Document(content="First document", meta={"author": "Author1"}),
@@ -207,4 +205,3 @@ class TestDocumentStoreAsync(
         min_max = await document_store.get_metadata_field_min_max_async("nonexistent_field")
         assert min_max["min"] is None
         assert min_max["max"] is None
-

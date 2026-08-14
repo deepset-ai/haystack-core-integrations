@@ -764,4 +764,3 @@ class TestMetadataOperations:
         values, total = populated_store.get_metadata_field_unique_values("category", from_=10, size=10)
         assert values == []  # No values beyond offset
         assert total == 3  # Total count is still 3
-
