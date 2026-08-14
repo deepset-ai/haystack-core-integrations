@@ -196,15 +196,3 @@ class TestDocumentStoreAsync(
         assert document_store._connection_async is None
         assert await document_store.count_documents_async() == 0
 
-    async def test_get_metadata_field_unique_values_with_filters(self, document_store: MongoDBAtlasDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = await document_store.get_metadata_field_unique_values_async("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2

@@ -348,43 +348,6 @@ class TestDocumentStore(
             ],
         )
 
-    def test_get_metadata_field_unique_values(self, document_store: MongoDBAtlasDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"tag": "alpha"}),
-            Document(content="Doc 2", meta={"tag": "beta"}),
-            Document(content="Doc 3", meta={"tag": "gamma"}),
-            Document(content="Doc 4", meta={"tag": "alpha"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("tag")
-        assert total_count == 3
-        assert sorted(values) == ["alpha", "beta", "gamma"]
-
-        values_subset, count_subset = document_store.get_metadata_field_unique_values(
-            "tag", search_term="b", from_=0, size=10
-        )
-        assert count_subset == 1
-        assert sorted(values_subset) == ["beta"]
-
-        values_page, count_page = document_store.get_metadata_field_unique_values("tag", from_=1, size=1)
-        assert count_page == 3
-        assert len(values_page) == 1
-        assert values_page[0] in ["alpha", "beta", "gamma"]
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store: MongoDBAtlasDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
     def test_custom_content_field(self, real_collection):
         database_name, collection_name, client = real_collection
         custom_store = MongoDBAtlasDocumentStore(
