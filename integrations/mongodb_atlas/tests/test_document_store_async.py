@@ -195,4 +195,3 @@ class TestDocumentStoreAsync(
         await document_store.close_async()
         assert document_store._connection_async is None
         assert await document_store.count_documents_async() == 0
-
