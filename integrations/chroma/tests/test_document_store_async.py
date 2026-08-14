@@ -123,7 +123,9 @@ class TestDocumentStoreAsync(
         assert store._async_client.get_settings().anonymized_telemetry is False
 
     async def test_search_async(self):
-        document_store = ChromaDocumentStore(host="localhost", port=8000, collection_name="my_custom_collection")
+        document_store = ChromaDocumentStore(
+            host="localhost", port=8000, collection_name=f"{uuid.uuid1()}-search"
+        )
 
         documents = [
             Document(content="First document", meta={"author": "Author1"}),
