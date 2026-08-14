@@ -11,5 +11,3 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
-
-Integration tests run against local fixture files and need no API key or external service.

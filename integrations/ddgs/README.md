@@ -11,5 +11,3 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
-
-`ddgs` requires no API key, so the integration tests run without any environment variables.

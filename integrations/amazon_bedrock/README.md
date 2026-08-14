@@ -18,7 +18,7 @@ For example, you can do that by exporting the following environment variables:
 ```console
 export AWS_ACCESS_KEY_ID=...
 export AWS_SECRET_ACCESS_KEY=...
-export AWS_SESSION_TOKEN=...  # only for temporary credentials
+export AWS_SESSION_TOKEN=...
 export AWS_DEFAULT_REGION=...
 ```
 
@@ -28,4 +28,3 @@ environment variables are set:
 - `AWS_BEDROCK_GUARDRAIL_ID` and `AWS_BEDROCK_GUARDRAIL_VERSION` — guardrail tests.
 - `AWS_KNOWLEDGE_BASE_ID` — Knowledge Base retriever tests.
 - `S3_DOWNLOADER_BUCKET` — S3 downloader tests.
-- `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION` — Bedrock inference generator tests.
