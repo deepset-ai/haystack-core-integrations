@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 from haystack import Pipeline, component
 from haystack.dataclasses import ChatMessage
-from rhesis.sdk.telemetry.attributes import AIAttributes
+from rhesis.telemetry.attributes import AIAttributes
 from rhesis.telemetry.constants import ConversationContext
 
 from haystack_integrations.tracing.rhesis import rhesis_invocation_context

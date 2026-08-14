@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from rhesis.sdk.telemetry.attributes import AIAttributes
+from rhesis.telemetry.attributes import AIAttributes
 from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 from rhesis.telemetry.schemas import AIOperationType
 

@@ -42,11 +42,11 @@ from haystack_integrations.tracing.rhesis.mapping import (
     resolve_operation_type,
     resolve_span_name,
 )
-from rhesis.sdk.telemetry.attributes import MAX_CONTENT_LENGTH, AIAttributes, AIEvents
-from rhesis.sdk.telemetry.context import get_root_trace_id
-from rhesis.sdk.telemetry.utils.token_extraction import extract_token_usage
+from rhesis.telemetry.attributes import MAX_CONTENT_LENGTH, AIAttributes, AIEvents
 from rhesis.telemetry.constants import ConversationContext
+from rhesis.telemetry.context import get_root_trace_id
 from rhesis.telemetry.schemas import AIOperationType
+from rhesis.telemetry.token_extraction import extract_token_usage
 
 logger = haystack_logging.getLogger(__name__)
 

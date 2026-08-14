@@ -12,9 +12,9 @@ from haystack.dataclasses import ChatMessage, ToolCall
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from rhesis.sdk.telemetry.attributes import AIAttributes
-from rhesis.sdk.telemetry.context import set_root_trace_id
+from rhesis.telemetry.attributes import AIAttributes
 from rhesis.telemetry.constants import ConversationContext
+from rhesis.telemetry.context import set_root_trace_id
 
 from haystack_integrations.tracing.rhesis.tracer import (
     MAX_CONTENT_LENGTH,

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from rhesis.sdk.telemetry.attributes import AIAttributes
+from rhesis.telemetry.attributes import AIAttributes
 from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 
 from haystack_integrations.tracing.rhesis.mapping import (

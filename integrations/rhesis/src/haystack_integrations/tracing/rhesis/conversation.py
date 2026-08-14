@@ -16,8 +16,8 @@ from opentelemetry import trace
 from opentelemetry.trace import NonRecordingSpan, Span, SpanContext, TraceFlags
 
 from haystack_integrations.tracing.rhesis.tracer import tracing_context_var
-from rhesis.sdk.telemetry.context import get_root_trace_id, set_root_trace_id
 from rhesis.telemetry.constants import ConversationContext
+from rhesis.telemetry.context import get_root_trace_id, set_root_trace_id
 
 logger = logging.getLogger(__name__)
 

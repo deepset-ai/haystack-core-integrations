@@ -13,7 +13,7 @@ from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.tools import Tool
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from rhesis.sdk.telemetry.attributes import AIAttributes
+from rhesis.telemetry.attributes import AIAttributes
 from rhesis.telemetry.schemas import AIOperationType
 
 # The agent loop only emits `haystack.agent.step*` spans from Haystack 3.0 on, where the tool-calling
