@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/langdetect-haystack.svg)](https://pypi.org/project/langdetect-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/langdetect-haystack.svg)](https://pypi.org/project/langdetect-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/langdetect)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/langdetect/CHANGELOG.md)
 
 ---
