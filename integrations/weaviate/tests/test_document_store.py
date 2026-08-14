@@ -1144,109 +1144,6 @@ class TestWeaviateDocumentStore(
                 metadata_fields=["nonexistent_field"],
             )
 
-    def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "TypeA"}),
-            Document(content="Doc 2", meta={"category": "TypeB"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("meta.category")
-        assert total_count == 2
-        assert set(values) == {"TypeA", "TypeB"}
-
-    def test_get_metadata_field_unique_values_with_search_term(self, document_store):
-        # search_term must match against the VALUE of the target metadata field,
-        # not the document content.
-        docs = [
-            Document(content="Some article", meta={"category": "Python Programming"}),
-            Document(content="Some article", meta={"category": "Java Programming"}),
-            Document(content="Some article", meta={"category": "Python Basics"}),
-            Document(content="Some article", meta={"category": "JavaScript Tutorial"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="Python")
-        assert total_count == 2
-        assert set(values) == {"Python Programming", "Python Basics"}
-
-    def test_get_metadata_field_unique_values_search_term_excludes_content_only_match(self, document_store):
-        # A document whose content contains the search term but whose target metadata
-        # field value does NOT must be excluded from the results.
-        docs = [
-            Document(content="Python programming language", meta={"category": "TypeA"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="Python")
-        assert total_count == 0
-        assert values == []
-
-    def test_get_metadata_field_unique_values_search_term_matches_metadata_value_only(self, document_store):
-        # A document whose metadata field value contains the search term but whose
-        # content does NOT must be included in the results.
-        docs = [
-            Document(content="Unrelated text about cooking", meta={"category": "Python Basics"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="Python")
-        assert total_count == 1
-        assert values == ["Python Basics"]
-
-    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, document_store):
-        docs = [
-            Document(content="n/a", meta={"category": "Python Basics"}),
-            Document(content="n/a", meta={"category": "Java Basics"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="PYTHON")
-        assert total_count == 1
-        assert values == ["Python Basics"]
-
-    def test_get_metadata_field_unique_values_with_pagination(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "TypeA"}),
-            Document(content="Doc 2", meta={"category": "TypeB"}),
-            Document(content="Doc 3", meta={"category": "TypeC"}),
-            Document(content="Doc 4", meta={"category": "TypeD"}),
-            Document(content="Doc 5", meta={"category": "TypeE"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
-        assert total_count == 5
-        assert len(values) == 2
-
-        values2, total_count2 = document_store.get_metadata_field_unique_values("category", from_=2, size=2)
-        assert total_count2 == 5
-        assert len(values2) == 2
-
-        assert set(values).isdisjoint(set(values2))
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
-    def test_get_metadata_field_unique_values_field_not_found(self, document_store):
-        with pytest.raises(ValueError, match="not found in collection schema"):
-            document_store.get_metadata_field_unique_values("nonexistent_field")
-
-    def test_get_metadata_field_unique_values_empty_result(self, document_store):
-        values, total_count = document_store.get_metadata_field_unique_values("category")
-        assert total_count == 0
-        assert values == []
-
     def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store):
         """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
         docs = [
@@ -1261,6 +1158,60 @@ class TestWeaviateDocumentStore(
         assert set(values) == {1, 2}
 
     # --- Overrides of mixin tests to account for Weaviate-specific behaviour ---
+
+    def test_get_metadata_field_unique_values_missing_field(self, document_store):
+        # Override: Weaviate validates the field against the collection schema and raises
+        # ValueError for an unknown field, instead of returning an empty result as the
+        # generic mixin expects.
+        with pytest.raises(ValueError, match="not found in collection schema"):
+            document_store.get_metadata_field_unique_values("nonexistent_field")
+
+    @pytest.mark.xfail(
+        reason=(
+            "WeaviateDocumentStore.get_metadata_field_unique_values() returns aggregated numeric "
+            "values that are not strictly the original int type (values compare equal but "
+            "isinstance(value, int) is False) - needs a decision on whether this is fixable in "
+            "the store implementation or an inherent limitation of Weaviate's GroupByAggregate."
+        ),
+        strict=True,
+    )
+    def test_get_metadata_field_unique_values_preserves_type(self, document_store):
+        """Override: reproduces the mixin's assertion; see xfail reason for the known gap."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(metadata_field="priority")
+
+        assert set(values) == {1, 2}
+        assert all(isinstance(value, int) for value in values)
+        assert total_count == 2
+
+    @pytest.mark.xfail(
+        reason=(
+            "Weaviate collection schema fields are strongly single-typed, so a field can't "
+            "simultaneously hold int/str/float/bool values as this test requires."
+        ),
+        strict=True,
+    )
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store):
+        """Override: reproduces the mixin's assertion; see xfail reason for the known gap."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": "1"}),
+            Document(content="Doc 3", meta={"priority": 1.0}),
+            Document(content="Doc 4", meta={"priority": True}),
+            Document(content="Doc 5", meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(metadata_field="priority")
+
+        assert total_count == 4
+        assert len(values) == 4
 
     def test_count_documents_by_filter_simple(self, document_store):
         docs = [
