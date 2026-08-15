@@ -3,11 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
+from haystack_integrations.document_stores.supabase import (
+    SupabaseGroongaDocumentStore,
+    SupabasePgvectorDocumentStore,
+)
 
 SUPABASE_DB_URL = os.environ.get("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
 
@@ -89,3 +92,34 @@ def mock_store(patches_for_unit_tests, monkeypatch):  # noqa: ARG001  patches ar
     )
 
     yield store
+
+
+@pytest.fixture
+def mock_supabase_client():
+    """A mocked Supabase client, so the Groonga tests never reach a real database."""
+    with patch("haystack_integrations.document_stores.supabase.groonga_document_store.create_client") as mock_create:
+        mock_client = MagicMock()
+        mock_create.return_value = mock_client
+
+        mock_client.rpc.return_value.execute.return_value = MagicMock(data=[], count=0)
+
+        mock_table = MagicMock()
+        mock_client.table.return_value = mock_table
+        for method in ("select", "insert", "upsert", "delete", "eq", "neq", "in_"):
+            getattr(mock_table, method).return_value = mock_table
+        mock_table.execute.return_value = MagicMock(data=[], count=0)
+
+        yield mock_client
+
+
+@pytest.fixture
+def groonga_store(mock_supabase_client, monkeypatch) -> SupabaseGroongaDocumentStore:  # noqa: ARG001
+    """A warmed-up Groonga store backed by `mock_supabase_client`."""
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+    store = SupabaseGroongaDocumentStore(
+        supabase_url="https://fake-project.supabase.co",
+        table_name="test_groonga_documents",
+        recreate_table=False,
+    )
+    store.warm_up()
+    return store
