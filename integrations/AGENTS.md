@@ -25,7 +25,6 @@
 - Test `close()`/reopen changes in `integrations/*/tests/test_document_store.py` — keeps lifecycle coverage consistent
 - Use local `pytest` fixtures only for shared non-trivial setup — keeps tests clear and uncoupled
 - Test provider streaming end-to-end in `integrations/*/tests/test_chat_generator.py` — assert every `StreamingChunk`, metadata/usage/finish field, tool-call/reasoning output, and final `ChatMessage` from realistic provider chunk sequences.
-- Update `integrations/amazon_bedrock/tests/` with generator changes — cover full requests, feature paths, and config deserialization
 - Test only real legacy serialization formats — avoid fake shims for missing current fields
 - Assert secret-backed credentials restore and resolve — prevents hidden credential bugs in tests
 
@@ -97,7 +96,7 @@
 
 - Import required deps at module top; reserve lazy/`try` imports for optional deps or cycles — Failing fast exposes missing required packages during import instead of hiding broken integrations until runtime.
 - Re-export only intentional public API in `__init__.py` — preserves stable imports
-- Wrap document-store backend failures as `DocumentStoreError` — keep sync/async handling consistent and preserve Elasticsearch bulk write/delete `try`/`except` behavior unless intentionally documented
+- Wrap backend failures as `DocumentStoreError` — keep sync and async handling consistent, and preserve documented bulk write/delete error behaviour
 
 ## Topic Guides
 

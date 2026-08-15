@@ -78,8 +78,6 @@ Changelogs are auto-generated per integration and not meant to be edited manuall
 
 Follow the instructions in the "Create a new integration" section of `CONTRIBUTING.md`.
 
-<!-- braindump:begin -->
-
 The rules below were mined from 2,772 PR review comments written by the deepset
 team between 2025-07-01 and 2026-08-14, then filtered against the current source tree so that
 guidance referring to APIs removed or moved in Haystack 3.0 does not survive.
@@ -95,8 +93,8 @@ Also see directory-specific guidelines:
 ## API Design
 
 - Target Haystack 3.x APIs: use `ChatGenerator`s, create clients in `warm_up()`, and support the module allowlist — Keeps integrations compatible with Haystack 3.x lifecycle, chat APIs, and safe deserialization behavior.
-- Keep `to_dict()`/`from_dict()` symmetric with `__init__` — preserve all runtime config, including Watsonx `max_retries`, `meta_fields_to_embed`, and `embedding_separator`.
-- Keep Haystack `__init__` light; route reusable setup through `warm_up()` — prevents slow construction and duplicated lifecycle logic, especially in `integrations/mcp/src/haystack_integrations/tools/mcp/`
+- Keep `to_dict()`/`from_dict()` symmetric with `__init__` — every constructor argument that affects runtime behaviour must round-trip, including retry, batching, and metadata options
+- Keep `__init__` light; route reusable setup through `warm_up()` — avoids slow construction and duplicated lifecycle logic
 - Preserve protocol parameter order; append store-specific args and pass ambiguous optionals by keyword — Maintains protocol compatibility while allowing implementations to add store-specific options without breaking callers.
 - Align public API names across signatures, docs, code, and returns — document intentional mismatches
 - Make required `run(...)` inputs explicit keyword-only args — prevents no-op component runs
@@ -113,13 +111,13 @@ Also see directory-specific guidelines:
 - Update `pydoc/config_docusaurus.yml` for public API changes — include modules, retrievers, and errors
 - Keep docstrings authoritative and preserve reference links — prevents stale or duplicated docs
 - Add the standard `SPDX-FileCopyrightText` and `Apache-2.0` header before imports — Ensures repository-wide license compliance and keeps source and test files consistent across core and integration packages.
-- Keep public examples current with supported APIs — update docstrings, cookbooks, integrations, Google GenAI model names, and `RagasEvaluator` `ragas.metrics.collections` usage
+- Keep public examples current with supported APIs — refresh docstrings, cookbooks, and integration docs when model names or provider APIs change
 
 ## Config
 
 - Source workflow creds from matching `${{ secrets.<SECRET_NAME> }}` env vars — keeps CI secure and reliable
 - Align workflow `python-version` matrices to min/max supported Python — catches boundary regressions
-- Default secrets from provider env vars; use `WATSONX_API_KEY` for Watsonx components — Predictable env-var defaults make credentials easy to configure across integrations while avoiding hardcoded secrets or setup surprises.
+- Default each `Secret` from the provider's conventional env var (`COHERE_API_KEY`, `NVIDIA_API_KEY`, `WATSONX_API_KEY`, ...) — predictable defaults keep credential setup consistent and avoid hardcoded secrets
 - Use SDK env var names consistently across CI, tests, secrets, and skips — prevents config drift
 - Store credential fields as Haystack `Secret`, not `str` — avoids leaking sensitive config
 
@@ -162,5 +160,3 @@ Check these when working in specific areas:
 ### `README.md`
 
 - Sort the `README.md` integrations table alphabetically — keeps entries findable and diffs clean
-
-<!-- braindump:end -->
