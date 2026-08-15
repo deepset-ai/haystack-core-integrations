@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,22 +9,6 @@ import pytest
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.libreoffice import LibreOfficeFileConverter
-
-
-@pytest.fixture
-def converter() -> LibreOfficeFileConverter:
-    return LibreOfficeFileConverter()
-
-
-@pytest.fixture
-def mock_converter() -> Generator[LibreOfficeFileConverter, None]:
-    with patch("shutil.which", return_value="/usr/bin/soffice"):
-        yield LibreOfficeFileConverter()
-
-
-@pytest.fixture
-def test_files_path() -> Path:
-    return Path("tests") / "test_files"
 
 
 class TestLibreOfficeFileConverter:
@@ -42,17 +25,18 @@ class TestLibreOfficeFileConverter:
         data = mock_converter.to_dict()
         assert data == {
             "type": "haystack_integrations.components.converters.libreoffice.converter.LibreOfficeFileConverter",
-            "init_parameters": {},
+            "init_parameters": {"output_file_type": None},
         }
 
     def test_from_dict(self) -> None:
         data = {
             "type": "haystack_integrations.components.converters.libreoffice.converter.LibreOfficeFileConverter",
-            "init_parameters": {},
+            "init_parameters": {"output_file_type": None},
         }
         with patch("shutil.which", return_value="/usr/bin/soffice"):
             converter = LibreOfficeFileConverter.from_dict(data)
         assert isinstance(converter.soffice_path, str)
+        assert converter.output_file_type is None
 
     def test_run_unsupported_input_type(self, mock_converter: LibreOfficeFileConverter) -> None:
         # .pdf is not a supported input type in SUPPORTED_TYPES

@@ -158,7 +158,7 @@ class LibreOfficeFileConverter:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(self)
+        return default_to_dict(self, output_file_type=self.output_file_type)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
