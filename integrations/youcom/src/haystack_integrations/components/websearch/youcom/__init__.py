@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.websearch.youcom.youcom_websearch import YouComWebSearch
+from haystack_integrations.components.websearch.youcom.youcom_websearch import YouComError, YouComWebSearch
 
-__all__ = ["YouComWebSearch"]
+__all__ = ["YouComError", "YouComWebSearch"]

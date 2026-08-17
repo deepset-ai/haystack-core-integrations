@@ -106,7 +106,7 @@ jobs:
       - name: Run integration tests
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
-          YDC_API_KEY: ${{ secrets.YDC_API_KEY }}
+          YOUDOTCOM_API_KEY: ${{ secrets.YOUDOTCOM_API_KEY }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

@@ -6,7 +6,7 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 import httpx
-from haystack import Document, component, logging
+from haystack import ComponentError, Document, component, logging
 from haystack.utils import Secret
 from haystack.utils.requests_utils import async_request_with_retry, request_with_retry
 
@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 YOUCOM_KEYED_SEARCH_URL = "https://api.you.com/v1/search"
 YOUCOM_KEYLESS_SEARCH_URL = "https://api.you.com/v1/agents/search"
+
+API_KEY_ENV_VARS = ["YOUDOTCOM_API_KEY", "YDC_API_KEY"]
 
 try:
     _VERSION = version("youcom-haystack")
@@ -24,9 +26,13 @@ USER_AGENT = f"youcom-haystack/{_VERSION} youdotcom-integration/deepset-ai-hayst
 
 _RATE_LIMIT_STATUSES = (402, 429)
 _UPGRADE_HINT = (
-    "You.com keyless free-tier limit reached. Set the YDC_API_KEY environment variable "
+    "You.com keyless free-tier limit reached. Set the YOUDOTCOM_API_KEY environment variable "
     "(or pass api_key) for higher limits — get a free API key at https://you.com/platform."
 )
+
+
+class YouComError(ComponentError):
+    """An error occurred while querying the You.com Search API."""
 
 
 @component
@@ -34,10 +40,14 @@ class YouComWebSearch:
     """
     A component that uses the You.com Search API to search the web and return results as Haystack Documents.
 
-    Works with zero configuration: when no API key is available, searches use You.com's keyless
-    free tier (rate limited per IP), so getting-started pipelines run without any setup.
-    Set the `YDC_API_KEY` environment variable (or pass `api_key`) to use the keyed
+    Works with zero configuration: when no API key is available, searches use You.com's
+    [keyless free tier](https://you.com/docs/api-reference/search/v1-agents-search) (rate limited
+    per IP), so getting-started pipelines run without any setup. Set the `YOUDOTCOM_API_KEY`
+    environment variable (or pass `api_key`) to use the keyed
     [You.com Search API](https://you.com/docs/api-reference/search/v1-search) with higher limits.
+
+    Pass `keyless_fallback=False` to require a key and fail fast instead of degrading to the
+    keyless tier — useful in production pipelines where a missing key should surface as an error.
 
     ### Usage example
 
@@ -53,7 +63,8 @@ class YouComWebSearch:
 
     def __init__(
         self,
-        api_key: Secret = Secret.from_env_var("YDC_API_KEY", strict=False),
+        api_key: Secret = Secret.from_env_var(API_KEY_ENV_VARS, strict=False),
+        keyless_fallback: bool = True,
         top_k: int | None = 10,
         freshness: str | None = None,
         country: str | None = None,
@@ -67,9 +78,15 @@ class YouComWebSearch:
         Initialize the YouComWebSearch component.
 
         :param api_key:
-            You.com API key. Defaults to the `YDC_API_KEY` environment variable, resolved
-            leniently: when the variable is not set, the component uses You.com's keyless
-            free tier (rate limited per IP) instead of raising an error.
+            You.com API key. Defaults to the `YOUDOTCOM_API_KEY` environment variable, falling back
+            to the legacy `YDC_API_KEY` name. Resolved leniently, so an unset key is not an error —
+            see `keyless_fallback` for what happens then.
+        :param keyless_fallback:
+            What to do when no API key resolves. When `True` (the default), search the
+            [keyless free tier](https://you.com/docs/api-reference/search/v1-agents-search),
+            which needs no credentials but is rate limited per IP; the component logs which
+            endpoint it selected. When `False`, raise `YouComError` instead, so a missing key
+            fails fast rather than silently degrading.
         :param top_k:
             Maximum number of results to return per section (web, news). Maps to the
             `count` parameter in the You.com API (1-100).
@@ -92,6 +109,7 @@ class YouComWebSearch:
             Maximum number of retry attempts on transient failures. Defaults to 3.
         """
         self.api_key = api_key
+        self.keyless_fallback = keyless_fallback
         self.top_k = top_k
         self.freshness = freshness
         self.country = country
@@ -117,6 +135,7 @@ class YouComWebSearch:
         :returns: A dictionary with:
             - `documents`: List of Documents containing search result content.
             - `links`: List of URLs from the search results.
+        :raises YouComError: If the You.com Search API request fails.
         """
         url, headers = self._build_request()
         params = self._build_params(query=query, top_k=top_k)
@@ -130,8 +149,8 @@ class YouComWebSearch:
                 headers=headers,
                 timeout=self.timeout,
             )
-        except httpx.HTTPStatusError as error:
-            raise self._enrich_error(error, headers) from error
+        except httpx.HTTPError as error:
+            raise YouComError(self._error_message(error, headers)) from error
         return self._parse_response(response.json())
 
     @component.output_types(documents=list[Document], links=list[str])
@@ -150,6 +169,7 @@ class YouComWebSearch:
         :returns: A dictionary with:
             - `documents`: List of Documents containing search result content.
             - `links`: List of URLs from the search results.
+        :raises YouComError: If the You.com Search API request fails.
         """
         url, headers = self._build_request()
         params = self._build_params(query=query, top_k=top_k)
@@ -163,16 +183,18 @@ class YouComWebSearch:
                 headers=headers,
                 timeout=self.timeout,
             )
-        except httpx.HTTPStatusError as error:
-            raise self._enrich_error(error, headers) from error
+        except httpx.HTTPError as error:
+            raise YouComError(self._error_message(error, headers)) from error
         return self._parse_response(response.json())
 
     def _build_request(self) -> tuple[str, dict[str, str]]:
         """
         Select the endpoint and headers based on API key availability.
 
-        With a resolvable API key, requests go to the keyed You.com Search API.
-        Without one, requests fall back to the keyless free tier.
+        With a resolvable API key, requests go to the keyed You.com Search API. Without one,
+        requests fall back to the keyless free tier, unless `keyless_fallback` is disabled.
+
+        :raises YouComError: If no API key resolves and `keyless_fallback` is `False`.
         """
         headers = {
             "Accept": "application/json",
@@ -182,6 +204,20 @@ class YouComWebSearch:
         if api_key:
             headers["X-API-Key"] = api_key
             return YOUCOM_KEYED_SEARCH_URL, headers
+
+        if not self.keyless_fallback:
+            msg = (
+                "No You.com API key resolved and keyless_fallback is disabled. Set one of the "
+                f"{', '.join(API_KEY_ENV_VARS)} environment variables, pass api_key explicitly, "
+                "or enable keyless_fallback to use the rate-limited keyless tier."
+            )
+            raise YouComError(msg)
+
+        logger.debug(
+            "No You.com API key resolved; using the keyless free tier at {url}, which is rate "
+            "limited per IP. Set keyless_fallback=False to require a key instead.",
+            url=YOUCOM_KEYLESS_SEARCH_URL,
+        )
         return YOUCOM_KEYLESS_SEARCH_URL, headers
 
     def _build_params(self, query: str, top_k: int | None) -> dict[str, Any]:
@@ -202,13 +238,18 @@ class YouComWebSearch:
         return params
 
     @staticmethod
-    def _enrich_error(error: httpx.HTTPStatusError, headers: dict[str, str]) -> httpx.HTTPStatusError:
+    def _error_message(error: httpx.HTTPError, headers: dict[str, str]) -> str:
         """
-        Add upgrade guidance to keyless rate-limit errors; return other errors unchanged.
+        Build the `YouComError` message, adding upgrade guidance for keyless rate-limit responses.
         """
+        message = f"An error occurred while querying the You.com Search API. Error: {error}"
+        if not isinstance(error, httpx.HTTPStatusError):
+            return message
+
+        message = f"{message}, Response: {error.response.text}"
         if error.response.status_code in _RATE_LIMIT_STATUSES and "X-API-Key" not in headers:
-            return httpx.HTTPStatusError(f"{error} — {_UPGRADE_HINT}", request=error.request, response=error.response)
-        return error
+            message = f"{message} — {_UPGRADE_HINT}"
+        return message
 
     @staticmethod
     def _parse_response(response: dict[str, Any]) -> dict[str, Any]:
