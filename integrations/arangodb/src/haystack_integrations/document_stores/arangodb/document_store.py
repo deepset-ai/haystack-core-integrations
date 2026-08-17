@@ -30,6 +30,15 @@ _SIMILARITY_AQL: dict[str, tuple[str, str, str]] = {
 
 _VECTOR_INDEX_NAME = "haystack_vector_index"
 
+# The collection name is never interpolated into AQL. It is passed as a collection bind parameter
+# (`@@collection`), so an attacker-controlled name can only ever name a collection — a payload such
+# as "docs` FOR s IN secrets RETURN s //" fails with ERR 1203 (collection not found) instead of
+# being parsed as query text. Backtick-quoting the name would not be enough: AQL has no escape
+# sequence for a backtick inside a backtick-quoted identifier, and ArangoDB 3.12 accepts collection
+# names that contain one. Binding also keeps every name the server accepts working, including
+# extended names with dots or Unicode. Index selection is unaffected: bind parameters are
+# substituted before query optimization, so `APPROX_NEAR_*` still resolves to the vector index.
+
 
 def _doc_to_arango(doc: Document) -> dict[str, Any]:
     d = doc.to_dict(flatten=False)
@@ -189,11 +198,12 @@ class ArangoDocumentStore:
         self._ensure_connected()
         db = cast(StandardDatabase, self._db)
 
-        aql = f"FOR doc IN {self.collection_name}"
-        bind_vars: dict[str, Any] = {}
+        aql = "FOR doc IN @@collection"
+        bind_vars: dict[str, Any] = {"@collection": self.collection_name}
 
         if filters:
-            expr, bind_vars = _convert_filters(filters)
+            expr, fvars = _convert_filters(filters)
+            bind_vars.update(fvars)
             aql += f" FILTER {expr}"
 
         aql += " RETURN doc"
@@ -283,7 +293,11 @@ class ArangoDocumentStore:
         self._ensure_vector_index()
 
         aql_func, sort_order, _ = _SIMILARITY_AQL[self.similarity_function]
-        bind_vars: dict[str, Any] = {"query_vec": query_embedding, "top_k": top_k}
+        bind_vars: dict[str, Any] = {
+            "@collection": self.collection_name,
+            "query_vec": query_embedding,
+            "top_k": top_k,
+        }
 
         # ArangoDB only uses the vector index when the `APPROX_NEAR_*` call is followed
         # directly by `SORT` + `LIMIT` with no preceding `FILTER`. Metadata filters are
@@ -294,7 +308,7 @@ class ArangoDocumentStore:
             bind_vars["candidates"] = doc_count
             aql = f"""
             FOR doc IN (
-                FOR d IN {self.collection_name}
+                FOR d IN @@collection
                     LET score = {aql_func}(d.embedding, @query_vec)
                     SORT score {sort_order}
                     LIMIT @candidates
@@ -306,7 +320,7 @@ class ArangoDocumentStore:
             """
         else:
             aql = f"""
-            FOR doc IN {self.collection_name}
+            FOR doc IN @@collection
                 LET score = {aql_func}(doc.embedding, @query_vec)
                 SORT score {sort_order}
                 LIMIT @top_k

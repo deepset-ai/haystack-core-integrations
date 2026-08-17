@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/mcp-v1.4.1] - 2026-07-29
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### 🧹 Chores
+
+- MCP - pin mcp<2.0.0 (#3686)
+
+
 ## [integrations/mcp-v1.4.0] - 2026-06-22
 
 ### 🧪 Testing

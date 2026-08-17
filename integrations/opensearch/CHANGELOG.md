@@ -1,5 +1,14 @@
 # Changelog
 
+## [integrations/opensearch-v8.2.1] - 2026-08-03
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `OpensearchDocumentStore` match search_term against metadata field value, not content (#3647)
+- *(opensearch)* Don't merge same-field ranges under OR (#3589)
+
+
 ## [integrations/opensearch-v8.2.0] - 2026-07-22
 
 ### 🚀 Features

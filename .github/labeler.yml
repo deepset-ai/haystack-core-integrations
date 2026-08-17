@@ -243,6 +243,11 @@ integration:litellm:
       - any-glob-to-any-file: "integrations/litellm/**/*"
       - any-glob-to-any-file: ".github/workflows/litellm.yml"
 
+integration:mariadb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mariadb/**/*"
+      - any-glob-to-any-file: ".github/workflows/mariadb.yml"
+
 integration:markitdown:
   - changed-files:
       - any-glob-to-any-file: "integrations/markitdown/**/*"
@@ -308,6 +313,11 @@ integration:openapi:
       - any-glob-to-any-file: "integrations/openapi/**/*"
       - any-glob-to-any-file: ".github/workflows/openapi.yml"
 
+integration:opendataloader-pdf:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/opendataloader_pdf/**/*"
+      - any-glob-to-any-file: ".github/workflows/opendataloader_pdf.yml"
+
 integration:openrouter:
   - changed-files:
       - any-glob-to-any-file: "integrations/openrouter/**/*"
@@ -327,6 +337,11 @@ integration:optimum:
   - changed-files:
       - any-glob-to-any-file: "integrations/optimum/**/*"
       - any-glob-to-any-file: ".github/workflows/optimum.yml"
+
+integration:oracle:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/oracle/**/*"
+      - any-glob-to-any-file: ".github/workflows/oracle.yml"
 
 integration:orcarouter:
   - changed-files:

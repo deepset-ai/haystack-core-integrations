@@ -2,6 +2,13 @@
 
 ## [unreleased]
 
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- CohereRanker reordered the top_k fallback to happen after validation (#3747)
+
+### 🌀 Miscellaneous
+
 
 ## [integrations/cohere-v9.4.0] - 2026-07-22
 

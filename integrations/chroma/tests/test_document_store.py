@@ -180,6 +180,29 @@ class TestDocumentStoreUnit:
             with pytest.raises(ValueError, match="Invalid client_settings"):
                 store._ensure_initialized()
 
+    def test_close(self):
+        store = ChromaDocumentStore()
+        client = mock.Mock()
+        store._client = client
+
+        store.close()
+
+        client.close.assert_called_once()
+        assert store._client is None
+
+        store.close()
+        client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        store = ChromaDocumentStore()
+        client = mock.Mock()
+        client.close.side_effect = RuntimeError("boom")
+        store._client = client
+
+        store.close()
+
+        assert store._client is None
+
     def test_infer_type_from_value_fallback_for_unknown_type(self):
         assert ChromaDocumentStore._infer_type_from_value(None) == "keyword"
         assert ChromaDocumentStore._infer_type_from_value(["a", "b"]) == "keyword"
@@ -377,6 +400,16 @@ class TestDocumentStore(
         )
         assert store._collection.metadata["hnsw:space"] == "ip"
         assert new_store._collection.metadata["hnsw:space"] == "ip"
+
+    def test_close_and_reopen(self, tmp_path):
+        store = ChromaDocumentStore(collection_name="test_close_and_reopen", persist_path=str(tmp_path))
+        store.write_documents([Document(content="doc", embedding=TEST_EMBEDDING_1)])
+        assert store.count_documents() == 1
+
+        store.close()
+        assert store._client is None
+
+        assert store.count_documents() == 1
 
     def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
@@ -833,3 +866,21 @@ class TestMetadataOperations:
         values, total = populated_store.get_metadata_field_unique_values("category", from_=10, size=10)
         assert values == []  # No values beyond offset
         assert total == 3  # Total count is still 3
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, populated_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        values, total = populated_store.get_metadata_field_unique_values("priority", from_=0, size=10)
+        assert set(values) == {1, 2, 3}
+        assert total == 3
+
+    def test_get_metadata_field_unique_values_with_filters(self, populated_store):
+        """Test that filters restrict which documents' values are considered"""
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B", "C"}
+        assert total == 3
+
+        filters = {"field": "meta.status", "operator": "==", "value": "inactive"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

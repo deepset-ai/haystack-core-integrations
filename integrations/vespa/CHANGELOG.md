@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/vespa-v1.0.1] - 2026-08-13
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- *(vespa)* Handle 404 errors in Vespa document store (#3761)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- Add more unit tests for Vespa (#3355)
+
+
 ## [integrations/vespa-v1.0.0] - 2026-05-19
 
 ### 🚀 Features

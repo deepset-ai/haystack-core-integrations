@@ -6,8 +6,12 @@
 Integration tests for the E2B sandbox tools.
 
 These tests require a valid E2B_API_KEY environment variable and will
-spin up a real cloud sandbox on each run.
+spin up a real cloud sandbox on each run. Every test in this module skips when
+the variable is unset, so the suite can always be invoked — including on fork
+PRs, which have no access to repository secrets.
 """
+
+import os
 
 import pytest
 
@@ -19,6 +23,8 @@ from haystack_integrations.tools.e2b import (
     RunBashCommandTool,
     WriteFileTool,
 )
+
+pytestmark = pytest.mark.skipif(not os.environ.get("E2B_API_KEY"), reason="E2B_API_KEY not set")
 
 
 @pytest.fixture(scope="module")

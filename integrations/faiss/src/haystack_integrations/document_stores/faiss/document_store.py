@@ -458,11 +458,7 @@ class FAISSDocumentStore:
         """
         values = []
         for doc in self.documents.values():
-            val = (
-                FAISSDocumentStore._get_doc_value(doc, field_name)
-                if not field_name.startswith("meta.")
-                else doc.meta.get(field_name[5:])
-            )
+            val = FAISSDocumentStore._get_doc_value(doc, field_name)
             if val is not None:
                 values.append(val)
 
@@ -471,23 +467,43 @@ class FAISSDocumentStore:
 
         return {"min": min(values), "max": max(values)}
 
-    def get_metadata_field_unique_values(self, field_name: str) -> list[Any]:
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
-        Returns all unique values for a specific metadata field.
+        Returns unique values for a metadata field, optionally filtered by a search term, with pagination.
 
-        :param field_name: The name of the metadata field.
-        :returns: A list of unique values for the specified field.
+        :param metadata_field: The metadata field to get unique values for. Can include or omit the "meta." prefix.
+        :param search_term: Optional search term to filter values, matched as a case-insensitive substring
+            against the metadata field's value.
+        :param from_: The offset to start returning values from (for pagination).
+        :param size: The maximum number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing list of unique values (in their original type) and total count of
+            unique values.
         """
-        values = set()
-        for doc in self.documents.values():
-            val = (
-                FAISSDocumentStore._get_doc_value(doc, field_name)
-                if not field_name.startswith("meta.")
-                else doc.meta.get(field_name[5:])
-            )
+        values = []
+        for doc in self.filter_documents(filters=filters):
+            val = FAISSDocumentStore._get_doc_value(doc, metadata_field)
             if val is not None:
-                values.add(val)
-        return list(values)
+                values.append(val)
+
+        if search_term:
+            search_term_lower = search_term.lower()
+            values = [val for val in values if search_term_lower in str(val).lower()]
+
+        unique_values = set(values)
+        sorted_values = sorted(unique_values, key=str)
+        total_count = len(sorted_values)
+        end = from_ + size
+        paginated_values = sorted_values[from_:end]
+
+        return paginated_values, total_count
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """

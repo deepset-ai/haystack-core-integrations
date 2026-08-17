@@ -93,7 +93,7 @@ def _group_nested_conditions(
                 inner.append(_parse_logical_condition(c, nested_fields=None))
             else:
                 inner.append(_parse_comparison_condition(c, nested_fields))
-        if len(inner) > 1:
+        if len(inner) > 1 and operator != "OR":
             inner = _normalize_ranges(inner)
         if len(inner) == 1:
             conditions.append({"nested": {"path": path, "query": inner[0]}})
@@ -120,7 +120,10 @@ def _parse_logical_condition(condition: dict[str, Any], nested_fields: set[str] 
     else:
         conditions = [_parse_comparison_condition(c, nested_fields) for c in condition["conditions"]]
 
-    if len(conditions) > 1:
+    # Range merging is only valid when the conditions are AND-combined (AND, and the
+    # inner `must` of NOT). Merging same-field ranges under OR would collapse e.g.
+    # `price < 10 OR price > 100` into a single impossible range, matching nothing.
+    if len(conditions) > 1 and operator != "OR":
         conditions = _normalize_ranges(conditions)
     if operator == "AND":
         return {"bool": {"must": conditions}}

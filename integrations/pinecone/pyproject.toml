@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pinecone_haystack"
+name = "pinecone-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
@@ -140,6 +140,7 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  "PLR0917",
   # Ignore assertions
   "S101",
 ]

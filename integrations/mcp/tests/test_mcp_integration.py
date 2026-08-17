@@ -93,7 +93,9 @@ class TestMCPToolInPipelineWithOpenAI:
         """Test using multiple MCPTools in a pipeline with OpenAI."""
 
         # Mix mcp tool with a simple echo tool
-        time_server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=America/New_York"])
+        time_server_info = StdioServerInfo(
+            command="uvx", args=["--with", "mcp<2.0.0", "mcp-server-time", "--local-timezone=America/New_York"]
+        )
         time_tool = MCPTool(name="get_current_time", server_info=time_server_info)
         # Register for cleanup
         mcp_tool_cleanup(time_tool)

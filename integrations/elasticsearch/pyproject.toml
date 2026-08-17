@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
   "haystack-ai>=2.28.0",
   "elasticsearch>=8,<9",
-  "aiohttp>=3.9.0" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
+  "aiohttp>=3.14.1" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch, and to satisfy openai's vendored httpx_aiohttp transport (needs aiohttp.SocketTimeoutError)
 ]
 
 [project.urls]
@@ -135,6 +135,7 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  "PLR0917",
   # Allow `Any` - used legitimately for dynamic types and SDK boundaries
   "ANN401",
 ]

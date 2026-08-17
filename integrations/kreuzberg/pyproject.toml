@@ -35,7 +35,8 @@ classifiers = [
 ]
 dependencies = [
     "haystack-ai>=2.22.0",
-    "kreuzberg>=4.4.6,<=4.7.4", # 4.7.4 is the last version with MIT license
+    # 4.8.x and 4.9.x are Elastic-2.0 licensed; 4.10.0 returned to MIT.
+    "kreuzberg>=4.4.6,!=4.8.*,!=4.9.*",
 ]
 
 [project.urls]
@@ -121,7 +122,7 @@ ignore = [
     # Ignore checks for possible passwords
     "S105", "S106", "S107",
     # Ignore complexity
-    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917",
     # Allow assertion in non-test code
     "S101",
 ]

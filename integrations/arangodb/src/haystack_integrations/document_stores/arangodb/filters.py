@@ -16,18 +16,31 @@ def _is_iso_date(value: str) -> bool:
         return False
 
 
-def _field_to_aql(field: str) -> str:
-    """Maps a Haystack field name to an AQL document field reference."""
+def _field_to_aql(field: str, bind_vars: dict[str, Any], counter: list[int]) -> str:
+    """
+    Maps a Haystack field name to an AQL document field reference.
+
+    Field names come from the caller's filters, so they are never interpolated into the query.
+    AQL has no escape sequence for a backtick inside a backtick-quoted identifier, so quoting is
+    not enough: a name such as ``meta.a` == 1 OR true //`` would escape it. Names are bound and
+    applied with dynamic attribute access instead, which treats them as data. Filters run as a
+    full scan either way (see `retrieve_by_embedding`), so this costs no index usage.
+    """
     if field == "id":
         return "doc._key"
     if field == "content":
         return "doc.content"
     if field == "embedding":
         return "doc.embedding"
+
+    idx = counter[0]
+    counter[0] += 1
+    var = f"fk{idx}"
     if field.startswith("meta."):
-        key = field[5:]
-        return f"doc.meta.`{key}`"
-    return f"doc.`{field}`"
+        bind_vars[var] = field[5:]
+        return f"doc.meta[@{var}]"
+    bind_vars[var] = field
+    return f"doc[@{var}]"
 
 
 def _convert_filters(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -68,13 +81,18 @@ _COMPARISON_OPS = {">", ">=", "<", "<="}
 
 
 def _parse_comparison(node: dict[str, Any], bind_vars: dict[str, Any], counter: list[int]) -> str:
-    field = _field_to_aql(node["field"])
     op = node["operator"]
     value = node["value"]
 
+    # A range comparison against null matches nothing, and the resulting expression references no
+    # field. Return before binding the field name: ArangoDB rejects a query that declares a bind
+    # parameter it never uses.
+    if op in _COMPARISON_OPS and value is None:
+        return "false"
+
+    field = _field_to_aql(node["field"], bind_vars, counter)
+
     if op in _COMPARISON_OPS:
-        if value is None:
-            return "false"
         if isinstance(value, list):
             msg = f"Filter operator '{op}' does not support list values."
             raise FilterError(msg)
