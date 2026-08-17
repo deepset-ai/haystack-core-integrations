@@ -197,10 +197,16 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
     # Assuming tool call result messages will only contain tool results
     tool_results = []
     for tool_call_result in tool_call_result_message.tool_call_results:
+        content: list[dict[str, Any]]
         if isinstance(tool_call_result.result, str):
             try:
                 json_result = json.loads(tool_call_result.result)
-                content = [{"json": json_result}]
+                # Bedrock's toolResult.content[].json field requires a JSON object, not an arbitrary JSON value
+                # (e.g. a bare number, string, boolean, null or array is rejected with a ValidationException).
+                if isinstance(json_result, dict):
+                    content = [{"json": json_result}]
+                else:
+                    content = [{"text": tool_call_result.result}]
             except json.JSONDecodeError:
                 content = [{"text": tool_call_result.result}]
         elif isinstance(tool_call_result.result, list):

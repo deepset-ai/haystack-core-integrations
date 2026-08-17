@@ -32,7 +32,16 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.28.0", "pyvespa>=0.58.0"]
+dependencies = [
+  "haystack-ai>=2.28.0",
+  "pyvespa>=0.58.0",
+  # `httpr` is a transitive dependency of `pyvespa`, pinned here because httpr 0.5.2 added
+  # `Response.raise_for_status`, which makes pyvespa's `raise_for_status` take its requests/httpx branch and
+  # let the resulting `httpr.HTTPStatusError` escape: `raise_on_not_found=False` stops suppressing 404s, so
+  # reading or writing a document that does not exist raises. Fixed upstream in vespa-engine/pyvespa#1330,
+  # unreleased as of pyvespa 1.2.4. Remove this pin and raise the pyvespa floor once that release is out.
+  "httpr>=0.4.0,<0.5.2",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/vespa#readme"
