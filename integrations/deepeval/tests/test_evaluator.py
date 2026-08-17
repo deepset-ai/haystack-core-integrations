@@ -495,3 +495,63 @@ def test_integration_run(metric, inputs, metric_params):
     assert len(output) == 1
     assert "results" in output
     assert len(output["results"]) == len(next(iter(inputs.values())))
+
+
+# This integration test validates the async evaluator by running it against the
+# OpenAI API. It is parameterized by the metric, the inputs to the evaluator
+# and the metric parameters.
+@pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+@pytest.mark.integration
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "metric, inputs, metric_params",
+    [
+        (
+            DeepEvalMetric.ANSWER_RELEVANCY,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.FAITHFULNESS,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_PRECISION,
+            {
+                "questions": DEFAULT_QUESTIONS,
+                "contexts": DEFAULT_CONTEXTS,
+                "responses": DEFAULT_RESPONSES,
+                "ground_truths": DEFAULT_GROUND_TRUTHS,
+            },
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_RECALL,
+            {
+                "questions": DEFAULT_QUESTIONS,
+                "contexts": DEFAULT_CONTEXTS,
+                "responses": DEFAULT_RESPONSES,
+                "ground_truths": DEFAULT_GROUND_TRUTHS,
+            },
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_RELEVANCE,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            {"model": "gpt-4o"},
+        ),
+    ],
+)
+async def test_integration_run_async(metric, inputs, metric_params):
+    init_params = {
+        "metric": metric,
+        "metric_params": metric_params,
+    }
+    evaluator = DeepEvalEvaluator(**init_params)
+    output = await evaluator.run_async(**inputs)
+
+    assert isinstance(output, dict)
+    assert len(output) == 1
+    assert "results" in output
+    assert len(output["results"]) == len(next(iter(inputs.values())))

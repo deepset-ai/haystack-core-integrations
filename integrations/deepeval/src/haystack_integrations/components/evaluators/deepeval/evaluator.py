@@ -110,8 +110,8 @@ class DeepEvalEvaluator:
         Run the DeepEval evaluator asynchronously on the provided inputs.
 
         Each test case is evaluated concurrently using the metric's async
-        ``a_measure`` method. A separate metric copy is used per test case
-        because DeepEval metrics keep state (``score``, ``reason``) on the
+        `a_measure` method. A separate metric copy is used per test case
+        because DeepEval metrics keep state (`score`, `reason`) on the
         metric instance.
 
         :param inputs:
@@ -121,7 +121,7 @@ class DeepEvalEvaluator:
         :returns:
             A dictionary with a single `results` entry that contains
             a nested list of metric results. The shape matches the
-            output of :meth:`run`.
+            output of the `run` method.
         """
         InputConverters.validate_input_parameters(self.metric, self.descriptor.input_parameters, inputs)
         converted_inputs: list[LLMTestCase] = list(self.descriptor.input_converter(**inputs))  # type: ignore
@@ -179,30 +179,37 @@ class DeepEvalEvaluator:
         return evaluate(test_cases=test_cases, metrics=[metric])
 
     @staticmethod
-    async def _invoke_deepeval_async(test_cases: list[LLMTestCase], metric: BaseMetric) -> EvaluationResult:
-        """Evaluate ``test_cases`` concurrently using the metric's ``a_measure``."""
+    async def _invoke_deepeval_async(
+        test_cases: list[LLMTestCase],
+        metric: BaseMetric,
+        max_concurrent: int = 4,
+    ) -> EvaluationResult:
+        """Evaluate `test_cases` concurrently using the metric's `a_measure`."""
+
+        semaphore = asyncio.Semaphore(max_concurrent)
 
         async def _evaluate_one(test_case: LLMTestCase) -> TestResult:
-            # DeepEval metrics keep their result state on the instance, so each
-            # concurrent evaluation needs its own copy.
-            metric_copy = cast(BaseMetric, copy_metrics([metric])[0])
-            await metric_copy.a_measure(test_case)
-            metric_data = MetricData.model_construct(
-                name=metric_copy.__class__.__name__,
-                score=metric_copy.score,
-                reason=metric_copy.reason,
-            )
-            return TestResult(
-                name=test_case.name or "",
-                success=False,
-                conversational=False,
-                metrics_data=[metric_data],
-                input=test_case.input,
-                actual_output=test_case.actual_output,
-                expected_output=test_case.expected_output,
-                context=test_case.context,
-                retrieval_context=cast(list[str] | None, test_case.retrieval_context),
-            )
+            async with semaphore:
+                # DeepEval metrics keep their result state on the instance, so each
+                # concurrent evaluation needs its own copy.
+                metric_copy = cast(BaseMetric, copy_metrics([metric])[0])
+                await metric_copy.a_measure(test_case)
+                metric_data = MetricData.model_construct(
+                    name=metric_copy.__class__.__name__,
+                    score=metric_copy.score,
+                    reason=metric_copy.reason,
+                )
+                return TestResult(
+                    name=test_case.name or "",
+                    success=False,
+                    conversational=False,
+                    metrics_data=[metric_data],
+                    input=test_case.input,
+                    actual_output=test_case.actual_output,
+                    expected_output=test_case.expected_output,
+                    context=test_case.context,
+                    retrieval_context=cast(list[str] | None, test_case.retrieval_context),
+                )
 
         results = await asyncio.gather(*[_evaluate_one(tc) for tc in test_cases])
         return EvaluationResult(test_results=list(results), confident_link=None, test_run_id=None)
