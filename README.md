@@ -5,8 +5,8 @@
 | Name                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/audio/whisper/whisper\_local.py  |       67 |        0 |       20 |        2 |     98% |130-\>133, 194-\>197 |
-| src/haystack\_integrations/components/audio/whisper/whisper\_remote.py |       58 |        0 |       10 |        0 |    100% |           |
-| **TOTAL**                                                              |  **125** |    **0** |   **30** |    **2** | **99%** |           |
+| src/haystack\_integrations/components/audio/whisper/whisper\_remote.py |       60 |        0 |       10 |        0 |    100% |           |
+| **TOTAL**                                                              |  **127** |    **0** |   **30** |    **2** | **99%** |           |
 
 
 ## Setup coverage badge
