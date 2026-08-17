@@ -1,5 +1,32 @@
 # Changelog
 
+## [integrations/azure_doc_intelligence-v1.1.0] - 2026-08-17
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+- Azure Document Intelligence - fix default model (#3769)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- AzureDocumentIntelligenceConverter - add tests (#3205)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Enable ANN ruff ruleset for azure_doc_intelligence integration (#2981)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+- Improve consistency of integrations folder structure (#3430)
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/azure_doc_intelligence-v1.0.0] - 2026-01-19
 
 ### 🚀 Features

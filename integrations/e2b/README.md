@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/e2b-haystack.svg)](https://pypi.org/project/e2b-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/e2b-haystack.svg)](https://pypi.org/project/e2b-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/e2b)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/e2b/CHANGELOG.md)
 
 ---

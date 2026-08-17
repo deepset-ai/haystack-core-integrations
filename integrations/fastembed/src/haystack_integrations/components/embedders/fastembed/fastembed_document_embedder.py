@@ -57,6 +57,21 @@ class FastembedDocumentEmbedder:
     print(f"Document Embedding: {result['documents'][0].embedding}")
     print(f"Embedding Dimension: {len(result['documents'][0].embedding)}")
     ```
+
+    Running on GPU:
+    ```python
+    # NVIDIA GPU (requires onnxruntime-gpu)
+    doc_embedder = FastembedDocumentEmbedder(
+        model="BAAI/bge-small-en-v1.5",
+        model_kwargs={"providers": ["CUDAExecutionProvider"]},
+    )
+
+    # Intel GPU / XPU (requires onnxruntime-openvino)
+    doc_embedder = FastembedDocumentEmbedder(
+        model="BAAI/bge-small-en-v1.5",
+        model_kwargs={"providers": ["OpenVINOExecutionProvider"]},
+    )
+    ```
     """
 
     def __init__(
@@ -95,7 +110,8 @@ class FastembedDocumentEmbedder:
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document content.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document content.
         :param model_kwargs: Dictionary containing additional keyword arguments to pass to the Fastembed model,
-                such as `providers` (e.g. `["CUDAExecutionProvider"]` to run on GPU), `cuda`, or `device_ids`.
+                such as `providers` (e.g. `["CUDAExecutionProvider"]` for NVIDIA GPU or
+                `["OpenVINOExecutionProvider"]` for Intel GPU/XPU), `cuda`, or `device_ids`.
         """
 
         self.model_name = model
