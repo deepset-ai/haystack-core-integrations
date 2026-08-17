@@ -572,7 +572,9 @@ class AmazonBedrockChatGenerator:
         :param messages: A list of `ChatMessage` objects forming the chat history.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: Optional callback for handling streaming outputs.
-        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+        :param generation_kwargs: Optional dictionary of generation parameters. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept. Some common parameters are:
             - `maxTokens`: Maximum number of tokens to generate.
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
@@ -636,7 +638,9 @@ class AmazonBedrockChatGenerator:
         :param messages: A list of `ChatMessage` objects forming the chat history.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: Optional async-compatible callback for handling streaming outputs.
-        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+        :param generation_kwargs: Optional dictionary of generation parameters. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept. Some common parameters are:
             - `maxTokens`: Maximum number of tokens to generate.
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
