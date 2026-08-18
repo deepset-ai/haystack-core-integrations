@@ -13,7 +13,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.websearch.youcom import YouComError, YouComWebSearch
 from haystack_integrations.components.websearch.youcom.youcom_websearch import (
-    API_KEY_ENV_VARS,
+    API_KEY_ENV_VAR,
     USER_AGENT,
     YOUCOM_KEYED_SEARCH_URL,
     YOUCOM_KEYLESS_SEARCH_URL,
@@ -51,8 +51,8 @@ def mock_response(json_body, status_code=200):
 
 
 def _keyed_env():
-    """True when any accepted API key env var holds a value, so the keyed live tests can run."""
-    return any(os.environ.get(env_var) for env_var in API_KEY_ENV_VARS)
+    """True when the API key env var holds a value, so the keyed live tests can run."""
+    return bool(os.environ.get(API_KEY_ENV_VAR))
 
 
 def http_status_error(status_code, message="Client Error"):
@@ -65,12 +65,11 @@ def http_status_error(status_code, message="Client Error"):
 class TestYouComWebSearch:
     @pytest.fixture(autouse=True)
     def clean_env(self, monkeypatch):
-        for env_var in API_KEY_ENV_VARS:
-            monkeypatch.delenv(env_var, raising=False)
+        monkeypatch.delenv(API_KEY_ENV_VAR, raising=False)
 
     def test_init_defaults(self):
         component = YouComWebSearch()
-        assert component.api_key == Secret.from_env_var(API_KEY_ENV_VARS, strict=False)
+        assert component.api_key == Secret.from_env_var(API_KEY_ENV_VAR, strict=False)
         assert component.keyless_fallback is True
         assert component.top_k == 10
         assert component.freshness is None
@@ -107,29 +106,6 @@ class TestYouComWebSearch:
         kwargs = mock_request.call_args.kwargs
         assert kwargs["url"] == YOUCOM_KEYED_SEARCH_URL
         assert kwargs["headers"]["X-API-Key"] == "env-key"
-
-    @patch("haystack_integrations.components.websearch.youcom.youcom_websearch.request_with_retry")
-    def test_run_keyed_when_legacy_env_var_set(self, mock_request, monkeypatch):
-        monkeypatch.setenv("YDC_API_KEY", "legacy-key")
-        mock_request.return_value = mock_response(SAMPLE_RESPONSE)
-
-        component = YouComWebSearch()
-        component.run(query="test")
-
-        kwargs = mock_request.call_args.kwargs
-        assert kwargs["url"] == YOUCOM_KEYED_SEARCH_URL
-        assert kwargs["headers"]["X-API-Key"] == "legacy-key"
-
-    @patch("haystack_integrations.components.websearch.youcom.youcom_websearch.request_with_retry")
-    def test_primary_env_var_wins_over_legacy(self, mock_request, monkeypatch):
-        monkeypatch.setenv("YDC_API_KEY", "legacy-key")
-        monkeypatch.setenv("YOUDOTCOM_API_KEY", "primary-key")
-        mock_request.return_value = mock_response(SAMPLE_RESPONSE)
-
-        component = YouComWebSearch()
-        component.run(query="test")
-
-        assert mock_request.call_args.kwargs["headers"]["X-API-Key"] == "primary-key"
 
     @patch("haystack_integrations.components.websearch.youcom.youcom_websearch.request_with_retry")
     def test_keyless_fallback_disabled_raises_without_key(self, mock_request):
@@ -323,7 +299,7 @@ class TestYouComWebSearch:
         assert restored.top_k == 7
         assert restored.freshness == "month"
         assert restored.keyless_fallback is False
-        assert restored.api_key == Secret.from_env_var(API_KEY_ENV_VARS, strict=False)
+        assert restored.api_key == Secret.from_env_var(API_KEY_ENV_VAR, strict=False)
 
     def test_serialization_roundtrip_with_env_var(self, monkeypatch):
         monkeypatch.setenv("YOUDOTCOM_API_KEY", "env-key")
@@ -343,8 +319,7 @@ class TestYouComWebSearch:
 class TestYouComWebSearchIntegration:
     def test_keyless_live_search(self, monkeypatch):
         """The keyless free tier is rate limited per IP, so a shared CI runner may legitimately hit the limit."""
-        for env_var in API_KEY_ENV_VARS:
-            monkeypatch.delenv(env_var, raising=False)
+        monkeypatch.delenv(API_KEY_ENV_VAR, raising=False)
         component = YouComWebSearch(top_k=2)
         try:
             result = component.run(query="What is Haystack by deepset?")

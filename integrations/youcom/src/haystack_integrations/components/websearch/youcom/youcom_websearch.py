@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 YOUCOM_KEYED_SEARCH_URL = "https://api.you.com/v1/search"
 YOUCOM_KEYLESS_SEARCH_URL = "https://api.you.com/v1/agents/search"
 
-API_KEY_ENV_VARS = ["YOUDOTCOM_API_KEY", "YDC_API_KEY"]
+API_KEY_ENV_VAR = "YOUDOTCOM_API_KEY"
 
 try:
     _VERSION = version("youcom-haystack")
@@ -63,7 +63,7 @@ class YouComWebSearch:
 
     def __init__(
         self,
-        api_key: Secret = Secret.from_env_var(API_KEY_ENV_VARS, strict=False),
+        api_key: Secret = Secret.from_env_var(API_KEY_ENV_VAR, strict=False),
         keyless_fallback: bool = True,
         top_k: int | None = 10,
         freshness: str | None = None,
@@ -78,9 +78,8 @@ class YouComWebSearch:
         Initialize the YouComWebSearch component.
 
         :param api_key:
-            You.com API key. Defaults to the `YOUDOTCOM_API_KEY` environment variable, falling back
-            to the legacy `YDC_API_KEY` name. Resolved leniently, so an unset key is not an error —
-            see `keyless_fallback` for what happens then.
+            You.com API key. Defaults to the `YOUDOTCOM_API_KEY` environment variable. Resolved
+            leniently, so an unset key is not an error — see `keyless_fallback` for what happens then.
         :param keyless_fallback:
             What to do when no API key resolves. When `True` (the default), search the
             [keyless free tier](https://you.com/docs/api-reference/search/v1-agents-search),
@@ -207,8 +206,8 @@ class YouComWebSearch:
 
         if not self.keyless_fallback:
             msg = (
-                "No You.com API key resolved and keyless_fallback is disabled. Set one of the "
-                f"{', '.join(API_KEY_ENV_VARS)} environment variables, pass api_key explicitly, "
+                "No You.com API key resolved and keyless_fallback is disabled. Set the "
+                f"{API_KEY_ENV_VAR} environment variable, pass api_key explicitly, "
                 "or enable keyless_fallback to use the rate-limited keyless tier."
             )
             raise YouComError(msg)

@@ -12,8 +12,7 @@
 `YouComWebSearch` runs without any configuration: with no API key available it uses the You.com
 [keyless free tier](https://you.com/docs/api-reference/search/v1-agents-search) (rate limited per IP).
 Set the `YOUDOTCOM_API_KEY` environment variable to use the keyed
-[You.com Search API](https://you.com/docs/api-reference/search/v1-search) with higher limits. The
-legacy `YDC_API_KEY` name is also accepted, so existing configurations keep working.
+[You.com Search API](https://you.com/docs/api-reference/search/v1-search) with higher limits.
 
 ```python
 from haystack_integrations.components.websearch.youcom import YouComWebSearch
