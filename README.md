@@ -4,7 +4,7 @@
 
 | Name                                                                          |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/dspy/chat/chat\_generator.py |      123 |        3 |       42 |        3 |     96% |155-\>154, 257-\>260, 322-324 |
+| src/haystack\_integrations/components/generators/dspy/chat/chat\_generator.py |      123 |        3 |       42 |        3 |     96% |155-\>154, 257-\>260, 326-328 |
 | **TOTAL**                                                                     |  **123** |    **3** |   **42** |    **3** | **96%** |           |
 
 
