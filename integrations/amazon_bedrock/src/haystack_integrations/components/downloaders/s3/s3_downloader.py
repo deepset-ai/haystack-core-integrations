@@ -160,9 +160,6 @@ class S3Downloader:
             - `documents`: The downloaded `Document`s; each has `meta['file_path']`. Documents whose file name
               is missing, or resolves outside of `file_root_path`, are logged and skipped.
         :raises S3Error: If a download attempt fails or the file does not exist in the S3 bucket.
-        :raises ValueError: If the environment variable naming the S3 bucket (`s3_bucket_name_env`, by default
-            `S3_DOWNLOADER_BUCKET`) is not set. `run()` warms the component up on first use, so this surfaces
-            from the implicit `warm_up()` call.
         """
 
         if self._storage is None:
