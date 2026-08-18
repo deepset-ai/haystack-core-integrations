@@ -77,8 +77,7 @@ def _extract_sources_info(documents: list[Document], file_path_meta_field: str, 
 
         # When root_path is set, ensure the resolved path stays within it to block path-traversal
         # payloads (e.g. "../../etc/passwd") coming from document metadata. When root_path is unset,
-        # file paths are treated as absolute by design and no containment check is applied; callers that
-        # process untrusted metadata should configure root_path (see component docstrings).
+        # file paths are treated as absolute by design and no containment check is applied.
         if root_path:
             resolved_file_path = resolved_file_path.resolve()
             resolved_root = Path(root_path).resolve()
@@ -217,10 +216,8 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             The root directory path where document files are located. If provided, file paths in
             document metadata will be resolved relative to this path and are guaranteed to stay within it.
             If None, file paths are treated as absolute paths with no containment check.
-            Security: this component reads the file referenced by `file_path_meta_field` from the host filesystem
-            and sends its content to the Google API. If document metadata may be influenced by untrusted input,
-            set `root_path` to a dedicated data directory so that path-traversal payloads (e.g. absolute paths
-            or `../`) are rejected instead of read.
+            If document metadata, in particular `file_path_meta_field`, may be influenced by untrusted input,
+            set `root_path` to a dedicated data directory so that path-traversal beyond it is rejected.
         :param image_size:
             Only used for images and PDF pages. If provided, resizes the image to fit within the specified dimensions
             (width, height) while maintaining aspect ratio. This reduces file size, memory usage, and processing time,
