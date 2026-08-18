@@ -316,9 +316,19 @@ class TestSerialization:
                         "llm": {"model": "gpt-4o-mini", "provider": "openai"},
                     },
                     {"type": "tests.test_evaluator.ConcreteMetric", "name": "another_metric"},
-                ]
+                ],
+                "concurrency_limit": 4,
             },
         }
+
+    def test_concurrency_limit_survives_a_serialization_round_trip(self, monkeypatch):
+        """concurrency_limit caps how many metric evaluations run at once in run_async."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test")
+        evaluator = RagasEvaluator(ragas_metrics=[ConcreteMetric(name="a_metric")], concurrency_limit=16)
+
+        restored = RagasEvaluator.from_dict(evaluator.to_dict())
+
+        assert restored.concurrency_limit == 16
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test")
