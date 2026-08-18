@@ -396,8 +396,10 @@ class GoogleGenAIChatGenerator:
 
         :param messages: A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param generation_kwargs: Configuration for generation. If provided, it will override
-        the default config. Supports `thinking_budget` for Gemini 2.5 series thinking configuration.
+        :param generation_kwargs: Configuration for generation. These are merged per key with the
+        `generation_kwargs` passed during component initialization: keys provided here take precedence,
+        keys set only at initialization are kept. Supports `thinking_budget` for Gemini 2.5 series
+        thinking configuration.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
         default settings.
         :param streaming_callback: A callback function that is called when a new token is
@@ -412,8 +414,8 @@ class GoogleGenAIChatGenerator:
         ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
         messages = _normalize_messages(messages)
-        # Use provided configs or fall back to instance defaults
-        generation_kwargs = generation_kwargs or self._generation_kwargs
+        # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
+        generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
 
@@ -508,8 +510,10 @@ class GoogleGenAIChatGenerator:
 
         :param messages: A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param generation_kwargs: Configuration for generation. If provided, it will override
-        the default config. Supports `thinking_budget` for Gemini 2.5 series thinking configuration.
+        :param generation_kwargs: Configuration for generation. These are merged per key with the
+        `generation_kwargs` passed during component initialization: keys provided here take precedence,
+        keys set only at initialization are kept. Supports `thinking_budget` for Gemini 2.5 series
+        thinking configuration.
         See https://ai.google.dev/gemini-api/docs/thinking for possible values.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
         default settings.
@@ -525,8 +529,8 @@ class GoogleGenAIChatGenerator:
         ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
         messages = _normalize_messages(messages)
-        # Use provided configs or fall back to instance defaults
-        generation_kwargs = generation_kwargs or self._generation_kwargs
+        # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
+        generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
 
