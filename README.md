@@ -4,7 +4,7 @@
 
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/llama\_cpp/chat/chat\_generator.py |      210 |       29 |       80 |        9 |     84% |92-93, 120-\>117, 154-155, 281-294, 332, 366, 399-402, 414-415, 495-\>532, 552-554, 568-576 |
+| src/haystack\_integrations/components/generators/llama\_cpp/chat/chat\_generator.py |      210 |       29 |       80 |        9 |     84% |92-93, 120-\>117, 154-155, 281-294, 332, 368, 401-404, 416-417, 499-\>536, 556-558, 572-580 |
 | src/haystack\_integrations/components/generators/llama\_cpp/generator.py            |       36 |        5 |        8 |        2 |     80% |83-84, 102, 112-113 |
 | **TOTAL**                                                                           |  **246** |   **34** |   **88** |   **11** | **84%** |           |
 
