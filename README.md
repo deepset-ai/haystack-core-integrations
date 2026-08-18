@@ -13,7 +13,7 @@
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_image\_embedder.py   |      123 |        4 |       32 |        2 |     96% |266-267, 274-278 |
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/text\_embedder.py              |       68 |        3 |       20 |        3 |     93% |148, 150-\>161, 181-182 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/adapters.py                   |      192 |        6 |       42 |        5 |     95% |35-36, 60, 84-\>86, 154-\>152, 181, 379-\>381, 531-532 |
-| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py       |      189 |       11 |       50 |        2 |     94% |605-606, 685-691, 701-703 |
+| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py       |      189 |       11 |       50 |        2 |     94% |607-608, 689-695, 705-707 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/utils.py                 |      310 |       19 |      184 |       19 |     91% |88, 217-\>214, 220-221, 250-\>248, 342-343, 389-390, 431-\>433, 455-\>527, 457-\>527, 497-\>483, 500-\>483, 503-\>501, 509-\>516, 512-\>516, 554-\>645, 598-\>645, 628-\>638, 642-\>645, 686-\>693, 715-728 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/generator.py                  |       98 |        0 |       16 |        0 |    100% |           |
 | src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                        |       82 |        0 |       14 |        0 |    100% |           |
