@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/agent-pack-haystack.svg)](https://pypi.org/project/agent-pack-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/agent-pack-haystack.svg)](https://pypi.org/project/agent-pack-haystack)
 
+- [Integration page](https://docs.haystack.deepset.ai/docs/agent-pack)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/agent_pack/CHANGELOG.md)
 
 ---
