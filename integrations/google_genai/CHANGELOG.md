@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/google_genai-v4.6.0] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+- [**breaking**] Standardize generation_kwargs handling in GoogleGenAIChatGenerator (#3804)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/google_genai-v4.5.0] - 2026-07-03
 
 ### 🧪 Testing
