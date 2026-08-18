@@ -68,12 +68,14 @@ class S3Downloader:
         :param file_root_path: The path where the file will be downloaded.
             Can be set through this parameter or the `FILE_ROOT_PATH` environment variable.
             If none of them is set, a `ValueError` is raised.
+            Downloads are confined to this directory: a file name from document metadata that resolves outside
+            of it (for example an absolute path or one containing `..`) is rejected instead of written.
         :param file_extensions: The file extensions that are permitted to be downloaded.
             By default, all file extensions are allowed.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
         :param max_cache_size: The maximum number of files to cache.
         :param file_name_meta_key: The name of the meta key that contains the file name to download. The file name
-            will also be used to create local file path for download.
+            will also be used to create local file path for download, relative to `file_root_path`.
             By default, the `Document.meta["file_name"]` is used. If you want to use a
             different key in `Document.meta`, you can set it here.
         :param s3_key_generation_function: An optional function that generates the S3 key for the file to download.
@@ -150,7 +152,8 @@ class S3Downloader:
         :returns: A dictionary with:
             - `documents`: The downloaded `Document`s; each has `meta['file_path']`.
         :raises S3Error: If a download attempt fails or the file does not exist in the S3 bucket.
-        :raises ValueError: If the path where files will be downloaded is not set.
+        :raises ValueError: If the path where files will be downloaded is not set, or if the file name of one of
+            the documents resolves outside of `file_root_path`.
         """
 
         if self._storage is None:
@@ -181,6 +184,33 @@ class S3Downloader:
             if Path(doc.meta.get(self.file_name_meta_key, "")).suffix.lower() in self.file_extensions
         ]
 
+    def _resolve_local_file_path(self, file_name: str) -> Path:
+        """
+        Resolve the local download path for a file name and ensure it stays inside `file_root_path`.
+
+        The file name comes from document metadata, which may be influenced by untrusted input. Without this
+        check an absolute file name or one containing `..` segments would escape the download directory, and
+        the S3 object would be written anywhere the process can write.
+
+        :param file_name: The file name taken from the document metadata.
+        :returns: The resolved local path, guaranteed to be inside the resolved `file_root_path`.
+        :raises ValueError: If the resolved path is outside `file_root_path` or is the root directory itself.
+        """
+        root = self.file_root_path.resolve()
+        candidate = (root / file_name).resolve()
+
+        if not candidate.is_relative_to(root):
+            msg = (
+                f"Refusing to download to a path outside of 'file_root_path': {file_name!r}. "
+                f"Resolved path: '{candidate}', configured root: '{root}'."
+            )
+            raise ValueError(msg)
+        if candidate == root:
+            msg = f"Refusing to overwrite the download root directory with the file {file_name!r}."
+            raise ValueError(msg)
+
+        return candidate
+
     def _download_file(self, document: Document) -> Document | None:
         """
         Download a single file from AWS S3 Bucket to local filesystem.
@@ -190,6 +220,7 @@ class S3Downloader:
             The same `Document` with `meta` containing the `file_path` of the
             downloaded file.
         :raises S3Error: If the download or head request fails or the file does not exist in the S3 bucket.
+        :raises ValueError: If the file name in the document metadata resolves outside of `file_root_path`.
         """
 
         file_name = document.meta.get(self.file_name_meta_key)
@@ -199,7 +230,7 @@ class S3Downloader:
             )
             return None
 
-        file_path = self.file_root_path / Path(file_name)
+        file_path = self._resolve_local_file_path(str(file_name))
 
         # if the file exists, avoid downloading it and just update the timestamp
         try:

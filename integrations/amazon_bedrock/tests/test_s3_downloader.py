@@ -331,6 +331,57 @@ class TestS3Downloader:
         assert final_path.exists()
         assert final_path.read_bytes() == b"complete content"
 
+    def test_run_rejects_file_name_escaping_root(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        # Attacker-controlled document metadata must not be able to write outside of file_root_path.
+        root = tmp_path / "root"
+        root.mkdir()
+        d = S3Downloader(file_root_path=str(root))
+        d._storage = mock_s3_storage
+
+        with pytest.raises(ValueError, match="outside of 'file_root_path'"):
+            d.run(documents=[Document(meta={"file_name": "../escaped.txt"})])
+
+        assert not (tmp_path / "escaped.txt").exists()
+        mock_s3_storage.download.assert_not_called()
+
+    def test_run_rejects_absolute_file_name(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        # An absolute file name would otherwise discard file_root_path entirely.
+        root = tmp_path / "root"
+        root.mkdir()
+        target = tmp_path / "absolute.txt"
+        d = S3Downloader(file_root_path=str(root))
+        d._storage = mock_s3_storage
+
+        with pytest.raises(ValueError, match="outside of 'file_root_path'"):
+            d.run(documents=[Document(meta={"file_name": str(target)})])
+
+        assert not target.exists()
+        mock_s3_storage.download.assert_not_called()
+
+    def test_run_rejects_file_name_resolving_to_root(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        # A file name that resolves to the download directory itself must not be written to.
+        root = tmp_path / "root"
+        root.mkdir()
+        d = S3Downloader(file_root_path=str(root))
+        d._storage = mock_s3_storage
+
+        with pytest.raises(ValueError, match="Refusing to overwrite the download root directory"):
+            d.run(documents=[Document(meta={"file_name": "sub/.."})])
+
+        mock_s3_storage.download.assert_not_called()
+
+    def test_run_allows_file_name_in_subdirectory_of_root(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        # Nested file names stay supported as long as they remain inside the root.
+        root = tmp_path / "root"
+        root.mkdir()
+        d = S3Downloader(file_root_path=str(root))
+        d._storage = mock_s3_storage
+
+        out = d.run(documents=[Document(meta={"file_name": "nested/dir/file.txt"})])
+
+        assert out["documents"][0].meta["file_path"] == str(root / "nested" / "dir" / "file.txt")
+        mock_s3_storage.download.assert_called_once()
+
     def test_cleanup_cache_evicts_old_files(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path), max_cache_size=1)
         d._storage = mock_s3_storage
