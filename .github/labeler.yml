@@ -507,3 +507,7 @@ integration:whisper:
   - changed-files:
       - any-glob-to-any-file: "integrations/whisper/**/*"
       - any-glob-to-any-file: ".github/workflows/whisper.yml"
+integration:youcom:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/youcom/**/*"
+      - any-glob-to-any-file: ".github/workflows/youcom.yml"
