@@ -331,20 +331,21 @@ class TestS3Downloader:
         assert final_path.exists()
         assert final_path.read_bytes() == b"complete content"
 
-    def test_run_rejects_file_name_escaping_root(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_skips_file_name_escaping_root(self, tmp_path, mock_s3_storage, mock_boto3_session, caplog):
         # Attacker-controlled document metadata must not be able to write outside of file_root_path.
         root = tmp_path / "root"
         root.mkdir()
         d = S3Downloader(file_root_path=str(root))
         d._storage = mock_s3_storage
 
-        with pytest.raises(ValueError, match="outside of 'file_root_path'"):
-            d.run(documents=[Document(meta={"file_name": "../escaped.txt"})])
+        out = d.run(documents=[Document(meta={"file_name": "../escaped.txt"})])
 
+        assert out["documents"] == []
         assert not (tmp_path / "escaped.txt").exists()
         mock_s3_storage.download.assert_not_called()
+        assert "outside of 'file_root_path'" in caplog.text
 
-    def test_run_rejects_absolute_file_name(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_skips_absolute_file_name(self, tmp_path, mock_s3_storage, mock_boto3_session, caplog):
         # An absolute file name would otherwise discard file_root_path entirely.
         root = tmp_path / "root"
         root.mkdir()
@@ -352,23 +353,42 @@ class TestS3Downloader:
         d = S3Downloader(file_root_path=str(root))
         d._storage = mock_s3_storage
 
-        with pytest.raises(ValueError, match="outside of 'file_root_path'"):
-            d.run(documents=[Document(meta={"file_name": str(target)})])
+        out = d.run(documents=[Document(meta={"file_name": str(target)})])
 
+        assert out["documents"] == []
         assert not target.exists()
         mock_s3_storage.download.assert_not_called()
+        assert "outside of 'file_root_path'" in caplog.text
 
-    def test_run_rejects_file_name_resolving_to_root(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_skips_file_name_resolving_to_root(self, tmp_path, mock_s3_storage, mock_boto3_session, caplog):
         # A file name that resolves to the download directory itself must not be written to.
         root = tmp_path / "root"
         root.mkdir()
         d = S3Downloader(file_root_path=str(root))
         d._storage = mock_s3_storage
 
-        with pytest.raises(ValueError, match="Refusing to overwrite the download root directory"):
-            d.run(documents=[Document(meta={"file_name": "sub/.."})])
+        out = d.run(documents=[Document(meta={"file_name": "sub/.."})])
 
+        assert out["documents"] == []
         mock_s3_storage.download.assert_not_called()
+        assert "Refusing to overwrite the download root directory" in caplog.text
+
+    def test_run_skips_only_the_escaping_document(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        # A single malicious document must not stop the rest of the batch from being downloaded.
+        root = tmp_path / "root"
+        root.mkdir()
+        d = S3Downloader(file_root_path=str(root))
+        d._storage = mock_s3_storage
+
+        out = d.run(
+            documents=[
+                Document(meta={"file_name": "../escaped.txt"}),
+                Document(meta={"file_name": "legit.txt"}),
+            ]
+        )
+
+        assert [doc.meta["file_path"] for doc in out["documents"]] == [str(root / "legit.txt")]
+        assert not (tmp_path / "escaped.txt").exists()
 
     def test_run_allows_file_name_in_subdirectory_of_root(self, tmp_path, mock_s3_storage, mock_boto3_session):
         # Nested file names stay supported as long as they remain inside the root.

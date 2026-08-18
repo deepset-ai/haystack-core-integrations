@@ -68,8 +68,8 @@ class S3Downloader:
         :param file_root_path: The path where the file will be downloaded.
             Can be set through this parameter or the `FILE_ROOT_PATH` environment variable.
             If none of them is set, a `ValueError` is raised.
-            Downloads are confined to this directory: a file name from document metadata that resolves outside
-            of it (for example an absolute path or one containing `..`) is rejected instead of written.
+            Downloads are confined to this directory: a document whose file name resolves outside of it
+            (for example an absolute path or one containing `..`) is logged and skipped instead of written.
         :param file_extensions: The file extensions that are permitted to be downloaded.
             By default, all file extensions are allowed.
         :param max_workers: The maximum number of workers to use for concurrent downloads.
@@ -150,10 +150,10 @@ class S3Downloader:
         Return enriched `Document`s with the path of the downloaded file.
         :param documents: Document containing the name of the file to download in the meta field.
         :returns: A dictionary with:
-            - `documents`: The downloaded `Document`s; each has `meta['file_path']`.
+            - `documents`: The downloaded `Document`s; each has `meta['file_path']`. Documents whose file name
+              is missing, or resolves outside of `file_root_path`, are logged and skipped.
         :raises S3Error: If a download attempt fails or the file does not exist in the S3 bucket.
-        :raises ValueError: If the path where files will be downloaded is not set, or if the file name of one of
-            the documents resolves outside of `file_root_path`.
+        :raises ValueError: If the path where files will be downloaded is not set.
         """
 
         if self._storage is None:
@@ -218,9 +218,8 @@ class S3Downloader:
         :param document: `Document` with the name of the file to download in the meta field.
         :returns:
             The same `Document` with `meta` containing the `file_path` of the
-            downloaded file.
+            downloaded file, or `None` if the document has no usable file name.
         :raises S3Error: If the download or head request fails or the file does not exist in the S3 bucket.
-        :raises ValueError: If the file name in the document metadata resolves outside of `file_root_path`.
         """
 
         file_name = document.meta.get(self.file_name_meta_key)
@@ -230,7 +229,11 @@ class S3Downloader:
             )
             return None
 
-        file_path = self._resolve_local_file_path(str(file_name))
+        try:
+            file_path = self._resolve_local_file_path(str(file_name))
+        except ValueError as error:
+            logger.warning("Skipping download of {file_name}: {error}", file_name=repr(file_name), error=str(error))
+            return None
 
         # if the file exists, avoid downloading it and just update the timestamp
         try:
