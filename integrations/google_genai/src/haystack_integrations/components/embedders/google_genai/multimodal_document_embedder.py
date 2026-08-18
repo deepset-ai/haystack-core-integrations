@@ -316,6 +316,9 @@ class GoogleGenAIMultimodalDocumentEmbedder:
 
         :raises TypeError:
             If the input is not a list of `Documents`.
+        :raises ValueError:
+            If a document is missing the file path metadata field, its file path escapes `root_path`, or its
+            MIME type is not supported.
         :raises RuntimeError:
             If the conversion of some documents fails.
         """
@@ -472,6 +475,14 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
             - `meta`: Information about the usage of the model.
+
+        :raises TypeError:
+            If the input is not a list of `Documents`.
+        :raises ValueError:
+            If a document is missing the file path metadata field, its file path escapes `root_path`, or its
+            MIME type is not supported.
+        :raises RuntimeError:
+            If the conversion of some documents fails.
         """
 
         parts_to_embed = self._extract_parts_to_embed(documents=documents)
@@ -497,6 +508,14 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
             - `meta`: Information about the usage of the model.
+
+        :raises TypeError:
+            If the input is not a list of `Documents`.
+        :raises ValueError:
+            If a document is missing the file path metadata field, its file path escapes `root_path`, or its
+            MIME type is not supported.
+        :raises RuntimeError:
+            If the conversion of some documents fails.
         """
 
         parts_to_embed = self._extract_parts_to_embed(documents=documents)
