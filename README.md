@@ -5,7 +5,7 @@
 | Name                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/generators/amazon\_sagemaker/errors.py    |        4 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/amazon\_sagemaker/sagemaker.py |       75 |        3 |       12 |        1 |     95% |123, 251-252 |
+| src/haystack\_integrations/components/generators/amazon\_sagemaker/sagemaker.py |       75 |        3 |       12 |        1 |     95% |123, 252-253 |
 | **TOTAL**                                                                       |   **79** |    **3** |   **12** |    **1** | **96%** |           |
 
 
