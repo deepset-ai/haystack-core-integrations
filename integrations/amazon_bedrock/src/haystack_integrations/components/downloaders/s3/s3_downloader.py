@@ -87,6 +87,7 @@ class S3Downloader:
             By default, the value is `"S3_DOWNLOADER_BUCKET"`.
         :raises ValueError: If the `file_root_path` is not set through
             the constructor or the `FILE_ROOT_PATH` environment variable.
+        :raises AWSConfigurationError: If the provided AWS credentials are invalid.
 
         """
 
@@ -132,7 +133,13 @@ class S3Downloader:
         )
 
     def warm_up(self) -> None:
-        """Warm up the component by initializing the settings and storage."""
+        """
+        Warm up the component by initializing the settings and storage.
+
+        :raises ValueError: If the environment variable naming the S3 bucket (`s3_bucket_name_env`, by default
+            `S3_DOWNLOADER_BUCKET`) is not set.
+        :raises S3ConfigurationError: If the S3 client cannot be created.
+        """
         if self._storage is None:
             self.file_root_path.mkdir(parents=True, exist_ok=True)
             self._storage = S3Storage.from_env(
@@ -218,8 +225,9 @@ class S3Downloader:
 
         :param document: `Document` with the name of the file to download in the meta field.
         :returns:
-            The same `Document` with `meta` containing the `file_path` of the
-            downloaded file, or `None` if the document has no usable file name.
+            The same `Document` with `meta` containing the `file_path` of the downloaded file, or `None` if the
+            document has no file name in its metadata or its file name resolves outside of `file_root_path`.
+            Both cases are logged and skipped rather than raised.
         :raises S3Error: If the download or head request fails or the file does not exist in the S3 bucket.
         """
 
