@@ -5,7 +5,7 @@
 import dataclasses
 import datetime
 import os
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from haystack import Document
@@ -92,7 +92,7 @@ class TestStaticHelpers:
             ([], set()),
             ([{"val": "a"}, {"val": "b"}], {"a", "b"}),
             ([{"val": None}], set()),
-            ([{"val": [1, 2, None, 3]}], {"1", "2", "3"}),
+            ([{"val": [1, 2, None, 3]}], {1, 2, 3}),
             ([{"val": "x"}, {"val": None}, {"val": ["a", "b"]}], {"x", "a", "b"}),
         ],
     )
@@ -338,6 +338,20 @@ class TestDocumentStoreUnit:
         docs = store._embedding_retrieval([0.0] * 4)
         assert [d.id for d in docs] == ["a"]
 
+    def test_close(self, store):
+        store._session = Mock()
+        session = store._session
+        store.close()
+        session.close.assert_called_once_with()
+        assert store._session is None
+        store.close()
+
+    def test_close_is_exception_safe(self, store):
+        store._session = Mock()
+        store._session.close.side_effect = RuntimeError
+        store.close()
+        assert store._session is None
+
 
 @pytest.mark.skipif(
     not os.environ.get("ARCADEDB_PASSWORD"),
@@ -387,6 +401,15 @@ class TestArcadeDBDocumentStore(
             actual = dataclasses.replace(actual, embedding=None)
             expected_clean = dataclasses.replace(expected_doc, embedding=None)
             assert actual == expected_clean
+
+    def test_close_and_reopen(self, document_store: ArcadeDBDocumentStore):
+        document_store.write_documents([Document(id="1")])
+        assert document_store.count_documents() == 1
+
+        document_store.close()
+        assert document_store._session is None
+
+        assert document_store.count_documents() == 1
 
     def test_write_documents(self, document_store: ArcadeDBDocumentStore):
         """Override mixin: test default write_documents and duplicate fail behaviour."""
@@ -498,6 +521,33 @@ class TestArcadeDBDocumentStore(
 
         assert values == []
         assert total == 0
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store: ArcadeDBDocumentStore):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"priority": 1}),
+            Document(id="2", content="Doc 2", meta={"priority": 2}),
+            Document(id="3", content="Doc 3", meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("priority")
+
+        assert set(values) == {1, 2}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: ArcadeDBDocumentStore):
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(id="2", content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(id="3", content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
 
     def test_write_documents_none_embedding_is_zero_padded(self, document_store: ArcadeDBDocumentStore):
         """Documents written without an embedding get a zero vector of the correct dimension."""

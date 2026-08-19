@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/litellm-v1.2.0] - 2026-07-30
+
+### 🚀 Features
+
+- *(litellm)* Include provider cache tokens in usage metadata (#3678)
+
+### 🐛 Bug Fixes
+
+- Cap litellm dependency below 1.92.0 (#3601)
+
+### 🌀 Miscellaneous
+
+
+## [integrations/litellm-v1.1.1] - 2026-07-15
+
+### 🧹 Chores
+
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+- Update litellm dependency version in pyproject.toml (#3599)
+
+
 ## [integrations/litellm-v1.1.0] - 2026-06-04
 
 ### 🚀 Features

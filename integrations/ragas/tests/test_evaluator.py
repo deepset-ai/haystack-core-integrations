@@ -3,7 +3,12 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from haystack import AsyncPipeline, Document, Pipeline
+from haystack import Document, Pipeline
+
+try:
+    from haystack import AsyncPipeline
+except ImportError:  # Haystack 3.0 removed AsyncPipeline; Pipeline supports run_async natively
+    AsyncPipeline = Pipeline
 from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.embedders import OpenAIDocumentEmbedder, OpenAITextEmbedder
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -367,9 +372,11 @@ class TestStandaloneEvaluationIntegration:
             query="What makes Meta AI's LLaMA models stand out?",
             response="Meta AI's LLaMA models stand out for being open-source.",
             documents=[
-                "Meta AI is best known for its LLaMA series, which has been made open-source "
-                "for researchers and developers. LLaMA models are praised for their ability to "
-                "support innovation and experimentation due to their accessibility."
+                (
+                    "Meta AI is best known for its LLaMA series, which has been made open-source "
+                    "for researchers and developers. LLaMA models are praised for their ability to "
+                    "support innovation and experimentation due to their accessibility."
+                )
             ],
         )
 
@@ -412,8 +419,10 @@ class TestStandaloneEvaluationIntegration:
             ),
             documents=[
                 "Meta AI is best known for its LLaMA series, which has been made open-source.",
-                "Meta AI with its LLaMA models aims to democratize AI development by making "
-                "high-quality models available for free, fostering collaboration across industries.",
+                (
+                    "Meta AI with its LLaMA models aims to democratize AI development by making "
+                    "high-quality models available for free, fostering collaboration across industries."
+                ),
             ],
             reference=(
                 "Meta AI's LLaMA models stand out for being open-source, supporting innovation "
@@ -444,9 +453,11 @@ class TestStandaloneEvaluationIntegrationAsync:
             query="What makes Meta AI's LLaMA models stand out?",
             response="Meta AI's LLaMA models stand out for being open-source.",
             documents=[
-                "Meta AI is best known for its LLaMA series, which has been made open-source "
-                "for researchers and developers. LLaMA models are praised for their ability to "
-                "support innovation and experimentation due to their accessibility."
+                (
+                    "Meta AI is best known for its LLaMA series, which has been made open-source "
+                    "for researchers and developers. LLaMA models are praised for their ability to "
+                    "support innovation and experimentation due to their accessibility."
+                )
             ],
         )
 
@@ -491,8 +502,10 @@ class TestStandaloneEvaluationIntegrationAsync:
             ),
             documents=[
                 "Meta AI is best known for its LLaMA series, which has been made open-source.",
-                "Meta AI with its LLaMA models aims to democratize AI development by making "
-                "high-quality models available for free, fostering collaboration across industries.",
+                (
+                    "Meta AI with its LLaMA models aims to democratize AI development by making "
+                    "high-quality models available for free, fostering collaboration across industries."
+                ),
             ],
             reference=(
                 "Meta AI's LLaMA models stand out for being open-source, supporting innovation "
@@ -511,12 +524,18 @@ class TestStandaloneEvaluationIntegrationAsync:
 class TestPipelineIntegration:
     def test_ragas_evaluator_in_rag_pipeline(self):
         dataset = [
-            "Meta AI is best known for its LLaMA series, which has been made open-source "
-            "for researchers and developers.",
-            "LLaMA models are praised for their ability to support innovation and "
-            "experimentation due to their accessibility and strong performance.",
-            "Meta AI with its LLaMA models aims to democratize AI development by making "
-            "high-quality models available for free.",
+            (
+                "Meta AI is best known for its LLaMA series, which has been made open-source "
+                "for researchers and developers."
+            ),
+            (
+                "LLaMA models are praised for their ability to support innovation and "
+                "experimentation due to their accessibility and strong performance."
+            ),
+            (
+                "Meta AI with its LLaMA models aims to democratize AI development by making "
+                "high-quality models available for free."
+            ),
         ]
 
         document_store = InMemoryDocumentStore()
@@ -574,12 +593,18 @@ class TestPipelineIntegrationAsync:
     @pytest.mark.asyncio
     async def test_ragas_evaluator_in_rag_pipeline(self) -> None:
         dataset = [
-            "Meta AI is best known for its LLaMA series, which has been made open-source "
-            "for researchers and developers.",
-            "LLaMA models are praised for their ability to support innovation and "
-            "experimentation due to their accessibility and strong performance.",
-            "Meta AI with its LLaMA models aims to democratize AI development by making "
-            "high-quality models available for free.",
+            (
+                "Meta AI is best known for its LLaMA series, which has been made open-source "
+                "for researchers and developers."
+            ),
+            (
+                "LLaMA models are praised for their ability to support innovation and "
+                "experimentation due to their accessibility and strong performance."
+            ),
+            (
+                "Meta AI with its LLaMA models aims to democratize AI development by making "
+                "high-quality models available for free."
+            ),
         ]
 
         document_store = InMemoryDocumentStore()

@@ -598,7 +598,9 @@ class TestSentenceTransformersDiversityRanker:
     @pytest.mark.parametrize("similarity", ["dot_product", "cosine"])
     def test_run_real_world_use_case(self, similarity, del_hf_env_vars_if_empty):
         ranker = SentenceTransformersDiversityRanker(
-            model="sentence-transformers-testing/stsb-bert-tiny-safetensors", similarity=similarity
+            model="sentence-transformers-testing/stsb-bert-tiny-safetensors",
+            similarity=similarity,
+            device=ComponentDevice.from_str("cpu"),
         )
         query = "What are the reasons for long-standing animosities between Russia and Poland?"
 
@@ -685,6 +687,7 @@ class TestSentenceTransformersDiversityRanker:
             model="sentence-transformers-testing/stsb-bert-tiny-safetensors",
             similarity=similarity,
             strategy="maximum_margin_relevance",
+            device=ComponentDevice.from_str("cpu"),
         )
 
         # lambda_threshold=1, the most relevant document should be returned first

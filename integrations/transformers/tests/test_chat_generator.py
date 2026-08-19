@@ -206,20 +206,10 @@ class TestTransformersChatGenerator:
         assert init_params["streaming_callback"] is None
         assert init_params["chat_template"] == "irrelevant"
         assert init_params["enable_thinking"] is True
-        assert init_params["tools"] == [
-            {
-                "type": "haystack.tools.tool.Tool",
-                "data": {
-                    "inputs_from_state": None,
-                    "name": "weather",
-                    "outputs_to_state": None,
-                    "outputs_to_string": None,
-                    "description": "useful to determine the weather in a given location",
-                    "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-                    "function": "tests.test_chat_generator.get_weather",
-                },
-            }
-        ]
+
+        # deserializing the serialized component must reproduce the original tools
+        loaded = TransformersChatGenerator.from_dict(result)
+        assert loaded.tools == tools
 
     def test_from_dict(self, model_info_mock, tools):
         generator = TransformersChatGenerator(
@@ -450,6 +440,19 @@ class TestTransformersChatGenerator:
         assert chat_message.is_from(ChatRole.ASSISTANT)
         assert chat_message.text == "Berlin is cool"
 
+    def test_run_with_generation_kwargs(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+        generator = TransformersChatGenerator(
+            model="meta-llama/Llama-2-13b-chat-hf",
+            generation_kwargs={"max_new_tokens": 100, "temperature": 0.5},
+        )
+        generator.pipeline = mock_pipeline_with_tokenizer
+
+        generator.run(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.pipeline.call_args
+        assert kwargs["max_new_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+
     def test_run_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
         # Define the streaming callback function
         def streaming_callback_fn(chunk: StreamingChunk): ...
@@ -514,7 +517,11 @@ class TestTransformersChatGenerator:
         """Test live run with default behavior (no thinking)."""
         messages = [ChatMessage.from_user("Please create a summary about the following topic: Climate change")]
 
-        llm = TransformersChatGenerator(model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 50})
+        llm = TransformersChatGenerator(
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 50},
+            device=ComponentDevice.from_str("cpu"),
+        )
 
         result = llm.run(messages)
 
@@ -529,7 +536,10 @@ class TestTransformersChatGenerator:
         messages = [ChatMessage.from_user("What is 2+2?")]
 
         llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 450}, enable_thinking=True
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 450},
+            enable_thinking=True,
+            device=ComponentDevice.from_str("cpu"),
         )
 
         result = llm.run(messages)
@@ -709,6 +719,21 @@ class TestTransformersChatGeneratorAsync:
         generator.shutdown()
 
     @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+        generator = TransformersChatGenerator(
+            model="meta-llama/Llama-2-13b-chat-hf",
+            generation_kwargs={"max_new_tokens": 100, "temperature": 0.5},
+        )
+        generator.pipeline = mock_pipeline_with_tokenizer
+
+        await generator.run_async(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.pipeline.call_args
+        assert kwargs["max_new_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+        generator.shutdown()
+
+    @pytest.mark.asyncio
     async def test_run_async_with_string_input(self, model_info_mock, mock_pipeline_with_tokenizer):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
         generator.pipeline = mock_pipeline_with_tokenizer
@@ -802,30 +827,10 @@ class TestTransformersChatGeneratorAsync:
         generator.pipeline = mock_pipeline_with_tokenizer
         data = generator.to_dict()
 
-        expected_tools_data = {
-            "type": "haystack.tools.toolset.Toolset",
-            "data": {
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "name": "weather",
-                            "description": "useful to determine the weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                            },
-                            "function": "tests.test_chat_generator.get_weather",
-                            "outputs_to_string": None,
-                            "inputs_from_state": None,
-                            "outputs_to_state": None,
-                        },
-                    }
-                ]
-            },
-        }
-        assert data["init_parameters"]["tools"] == expected_tools_data
+        # deserializing the serialized component must reproduce the original toolset
+        loaded = TransformersChatGenerator.from_dict(data)
+        assert isinstance(loaded.tools, Toolset)
+        assert list(loaded.tools) == list(toolset)
 
     @pytest.mark.asyncio
     async def test_run_async_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer):
@@ -876,7 +881,10 @@ class TestTransformersChatGeneratorAsync:
             streaming_chunks.append(chunk)
 
         llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 50}, streaming_callback=streaming_callback
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 50},
+            streaming_callback=streaming_callback,
+            device=ComponentDevice.from_str("cpu"),
         )
 
         response = await llm.run_async(

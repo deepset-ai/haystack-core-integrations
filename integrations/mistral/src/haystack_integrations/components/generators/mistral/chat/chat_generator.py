@@ -343,8 +343,9 @@ class MistralChatGenerator(OpenAIChatGenerator):
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param generation_kwargs:
-            Additional keyword arguments for text generation. These parameters will
-            override the parameters passed during component initialization.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
             For details on Mistral API parameters, see
             [Mistral docs](https://docs.mistral.ai/api/).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
@@ -357,8 +358,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
+        self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
@@ -385,11 +385,12 @@ class MistralChatGenerator(OpenAIChatGenerator):
         )
         openai_endpoint = api_args.pop("openai_endpoint")
 
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
         if streaming_callback is not None:
-            chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
+            chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
             completions = self._handle_stream_response(chat_completion, streaming_callback)
         else:
-            raw_response = getattr(self.client.chat.completions.with_raw_response, openai_endpoint)(**api_args)
+            raw_response = getattr(self.client.chat.completions.with_raw_response, openai_endpoint)(**api_args)  # type: ignore[union-attr]
             completions = _convert_mistral_response_to_chat_messages(raw_response.text)
 
         for message in completions:
@@ -417,7 +418,9 @@ class MistralChatGenerator(OpenAIChatGenerator):
             A callback function that is called when a new token is received from the stream.
             Must be a coroutine.
         :param generation_kwargs:
-            Additional keyword arguments for text generation.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset.
         :param tools_strict:
             Whether to enable strict schema adherence for tool calls.
@@ -427,7 +430,10 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
+        if hasattr(self, "warm_up_async"):
+            # haystack-ai >= 3.0 initializes the async client on the running event loop
+            await self.warm_up_async()
+        else:
             self.warm_up()
 
         if len(messages) == 0:
@@ -455,13 +461,15 @@ class MistralChatGenerator(OpenAIChatGenerator):
         )
         openai_endpoint = api_args.pop("openai_endpoint")
 
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
         if streaming_callback is not None:
-            chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
+            chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
             completions = await self._handle_async_stream_response(chat_completion, streaming_callback)
         else:
-            raw_response = await getattr(self.async_client.chat.completions.with_raw_response, openai_endpoint)(
-                **api_args
-            )
+            raw_response = await getattr(
+                self.async_client.chat.completions.with_raw_response,  # type: ignore[union-attr]
+                openai_endpoint,
+            )(**api_args)
             completions = _convert_mistral_response_to_chat_messages(raw_response.text)
 
         for message in completions:

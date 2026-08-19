@@ -1,8 +1,8 @@
-import importlib
 from typing import Any
 
 import dspy
 from haystack import component, default_from_dict, default_to_dict
+from haystack.core.serialization import import_class_by_name
 from haystack.dataclasses import ChatMessage, ChatRole
 
 VALID_MODULE_TYPES = {"Predict", "ChainOfThought", "ReAct"}
@@ -86,6 +86,7 @@ class DSPySignatureChatGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         module_kwargs: dict[str, Any] | None = None,
         input_mapping: dict[str, str] | None = None,
+        pipeline_inputs: list[str] | None = None,
     ):
         """
         Initialize the DSPySignatureChatGenerator.
@@ -101,9 +102,13 @@ class DSPySignatureChatGenerator:
             For example, use `{"tools": [tool1, tool2]}` when using the `"ReAct"` module type.
         :param input_mapping: Maps DSPy signature input field names to `run()` kwarg names.
             For example, if your signature has an input field `"context"` but your pipeline
-            provides it as `"documents"`, use `{"context": "documents"}`. When not provided,
-            the first input field receives the last user message text, and remaining fields
-            are matched by name from `**kwargs`.
+            provides it as `"documents"`, use `{"context": "documents"}`. When neither
+            `input_mapping` nor `pipeline_inputs` is provided, the first input field receives
+            the last user message text, and remaining fields are matched by name from `**kwargs`.
+        :param pipeline_inputs: Signature input fields exposed as Haystack pipeline input
+            sockets, so upstream components (e.g. a retriever or a text input) can connect
+            to them. Each name in this list must be a signature input field and becomes a
+            real `str` socket on the component.
         """
         if module_type not in VALID_MODULE_TYPES:
             msg = f"Invalid module_type '{module_type}'. Must be one of {sorted(VALID_MODULE_TYPES)}"
@@ -117,6 +122,7 @@ class DSPySignatureChatGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.module_kwargs = module_kwargs or {}
         self.input_mapping = input_mapping
+        self.pipeline_inputs = pipeline_inputs
 
         self._lm = _create_dspy_lm(
             model=self.model,
@@ -127,6 +133,9 @@ class DSPySignatureChatGenerator:
         module_class = _get_dspy_module_class(self.module_type)
         self._module = module_class(self.signature, **self.module_kwargs)
         self._module.set_lm(self._lm)
+
+        for extra_input in self.pipeline_inputs or []:
+            component.set_input_type(self, extra_input, str, "")
 
     def _build_dspy_inputs(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         """Build the input dict for the DSPy module call."""
@@ -188,6 +197,9 @@ class DSPySignatureChatGenerator:
 
         Accepts `{"type": "str", "value": "question -> answer"}` or
         `{"type": "class", "value": "mymodule.QASignature"}`.
+
+        Signature classes are imported through Haystack's gated `import_class_by_name`, so with
+        `haystack-ai` >= 3.0 the module they live in must be on the deserialization allowlist.
         """
         signature_type = data["type"]
         value = data["value"]
@@ -196,9 +208,10 @@ class DSPySignatureChatGenerator:
             return value
 
         if signature_type == "class":
-            module_path, class_name = value.rsplit(".", 1)
-            module = importlib.import_module(module_path)
-            return getattr(module, class_name)
+            # `import_class_by_name` returns `type[object]`; annotate as `Any` so that returning it
+            # as a `dspy.Signature` subclass type-checks.
+            signature_cls: Any = import_class_by_name(value)
+            return signature_cls
 
         msg = f"Unknown signature type '{signature_type}'. Must be 'str' or 'class'."
         raise ValueError(msg)
@@ -214,12 +227,30 @@ class DSPySignatureChatGenerator:
             "generation_kwargs": self.generation_kwargs,
             "module_kwargs": self.module_kwargs,
             "input_mapping": self.input_mapping,
+            "pipeline_inputs": self.pipeline_inputs,
         }
         return default_to_dict(self, **kwargs)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DSPySignatureChatGenerator":
-        """Deserialize a component from a dictionary."""
+        """
+        Deserialize a component from a dictionary.
+
+        A signature serialized as a `dspy.Signature` subclass is imported by its fully qualified class
+        path. With `haystack-ai` >= 3.0 that import is gated: the module holding the class must be on
+        the deserialization allowlist, which by default covers only Haystack's own packages. To load a
+        component whose signature class lives in your own package, trust that package explicitly with
+        one of:
+
+        - `Pipeline.loads(..., allowed_modules=["mymodule"])` for a single call,
+        - `haystack.core.serialization.allow_deserialization_module("mymodule")` for the whole process,
+        - the `HAYSTACK_DESERIALIZATION_ALLOWLIST=mymodule` environment variable.
+
+        :param data: Dictionary to deserialize from.
+        :returns: Deserialized component.
+        :raises DeserializationError:
+            If the module holding the serialized signature class is not on the deserialization allowlist.
+        """
         init_params = data.get("init_parameters", {})
 
         signature = init_params.get("signature")
@@ -239,7 +270,9 @@ class DSPySignatureChatGenerator:
         Run the DSPy module on the given messages.
 
         :param messages: List of chat messages. The last user message is used as input.
-        :param generation_kwargs: Optional runtime generation parameters.
+        :param generation_kwargs: Optional runtime generation parameters. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept.
         :param kwargs: Additional keyword arguments mapped to signature input fields.
         :returns: A dictionary with `replies` (list of ChatMessage).
         """
@@ -274,7 +307,9 @@ class DSPySignatureChatGenerator:
         Uses DSPy's native `acall` for true async I/O.
 
         :param messages: List of chat messages. The last user message is used as input.
-        :param generation_kwargs: Optional runtime generation parameters.
+        :param generation_kwargs: Optional runtime generation parameters. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept.
         :param kwargs: Additional keyword arguments mapped to signature input fields.
         :returns: A dictionary with `replies` (list of ChatMessage).
         """

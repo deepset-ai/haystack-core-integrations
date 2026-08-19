@@ -227,7 +227,7 @@ def test_named_entity_extractor_run_fails_with_wrong_number_of_annotations():
 
 @pytest.mark.integration
 def test_ner_extractor_init(del_hf_env_vars_if_empty):
-    extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER")
+    extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER", device=ComponentDevice.from_str("cpu"))
     extractor.warm_up()
     assert extractor.initialized
 
@@ -235,7 +235,7 @@ def test_ner_extractor_init(del_hf_env_vars_if_empty):
 @pytest.mark.integration
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_ner_extractor(raw_texts, hf_annotations, batch_size, del_hf_env_vars_if_empty):
-    extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER")
+    extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER", device=ComponentDevice.from_str("cpu"))
     extractor.warm_up()
 
     _extract_and_check_predictions(extractor, raw_texts, hf_annotations, batch_size)
@@ -248,7 +248,7 @@ def test_ner_extractor(raw_texts, hf_annotations, batch_size, del_hf_env_vars_if
     reason="Export an env var called HF_API_TOKEN or HF_TOKEN containing the Hugging Face token to run this test.",
 )
 def test_ner_extractor_private_models(raw_texts, hf_annotations, batch_size):
-    extractor = TransformersNamedEntityExtractor(model="deepset/bert-base-NER")
+    extractor = TransformersNamedEntityExtractor(model="deepset/bert-base-NER", device=ComponentDevice.from_str("cpu"))
     extractor.warm_up()
 
     _extract_and_check_predictions(extractor, raw_texts, hf_annotations, batch_size)
@@ -260,7 +260,7 @@ def test_ner_extractor_in_pipeline(raw_texts, hf_annotations, batch_size, del_hf
     pipeline = Pipeline()
     pipeline.add_component(
         name="ner_extractor",
-        instance=TransformersNamedEntityExtractor(model="dslim/bert-base-NER"),
+        instance=TransformersNamedEntityExtractor(model="dslim/bert-base-NER", device=ComponentDevice.from_str("cpu")),
     )
 
     outputs = pipeline.run(

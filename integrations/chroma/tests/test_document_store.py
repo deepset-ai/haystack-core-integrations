@@ -180,6 +180,29 @@ class TestDocumentStoreUnit:
             with pytest.raises(ValueError, match="Invalid client_settings"):
                 store._ensure_initialized()
 
+    def test_close(self):
+        store = ChromaDocumentStore()
+        client = mock.Mock()
+        store._client = client
+
+        store.close()
+
+        client.close.assert_called_once()
+        assert store._client is None
+
+        store.close()
+        client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        store = ChromaDocumentStore()
+        client = mock.Mock()
+        client.close.side_effect = RuntimeError("boom")
+        store._client = client
+
+        store.close()
+
+        assert store._client is None
+
     def test_infer_type_from_value_fallback_for_unknown_type(self):
         assert ChromaDocumentStore._infer_type_from_value(None) == "keyword"
         assert ChromaDocumentStore._infer_type_from_value(["a", "b"]) == "keyword"
@@ -196,10 +219,11 @@ class TestDocumentStoreUnit:
     @pytest.mark.parametrize(
         "result",
         [
-            {"ids": ["1"], "documents": None, "metadatas": [{"cat": "A"}]},
-            {"ids": ["1"], "documents": ["hello world"], "metadatas": [{"cat": "A"}]},
+            {"ids": ["1"], "metadatas": [{"cat": "A"}]},
+            {"ids": ["1"], "metadatas": [None]},
+            {"ids": ["1"], "metadatas": [{"other": "A"}]},
         ],
-        ids=["documents_none", "no_matches"],
+        ids=["no_match", "metadata_none", "field_missing"],
     )
     def test_compute_field_unique_values_with_search_term_edge_cases(self, result):
         values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "absent", 0, 10)
@@ -376,6 +400,16 @@ class TestDocumentStore(
         )
         assert store._collection.metadata["hnsw:space"] == "ip"
         assert new_store._collection.metadata["hnsw:space"] == "ip"
+
+    def test_close_and_reopen(self, tmp_path):
+        store = ChromaDocumentStore(collection_name="test_close_and_reopen", persist_path=str(tmp_path))
+        store.write_documents([Document(content="doc", embedding=TEST_EMBEDDING_1)])
+        assert store.count_documents() == 1
+
+        store.close()
+        assert store._client is None
+
+        assert store.count_documents() == 1
 
     def test_delete_empty(self, document_store: ChromaDocumentStore):
         """
@@ -741,12 +775,57 @@ class TestMetadataOperations:
         assert sorted(all_values) == ["A", "B", "C"]
 
     def test_get_metadata_field_unique_values_with_search_term(self, populated_store):
-        """Test getting unique values filtered by search term"""
-        # Search for documents containing "Doc 1"
+        """Test getting unique values filtered by search term.
+
+        The search term is matched against the metadata field's own value, not document
+        content. "Doc 1" is content for one document (category "A"), but it is not a
+        substring of any "category" value, so no values should match.
+        """
         values, total = populated_store.get_metadata_field_unique_values(
             "category", search_term="Doc 1", from_=0, size=10
         )
-        assert values == ["A"]  # Only Doc 1 has category A
+        assert values == []
+        assert total == 0
+
+    def test_get_metadata_field_unique_values_search_term_matches_field_value(self, populated_store):
+        """Search term matches when it's a case-insensitive substring of the field's value."""
+        values, total = populated_store.get_metadata_field_unique_values("status", search_term="ACT", from_=0, size=10)
+        # "ACT" is a substring of both "active" and "inactive" (case-insensitive)
+        assert sorted(values) == ["active", "inactive"]
+        assert total == 2
+
+        values, total = populated_store.get_metadata_field_unique_values("status", search_term="ina", from_=0, size=10)
+        assert values == ["inactive"]
+        assert total == 1
+
+    def test_get_metadata_field_unique_values_search_term_excludes_content_only_match(self, document_store):
+        """A search term present only in document content (not in the metadata field value)
+        must not match, proving search_term no longer filters on content."""
+        docs = [
+            Document(content="unique-marker-xyz", meta={"category": "A"}),
+            Document(content="plain content", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values(
+            "category", search_term="unique-marker-xyz", from_=0, size=10
+        )
+        assert values == []
+        assert total == 0
+
+    def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(self, document_store):
+        """A search term present in the metadata field's value but absent from the content
+        must match, proving search_term filters on the metadata field's value."""
+        docs = [
+            Document(content="Nothing special here", meta={"category": "special-value"}),
+            Document(content="Nothing special here either", meta={"category": "other"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values(
+            "category", search_term="SPECIAL", from_=0, size=10
+        )
+        assert values == ["special-value"]
         assert total == 1
 
     def test_get_metadata_field_unique_values_field_normalization(self, populated_store):
@@ -787,3 +866,21 @@ class TestMetadataOperations:
         values, total = populated_store.get_metadata_field_unique_values("category", from_=10, size=10)
         assert values == []  # No values beyond offset
         assert total == 3  # Total count is still 3
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, populated_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        values, total = populated_store.get_metadata_field_unique_values("priority", from_=0, size=10)
+        assert set(values) == {1, 2, 3}
+        assert total == 3
+
+    def test_get_metadata_field_unique_values_with_filters(self, populated_store):
+        """Test that filters restrict which documents' values are considered"""
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B", "C"}
+        assert total == 3
+
+        filters = {"field": "meta.status", "operator": "==", "value": "inactive"}
+        values, total = populated_store.get_metadata_field_unique_values("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

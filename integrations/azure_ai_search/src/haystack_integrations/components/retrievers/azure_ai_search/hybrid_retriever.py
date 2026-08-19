@@ -96,6 +96,12 @@ class AzureAISearchHybridRetriever:
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(data["init_parameters"]["filter_policy"])
         return default_from_dict(cls, data)
 
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self._document_store.close()
+
     @component.output_types(documents=list[Document])
     def run(
         self,

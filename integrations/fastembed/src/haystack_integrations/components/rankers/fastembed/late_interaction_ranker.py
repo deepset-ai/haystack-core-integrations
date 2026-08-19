@@ -38,6 +38,21 @@ class FastembedLateInteractionRanker:
 
     # Berlin
     ```
+
+    Running on GPU:
+    ```python
+    # NVIDIA GPU (requires onnxruntime-gpu)
+    ranker = FastembedLateInteractionRanker(
+        model_name="colbert-ir/colbertv2.0",
+        model_kwargs={"providers": ["CUDAExecutionProvider"]},
+    )
+
+    # Intel GPU / XPU (requires onnxruntime-openvino)
+    ranker = FastembedLateInteractionRanker(
+        model_name="colbert-ir/colbertv2.0",
+        model_kwargs={"providers": ["OpenVINOExecutionProvider"]},
+    )
+    ```
     """
 
     def __init__(
@@ -52,6 +67,7 @@ class FastembedLateInteractionRanker:
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
         score_threshold: float | None = None,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates an instance of the 'FastembedLateInteractionRanker'.
@@ -75,6 +91,9 @@ class FastembedLateInteractionRanker:
             to the Document content.
         :param score_threshold: If provided, only documents with a score above the threshold are returned.
             Note that ColBERT scores are unnormalized sums and typically range from 3 to 25.
+        :param model_kwargs: Dictionary containing additional keyword arguments to pass to the Fastembed model,
+                such as `providers` (e.g. `["CUDAExecutionProvider"]` to run on an NVIDIA GPU or
+                `["OpenVINOExecutionProvider"]` to run on an Intel GPU), `cuda`, or `device_ids`.
         """
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
@@ -90,6 +109,7 @@ class FastembedLateInteractionRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
         self.score_threshold = score_threshold
+        self.model_kwargs = model_kwargs
         self._model: LateInteractionTextEmbedding | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -111,6 +131,7 @@ class FastembedLateInteractionRanker:
             meta_fields_to_embed=self.meta_fields_to_embed,
             meta_data_separator=self.meta_data_separator,
             score_threshold=self.score_threshold,
+            model_kwargs=self.model_kwargs,
         )
 
     @classmethod
@@ -130,11 +151,13 @@ class FastembedLateInteractionRanker:
         Initializes the component.
         """
         if self._model is None:
+            model_kwargs = self.model_kwargs or {}
             self._model = LateInteractionTextEmbedding(
                 model_name=self.model_name,
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                **model_kwargs,
             )
 
     def _prepare_fastembed_input_docs(self, documents: list[Document]) -> list[str]:
@@ -189,10 +212,10 @@ class FastembedLateInteractionRanker:
         if not documents:
             return {"documents": []}
 
-        top_k = top_k or self.top_k
-        if top_k <= 0:
+        if top_k is not None and top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+        top_k = self.top_k if top_k is None else top_k
 
         if self._model is None:
             self.warm_up()

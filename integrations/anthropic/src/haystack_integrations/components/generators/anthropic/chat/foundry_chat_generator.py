@@ -100,6 +100,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
         tools: ToolsType | None = None,
+        anthropic_server_tools: list[dict[str, Any]] | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
         azure_ad_token_provider: Callable[[], str] | None = None,
@@ -137,6 +138,11 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name.
+        :param anthropic_server_tools: A list of Anthropic server-side tools passed directly to the API.
+            Use this for native Anthropic tools such as web search (`{"type": "web_search_20250305"}`),
+            code execution tool, or other provider-managed tools. Refer to the
+            [Anthropic documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool)
+            for the exact dict format each native tool expects.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
@@ -161,6 +167,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         self.streaming_callback = streaming_callback
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
+        self.anthropic_server_tools = anthropic_server_tools
         self.timeout = timeout
         self.max_retries = max_retries
         self.azure_ad_token_provider = azure_ad_token_provider
@@ -222,7 +229,9 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         :param messages: A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint. These are merged
+            per key with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys
+            set only at initialization are kept.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during component
             initialization.
@@ -250,7 +259,9 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         :param messages: A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint. These are merged
+            per key with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys
+            set only at initialization are kept.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during component
             initialization.
@@ -285,6 +296,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             generation_kwargs=self.generation_kwargs,
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
             tools=serialize_tools_or_toolset(self.tools),
+            anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
             azure_ad_token_provider=azure_ad_token_provider_name,

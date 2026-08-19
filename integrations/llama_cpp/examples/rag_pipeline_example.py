@@ -1,12 +1,15 @@
 from datasets import load_dataset
 from haystack import Document, Pipeline
 from haystack.components.builders import ChatPromptBuilder
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores import InMemoryDocumentStore
 
+from haystack_integrations.components.embedders.sentence_transformers import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack_integrations.components.generators.llama_cpp import LlamaCppChatGenerator
 
 # Load first 100 rows of the Simple Wikipedia Dataset from HuggingFace

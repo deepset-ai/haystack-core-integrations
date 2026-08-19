@@ -29,6 +29,7 @@ from haystack_integrations.document_stores.qdrant.document_store import (
     SPARSE_VECTORS_NAME,
     QdrantDocumentStore,
     QdrantStoreError,
+    _build_rrf_query,
     get_batches_from_generator,
 )
 
@@ -269,20 +270,18 @@ class TestQdrantDocumentStoreUnit:
         assert unique["category"] == {"A", "B"}
         assert unique["tags"] == {"['x']", "['y']"}
 
-    def test_process_records_unique_values_stops_when_filled(self):
+    def test_process_records_unique_values_collects_all(self):
         records = [SimpleNamespace(payload={"meta": {"v": i}}) for i in range(10)]
         values: list = []
         values_set: set = set()
-        done = QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set, offset=0, limit=3)
-        assert done is True
-        assert values[:3] == [0, 1, 2]
+        QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set)
+        assert values == list(range(10))
 
-    def test_process_records_unique_values_not_done(self):
+    def test_process_records_unique_values_skips_missing_payload(self):
         records = [SimpleNamespace(payload={"meta": {"v": 1}}), SimpleNamespace(payload=None)]
         values: list = []
         values_set: set = set()
-        done = QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set, offset=0, limit=5)
-        assert done is False
+        QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set)
         assert values == [1]
 
     def test_create_updated_point_from_record_adds_missing_meta(self):
@@ -342,6 +341,24 @@ class TestQdrantDocumentStoreUnit:
         assert batches == [(1, 2), (3, 4), (5,)]
         assert list(get_batches_from_generator([], 2)) == []
 
+    @pytest.mark.parametrize(
+        ("rrf_k", "rrf_weights", "expected_type"),
+        [
+            (None, None, rest.FusionQuery),
+            (20, None, rest.RrfQuery),
+            (None, [2.0, 1.0], rest.RrfQuery),
+            (20, [2.0, 1.0], rest.RrfQuery),
+        ],
+    )
+    def test_build_rrf_query(self, rrf_k, rrf_weights, expected_type):
+        query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
+        assert isinstance(query, expected_type)
+        if expected_type is rest.RrfQuery:
+            if rrf_k is not None:
+                assert query.rrf.k == rrf_k
+            if rrf_weights is not None:
+                assert query.rrf.weights == rrf_weights
+
     def test_query_by_sparse_raises_when_sparse_disabled(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
         sparse_embedding = SparseEmbedding(indices=[0, 1], values=[0.1, 0.2])
@@ -356,7 +373,7 @@ class TestQdrantDocumentStoreUnit:
             ("get_metadata_fields_info", (), {}),
             ("get_metadata_field_min_max", ("score",), {}),
             ("count_unique_metadata_by_filter", ({}, ["category"]), {"category": 0}),
-            ("get_metadata_field_unique_values", ("category",), []),
+            ("get_metadata_field_unique_values", ("category",), ([], 0)),
         ],
     )
     def test_metadata_methods_swallow_client_errors(self, method_name, args, expected):
@@ -369,6 +386,29 @@ class TestQdrantDocumentStoreUnit:
             patch.object(document_store._client, "get_collection", side_effect=err),
         ):
             assert getattr(document_store, method_name)(*args) == expected
+
+    def test_close(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = MagicMock()
+        document_store._client = mock_client
+
+        document_store.close()
+
+        mock_client.close.assert_called_once()
+        assert document_store._client is None
+
+        document_store.close()
+        mock_client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = MagicMock()
+        mock_client.close.side_effect = RuntimeError("boom")
+        document_store._client = mock_client
+
+        document_store.close()
+
+        assert document_store._client is None
 
 
 @pytest.mark.integration
@@ -408,6 +448,16 @@ class TestQdrantDocumentStore(
 
         # Check that the sets are equal, meaning the content and IDs match regardless of order
         assert {doc.id for doc in received} == {doc.id for doc in expected}
+
+    def test_close_and_reopen(self, document_store: QdrantDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+
+        assert document_store._client is None
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def test_prepare_client_params_no_mutability(self):
         metadata = {"key": "value"}
@@ -563,17 +613,19 @@ class TestQdrantDocumentStore(
         assert len(updated_docs[0].embedding) == 768
 
     def test_get_metadata_field_unique_values_pagination(self, document_store: QdrantDocumentStore):
-        """Test getting unique metadata field values with pagination."""
+        """Test getting unique metadata field values with pagination, total reflects the full unpaginated count."""
         docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
         document_store.write_documents(docs)
 
         # Get first 2 unique values
-        values_page_1 = document_store.get_metadata_field_unique_values("value", limit=2, offset=0)
+        values_page_1, total_1 = document_store.get_metadata_field_unique_values("value", from_=0, size=2)
         assert len(values_page_1) == 2
+        assert total_1 == 5
 
         # Get next 2 unique values
-        values_page_2 = document_store.get_metadata_field_unique_values("value", limit=2, offset=2)
+        values_page_2, total_2 = document_store.get_metadata_field_unique_values("value", from_=2, size=2)
         assert len(values_page_2) == 2
+        assert total_2 == 5
 
         # Values should not overlap
         assert set(values_page_1) != set(values_page_2)
@@ -587,7 +639,37 @@ class TestQdrantDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        values = document_store.get_metadata_field_unique_values(
+        values, total = document_store.get_metadata_field_unique_values(
             "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert set(values) == {"A", "B"}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store: QdrantDocumentStore):
+        """Test that a 'meta.'-prefixed field name is normalized before lookup."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("meta.category")
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_with_search_term(self, document_store: QdrantDocumentStore):
+        """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Apple"}),
+            Document(content="Doc 2", meta={"category": "Banana"}),
+            Document(content="Doc 3", meta={"category": "Apricot"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="ap")
+        assert set(values) == {"Apple", "Apricot"}
+        assert total == 2
+
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="nonexistent")
+        assert values == []
+        assert total == 0

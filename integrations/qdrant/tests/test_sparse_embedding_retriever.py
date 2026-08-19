@@ -154,6 +154,26 @@ class TestQdrantSparseEmbeddingRetriever:
         assert retriever._group_by is None
         assert retriever._group_size is None
 
+    def test_close(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        retriever = QdrantSparseEmbeddingRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever._document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = QdrantSparseEmbeddingRetriever(document_store=mock_store)
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once_with()
+        assert retriever._document_store is mock_store
+
     def test_run(self):
         mock_store = Mock(spec=QdrantDocumentStore)
         sparse = SparseEmbedding(indices=[0, 5], values=[0.1, 0.7])

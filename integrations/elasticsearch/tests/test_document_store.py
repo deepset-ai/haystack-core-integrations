@@ -372,61 +372,48 @@ def test_api_key_validation_only_api_key_id_raises_error(_mock_elasticsearch_cli
         es.client()
 
 
+_API_KEY_INIT_CASES = [
+    (
+        {"api_key": Secret.from_token("test_api_key"), "api_key_id": Secret.from_token("test_api_key_id")},
+        ("test_api_key_id", "test_api_key"),
+    ),
+    ({"api_key": "test_api_key"}, "test_api_key"),
+]
+
+
+@pytest.mark.parametrize(
+    "api_key_kwargs, expected_api_key", _API_KEY_INIT_CASES, ids=["api_key_and_id", "api_key_only"]
+)
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
-    api_key = Secret.from_token("test_api_key")
-    api_key_id = Secret.from_token("test_api_key_id")
-
-    # Mock the client.info() call to avoid actual connection
+def test_sync_client_initialization_passes_api_key(_mock_async_es, _mock_es, api_key_kwargs, expected_api_key):
+    # Mock the client.info() call to avoid an actual connection
     mock_client = Mock()
     mock_client.info.return_value = {"version": {"number": "8.0.0"}}
     _mock_es.return_value = mock_client
 
-    document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key, api_key_id=api_key_id)
+    _ = ElasticsearchDocumentStore(hosts="https://localhost:9200", **api_key_kwargs).client
 
-    # Access client to trigger initialization
-    _ = document_store.client
-
-    # Check that Elasticsearch was called with the correct api_key tuple
     _mock_es.assert_called_once()
-    call_args = _mock_es.call_args
-    assert call_args[0][0] == "https://localhost:9200"  # hosts
-    assert call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
-
-    # Check that AsyncElasticsearch was called with the same api_key tuple
-    _mock_async_es.assert_called_once()
-    async_call_args = _mock_async_es.call_args
-    assert async_call_args[0][0] == "https://localhost:9200"  # hosts
-    assert async_call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
+    assert _mock_es.call_args[0][0] == "https://localhost:9200"  # hosts
+    assert _mock_es.call_args[1]["api_key"] == expected_api_key
+    # Accessing the sync client must not construct the async client
+    _mock_async_es.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "api_key_kwargs, expected_api_key", _API_KEY_INIT_CASES, ids=["api_key_and_id", "api_key_only"]
+)
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
-    api_key = "test_api_key"
+def test_async_client_initialization_passes_api_key(_mock_async_es, _mock_es, api_key_kwargs, expected_api_key):
+    _ = ElasticsearchDocumentStore(hosts="https://localhost:9200", **api_key_kwargs).async_client
 
-    # Mock the client.info() call to avoid actual connection
-    mock_client = Mock()
-    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
-    _mock_es.return_value = mock_client
-
-    document_store = ElasticsearchDocumentStore(hosts="testhost", api_key=api_key)
-
-    # Access client to trigger initialization
-    _ = document_store.client
-
-    # Check that Elasticsearch was called with the correct api_key string
-    _mock_es.assert_called_once()
-    call_args = _mock_es.call_args
-    assert call_args[0][0] == "testhost"  # hosts
-    assert call_args[1]["api_key"] == "test_api_key"
-
-    # Check that AsyncElasticsearch was called with the same api_key string
     _mock_async_es.assert_called_once()
-    async_call_args = _mock_async_es.call_args
-    assert async_call_args[0][0] == "testhost"  # hosts
-    assert async_call_args[1]["api_key"] == "test_api_key"
+    assert _mock_async_es.call_args[0][0] == "https://localhost:9200"  # hosts
+    assert _mock_async_es.call_args[1]["api_key"] == expected_api_key
+    # Accessing the async client must not construct the sync client
+    _mock_es.assert_not_called()
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -614,7 +601,7 @@ def test_sparse_vector_retrieval_builds_query_with_filters():
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_async_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_async(
@@ -637,7 +624,7 @@ async def test_sparse_vector_retrieval_async_builds_query_without_filters():
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_inference_async_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_inference_async(
@@ -661,7 +648,7 @@ async def test_sparse_vector_retrieval_inference_async_builds_query_without_filt
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_inference_async_builds_query_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_inference_async(
@@ -687,7 +674,7 @@ async def test_sparse_vector_retrieval_inference_async_builds_query_with_filters
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_async_builds_query_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_async(
@@ -707,6 +694,108 @@ async def test_sparse_vector_retrieval_async_builds_query_with_filters():
             }
         },
     )
+
+
+def test_close():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = Mock()
+    store._client = mock_client
+
+    store.close()
+
+    mock_client.close.assert_called_once()
+    assert store._client is None
+
+    store.close()
+    mock_client.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = Mock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._client = mock_client
+
+    store.close()
+
+    assert store._client is None
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    mock_client.close.assert_awaited_once()
+    assert store._async_client is None
+
+    await store.close_async()
+    mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = AsyncMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    assert store._async_client is None
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_headers_preserved_on_reinitialize(_mock_es, _mock_async_es):
+    """User-supplied headers must survive a close()/reinitialize cycle (they must not be popped off self._kwargs)."""
+    mock_sync = Mock()
+    mock_sync.info.return_value = {}
+    mock_sync.indices.exists.return_value = True
+    _mock_es.return_value = mock_sync
+    _mock_async_es.return_value = Mock()
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200", headers={"X-Custom": "value"})
+    _ = store.client  # first initialization
+    store.close()
+    _ = store.client  # reinitialization
+
+    # both Elasticsearch constructions must have received the custom header
+    for call in _mock_es.call_args_list:
+        assert call.kwargs["headers"]["X-Custom"] == "value"
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_delete_all_documents_recreate_preserves_settings(_mock_es, _mock_async_es):
+    """delete_all_documents(recreate_index=True) must delete+create exactly once and include settings."""
+    index_name = "default"
+    mappings = {"properties": {"content": {"type": "text"}}}
+    settings = {"index": {"number_of_replicas": "2", "refresh_interval": "30s"}}
+
+    mock_client = Mock()
+    mock_client.info.return_value = {}
+    mock_client.indices.exists.return_value = True
+    mock_client.indices.get.return_value = {
+        index_name: {"mappings": mappings, "settings": {"index": dict(settings["index"])}}
+    }
+    _mock_es.return_value = mock_client
+    _mock_async_es.return_value = Mock()
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    store.delete_all_documents(recreate_index=True)
+
+    # delete and create must each be called exactly once
+    assert mock_client.indices.delete.call_count == 1
+    assert mock_client.indices.create.call_count == 1
+
+    # the single create call must include both settings and mappings
+    create_kwargs = mock_client.indices.create.call_args[1]
+    assert "settings" in create_kwargs, "settings must be preserved on recreate"
+    assert "mappings" in create_kwargs, "mappings must be preserved on recreate"
 
 
 @pytest.mark.integration
@@ -743,6 +832,16 @@ class TestDocumentStore(
         yield store
         store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
         store.client.close()
+
+    def test_close_and_reopen(self, document_store):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+        assert document_store._client is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
@@ -1165,39 +1264,86 @@ class TestDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        # test getting all unique values without search term
-        unique_values, after_key = document_store.get_metadata_field_unique_values("meta.category", None, 10)
+        # Test getting all unique values without search term
+        unique_values, total_count = document_store.get_metadata_field_unique_values(
+            metadata_field="category", search_term=None, from_=0, size=10
+        )
         assert set(unique_values) == {"A", "B", "C"}
-        # after_key should be None when all results are returned
-        assert after_key is None
+        assert total_count == 3
 
-        # Test with "meta." prefix
-        unique_languages, _ = document_store.get_metadata_field_unique_values("meta.language", None, 10)
+        # Test field name normalization - the "meta." prefix is optional and must give identical results
+        unique_values_prefixed, total_count_prefixed = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=0, size=10
+        )
+        assert set(unique_values_prefixed) == set(unique_values)
+        assert total_count_prefixed == total_count
+
+        unique_languages, total_languages = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.language", search_term=None, from_=0, size=10
+        )
         assert set(unique_languages) == {"Python", "Java", "JavaScript"}
+        assert total_languages == 3
 
         # Test pagination - first page
-        unique_values_page1, after_key_page1 = document_store.get_metadata_field_unique_values("meta.category", None, 2)
+        unique_values_page1, total_count_page1 = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=0, size=2
+        )
         assert len(unique_values_page1) == 2
         assert all(val in ["A", "B", "C"] for val in unique_values_page1)
-        # Should have an after_key for pagination
-        assert after_key_page1 is not None
+        assert total_count_page1 == 3
 
-        # Test pagination - second page using after_key
-        unique_values_page2, after_key_page2 = document_store.get_metadata_field_unique_values(
-            "meta.category", None, 2, after=after_key_page1
+        # Test pagination - second page, via from_ (triggers the offset-walk internally)
+        unique_values_page2, total_count_page2 = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=2, size=2
         )
         assert len(unique_values_page2) == 1
         assert unique_values_page2[0] in ["A", "B", "C"]
-        # Should have no more results
-        assert after_key_page2 is None
+        assert total_count_page2 == 3
 
-        # Test with search term - filter by content matching "Python"
-        unique_values_filtered, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
-        assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
+        # Pages don't overlap and together cover all values
+        assert not set(unique_values_page1).intersection(set(unique_values_page2))
+        assert set(unique_values_page1) | set(unique_values_page2) == {"A", "B", "C"}
 
-        # Test with search term - filter by content matching "Java"
-        unique_values_java, _ = document_store.get_metadata_field_unique_values("meta.category", "Java", 10)
-        assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
+        # Test pagination - from_ beyond total count (should return empty, but a valid total_count)
+        unique_values_beyond, total_beyond = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term=None, from_=10, size=10
+        )
+        assert len(unique_values_beyond) == 0
+        assert total_beyond == 3
+
+        # Test with search term - matches the metadata field's own value, not document content
+        unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.language", search_term="Python", from_=0, size=10
+        )
+        assert set(unique_values_filtered) == {"Python"}
+        assert total_filtered == 1
+
+        # Case-insensitivity
+        unique_values_lower, total_lower = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.language", search_term="python", from_=0, size=10
+        )
+        assert set(unique_values_lower) == {"Python"}
+        assert total_lower == 1
+
+        # Substring matching - "Java" matches both "Java" and "JavaScript"
+        unique_values_java, total_java = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.language", search_term="Java", from_=0, size=10
+        )
+        assert set(unique_values_java) == {"Java", "JavaScript"}
+        assert total_java == 2
+
+        # Test that search_term matches metadata VALUE, not content
+        content_vs_metadata_docs = [
+            Document(content="This document mentions Python explicitly", meta={"topic": "cooking"}),
+            Document(content="Unrelated content about recipes", meta={"topic": "python-tutorial"}),
+        ]
+        document_store.write_documents(content_vs_metadata_docs)
+
+        unique_topics, total_topics = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.topic", search_term="python", from_=0, size=10
+        )
+        assert set(unique_topics) == {"python-tutorial"}
+        assert total_topics == 1
 
         # Test with integer values
         int_docs = [
@@ -1207,12 +1353,70 @@ class TestDocumentStore(
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         document_store.write_documents(int_docs)
-        unique_priorities, _ = document_store.get_metadata_field_unique_values("meta.priority", None, 10)
-        assert set(unique_priorities) == {"1", "2", "3"}
+        unique_priorities, total_priorities = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.priority", search_term=None, from_=0, size=10
+        )
+        assert set(unique_priorities) == {1, 2, 3}
+        assert total_priorities == 3
 
-        # Test with search term on integer field
-        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
-        assert set(unique_priorities_filtered) == {"1"}
+        # Test with search term on integer field - substring match against the field's own
+        # (stringified) value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
+        # The returned values themselves keep their original type (int here), only the match is textual.
+        unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.priority", search_term="1", from_=0, size=10
+        )
+        assert set(unique_priorities_filtered) == {1}
+        assert total_priorities_filtered == 1
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        """
+        `search_term` must filter by substring match on the metadata field's own value, not by matching
+        against the document's `content`.
+        """
+        docs = [
+            # "Python" appears in the content but NOT in the category value -> must be EXCLUDED
+            Document(content="Python programming guide", meta={"category": "Backend"}),
+            # "Python" appears in the category value but NOT in the content -> must be INCLUDED
+            Document(content="General purpose scripting language", meta={"category": "Python-based"}),
+        ]
+        document_store.write_documents(docs)
+
+        unique_values, _ = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term="Python", from_=0, size=10
+        )
+
+        assert unique_values == ["Python-based"]
+
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        docs = [
+            Document(content="n/a", meta={"category": "Python-based"}),
+            Document(content="n/a", meta={"category": "Java-based"}),
+        ]
+        document_store.write_documents(docs)
+
+        unique_values, _ = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term="PYTHON", from_=0, size=10
+        )
+
+        assert unique_values == ["Python-based"]
+        assert "Backend" not in unique_values
 
     def test_query_sql(self, document_store: ElasticsearchDocumentStore):
         docs = [
@@ -1342,7 +1546,7 @@ def test_hybrid_retrieval_inference_raises_on_empty_query():
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._hybrid_retrieval_inference_async(query="Find Berlin", inference_id="ELSER", top_k=3)
@@ -1361,7 +1565,7 @@ async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_inference_async_builds_body_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._hybrid_retrieval_inference_async(

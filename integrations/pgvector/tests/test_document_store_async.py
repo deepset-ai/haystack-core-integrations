@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import psycopg
 import pytest
@@ -124,12 +124,53 @@ class TestDocumentStoreAsync(
                 filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={}
             )
 
+    async def test_get_metadata_field_unique_values_async_preserves_non_string_types(
+        self, document_store: PgvectorDocumentStore
+    ):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total = await document_store.get_metadata_field_unique_values_async("meta.priority")
+
+        assert set(values) == {1, 2}
+        assert total == 2
+
+    async def test_get_metadata_field_unique_values_with_filters_async(self, document_store: PgvectorDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await document_store.get_metadata_field_unique_values_async("meta.category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     async def test_delete_table_async_first_call(self, document_store: PgvectorDocumentStore):
         """
         Test that delete_table_async can be executed as the initial operation on the Document Store
         without triggering errors due to an uninitialized state.
         """
         await document_store.delete_table_async()  # if throw error, test fails
+
+    async def test_close_async_and_reopen(self, document_store: PgvectorDocumentStore):
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_connection is not None
+
+        await document_store.close_async()
+        assert document_store._async_connection is None
+        assert document_store._async_cursor is None
+        assert document_store._async_dict_cursor is None
+
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_connection is not None
 
 
 @pytest.mark.integration
@@ -302,3 +343,33 @@ async def test_write_documents_async_rejects_non_document_items(mock_store):
 async def test_count_unique_metadata_by_filter_async_rejects_empty_fields(mock_store):
     with pytest.raises(ValueError, match="metadata_fields must be a non-empty list"):
         await mock_store.count_unique_metadata_by_filter_async(filters={}, metadata_fields=[])
+
+
+@pytest.mark.asyncio
+async def test_close_async(mock_store):
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.close = AsyncMock()
+    mock_store._async_connection = mock_connection
+    mock_store._async_cursor = Mock(spec=AsyncCursor)
+    mock_store._async_dict_cursor = Mock(spec=AsyncCursor)
+
+    await mock_store.close_async()
+
+    mock_connection.close.assert_awaited_once()
+    assert mock_store._async_connection is None
+    assert mock_store._async_cursor is None
+    assert mock_store._async_dict_cursor is None
+
+    await mock_store.close_async()
+    mock_connection.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe(mock_store):
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.close = AsyncMock(side_effect=RuntimeError("boom"))
+    mock_store._async_connection = mock_connection
+
+    await mock_store.close_async()
+
+    assert mock_store._async_connection is None

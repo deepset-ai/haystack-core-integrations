@@ -22,6 +22,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _convert_streaming_chunks_to_chat_message,
     _format_messages,
     _format_textual_assistant_message,
+    _format_tool_result_message,
     _format_tools,
     _format_user_message,
     _parse_completion_response,
@@ -246,6 +247,47 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "content": [{"text": "The weather in Paris is sunny and 25°C."}],
             },
         ]
+
+    def test_format_tool_result_message_json_object(self):
+        # a tool result string that parses as a JSON object is sent as a Bedrock "json" content block
+        message = ChatMessage.from_tool(
+            tool_result='{"city": "Paris", "temperature": 25}',
+            origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+        )
+        formatted_message = _format_tool_result_message(message)
+        assert formatted_message == {
+            "role": "user",
+            "content": [
+                {
+                    "toolResult": {
+                        "toolUseId": "123",
+                        "content": [{"json": {"city": "Paris", "temperature": 25}}],
+                    }
+                }
+            ],
+        }
+
+    @pytest.mark.parametrize("tool_result", ["42", "true", "null", "[1, 2, 3]"])
+    def test_format_tool_result_message_non_object_json_falls_back_to_text(self, tool_result):
+        # Bedrock's toolResult.content[].json field requires a JSON object; a string that parses to a
+        # non-object JSON value (number, bool, null, array) must fall back to a "text" content block,
+        # otherwise Bedrock rejects the request with a ValidationException.
+        message = ChatMessage.from_tool(
+            tool_result=tool_result,
+            origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+        )
+        formatted_message = _format_tool_result_message(message)
+        assert formatted_message == {
+            "role": "user",
+            "content": [
+                {
+                    "toolResult": {
+                        "toolUseId": "123",
+                        "content": [{"text": tool_result}],
+                    }
+                }
+            ],
+        }
 
     def test_format_messages_with_cache_point(self):
         meta = {"cachePoint": {"type": "default"}}

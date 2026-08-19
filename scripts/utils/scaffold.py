@@ -38,21 +38,19 @@ def create_integration_files(
         path.write_text(content)
         created_files.append(path)
 
-    if component_type == "document_stores":
-        src_dir = f"src/haystack_integrations/{component_type}"
-    else:
-        src_dir = f"src/haystack_integrations/components/{component_type}"
+    pkg = folder_to_package(name)
+    mod = get_module_path(name, component_type)
+
+    # e.g. haystack_integrations.components.embedders.foo -> src/haystack_integrations/components/embedders
+    src_dir = "src/" + "/".join(mod.split(".")[:-1])
 
     write_file(f"{src_dir}/{name}/__init__.py", license_header)
     write_file(f"{src_dir}/py.typed", "")
 
     write_file("tests/__init__.py", license_header)
 
-    pkg = folder_to_package(name)
-    mod = get_module_path(name, component_type)
-
     write_file("pyproject.toml", render("pyproject.toml", name=name, pkg=pkg, mod=mod))
-    write_file("README.md", render("readme.md", name=name, pkg=pkg))
+    write_file("README.md", render("readme.md", name=name, pkg=pkg, name_hyphenated=name.replace("_", "-")))
     license_src = repo_root / "LICENSE"
     write_file("LICENSE.txt", license_src.read_text())
     write_file(

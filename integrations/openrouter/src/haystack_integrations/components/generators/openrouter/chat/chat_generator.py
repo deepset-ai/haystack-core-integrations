@@ -340,8 +340,9 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param generation_kwargs:
-            Additional keyword arguments for text generation. These parameters will
-            override the parameters passed during component initialization.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
             For details on OpenRouter API parameters, see
             [OpenRouter docs](https://openrouter.ai/docs/quickstart).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
@@ -354,8 +355,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
+        self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
@@ -382,7 +382,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
+        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
 
         if streaming_callback is not None:
             # streaming uses the inherited handler so reasoning extraction is intentionally skipped
@@ -419,7 +420,9 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             A callback function that is called when a new token is received from the stream.
             Must be a coroutine.
         :param generation_kwargs:
-            Additional keyword arguments for text generation.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset.
         :param tools_strict:
             Whether to enable strict schema adherence for tool calls.
@@ -429,7 +432,10 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
+        if hasattr(self, "warm_up_async"):
+            # haystack-ai >= 3.0 initializes the async client on the running event loop
+            await self.warm_up_async()
+        else:
             self.warm_up()
 
         if len(messages) == 0:
@@ -457,7 +463,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
+        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
 
         if streaming_callback is not None:
             # streaming uses the inherited handler so reasoning extraction is intentionally skipped

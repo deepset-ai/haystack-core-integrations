@@ -3,7 +3,9 @@ name: Core / Add comment about test coverage to PRs
 on:
   workflow_run:
     workflows:
+      - "Test / agent_pack"
       - "Test / aimlapi"
+      - "Test / alloydb"
       - "Test / amazon-bedrock"
       - "Test / amazon-sagemaker"
       - "Test / amazon-textract"
@@ -14,16 +16,20 @@ on:
       - "Test / brave"
       - "Test / azure_ai_search"
       - "Test / azure_doc_intelligence"
+      - "Test / azure_form_recognizer"
       - "Test / chonkie"
       - "Test / chroma"
       - "Test / cognee"
       - "Test / cohere"
       - "Test / cometapi"
       - "Test / datadog"
+      - "Test / ddgs"
       - "Test / deepeval"
+      - "Test / docling"
       - "Test / docling_serve"
       - "Test / dspy"
       - "Test / e2b"
+      - "Test / edenai"
       - "Test / elasticsearch"
       - "Test / faiss"
       - "Test / falkordb"
@@ -35,29 +41,34 @@ on:
       - "Test / google_drive"
       - "Test / hanlp"
       - "Test / huggingface_api"
+      - "Test / ibm_db"
       - "Test / jina"
       - "Test / kreuzberg"
       - "Test / langdetect"
       - "Test / langfuse"
       - "Test / lara"
       - "Test / libreoffice"
+      - "Test / linkup"
+      - "Test / litellm"
       - "Test / llama_cpp"
       - "Test / llama_stack"
       - "Test / markitdown"
       - "Test / mcp"
       - "Test / mem0"
-      - "Test / meta_llama"
       - "Test / microsoft_sharepoint"
+      - "Test / mirage"
       - "Test / mistral"
       - "Test / mongodb_atlas"
       - "Test / nvidia"
       - "Test / oauth"
       - "Test / ollama"
       - "Test / openapi"
+      - "Test / opendataloader_pdf"
       - "Test / openrouter"
       - "Test / opensearch"
       - "Test / opentelemetry"
       - "Test / optimum"
+      - "Test / oracle"
       - "Test / orcarouter"
       - "Test / paddleocr"
       - "Test / perplexity"
@@ -88,6 +99,7 @@ on:
       - "Test / weave"
       - "Test / weaviate"
       - "Test / whisper"
+      - "Test / youcom"
     types: [completed]
 
 jobs:
@@ -103,7 +115,7 @@ jobs:
           # Workflow names follow "Test / <name>" convention; normalize hyphens to underscores to match directory names
           echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //' | tr '-' '_')" >> "$GITHUB_OUTPUT"
 
-      - uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+      - uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}

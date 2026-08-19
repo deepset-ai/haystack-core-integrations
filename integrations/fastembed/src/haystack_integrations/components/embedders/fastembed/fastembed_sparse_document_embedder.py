@@ -53,7 +53,7 @@ class FastembedSparseDocumentEmbedder:
     result = sparse_doc_embedder.run(document_list)
     print(f"Document Text: {result['documents'][0].content}")
     print(f"Document Sparse Embedding: {result['documents'][0].sparse_embedding}")
-    print(f"Sparse Embedding Dimension: {len(result['documents'][0].sparse_embedding)}")
+    print(f"Number of non-zero elements: {len(result['documents'][0].sparse_embedding.indices)}")
     ```
     """
 
@@ -71,7 +71,7 @@ class FastembedSparseDocumentEmbedder:
         model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
-        Create an FastembedDocumentEmbedder component.
+        Create a FastembedSparseDocumentEmbedder component.
 
         :param model: Local path or name of the model in Hugging Face's model hub,
             such as `prithivida/Splade_PP_en_v1`.
@@ -162,7 +162,7 @@ class FastembedSparseDocumentEmbedder:
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "FastembedSparseDocumentEmbedder expects a list of Documents as input. "
-                "In case you want to embed a list of strings, please use the FastembedTextEmbedder."
+                "In case you want to embed a list of strings, please use the FastembedSparseTextEmbedder."
             )
             raise TypeError(msg)
 

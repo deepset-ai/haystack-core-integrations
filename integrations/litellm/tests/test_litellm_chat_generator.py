@@ -13,6 +13,7 @@ import pytest
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
+from litellm.types.utils import Usage
 
 from haystack_integrations.components.generators.litellm import LiteLLMChatGenerator
 
@@ -29,14 +30,9 @@ def _make_mock_response(content="Hello!", model="openai/gpt-4o", tool_calls=None
     choice.index = 0
     choice.finish_reason = "stop"
 
-    usage = MagicMock()
-    usage.prompt_tokens = 10
-    usage.completion_tokens = 5
-    usage.total_tokens = 15
-
     resp = MagicMock()
     resp.choices = [choice]
-    resp.usage = usage
+    resp.usage = Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15)
     resp.model = model
     return resp
 
@@ -205,18 +201,20 @@ class TestRun:
             call_kwargs = fake_litellm.completion.call_args
             assert call_kwargs.kwargs["api_base"] == "https://proxy.local"
 
-    def test_generation_kwargs_merged(self):
-        gen = LiteLLMChatGenerator(model="openai/gpt-4o", generation_kwargs={"temperature": 0.5})
+    def test_run_with_generation_kwargs(self):
+        gen = LiteLLMChatGenerator(
+            model="openai/gpt-4o", generation_kwargs={"temperature": 0.5, "max_completion_tokens": 100}
+        )
         mock_resp = _make_mock_response()
 
         fake_litellm = types.ModuleType("litellm")
         fake_litellm.completion = MagicMock(return_value=mock_resp)
 
         with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
-            gen.run(messages=[ChatMessage.from_user("hi")], generation_kwargs={"max_tokens": 100})
+            gen.run(messages=[ChatMessage.from_user("hi")], generation_kwargs={"temperature": 0.9})
             call_kwargs = fake_litellm.completion.call_args
-            assert call_kwargs.kwargs["temperature"] == 0.5
-            assert call_kwargs.kwargs["max_tokens"] == 100
+            assert call_kwargs.kwargs["temperature"] == 0.9
+            assert call_kwargs.kwargs["max_completion_tokens"] == 100
 
     def test_empty_messages_returns_empty(self):
         gen = LiteLLMChatGenerator()
@@ -235,6 +233,30 @@ class TestRun:
             meta = result["replies"][0].meta
             assert meta["usage"]["prompt_tokens"] == 10
             assert meta["usage"]["completion_tokens"] == 5
+            assert set(meta["usage"]) == {"prompt_tokens", "completion_tokens", "total_tokens"}
+
+    def test_cache_tokens_in_meta(self):
+        gen = LiteLLMChatGenerator(model="anthropic/claude-sonnet-4-20250514")
+        mock_resp = _make_mock_response(model="anthropic/claude-sonnet-4-20250514")
+        mock_resp.usage = Usage(
+            prompt_tokens=2010,
+            completion_tokens=5,
+            total_tokens=2015,
+            cache_creation_input_tokens=1200,
+            cache_read_input_tokens=800,
+        )
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            usage = gen.run(messages=[ChatMessage.from_user("hi")])["replies"][0].meta["usage"]
+            assert usage["cache_creation_input_tokens"] == 1200
+            assert usage["cache_read_input_tokens"] == 800
+            assert usage["prompt_tokens"] == 2010
+            # litellm also normalizes cache counts into the OpenAI-style nested breakdown
+            assert usage["prompt_tokens_details"]["cached_tokens"] == 800
+            assert usage["prompt_tokens_details"]["cache_creation_tokens"] == 1200
 
     def test_tool_calls_parsed(self):
         tc = MagicMock()
@@ -258,7 +280,7 @@ class TestRun:
 
     def test_streaming_content_accumulated(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
-        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        usage = Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15)
         chunks = _make_mock_stream_chunks("Hi!", usage=usage)
 
         fake_litellm = types.ModuleType("litellm")
@@ -444,6 +466,27 @@ class TestAsync:
             assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self):
+        gen = LiteLLMChatGenerator(
+            model="openai/gpt-4o", generation_kwargs={"temperature": 0.5, "max_completion_tokens": 100}
+        )
+        mock_resp = _make_mock_response()
+
+        fake_litellm = types.ModuleType("litellm")
+        captured_kwargs = {}
+
+        async def _acompletion(**kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_resp
+
+        fake_litellm.acompletion = _acompletion
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            await gen.run_async(messages=[ChatMessage.from_user("hi")], generation_kwargs={"temperature": 0.9})
+            assert captured_kwargs["temperature"] == 0.9
+            assert captured_kwargs["max_completion_tokens"] == 100
+
+    @pytest.mark.asyncio
     async def test_run_async_empty_messages(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
         result = await gen.run_async(messages=[])
@@ -452,7 +495,7 @@ class TestAsync:
     @pytest.mark.asyncio
     async def test_run_async_streaming(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
-        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        usage = Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15)
         chunks = _make_mock_stream_chunks("Hi!", usage=usage)
 
         async def _aiter():

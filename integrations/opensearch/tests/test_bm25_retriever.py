@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -157,6 +157,28 @@ def test_from_dict_not_defaults(_mock_opensearch_client):
     assert retriever._filter_policy == FilterPolicy.REPLACE
     assert retriever._custom_query == {"some": "custom query"}
     assert retriever._raise_on_failure is True
+
+
+def test_close():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    retriever = OpenSearchBM25Retriever(document_store=mock_store)
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = OpenSearchBM25Retriever(document_store=mock_store)
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_store
 
 
 def test_run():

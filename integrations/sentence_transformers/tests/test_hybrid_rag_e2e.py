@@ -14,6 +14,7 @@ from haystack.components.retrievers.in_memory import InMemoryBM25Retriever, InMe
 from haystack.components.writers import DocumentWriter
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.utils import ComponentDevice
 
 from haystack_integrations.components.embedders.sentence_transformers import (
     SentenceTransformersDocumentEmbedder,
@@ -41,7 +42,8 @@ def test_hybrid_retrieval_rag_pipeline(tmp_path):
     ]
     indexing_pipeline = Pipeline()
     indexing_pipeline.add_component(
-        instance=SentenceTransformersDocumentEmbedder(model=EMBEDDING_MODEL), name="document_embedder"
+        instance=SentenceTransformersDocumentEmbedder(model=EMBEDDING_MODEL, device=ComponentDevice.from_str("cpu")),
+        name="document_embedder",
     )
     indexing_pipeline.add_component(instance=DocumentWriter(document_store=document_store), name="document_writer")
     indexing_pipeline.connect("document_embedder", "document_writer")
@@ -60,13 +62,19 @@ def test_hybrid_retrieval_rag_pipeline(tmp_path):
 
     rag_pipeline = Pipeline()
     rag_pipeline.add_component(instance=InMemoryBM25Retriever(document_store=document_store), name="bm25_retriever")
-    rag_pipeline.add_component(instance=SentenceTransformersTextEmbedder(model=EMBEDDING_MODEL), name="text_embedder")
+    rag_pipeline.add_component(
+        instance=SentenceTransformersTextEmbedder(model=EMBEDDING_MODEL, device=ComponentDevice.from_str("cpu")),
+        name="text_embedder",
+    )
     rag_pipeline.add_component(
         instance=InMemoryEmbeddingRetriever(document_store=document_store), name="embedding_retriever"
     )
     rag_pipeline.add_component(instance=DocumentJoiner(), name="joiner")
     rag_pipeline.add_component(
-        instance=SentenceTransformersSimilarityRanker(model=RANKER_MODEL, top_k=3), name="ranker"
+        instance=SentenceTransformersSimilarityRanker(
+            model=RANKER_MODEL, top_k=3, device=ComponentDevice.from_str("cpu")
+        ),
+        name="ranker",
     )
     rag_pipeline.add_component(
         instance=ChatPromptBuilder(template=prompt_template, required_variables="*"), name="prompt_builder"

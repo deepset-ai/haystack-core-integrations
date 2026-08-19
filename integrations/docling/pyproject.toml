@@ -33,7 +33,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.8.0,<3.0.0",
+  "haystack-ai>=2.12.0",
   "docling>=2.32.0,<3.0.0",
   "lxml>=6.0.2",
 ]
@@ -141,6 +141,7 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
+    "PLR0917",
     # Allow `Any` type - used legitimately for dynamic types and SDK boundaries
     "ANN401",
 ]

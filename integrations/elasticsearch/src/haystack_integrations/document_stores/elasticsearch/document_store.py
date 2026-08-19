@@ -8,6 +8,7 @@ import copy
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -164,7 +165,8 @@ class ElasticsearchDocumentStore:
             self._ingest_pipeline = None
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
-        self._initialized = False
+        self._headers = self._kwargs.pop("headers", {})
+        self._headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
         if self._sparse_vector_field and self._sparse_vector_field in SPECIAL_FIELDS:
             msg = f"sparse_vector_field '{self._sparse_vector_field}' conflicts with a reserved field name."
@@ -204,44 +206,34 @@ class ElasticsearchDocumentStore:
             if self._sparse_vector_field:
                 self._default_mappings["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
 
+    def _create_async_client(self) -> AsyncElasticsearch:
+        return AsyncElasticsearch(self._hosts, api_key=self._handle_auth(), headers=self._headers, **self._kwargs)
+
     def _ensure_initialized(self) -> None:
         """
-        Ensures both sync and async clients are initialized and the index exists.
+        Ensures the synchronous client is initialized and the index exists.
         """
-        if not self._initialized:
-            headers = self._kwargs.pop("headers", {})
-            headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
-
-            api_key = self._handle_auth()
-
-            # Initialize both sync and async clients
+        if self._client is None:
             self._client = Elasticsearch(
-                self._hosts,
-                api_key=api_key,
-                headers=headers,
-                **self._kwargs,
+                self._hosts, api_key=self._handle_auth(), headers=self._headers, **self._kwargs
             )
-            self._async_client = AsyncElasticsearch(
-                self._hosts,
-                api_key=api_key,
-                headers=headers,
-                **self._kwargs,
-            )
-
             # Check client connection, this will raise if not connected
             self._client.info()
-
-            if self._custom_mapping:
-                mappings = self._custom_mapping
-            else:
-                # Configure mapping for the embedding field if none is provided
-                mappings = self._default_mappings
-
-            # Create the index if it doesn't exist
+            mappings = self._custom_mapping if self._custom_mapping else self._default_mappings
             if not self._client.indices.exists(index=self._index):
                 self._client.indices.create(index=self._index, mappings=mappings)
 
-            self._initialized = True
+    async def _ensure_initialized_async(self) -> None:
+        """
+        Ensures the asynchronous client is initialized and the index exists.
+        """
+        if self._async_client is None:
+            self._async_client = self._create_async_client()
+            # Check client connection, this will raise if not connected
+            await self._async_client.info()
+            mappings = self._custom_mapping if self._custom_mapping else self._default_mappings
+            if not await self._async_client.indices.exists(index=self._index):
+                await self._async_client.indices.create(index=self._index, mappings=mappings)
 
     def _handle_auth(self) -> str | tuple[str, str] | None:
         """
@@ -300,11 +292,29 @@ class ElasticsearchDocumentStore:
     @property
     def async_client(self) -> AsyncElasticsearch:
         """
-        Returns the asynchronous Elasticsearch client, initializing it if necessary.
+        Returns the asynchronous Elasticsearch client, constructing it if necessary.
         """
-        self._ensure_initialized()
-        assert self._async_client is not None
+        if self._async_client is None:
+            self._async_client = self._create_async_client()
         return self._async_client
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_client is not None:
+            with suppress(Exception):
+                await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -361,7 +371,7 @@ class ElasticsearchDocumentStore:
 
         :returns: Number of documents in the document store.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         result = await self._async_client.count(index=self._index)  # type: ignore
         return result["count"]
 
@@ -468,7 +478,7 @@ class ElasticsearchDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = await self._search_documents_async(query=query)
         return documents
@@ -765,7 +775,7 @@ class ElasticsearchDocumentStore:
         :raises DocumentStoreError: If an error occurs while writing the documents to the document store.
         :returns: Number of documents written to the document store.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
@@ -873,7 +883,7 @@ class ElasticsearchDocumentStore:
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
             For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         await helpers.async_bulk(
             client=self.async_client,
@@ -912,12 +922,6 @@ class ElasticsearchDocumentStore:
             self._client.indices.delete(index=self._index)  # type: ignore
             self._client.indices.create(index=self._index, settings=settings, mappings=mappings)  # type: ignore
 
-            # delete index
-            self._client.indices.delete(index=self._index)  # type: ignore
-
-            # recreate with mappings
-            self._client.indices.create(index=self._index, mappings=mappings)  # type: ignore
-
         else:
             result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False, refresh=refresh))  # type: ignore
             logger.info(
@@ -937,7 +941,7 @@ class ElasticsearchDocumentStore:
             completes. If False, no refresh is performed. For more details, see the
             [Elasticsearch delete_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query#operation-delete-by-query-refresh).
         """
-        self._ensure_initialized()  # ensures _async_client is not None
+        await self._ensure_initialized_async()  # ensures _async_client is not None
 
         try:
             if recreate_index:
@@ -1014,7 +1018,7 @@ class ElasticsearchDocumentStore:
             [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         try:
             normalized_filters = _normalize_filters(filters)
@@ -1078,7 +1082,7 @@ class ElasticsearchDocumentStore:
             [Elasticsearch update_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query#operation-update-by-query-refresh).
         :returns: The number of documents updated.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         try:
             normalized_filters = _normalize_filters(filters)
@@ -1178,7 +1182,7 @@ class ElasticsearchDocumentStore:
         :returns: List of Documents that match the query
         :raises ValueError: If query_embedding is empty
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         if not query:
             msg = "query must be a non empty string"
@@ -1276,7 +1280,7 @@ class ElasticsearchDocumentStore:
         :returns: List of Documents most similar to query_embedding
         :raises ValueError: If query_embedding is empty
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -1340,7 +1344,7 @@ class ElasticsearchDocumentStore:
         :returns: List of Documents most similar to query_sparse_embedding.
         :raises ValueError: If sparse retrieval is not configured or the query sparse embedding is empty.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         search_body = self._create_sparse_retrieval_body(
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
@@ -1390,7 +1394,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return.
         :returns: List of Documents most similar to the inference query.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         search_body = self._create_sparse_retrieval_inference_body(
             query=query,
             inference_id=inference_id,
@@ -1533,7 +1537,7 @@ class ElasticsearchDocumentStore:
         :param rank_constant: RRF rank constant.
         :returns: List of Documents ranked by RRF score.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         body = self._create_hybrid_retrieval_inference_body(
             query=query,
             inference_id=inference_id,
@@ -1676,7 +1680,7 @@ class ElasticsearchDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents that match the filters.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         normalized_filters = _normalize_filters(filters)
         body = {"query": {"bool": {"filter": normalized_filters}}}
@@ -1794,7 +1798,7 @@ class ElasticsearchDocumentStore:
                   documents.
         :raises ValueError: If any of the requested fields don't exist in the index mapping.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         # use index mapping to get all fields
         mapping = await self.async_client.indices.get_mapping(index=self._index)
@@ -1878,7 +1882,7 @@ class ElasticsearchDocumentStore:
 
         :returns: The information about the fields in the index.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         mapping = await self.async_client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
@@ -1937,7 +1941,7 @@ class ElasticsearchDocumentStore:
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
                   metadata field across all documents.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
@@ -1946,40 +1950,49 @@ class ElasticsearchDocumentStore:
 
         return self._extract_min_max_from_stats(stats)
 
-    def get_metadata_field_unique_values(
-        self,
-        metadata_field: str,
-        search_term: str | None = None,
-        size: int | None = 10000,
-        after: dict[str, Any] | None = None,
-    ) -> tuple[list[str], dict[str, Any] | None]:
+    @staticmethod
+    def _build_unique_values_field_query(
+        field_name: str, search_term: str | None, filters: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
-        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Builds a query matching docs whose metadata field's contains `search_term`, optionally restricted `filters`.
 
-        Uses composite aggregations for proper pagination beyond 10k results.
-
-        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
-
-        :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
-        :param size: The number of unique values to return per page. Defaults to 10000.
-        :param after: Optional pagination key from the previous response. Use None for the first page.
-            For subsequent pages, pass the `after_key` from the previous response.
-        :returns: A tuple containing (list of unique values, after_key for pagination).
-            The after_key is None when there are no more results. Use it in the `after` parameter
-            for the next page.
+        Matching is a case-insensitive substring match (not against the document content).
         """
-        self._ensure_initialized()
-
-        field_name = _normalize_metadata_field_name(metadata_field)
-
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
+        clauses: list[dict[str, Any]] = []
+        if filters:
+            clauses.append(_normalize_filters(filters))
         if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
+            clauses.append(
+                {
+                    "script": {
+                        "script": {
+                            "source": (
+                                "def v = doc[params.field]; "
+                                "if (v.size() == 0) { return false; } "
+                                "return v.value.toString().toLowerCase().contains(params.term)"
+                            ),
+                            "params": {"field": field_name, "term": search_term.lower()},
+                        }
+                    }
+                }
+            )
 
-        # Build composite aggregation for proper pagination
+        if not clauses:
+            return {"match_all": {}}
+        if len(clauses) == 1:
+            return clauses[0]
+        return {"bool": {"filter": clauses}}
+
+    @staticmethod
+    def _build_composite_agg_body(
+        field_name: str,
+        query: dict[str, Any],
+        size: int,
+        after: dict[str, Any] | None,
+        *,
+        with_count: bool,
+    ) -> dict[str, Any]:
         composite_agg: dict[str, Any] = {
             "size": size,
             "sources": [{field_name: {"terms": {"field": field_name}}}],
@@ -1987,98 +2000,150 @@ class ElasticsearchDocumentStore:
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
-            "query": query,
-            "aggs": {
-                "unique_values": {
-                    "composite": composite_agg,
-                }
-            },
-            "size": 0,  # we only need aggregations, not documents
-        }
+        aggs: dict[str, Any] = {"unique_values": {"composite": composite_agg}}
+        if with_count:
+            # cardinality is a single-pass, approximate distinct count - computed alongside the
+            # page fetch at no extra round trip, unlike walking the composite agg to exhaustion.
+            aggs["unique_values_count"] = {"cardinality": {"field": field_name}}
 
-        result = self.client.search(index=self._index, body=body)
+        return {"query": query, "aggs": aggs, "size": 0}
+
+    @staticmethod
+    def _extract_unique_values_and_count(result: dict[str, Any], field_name: str) -> tuple[list[Any], int]:
         aggregations = result.get("aggregations", {})
+        buckets = aggregations.get("unique_values", {}).get("buckets", [])
+        unique_values = [bucket["key"][field_name] for bucket in buckets]
+        total_count = int(aggregations.get("unique_values_count", {}).get("value", 0))
+        return unique_values, total_count
 
-        # Extract unique values from composite aggregation buckets
-        unique_values_agg = aggregations.get("unique_values", {})
-        unique_values_buckets = unique_values_agg.get("buckets", [])
-        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
+    def _skip_unique_values(
+        self, field_name: str, query: dict[str, Any], offset: int, batch_size: int = 10000
+    ) -> dict[str, Any] | None:
+        """
+        Walks composite aggregation pages to reach `offset`, discarding buckets along the way.
 
-        # Extract after_key for pagination
-        # If we got fewer results than requested, we've reached the end
-        after_key = unique_values_agg.get("after_key")
-        if after_key is not None and size is not None and len(unique_values_buckets) < size:
-            after_key = None
+        Composite aggregations only support cursor-based iteration (no native offset), so this
+        replay is the only way to honor an arbitrary `from_` - cost scales with `offset`, not `size`.
+        """
+        after_key = None
+        remaining = offset
+        while remaining > 0:
+            step = min(batch_size, remaining)
+            body = self._build_composite_agg_body(field_name, query, step, after_key, with_count=False)
+            result = self.client.search(index=self._index, body=body)
+            buckets = result.get("aggregations", {}).get("unique_values", {}).get("buckets", [])
+            if not buckets:
+                return after_key
+            after_key = result["aggregations"]["unique_values"].get("after_key")
+            remaining -= len(buckets)
+            if len(buckets) < step:
+                return after_key
+        return after_key
 
-        return unique_values, after_key
+    async def _skip_unique_values_async(
+        self, field_name: str, query: dict[str, Any], offset: int, batch_size: int = 10000
+    ) -> dict[str, Any] | None:
+        """
+        Async counterpart of `_skip_unique_values`. See that method for the cost trade-off explanation.
+        """
+        after_key = None
+        remaining = offset
+        while remaining > 0:
+            step = min(batch_size, remaining)
+            body = self._build_composite_agg_body(field_name, query, step, after_key, with_count=False)
+            result = await self.async_client.search(index=self._index, body=body)
+            buckets = result.get("aggregations", {}).get("unique_values", {}).get("buckets", [])
+            if not buckets:
+                return after_key
+            after_key = result["aggregations"]["unique_values"].get("after_key")
+            remaining -= len(buckets)
+            if len(buckets) < step:
+                return after_key
+        return after_key
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term.
+
+        Internally still backed by composite aggregations, which only support cursor-based iteration.
+        Reaching offset `from_` therefore requires walking and discarding the first `from_` buckets -
+        cost scales with `from_`, not `size`.
+
+        **Note**: To keep this signature uniform across document stores, offset-based pagination is
+        emulated on top of the cursor by re-fetching and discarding every bucket before `from_` on each
+        call, requiring additional search round-trips proportional to `from_`.
+
+        **Note**: `total_count` is computed via an approximate cardinality aggregation; for fields with
+        very high cardinality it may not be exact.
+
+        :param metadata_field: The metadata field to get unique values for. Can include or omit the
+            "meta." prefix.
+        :param search_term: Optional case-insensitive substring to filter the returned values by, matched
+            against the metadata field's own value (not the document content).
+            NOTE: The matching is done with a server-side script to accomplish the substring matching on the value
+            of the field and this operation is quite expensive for a large corpus
+
+        :param from_: Offset to start returning values from. Defaults to 0.
+        :param size: The number of unique values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple of (list of unique values in their original type, total count of distinct values
+            for the field matching `search_term`). Note that filters also narrows down the number of documents
+            against which the search term is matched.
+        """
+        self._ensure_initialized()
+
+        field_name = _normalize_metadata_field_name(metadata_field)
+        query = self._build_unique_values_field_query(field_name, search_term, filters)
+
+        after_key = self._skip_unique_values(field_name, query, from_) if from_ > 0 else None
+
+        body = self._build_composite_agg_body(field_name, query, size, after_key, with_count=True)
+        result = self.client.search(index=self._index, body=body)
+        return self._extract_unique_values_and_count(dict(result), field_name)
 
     async def get_metadata_field_unique_values_async(
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10000,
-        after: dict[str, Any] | None = None,
-    ) -> tuple[list[str], dict[str, Any] | None]:
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Asynchronous counterpart of `get_metadata_field_unique_values`.
 
-        Uses composite aggregations for proper pagination beyond 10k results.
+        :param metadata_field: The metadata field to get unique values for. Can include or omit the
+            "meta." prefix.
+        :param search_term: Optional case-insensitive substring to filter the returned values by, matched
+            against the metadata field's own value (not the document content).
+            NOTE: The matching is done with a server-side script to accomplish the substring matching on the value
+            of the field and this operation is quite expensive for a large corpus
 
-        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
+        :param from_: Offset to start returning values from. Defaults to 0.
+        :param size: The number of unique values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple of (list of unique values in their original type, total count of distinct values
+            for the field matching `search_term`). Note that filters also narrows down the number of documents
+            against which the search term is matched.
 
-        :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
-        :param size: The number of unique values to return per page. Defaults to 10000.
-        :param after: Optional pagination key from the previous response. Use None for the first page.
-            For subsequent pages, pass the `after_key` from the previous response.
-        :returns: A tuple containing (list of unique values, after_key for pagination).
-            The after_key is None when there are no more results. Use it in the `after` parameter
-            for the next page.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         field_name = _normalize_metadata_field_name(metadata_field)
+        query = self._build_unique_values_field_query(field_name, search_term, filters)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
+        after_key = await self._skip_unique_values_async(field_name, query, from_) if from_ > 0 else None
 
-        # Build composite aggregation for proper pagination
-        composite_agg: dict[str, Any] = {
-            "size": size,
-            "sources": [{field_name: {"terms": {"field": field_name}}}],
-        }
-        if after is not None:
-            composite_agg["after"] = after
-
-        body = {
-            "query": query,
-            "aggs": {
-                "unique_values": {
-                    "composite": composite_agg,
-                }
-            },
-            "size": 0,  # we only need aggregations, not documents
-        }
-
+        body = self._build_composite_agg_body(field_name, query, size, after_key, with_count=True)
         result = await self.async_client.search(index=self._index, body=body)
-        aggregations = result.get("aggregations", {})
-
-        # Extract unique values from composite aggregation buckets
-        unique_values_agg = aggregations.get("unique_values", {})
-        unique_values_buckets = unique_values_agg.get("buckets", [])
-        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
-
-        # Extract after_key for pagination
-        # If we got fewer results than requested, we've reached the end
-        after_key = unique_values_agg.get("after_key")
-        if after_key is not None and size is not None and len(unique_values_buckets) < size:
-            after_key = None
-
-        return unique_values, after_key
+        return self._extract_unique_values_and_count(dict(result), field_name)
 
     def _query_sql(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
         """
@@ -2123,7 +2188,7 @@ class ElasticsearchDocumentStore:
         :param fetch_size: Optional number of results to fetch per page.
         :returns: The raw JSON response from Elasticsearch SQL API.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         assert self._async_client is not None
 
         try:

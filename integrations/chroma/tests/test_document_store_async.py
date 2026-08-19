@@ -215,3 +215,65 @@ class TestDocumentStoreAsync(
         )
         assert values == []
         assert total == 0
+
+    async def test_get_metadata_field_unique_values_async_search_term_excludes_content_only_match(
+        self, document_store: ChromaDocumentStore
+    ):
+        """A search term present only in document content (not in the metadata field value)
+        must not match, proving search_term no longer filters on content."""
+        docs = [
+            Document(content="unique-marker-xyz", meta={"category": "A"}),
+            Document(content="plain content", meta={"category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="unique-marker-xyz", from_=0, size=10
+        )
+        assert values == []
+        assert total == 0
+
+    async def test_get_metadata_field_unique_values_async_search_term_matches_field_value(
+        self, document_store: ChromaDocumentStore
+    ):
+        """A search term present in the metadata field's value but absent from the content
+        must match, proving search_term filters on the metadata field's value (case-insensitively)."""
+        docs = [
+            Document(content="Nothing special here", meta={"category": "special-value"}),
+            Document(content="Nothing special here either", meta={"category": "other"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="SPECIAL", from_=0, size=10
+        )
+        assert values == ["special-value"]
+        assert total == 1
+
+    async def test_get_metadata_field_unique_values_async_preserves_non_string_types(
+        self, document_store: ChromaDocumentStore
+    ):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total = await document_store.get_metadata_field_unique_values_async("priority", from_=0, size=10)
+        assert set(values) == {1, 2}
+        assert total == 2
+
+    async def test_get_metadata_field_unique_values_with_filters_async(self, document_store: ChromaDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = await document_store.get_metadata_field_unique_values_async("category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2

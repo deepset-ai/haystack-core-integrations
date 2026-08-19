@@ -130,6 +130,7 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  "PLR0917",
   # Asserts
   "S101",
   # Allow `Any` - used legitimately for dynamic types and SDK boundaries

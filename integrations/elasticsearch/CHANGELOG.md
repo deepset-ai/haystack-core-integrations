@@ -1,5 +1,35 @@
 # Changelog
 
+## [integrations/elasticsearch-v6.3.0] - 2026-07-22
+
+### 🚀 Features
+
+- *(elasticsearch)* Add close() and close_async() to ElasticsearchDocumentStore (#3523)
+
+### 🚜 Refactor
+
+- Elasticsearch - split sync/async paths (#3633)
+
+
+## [integrations/elasticsearch-v6.2.0] - 2026-07-14
+
+### 🐛 Bug Fixes
+
+- Adapt optimum, ragas, elasticsearch, opensearch to APIs removed in Haystack 3.0 (#3538)
+- *(elasticsearch)* Don't merge same-field ranges under OR (#3588)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
+## [integrations/elasticsearch-v6.1.1] - 2026-07-02
+
+### 🐛 Bug Fixes
+
+- *(elasticsearch)* Remove duplicate delete/create in delete_all_documents(recreate_index=True) (#3522)
+
+
 ## [integrations/elasticsearch-v6.1.0] - 2026-05-04
 
 ### 🚀 Features

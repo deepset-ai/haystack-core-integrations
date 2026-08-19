@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -18,19 +19,12 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .filters import FilterTranslator
+from .filters import FilterTranslator, _validate_field_path
 
 logger = logging.getLogger(__name__)
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
-_SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.]+$")
 MAX_INDEX_NAME_LEN = 128
-
-
-def _validate_field_path(field_path: str) -> None:
-    if not _SAFE_FIELD_PATH.match(field_path):
-        msg = f"Invalid metadata field name: {field_path!r}"
-        raise ValueError(msg)
 
 
 def _try_parse_number(value: Any) -> Any:
@@ -184,11 +178,7 @@ class OracleDocumentStore:
 
         self._pool: oracledb.ConnectionPool | None = None
         self._pool_lock = threading.Lock()
-
-        if create_table_if_not_exists:
-            self._ensure_table()
-        if create_index:
-            self.create_hnsw_index()
+        self._setup_done = False
 
     def _get_pool(self) -> oracledb.ConnectionPool:
         if self._pool is not None:
@@ -219,14 +209,33 @@ class OracleDocumentStore:
         return self._pool
 
     def _get_connection(self) -> oracledb.Connection:
+        self._ensure_setup()
         return self._get_pool().acquire()
 
-    def __del__(self) -> None:
+    def _ensure_setup(self) -> None:
+        """
+        Create the backing table and optional HNSW index once, on first use if needed.
+        """
+        if self._setup_done:
+            return
+        self._setup_done = True
+        try:
+            if self.create_table_if_not_exists:
+                self._ensure_table()
+            if self.create_index:
+                self.create_hnsw_index()
+        except Exception:
+            self._setup_done = False
+            raise
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
         if self._pool is not None:
-            try:
+            with suppress(Exception):
                 self._pool.close()
-            except Exception:
-                logger.warning("Failed to close Oracle connection pool during cleanup.", exc_info=True)
+            self._pool = None
 
     def _ensure_table(self) -> None:
         sql = f"""
@@ -773,27 +782,37 @@ class OracleDocumentStore:
             return {"min": _try_parse_number(row[0]), "max": _try_parse_number(row[1])}
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int | None = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Return a paginated list of distinct values for a metadata field, plus the total distinct count.
 
         :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
             (e.g. ``"meta.lang"`` or ``"lang"``).
-        :param search_term: Optional substring filter applied to both the document text and the field value.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
-        :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
-            are returned.
+        :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
+            from ``from_`` onward are returned.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
-            values as strings and ``total`` is the overall distinct count (before pagination).
+            values in their original type and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
         """
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         _validate_field_path(field_path)
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
         params: dict[str, Any] = {}
+        if filters:
+            counter = [0]
+            filters_fragment = FilterTranslator().translate(filters, params, counter)
+            base_sql += f" AND {filters_fragment}"
         if search_term:
-            base_sql += f" AND (text LIKE :search OR JSON_VALUE(metadata, '$.{field_path}') LIKE :search)"
+            base_sql += f" AND UPPER(JSON_VALUE(metadata, '$.{field_path}')) LIKE UPPER(:search)"
             params["search"] = f"%{search_term}%"
 
         sql_count = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) {base_sql}"
@@ -811,7 +830,13 @@ class OracleDocumentStore:
                 params["row_offset"] = from_
             cur.execute(sql_vals, params)
             rows = cur.fetchall()
-            return [str(r[0]) for r in rows], total
+            values: list[Any] = []
+            for r in rows:
+                try:
+                    values.append(json.loads(r[0]))
+                except (json.JSONDecodeError, TypeError):
+                    values.append(r[0])
+            return values, total
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
@@ -841,22 +866,30 @@ class OracleDocumentStore:
         return await asyncio.to_thread(self.get_metadata_field_min_max, metadata_field)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int | None = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously returns a paginated list of distinct values for a metadata field, plus the total count.
 
         :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
             (e.g. ``"meta.lang"`` or ``"lang"``).
-        :param search_term: Optional substring filter applied to both the document text and the field value.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
-        :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
-            are returned.
+        :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
+            from ``from_`` onward are returned.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
-            values as strings and ``total`` is the overall distinct count (before pagination).
+            values in their original type and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
         """
-        return await asyncio.to_thread(self.get_metadata_field_unique_values, metadata_field, search_term, from_, size)
+        return await asyncio.to_thread(
+            self.get_metadata_field_unique_values, metadata_field, search_term, from_, size, filters
+        )
 
     def _embedding_retrieval(
         self,

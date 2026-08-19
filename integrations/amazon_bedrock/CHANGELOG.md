@@ -1,5 +1,59 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.16.2] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+- Confine S3Downloader downloads to file_root_path (#3812)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
+## [integrations/amazon_bedrock-v6.16.1] - 2026-08-14
+
+### 🚀 Features
+
+- Add Bedrock Knowledge Base retriever to amazon-bedrock integration (#3582)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- AmazonBedRockRanker reordered the top_k fallback to happen after validation (#3748)
+- ValidationException on invalid bedrock tool result json (#3766)
+
+### 🧪 Testing
+
+- Fix cohere, amazon_bedrock, mirage, and ollama tests under Haystack 3.0 (#3566)
+
+### 🌀 Miscellaneous
+
+
+## [integrations/amazon_bedrock-v6.15.1] - 2026-07-07
+
+### 🐛 Bug Fixes
+
+- Deserialization of flattened system_cachepoint_config in AmazonBedrockChatGenerator (#3548)
+
+### 🧪 Testing
+
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+
+
+## [integrations/amazon_bedrock-v6.15.0] - 2026-07-02
+
+### 🚀 Features
+
+- Support disabled thinking for Claude Sonnet 5 with flattened generation kwargs (#3526)
+
+### 🧹 Chores
+
+- Add none option to adaptive_thinking_effort (#3527)
+
+
 ## [integrations/amazon_bedrock-v6.14.0] - 2026-06-25
 
 ### 🚀 Features

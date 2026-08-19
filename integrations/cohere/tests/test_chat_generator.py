@@ -5,7 +5,11 @@ import pytest
 from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool, Toolset
@@ -337,6 +341,11 @@ class TestCohereChatGenerator:
 
         pipeline_dict = pipeline.to_dict()
 
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
+
         expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
@@ -352,20 +361,6 @@ class TestCohereChatGenerator:
                         "generation_kwargs": {"temperature": 0.7},
                         "timeout": None,
                         "max_retries": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "name": "weather",
-                                    "description": "useful to determine the weather in a given location",
-                                    "parameters": {"city": {"type": "string"}},
-                                    "function": "tests.test_chat_generator.weather",
-                                    "outputs_to_string": tool.outputs_to_string,
-                                    "inputs_from_state": tool.inputs_from_state,
-                                    "outputs_to_state": tool.outputs_to_state,
-                                },
-                            }
-                        ],
                     },
                 }
             },
@@ -550,6 +545,51 @@ class TestCohereChatGenerator:
         assert isinstance(result["replies"], list)
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
+
+    def test_run_with_generation_kwargs(self):
+        generator = CohereChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        generator.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.client.chat.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self):
+        generator = CohereChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.async_client.chat = AsyncMock(return_value=mock_response)
+
+        await generator.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.async_client.chat.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
 
 
 @pytest.mark.skipif(
@@ -742,6 +782,7 @@ class TestCohereChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_cohere_chat_generator(self):
         """
         Test that the CohereChatGenerator component can be used in a pipeline

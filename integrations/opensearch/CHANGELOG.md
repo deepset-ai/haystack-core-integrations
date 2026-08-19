@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/opensearch-v8.2.1] - 2026-08-03
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `OpensearchDocumentStore` match search_term against metadata field value, not content (#3647)
+- *(opensearch)* Don't merge same-field ranges under OR (#3589)
+
+
+## [integrations/opensearch-v8.2.0] - 2026-07-22
+
+### 🚀 Features
+
+- Opensearch - add methods to close resources (#3640)
+
+### 🐛 Bug Fixes
+
+- Adapt optimum, ragas, elasticsearch, opensearch to APIs removed in Haystack 3.0 (#3538)
+
+### 🚜 Refactor
+
+- Elasticsearch - split sync/async paths (#3633)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/opensearch-v8.1.2] - 2026-06-24
 
 ### 🐛 Bug Fixes

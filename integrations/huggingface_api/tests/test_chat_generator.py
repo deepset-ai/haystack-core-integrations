@@ -270,20 +270,10 @@ class TestHuggingFaceAPIChatGenerator:
         assert init_params["token"] == {"env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False, "type": "env_var"}
         assert init_params["generation_kwargs"] == {"temperature": 0.6, "stop": ["stop", "words"], "max_tokens": 512}
         assert init_params["streaming_callback"] is None
-        assert init_params["tools"] == [
-            {
-                "type": "haystack.tools.tool.Tool",
-                "data": {
-                    "description": "description",
-                    "function": "builtins.print",
-                    "inputs_from_state": None,
-                    "name": "name",
-                    "outputs_to_state": None,
-                    "outputs_to_string": None,
-                    "parameters": {"x": {"type": "string"}},
-                },
-            }
-        ]
+
+        # deserializing the serialized component must reproduce the original tool
+        loaded = HuggingFaceAPIChatGenerator.from_dict(result)
+        assert loaded.tools == [tool]
 
     def test_from_dict(self, mock_check_valid_model):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
@@ -323,6 +313,11 @@ class TestHuggingFaceAPIChatGenerator:
         pipeline.add_component("generator", generator)
 
         pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
         assert pipeline_dict == {
             "metadata": {},
             "max_runs_per_component": 100,
@@ -337,20 +332,6 @@ class TestHuggingFaceAPIChatGenerator:
                         "token": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": False},
                         "generation_kwargs": {"temperature": 0.6, "stop": ["stop", "words"], "max_tokens": 512},
                         "streaming_callback": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "inputs_from_state": None,
-                                    "name": "name",
-                                    "outputs_to_state": None,
-                                    "outputs_to_string": None,
-                                    "description": "description",
-                                    "parameters": {"x": {"type": "string"}},
-                                    "function": "builtins.print",
-                                },
-                            }
-                        ],
                     },
                 }
             },
@@ -392,6 +373,19 @@ class TestHuggingFaceAPIChatGenerator:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+    def test_run_with_generation_kwargs(self, mock_check_valid_model, mock_chat_completion, chat_messages):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        generator.run(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
 
     def test_run_with_string_input(self, mock_check_valid_model, mock_chat_completion):
         generator = HuggingFaceAPIChatGenerator(
@@ -934,6 +928,22 @@ class TestHuggingFaceAPIChatGenerator:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
     @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(
+        self, mock_check_valid_model, mock_chat_completion_async, chat_messages
+    ):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        await generator.run_async(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_chat_completion_async.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+
+    @pytest.mark.asyncio
     async def test_run_async_with_string_input(self, mock_check_valid_model, mock_chat_completion_async):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
@@ -1189,30 +1199,10 @@ class TestHuggingFaceAPIChatGenerator:
         )
         data = generator.to_dict()
 
-        expected_tools_data = {
-            "type": "haystack.tools.toolset.Toolset",
-            "data": {
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "name": "weather",
-                            "description": "useful to determine the weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                            },
-                            "function": "tests.test_chat_generator.get_weather",
-                            "outputs_to_string": None,
-                            "inputs_from_state": None,
-                            "outputs_to_state": None,
-                        },
-                    }
-                ]
-            },
-        }
-        assert data["init_parameters"]["tools"] == expected_tools_data
+        # deserializing the serialized component must reproduce the original toolset
+        loaded = HuggingFaceAPIChatGenerator.from_dict(data)
+        assert isinstance(loaded.tools, Toolset)
+        assert list(loaded.tools) == list(toolset)
 
     def test_convert_tools_to_hfapi_tools(self):
         assert _convert_tools_to_hfapi_tools(None) is None

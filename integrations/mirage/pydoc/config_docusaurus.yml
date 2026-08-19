@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.tools.mirage.workspace
+      - haystack_integrations.tools.mirage.shell_tool
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Mirage integration for Haystack
+  id: integrations-mirage
+  filename: mirage.md
+  title: Mirage

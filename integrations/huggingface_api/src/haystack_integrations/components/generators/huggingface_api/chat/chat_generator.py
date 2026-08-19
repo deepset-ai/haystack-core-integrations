@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import json
 from collections.abc import AsyncIterable, Iterable
 from datetime import datetime, timezone
@@ -10,7 +11,6 @@ from typing import Any, Union
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ChatMessage,
     ComponentInfo,
     ReasoningContent,
@@ -505,7 +505,9 @@ class HuggingFaceAPIChatGenerator:
             A list of ChatMessage objects representing the input messages. If a string is provided, it is converted
             to a list containing a ChatMessage with user role.
         :param generation_kwargs:
-            Additional keyword arguments for text generation.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. If set, it will override
             the `tools` parameter set during component initialization. This parameter can accept either a
@@ -565,7 +567,9 @@ class HuggingFaceAPIChatGenerator:
             A list of ChatMessage objects representing the input messages. If a string is provided, it is converted
             to a list containing a ChatMessage with user role.
         :param generation_kwargs:
-            Additional keyword arguments for text generation.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools`
             parameter set during component initialization. This parameter can accept either a list of `Tool` objects
@@ -680,7 +684,7 @@ class HuggingFaceAPIChatGenerator:
         self,
         messages: list[dict[str, str]],
         generation_kwargs: dict[str, Any],
-        streaming_callback: AsyncStreamingCallbackT,
+        streaming_callback: StreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
         api_output: AsyncIterable[ChatCompletionStreamOutput] = await self._async_client.chat_completion(
             messages,
@@ -696,7 +700,10 @@ class HuggingFaceAPIChatGenerator:
                 chunk=chunk, previous_chunks=streaming_chunks, component_info=component_info
             )
             streaming_chunks.append(stream_chunk)
-            await streaming_callback(stream_chunk)
+            # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+            callback_result = streaming_callback(stream_chunk)
+            if inspect.isawaitable(callback_result):
+                await callback_result
 
         message = _convert_streaming_chunks_to_chat_message(chunks=streaming_chunks)
         if message.meta.get("usage") is None:

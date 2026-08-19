@@ -90,6 +90,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
         tools: ToolsType | None = None,
+        anthropic_server_tools: list[dict[str, Any]] | None = None,
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
@@ -122,6 +123,11 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name.
+        :param anthropic_server_tools: A list of Anthropic server-side tools passed directly to the API.
+            On Vertex AI only the basic web search tool (`{"type": "web_search_20250305"}`) is available:
+            web search with dynamic filtering, web fetch and code execution are not supported. Refer to the
+            [Anthropic documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool)
+            for the exact dict format each native tool expects.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
@@ -136,6 +142,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.streaming_callback = streaming_callback
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
+        self.anthropic_server_tools = anthropic_server_tools
         self.timeout = timeout
         self.max_retries = max_retries
 
@@ -169,6 +176,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             generation_kwargs=self.generation_kwargs,
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
             tools=serialize_tools_or_toolset(self.tools),
+            anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
         )

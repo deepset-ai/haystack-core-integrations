@@ -4,7 +4,7 @@
 
 from typing import Any, Literal
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
@@ -12,6 +12,8 @@ from haystack_integrations.components.embedders.sentence_transformers.embedding_
     _SentenceTransformersEmbeddingBackend,
     _SentenceTransformersEmbeddingBackendFactory,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -57,6 +59,7 @@ class SentenceTransformersTextEmbedder:
         encode_kwargs: dict[str, Any] | None = None,
         backend: Literal["torch", "onnx", "openvino"] = "torch",
         revision: str | None = None,
+        quantization_ranges: list[list[float]] | None = None,
     ) -> None:
         """
         Create a SentenceTransformersTextEmbedder component.
@@ -114,6 +117,12 @@ class SentenceTransformersTextEmbedder:
         :param revision:
             The specific model version to use. It can be a branch name, a tag name, or a commit id,
             for a stored model on Hugging Face.
+        :param quantization_ranges:
+            Calibration ranges to use when `precision` is "int8" or "uint8", with shape `(2, embedding_dim)`:
+            minimum values in the first row and maximum values in the second.
+            Scalar quantization calibrates the min/max range from the batch being encoded, which is degenerate
+            for a single text and produces meaningless embeddings. Pass ranges computed from a representative
+            sample of embeddings to get consistent quantized embeddings.
         """
 
         self.model = model
@@ -135,6 +144,14 @@ class SentenceTransformersTextEmbedder:
         self.embedding_backend: _SentenceTransformersEmbeddingBackend | None = None
         self.precision = precision
         self.backend = backend
+        self.quantization_ranges = quantization_ranges
+        if precision in ("int8", "uint8") and quantization_ranges is None:
+            logger.warning(
+                "Using precision '{precision}' without `quantization_ranges` produces meaningless embeddings for "
+                "single texts, because the calibration range is computed from the batch itself. "
+                "Pass `quantization_ranges` computed from a representative sample of embeddings.",
+                precision=precision,
+            )
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -169,6 +186,7 @@ class SentenceTransformersTextEmbedder:
             precision=self.precision,
             encode_kwargs=self.encode_kwargs,
             backend=self.backend,
+            quantization_ranges=self.quantization_ranges,
         )
         if serialization_dict["init_parameters"].get("model_kwargs") is not None:
             serialize_hf_model_kwargs(serialization_dict["init_parameters"]["model_kwargs"])
@@ -240,6 +258,7 @@ class SentenceTransformersTextEmbedder:
             show_progress_bar=self.progress_bar,
             normalize_embeddings=self.normalize_embeddings,
             precision=self.precision,
+            quantization_ranges=self.quantization_ranges,
             **(self.encode_kwargs if self.encode_kwargs else {}),
         )[0]
         return {"embedding": embedding}

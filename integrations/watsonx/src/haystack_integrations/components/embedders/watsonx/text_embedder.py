@@ -100,7 +100,7 @@ class WatsonxTextEmbedder:
             model_id=model,
             credentials=credentials,
             project_id=project_id.resolve_value(),
-            params=params if params else None,
+            params=params if params else None,  # type: ignore[arg-type]
             max_retries=max_retries,
         )
 

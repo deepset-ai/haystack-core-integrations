@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/google_genai-v4.6.1] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Confine GoogleGenAIMultimodalDocumentEmbedder file paths to root_path (#3811)
+
+
+## [integrations/google_genai-v4.6.0] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+- [**breaking**] Standardize generation_kwargs handling in GoogleGenAIChatGenerator (#3804)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
+## [integrations/google_genai-v4.5.0] - 2026-07-03
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+
+
 ## [integrations/google_genai-v4.4.1] - 2026-06-08
 
 ### 🐛 Bug Fixes

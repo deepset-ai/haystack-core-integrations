@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/chroma-v4.4.0] - 2026-07-24
+
+### 🚀 Features
+
+- Chroma - add sync closing methods (#3660)
+
+### 🐛 Bug Fixes
+
+- `ChromaDocumentStore` match `search_term` against metadata field value, not content (#3644)
+
+
+## [integrations/chroma-v4.3.2] - 2026-07-17
+
+### 🐛 Bug Fixes
+
+- *(chroma)* Raise a clear error for id filters with a non-'==' operator (#3587)
+
+
 ## [integrations/chroma-v4.3.1] - 2026-06-29
 
 ### 🐛 Bug Fixes

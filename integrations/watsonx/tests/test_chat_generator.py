@@ -206,6 +206,11 @@ class TestWatsonxChatGenerator:
 
         data = generator.to_dict()
 
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # from_dict round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = data["init_parameters"].pop("tools")
+        assert len(tools_entries) == len(tools)
+
         expected = {
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
@@ -218,27 +223,13 @@ class TestWatsonxChatGenerator:
                 "timeout": None,
                 "max_retries": None,
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "tools": [
-                    {
-                        "data": {
-                            "description": "useful to determine the weather in a given location",
-                            "function": "tests.test_chat_generator.weather",
-                            "inputs_from_state": None,
-                            "name": "weather",
-                            "outputs_to_state": None,
-                            "outputs_to_string": None,
-                            "parameters": {
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                                "type": "object",
-                            },
-                        },
-                        "type": "haystack.tools.tool.Tool",
-                    },
-                ],
             },
         }
         assert data == expected
+
+        # deserializing the serialized component must reproduce the original tools
+        loaded = WatsonxChatGenerator.from_dict(generator.to_dict())
+        assert loaded.tools == tools
 
     def test_from_dict(self, mock_watsonx):
         assert mock_watsonx is not None
@@ -323,20 +314,20 @@ class TestWatsonxChatGenerator:
             messages=[{"role": "user", "content": "Test prompt"}], params={}, tools=None
         )
 
-    def test_run_with_generation_params(self, mock_watsonx):
+    def test_run_with_generation_kwargs(self, mock_watsonx):
         generator = WatsonxChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             project_id=Secret.from_token("test-project"),
-            generation_kwargs={"max_tokens": 100, "temperature": 0.7, "top_p": 0.9},
+            generation_kwargs={"max_completion_tokens": 100, "temperature": 0.7, "top_p": 0.9},
         )
 
         messages = [ChatMessage.from_user("Test prompt")]
-        result = generator.run(messages=messages)
+        result = generator.run(messages=messages, generation_kwargs={"temperature": 0.9})
 
         assert len(result["replies"]) == 1
         mock_watsonx["model_instance"].chat.assert_called_once_with(
             messages=[{"role": "user", "content": "Test prompt"}],
-            params={"max_tokens": 100, "temperature": 0.7, "top_p": 0.9},
+            params={"max_completion_tokens": 100, "temperature": 0.9, "top_p": 0.9},
             tools=None,
         )
 
@@ -450,6 +441,24 @@ class TestWatsonxChatGenerator:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Async generated response"
         assert result["replies"][0].meta["finish_reason"] == "stop"
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self, mock_watsonx):
+        generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            project_id=Secret.from_token("test-project"),
+            generation_kwargs={"max_completion_tokens": 100, "temperature": 0.7, "top_p": 0.9},
+        )
+
+        messages = [ChatMessage.from_user("Test prompt")]
+        result = await generator.run_async(messages=messages, generation_kwargs={"temperature": 0.9})
+
+        assert len(result["replies"]) == 1
+        mock_watsonx["model_instance"].achat.assert_called_once_with(
+            messages=[{"role": "user", "content": "Test prompt"}],
+            params={"max_completion_tokens": 100, "temperature": 0.9, "top_p": 0.9},
+            tools=None,
+        )
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_watsonx):
