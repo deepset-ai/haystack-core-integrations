@@ -99,6 +99,11 @@ integration:datadog:
       - any-glob-to-any-file: "integrations/datadog/**/*"
       - any-glob-to-any-file: ".github/workflows/datadog.yml"
 
+integration:dbos:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dbos/**/*"
+      - any-glob-to-any-file: ".github/workflows/dbos.yml"
+
 integration:ddgs:
   - changed-files:
       - any-glob-to-any-file: "integrations/ddgs/**/*"

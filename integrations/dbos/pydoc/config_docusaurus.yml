@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.dbos.chat_generator
+      - haystack_integrations.dbos.durability
+      - haystack_integrations.dbos.human_in_the_loop
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: DBOS integration for Haystack
+  id: integrations-dbos
+  filename: dbos.md
+  title: DBOS
