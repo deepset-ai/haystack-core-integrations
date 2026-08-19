@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v4.6.1] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Confine GoogleGenAIMultimodalDocumentEmbedder file paths to root_path (#3811)
+
+
 ## [integrations/google_genai-v4.6.0] - 2026-08-18
 
 ### 🐛 Bug Fixes

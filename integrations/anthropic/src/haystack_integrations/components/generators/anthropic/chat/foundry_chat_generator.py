@@ -229,7 +229,9 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         :param messages: A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint. These are merged
+            per key with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys
+            set only at initialization are kept.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during component
             initialization.
@@ -257,7 +259,9 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         :param messages: A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
+        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint. These are merged
+            per key with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys
+            set only at initialization are kept.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during component
             initialization.

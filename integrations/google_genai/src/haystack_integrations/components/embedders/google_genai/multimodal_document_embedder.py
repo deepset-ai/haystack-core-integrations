@@ -60,8 +60,8 @@ def _extract_sources_info(documents: list[Document], file_path_meta_field: str, 
         If the file is a PDF and a page number is provided, the dictionary also contains the page number.
         Files that are not images, or PDFs without a page number, have `send_raw` set to True,
         meaning they will be sent as raw bytes without image processing.
-    :raises ValueError: If the document is missing the file_path_meta_field key in its metadata or the file path is
-        invalid.
+    :raises ValueError: If the document is missing the file_path_meta_field key in its metadata, the file path
+        escapes the configured root path, or the file path is invalid.
     """
     sources_info: list[_SourceInfo] = []
     for doc in documents:
@@ -74,6 +74,20 @@ def _extract_sources_info(documents: list[Document], file_path_meta_field: str, 
             raise ValueError(err_msg)
 
         resolved_file_path = Path(root_path, file_path)
+
+        # When root_path is set, ensure the resolved path stays within it to block path-traversal
+        # payloads (e.g. "../../etc/passwd") coming from document metadata. When root_path is unset,
+        # file paths are treated as absolute by design and no containment check is applied.
+        if root_path:
+            resolved_file_path = resolved_file_path.resolve()
+            resolved_root = Path(root_path).resolve()
+            if not resolved_file_path.is_relative_to(resolved_root):
+                err_msg = (
+                    f"Document with ID '{doc.id}' has a file path '{file_path}' that escapes the "
+                    f"configured root '{root_path}'. Resolved path: '{resolved_file_path}'."
+                )
+                raise ValueError(err_msg)
+
         if not resolved_file_path.is_file():
             err_msg = (
                 f"Document with ID '{doc.id}' has an invalid file path '{resolved_file_path}'. "
@@ -200,7 +214,10 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             The metadata field in the Document that contains the file path to the file to embed.
         :param root_path:
             The root directory path where document files are located. If provided, file paths in
-            document metadata will be resolved relative to this path. If None, file paths are treated as absolute paths.
+            document metadata will be resolved relative to this path and are guaranteed to stay within it.
+            If None, file paths are treated as absolute paths with no containment check.
+            If document metadata, in particular `file_path_meta_field`, may be influenced by untrusted input,
+            set `root_path` to a dedicated data directory so that path-traversal beyond it is rejected.
         :param image_size:
             Only used for images and PDF pages. If provided, resizes the image to fit within the specified dimensions
             (width, height) while maintaining aspect ratio. This reduces file size, memory usage, and processing time,
@@ -296,6 +313,9 @@ class GoogleGenAIMultimodalDocumentEmbedder:
 
         :raises TypeError:
             If the input is not a list of `Documents`.
+        :raises ValueError:
+            If a document is missing the file path metadata field, its file path escapes `root_path`, or its
+            MIME type is not supported.
         :raises RuntimeError:
             If the conversion of some documents fails.
         """
@@ -452,6 +472,14 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
             - `meta`: Information about the usage of the model.
+
+        :raises TypeError:
+            If the input is not a list of `Documents`.
+        :raises ValueError:
+            If a document is missing the file path metadata field, its file path escapes `root_path`, or its
+            MIME type is not supported.
+        :raises RuntimeError:
+            If the conversion of some documents fails.
         """
 
         parts_to_embed = self._extract_parts_to_embed(documents=documents)
@@ -477,6 +505,14 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
             - `meta`: Information about the usage of the model.
+
+        :raises TypeError:
+            If the input is not a list of `Documents`.
+        :raises ValueError:
+            If a document is missing the file path metadata field, its file path escapes `root_path`, or its
+            MIME type is not supported.
+        :raises RuntimeError:
+            If the conversion of some documents fails.
         """
 
         parts_to_embed = self._extract_parts_to_embed(documents=documents)
