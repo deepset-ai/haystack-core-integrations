@@ -9,26 +9,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from haystack_integrations.tracing.rhesis import _haystack_tags as hs
 from rhesis.telemetry.attributes import AIAttributes
 from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 from rhesis.telemetry.schemas import AIOperationType
-
-_PIPELINE_RUN_KEY = "haystack.pipeline.run"
-_ASYNC_PIPELINE_RUN_KEY = "haystack.async_pipeline.run"
-_AGENT_RUN_KEY = "haystack.agent.run"
-_COMPONENT_RUN_KEY = "haystack.component.run"
-_COMPONENT_NAME_KEY = "haystack.component.name"
-_COMPONENT_TYPE_KEY = "haystack.component.type"
-
-# Haystack 3.0 moved the Agent loop off ``Pipeline._run_component``: each iteration now opens its own
-# span, and the LLM call and every tool call are traced directly instead of through a ``ToolInvoker``
-# component span. These operations carry no ``haystack.component.name``/``.type`` tags, so they are
-# matched on operation name alone (see ``_OPERATION_ONLY``).
-_AGENT_STEP_KEY = "haystack.agent.step"
-_AGENT_STEP_LLM_KEY = "haystack.agent.step.llm"
-_AGENT_STEP_TOOL_KEY = "haystack.agent.step.tool"
-_TOOL_NAME_KEY = "haystack.tool.name"
-_TOOL_DESCRIPTION_KEY = "haystack.tool.description"
 
 AGENT_STEP_SPAN_NAME = "function.haystack.agent.step"
 
@@ -45,24 +29,24 @@ _OPERATION_ONLY = "__operation__"
 # separate from SPAN_KIND_RULES because these three win over every rule below, and expressing that
 # in an ordered first-match table needed rows the matcher then had to skip.
 ROOT_SPAN_NAMES: dict[str, str] = {
-    _AGENT_RUN_KEY: AIOperationType.AGENT_INVOKE.value,
-    _PIPELINE_RUN_KEY: "function.haystack.pipeline.run",
-    _ASYNC_PIPELINE_RUN_KEY: "function.haystack.async_pipeline.run",
+    hs.AGENT_RUN: AIOperationType.AGENT_INVOKE.value,
+    hs.PIPELINE_RUN: "function.haystack.pipeline.run",
+    hs.ASYNC_PIPELINE_RUN: "function.haystack.async_pipeline.run",
 }
 
 # Ordered span-kind rules (first match wins). Unit-tested independently of inline conditionals.
 # Root spans are named by ROOT_SPAN_NAMES above, not from here.
 SPAN_KIND_RULES: tuple[tuple[str, str, str], ...] = (
     # (operation_name, component_type suffix, rhesis span name)
-    (_AGENT_STEP_LLM_KEY, _OPERATION_ONLY, AIOperationType.LLM_INVOKE.value),
-    (_AGENT_STEP_TOOL_KEY, _OPERATION_ONLY, AIOperationType.TOOL_INVOKE.value),
-    (_AGENT_STEP_KEY, _OPERATION_ONLY, AGENT_STEP_SPAN_NAME),
+    (hs.AGENT_STEP_LLM, _OPERATION_ONLY, AIOperationType.LLM_INVOKE.value),
+    (hs.AGENT_STEP_TOOL, _OPERATION_ONLY, AIOperationType.TOOL_INVOKE.value),
+    (hs.AGENT_STEP, _OPERATION_ONLY, AGENT_STEP_SPAN_NAME),
     # haystack 2.x emitted tool calls as a ToolInvoker component span; kept for backwards compatibility.
-    (_COMPONENT_RUN_KEY, "ToolInvoker", AIOperationType.TOOL_INVOKE.value),
-    (_AGENT_RUN_KEY, "__any__", AIOperationType.AGENT_INVOKE.value),
-    (_COMPONENT_RUN_KEY, "Retriever", AIOperationType.RETRIEVAL.value),
-    (_COMPONENT_RUN_KEY, "Embedder", AIOperationType.EMBEDDING_GENERATE.value),
-    (_COMPONENT_RUN_KEY, "Generator", AIOperationType.LLM_INVOKE.value),
+    (hs.COMPONENT_RUN, "ToolInvoker", AIOperationType.TOOL_INVOKE.value),
+    (hs.AGENT_RUN, "__any__", AIOperationType.AGENT_INVOKE.value),
+    (hs.COMPONENT_RUN, "Retriever", AIOperationType.RETRIEVAL.value),
+    (hs.COMPONENT_RUN, "Embedder", AIOperationType.EMBEDDING_GENERATE.value),
+    (hs.COMPONENT_RUN, "Generator", AIOperationType.LLM_INVOKE.value),
 )
 
 _OPERATION_TYPE_BY_SPAN_NAME: dict[str, str] = {
