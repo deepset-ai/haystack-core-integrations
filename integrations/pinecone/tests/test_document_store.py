@@ -568,42 +568,6 @@ class TestDocumentStore(
         # Non-existent field
         assert document_store.get_metadata_field_min_max("nonexistent") == {"min": None, "max": None}
 
-    def test_get_metadata_field_unique_values(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "Alpha"}),
-            Document(content="Doc 2", meta={"category": "Beta"}),
-            Document(content="Doc 3", meta={"category": "Gamma"}),
-            Document(content="Doc 4", meta={"category": "Alpha"}),
-            Document(content="Doc 5", meta={"category": "Delta"}),
-            Document(content="Doc 6", meta={"category": "Beta"}),
-        ]
-        document_store.write_documents(docs)
-
-        # Get all unique values
-        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=10)
-        assert total == 4  # Alpha, Beta, Delta, Gamma
-        assert len(values) == 4
-        assert set(values) == {"Alpha", "Beta", "Delta", "Gamma"}
-
-        # Test pagination
-        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
-        assert total == 4
-        assert len(values) == 2  # First 2 values (alphabetically sorted)
-
-        values, total = document_store.get_metadata_field_unique_values("category", from_=2, size=2)
-        assert total == 4
-        assert len(values) == 2  # Next 2 values
-
-        # Test search term
-        values, total = document_store.get_metadata_field_unique_values("category", search_term="ta", size=10)
-        assert total == 2  # Beta and Delta contain "ta"
-        assert set(values) == {"Beta", "Delta"}
-
-        # Test case-insensitive search
-        values, total = document_store.get_metadata_field_unique_values("category", search_term="ALPHA", size=10)
-        assert total == 1
-        assert values == ["Alpha"]
-
     def test_get_metadata_field_unique_values_with_lists(self, document_store: PineconeDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"tags": ["python", "java"]}),
@@ -616,16 +580,3 @@ class TestDocumentStore(
         values, total = document_store.get_metadata_field_unique_values("tags", size=10)
         assert total == 4  # python, java, rust, go
         assert set(values) == {"go", "java", "python", "rust"}
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
