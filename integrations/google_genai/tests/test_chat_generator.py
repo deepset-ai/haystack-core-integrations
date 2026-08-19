@@ -378,9 +378,9 @@ class TestGoogleGenAIChatGeneratorRun:
         assert len(config.safety_settings) == 1
         assert config.safety_settings[0].category == "HARM_CATEGORY_HARASSMENT"
 
-    def test_run_with_generation_kwargs_override(self, monkeypatch, mock_response):
+    def test_run_with_generation_kwargs(self, monkeypatch, mock_response):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-        component = GoogleGenAIChatGenerator(generation_kwargs={"temperature": 0.5})
+        component = GoogleGenAIChatGenerator(generation_kwargs={"temperature": 0.5, "max_output_tokens": 100})
         component._client.models.generate_content = Mock(return_value=mock_response)
 
         component.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
@@ -388,6 +388,7 @@ class TestGoogleGenAIChatGeneratorRun:
         call_kwargs = component._client.models.generate_content.call_args
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.temperature == 0.9
+        assert config.max_output_tokens == 100
 
     def test_run_thinking_error_raises_helpful_message(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -474,6 +475,19 @@ class TestGoogleGenAIChatGeneratorRun:
         assert isinstance(result["replies"], list)
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self, monkeypatch, mock_response):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator(generation_kwargs={"temperature": 0.5, "max_output_tokens": 100})
+        component._client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+        await component.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        call_kwargs = component._client.aio.models.generate_content.call_args
+        config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
+        assert config.temperature == 0.9
+        assert config.max_output_tokens == 100
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, monkeypatch, mock_streaming_chunk):

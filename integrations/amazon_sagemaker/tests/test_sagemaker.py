@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from unittest.mock import Mock
@@ -192,6 +193,20 @@ def test_run_raises_inference_error_on_other_http_error(set_env_variables, mock_
         ),
     ):
         component.run("What's Natural Language Processing?")
+
+
+def test_run_with_generation_kwargs(set_env_variables, mock_boto3_session):  # noqa: ARG001
+    client_mock = Mock()
+    client_mock.invoke_endpoint.return_value = {"Body": Mock(read=lambda: b'{"generated_text": "ok"}')}
+    component = SagemakerGenerator(
+        model="test-model",
+        generation_kwargs={"max_new_tokens": 100, "temperature": 0.5},
+    )
+    component.client = client_mock
+    component.run("prompt", generation_kwargs={"temperature": 0.9})
+
+    body = json.loads(client_mock.invoke_endpoint.call_args.kwargs["Body"])
+    assert body["parameters"] == {"max_new_tokens": 100, "temperature": 0.9}
 
 
 def test_run_passes_custom_attributes_and_generation_kwargs(set_env_variables, mock_boto3_session):  # noqa: ARG001

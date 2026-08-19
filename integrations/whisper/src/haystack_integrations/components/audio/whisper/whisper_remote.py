@@ -97,17 +97,22 @@ class RemoteWhisperTranscriber:
             )
         whisper_params["response_format"] = "json"
         self.whisper_params = whisper_params
+        # openai>=3 annotates http_client as httpx2, but legacy httpx clients are supported at runtime.
+        # https://github.com/openai/openai-python/blob/main/httpx2.md
+        http_client = init_http_client(self.http_client_kwargs, async_client=False)
+        async_http_client = init_http_client(self.http_client_kwargs, async_client=True)
+
         self.client = OpenAI(
             api_key=api_key.resolve_value(),
             organization=organization,
             base_url=api_base_url,
-            http_client=init_http_client(self.http_client_kwargs, async_client=False),
+            http_client=http_client,  # type: ignore[arg-type]
         )
         self.async_client = AsyncOpenAI(
             api_key=api_key.resolve_value(),
             organization=organization,
             base_url=api_base_url,
-            http_client=init_http_client(self.http_client_kwargs, async_client=True),
+            http_client=async_http_client,  # type: ignore[arg-type]
         )
 
     def to_dict(self) -> dict[str, Any]:
