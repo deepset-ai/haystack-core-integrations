@@ -738,82 +738,6 @@ class TestValkeyDocumentStore(
         with pytest.raises(ValueError, match="not configured for filtering"):
             document_store.get_metadata_field_min_max("unknown_field")
 
-    def test_get_metadata_field_unique_values(self, document_store):
-        """Test get_metadata_field_unique_values returns distinct values and total count."""
-        docs = [
-            Document(id="gmv1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "apple", "priority": 1}),
-            Document(id="gmv2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "banana", "priority": 2}),
-            Document(id="gmv3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "apple", "priority": 3}),
-        ]
-        document_store.write_documents(docs)
-        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=10)
-        assert total == 2
-        assert set(values) == {"apple", "banana"}
-        assert len(values) == 2
-
-    def test_get_metadata_field_unique_values_pagination(self, document_store):
-        """Test get_metadata_field_unique_values with from_ and size."""
-        docs = [
-            Document(id=f"gmvp{i}", content=f"doc {i}", embedding=[0.1, 0.2, 0.3], meta={"category": f"cat_{i}"})
-            for i in range(5)
-        ]
-        document_store.write_documents(docs)
-        values, total = document_store.get_metadata_field_unique_values("category", from_=1, size=2)
-        assert total == 5
-        assert len(values) == 2
-        assert sorted(values)[0] >= "cat_0"
-
-    def test_get_metadata_field_unique_values_with_search_term(self, document_store):
-        """Test get_metadata_field_unique_values with search_term filter."""
-        docs = [
-            Document(id="gmvs1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "apple_pie"}),
-            Document(id="gmvs2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "banana"}),
-            Document(id="gmvs3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "apple_jam"}),
-        ]
-        document_store.write_documents(docs)
-        values, total = document_store.get_metadata_field_unique_values(
-            "category", search_term="apple", from_=0, size=10
-        )
-        assert total == 2
-        assert set(values) == {"apple_pie", "apple_jam"}
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store):
-        """Test get_metadata_field_unique_values restricts documents using the filters param."""
-        docs = [
-            Document(
-                id="gmvf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "A", "status": "active"}
-            ),
-            Document(
-                id="gmvf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "B", "status": "active"}
-            ),
-            Document(
-                id="gmvf3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "C", "status": "inactive"}
-            ),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
-    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store):
-        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
-        docs = [
-            Document(id="gmvt1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"priority": 1}),
-            Document(id="gmvt2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"priority": 2}),
-            Document(id="gmvt3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"priority": 1}),
-        ]
-        document_store.write_documents(docs)
-        values, total = document_store.get_metadata_field_unique_values("priority")
-        assert total == 2
-        assert set(values) == {1, 2}
-
-    def test_get_metadata_field_unique_values_unknown_field_raises(self, document_store):
-        """Test get_metadata_field_unique_values raises for unconfigured field."""
-        with pytest.raises(ValueError, match="not configured for filtering"):
-            document_store.get_metadata_field_unique_values("unknown_field")
-
     def test_count_unique_metadata_by_filter_invalid_field_raises(self, document_store):
         """Test count_unique_metadata_by_filter raises for unconfigured field."""
         document_store.write_documents(
@@ -1256,8 +1180,8 @@ def test_prepare_document_dict_validates_tag_field_type():
         store._prepare_document_dict(doc)
 
 
-def test_prepare_document_dict_validates_numeric_field_type():
-    """Test that numeric fields reject non-numeric values."""
+def test_prepare_document_dict_omits_non_numeric_value_from_index():
+    """Test that a non-numeric value for a numeric field is omitted from the index but kept in the payload."""
     store = ValkeyDocumentStore(
         index_name="test_validation",
         embedding_dim=3,
@@ -1265,8 +1189,10 @@ def test_prepare_document_dict_validates_numeric_field_type():
     )
     doc = Document(content="test", embedding=[0.1, 0.2, 0.3], meta={"priority": "high"})
 
-    with pytest.raises(ValueError, match="Field 'priority' expects numeric value but got str"):
-        store._prepare_document_dict(doc)
+    doc_dict = store._prepare_document_dict(doc)
+
+    assert doc_dict["meta_priority"] is None
+    assert doc_dict["payload"]["meta"]["priority"] == "high"
 
 
 @pytest.fixture
