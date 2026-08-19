@@ -26,6 +26,7 @@ from haystack.testing.document_store_async import (
     CountDocumentsByFilterAsyncTest,
     CountUniqueMetadataByFilterAsyncTest,
     FilterableDocsFixtureMixin,
+    GetMetadataFieldUniqueValuesAsyncTest,
     UpdateByFilterAsyncTest,
 )
 
@@ -438,63 +439,13 @@ class TestOracleDocumentStore(
         assert document_store.count_documents() == 0
         assert document_store._pool is not None
 
-    def test_get_metadata_field_unique_values_search_term_matches_value_not_content(self, document_store):
-        """search_term filters on the metadata field's own value; document content is not considered."""
-        document_store.write_documents(
-            [
-                _doc(_uid("Q001"), content="this text mentions apple", meta={"category": "dessert"}),
-                _doc(_uid("Q002"), content="unrelated content", meta={"category": "apple-tart"}),
-            ]
-        )
-        values, total = document_store.get_metadata_field_unique_values("category", search_term="apple")
-        # Q001: content contains "apple" but its category value ("dessert") does not -> excluded.
-        # Q002: category value ("apple-tart") contains "apple", content does not -> still included.
-        assert values == ["apple-tart"]
-        assert total == 1
-
-    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, document_store):
-        document_store.write_documents(
-            [
-                _doc(_uid("Q003"), content="n/a", meta={"category": "Apple-Tart"}),
-            ]
-        )
-        values, total = document_store.get_metadata_field_unique_values("category", search_term="APPLE")
-        assert values == ["Apple-Tart"]
-        assert total == 1
-
-    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store):
-        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
-        document_store.write_documents(
-            [
-                _doc(_uid("P001"), content="one", meta={"priority": 1}),
-                _doc(_uid("P002"), content="two", meta={"priority": 2}),
-                _doc(_uid("P003"), content="three", meta={"priority": 1}),
-            ]
-        )
-        values, total = document_store.get_metadata_field_unique_values("priority")
-        assert set(values) == {1, 2}
-        assert total == 2
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store):
-        document_store.write_documents(
-            [
-                _doc(_uid("R001"), meta={"category": "A", "status": "active"}),
-                _doc(_uid("R002"), meta={"category": "B", "status": "active"}),
-                _doc(_uid("R003"), meta={"category": "C", "status": "inactive"}),
-            ]
-        )
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
 
 @pytest.mark.integration
 class TestOracleDocumentStoreAsync(
     FilterableDocsFixtureMixin,
     CountDocumentsByFilterAsyncTest,
     CountUniqueMetadataByFilterAsyncTest,
+    GetMetadataFieldUniqueValuesAsyncTest,
     UpdateByFilterAsyncTest,
 ):
     """Async API surface tests."""
@@ -532,18 +483,3 @@ class TestOracleDocumentStoreAsync(
         await embedding_store.write_documents_async([_doc(doc_id, embedding=[0.5, 0.5, 0.0, 0.0])])
         results = await embedding_store._embedding_retrieval_async([0.5, 0.5, 0.0, 0.0], top_k=1)
         assert len(results) >= 1
-
-    @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_with_filters_async(self, embedding_store):
-        await embedding_store.write_documents_async(
-            [
-                _doc(_uid("S001"), meta={"category": "A", "status": "active"}),
-                _doc(_uid("S002"), meta={"category": "B", "status": "active"}),
-                _doc(_uid("S003"), meta={"category": "C", "status": "inactive"}),
-            ]
-        )
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = await embedding_store.get_metadata_field_unique_values_async("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
