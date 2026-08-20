@@ -49,13 +49,19 @@ def fake_soffice() -> Generator[MagicMock, None]:
 
 @pytest.fixture
 def fake_soffice_async() -> Generator[MagicMock, None]:
-    """Patch the asynchronous soffice call so `run_async` needs no LibreOffice installation."""
+    """
+    Patch the asynchronous soffice call so `run_async` needs no LibreOffice installation.
+
+    Set `returncode` on the yielded mock to make the stand-in report a failed conversion.
+    """
     with patch(f"{CONVERTER_MODULE}.create_subprocess_exec") as mock_exec:
+        mock_exec.returncode = 0
 
         async def _exec(*args):
-            _write_converted_file(list(args))
+            if mock_exec.returncode == 0:
+                _write_converted_file(list(args))
             process = AsyncMock()
-            process.wait = AsyncMock(return_value=0)
+            process.wait = AsyncMock(return_value=mock_exec.returncode)
             return process
 
         mock_exec.side_effect = _exec

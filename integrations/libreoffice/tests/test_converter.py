@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -223,6 +224,22 @@ class TestRunAsync:
 
         assert result["output"][0].mime_type == "application/pdf"
         assert _converted_to(list(fake_soffice_async.call_args.args)) == "pdf"
+
+    @pytest.mark.parametrize("as_bytestream", [False, True])
+    async def test_raises_when_soffice_exits_non_zero(
+        self,
+        mock_converter: LibreOfficeFileConverter,
+        fake_soffice_async: MagicMock,
+        tmp_path: Path,
+        as_bytestream: bool,
+    ) -> None:
+        path = tmp_path / "sample.doc"
+        path.write_bytes(b"doc")
+        source = ByteStream(data=b"raw doc bytes") if as_bytestream else path
+        fake_soffice_async.returncode = 1
+
+        with pytest.raises(subprocess.CalledProcessError):
+            await mock_converter.run_async([source], output_file_type="pdf")
 
     async def test_requires_an_output_file_type_somewhere(self, mock_converter: LibreOfficeFileConverter) -> None:
         with pytest.raises(ValueError, match="output_file_type must be provided"):
