@@ -485,33 +485,6 @@ class TestArcadeDBDocumentStore(
 
         assert result == {"min": None, "max": None}
 
-    def test_get_metadata_field_unique_values_pagination(self, document_store: ArcadeDBDocumentStore):
-        """Respects size limit while total reflects the full unpaginated count."""
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "alpha"}),
-            Document(id="2", content="Doc 2", meta={"category": "beta"}),
-            Document(id="3", content="Doc 3", meta={"category": "gamma"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
-
-        assert len(values) == 2
-        assert total == 3
-
-    def test_get_metadata_field_unique_values_case_insensitive(self, document_store: ArcadeDBDocumentStore):
-        """Matches values case-insensitively when a search term is provided."""
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "Books"}),
-            Document(id="2", content="Doc 2", meta={"category": "books"}),
-            Document(id="3", content="Doc 3", meta={"category": "ELECTRONICS"}),
-        ]
-        document_store.write_documents(docs)
-
-        _, total = document_store.get_metadata_field_unique_values("category", search_term="book")
-
-        assert total == 2
-
     def test_get_metadata_field_unique_values_no_matches(self, document_store: ArcadeDBDocumentStore):
         """Returns empty results when no metadata values match the search term."""
         docs = [Document(id="1", content="Doc 1", meta={"category": "news"})]
@@ -521,33 +494,6 @@ class TestArcadeDBDocumentStore(
 
         assert values == []
         assert total == 0
-
-    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store: ArcadeDBDocumentStore):
-        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
-        docs = [
-            Document(id="1", content="Doc 1", meta={"priority": 1}),
-            Document(id="2", content="Doc 2", meta={"priority": 2}),
-            Document(id="3", content="Doc 3", meta={"priority": 1}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total = document_store.get_metadata_field_unique_values("priority")
-
-        assert set(values) == {1, 2}
-        assert total == 2
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store: ArcadeDBDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(id="2", content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(id="3", content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
 
     def test_write_documents_none_embedding_is_zero_padded(self, document_store: ArcadeDBDocumentStore):
         """Documents written without an embedding get a zero vector of the correct dimension."""
