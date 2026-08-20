@@ -340,8 +340,9 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param generation_kwargs:
-            Additional keyword arguments for text generation. These parameters will
-            override the parameters passed during component initialization.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
             For details on OpenRouter API parameters, see
             [OpenRouter docs](https://openrouter.ai/docs/quickstart).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
@@ -419,7 +420,9 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             A callback function that is called when a new token is received from the stream.
             Must be a coroutine.
         :param generation_kwargs:
-            Additional keyword arguments for text generation.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset.
         :param tools_strict:
             Whether to enable strict schema adherence for tool calls.
