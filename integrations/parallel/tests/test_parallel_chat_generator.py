@@ -66,8 +66,9 @@ class TestParallelChatGenerator:
 
     def test_missing_api_key_raises_on_use(self, monkeypatch):
         monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
-        component = ParallelChatGenerator()
+        # haystack-ai 2.x resolves the secret at init, >= 3.0 at warm-up
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+            component = ParallelChatGenerator()
             component.warm_up()
 
     def test_init_with_parameters(self):
