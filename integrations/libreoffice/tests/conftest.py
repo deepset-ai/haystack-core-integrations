@@ -2,28 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import subprocess
 from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from haystack_integrations.components.converters.libreoffice import LibreOfficeFileConverter
 
 CONVERTER_MODULE = "haystack_integrations.components.converters.libreoffice.converter"
-
-
-def _write_converted_file(args: list[str]) -> None:
-    """
-    Stand in for soffice: write the file the real binary would have produced.
-
-    The output path is derived from the same argv the converter built, so the tests
-    break if the argv contract changes.
-    """
-    outdir = Path(args[args.index("--outdir") + 1])
-    output_file_type = args[args.index("--convert-to") + 1]
-    source = Path(args[-1])
-    (outdir / source.name).with_suffix(f".{output_file_type}").write_bytes(b"converted bytes")
 
 
 @pytest.fixture
@@ -40,32 +29,40 @@ def mock_converter() -> Generator[LibreOfficeFileConverter, None]:
 
 
 @pytest.fixture
-def fake_soffice() -> Generator[MagicMock, None]:
-    """Patch the synchronous soffice call so `run` needs no LibreOffice installation."""
-    with patch(f"{CONVERTER_MODULE}.subprocess.run") as mock_run:
-        mock_run.side_effect = lambda args, **_: _write_converted_file(args)
-        yield mock_run
-
-
-@pytest.fixture
-def fake_soffice_async() -> Generator[MagicMock, None]:
+def fake_soffice() -> Generator[SimpleNamespace, None]:
     """
-    Patch the asynchronous soffice call so `run_async` needs no LibreOffice installation.
+    Stand in for soffice on both the sync and the async call, so no LibreOffice is needed.
 
-    Set `returncode` on the yielded mock to make the stand-in report a failed conversion.
+    Writes the file the real binary would have produced, deriving the output path from the
+    same argv the converter built, so the tests break if that contract changes. `calls`
+    records every argv; set `returncode` non-zero to report a failed conversion.
     """
-    with patch(f"{CONVERTER_MODULE}.create_subprocess_exec") as mock_exec:
-        mock_exec.returncode = 0
+    fake = SimpleNamespace(calls=[], returncode=0)
 
-        async def _exec(*args):
-            if mock_exec.returncode == 0:
-                _write_converted_file(list(args))
-            process = AsyncMock()
-            process.wait = AsyncMock(return_value=mock_exec.returncode)
-            return process
+    def _convert(args: list[str]) -> None:
+        fake.calls.append(args)
+        if fake.returncode:
+            return
+        outdir = Path(args[args.index("--outdir") + 1])
+        suffix = args[args.index("--convert-to") + 1]
+        (outdir / Path(args[-1]).name).with_suffix(f".{suffix}").write_bytes(b"converted bytes")
 
-        mock_exec.side_effect = _exec
-        yield mock_exec
+    def _run(args: list[str], **_: object) -> None:
+        _convert(args)
+        if fake.returncode:
+            raise subprocess.CalledProcessError(fake.returncode, args)
+
+    async def _exec(*args: str) -> AsyncMock:
+        _convert(list(args))
+        process = AsyncMock()
+        process.wait = AsyncMock(return_value=fake.returncode)
+        return process
+
+    with (
+        patch(f"{CONVERTER_MODULE}.subprocess.run", side_effect=_run),
+        patch(f"{CONVERTER_MODULE}.create_subprocess_exec", side_effect=_exec),
+    ):
+        yield fake
 
 
 @pytest.fixture
