@@ -546,6 +546,51 @@ class TestCohereChatGenerator:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
+    def test_run_with_generation_kwargs(self):
+        generator = CohereChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        generator.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.client.chat.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self):
+        generator = CohereChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.async_client.chat = AsyncMock(return_value=mock_response)
+
+        await generator.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.async_client.chat.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+
 
 @pytest.mark.skipif(
     not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),

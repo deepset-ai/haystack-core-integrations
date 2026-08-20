@@ -1,5 +1,39 @@
 # Changelog
 
+## [integrations/google_genai-v4.7.1] - 2026-08-20
+
+### 🐛 Bug Fixes
+
+- Fix finish reason mapping for streaming Gemini models (#3823)
+
+
+## [integrations/google_genai-v4.7.0] - 2026-08-20
+
+### 📚 Documentation
+
+- *(gemini)* Update defaults to 3.7 Flash (#3816)
+
+
+## [integrations/google_genai-v4.6.1] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Confine GoogleGenAIMultimodalDocumentEmbedder file paths to root_path (#3811)
+
+
+## [integrations/google_genai-v4.6.0] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+- [**breaking**] Standardize generation_kwargs handling in GoogleGenAIChatGenerator (#3804)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/google_genai-v4.5.0] - 2026-07-03
 
 ### 🧪 Testing
