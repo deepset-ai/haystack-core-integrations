@@ -71,6 +71,7 @@ on:
       - "Test / oracle"
       - "Test / orcarouter"
       - "Test / paddleocr"
+      - "Test / parallel"
       - "Test / perplexity"
       - "Test / pgvector"
       - "Test / pinecone"
