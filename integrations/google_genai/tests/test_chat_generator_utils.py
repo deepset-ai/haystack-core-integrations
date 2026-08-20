@@ -772,6 +772,21 @@ class TestStreamingChunkConversion:
         assert result.text == "Hello world"
         assert result.meta["usage"]["cached_content_token_count"] == 800
 
+    def test_convert_google_chunk_to_streaming_chunk_without_candidates(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+
+        chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=types.GenerateContentResponse(candidates=[]),
+            index=3,
+            component_info=component_info,
+            model="gemini-3.7-flash",
+        )
+
+        assert chunk.content == ""
+        assert chunk.tool_calls == []
+        assert chunk.finish_reason is None
+
 
 class TestConvertMessageToGoogleGenAI:
     def test_convert_message_to_google_genai_format_complex(self):
