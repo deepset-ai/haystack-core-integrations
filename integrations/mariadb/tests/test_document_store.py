@@ -46,7 +46,7 @@ class TestSerialization:
         d = MariaDBDocumentStore().to_dict()
         assert d["type"] == "haystack_integrations.document_stores.mariadb.document_store.MariaDBDocumentStore"
         params = d["init_parameters"]
-        assert params["host"] == "localhost"
+        assert params["host"] == "127.0.0.1"
         assert params["embedding_dimension"] == 768
         assert params["distance"] == "cosine"
 
@@ -54,7 +54,7 @@ class TestSerialization:
         store = MariaDBDocumentStore(embedding_dimension=512, distance="euclidean")
         restored = MariaDBDocumentStore.from_dict(store.to_dict())
         assert restored.embedding_dimension == 512
-        assert restored.host == "localhost"
+        assert restored.host == "127.0.0.1"
         assert restored.distance == "euclidean"
 
     def test_invalid_table_name_raises(self):

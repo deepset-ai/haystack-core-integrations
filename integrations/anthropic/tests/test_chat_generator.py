@@ -358,6 +358,16 @@ class TestRun:
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-5"
         assert response["replies"][0].meta["finish_reason"] == "stop"
 
+    def test_run_with_generation_kwargs(self, chat_messages, mock_chat_completion):
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+        )
+        component.run(chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.9
+
     @pytest.mark.parametrize(
         "generation_kwargs,expected_kwargs",
         [
