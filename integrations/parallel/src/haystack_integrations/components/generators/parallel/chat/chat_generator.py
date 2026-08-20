@@ -6,7 +6,7 @@ import importlib.metadata
 from typing import Any, ClassVar
 
 from haystack import component, default_from_dict
-from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.core.serialization import generate_qualified_class_name
 from haystack.dataclasses import StreamingCallbackT
 from haystack.utils import deserialize_callable
@@ -48,15 +48,16 @@ def _http_client_kwargs_with_headers(
 
 
 @component
-class ParallelChatGenerator(OpenAIChatGenerator):
+class ParallelChatGenerator(OpenAIResponsesChatGenerator):
     """
-    Completes chats using Parallel's web-research models.
+    Completes chats using Parallel's web-research model.
 
-    Powered by the Parallel Chat API (`POST /chat/completions`, OpenAI ChatCompletions-compatible).
-    The research models (`lite`, `base`, `core`) ground every answer with built-in web research and
-    return a `basis` field with per-field citations, reasoning, and confidence; `speed` is a
-    low-latency model without a research basis.
-    See the [Parallel Chat API quickstart](https://docs.parallel.ai/chat-api/chat-quickstart) for details.
+    Powered by the Parallel Responses API (`POST /v1/responses`, OpenAI Responses-compatible).
+    Every answer is grounded in live web research with citations; the `reasoning.effort`
+    parameter selects the research tier: `low` (~5-10s), `medium` (~15-20s, default), or
+    `high` (~30-60s).
+    See the [Parallel Responses API quickstart](https://docs.parallel.ai/responses-api/responses-quickstart)
+    for details.
 
     It uses the [ChatMessage](https://docs.haystack.deepset.ai/docs/chatmessage) format in input and output.
     Web grounding is built in, so tool calling and sampling parameters
@@ -69,22 +70,22 @@ class ParallelChatGenerator(OpenAIChatGenerator):
 
     messages = [ChatMessage.from_user("What did Parallel Web Systems announce this year?")]
 
-    client = ParallelChatGenerator(model="core")
+    client = ParallelChatGenerator(generation_kwargs={"reasoning": {"effort": "low"}})
     response = client.run(messages)
     print(response)
     ```
     """
 
-    SUPPORTED_MODELS: ClassVar[list[str]] = ["speed", "lite", "base", "core"]
-    """The Parallel Chat API models supported by this component.
-    See https://docs.parallel.ai/chat-api/chat-quickstart for the full and current list."""
+    SUPPORTED_MODELS: ClassVar[list[str]] = ["parallel"]
+    """The Parallel Responses API models supported by this component.
+    See https://docs.parallel.ai/responses-api/responses-quickstart for details."""
 
     def __init__(
         self,
         *,
         api_key: Secret = Secret.from_env_var("PARALLEL_API_KEY"),
-        model: str = "speed",
-        api_base_url: str | None = "https://api.parallel.ai",
+        model: str = "parallel",
+        api_base_url: str | None = "https://api.parallel.ai/v1",
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         timeout: float | None = None,
@@ -98,14 +99,15 @@ class ParallelChatGenerator(OpenAIChatGenerator):
         :param api_key:
             The Parallel API key.
         :param model:
-            The Parallel Chat API model to use.
+            The Parallel Responses API model to use.
         :param api_base_url:
             The Parallel API base URL.
         :param streaming_callback:
             A callback function called when a new token is received from the stream.
         :param generation_kwargs:
-            Additional parameters sent directly to the Parallel Chat API, such as
-            `response_format` for structured JSON output.
+            Additional parameters sent directly to the Parallel Responses API, such as
+            `reasoning` (e.g. `{"effort": "low"}`) to select the research tier or
+            `text` for structured output.
         :param timeout:
             Timeout for Parallel API calls.
         :param extra_headers:
