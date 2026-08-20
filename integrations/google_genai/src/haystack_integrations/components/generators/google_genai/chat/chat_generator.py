@@ -329,11 +329,17 @@ class GoogleGenAIChatGenerator:
 
         try:
             chunks = []
+            tool_calls_seen = False
 
             for i, chunk in enumerate(response_stream):
                 streaming_chunk = _convert_google_chunk_to_streaming_chunk(
-                    chunk=chunk, index=i, component_info=component_info, model=self._model
+                    chunk=chunk,
+                    index=i,
+                    component_info=component_info,
+                    model=self._model,
+                    tool_calls_seen=tool_calls_seen,
                 )
+                tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
@@ -361,13 +367,19 @@ class GoogleGenAIChatGenerator:
 
         try:
             chunks = []
+            tool_calls_seen = False
 
             i = 0
             chunk = None
             async for chunk in response_stream:
                 streaming_chunk = _convert_google_chunk_to_streaming_chunk(
-                    chunk=chunk, index=i, component_info=component_info, model=self._model
+                    chunk=chunk,
+                    index=i,
+                    component_info=component_info,
+                    model=self._model,
+                    tool_calls_seen=tool_calls_seen,
                 )
+                tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk

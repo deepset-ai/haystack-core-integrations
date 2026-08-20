@@ -8,6 +8,7 @@ import os
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from google.genai import types
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
@@ -335,6 +336,39 @@ class TestGoogleGenAIChatGeneratorRun:
         assert "Hello" in results["replies"][0].text
         assert " world" in results["replies"][0].text
         assert len(callback_chunks) == 2
+
+    def test_run_streaming_gemini_3_tool_call_finish_reason(self, monkeypatch):
+        """
+        Gemini 3 models send the terminal "STOP" in its own chunk, after the one holding the function call.
+        Both the streamed chunk and the aggregated reply must report "tool_calls".
+        """
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator(model="gemini-3.7-flash")
+
+        def google_chunk(parts, finish_reason=None):
+            return types.GenerateContentResponse(
+                candidates=[
+                    types.Candidate(content=types.Content(role="model", parts=parts), finish_reason=finish_reason)
+                ]
+            )
+
+        raw_chunks = [
+            google_chunk([types.Part(text="Checking the weather", thought=True)]),
+            google_chunk([types.Part(function_call=types.FunctionCall(name="weather", args={"city": "Paris"}))]),
+            google_chunk([], finish_reason=types.FinishReason.STOP),
+        ]
+        component._client.models.generate_content_stream = Mock(return_value=iter(raw_chunks))
+
+        callback_chunks = []
+        results = component.run(
+            [ChatMessage.from_user("What's the weather in Paris?")],
+            streaming_callback=callback_chunks.append,
+        )
+
+        # The terminal chunk handed to the callback carries the remapped finish reason
+        assert callback_chunks[-1].finish_reason == "tool_calls"
+        assert results["replies"][0].meta["finish_reason"] == "tool_calls"
+        assert results["replies"][0].tool_calls[0].tool_name == "weather"
 
     def test_run_extracts_system_message(self, monkeypatch, mock_response):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
