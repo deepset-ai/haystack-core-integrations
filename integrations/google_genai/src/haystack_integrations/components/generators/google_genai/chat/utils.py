@@ -590,6 +590,8 @@ def _convert_google_chunk_to_streaming_chunk(
     index: int,
     component_info: ComponentInfo,
     model: str,
+    *,
+    tool_calls_seen: bool = False,
 ) -> StreamingChunk:
     """
     Convert a chunk from Google Gen AI to a Haystack StreamingChunk.
@@ -598,6 +600,8 @@ def _convert_google_chunk_to_streaming_chunk(
     :param index: The index of the chunk.
     :param component_info: The component info.
     :param model: The model name.
+    :param tool_calls_seen: Whether an earlier chunk of the same stream already carried a tool call. Needed to
+        report the correct finish reason, since Gemini 3 models send the terminal finish reason in its own chunk.
     :returns: A StreamingChunk object.
     """
     content = ""
@@ -627,7 +631,7 @@ def _convert_google_chunk_to_streaming_chunk(
     if cached_content_token_count is not None:
         usage["cached_content_token_count"] = cached_content_token_count
 
-    if candidate.content and candidate.content.parts:
+    if chunk.candidates and candidate.content and candidate.content.parts:
         tc_index = -1
         for part_index, part in enumerate(candidate.content.parts):
             # Check for thought signature on this part (for multi-turn context)
@@ -685,8 +689,10 @@ def _convert_google_chunk_to_streaming_chunk(
 
     # Remap finish_reason to "tool_calls" when tool calls are present, since Google GenAI returns
     # "STOP" for both normal completions and tool calls (no dedicated FUNCTION_CALL finish reason).
+    # Gemini 3 models send the finish reason in its own chunk, after the one holding the tool call, so we also
+    # consider tool calls from earlier chunks of the same stream.
     mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "")
-    if mapped_finish_reason == "stop" and tool_calls:
+    if mapped_finish_reason == "stop" and (tool_calls or tool_calls_seen):
         mapped_finish_reason = "tool_calls"
 
     return StreamingChunk(

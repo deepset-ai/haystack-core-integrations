@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.youcom.youcom_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: You.com Search integration for Haystack
+  id: integrations-youcom
+  filename: youcom.md
+  title: You.com Search

@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.16.2] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+- Confine S3Downloader downloads to file_root_path (#3812)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/amazon_bedrock-v6.16.1] - 2026-08-14
 
 ### 🚀 Features
