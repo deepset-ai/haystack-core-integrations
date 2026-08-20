@@ -440,6 +440,19 @@ class TestTransformersChatGenerator:
         assert chat_message.is_from(ChatRole.ASSISTANT)
         assert chat_message.text == "Berlin is cool"
 
+    def test_run_with_generation_kwargs(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+        generator = TransformersChatGenerator(
+            model="meta-llama/Llama-2-13b-chat-hf",
+            generation_kwargs={"max_new_tokens": 100, "temperature": 0.5},
+        )
+        generator.pipeline = mock_pipeline_with_tokenizer
+
+        generator.run(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.pipeline.call_args
+        assert kwargs["max_new_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+
     def test_run_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
         # Define the streaming callback function
         def streaming_callback_fn(chunk: StreamingChunk): ...
@@ -703,6 +716,21 @@ class TestTransformersChatGeneratorAsync:
         chat_message = results["replies"][0]
         assert chat_message.is_from(ChatRole.ASSISTANT)
         assert chat_message.text == "Berlin is cool"
+        generator.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+        generator = TransformersChatGenerator(
+            model="meta-llama/Llama-2-13b-chat-hf",
+            generation_kwargs={"max_new_tokens": 100, "temperature": 0.5},
+        )
+        generator.pipeline = mock_pipeline_with_tokenizer
+
+        await generator.run_async(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.pipeline.call_args
+        assert kwargs["max_new_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
         generator.shutdown()
 
     @pytest.mark.asyncio
