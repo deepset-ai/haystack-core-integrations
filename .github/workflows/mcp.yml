@@ -81,10 +81,6 @@ jobs:
           # (e.g. `uvx mcp-server-time`). Installed on every OS so those tests run everywhere.
           pip install uv
 
-      - name: Set up Docker
-        if: runner.os == 'Linux'
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
       # we need to pull the mcp/brave-search image to run the test
       # on the actual mcp server as an example of real life usage
       # We also need to set the BRAVE_API_KEY environment variable
