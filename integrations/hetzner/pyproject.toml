@@ -58,7 +58,6 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "pytz",
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -142,8 +141,6 @@ ban-relative-imports = "parents"
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, relative imports, and don't need type annotations
 "tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
-# Examples can print their output and don't need docstrings or type annotations
-"examples/**/*" = ["T201", "D", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
