@@ -21,26 +21,16 @@ class HetznerChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using the models served by the Hetzner Inference API.
 
-    The Hetzner Inference API exposes open-weight models through an OpenAI-compatible REST API, so this component
-    extends `OpenAIChatGenerator` and only points it at the Hetzner endpoint. For the list of available models, see
-    the [Hetzner Inference API docs](https://docs.hetzner.com/general/company-and-policy/experiments/inference/) or
-    query the `/v1/models` endpoint, whose response is definitive.
+    For the list of available models, see the
+    [Hetzner Inference API docs](https://docs.hetzner.com/general/company-and-policy/experiments/inference/) or query
+    the `/v1/models` endpoint of the API, whose response is definitive.
 
-    Users can pass any text generation parameters valid for the Hetzner chat completion API
-    directly to this component using the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
-    parameter in `run` method.
+    You can pass any text generation parameters valid for the Hetzner chat completion API directly to this component
+    using the `generation_kwargs` parameter in `__init__` or in the `run` method.
 
-    Key Features and Compatibility:
-    - **Primary Compatibility**: Designed to work seamlessly with the Hetzner chat completion endpoint.
-    - **Streaming Support**: Supports streaming responses from the Hetzner chat completion endpoint.
-    - **Customizability**: Supports all parameters supported by the Hetzner chat completion endpoint.
-    - **Multimodality**: The served models accept images alongside text, so `ImageContent` parts can be included
-      in the `ChatMessage`s passed to `run`.
-
-    This component uses the ChatMessage format for structuring both input and output,
-    ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
-    Details on the ChatMessage format can be found in the
-    [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage)
+    The served models accept images alongside text, so
+    [`ImageContent`](https://docs.haystack.deepset.ai/docs/imagecontent) parts can be included in the
+    [`ChatMessage`](https://docs.haystack.deepset.ai/docs/chatmessage)s passed to `run`.
 
     Usage example:
     ```python

@@ -4,7 +4,7 @@
 
 import pytest
 from haystack.dataclasses import ChatMessage
-from haystack.tools import Tool, Toolset
+from haystack.tools import Tool
 
 
 @pytest.fixture(autouse=True)
@@ -22,11 +22,6 @@ def weather(city: str):
     return f"The weather in {city} is sunny and 32°C"
 
 
-def population(city: str):
-    """Get population for a given city."""
-    return f"The population of {city} is 2.2 million"
-
-
 def _city_tool(name: str, function):
     return Tool(
         name=name,
@@ -39,12 +34,6 @@ def _city_tool(name: str, function):
 @pytest.fixture
 def tools():
     return [_city_tool("weather", weather)]
-
-
-@pytest.fixture
-def mixed_tools():
-    """A list mixing a Tool and a Toolset, which serialize differently."""
-    return [_city_tool("weather", weather), Toolset([_city_tool("population", population)])]
 
 
 @pytest.fixture

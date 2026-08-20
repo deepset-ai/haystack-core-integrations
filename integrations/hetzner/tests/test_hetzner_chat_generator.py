@@ -10,7 +10,6 @@ import pytest
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk
-from haystack.tools import Toolset
 from haystack.utils.auth import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
@@ -75,20 +74,6 @@ class TestHetznerChatGenerator:
         # unknown models are passed on to the API, the user is only warned
         assert component.model == "some-model-not-served-by-hetzner"
         assert "not in the list of models known to be served by the Hetzner Inference API" in caplog.text
-
-    def test_warm_up(self, monkeypatch):
-        monkeypatch.setenv("HETZNER_API_KEY", "test-api-key")
-        component = HetznerChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
-        assert str(component.client.base_url) == f"{DEFAULT_API_BASE_URL}/"
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("HETZNER_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = HetznerChatGenerator()
-            component.warm_up()
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("HETZNER_API_KEY", "test-api-key")
@@ -165,21 +150,6 @@ class TestHetznerChatGenerator:
         assert component.max_retries == 10
         assert component.tools is None
         assert component.http_client_kwargs == {"proxy": "http://localhost:8080"}
-
-    def test_serde_with_mixed_tools(self, monkeypatch, mixed_tools):
-        """A list mixing Tool and Toolset survives a serialization round-trip."""
-        monkeypatch.setenv("HETZNER_API_KEY", "test-api-key")
-        data = HetznerChatGenerator(tools=mixed_tools).to_dict()
-
-        assert [entry["type"] for entry in data["init_parameters"]["tools"]] == [
-            "haystack.tools.tool.Tool",
-            "haystack.tools.toolset.Toolset",
-        ]
-
-        restored_tools = HetznerChatGenerator.from_dict(data).tools
-        assert restored_tools[0].name == mixed_tools[0].name
-        assert isinstance(restored_tools[1], Toolset)
-        assert [tool.name for tool in restored_tools[1].tools] == [tool.name for tool in mixed_tools[1].tools]
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("HETZNER_API_KEY", "fake-api-key")

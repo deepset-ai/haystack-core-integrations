@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
-from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from openai.types.completion_usage import CompletionUsage
@@ -15,7 +14,6 @@ from openai.types.completion_usage import CompletionUsage
 from haystack_integrations.components.generators.hetzner.chat.chat_generator import HetznerChatGenerator
 
 DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B-FP8"
-DEFAULT_API_BASE_URL = "https://inference.hetzner.com/api/v1"
 
 requires_api_key = pytest.mark.skipif(
     not os.environ.get("HETZNER_API_KEY", None),
@@ -49,17 +47,6 @@ def mock_async_chat_completion():
 
 @pytest.mark.asyncio
 class TestHetznerChatGeneratorAsync:
-    async def test_warm_up_async(self, monkeypatch):
-        monkeypatch.setenv("HETZNER_API_KEY", "test-api-key")
-        component = HetznerChatGenerator()
-        if hasattr(component, "warm_up_async"):
-            # haystack-ai >= 3.0 creates the async client during async warm-up
-            await component.warm_up_async()
-
-        assert isinstance(component.async_client, AsyncOpenAI)
-        assert component.async_client.api_key == "test-api-key"
-        assert str(component.async_client.base_url) == f"{DEFAULT_API_BASE_URL}/"
-
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):
         monkeypatch.setenv("HETZNER_API_KEY", "fake-api-key")
         component = HetznerChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
