@@ -637,7 +637,7 @@ class AmazonBedrockChatGenerator:
 
         :param messages: A list of `ChatMessage` objects forming the chat history.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param streaming_callback: Optional async-compatible callback for handling streaming outputs.
+        :param streaming_callback: Optional callback for handling streaming outputs. Async callbacks are preferred.
         :param generation_kwargs: Optional dictionary of generation parameters. These are merged per key with the
             `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
             initialization are kept. Some common parameters are:
@@ -691,10 +691,9 @@ class AmazonBedrockChatGenerator:
                     if not response_stream:
                         msg = "No stream found in the response."
                         raise AmazonBedrockInferenceError(msg)
-                    # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
                     replies = await _parse_streaming_response_async(
                         response_stream=response_stream,
-                        streaming_callback=callback,  # type: ignore[arg-type]
+                        streaming_callback=callback,
                         model=self.model,
                         component_info=component_info,
                     )
