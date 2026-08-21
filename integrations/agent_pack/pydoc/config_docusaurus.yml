@@ -4,6 +4,8 @@ loaders:
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
+      - haystack_integrations.agent_pack.plugins.plugin
+      - haystack_integrations.agent_pack.plugins.mem0
     search_path: [../src]
 processors:
   - type: filter
