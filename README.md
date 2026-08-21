@@ -4,8 +4,8 @@
 
 | Name                                                                       |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/unstructured/converter.py |       91 |       53 |       24 |        0 |     35% |150-181, 194-228, 234-249 |
-| **TOTAL**                                                                  |   **91** |   **53** |   **24** |    **0** | **35%** |           |
+| src/haystack\_integrations/components/converters/unstructured/converter.py |       91 |        0 |       24 |        5 |     96% |208-\>210, 217-\>228, 222-\>224, 224-\>226, 237-\>240 |
+| **TOTAL**                                                                  |   **91** |    **0** |   **24** |    **5** | **96%** |           |
 
 
 ## Setup coverage badge
