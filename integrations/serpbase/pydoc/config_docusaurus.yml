@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.serpbase.websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: SerpBase integration for Haystack
+  id: integrations-serpbase
+  filename: serpbase.md
+  title: SerpBase
