@@ -2,48 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from haystack.dataclasses import Document
 
 from haystack_integrations.components.retrievers.supabase import SupabaseGroongaBM25Retriever
-from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
-
-
-@pytest.fixture
-def mock_supabase_client():
-    """Creates a mock Supabase client so we never hit a real database."""
-    with patch("haystack_integrations.document_stores.supabase.groonga_document_store.create_client") as mock_create:
-        mock_client = MagicMock()
-        mock_create.return_value = mock_client
-
-        mock_client.rpc.return_value.execute.return_value = MagicMock(data=[], count=0)
-
-        mock_table = MagicMock()
-        mock_client.table.return_value = mock_table
-        mock_table.select.return_value = mock_table
-        mock_table.insert.return_value = mock_table
-        mock_table.upsert.return_value = mock_table
-        mock_table.delete.return_value = mock_table
-        mock_table.eq.return_value = mock_table
-        mock_table.in_.return_value = mock_table
-        mock_table.execute.return_value = MagicMock(data=[], count=0)
-
-        yield mock_client
-
-
-@pytest.fixture
-def groonga_store(mock_supabase_client, monkeypatch):  # noqa: ARG001
-    """Creates a SupabaseGroongaDocumentStore with mocked client and calls warm_up()."""
-    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
-    store = SupabaseGroongaDocumentStore(
-        supabase_url="https://fake-project.supabase.co",
-        table_name="test_groonga_documents",
-        recreate_table=False,
-    )
-    store.warm_up()
-    return store
 
 
 class TestRetriever:
