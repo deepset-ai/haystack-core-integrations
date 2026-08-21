@@ -7,7 +7,6 @@ import os
 import shutil
 import subprocess
 from asyncio import create_subprocess_exec
-from collections.abc import Iterable
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, ClassVar, Literal, TypedDict, get_args
@@ -254,7 +253,7 @@ class LibreOfficeFileConverter:
     @component.output_types(output=list[ByteStream])
     def run(
         self,
-        sources: Iterable[str | Path | ByteStream],
+        sources: list[str | Path | ByteStream],
         output_file_type: OUTPUT_FILE_TYPE | None = None,
     ) -> LibreOfficeFileConverterOutput:
         """
@@ -320,7 +319,7 @@ class LibreOfficeFileConverter:
     @component.output_types(output=list[ByteStream])
     async def run_async(
         self,
-        sources: Iterable[str | Path | ByteStream],
+        sources: list[str | Path | ByteStream],
         output_file_type: OUTPUT_FILE_TYPE | None = None,
     ) -> LibreOfficeFileConverterOutput:
         """
