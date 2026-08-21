@@ -36,6 +36,10 @@ def fake_soffice() -> Generator[SimpleNamespace, None]:
     Writes the file the real binary would have produced, deriving the output path from the
     same argv the converter built, so the tests break if that contract changes. `calls`
     records every argv; set `returncode` non-zero to report a failed conversion.
+
+    The sync side only raises on a non-zero `returncode` when the caller opted in with
+    `check=True`, exactly as `subprocess.run` does, so dropping that argument fails a test
+    instead of passing quietly.
     """
     fake = SimpleNamespace(calls=[], returncode=0)
 
@@ -47,9 +51,9 @@ def fake_soffice() -> Generator[SimpleNamespace, None]:
         suffix = args[args.index("--convert-to") + 1]
         (outdir / Path(args[-1]).name).with_suffix(f".{suffix}").write_bytes(b"converted bytes")
 
-    def _run(args: list[str], **_: object) -> None:
+    def _run(args: list[str], *, check: bool = False, **_: object) -> None:
         _convert(args)
-        if fake.returncode:
+        if fake.returncode and check:
             raise subprocess.CalledProcessError(fake.returncode, args)
 
     async def _exec(*args: str) -> AsyncMock:
