@@ -1005,11 +1005,16 @@ class TestConvertMessageToGoogleGenAI:
         assert google_content.parts[0].function_response.response == {"result": "22° C"}
         assert google_content.parts[0].function_response.parts is None
 
-    def test_convert_message_to_google_genai_format_image_in_tool_result(self):
-        tool_call = ToolCall(id="123", tool_name="image_retriever", arguments={})
+    def test_convert_message_to_google_genai_format_multimodal_content_in_tool_result(self):
+        tool_call = ToolCall(id="123", tool_name="multimodal_retriever", arguments={})
 
-        base64_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
-        tool_result = [TextContent("Here is the image"), ImageContent(base64_image=base64_str, mime_type="image/jpeg")]
+        base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+        base64_pdf = base64.b64encode(b"This is a test document.").decode()
+        tool_result = [
+            TextContent("Here are the image and document"),
+            ImageContent(base64_image=base64_image, mime_type="image/jpeg"),
+            FileContent(base64_data=base64_pdf, mime_type="application/pdf", validation=False),
+        ]
 
         message = ChatMessage.from_tool(tool_result=tool_result, origin=tool_call)
         google_content = _convert_message_to_google_genai_format(message)
@@ -1017,16 +1022,19 @@ class TestConvertMessageToGoogleGenAI:
         assert len(google_content.parts) == 1
         assert isinstance(google_content.parts[0].function_response, types.FunctionResponse)
         assert google_content.parts[0].function_response.id == "123"
-        assert google_content.parts[0].function_response.name == "image_retriever"
+        assert google_content.parts[0].function_response.name == "multimodal_retriever"
         assert google_content.parts[0].function_response.response == {"result": ""}
-        assert len(google_content.parts[0].function_response.parts) == 2
+        assert len(google_content.parts[0].function_response.parts) == 3
         assert isinstance(google_content.parts[0].function_response.parts[0], types.FunctionResponsePart)
         assert google_content.parts[0].function_response.parts[0].inline_data.mime_type == "text/plain"
-        assert google_content.parts[0].function_response.parts[0].inline_data.data == b"Here is the image"
+        assert google_content.parts[0].function_response.parts[0].inline_data.data == b"Here are the image and document"
         assert isinstance(google_content.parts[0].function_response.parts[1], types.FunctionResponsePart)
         assert google_content.parts[0].function_response.parts[1].inline_data.mime_type == "image/jpeg"
-        assert google_content.parts[0].function_response.parts[1].inline_data.data == base64.b64decode(base64_str)
+        assert google_content.parts[0].function_response.parts[1].inline_data.data == base64.b64decode(base64_image)
         assert len(google_content.parts[0].function_response.parts[1].inline_data.data) > 0
+        assert isinstance(google_content.parts[0].function_response.parts[2], types.FunctionResponsePart)
+        assert google_content.parts[0].function_response.parts[2].inline_data.mime_type == "application/pdf"
+        assert google_content.parts[0].function_response.parts[2].inline_data.data == b"This is a test document."
 
     def test_convert_message_empty_content_raises(self):
         message = ChatMessage.from_user("hello")
@@ -1079,7 +1087,7 @@ class TestConvertMessageToGoogleGenAI:
             ValueError,
             match=(
                 r"Unsupported content type in tool call result list. "
-                "Only TextContent and ImageContent are supported."
+                "Only TextContent, ImageContent, and FileContent are supported."
             ),
         ):
             _convert_message_to_google_genai_format(message)
