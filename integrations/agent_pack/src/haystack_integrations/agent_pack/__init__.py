@@ -4,5 +4,12 @@
 
 from .advanced_rag import create_advanced_rag_agent
 from .deep_research import create_deep_research_agent
+from .plugins import AgentPlugin, Mem0MemoryPlugin, apply_plugins
 
-__all__ = ["create_advanced_rag_agent", "create_deep_research_agent"]
+__all__ = [
+    "AgentPlugin",
+    "Mem0MemoryPlugin",
+    "apply_plugins",
+    "create_advanced_rag_agent",
+    "create_deep_research_agent",
+]
