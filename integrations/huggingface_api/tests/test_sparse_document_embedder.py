@@ -62,7 +62,6 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         )
 
         data = embedder.to_dict()
-        restored = HuggingFaceAPISparseDocumentEmbedder.from_dict(data)
 
         assert data["init_parameters"]["token"] == {
             "type": "env_var",
@@ -82,6 +81,8 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
             "headers": {"X-Test": "yes"},
             "concurrency_limit": 3,
         }
+        restored = HuggingFaceAPISparseDocumentEmbedder.from_dict(data)
+
         assert restored.api_base_url == embedder.api_base_url
         assert restored.prefix == "passage: "
         assert restored.suffix == "!"
