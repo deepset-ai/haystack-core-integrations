@@ -13,3 +13,6 @@
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
 To run integration tests locally, you need to export the `HF_TOKEN` environment variable.
+
+To run integration tests locally, you need a TEI server running a sparse embedding model on `localhost:8080`.
+You can start it with: `hatch run tei-sparse run`.

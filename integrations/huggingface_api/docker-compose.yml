@@ -1,0 +1,14 @@
+services:
+  tei-sparse:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3
+    command: ["--model-id", "naver/splade-cocondenser-ensembledistil", "--pooling", "splade"]
+    ports:
+      - "8080:80"
+    environment:
+      - HF_TOKEN
+    volumes:
+      - tei-data:/data
+    restart: unless-stopped
+
+volumes:
+  tei-data:

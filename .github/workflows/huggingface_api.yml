@@ -103,6 +103,15 @@ jobs:
           name: coverage-comment-huggingface_api
           path: python-coverage-comment-action-huggingface_api.txt
 
+      - name: Start sparse TEI server
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        timeout-minutes: 15
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          hatch run tei-sparse run &
+          until curl --fail --silent http://localhost:8080/health > /dev/null; do sleep 5; done
+
       - name: Run integration tests
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
