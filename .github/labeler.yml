@@ -188,6 +188,11 @@ integration:google-vertex:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_vertex/**/*"
 
+integration:gotenberg:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/gotenberg/**/*"
+      - any-glob-to-any-file: ".github/workflows/gotenberg.yml"
+
 integration:hanlp:
   - changed-files:
       - any-glob-to-any-file: "integrations/hanlp/**/*"
