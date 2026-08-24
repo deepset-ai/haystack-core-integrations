@@ -1,103 +1,140 @@
-from datetime import UTC, datetime
-from types import SimpleNamespace
-
+import pytest
 from haystack import Document
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import (
     AdvancedRAGEvaluationCase,
-    AdvancedRAGHarnessEvaluator,
-    case_from_reference_trace,
+    extract_run_stats,
     score_advanced_rag_result,
 )
-from haystack_integrations.agent_pack.optimization import TraceArtifact
 
 
-def successful_result(document):
-    metadata_call = ToolCall("list_metadata_fields", {}, id="metadata")
-    retrieval_call = ToolCall("search_documents", {"query": "CRISPR"}, id="retrieval")
+def result_for(answer, documents, *, calls=("list_metadata_fields", "search_documents"), errors=(), steps=3):
+    messages = []
+    for index, name in enumerate(calls):
+        call = ToolCall(name, {"query": "CRISPR"} if name == "search_documents" else {}, id=f"call-{index}")
+        messages.append(ChatMessage.from_assistant(tool_calls=[call]))
+        messages.append(ChatMessage.from_tool("payload", origin=call, error=name in errors))
+    messages.append(ChatMessage.from_assistant(answer))
     return {
-        "messages": [
-            ChatMessage.from_assistant(tool_calls=[metadata_call]),
-            ChatMessage.from_tool("fields", origin=metadata_call),
-            ChatMessage.from_assistant(tool_calls=[retrieval_call]),
-            ChatMessage.from_tool("documents", origin=retrieval_call),
-            ChatMessage.from_assistant(f"CRISPR evidence [doc {document.id[:8]}]"),
-        ],
-        "last_message": ChatMessage.from_assistant(f"CRISPR evidence [doc {document.id[:8]}]"),
-        "documents": [document],
-        "step_count": 3,
+        "messages": messages,
+        "last_message": ChatMessage.from_assistant(answer),
+        "documents": list(documents),
+        "step_count": steps,
         "token_usage": {"input_tokens": 100, "output_tokens": 20},
     }
 
 
-def reference_trace(document):
-    now = datetime.now(tz=UTC).isoformat()
-    return TraceArtifact(
-        run_id="rag-reference",
-        started_at=now,
-        finished_at=now,
-        duration_ms=10,
-        status="success",
-        traces=(
-            {
-                "span_id": "root",
-                "parent_span_id": None,
-                "operation_name": "haystack.agent.run",
-                "component": None,
-                "start_time": now,
-                "end_time": now,
-                "duration_ms": 10,
-                "tags": {
-                    "haystack.agent.input": {"messages": [ChatMessage.from_user("What is CRISPR used for?").to_dict()]},
-                    "haystack.agent.output": {
-                        "last_message": ChatMessage.from_assistant("reference").to_dict(),
-                        "documents": [document.to_dict()],
-                    },
-                },
-            },
-        ),
-    )
+@pytest.fixture
+def document():
+    return Document(content="CRISPR is used for gene editing")
 
 
-def test_scores_grounding_citations_and_process_budgets():
-    document = Document(content="CRISPR is used for gene editing")
+def test_scores_grounding_citations_and_process_budgets(document):
     case = AdvancedRAGEvaluationCase(
         question="What is CRISPR used for?",
         expected_document_ids=frozenset({document.id}),
         answer_must_mention=("CRISPR",),
     )
 
-    metrics = score_advanced_rag_result(successful_result(document), case, latency_ms=12)
+    metrics = score_advanced_rag_result(
+        result=result_for(f"CRISPR evidence [doc {document.id[:8]}]", [document]), case=case, latency_ms=12
+    )
 
     assert metrics.passed is True
+    assert metrics.failures == ()
     assert metrics.recall == 1.0
+    assert metrics.precision == 1.0
     assert metrics.citations_resolved is True
+    assert metrics.cited_document_ids == (document.id[:8],)
     assert metrics.inspected_first is True
     assert metrics.retrieval_calls == 1
+    assert metrics.metadata_calls == 1
+    assert metrics.input_tokens == 100
+    assert metrics.output_tokens == 20
 
 
-def test_derives_grounding_parity_case_from_reference_trace():
-    document = Document(content="CRISPR is used for gene editing")
-    case = case_from_reference_trace(reference_trace(document))
-    assert case.question == "What is CRISPR used for?"
-    assert case.expected_document_ids == frozenset({document.id})
+def test_an_answer_with_no_citations_does_not_pass_the_citation_check(document):
+    """An `all()` over zero citations is trivially true, so an uncited answer must be caught explicitly."""
+    case = AdvancedRAGEvaluationCase(
+        question="What is CRISPR used for?", expected_document_ids=frozenset({document.id})
+    )
+
+    metrics = score_advanced_rag_result(result=result_for("CRISPR edits genes.", [document]), case=case, latency_ms=1)
+
+    assert metrics.passed is False
+    assert metrics.failures == ("answer_cites_nothing",)
+    assert metrics.citations_resolved is True
 
 
-def test_harness_evaluator_replays_trace_and_calculates_model_cost():
-    document = Document(content="CRISPR is used for gene editing")
+def test_citations_pointing_at_unretrieved_documents_are_reported(document):
+    case = AdvancedRAGEvaluationCase(
+        question="q", expected_document_ids=frozenset({document.id}), require_citations=False
+    )
+    metrics = score_advanced_rag_result(
+        result=result_for("Invented [doc deadbeef]", [document]), case=case, latency_ms=1
+    )
+    assert metrics.failures == ("unresolvable_citation",)
+    assert metrics.citations_resolved is False
 
-    class FakeAgent:
-        chat_generator = SimpleNamespace(model="cheap")
 
-        def run(self, **kwargs):
-            assert kwargs["messages"][0].text == "What is CRISPR used for?"
-            return successful_result(document)
+def test_forbidden_terms_and_error_budgets_are_enforced(document):
+    case = AdvancedRAGEvaluationCase(
+        question="q",
+        expected_document_ids=frozenset({document.id}),
+        answer_must_mention=("CRISPR",),
+        answer_must_not_mention=("guaranteed cure",),
+        require_citations=False,
+        max_tool_errors=0,
+        max_steps=1,
+    )
 
-    evaluator = AdvancedRAGHarnessEvaluator(model_prices={"cheap": (2.0, 4.0)})
-    metrics = evaluator.evaluate(FakeAgent(), [reference_trace(document)])
+    metrics = score_advanced_rag_result(
+        result=result_for("CRISPR is a guaranteed cure", [document], errors=("search_documents",)),
+        case=case,
+        latency_ms=1,
+    )
 
-    assert metrics.quality == 1.0
-    assert metrics.cost == (100 * 2.0 + 20 * 4.0) / 1_000_000
-    assert metrics.details["input_tokens"] == 100
-    assert metrics.details["cases"][0]["passed"] is True
+    assert metrics.passed is False
+    assert set(metrics.failures) == {
+        "answer_mentions_forbidden:guaranteed cure",
+        "tool_errors:1",
+        "steps_over_budget:3",
+    }
+
+
+def test_absence_cases_require_no_documents_and_an_explicit_statement():
+    case = AdvancedRAGEvaluationCase(question="Unknown topic?", expect_absent=True)
+
+    good = score_advanced_rag_result(result=result_for("I found no matching information.", []), case=case, latency_ms=1)
+    assert good.passed is True
+
+    invented = score_advanced_rag_result(result=result_for("Here is an answer.", []), case=case, latency_ms=1)
+    assert invented.failures == ("answer_does_not_state_absence",)
+
+
+def test_metadata_inspection_order_is_checked(document):
+    case = AdvancedRAGEvaluationCase(
+        question="q", expected_document_ids=frozenset({document.id}), require_citations=False
+    )
+    metrics = score_advanced_rag_result(
+        result=result_for(
+            f"answer [doc {document.id[:8]}]", [document], calls=("search_documents", "list_metadata_fields")
+        ),
+        case=case,
+        latency_ms=1,
+    )
+    assert metrics.inspected_first is False
+    assert metrics.failures == ("metadata_not_inspected_first",)
+
+
+def test_a_case_needs_expected_documents_unless_absence_is_expected():
+    with pytest.raises(ValueError, match="needs expected_document_ids"):
+        AdvancedRAGEvaluationCase(question="q")
+
+
+def test_run_stats_count_filtered_retrieval_calls():
+    call = ToolCall("search_documents", {"query": "x", "filters": {"field": "meta.year"}}, id="1")
+    stats = extract_run_stats(messages=[ChatMessage.from_assistant(tool_calls=[call])])
+    assert stats.retrieval_calls == 1
+    assert stats.filtered_retrieval_calls == 1

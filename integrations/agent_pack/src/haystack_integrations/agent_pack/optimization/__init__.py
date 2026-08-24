@@ -2,7 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Experimental operating and harness-optimization APIs for Agent Pack."""
+"""
+Experimental harness-optimization APIs for Agent Pack.
+
+Given a reference `Agent`, locally captured traces of successful runs, a catalog of the models and tools a candidate
+is allowed to use, and optimization objectives, a `HarnessOptimizationCampaign` evaluates a closed set of typed
+transformations and recommends the cheapest or fastest candidate that still clears the quality gate. Nothing is
+promoted or deployed automatically: a campaign returns a recommendation for a human to approve.
+
+This API is experimental and may change without a deprecation period.
+"""
 
 from haystack_integrations.agent_pack.optimization.campaign import (
     ApprovedModelRecipeProposer,
@@ -14,13 +23,10 @@ from haystack_integrations.agent_pack.optimization.campaign import (
     HarnessEvaluator,
     HarnessOptimizationCampaign,
     HarnessOptimizerAgentProposer,
-    IsolatedHarnessEvaluator,
     OptimizationObjectives,
     RecipeProposer,
 )
 from haystack_integrations.agent_pack.optimization.optimizer_agent import (
-    HAYSTACK_DOCS_MCP_URL,
-    bundled_agent_building_skills_path,
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
 )
@@ -44,25 +50,19 @@ from haystack_integrations.agent_pack.optimization.recipes import (
     SpecialistDelegationRecipe,
     StructuralRecipeRegistry,
     ToolSelectionRecipe,
-    recipe_fingerprint,
-    recipe_from_dict,
 )
 from haystack_integrations.agent_pack.optimization.tracing import (
-    CapturedAgentRun,
-    CapturedRun,
     LocalTraceCollector,
     LocalTraceStore,
-    RunCaptureTracer,
     TraceArtifact,
+    TraceCaptureLimits,
     TraceCapturingAgentRunner,
     TraceSelection,
     TraceSource,
-    extract_agent_reference_output,
-    extract_agent_replay_inputs,
+    span_tag,
 )
 
 __all__ = [
-    "HAYSTACK_DOCS_MCP_URL",
     "POLICY_DECISIONS_CONTEXT_KEY",
     "ApprovedAssetCatalog",
     "ApprovedModelRecipeProposer",
@@ -72,14 +72,11 @@ __all__ = [
     "CampaignResult",
     "CandidateEvaluation",
     "CandidateRecipe",
-    "CapturedAgentRun",
-    "CapturedRun",
     "CompositeRecipe",
     "EvaluationMetrics",
     "HarnessEvaluator",
     "HarnessOptimizationCampaign",
     "HarnessOptimizerAgentProposer",
-    "IsolatedHarnessEvaluator",
     "LocalTraceCollector",
     "LocalTraceStore",
     "ModelAsset",
@@ -91,21 +88,17 @@ __all__ = [
     "PromptAndGenerationRecipe",
     "RecipeProposer",
     "RegisteredStructuralRecipe",
-    "RunCaptureTracer",
     "SpecialistDelegationRecipe",
     "StaticPolicyProvider",
     "StructuralRecipeRegistry",
     "ToolAsset",
     "ToolSelectionRecipe",
     "TraceArtifact",
+    "TraceCaptureLimits",
     "TraceCapturingAgentRunner",
     "TraceSelection",
     "TraceSource",
-    "bundled_agent_building_skills_path",
     "create_harness_optimizer_agent",
     "create_haystack_docs_toolset",
-    "extract_agent_reference_output",
-    "extract_agent_replay_inputs",
-    "recipe_fingerprint",
-    "recipe_from_dict",
+    "span_tag",
 ]

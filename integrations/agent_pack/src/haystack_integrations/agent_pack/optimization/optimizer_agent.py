@@ -4,8 +4,6 @@
 
 """Factory for a skill-guided harness optimizer Agent."""
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,33 +19,40 @@ if TYPE_CHECKING:
 with LazyImport(message="Install 'mcp-haystack' to use the optional Haystack documentation toolset.") as mcp_import:
     from haystack_integrations.tools.mcp import MCPToolset, StreamableHttpServerInfo
 
-HAYSTACK_DOCS_MCP_URL = "https://docs.haystack.deepset.ai/api/mcp"
-
 _OPTIMIZER_SYSTEM_PROMPT = """
 You optimize Haystack Agent harnesses. Always load the haystack-agent-building skill before proposing a candidate.
 Use the Haystack docs tool when current API details are uncertain and it is available.
 
-You may only propose the typed recipe kinds documented by the skill. Never return Python code, import paths,
-arbitrary serialized components, credentials, or deployment instructions. Return a JSON array of recipe objects and
-nothing else. Prefer the smallest change that can meet the supplied quality, sovereignty, cost, and latency goals.
+You may only propose the typed recipe kinds documented by the skill, using only the models listed in
+`approved_models`, the tools listed in `approved_tools`, and the transformations listed in
+`registered_structural_recipes`. Never return Python code, import paths, arbitrary serialized components,
+credentials, or deployment instructions. Return a JSON array of recipe objects and nothing else: no prose, no code
+fences. Prefer the smallest change that can meet the supplied quality, cost, and latency goals.
 """.strip()
 
 
 def bundled_agent_building_skills_path() -> Path:
-    """Return the filesystem location of Agent Pack's bundled optimizer skills."""
+    """
+    Return the filesystem location of Agent Pack's bundled optimizer skills.
+
+    :returns: The directory holding the skills shipped inside the package.
+    """
     return Path(__file__).parent / "skills"
 
 
-def create_haystack_docs_toolset(*, eager_connect: bool = False) -> MCPToolset:
+def create_haystack_docs_toolset(*, eager_connect: bool = False) -> "MCPToolset":
     """
     Create an optional MCP toolset for the public Haystack documentation server.
 
-    Requires the optional ``mcp-haystack`` package. The public server exposes ``search_haystack_docs`` and does not
+    Requires the optional `mcp-haystack` package. The public server exposes `search_haystack_docs` and does not
     require credentials.
+
+    :param eager_connect: Whether to connect when the toolset is created rather than on first use.
+    :returns: A toolset exposing only the documentation search tool.
     """
     mcp_import.check()
     return MCPToolset(
-        server_info=StreamableHttpServerInfo(url=HAYSTACK_DOCS_MCP_URL),
+        server_info=StreamableHttpServerInfo(url="https://docs.haystack.deepset.ai/api/mcp"),
         tool_names=["search_haystack_docs"],
         eager_connect=eager_connect,
     )
@@ -60,7 +65,15 @@ def create_harness_optimizer_agent(
     system_prompt: str | None = None,
     max_agent_steps: int = 12,
 ) -> Agent:
-    """Create an optimizer Agent with a bundled Haystack-building skill and optional live documentation access."""
+    """
+    Create an optimizer Agent with a bundled Haystack-building skill and optional live documentation access.
+
+    :param chat_generator: The generator the optimizer reasons with.
+    :param docs_toolset: Optional read-only documentation toolset, for example from `create_haystack_docs_toolset`.
+    :param system_prompt: Replacement system prompt. The bundled instructions are used when omitted.
+    :param max_agent_steps: Step budget for one proposal request.
+    :returns: The optimizer Agent.
+    """
     skills = SkillToolset(FileSystemSkillStore(bundled_agent_building_skills_path()))
     tools: list[Toolset] = [skills]
     if docs_toolset is not None:

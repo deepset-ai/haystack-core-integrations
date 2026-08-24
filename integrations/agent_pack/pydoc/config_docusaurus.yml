@@ -4,6 +4,32 @@ loaders:
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
+      - haystack_integrations.agent_pack.advanced_rag.evaluation
+      - haystack_integrations.agent_pack.optimization.tracing.types.protocol
+      - haystack_integrations.agent_pack.optimization.tracing.dataclasses
+      - haystack_integrations.agent_pack.optimization.tracing.serialization
+      - haystack_integrations.agent_pack.optimization.tracing.tracers
+      - haystack_integrations.agent_pack.optimization.tracing.stores
+      - haystack_integrations.agent_pack.optimization.tracing.collectors
+      - haystack_integrations.agent_pack.optimization.tracing.extraction
+      - haystack_integrations.agent_pack.optimization.policy.dataclasses
+      - haystack_integrations.agent_pack.optimization.policy.model_identity
+      - haystack_integrations.agent_pack.optimization.policy.catalog
+      - haystack_integrations.agent_pack.optimization.policy.providers
+      - haystack_integrations.agent_pack.optimization.policy.strategies
+      - haystack_integrations.agent_pack.optimization.policy.types.protocol
+      - haystack_integrations.agent_pack.optimization.recipes.dataclasses
+      - haystack_integrations.agent_pack.optimization.recipes.registry
+      - haystack_integrations.agent_pack.optimization.recipes.serialization
+      - haystack_integrations.agent_pack.optimization.recipes.utils
+      - haystack_integrations.agent_pack.optimization.recipes.types.protocol
+      - haystack_integrations.agent_pack.optimization.campaign.dataclasses
+      - haystack_integrations.agent_pack.optimization.campaign.journal
+      - haystack_integrations.agent_pack.optimization.campaign.proposers
+      - haystack_integrations.agent_pack.optimization.campaign.campaign
+      - haystack_integrations.agent_pack.optimization.campaign.types.protocol
+      - haystack_integrations.agent_pack.optimization.optimizer_agent
+      - haystack_integrations.agent_pack.optimization.evaluators.advanced_rag
     search_path: [../src]
 processors:
   - type: filter

@@ -55,11 +55,14 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
-from haystack_integrations.agent_pack.advanced_rag.evaluation import extract_run_stats
+from haystack_integrations.agent_pack.advanced_rag.evaluation import (
+    CITATION_PATTERN,
+    RETRIEVAL_TOOLS,
+    AdvancedRAGEvaluationCase,
+    extract_run_stats,
+    score_advanced_rag_result,
+)
 
-RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
-METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
-_CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})\]")
 # The system prompt instructs the agent to begin with this phrase when nothing matches; the regex
 # is a crude fallback for non-compliant answers (an LLM judge would do this properly).
 _ABSENCE_PHRASE = "no matching information was found"
@@ -230,28 +233,43 @@ def evaluate_case(agent: Agent, documents_by_id: dict[str, Any], case: EvalCase)
     retrieved_ids = {d.id for d in retrieved_docs}
     matching = [d for d in retrieved_docs if case.predicate(d.meta)]
 
-    recall = len(expected_ids & retrieved_ids) / len(expected_ids) if expected_ids else 0.0
     precision = len(matching) / len(retrieved_docs) if retrieved_docs else 0.0
     mentions_ok = all(kw.lower() in answer.lower() for kw in case.answer_must_mention)
 
     # Every [doc <short-id>] reference in the answer must resolve to a returned document.
-    cited_refs = _CITATION_RE.findall(answer)
+    cited_refs = CITATION_PATTERN.findall(answer)
     resolved = [ref for ref in cited_refs if any(d.id.startswith(ref) for d in retrieved_docs)]
     citations_ok = len(resolved) == len(cited_refs)
 
     within_budget = (
         stats.metadata_calls <= case.max_metadata_calls and stats.retrieval_calls <= case.max_retrieval_calls
     )
+    failures: tuple[str, ...] = ()
     if case.expect_absent:
         correct = _acknowledges_absence(answer)
-    else:
-        correct = (
-            len(matching) >= case.min_docs
-            and (recall == 1.0 if case.check_recall else precision >= case.min_precision)
-            and mentions_ok
-            and citations_ok
+        passed = stats.inspected_first and within_budget and correct
+    elif case.check_recall:
+        # The expected set is enumerable, so score with the same primitive an optimization campaign uses. That keeps
+        # this example and a campaign agreeing on what "passing" means for the small corpus.
+        scored = score_advanced_rag_result(
+            result=result,
+            case=AdvancedRAGEvaluationCase(
+                question=case.question,
+                expected_document_ids=frozenset(expected_ids),
+                answer_must_mention=case.answer_must_mention,
+                max_metadata_calls=case.max_metadata_calls,
+                max_retrieval_calls=case.max_retrieval_calls,
+            ),
+            latency_ms=elapsed * 1000,
         )
-    passed = stats.inspected_first and within_budget and correct
+        correct = scored.passed
+        passed = scored.passed
+        failures = scored.failures
+    else:
+        # The large corpus cannot enumerate an expected set, so ground truth stays a metadata predicate and the gate
+        # is constraint precision over what the agent actually saw.
+        correct = len(matching) >= case.min_docs and precision >= case.min_precision and mentions_ok and citations_ok
+        passed = stats.inspected_first and within_budget and correct
 
     counts = Counter(name for name, _ in stats.calls)
     filters_used = [args["filters"] for name, args in stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")]
@@ -277,6 +295,8 @@ def evaluate_case(agent: Agent, documents_by_id: dict[str, Any], case: EvalCase)
         for doc in retrieved_docs:
             marker = "+" if case.predicate(doc.meta) else "-"
             print(f"    {marker} [doc {doc.id[:8]}] {doc.meta}")
+    if failures:
+        print(f"  failures: {', '.join(failures)}")
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for filters in filters_used:

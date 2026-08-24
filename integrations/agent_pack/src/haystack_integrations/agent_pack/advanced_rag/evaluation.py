@@ -2,30 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Reusable evaluation primitives for Advanced RAG agents and optimization campaigns."""
+"""
+Reusable evaluation primitives for Advanced RAG agents.
 
-from __future__ import annotations
+This module deliberately depends only on Haystack: it is imported by `haystack_integrations.agent_pack.advanced_rag`
+and must stay usable without pulling in the optimization subpackage. The campaign-facing evaluator that bridges the
+two lives in `haystack_integrations.agent_pack.optimization.evaluators.advanced_rag`.
+"""
 
 import re
-import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from haystack import Document
-from haystack.components.agents import Agent
+from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.agent_pack.optimization.campaign import EvaluationMetrics, HarnessEvaluator
-from haystack_integrations.agent_pack.optimization.policy import POLICY_DECISIONS_CONTEXT_KEY
-from haystack_integrations.agent_pack.optimization.tracing import (
-    TraceArtifact,
-    extract_agent_reference_output,
-    extract_agent_replay_inputs,
-)
+RETRIEVAL_TOOLS = frozenset({"search_documents", "fetch_documents_by_filter"})
+METADATA_TOOLS = frozenset({"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"})
 
-RETRIEVAL_TOOLS = {"search_documents", "fetch_documents_by_filter"}
-METADATA_TOOLS = {"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"}
-_CITATION_RE = re.compile(r"\[doc ([0-9a-fA-F]{8})\]")
+#: Citation format produced by the Advanced RAG toolset: the first eight characters of a document ID.
+CITATION_PATTERN = re.compile(r"\[doc ([0-9a-fA-F]{8})\]")
 
 
 @dataclass
@@ -37,9 +33,13 @@ class RunStats:
 
     @property
     def inspected_first(self) -> bool:
-        """Return whether metadata inspection preceded the first retrieval."""
+        """
+        Return whether metadata inspection preceded the first retrieval.
+
+        :returns: True if a metadata tool was called before any retrieval tool.
+        """
         for name, _ in self.calls:
-            if name == "list_metadata_fields":
+            if name in METADATA_TOOLS:
                 return True
             if name in RETRIEVAL_TOOLS:
                 return False
@@ -47,22 +47,39 @@ class RunStats:
 
     @property
     def metadata_calls(self) -> int:
-        """Return the number of metadata-inspection calls."""
+        """
+        Return the number of metadata-inspection calls.
+
+        :returns: How many calls targeted a metadata tool.
+        """
         return sum(1 for name, _ in self.calls if name in METADATA_TOOLS)
 
     @property
     def filtered_retrieval_calls(self) -> int:
-        """Return the number of retrieval calls carrying a metadata filter."""
+        """
+        Return the number of retrieval calls carrying a metadata filter.
+
+        :returns: How many retrieval calls passed a non-empty `filters` argument.
+        """
         return sum(1 for name, arguments in self.calls if name in RETRIEVAL_TOOLS and arguments.get("filters"))
 
     @property
     def retrieval_calls(self) -> int:
-        """Return the number of retrieval calls."""
+        """
+        Return the number of retrieval calls.
+
+        :returns: How many calls targeted a retrieval tool.
+        """
         return sum(1 for name, _ in self.calls if name in RETRIEVAL_TOOLS)
 
 
 def extract_run_stats(messages: list[ChatMessage]) -> RunStats:
-    """Extract tool calls and error results from one Agent run."""
+    """
+    Extract tool calls and error results from one Agent run.
+
+    :param messages: The messages an Agent run produced.
+    :returns: The tool calls made, in order, and how many tool results reported an error.
+    """
     stats = RunStats()
     for message in messages:
         stats.calls.extend((call.tool_name, call.arguments or {}) for call in message.tool_calls)
@@ -70,172 +87,214 @@ def extract_run_stats(messages: list[ChatMessage]) -> RunStats:
     return stats
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class AdvancedRAGEvaluationCase:
-    """Grounding and process expectations for one enterprise RAG question."""
+    """
+    Grounding and process expectations for one enterprise RAG question.
+
+    :param question: The user question to ask.
+    :param expected_document_ids: Documents the answer must be grounded in.
+    :param answer_must_mention: Case-insensitive substrings the answer must contain.
+    :param answer_must_not_mention: Case-insensitive substrings the answer must not contain, for checking that a
+        known wrong or out-of-scope claim is absent.
+    :param min_recall: Minimum share of `expected_document_ids` that must be retrieved.
+    :param min_precision: Minimum share of retrieved documents that must be expected. Left at 0 by default because
+        an agent legitimately retrieves context beyond the labelled evidence; raise it to penalise over-retrieval.
+    :param expect_absent: Whether the corpus holds no answer, so the agent must retrieve nothing and say so.
+    :param absence_phrases: Phrases accepted as that statement.
+    :param require_metadata_inspection: Whether metadata must be inspected before the first retrieval.
+    :param require_citations: Whether an answer grounded in retrieved documents must cite at least one of them. An
+        answer with no citations at all otherwise passes a citation check trivially.
+    :param max_metadata_calls: Budget for metadata-inspection calls.
+    :param max_retrieval_calls: Budget for retrieval calls.
+    :param max_tool_errors: Tolerated failing tool calls.
+    :param max_steps: Optional cap on Agent steps.
+    """
 
     question: str
-    expected_document_ids: frozenset[str]
+    expected_document_ids: frozenset[str] = frozenset()
     answer_must_mention: tuple[str, ...] = ()
+    answer_must_not_mention: tuple[str, ...] = ()
     min_recall: float = 1.0
     min_precision: float = 0.0
     expect_absent: bool = False
+    absence_phrases: tuple[str, ...] = ("no matching information", "not found", "no information")
     require_metadata_inspection: bool = True
+    require_citations: bool = True
     max_metadata_calls: int = 5
     max_retrieval_calls: int = 5
+    max_tool_errors: int = 0
+    max_steps: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.expect_absent and not self.expected_document_ids:
+            msg = f"Case {self.question!r} needs expected_document_ids unless expect_absent is set."
+            raise ValueError(msg)
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the AdvancedRAGEvaluationCase into a dictionary.
+
+        The document ID set and the term tuples become sorted lists and lists respectively, so the result is JSON
+        compatible and stable enough to identify an evaluation set.
+
+        :returns: A dictionary with one key per field.
+        """
+        data = asdict(self)
+        data["expected_document_ids"] = sorted(self.expected_document_ids)
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AdvancedRAGEvaluationCase":
+        """
+        Create a new AdvancedRAGEvaluationCase object from a dictionary.
+
+        :param data: The dictionary to build the case from.
+        :returns: The created object.
+        """
+        arguments = dict(data)
+        arguments["expected_document_ids"] = frozenset(arguments.get("expected_document_ids") or ())
+        for key in ("answer_must_mention", "answer_must_not_mention", "absence_phrases"):
+            if key in arguments:
+                arguments[key] = tuple(arguments[key])
+        return cls(**arguments)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class AdvancedRAGCaseMetrics:
-    """Detailed score for one Advanced RAG evaluation case."""
+    """
+    Detailed score for one Advanced RAG evaluation case.
 
+    `failures` names every expectation the run missed, so a regression report says what broke rather than only that
+    something did. `passed` is true exactly when `failures` is empty.
+    """
+
+    question: str
     passed: bool
+    failures: tuple[str, ...]
     recall: float
     precision: float
     citations_resolved: bool
+    cited_document_ids: tuple[str, ...]
     answer_requirements_met: bool
     inspected_first: bool
     metadata_calls: int
     retrieval_calls: int
+    filtered_retrieval_calls: int
     tool_errors: int
     steps: int
     latency_ms: float
-    token_usage: dict[str, int]
+    input_tokens: int
+    output_tokens: int
+    token_usage: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the AdvancedRAGCaseMetrics into a dictionary.
+
+        :returns: A dictionary with one key per field, with the failure and citation tuples as lists.
+        """
+        data = asdict(self)
+        data["failures"] = list(self.failures)
+        data["cited_document_ids"] = list(self.cited_document_ids)
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AdvancedRAGCaseMetrics":
+        """
+        Create a new AdvancedRAGCaseMetrics object from a dictionary.
+
+        :param data: The dictionary to build the metrics from.
+        :returns: The created object.
+        """
+        arguments = dict(data)
+        arguments["failures"] = tuple(arguments.get("failures") or ())
+        arguments["cited_document_ids"] = tuple(arguments.get("cited_document_ids") or ())
+        return cls(**arguments)
 
 
 def score_advanced_rag_result(
     result: dict[str, Any], case: AdvancedRAGEvaluationCase, *, latency_ms: float
 ) -> AdvancedRAGCaseMetrics:
-    """Score retrieval grounding, answer behavior, and process budgets for one Agent result."""
+    """
+    Score retrieval grounding, answer behaviour, and process budgets for one Agent result.
+
+    :param result: The dictionary returned by `Agent.run`.
+    :param case: The expectations to score the result against.
+    :param latency_ms: Measured wall-clock duration of the run.
+    :returns: The score, naming every expectation the run missed.
+    """
     messages = result.get("messages") or []
-    stats = extract_run_stats(messages)
-    answer = result["last_message"].text or ""
+    stats = extract_run_stats(messages=messages)
+    last_message = result.get("last_message")
+    answer = (getattr(last_message, "text", None) or "") if last_message is not None else ""
+    lowered = answer.lower()
     retrieved_documents = result.get("documents") or []
     retrieved_ids = {document.id for document in retrieved_documents}
     matched_ids = retrieved_ids & case.expected_document_ids
     recall = len(matched_ids) / len(case.expected_document_ids) if case.expected_document_ids else 0.0
     precision = len(matched_ids) / len(retrieved_ids) if retrieved_ids else 0.0
-    cited_refs = _CITATION_RE.findall(answer)
+
+    cited_refs = tuple(CITATION_PATTERN.findall(answer))
     citations_resolved = all(
         any(document.id.startswith(reference) for document in retrieved_documents) for reference in cited_refs
     )
-    answer_requirements_met = all(term.lower() in answer.lower() for term in case.answer_must_mention)
-    within_budget = (
-        stats.metadata_calls <= case.max_metadata_calls and stats.retrieval_calls <= case.max_retrieval_calls
-    )
-    inspected_ok = stats.inspected_first if case.require_metadata_inspection else True
+
+    failures: list[str] = []
+
     if case.expect_absent:
-        grounding_ok = not retrieved_documents and any(
-            phrase in answer.lower() for phrase in ("no matching information", "not found", "no information")
-        )
+        if retrieved_documents:
+            failures.append("expected_no_retrieved_documents")
+        if not any(phrase in lowered for phrase in case.absence_phrases):
+            failures.append("answer_does_not_state_absence")
     else:
-        grounding_ok = recall >= case.min_recall and precision >= case.min_precision
-    passed = inspected_ok and within_budget and grounding_ok and answer_requirements_met and citations_resolved
-    usage = {key: value for key, value in (result.get("token_usage") or {}).items() if isinstance(value, int)}
+        if recall < case.min_recall:
+            failures.append(f"recall_below_{case.min_recall:g}")
+        if precision < case.min_precision:
+            failures.append(f"precision_below_{case.min_precision:g}")
+        if not citations_resolved:
+            failures.append("unresolvable_citation")
+        if case.require_citations and retrieved_documents and not cited_refs:
+            failures.append("answer_cites_nothing")
+
+    missing_terms = [term for term in case.answer_must_mention if term.lower() not in lowered]
+    if missing_terms:
+        failures.append(f"answer_missing:{','.join(missing_terms)}")
+    forbidden_terms = [term for term in case.answer_must_not_mention if term.lower() in lowered]
+    if forbidden_terms:
+        failures.append(f"answer_mentions_forbidden:{','.join(forbidden_terms)}")
+
+    if case.require_metadata_inspection and not stats.inspected_first:
+        failures.append("metadata_not_inspected_first")
+    if stats.metadata_calls > case.max_metadata_calls:
+        failures.append(f"metadata_calls_over_budget:{stats.metadata_calls}")
+    if stats.retrieval_calls > case.max_retrieval_calls:
+        failures.append(f"retrieval_calls_over_budget:{stats.retrieval_calls}")
+    if stats.errors > case.max_tool_errors:
+        failures.append(f"tool_errors:{stats.errors}")
+
+    steps = int(result.get("step_count") or 0)
+    if case.max_steps is not None and steps > case.max_steps:
+        failures.append(f"steps_over_budget:{steps}")
+
+    usage = result.get("token_usage") or {}
     return AdvancedRAGCaseMetrics(
-        passed=passed,
+        question=case.question,
+        passed=not failures,
+        failures=tuple(failures),
         recall=recall,
         precision=precision,
         citations_resolved=citations_resolved,
-        answer_requirements_met=answer_requirements_met,
+        cited_document_ids=cited_refs,
+        answer_requirements_met=not missing_terms and not forbidden_terms,
         inspected_first=stats.inspected_first,
         metadata_calls=stats.metadata_calls,
         retrieval_calls=stats.retrieval_calls,
+        filtered_retrieval_calls=stats.filtered_retrieval_calls,
         tool_errors=stats.errors,
-        steps=int(result.get("step_count") or 0),
+        steps=steps,
         latency_ms=latency_ms,
-        token_usage=usage,
+        input_tokens=_first_numeric(usage, _INPUT_TOKEN_KEYS),
+        output_tokens=_first_numeric(usage, _OUTPUT_TOKEN_KEYS),
+        token_usage=dict(usage),
     )
-
-
-def _messages_from_trace(artifact: TraceArtifact) -> list[ChatMessage]:
-    inputs = extract_agent_replay_inputs(artifact)
-    serialized = inputs.get("messages")
-    if not isinstance(serialized, list):
-        msg = f"Trace {artifact.run_id} does not contain replayable Agent messages."
-        raise ValueError(msg)
-    return [item if isinstance(item, ChatMessage) else ChatMessage.from_dict(item) for item in serialized]
-
-
-def _question_from_messages(messages: list[ChatMessage]) -> str:
-    for message in reversed(messages):
-        if message.is_from("user") and message.text:
-            return message.text
-    msg = "Reference trace contains no textual user question."
-    raise ValueError(msg)
-
-
-def case_from_reference_trace(artifact: TraceArtifact) -> AdvancedRAGEvaluationCase:
-    """Create a grounding-parity case from a successful reference trace."""
-    messages = _messages_from_trace(artifact)
-    output = extract_agent_reference_output(artifact)
-    serialized_documents = output.get("documents") or []
-    documents = [item if isinstance(item, Document) else Document.from_dict(item) for item in serialized_documents]
-    if not documents:
-        msg = f"Trace {artifact.run_id} contains no reference documents; supply an explicit evaluation case."
-        raise ValueError(msg)
-    return AdvancedRAGEvaluationCase(
-        question=_question_from_messages(messages),
-        expected_document_ids=frozenset(document.id for document in documents),
-        min_recall=1.0,
-        min_precision=0.0,
-    )
-
-
-def _token_count(usage: dict[str, int], primary: str, fallback: str) -> int:
-    return int(usage.get(primary, usage.get(fallback, 0)))
-
-
-class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
-    """Replay trace-selected questions and score Advanced RAG candidates."""
-
-    def __init__(
-        self,
-        *,
-        cases: list[AdvancedRAGEvaluationCase] | None = None,
-        model_prices: dict[str, tuple[float, float]] | None = None,
-    ) -> None:
-        self.cases = {case.question: case for case in (cases or [])}
-        self.model_prices = model_prices or {}
-
-    def evaluate(self, agent: Agent, reference_traces: list[TraceArtifact]) -> EvaluationMetrics:
-        """Evaluate the candidate on explicit cases or grounding parity derived from its reference traces."""
-        selected_cases: list[AdvancedRAGEvaluationCase] = []
-        messages_by_question: dict[str, list[ChatMessage]] = {}
-        for artifact in reference_traces:
-            messages = _messages_from_trace(artifact)
-            question = _question_from_messages(messages)
-            messages_by_question[question] = messages
-            selected_cases.append(self.cases.get(question) or case_from_reference_trace(artifact))
-
-        policy_decisions: list[dict[str, Any]] = []
-        case_metrics: list[AdvancedRAGCaseMetrics] = []
-        total_input_tokens = 0
-        total_output_tokens = 0
-        for case in selected_cases:
-            started = time.perf_counter()
-            result = agent.run(
-                messages=messages_by_question[case.question],
-                hook_context={POLICY_DECISIONS_CONTEXT_KEY: policy_decisions},
-            )
-            latency_ms = (time.perf_counter() - started) * 1000
-            metrics = score_advanced_rag_result(result, case, latency_ms=latency_ms)
-            case_metrics.append(metrics)
-            total_input_tokens += _token_count(metrics.token_usage, "input_tokens", "prompt_tokens")
-            total_output_tokens += _token_count(metrics.token_usage, "output_tokens", "completion_tokens")
-
-        model_id = getattr(agent.chat_generator, "model", "")
-        input_price, output_price = self.model_prices.get(model_id, (0.0, 0.0))
-        total_cost = (total_input_tokens * input_price + total_output_tokens * output_price) / 1_000_000
-        quality = sum(metrics.passed for metrics in case_metrics) / len(case_metrics)
-        return EvaluationMetrics(
-            quality=quality,
-            cost=total_cost,
-            latency_ms=sum(metrics.latency_ms for metrics in case_metrics),
-            details={
-                "cases": [asdict(metrics) for metrics in case_metrics],
-                "policy_decisions": policy_decisions,
-                "input_tokens": total_input_tokens,
-                "output_tokens": total_output_tokens,
-            },
-        )
