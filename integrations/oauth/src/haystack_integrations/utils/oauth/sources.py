@@ -121,7 +121,10 @@ class OAuthRefreshTokenSource:
 
         # Runtime state — never serialized.
         self._sync_lock = Lock()
+        # `_async_lock_guard` only guards the creation of `_async_lock`; see `_get_async_lock`.
+        self._async_lock_guard = Lock()
         self._async_lock: asyncio.Lock | None = None
+        self._async_lock_loop: asyncio.AbstractEventLoop | None = None
         self._cached_token: str | None = None
         self._expires_at: float = 0.0
         self._current_refresh_token: str | None = None
@@ -178,13 +181,29 @@ class OAuthRefreshTokenSource:
             )
             return self._handle_response(response)
 
+    def _get_async_lock(self) -> asyncio.Lock:
+        """
+        Return the refresh lock for the running event loop, building it if there isn't one yet.
+
+        The lock cannot be created in `__init__`, which is synchronous and may run with no loop. It also cannot be
+        created once and kept for the lifetime of the source: an `asyncio.Lock` binds itself to the loop that first
+        awaits it under contention, and raises `RuntimeError` when awaited from any other one. A source routinely
+        outlives the loop that first used it — one `asyncio.run` per request is a common deployment — so the lock is
+        rebuilt whenever the running loop changes.
+
+        `_async_lock_guard` is held for the check and the assignment only, never across an await, so that two threads
+        driving separate event loops cannot each install a lock and lose mutual exclusion between them.
+        """
+        loop = asyncio.get_running_loop()
+        with self._async_lock_guard:
+            if self._async_lock is None or self._async_lock_loop is not loop:
+                self._async_lock = asyncio.Lock()
+                self._async_lock_loop = loop
+            return self._async_lock
+
     async def resolve_async(self) -> str:
         """Asynchronous counterpart of `resolve`. Use a single instance in either sync or async mode, not both."""
-        # Create the asyncio.Lock lazily (not in __init__): it must bind to the running event loop, but __init__
-        # is sync and may run without one.
-        if self._async_lock is None:
-            self._async_lock = asyncio.Lock()
-        async with self._async_lock:
+        async with self._get_async_lock():
             cached = self._cached_if_valid()
             if cached is not None:
                 return cached
