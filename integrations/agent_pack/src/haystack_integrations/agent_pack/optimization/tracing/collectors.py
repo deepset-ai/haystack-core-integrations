@@ -21,7 +21,7 @@ from haystack_integrations.agent_pack.optimization.tracing.dataclasses import (
     TraceCaptureLimits,
 )
 from haystack_integrations.agent_pack.optimization.tracing.stores import LocalTraceStore
-from haystack_integrations.agent_pack.optimization.tracing.tracers import CapturedRun, RunCaptureTracer, current_run
+from haystack_integrations.agent_pack.optimization.tracing.tracers import CapturedRun, RunCaptureTracer, _current_run
 
 _installation_lock = RLock()
 
@@ -106,7 +106,7 @@ class LocalTraceCollector:
             whether the run succeeded or raised.
         """
         capture = CapturedRun()
-        token = current_run.set(capture)
+        token = _current_run.set(capture)
         try:
             with self.install():
                 try:
@@ -123,7 +123,7 @@ class LocalTraceCollector:
                     capture.finish()
                     self.store.add(artifact=capture.to_artifact())
         finally:
-            current_run.reset(token)
+            _current_run.reset(token)
 
 
 class TraceCapturingAgentRunner:

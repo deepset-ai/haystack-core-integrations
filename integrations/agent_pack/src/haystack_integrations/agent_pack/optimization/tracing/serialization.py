@@ -118,7 +118,7 @@ def _apply_array_limits(schema: dict[str, Any], data: list[Any], limits: TraceCa
     return limited_schema, limited_data
 
 
-def serialize_trace_value(value: Any, limits: TraceCaptureLimits = DEFAULT_TRACE_CAPTURE_LIMITS) -> dict[str, Any]:
+def _serialize_trace_value(value: Any, limits: TraceCaptureLimits = DEFAULT_TRACE_CAPTURE_LIMITS) -> dict[str, Any]:
     """
     Convert a Haystack trace value into a bounded, schema-aware payload.
 
@@ -141,7 +141,7 @@ def deserialize_trace_value(payload: dict[str, Any]) -> Any:
     """
     Restore a captured tag value to the objects it was recorded from.
 
-    :param payload: A payload produced by `serialize_trace_value`.
+    :param payload: A payload produced by `_serialize_trace_value`.
     :returns: The deserialized value.
     """
     return _deserialize_value_with_schema(payload)

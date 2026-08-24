@@ -12,9 +12,9 @@ from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import flatten_tools_or_toolsets
 
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.campaign.dataclasses import OptimizationObjectives
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.policy.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.recipes.dataclasses import ModelSubstitutionRecipe
 from haystack_integrations.agent_pack.optimization.recipes.registry import StructuralRecipeRegistry
 from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_from_dict
@@ -53,7 +53,7 @@ class ApprovedModelRecipeProposer:
         ]
 
 
-def extract_json_array(text: str) -> list[Any]:
+def _extract_json_array(text: str) -> list[Any]:
     """
     Read a JSON array out of a model response.
 
@@ -176,7 +176,7 @@ class HarnessOptimizerAgentProposer:
             result = self.optimizer_agent.run(messages=messages)
             text = result["last_message"].text or ""
             try:
-                proposals = extract_json_array(text=text)
+                proposals = _extract_json_array(text=text)
                 if len(proposals) > self.max_recipes:
                     msg = f"Return at most {self.max_recipes} recipes."
                     raise ValueError(msg)

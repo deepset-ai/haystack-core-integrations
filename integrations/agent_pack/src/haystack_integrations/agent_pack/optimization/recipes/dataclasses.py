@@ -4,21 +4,22 @@
 
 """The closed set of typed, allowlisted transformations for candidate Agent harnesses."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar
 
 from haystack.components.agents import Agent
 from haystack.tools import AgentTool
 
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.recipes.registry import StructuralRecipeRegistry
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 from haystack_integrations.agent_pack.optimization.recipes.utils import (
-    TEXT_EXIT_CONDITION,
-    clone_agent,
-    clone_generator_with_generation_kwargs,
-    normalized_names,
-    satisfiable_exit_conditions,
-    select_tools,
+    _TEXT_EXIT_CONDITION,
+    _clone_agent,
+    _clone_generator_with_generation_kwargs,
+    _normalized_names,
+    _satisfiable_exit_conditions,
+    _select_tools,
 )
 
 
@@ -42,7 +43,7 @@ class ModelSubstitutionRecipe:
         :returns: The new candidate Agent.
         """
         generator = assets.model(model_id=self.model_id).build_generator(reference_generator=reference.chat_generator)
-        return clone_agent(reference=reference, chat_generator=generator)
+        return _clone_agent(reference=reference, chat_generator=generator)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -83,10 +84,10 @@ class PromptAndGenerationRecipe:
         if self.system_prompt is not None:
             overrides["system_prompt"] = self.system_prompt
         if self.generation_kwargs:
-            overrides["chat_generator"] = clone_generator_with_generation_kwargs(
+            overrides["chat_generator"] = _clone_generator_with_generation_kwargs(
                 reference_generator=reference.chat_generator, overrides=self.generation_kwargs
             )
-        return clone_agent(reference=reference, **overrides)
+        return _clone_agent(reference=reference, **overrides)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -113,7 +114,7 @@ class ToolSelectionRecipe:
         if not self.tool_names:
             msg = "ToolSelectionRecipe requires at least one tool name."
             raise ValueError(msg)
-        object.__setattr__(self, "tool_names", normalized_names(names=self.tool_names))
+        object.__setattr__(self, "tool_names", _normalized_names(names=self.tool_names))
 
     def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:  # noqa: ARG002
         """
@@ -123,11 +124,11 @@ class ToolSelectionRecipe:
         :param assets: The approved model and tool allowlist. Unused: a subset introduces no new asset.
         :returns: The new candidate Agent.
         """
-        tools = select_tools(agent=reference, names=self.tool_names)
-        return clone_agent(
+        tools = _select_tools(agent=reference, names=self.tool_names)
+        return _clone_agent(
             reference=reference,
             tools=tools,
-            exit_conditions=satisfiable_exit_conditions(reference=reference, tools=tools),
+            exit_conditions=_satisfiable_exit_conditions(reference=reference, tools=tools),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -172,8 +173,8 @@ class SpecialistDelegationRecipe:
         if not self.specialist_tool_names:
             msg = "SpecialistDelegationRecipe requires at least one specialist tool."
             raise ValueError(msg)
-        object.__setattr__(self, "specialist_tool_names", normalized_names(names=self.specialist_tool_names))
-        object.__setattr__(self, "coordinator_tool_names", normalized_names(names=self.coordinator_tool_names))
+        object.__setattr__(self, "specialist_tool_names", _normalized_names(names=self.specialist_tool_names))
+        object.__setattr__(self, "coordinator_tool_names", _normalized_names(names=self.coordinator_tool_names))
 
     def _coordinator_prompt(self, reference_prompt: str | None) -> str:
         """Keep the reference prompt and append an instruction to route the delegated tools to the specialist."""
@@ -192,27 +193,27 @@ class SpecialistDelegationRecipe:
         :returns: The new coordinator Agent, exposing the specialist as a tool.
         """
         specialist_overrides: dict[str, Any] = {
-            "tools": select_tools(agent=reference, names=self.specialist_tool_names),
+            "tools": _select_tools(agent=reference, names=self.specialist_tool_names),
             "system_prompt": self.specialist_system_prompt,
             "user_prompt": None,
-            "exit_conditions": [TEXT_EXIT_CONDITION],
+            "exit_conditions": [_TEXT_EXIT_CONDITION],
         }
         if self.specialist_model_id is not None:
             model = assets.model(model_id=self.specialist_model_id)
             specialist_overrides["chat_generator"] = model.build_generator(reference_generator=reference.chat_generator)
-        specialist = clone_agent(reference=reference, **specialist_overrides)
+        specialist = _clone_agent(reference=reference, **specialist_overrides)
         specialist_tool = AgentTool(agent=specialist, name=self.name, description=self.description)
 
         coordinator_tools = [
-            *select_tools(agent=reference, names=self.coordinator_tool_names),
+            *_select_tools(agent=reference, names=self.coordinator_tool_names),
             specialist_tool,
         ]
-        return clone_agent(
+        return _clone_agent(
             reference=reference,
             tools=coordinator_tools,
             system_prompt=self.coordinator_system_prompt
             or self._coordinator_prompt(reference_prompt=reference.system_prompt),
-            exit_conditions=satisfiable_exit_conditions(reference=reference, tools=coordinator_tools),
+            exit_conditions=_satisfiable_exit_conditions(reference=reference, tools=coordinator_tools),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -263,3 +264,38 @@ class CompositeRecipe:
         :returns: A dictionary with keys 'kind' and 'recipes'.
         """
         return {"kind": self.kind, "recipes": [recipe.to_dict() for recipe in self.recipes]}
+
+
+@dataclass(frozen=True, kw_only=True)
+class RegisteredStructuralRecipe:
+    """
+    Reference a trusted structural transformation and JSON-compatible parameters.
+
+    :param name: The registered transformation to execute.
+    :param parameters: Parameters passed to it, checked against its declared schema before it runs.
+    :param registry: The registry holding the transformation. Excluded from equality and serialization because it is
+        a runtime object rather than part of the recipe's identity.
+    """
+
+    name: str
+    parameters: dict[str, Any]
+    registry: StructuralRecipeRegistry = field(compare=False, repr=False)
+    kind: ClassVar[str] = "registered_structure"
+
+    def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:
+        """
+        Materialize through the explicit structural recipe registry.
+
+        :param reference: The champion harness to transform.
+        :param assets: The approved model and tool allowlist.
+        :returns: The new candidate Agent.
+        """
+        return self.registry.materialize(name=self.name, reference=reference, assets=assets, parameters=self.parameters)
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the RegisteredStructuralRecipe into a dictionary, excluding the runtime registry.
+
+        :returns: A dictionary with keys 'kind', 'name', and 'parameters'.
+        """
+        return {"kind": self.kind, "name": self.name, "parameters": self.parameters}

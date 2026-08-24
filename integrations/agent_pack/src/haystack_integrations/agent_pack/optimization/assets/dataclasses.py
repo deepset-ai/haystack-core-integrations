@@ -6,11 +6,11 @@
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from haystack.core.serialization import component_from_dict, component_to_dict, import_class_by_name
 
-from haystack_integrations.agent_pack.optimization.policy.model_identity import model_id_path, serialized_model_id
+from haystack_integrations.agent_pack.optimization.assets.model_identity import _model_id_path, serialized_model_id
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -54,7 +54,7 @@ class ModelAsset:
         if not isinstance(init_parameters, dict):
             msg = f"{type(reference_generator).__name__} has no serializable init_parameters."
             raise ValueError(msg)
-        path = model_id_path(init_parameters=init_parameters)
+        path = _model_id_path(init_parameters=init_parameters)
         if path is None:
             msg = (
                 f"Model asset {self.model_id!r} needs an explicit 'generator' configuration because "
@@ -155,38 +155,3 @@ class AssetValidation:
             violations=tuple(data.get("violations") or ()),
             warnings=tuple(data.get("warnings") or ()),
         )
-
-
-@dataclass(frozen=True, kw_only=True)
-class PolicyEvaluation:
-    """
-    Sanitized result returned by a tool invocation policy provider.
-
-    :param decision: Whether the invocation is allowed, denied, or could not be decided.
-    :param policy_version: Version of the policy that produced the decision.
-    :param rule_id: Identifier of the rule that matched.
-    :param reason_code: Stable, non-sensitive reason for the decision.
-    """
-
-    decision: Literal["allow", "deny", "indeterminate"]
-    policy_version: str
-    rule_id: str
-    reason_code: str
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the PolicyEvaluation into a dictionary, holding no tool arguments or other sensitive payload.
-
-        :returns: A dictionary with keys 'decision', 'policy_version', 'rule_id', and 'reason_code'.
-        """
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PolicyEvaluation":
-        """
-        Create a new PolicyEvaluation object from a dictionary.
-
-        :param data: The dictionary to build the PolicyEvaluation object from.
-        :returns: The created object.
-        """
-        return cls(**data)

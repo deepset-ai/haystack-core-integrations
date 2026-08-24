@@ -11,10 +11,10 @@ from haystack.components.agents import Agent
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.tools import Tool, flatten_tools_or_toolsets
 
-TEXT_EXIT_CONDITION = "text"
+_TEXT_EXIT_CONDITION = "text"
 
 
-def normalized_names(names: tuple[str, ...]) -> tuple[str, ...]:
+def _normalized_names(names: tuple[str, ...]) -> tuple[str, ...]:
     """
     Sort and de-duplicate tool names so equivalent selections share one fingerprint.
 
@@ -24,7 +24,7 @@ def normalized_names(names: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted(set(names)))
 
 
-def clone_agent(reference: Agent, **overrides: Any) -> Agent:
+def _clone_agent(reference: Agent, **overrides: Any) -> Agent:
     """
     Clone an Agent without sharing the mutable containers `Agent.clone` copies by reference.
 
@@ -48,7 +48,7 @@ def clone_agent(reference: Agent, **overrides: Any) -> Agent:
     return reference.clone(**overrides)
 
 
-def tools_by_name(agent: Agent) -> dict[str, Tool]:
+def _tools_by_name(agent: Agent) -> dict[str, Tool]:
     """
     Return an Agent's tools keyed by name, flattening any toolsets.
 
@@ -58,7 +58,7 @@ def tools_by_name(agent: Agent) -> dict[str, Tool]:
     return {configured.name: configured for configured in flatten_tools_or_toolsets(tools=agent.tools)}
 
 
-def select_tools(agent: Agent, names: tuple[str, ...]) -> list[Tool]:
+def _select_tools(agent: Agent, names: tuple[str, ...]) -> list[Tool]:
     """
     Return the named subset of an Agent's tools.
 
@@ -67,7 +67,7 @@ def select_tools(agent: Agent, names: tuple[str, ...]) -> list[Tool]:
     :returns: The selected tools, in the order the names were given.
     :raises ValueError: If a name is not configured on the Agent.
     """
-    available = tools_by_name(agent=agent)
+    available = _tools_by_name(agent=agent)
     missing = sorted(set(names) - available.keys())
     if missing:
         msg = f"Recipe references tools not configured on the Agent: {', '.join(missing)}."
@@ -75,7 +75,7 @@ def select_tools(agent: Agent, names: tuple[str, ...]) -> list[Tool]:
     return [available[name] for name in names]
 
 
-def satisfiable_exit_conditions(reference: Agent, tools: list[Tool]) -> list[str]:
+def _satisfiable_exit_conditions(reference: Agent, tools: list[Tool]) -> list[str]:
     """
     Drop exit conditions naming tools the candidate no longer exposes.
 
@@ -89,13 +89,13 @@ def satisfiable_exit_conditions(reference: Agent, tools: list[Tool]) -> list[str
     tool_names = {configured.name for configured in tools}
     kept = [
         condition
-        for condition in (reference.exit_conditions or [TEXT_EXIT_CONDITION])
-        if condition == TEXT_EXIT_CONDITION or condition in tool_names
+        for condition in (reference.exit_conditions or [_TEXT_EXIT_CONDITION])
+        if condition == _TEXT_EXIT_CONDITION or condition in tool_names
     ]
-    return kept or [TEXT_EXIT_CONDITION]
+    return kept or [_TEXT_EXIT_CONDITION]
 
 
-def clone_generator_with_generation_kwargs(reference_generator: Any, overrides: dict[str, Any]) -> Any:
+def _clone_generator_with_generation_kwargs(reference_generator: Any, overrides: dict[str, Any]) -> Any:
     """
     Build a copy of a chat generator with merged generation parameters.
 

@@ -12,16 +12,11 @@ loaders:
       - haystack_integrations.agent_pack.optimization.tracing.stores
       - haystack_integrations.agent_pack.optimization.tracing.collectors
       - haystack_integrations.agent_pack.optimization.tracing.extraction
-      - haystack_integrations.agent_pack.optimization.policy.dataclasses
-      - haystack_integrations.agent_pack.optimization.policy.model_identity
-      - haystack_integrations.agent_pack.optimization.policy.catalog
-      - haystack_integrations.agent_pack.optimization.policy.providers
-      - haystack_integrations.agent_pack.optimization.policy.strategies
-      - haystack_integrations.agent_pack.optimization.policy.types.protocol
+      - haystack_integrations.agent_pack.optimization.assets.dataclasses
+      - haystack_integrations.agent_pack.optimization.assets.catalog
       - haystack_integrations.agent_pack.optimization.recipes.dataclasses
       - haystack_integrations.agent_pack.optimization.recipes.registry
       - haystack_integrations.agent_pack.optimization.recipes.serialization
-      - haystack_integrations.agent_pack.optimization.recipes.utils
       - haystack_integrations.agent_pack.optimization.recipes.types.protocol
       - haystack_integrations.agent_pack.optimization.campaign.dataclasses
       - haystack_integrations.agent_pack.optimization.campaign.journal

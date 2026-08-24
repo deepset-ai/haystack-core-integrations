@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Protocol
 
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
 
 
 class CandidateRecipe(Protocol):

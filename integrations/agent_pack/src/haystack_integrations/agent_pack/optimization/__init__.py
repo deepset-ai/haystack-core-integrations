@@ -10,9 +10,19 @@ is allowed to use, and optimization objectives, a `HarnessOptimizationCampaign` 
 transformations and recommends the cheapest or fastest candidate that still clears the quality gate. Nothing is
 promoted or deployed automatically: a campaign returns a recommendation for a human to approve.
 
+Compliance is enforced once, at configuration time: `ApprovedAssetCatalog` validates every model and tool a
+candidate is built with, including those of delegated agents, and a candidate that uses anything outside the catalog
+never runs.
+
 This API is experimental and may change without a deprecation period.
 """
 
+from haystack_integrations.agent_pack.optimization.assets import (
+    ApprovedAssetCatalog,
+    AssetValidation,
+    ModelAsset,
+    ToolAsset,
+)
 from haystack_integrations.agent_pack.optimization.campaign import (
     ApprovedModelRecipeProposer,
     CampaignJournal,
@@ -29,17 +39,6 @@ from haystack_integrations.agent_pack.optimization.campaign import (
 from haystack_integrations.agent_pack.optimization.optimizer_agent import (
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
-)
-from haystack_integrations.agent_pack.optimization.policy import (
-    POLICY_DECISIONS_CONTEXT_KEY,
-    ApprovedAssetCatalog,
-    AssetValidation,
-    ModelAsset,
-    PolicyEnforcementStrategy,
-    PolicyEvaluation,
-    PolicyProvider,
-    StaticPolicyProvider,
-    ToolAsset,
 )
 from haystack_integrations.agent_pack.optimization.recipes import (
     CandidateRecipe,
@@ -63,7 +62,6 @@ from haystack_integrations.agent_pack.optimization.tracing import (
 )
 
 __all__ = [
-    "POLICY_DECISIONS_CONTEXT_KEY",
     "ApprovedAssetCatalog",
     "ApprovedModelRecipeProposer",
     "AssetValidation",
@@ -82,14 +80,10 @@ __all__ = [
     "ModelAsset",
     "ModelSubstitutionRecipe",
     "OptimizationObjectives",
-    "PolicyEnforcementStrategy",
-    "PolicyEvaluation",
-    "PolicyProvider",
     "PromptAndGenerationRecipe",
     "RecipeProposer",
     "RegisteredStructuralRecipe",
     "SpecialistDelegationRecipe",
-    "StaticPolicyProvider",
     "StructuralRecipeRegistry",
     "ToolAsset",
     "ToolSelectionRecipe",

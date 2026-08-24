@@ -12,13 +12,11 @@ from haystack_integrations.agent_pack.optimization.recipes.dataclasses import (
     CompositeRecipe,
     ModelSubstitutionRecipe,
     PromptAndGenerationRecipe,
+    RegisteredStructuralRecipe,
     SpecialistDelegationRecipe,
     ToolSelectionRecipe,
 )
-from haystack_integrations.agent_pack.optimization.recipes.registry import (
-    RegisteredStructuralRecipe,
-    StructuralRecipeRegistry,
-)
+from haystack_integrations.agent_pack.optimization.recipes.registry import StructuralRecipeRegistry
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 
 

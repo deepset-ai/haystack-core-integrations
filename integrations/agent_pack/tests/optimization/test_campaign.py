@@ -104,14 +104,7 @@ def default_metrics():
 
 
 def test_campaign_applies_gates_then_recommends_cheaper_candidate(tmp_path):
-    metrics = default_metrics()
-    metrics["cheap"] = EvaluationMetrics(
-        quality=1.0,
-        cost=2.0,
-        latency_ms=90,
-        details={"policy_decisions": [{"policy_version": "v1", "rule_id": "allow"}]},
-    )
-    evaluator = ModelEvaluator(metrics)
+    evaluator = ModelEvaluator(default_metrics())
     campaign, assets, reference = build_campaign(tmp_path, evaluator)
 
     result = campaign.run()
@@ -119,7 +112,6 @@ def test_campaign_applies_gates_then_recommends_cheaper_candidate(tmp_path):
     assert result.recommendation is not None
     assert result.recommendation.evaluation.metrics.cost == 2.0
     assert result.recommendation.reasons == ("cost_improvement",)
-    assert result.recommendation.evaluation.policy_decisions[0]["policy_version"] == "v1"
     approved = result.recommendation.materialize(reference, assets)
     assert approved.chat_generator.model == "cheap"
     assert reference.chat_generator.model == "reference"
@@ -129,6 +121,20 @@ def test_campaign_applies_gates_then_recommends_cheaper_candidate(tmp_path):
     }
     assert failures["cheap"] == ()
     assert failures["bad"] == ("quality_below_floor:1.0000",)
+
+
+def test_the_reference_harness_is_reported_against_the_catalog_but_not_blocked_by_it(tmp_path):
+    """Replacing a harness whose model is no longer approved is a reason to run a campaign, not to refuse one."""
+    evaluator = ModelEvaluator(default_metrics())
+    campaign, _, _ = build_campaign(tmp_path, evaluator, tools=[remote_tool], tool_assets=[])
+
+    result = campaign.run()
+
+    assert result.reference_validation is not None
+    assert result.reference_validation.allowed is False
+    assert result.reference_validation.violations == ("tool_not_approved:remote_tool",)
+    # The baseline was still measured, so the operator can see what the non-compliant champion costs.
+    assert evaluator.calls == ["reference"]
 
 
 def test_gates_are_recomputed_rather_than_replayed_from_the_journal(tmp_path):

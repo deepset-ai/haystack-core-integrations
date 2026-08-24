@@ -5,17 +5,16 @@
 """The explicit allowlist of trusted structural transformations."""
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import Any
 
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
 
 StructuralRecipeFactory = Callable[[Agent, ApprovedAssetCatalog, dict[str, Any]], Agent]
 
 # Accepted parameter types for registered structural recipes. A trailing "?" marks the parameter optional.
-SCHEMA_TYPES: dict[str, type | tuple[type, ...]] = {
+_SCHEMA_TYPES: dict[str, type | tuple[type, ...]] = {
     "str": str,
     "int": int,
     "float": (int, float),
@@ -25,7 +24,7 @@ SCHEMA_TYPES: dict[str, type | tuple[type, ...]] = {
 }
 
 
-def validate_parameters(name: str, schema: Mapping[str, str], parameters: Mapping[str, Any]) -> None:
+def _validate_parameters(name: str, schema: Mapping[str, str], parameters: Mapping[str, Any]) -> None:
     """
     Check proposed parameters against a registered recipe's declared schema, rejecting anything unexpected.
 
@@ -42,7 +41,7 @@ def validate_parameters(name: str, schema: Mapping[str, str], parameters: Mappin
         optional = declared.endswith("?")
         type_name = declared[:-1] if optional else declared
         try:
-            expected = SCHEMA_TYPES[type_name]
+            expected = _SCHEMA_TYPES[type_name]
         except KeyError as error:
             msg = f"Structural recipe {name!r} declares an unsupported parameter type {declared!r} for {key!r}."
             raise ValueError(msg) from error
@@ -122,40 +121,5 @@ class StructuralRecipeRegistry:
         except KeyError as error:
             msg = f"Structural recipe {name!r} is not registered."
             raise ValueError(msg) from error
-        validate_parameters(name=name, schema=schema, parameters=parameters)
+        _validate_parameters(name=name, schema=schema, parameters=parameters)
         return factory(reference, assets, parameters)
-
-
-@dataclass(frozen=True, kw_only=True)
-class RegisteredStructuralRecipe:
-    """
-    Reference a trusted structural transformation and JSON-compatible parameters.
-
-    :param name: The registered transformation to execute.
-    :param parameters: Parameters passed to it, checked against its declared schema before it runs.
-    :param registry: The registry holding the transformation. Excluded from equality and serialization because it is
-        a runtime object rather than part of the recipe's identity.
-    """
-
-    name: str
-    parameters: dict[str, Any]
-    registry: StructuralRecipeRegistry = field(compare=False, repr=False)
-    kind: ClassVar[str] = "registered_structure"
-
-    def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:
-        """
-        Materialize through the explicit structural recipe registry.
-
-        :param reference: The champion harness to transform.
-        :param assets: The approved model and tool allowlist.
-        :returns: The new candidate Agent.
-        """
-        return self.registry.materialize(name=self.name, reference=reference, assets=assets, parameters=self.parameters)
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the RegisteredStructuralRecipe into a dictionary, excluding the runtime registry.
-
-        :returns: A dictionary with keys 'kind', 'name', and 'parameters'.
-        """
-        return {"kind": self.kind, "name": self.name, "parameters": self.parameters}

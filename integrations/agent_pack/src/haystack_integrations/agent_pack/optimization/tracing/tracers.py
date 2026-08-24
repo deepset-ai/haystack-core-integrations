@@ -21,10 +21,10 @@ from haystack_integrations.agent_pack.optimization.tracing.dataclasses import (
     TraceArtifact,
     TraceCaptureLimits,
 )
-from haystack_integrations.agent_pack.optimization.tracing.serialization import serialize_trace_value
+from haystack_integrations.agent_pack.optimization.tracing.serialization import _serialize_trace_value
 
 
-def utc_now() -> str:
+def _utc_now() -> str:
     """
     Return the current time as an ISO 8601 string in UTC.
 
@@ -43,7 +43,7 @@ class _CapturedSpan(Span):
     capture_content: bool = True
     limits: TraceCaptureLimits = DEFAULT_TRACE_CAPTURE_LIMITS
     span_id: str = field(default_factory=lambda: str(uuid4()))
-    start_time: str = field(default_factory=utc_now)
+    start_time: str = field(default_factory=_utc_now)
     _started_perf: float = field(default_factory=perf_counter)
     end_time: str | None = None
     duration_ms: float | None = None
@@ -55,7 +55,7 @@ class _CapturedSpan(Span):
         :param key: The tag name.
         :param value: The tag value.
         """
-        self.tags[key] = serialize_trace_value(value=value, limits=self.limits)
+        self.tags[key] = _serialize_trace_value(value=value, limits=self.limits)
 
     def set_content_tag(self, key: str, value: Any) -> None:
         """
@@ -73,7 +73,7 @@ class _CapturedSpan(Span):
 
     def finish(self) -> None:
         """Record the span's end time and duration."""
-        self.end_time = utc_now()
+        self.end_time = _utc_now()
         self.duration_ms = round((perf_counter() - self._started_perf) * 1000, 3)
 
     def _plain_tag(self, key: str) -> Any:
@@ -167,7 +167,7 @@ class CapturedRun:
     """
 
     run_id: str = field(default_factory=lambda: str(uuid4()))
-    started_at: str = field(default_factory=utc_now)
+    started_at: str = field(default_factory=_utc_now)
     _started_perf: float = field(default_factory=perf_counter)
     finished_at: str | None = None
     duration_ms: float | None = None
@@ -187,7 +187,7 @@ class CapturedRun:
 
     def finish(self) -> None:
         """Record the run's end time and duration."""
-        self.finished_at = utc_now()
+        self.finished_at = _utc_now()
         self.duration_ms = round((perf_counter() - self._started_perf) * 1000, 3)
 
     def to_artifact(self) -> "TraceArtifact":
@@ -213,8 +213,8 @@ class CapturedRun:
         )
 
 
-current_run: ContextVar[CapturedRun | None] = ContextVar("agent_pack_trace_capture", default=None)
-active_spans: ContextVar[tuple[_CombinedSpan, ...]] = ContextVar("agent_pack_active_spans", default=())
+_current_run: ContextVar[CapturedRun | None] = ContextVar("agent_pack_trace_capture", default=None)
+_active_spans: ContextVar[tuple[_CombinedSpan, ...]] = ContextVar("agent_pack_active_spans", default=())
 
 
 class RunCaptureTracer(Tracer):
@@ -255,19 +255,19 @@ class RunCaptureTracer(Tracer):
         :param parent_span: The span this one nests under.
         :returns: A context manager yielding the span to instrument.
         """
-        capture = current_run.get()
+        capture = _current_run.get()
         if capture is None:
             with self.delegate.trace(operation_name, tags=tags, parent_span=parent_span) as delegated:
                 yield delegated
             return
 
         local_parent = parent_span.captured if isinstance(parent_span, _CombinedSpan) else None
-        if local_parent is None and active_spans.get():
-            local_parent = active_spans.get()[-1].captured
+        if local_parent is None and _active_spans.get():
+            local_parent = _active_spans.get()[-1].captured
         delegated_parent = parent_span.delegated if isinstance(parent_span, _CombinedSpan) else parent_span
         captured = _CapturedSpan(
             operation_name=operation_name,
-            tags={key: serialize_trace_value(value=value, limits=self.limits) for key, value in (tags or {}).items()},
+            tags={key: _serialize_trace_value(value=value, limits=self.limits) for key, value in (tags or {}).items()},
             parent_span_id=local_parent.span_id if local_parent is not None else None,
             capture_content=self.capture_content,
             limits=self.limits,
@@ -275,8 +275,8 @@ class RunCaptureTracer(Tracer):
         capture.add_span(span=captured)
         with self.delegate.trace(operation_name, tags=tags, parent_span=delegated_parent) as delegated:
             combined = _CombinedSpan(captured=captured, delegated=delegated)
-            previous = active_spans.get()
-            active_spans.set((*previous, combined))
+            previous = _active_spans.get()
+            _active_spans.set((*previous, combined))
             try:
                 yield combined
             except Exception as error:
@@ -286,7 +286,7 @@ class RunCaptureTracer(Tracer):
                 raise
             finally:
                 captured.finish()
-                active_spans.set(previous)
+                _active_spans.set(previous)
 
     def current_span(self) -> Span | None:
         """
@@ -294,5 +294,5 @@ class RunCaptureTracer(Tracer):
 
         :returns: The innermost combined span, or the delegated tracer's current span when none is open.
         """
-        active = active_spans.get()
+        active = _active_spans.get()
         return active[-1] if active else self.delegate.current_span()

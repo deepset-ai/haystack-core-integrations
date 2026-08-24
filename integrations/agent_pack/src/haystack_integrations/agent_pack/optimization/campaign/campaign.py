@@ -13,6 +13,8 @@ from haystack import logging
 from haystack.components.agents import Agent
 from haystack.tools import flatten_tools_or_toolsets
 
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.campaign.dataclasses import (
     CampaignRecommendation,
     CampaignResult,
@@ -23,8 +25,6 @@ from haystack_integrations.agent_pack.optimization.campaign.dataclasses import (
 from haystack_integrations.agent_pack.optimization.campaign.journal import CampaignJournal
 from haystack_integrations.agent_pack.optimization.campaign.proposers import ApprovedModelRecipeProposer
 from haystack_integrations.agent_pack.optimization.campaign.types.protocol import HarnessEvaluator, RecipeProposer
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.policy.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_fingerprint
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact, TraceSelection
@@ -102,7 +102,7 @@ class HarnessOptimizationCampaign:
             )
             raise ValueError(msg)
 
-        configuration_hash = self.configuration_hash(reference_traces=reference_traces)
+        configuration_hash = self._configuration_hash(reference_traces=reference_traces)
         baseline = self.evaluator.evaluate(agent=self.reference, reference_traces=reference_traces, assets=self.assets)
         recipes = self.proposer.propose(
             reference=self.reference,
@@ -114,7 +114,7 @@ class HarnessOptimizationCampaign:
         outcomes: list[CandidateEvaluation] = []
         recipe_by_id: dict[str, CandidateRecipe] = {}
         for recipe in recipes:
-            candidate_id = self.candidate_id(configuration_hash=configuration_hash, recipe=recipe)
+            candidate_id = self._candidate_id(configuration_hash=configuration_hash, recipe=recipe)
             recipe_by_id[candidate_id] = recipe
             prior = self.journal.get(candidate_id=candidate_id)
             if prior is not None:
@@ -149,9 +149,10 @@ class HarnessOptimizationCampaign:
             recommendation=recommendation,
             configuration_hash=configuration_hash,
             gate_failures=gate_failures,
+            reference_validation=self.assets.validate_agent(agent=self.reference),
         )
 
-    def configuration_hash(self, reference_traces: list[TraceArtifact]) -> str:
+    def _configuration_hash(self, reference_traces: list[TraceArtifact]) -> str:
         """
         Identify everything that affects what a measurement means.
 
@@ -182,7 +183,7 @@ class HarnessOptimizationCampaign:
         return hashlib.sha256(serialized.encode()).hexdigest()
 
     @staticmethod
-    def candidate_id(*, configuration_hash: str, recipe: CandidateRecipe) -> str:
+    def _candidate_id(*, configuration_hash: str, recipe: CandidateRecipe) -> str:
         """
         Identify a candidate by both its recipe and the configuration it was measured under.
 
@@ -235,14 +236,12 @@ class HarnessOptimizationCampaign:
             candidate = recipe.materialize(reference=self.reference, assets=self.assets)
             validation = self.assets.require_valid_agent(agent=candidate)
             metrics = self.evaluator.evaluate(agent=candidate, reference_traces=reference_traces, assets=self.assets)
-            decisions = metrics.details.get("policy_decisions") or []
             return CandidateEvaluation(
                 candidate_id=candidate_id,
                 configuration_hash=configuration_hash,
                 recipe=recipe.to_dict(),
                 metrics=metrics,
                 asset_validation=validation,
-                policy_decisions=tuple(decisions) if isinstance(decisions, list) else (),
             )
         except Exception as error:
             logger.warning(

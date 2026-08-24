@@ -9,8 +9,8 @@ from typing import Any, Literal
 
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.policy.dataclasses import AssetValidation
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.assets.dataclasses import AssetValidation
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 
 
@@ -124,7 +124,6 @@ class CandidateEvaluation:
     :param metrics: What the evaluator measured, or None if the evaluation failed.
     :param asset_validation: Every model and tool the candidate was found to use.
     :param failure: The error that ended the evaluation, if it failed.
-    :param policy_decisions: Tool policy decisions recorded while the candidate ran.
     """
 
     candidate_id: str
@@ -133,7 +132,6 @@ class CandidateEvaluation:
     metrics: EvaluationMetrics | None
     asset_validation: AssetValidation | None = None
     failure: str | None = None
-    policy_decisions: tuple[dict[str, Any], ...] = ()
 
     @property
     def succeeded(self) -> bool:
@@ -157,7 +155,6 @@ class CandidateEvaluation:
             "metrics": self.metrics.to_dict() if self.metrics is not None else None,
             "asset_validation": self.asset_validation.to_dict() if self.asset_validation is not None else None,
             "failure": self.failure,
-            "policy_decisions": list(self.policy_decisions),
         }
 
     @classmethod
@@ -177,7 +174,6 @@ class CandidateEvaluation:
             metrics=EvaluationMetrics.from_dict(data=metrics) if metrics is not None else None,
             asset_validation=AssetValidation.from_dict(data=validation) if validation is not None else None,
             failure=data.get("failure"),
-            policy_decisions=tuple(data.get("policy_decisions") or ()),
         )
 
 
@@ -222,6 +218,9 @@ class CampaignResult:
     :param recommendation: The candidate worth approving, if any.
     :param configuration_hash: Hash of the configuration these measurements belong to.
     :param gate_failures: Per candidate ID, the hard gates it missed. An empty tuple means it was eligible.
+    :param reference_validation: Which models and tools the reference harness itself uses, and whether they are all
+        in the catalog. Reported rather than enforced: replacing a harness whose model is no longer approved is a
+        reason to run a campaign, not a reason to refuse to measure one.
     """
 
     baseline: EvaluationMetrics
@@ -229,3 +228,4 @@ class CampaignResult:
     recommendation: CampaignRecommendation | None
     configuration_hash: str = ""
     gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    reference_validation: AssetValidation | None = None

@@ -7,8 +7,8 @@ End-to-end walkthrough of Agent Pack's experimental harness optimization API.
 
 The script does, against real models, everything the feature claims:
 
-1. Builds an Advanced RAG agent over a small in-memory corpus, with a programmatic tool policy registered through
-   Haystack's Human-in-the-Loop `ConfirmationHook`. Policy decisions are recorded per run.
+1. Builds an Advanced RAG agent over a small in-memory corpus. This is the champion harness every candidate is
+   measured against, and it is never mutated.
 2. Captures a successful run per evaluation question with `TraceCapturingAgentRunner`, writing `haystack-trace/v1`
    artifacts to disk. Content capture stays local: an already-installed tracer keeps exporting exactly what it did
    before.
@@ -17,15 +17,16 @@ The script does, against real models, everything the feature claims:
 4. Runs a `HarnessOptimizationCampaign`: it measures the reference, materializes one candidate per approved
    alternative model through `Agent.clone`, validates each candidate's assets before it executes, replays the
    captured questions, and ranks whatever clears the quality gate.
-5. Prints the baseline, every candidate's measurements, the gates each one missed, and the recommendation with the
-   reasons behind it. Nothing is promoted: the recommendation is materialized only so you can inspect it.
+5. Prints whether the champion itself is catalog-compliant, the baseline, every candidate's measurements, the gates
+   each one missed, and the recommendation with the reasons behind it. Nothing is promoted: the recommendation is
+   materialized only so you can inspect it.
 
 Run it from the integration directory (`integrations/agent_pack`) with `OPENAI_API_KEY` set:
 
     hatch run test:python examples/harness_optimization_poc.py
     hatch run test:python examples/harness_optimization_poc.py --repetitions 3
     hatch run test:python examples/harness_optimization_poc.py --proposer agent --docs-mcp
-    hatch run test:python examples/harness_optimization_poc.py --deny-tool get_metadata_field_range
+    hatch run test:python examples/harness_optimization_poc.py --drop-approved-tool get_metadata_field_range
 
 Cost: one reference measurement plus one per candidate model, each replaying every question `--repetitions` times.
 With the defaults that is 3 questions x 2 models = 6 agent runs. The campaign journal makes a re-run resume, so an
@@ -44,7 +45,6 @@ from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.hooks.human_in_the_loop import ConfirmationHook
 from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
@@ -59,8 +59,6 @@ from haystack_integrations.agent_pack.optimization import (
     LocalTraceStore,
     ModelAsset,
     OptimizationObjectives,
-    PolicyEnforcementStrategy,
-    StaticPolicyProvider,
     ToolAsset,
     TraceCapturingAgentRunner,
     create_harness_optimizer_agent,
@@ -171,28 +169,19 @@ def build_cases(store: InMemoryDocumentStore) -> list[AdvancedRAGEvaluationCase]
     ]
 
 
-def build_reference_agent(*, store: InMemoryDocumentStore, model: str, denied_tools: tuple[str, ...]) -> Agent:
+def build_reference_agent(*, store: InMemoryDocumentStore, model: str) -> Agent:
     """
-    Build the champion harness, with a programmatic tool policy at the `before_tool` hook point.
+    Build the champion harness.
 
     :param store: The corpus to retrieve from.
     :param model: The reference model.
-    :param denied_tools: Tool names the policy rejects, to demonstrate a fail-closed rejection.
     :returns: The reference Agent.
     """
-    agent = create_advanced_rag_agent(
+    return create_advanced_rag_agent(
         document_store=store,
         retriever=InMemoryBM25Retriever(document_store=store, top_k=5),
         llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
     )
-    allowed = [
-        configured.name
-        for configured in flatten_tools_or_toolsets(tools=agent.tools)
-        if configured.name not in denied_tools
-    ]
-    strategy = PolicyEnforcementStrategy(provider=StaticPolicyProvider(allowed_tools=allowed, policy_version="poc/v1"))
-    # Rebuilt rather than mutated, because the reference harness is the thing every candidate is compared against.
-    return agent.clone(hooks={"before_tool": [ConfirmationHook(confirmation_strategies={"*": strategy})]})
 
 
 def capture_reference_runs(
@@ -213,12 +202,18 @@ def capture_reference_runs(
         print(f"    status={captured.trace.status} spans={len(captured.trace.traces)} answer={answer[:90]!r}")
 
 
-def build_catalog(*, agent: Agent, models: tuple[str, ...]) -> ApprovedAssetCatalog:
+def build_catalog(
+    *, agent: Agent, models: tuple[str, ...], dropped_tools: tuple[str, ...] = ()
+) -> ApprovedAssetCatalog:
     """
     Declare which models and tools a candidate may use.
 
+    The catalog is the only compliance control: a candidate configured with anything outside it is rejected while it
+    is being materialized and never executes.
+
     :param agent: The reference Agent, read for the tools it already exposes.
     :param models: Every approved model, reference included.
+    :param dropped_tools: Tools to leave out of the catalog, to show a candidate being rejected before it runs.
     :returns: The approved asset catalog.
     """
     return ApprovedAssetCatalog(
@@ -232,7 +227,11 @@ def build_catalog(*, agent: Agent, models: tuple[str, ...]) -> ApprovedAssetCata
             )
             for model in models
         ],
-        tools=[ToolAsset(name=configured.name) for configured in flatten_tools_or_toolsets(tools=agent.tools)],
+        tools=[
+            ToolAsset(name=configured.name)
+            for configured in flatten_tools_or_toolsets(tools=agent.tools)
+            if configured.name not in dropped_tools
+        ],
     )
 
 
@@ -244,6 +243,12 @@ def report(*, result: CampaignResult, reference: Agent, assets: ApprovedAssetCat
     :param reference: The champion harness, shown to be unchanged.
     :param assets: The approved asset catalog, used to re-validate the recommendation.
     """
+    validation = result.reference_validation
+    if validation is not None and not validation.allowed:
+        print("\n--- reference harness is NOT catalog-compliant ---")
+        print(f"  {', '.join(validation.violations)}")
+        print("  It is still measured, so you can see what replacing it would save.")
+
     baseline = result.baseline
     print("\n--- baseline (reference harness) ---")
     print(
@@ -269,12 +274,6 @@ def report(*, result: CampaignResult, reference: Agent, assets: ApprovedAssetCat
         for case_metrics in candidate.metrics.details.get("cases", []):
             if not case_metrics["passed"]:
                 print(f"      regression on {case_metrics['question']!r}: {','.join(case_metrics['failures'])}")
-        decisions = candidate.policy_decisions
-        if decisions:
-            rejected = [record for record in decisions if record["decision"] != "allow"]
-            print(f"    policy: {len(decisions)} decisions, {len(rejected)} rejected")
-            for record in rejected[:3]:
-                print(f"      rejected {record['tool_name']}: {record['rule_id']} ({record['reason_code']})")
 
     print("\n--- recommendation ---")
     if result.recommendation is None:
@@ -339,11 +338,11 @@ def parse_args() -> argparse.Namespace:
         "mcp-haystack.",
     )
     parser.add_argument(
-        "--deny-tool",
+        "--drop-approved-tool",
         action="append",
-        dest="denied_tools",
+        dest="dropped_tools",
         default=[],
-        help="Tool the invocation policy rejects, to show fail-closed enforcement. Repeatable.",
+        help="Tool to leave out of the approved catalog, so every candidate is rejected before it runs. Repeatable.",
     )
     parser.add_argument("--fresh", action="store_true", help="Delete captured traces and the journal first.")
     return parser.parse_args()
@@ -359,16 +358,14 @@ def main() -> None:
     if arguments.fresh and WORKSPACE.exists():
         shutil.rmtree(WORKSPACE)
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
-    denied_tools = tuple(arguments.denied_tools)
+    dropped_tools = tuple(arguments.dropped_tools)
 
     print("=== 1. reference harness ===")
     store = build_corpus()
     cases = build_cases(store)
-    reference = build_reference_agent(store=store, model=arguments.reference_model, denied_tools=denied_tools)
+    reference = build_reference_agent(store=store, model=arguments.reference_model)
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference.tools))
     print(f"  model={arguments.reference_model} tools={tool_names}")
-    if denied_tools:
-        print(f"  policy rejects: {list(denied_tools)}")
 
     print("\n=== 2. capture successful reference runs ===")
     trace_store = LocalTraceStore(directory=WORKSPACE / "traces")
@@ -378,7 +375,11 @@ def main() -> None:
         print(f"  reusing {len(trace_store.list())} captured traces from {WORKSPACE / 'traces'}")
 
     print("\n=== 3. approved assets ===")
-    assets = build_catalog(agent=reference, models=(arguments.reference_model, *candidate_models))
+    assets = build_catalog(
+        agent=reference, models=(arguments.reference_model, *candidate_models), dropped_tools=dropped_tools
+    )
+    if dropped_tools:
+        print(f"  deliberately left out of the catalog: {list(dropped_tools)}")
     for asset in assets.models.values():
         print(
             f"  model {asset.model_id} ({asset.provider}/{asset.deployment}): "

@@ -8,11 +8,11 @@ from typing import Any, Protocol
 
 from haystack.components.agents import Agent
 
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
 from haystack_integrations.agent_pack.optimization.campaign.dataclasses import (
     EvaluationMetrics,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact
 

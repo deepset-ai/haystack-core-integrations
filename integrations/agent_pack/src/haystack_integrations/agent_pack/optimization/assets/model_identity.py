@@ -12,31 +12,31 @@ from haystack.core.serialization import component_to_dict
 # Chat generators disagree on where the model identifier lives: most use `model`, Azure deployments use
 # `azure_deployment`, a few expose `model_name`, and the Hugging Face API generators nest it inside `api_params`.
 # Probing all of them keeps configuration-time validation from rejecting a perfectly approved Azure or HF harness.
-MODEL_KEYS = ("model", "azure_deployment", "model_name")
-NESTED_MODEL_CONTAINERS = ("api_params",)
-NESTED_MODEL_KEYS = ("model", "repo_id")
+_MODEL_KEYS = ("model", "azure_deployment", "model_name")
+_NESTED_MODEL_CONTAINERS = ("api_params",)
+_NESTED_MODEL_KEYS = ("model", "repo_id")
 
 
-def model_id_path(init_parameters: Mapping[str, Any]) -> tuple[str, ...] | None:
+def _model_id_path(init_parameters: Mapping[str, Any]) -> tuple[str, ...] | None:
     """
     Return the key path holding a model identifier inside a component's init parameters.
 
     :param init_parameters: The serialized init parameters to inspect.
     :returns: The key path to the identifier, or None if the component declares none.
     """
-    for key in MODEL_KEYS:
+    for key in _MODEL_KEYS:
         if isinstance(init_parameters.get(key), str):
             return (key,)
-    for container in NESTED_MODEL_CONTAINERS:
+    for container in _NESTED_MODEL_CONTAINERS:
         nested = init_parameters.get(container)
         if isinstance(nested, Mapping):
-            for key in NESTED_MODEL_KEYS:
+            for key in _NESTED_MODEL_KEYS:
                 if isinstance(nested.get(key), str):
                     return (container, key)
     return None
 
 
-def init_parameters_of(serialized_component: Mapping[str, Any]) -> Mapping[str, Any]:
+def _init_parameters_of(serialized_component: Mapping[str, Any]) -> Mapping[str, Any]:
     """
     Return a serialized component's init parameters, tolerating both container key conventions.
 
@@ -54,8 +54,8 @@ def serialized_model_id(serialized_component: Mapping[str, Any]) -> str | None:
     :param serialized_component: A serialized component, as produced by `component_to_dict`.
     :returns: The configured model identifier, or None if the component declares none.
     """
-    init_parameters = init_parameters_of(serialized_component=serialized_component)
-    path = model_id_path(init_parameters=init_parameters)
+    init_parameters = _init_parameters_of(serialized_component=serialized_component)
+    path = _model_id_path(init_parameters=init_parameters)
     if path is None:
         return None
     value: Any = init_parameters
@@ -74,14 +74,14 @@ def generator_model_id(generator: Any) -> str | None:
     :param generator: The chat generator to inspect.
     :returns: The configured model identifier, or None if it cannot be determined.
     """
-    for key in MODEL_KEYS:
+    for key in _MODEL_KEYS:
         value = getattr(generator, key, None)
         if isinstance(value, str):
             return value
-    for container in NESTED_MODEL_CONTAINERS:
+    for container in _NESTED_MODEL_CONTAINERS:
         nested = getattr(generator, container, None)
         if isinstance(nested, Mapping):
-            for key in NESTED_MODEL_KEYS:
+            for key in _NESTED_MODEL_KEYS:
                 if isinstance(nested.get(key), str):
                     return str(nested[key])
     try:

@@ -17,10 +17,9 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
     AdvancedRAGEvaluationCase,
     score_advanced_rag_result,
 )
+from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
+from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.campaign.dataclasses import EvaluationMetrics
-from haystack_integrations.agent_pack.optimization.policy.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.policy.model_identity import generator_model_id
-from haystack_integrations.agent_pack.optimization.policy.strategies import POLICY_DECISIONS_CONTEXT_KEY
 from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact
 from haystack_integrations.agent_pack.optimization.tracing.extraction import (
     extract_agent_reference_output,
@@ -161,13 +160,12 @@ class AdvancedRAGHarnessEvaluator:
             msg = "No reference traces were supplied to the Advanced RAG evaluator."
             raise ValueError(msg)
 
-        policy_decisions: list[dict[str, Any]] = []
         run_metrics: list[list[AdvancedRAGCaseMetrics]] = []
         for _ in range(self.repetitions):
             attempt: list[AdvancedRAGCaseMetrics] = []
             for case, messages in resolved:
                 started = time.perf_counter()
-                result = agent.run(messages=messages, hook_context={POLICY_DECISIONS_CONTEXT_KEY: policy_decisions})
+                result = agent.run(messages=messages)
                 latency_ms = (time.perf_counter() - started) * 1000
                 attempt.append(score_advanced_rag_result(result, case, latency_ms=latency_ms))
             run_metrics.append(attempt)
@@ -197,7 +195,6 @@ class AdvancedRAGHarnessEvaluator:
                 "validated": not derived,
                 "derived_cases": derived,
                 "cases": [metric.to_dict() for metric in flattened],
-                "policy_decisions": policy_decisions,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
             },

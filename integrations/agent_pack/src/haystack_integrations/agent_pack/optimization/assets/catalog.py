@@ -10,8 +10,8 @@ from haystack import logging
 from haystack.components.agents import Agent
 from haystack.tools import AgentTool, flatten_tools_or_toolsets
 
-from haystack_integrations.agent_pack.optimization.policy.dataclasses import AssetValidation, ModelAsset, ToolAsset
-from haystack_integrations.agent_pack.optimization.policy.model_identity import (
+from haystack_integrations.agent_pack.optimization.assets.dataclasses import AssetValidation, ModelAsset, ToolAsset
+from haystack_integrations.agent_pack.optimization.assets.model_identity import (
     generator_model_id,
     serialized_model_id,
 )
