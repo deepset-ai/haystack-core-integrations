@@ -9,15 +9,38 @@ import json
 from typing import Any
 
 from haystack_integrations.agent_pack.optimization.recipes.dataclasses import (
-    CompositeRecipe,
     ModelSubstitutionRecipe,
     PromptAndGenerationRecipe,
-    RegisteredStructuralRecipe,
-    SpecialistDelegationRecipe,
     ToolSelectionRecipe,
 )
-from haystack_integrations.agent_pack.optimization.recipes.registry import StructuralRecipeRegistry
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
+
+#: Every recipe kind `recipe_from_dict` accepts. Derived from the recipe classes so it cannot drift from the parser.
+RECIPE_KINDS = (
+    ModelSubstitutionRecipe.kind,
+    PromptAndGenerationRecipe.kind,
+    ToolSelectionRecipe.kind,
+)
+
+#: JSON schema describing a proposal from an optimizer Agent, for configuring structured output on the generator
+#: that Agent runs on. It pins the response to an object holding an array of recipe objects with a known `kind`, and
+#: deliberately stops there: the per-kind field sets form a union that a strict schema cannot express cleanly, and
+#: `recipe_from_dict` is the authoritative validator either way. Constraining the shape is still worth doing, because
+#: it removes the prose and code fences that a free-text reply otherwise has to be recovered from.
+RECIPE_PROPOSAL_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "recipes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"kind": {"type": "string", "enum": list(RECIPE_KINDS)}},
+                "required": ["kind"],
+            },
+        }
+    },
+    "required": ["recipes"],
+}
 
 
 def recipe_fingerprint(recipe: CandidateRecipe) -> str:
@@ -31,17 +54,17 @@ def recipe_fingerprint(recipe: CandidateRecipe) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def recipe_from_dict(data: dict[str, Any], *, registry: StructuralRecipeRegistry | None = None) -> CandidateRecipe:
+def recipe_from_dict(data: dict[str, Any]) -> CandidateRecipe:
     """
     Parse one optimizer proposal through the closed set of supported recipe schemas.
 
     This is the boundary that keeps a generated proposal from becoming arbitrary code: anything outside the declared
-    recipe kinds is rejected rather than executed.
+    recipe kinds is rejected rather than executed. It is also the single place a new transformation is added: a
+    recipe dataclass, a branch here, and `RECIPE_KINDS` picks it up.
 
     :param data: The proposed recipe.
-    :param registry: The registry to resolve a `registered_structure` recipe against.
     :returns: The parsed recipe.
-    :raises ValueError: If the proposal names an unsupported kind, or a registered structure with no registry.
+    :raises ValueError: If the proposal names an unsupported kind.
     :raises KeyError: If a required field for the named kind is missing.
     """
     kind = data.get("kind")
@@ -53,24 +76,5 @@ def recipe_from_dict(data: dict[str, Any], *, registry: StructuralRecipeRegistry
         )
     if kind == ToolSelectionRecipe.kind:
         return ToolSelectionRecipe(tool_names=tuple(data["tool_names"]))
-    if kind == SpecialistDelegationRecipe.kind:
-        return SpecialistDelegationRecipe(
-            name=data["name"],
-            description=data["description"],
-            specialist_tool_names=tuple(data["specialist_tool_names"]),
-            specialist_system_prompt=data["specialist_system_prompt"],
-            coordinator_tool_names=tuple(data.get("coordinator_tool_names") or ()),
-            specialist_model_id=data.get("specialist_model_id"),
-            coordinator_system_prompt=data.get("coordinator_system_prompt"),
-        )
-    if kind == CompositeRecipe.kind:
-        return CompositeRecipe(
-            recipes=tuple(recipe_from_dict(data=item, registry=registry) for item in data["recipes"])
-        )
-    if kind == RegisteredStructuralRecipe.kind:
-        if registry is None:
-            msg = "A StructuralRecipeRegistry is required for registered structural recipes."
-            raise ValueError(msg)
-        return RegisteredStructuralRecipe(name=data["name"], parameters=data.get("parameters") or {}, registry=registry)
     msg = f"Unsupported candidate recipe kind: {kind!r}."
     raise ValueError(msg)

@@ -7,6 +7,7 @@ from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
+from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
     CampaignJournal,
@@ -17,7 +18,6 @@ from haystack_integrations.agent_pack.optimization import (
     ToolAsset,
     TraceCapturingAgentRunner,
 )
-from haystack_integrations.agent_pack.optimization.evaluators.advanced_rag import AdvancedRAGHarnessEvaluator
 
 QUESTION = "What is CRISPR used for?"
 

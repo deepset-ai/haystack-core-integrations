@@ -2,7 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Campaign evaluator for Advanced RAG harnesses."""
+"""
+Campaign evaluator for Advanced RAG harnesses.
+
+This module bridges the Advanced RAG agent to the generic optimization API, so unlike the rest of `advanced_rag` it
+does depend on `optimization`. It is deliberately not re-exported from `haystack_integrations.agent_pack.advanced_rag`:
+importing the agent must not drag the optimization package in with it. Import it by module path instead.
+"""
 
 import statistics
 import time

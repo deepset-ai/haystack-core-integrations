@@ -49,6 +49,7 @@ from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
+from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
     CampaignJournal,
@@ -64,7 +65,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
 )
-from haystack_integrations.agent_pack.optimization.evaluators.advanced_rag import AdvancedRAGHarnessEvaluator
+from haystack_integrations.agent_pack.optimization.recipes import RECIPE_PROPOSAL_JSON_SCHEMA
 
 WORKSPACE = Path(".agent-pack-poc")
 
@@ -392,7 +393,20 @@ def main() -> None:
         docs_toolset = create_haystack_docs_toolset() if arguments.docs_mcp else None
         proposer = HarnessOptimizerAgentProposer(
             optimizer_agent=create_harness_optimizer_agent(
-                chat_generator=OpenAIResponsesChatGenerator(model=arguments.reference_model),
+                # Structured output keeps the proposal well-formed; every recipe is still validated on the way in.
+                chat_generator=OpenAIResponsesChatGenerator(
+                    model=arguments.reference_model,
+                    generation_kwargs={
+                        "text": {
+                            "format": {
+                                "type": "json_schema",
+                                "name": "harness_optimizer_proposal",
+                                "schema": RECIPE_PROPOSAL_JSON_SCHEMA,
+                                "strict": False,
+                            }
+                        }
+                    },
+                ),
                 docs_toolset=docs_toolset,
             ),
             max_recipes=4,

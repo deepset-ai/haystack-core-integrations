@@ -5,6 +5,7 @@ loaders:
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
       - haystack_integrations.agent_pack.advanced_rag.evaluation
+      - haystack_integrations.agent_pack.advanced_rag.harness_evaluator
       - haystack_integrations.agent_pack.optimization.tracing.types.protocol
       - haystack_integrations.agent_pack.optimization.tracing.dataclasses
       - haystack_integrations.agent_pack.optimization.tracing.serialization
@@ -15,7 +16,6 @@ loaders:
       - haystack_integrations.agent_pack.optimization.assets.dataclasses
       - haystack_integrations.agent_pack.optimization.assets.catalog
       - haystack_integrations.agent_pack.optimization.recipes.dataclasses
-      - haystack_integrations.agent_pack.optimization.recipes.registry
       - haystack_integrations.agent_pack.optimization.recipes.serialization
       - haystack_integrations.agent_pack.optimization.recipes.types.protocol
       - haystack_integrations.agent_pack.optimization.campaign.dataclasses
@@ -24,7 +24,6 @@ loaders:
       - haystack_integrations.agent_pack.optimization.campaign.campaign
       - haystack_integrations.agent_pack.optimization.campaign.types.protocol
       - haystack_integrations.agent_pack.optimization.optimizer_agent
-      - haystack_integrations.agent_pack.optimization.evaluators.advanced_rag
     search_path: [../src]
 processors:
   - type: filter

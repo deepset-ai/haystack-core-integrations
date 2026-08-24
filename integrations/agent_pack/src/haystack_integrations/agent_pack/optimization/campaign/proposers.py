@@ -16,7 +16,6 @@ from haystack_integrations.agent_pack.optimization.assets.catalog import Approve
 from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.campaign.dataclasses import OptimizationObjectives
 from haystack_integrations.agent_pack.optimization.recipes.dataclasses import ModelSubstitutionRecipe
-from haystack_integrations.agent_pack.optimization.recipes.registry import StructuralRecipeRegistry
 from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_from_dict
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact
@@ -57,8 +56,10 @@ def _extract_json_array(text: str) -> list[Any]:
     """
     Read a JSON array out of a model response.
 
-    Models wrap JSON in prose or a fenced code block often enough that a bare `json.loads` on the whole reply turns a
-    formatting slip into an aborted campaign. The outermost bracket pair is extracted instead.
+    Configuring structured output on the optimizer's generator is the supported way to get a well-formed reply, see
+    `create_harness_optimizer_agent`. This is the fallback for when it is not configured, or when the model wraps the
+    array in prose, a fenced code block, or the object a JSON schema requires at the root: the outermost bracket pair
+    is extracted rather than letting a formatting slip abort a campaign.
 
     :param text: The model's reply.
     :returns: The parsed array.
@@ -82,28 +83,20 @@ class HarnessOptimizerAgentProposer:
     Ask a skill-guided Agent for JSON recipes and validate them against the closed recipe schemas.
 
     Nothing the Agent returns is executed. Every proposal goes through `recipe_from_dict`, so a reply outside the
-    typed recipe language is rejected rather than run.
+    typed recipe language is rejected rather than run. Configure structured output on the optimizer Agent's generator
+    to keep replies well-formed; see `create_harness_optimizer_agent` for an example.
     """
 
-    def __init__(
-        self,
-        optimizer_agent: Agent,
-        *,
-        registry: StructuralRecipeRegistry | None = None,
-        max_recipes: int = 8,
-        max_attempts: int = 2,
-    ) -> None:
+    def __init__(self, optimizer_agent: Agent, *, max_recipes: int = 8, max_attempts: int = 2) -> None:
         """
         Create an Agent-backed proposer.
 
         :param optimizer_agent: The Agent that proposes transformations, usually built by
             `create_harness_optimizer_agent`.
-        :param registry: Registry offered to the Agent, and used to resolve registered structural proposals.
         :param max_recipes: How many proposals to accept from one reply.
         :param max_attempts: How many times to ask, including one corrective retry per rejected reply.
         """
         self.optimizer_agent = optimizer_agent
-        self.registry = registry
         self.max_recipes = max_recipes
         self.max_attempts = max_attempts
 
@@ -142,7 +135,6 @@ class HarnessOptimizerAgentProposer:
             ],
             "approved_tools": sorted(assets.tools),
             "objectives": objectives.to_dict(),
-            "registered_structural_recipes": self.registry.describe() if self.registry is not None else {},
             "successful_trace_inputs": [
                 extract_agent_replay_inputs(artifact=artifact) for artifact in reference_traces[:3]
             ],
@@ -180,7 +172,7 @@ class HarnessOptimizerAgentProposer:
                 if len(proposals) > self.max_recipes:
                     msg = f"Return at most {self.max_recipes} recipes."
                     raise ValueError(msg)
-                return [recipe_from_dict(data=proposal, registry=self.registry) for proposal in proposals]
+                return [recipe_from_dict(data=proposal) for proposal in proposals]
             except (ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
                 last_error = f"{type(error).__name__}: {error}"
                 logger.warning(

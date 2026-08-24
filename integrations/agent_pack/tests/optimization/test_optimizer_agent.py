@@ -10,12 +10,13 @@ from haystack_integrations.agent_pack.optimization import (
     ModelAsset,
     ModelSubstitutionRecipe,
     OptimizationObjectives,
-    StructuralRecipeRegistry,
     TraceArtifact,
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
 )
 from haystack_integrations.agent_pack.optimization.optimizer_agent import bundled_agent_building_skills_path
+from haystack_integrations.agent_pack.optimization.recipes import RECIPE_KINDS, RECIPE_PROPOSAL_JSON_SCHEMA
+from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_from_dict
 
 SKILL_NAME = "haystack-agent-building"
 
@@ -67,8 +68,9 @@ def test_bundled_skill_ships_with_the_package():
     body = skill.read_text(encoding="utf-8")
     assert f"name: {SKILL_NAME}" in body
     assert "Agent.clone" in body
-    assert "AgentTool" in body
-    assert "registered_structural_recipes" in body
+    # The skill must document exactly the kinds the parser accepts, so a proposal is not wasted on a rejected one.
+    for kind in RECIPE_KINDS:
+        assert kind in body
 
 
 def test_optimizer_agent_exposes_bundled_agent_building_skill():
@@ -102,6 +104,23 @@ def test_agent_proposer_only_accepts_typed_recipe_json():
     assert proposals == [ModelSubstitutionRecipe(model_id="cheap")]
 
 
+def test_proposal_schema_covers_exactly_the_kinds_the_parser_accepts():
+    """The schema handed to a generator must not drift from what `recipe_from_dict` will accept back."""
+    declared = RECIPE_PROPOSAL_JSON_SCHEMA["properties"]["recipes"]["items"]["properties"]["kind"]["enum"]
+    assert declared == list(RECIPE_KINDS)
+    for kind in declared:
+        with pytest.raises((ValueError, KeyError)) as failure:
+            recipe_from_dict(data={"kind": kind})
+        # Every declared kind is recognised: it fails on a missing field, never as an unsupported kind.
+        assert "Unsupported candidate recipe kind" not in str(failure.value)
+
+
+def test_agent_proposer_reads_the_array_out_of_a_schema_shaped_response():
+    """A JSON schema requires an object at the root, so the array arrives wrapped."""
+    response = '{"recipes": [{"kind": "model_substitution", "model_id": "cheap"}]}'
+    assert propose_with(proposer_for(response)) == [ModelSubstitutionRecipe(model_id="cheap")]
+
+
 def test_agent_proposer_tolerates_fenced_or_prefixed_json():
     """A code fence or a sentence of preamble is a formatting slip, not a reason to abort a campaign."""
     response = 'Here is my proposal:\n```json\n[{"kind": "model_substitution", "model_id": "cheap"}]\n```'
@@ -129,19 +148,3 @@ def test_agent_proposer_rejects_untyped_and_oversized_responses():
                 max_recipes=1,
             )
         )
-
-
-def test_registered_structural_recipes_are_offered_to_the_optimizer():
-    registry = StructuralRecipeRegistry()
-    registry.register("short-run", lambda agent, _assets, _params: agent, parameters_schema={"steps": "int"})
-    proposer = proposer_for(
-        '[{"kind":"registered_structure","name":"short-run","parameters":{"steps":3}}]', registry=registry
-    )
-    request = proposer.build_request(
-        reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        reference_traces=[reference_trace()],
-        assets=ApprovedAssetCatalog(models=[ModelAsset(model_id="reference", provider="p", deployment="d")], tools=[]),
-        objectives=OptimizationObjectives(),
-    )
-    assert request["registered_structural_recipes"] == {"short-run": {"steps": "int"}}
-    assert propose_with(proposer)[0].name == "short-run"

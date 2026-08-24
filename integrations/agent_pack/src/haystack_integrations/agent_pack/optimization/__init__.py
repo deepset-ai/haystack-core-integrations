@@ -42,12 +42,8 @@ from haystack_integrations.agent_pack.optimization.optimizer_agent import (
 )
 from haystack_integrations.agent_pack.optimization.recipes import (
     CandidateRecipe,
-    CompositeRecipe,
     ModelSubstitutionRecipe,
     PromptAndGenerationRecipe,
-    RegisteredStructuralRecipe,
-    SpecialistDelegationRecipe,
-    StructuralRecipeRegistry,
     ToolSelectionRecipe,
 )
 from haystack_integrations.agent_pack.optimization.tracing import (
@@ -70,7 +66,6 @@ __all__ = [
     "CampaignResult",
     "CandidateEvaluation",
     "CandidateRecipe",
-    "CompositeRecipe",
     "EvaluationMetrics",
     "HarnessEvaluator",
     "HarnessOptimizationCampaign",
@@ -82,9 +77,6 @@ __all__ = [
     "OptimizationObjectives",
     "PromptAndGenerationRecipe",
     "RecipeProposer",
-    "RegisteredStructuralRecipe",
-    "SpecialistDelegationRecipe",
-    "StructuralRecipeRegistry",
     "ToolAsset",
     "ToolSelectionRecipe",
     "TraceArtifact",

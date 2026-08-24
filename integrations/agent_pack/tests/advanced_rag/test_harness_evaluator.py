@@ -6,11 +6,11 @@ from haystack import Document
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
-from haystack_integrations.agent_pack.optimization import ApprovedAssetCatalog, ModelAsset, TraceArtifact
-from haystack_integrations.agent_pack.optimization.evaluators.advanced_rag import (
+from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
     case_from_reference_trace,
 )
+from haystack_integrations.agent_pack.optimization import ApprovedAssetCatalog, ModelAsset, TraceArtifact
 
 QUESTION = "What is CRISPR used for?"
 

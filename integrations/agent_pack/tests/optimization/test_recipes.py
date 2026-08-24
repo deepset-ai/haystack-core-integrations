@@ -1,18 +1,14 @@
 import pytest
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
-from haystack.tools import AgentTool, tool
+from haystack.tools import tool
 
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
-    CompositeRecipe,
     ModelAsset,
     ModelSubstitutionRecipe,
     PromptAndGenerationRecipe,
-    RegisteredStructuralRecipe,
-    SpecialistDelegationRecipe,
-    StructuralRecipeRegistry,
     ToolAsset,
     ToolSelectionRecipe,
 )
@@ -40,7 +36,6 @@ def assets():
         tools=[
             ToolAsset(name="search_documents"),
             ToolAsset(name="calculator"),
-            ToolAsset(name="retrieval_specialist"),
         ],
     )
 
@@ -129,140 +124,22 @@ def test_tool_selection_normalizes_names_and_prunes_unreachable_exit_conditions(
     assert reference.exit_conditions == ["calculator"]
 
 
-def test_specialist_delegation_uses_agent_tool_and_validates_recursively():
-    reference = reference_agent()
-    recipe = SpecialistDelegationRecipe(
-        name="retrieval_specialist",
-        description="Retrieve grounded evidence",
-        specialist_tool_names=("search_documents",),
-        specialist_system_prompt="Only retrieve evidence.",
-        coordinator_tool_names=("calculator",),
-        specialist_model_id="cheaper",
-    )
-
-    candidate = recipe.materialize(reference, assets())
-
-    assert [t.name for t in candidate.tools] == ["calculator", "retrieval_specialist"]
-    specialist_tool = candidate.tools[1]
-    assert isinstance(specialist_tool, AgentTool)
-    specialist_data = specialist_tool.to_dict()["data"]["agent"]["init_parameters"]
-    assert specialist_data["chat_generator"]["init_parameters"]["model"] == "cheaper"
-    assert [t["data"]["name"] for t in specialist_data["tools"]] == ["search_documents"]
-    assert assets().require_valid_agent(candidate).allowed is True
-
-
-def test_specialist_is_isolated_and_the_coordinator_is_told_to_delegate():
-    reference = reference_agent(exit_conditions=["calculator"], user_prompt="Question: {{question}}")
-    candidate = SpecialistDelegationRecipe(
-        name="retrieval_specialist",
-        description="Retrieve grounded evidence",
-        specialist_tool_names=("search_documents",),
-        specialist_system_prompt="Only retrieve evidence.",
-    ).materialize(reference, assets())
-
-    specialist = candidate.tools[0]._component
-    assert specialist.exit_conditions == ["text"]
-    assert specialist.user_prompt is None
-    assert specialist.system_prompt == "Only retrieve evidence."
-    assert candidate.exit_conditions == ["text"]
-    assert candidate.system_prompt.startswith("reference prompt")
-    assert "retrieval_specialist" in candidate.system_prompt
-    assert "search_documents" in candidate.system_prompt
-
-
-def test_specialist_delegation_accepts_an_explicit_coordinator_prompt():
-    candidate = SpecialistDelegationRecipe(
-        name="retrieval_specialist",
-        description="Retrieve grounded evidence",
-        specialist_tool_names=("search_documents",),
-        specialist_system_prompt="Only retrieve evidence.",
-        coordinator_system_prompt="You coordinate specialists.",
-    ).materialize(reference_agent(), assets())
-    assert candidate.system_prompt == "You coordinate specialists."
-
-
 def test_recipe_parser_is_closed_and_fingerprints_are_stable():
-    data = {
-        "kind": "specialist_delegation",
-        "name": "retrieval_specialist",
-        "description": "Retrieve evidence",
-        "specialist_tool_names": ["search_documents"],
-        "specialist_system_prompt": "Retrieve.",
-        "coordinator_tool_names": ["calculator"],
-        "specialist_model_id": "cheaper",
-    }
+    data = {"kind": "prompt_and_generation", "system_prompt": "candidate prompt"}
     first = recipe_from_dict(data=data)
     second = recipe_from_dict(data=data)
     assert recipe_fingerprint(recipe=first) == recipe_fingerprint(recipe=second)
     with pytest.raises(ValueError, match="Unsupported candidate recipe kind"):
         recipe_from_dict(data={"kind": "python", "code": "dangerous()"})
+    for removed in ("specialist_delegation", "composite", "registered_structure"):
+        with pytest.raises(ValueError, match="Unsupported candidate recipe kind"):
+            recipe_from_dict(data={"kind": removed})
 
 
-def shorten(agent, _assets, params):
-    return agent.clone(max_agent_steps=params["steps"])
-
-
-def test_composite_and_registered_structural_recipes():
-    reference = reference_agent()
-    composite = CompositeRecipe(
-        recipes=(ModelSubstitutionRecipe(model_id="cheaper"), ToolSelectionRecipe(tool_names=("search_documents",)))
-    )
-    candidate = composite.materialize(reference, assets())
-    assert candidate.chat_generator.model == "cheaper"
-    assert [t.name for t in candidate.tools] == ["search_documents"]
-
-    registry = StructuralRecipeRegistry()
-    registry.register("short-run", shorten, parameters_schema={"steps": "int"})
-    registered = RegisteredStructuralRecipe(name="short-run", parameters={"steps": 3}, registry=registry)
-    assert registered.materialize(reference, assets()).max_agent_steps == 3
-    restored = recipe_from_dict(data=registered.to_dict(), registry=registry)
-    assert restored.materialize(reference, assets()).max_agent_steps == 3
-    assert registry.describe() == {"short-run": {"steps": "int"}}
-
-
-@pytest.mark.parametrize(
-    "parameters,message",
-    [
-        ({}, "requires parameter 'steps'"),
-        ({"steps": "three"}, "expects 'steps' to be int"),
-        ({"steps": True}, "expects 'steps' to be int"),
-        ({"steps": 3, "extra": 1}, "unsupported parameters: extra"),
-    ],
-)
-def test_registered_structural_parameters_are_schema_checked(parameters, message):
-    """Proposed parameters must never reach a registered factory unchecked."""
-    registry = StructuralRecipeRegistry()
-    registry.register("short-run", shorten, parameters_schema={"steps": "int"})
-    with pytest.raises(ValueError, match=message):
-        RegisteredStructuralRecipe(name="short-run", parameters=parameters, registry=registry).materialize(
-            reference_agent(), assets()
-        )
-
-
-def test_optional_schema_parameters_may_be_omitted():
-    registry = StructuralRecipeRegistry()
-    registry.register(
-        "short-run",
-        lambda agent, _assets, params: agent.clone(max_agent_steps=params.get("steps", 7)),
-        parameters_schema={"steps": "int?"},
-    )
-    assert (
-        RegisteredStructuralRecipe(name="short-run", parameters={}, registry=registry)
-        .materialize(reference_agent(), assets())
-        .max_agent_steps
-        == 7
-    )
-
-
-def test_missing_tools_and_unregistered_structures_are_rejected():
-    reference = reference_agent()
+def test_unknown_tools_and_empty_changes_are_rejected():
     with pytest.raises(ValueError, match="not configured"):
-        ToolSelectionRecipe(tool_names=("unknown",)).materialize(reference, assets())
-    with pytest.raises(ValueError, match="not registered"):
-        RegisteredStructuralRecipe(name="unknown", parameters={}, registry=StructuralRecipeRegistry()).materialize(
-            reference, assets()
-        )
+        ToolSelectionRecipe(tool_names=("unknown",)).materialize(reference_agent(), assets())
     with pytest.raises(ValueError, match="at least one tool name"):
         ToolSelectionRecipe(tool_names=())
-    with pytest.raises(ValueError, match="at least one recipe"):
-        CompositeRecipe(recipes=())
+    with pytest.raises(ValueError, match="requires at least one change"):
+        PromptAndGenerationRecipe()

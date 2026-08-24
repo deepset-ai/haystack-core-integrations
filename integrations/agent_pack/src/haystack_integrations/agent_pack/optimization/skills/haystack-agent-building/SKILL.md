@@ -12,21 +12,25 @@ Use this skill whenever proposing an optimized Haystack Agent harness.
 1. Preserve the supplied reference Agent. Every candidate is created from it with `Agent.clone`.
 2. Use only the model IDs listed in `approved_models` and the tool names listed in `approved_tools`. A recipe naming
    anything else is rejected when the candidate is materialized, which wastes a campaign slot.
-3. Prefer a model substitution before increasing harness complexity.
-4. Use `AgentTool` when delegating work to a specialist Agent.
-5. Keep specialist tool sets narrow and give each specialist a specific system prompt.
-6. Never emit Python, arbitrary component dictionaries, import paths, credentials, or deployment operations.
-7. Return only a JSON array containing the supported recipe objects below. No prose, no code fences.
+3. Prefer a model substitution before changing the prompt or the tool set.
+4. Make one interpretable change per candidate. A campaign compares candidates against each other, so a
+   single-change candidate tells you what caused the difference. To combine two changes, propose them as two
+   candidates.
+5. Never emit Python, arbitrary component dictionaries, import paths, credentials, or deployment operations.
+6. Return only a JSON array containing the supported recipe objects below. No prose, no code fences.
 
 ## Supported recipes
 
-Model substitution:
+There are three. Anything else is rejected.
+
+Model substitution — swap the coordinator model for an approved one:
 
 ```json
 {"kind": "model_substitution", "model_id": "approved-model-id"}
 ```
 
-Prompt or generation settings:
+Prompt or generation settings — either field may be omitted, but not both. `generation_kwargs` is merged over the
+reference generator's own settings:
 
 ```json
 {
@@ -36,41 +40,11 @@ Prompt or generation settings:
 }
 ```
 
-Tool selection. Names are sorted and de-duplicated, so two orderings of the same set are one candidate:
+Tool selection — restrict the Agent to a subset of the tools it already has. Names are sorted and de-duplicated, so
+two orderings of the same set are one candidate. Exit conditions naming a dropped tool are pruned automatically:
 
 ```json
 {"kind": "tool_selection", "tool_names": ["approved_tool"]}
-```
-
-Specialist delegation through `AgentTool`. The specialist runs with its own prompt, no user prompt, and the text exit
-condition. `coordinator_system_prompt` is optional: when omitted, the reference prompt is kept and a short
-instruction naming the specialist tool is appended. Supply it when the coordinator's role changes materially:
-
-```json
-{
-  "kind": "specialist_delegation",
-  "name": "retrieval_specialist",
-  "description": "Find grounded evidence for an enterprise question.",
-  "specialist_tool_names": ["search_documents"],
-  "specialist_system_prompt": "Retrieve relevant evidence and report it with document identifiers.",
-  "coordinator_tool_names": [],
-  "specialist_model_id": "approved-model-id",
-  "coordinator_system_prompt": null
-}
-```
-
-Several compatible transformations may be combined explicitly. Each recipe applies to the result of the previous one:
-
-```json
-{"kind": "composite", "recipes": [{"kind": "model_substitution", "model_id": "approved-model-id"}]}
-```
-
-Registered structural transformations are only available when the task's `registered_structural_recipes` field lists
-the name and its parameter schema. A schema maps each parameter to `str`, `int`, `float`, `bool`, `list`, or `dict`,
-with a trailing `?` marking it optional. Parameters outside the schema, or of the wrong type, are rejected:
-
-```json
-{"kind": "registered_structure", "name": "listed_name", "parameters": {"declared_parameter": "value"}}
 ```
 
 ## Selection principles
@@ -80,7 +54,6 @@ with a trailing `?` marking it optional. Parameters outside the schema, or of th
   when `primary` is `latency`, rank on latency instead.
 - Every model in `approved_models` is already cleared for use, so choose between them on cost, latency, and how
   likely they are to hold quality — not on provider or deployment.
-- Avoid removing tools demonstrated as necessary by the successful reference traces.
+- Do not remove tools the successful reference traces show being used to reach the answer. Read
+  `successful_trace_inputs` before proposing a tool selection.
 - For enterprise RAG, preserve retrieval grounding, citation behavior, metadata inspection, and absence handling.
-- Make one interpretable change per candidate unless a composite is required to express a coherent topology. A
-  campaign compares candidates against each other, so a single-change candidate tells you what caused the difference.
