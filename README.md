@@ -7,8 +7,8 @@
 | src/haystack\_integrations/components/connectors/oauth/resolver.py |       38 |        0 |       10 |        0 |    100% |           |
 | src/haystack\_integrations/utils/oauth/errors.py                   |        6 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/utils/oauth/protocols.py                |       17 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/utils/oauth/sources.py                  |      230 |       15 |       66 |       11 |     91% |106-107, 109-110, 156-\>158, 221, 290-291, 293-294, 296-297, 299-300, 332-333, 353-\>357, 355-\>357 |
-| **TOTAL**                                                          |  **291** |   **15** |   **76** |   **11** | **93%** |           |
+| src/haystack\_integrations/utils/oauth/sources.py                  |      237 |       15 |       66 |       11 |     91% |106-107, 109-110, 159-\>161, 240, 309-310, 312-313, 315-316, 318-319, 351-352, 372-\>376, 374-\>376 |
+| **TOTAL**                                                          |  **298** |   **15** |   **76** |   **11** | **93%** |           |
 
 
 ## Setup coverage badge
