@@ -242,6 +242,32 @@ async def test_run_async():
     assert result["documents"][0].content == "Async result"
 
 
+def test_close():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    retriever = ElasticsearchInferenceDenseRetriever(
+        document_store=mock_store, inference_id=".multilingual-e5-small-elasticsearch"
+    )
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = ElasticsearchInferenceDenseRetriever(
+        document_store=mock_store, inference_id=".multilingual-e5-small-elasticsearch"
+    )
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_store
+
+
 def test_body_query_vector_builder_shape():
     """_create_dense_retrieval_inference_body must produce knn.query_vector_builder, not query_vector."""
     doc_store = ElasticsearchDocumentStore.__new__(ElasticsearchDocumentStore)
@@ -325,7 +351,7 @@ class TestElasticsearchInferenceDenseRetriever:
             inference_id=inference_id,
             input=[doc["content"] for doc in docs],
         )
-        embeddings = [item["embedding"] for item in response["dense_embedding"]]
+        embeddings = [item["embedding"] for item in response["text_embedding"]]
         for doc, embedding in zip(docs, embeddings, strict=False):
             body = {"id": doc["id"], "content": doc["content"], "embedding": embedding}
             body.update(doc.get("meta", {}))

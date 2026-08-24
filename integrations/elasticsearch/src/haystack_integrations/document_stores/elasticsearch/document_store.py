@@ -1648,7 +1648,7 @@ class ElasticsearchDocumentStore:
         :param num_candidates: Number of approximate kNN candidates per shard.
         :returns: List of Documents most similar to the query.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         body = self._create_dense_retrieval_inference_body(
             query=query,
             inference_id=inference_id,
