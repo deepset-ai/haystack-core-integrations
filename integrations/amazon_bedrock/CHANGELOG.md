@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.17.0] - 2026-08-21
+
+### 🚀 Features
+
+- Feat (bedrock): add support for file content in a tool result (#3826)
+
+
 ## [integrations/amazon_bedrock-v6.16.2] - 2026-08-18
 
 ### 🐛 Bug Fixes
