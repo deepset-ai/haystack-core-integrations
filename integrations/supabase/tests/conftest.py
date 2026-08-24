@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -94,32 +94,66 @@ def mock_store(patches_for_unit_tests, monkeypatch):  # noqa: ARG001  patches ar
     yield store
 
 
+GROONGA_STORE_MODULE = "haystack_integrations.document_stores.supabase.groonga_document_store"
+
+# The PostgREST builder methods the Groonga store chains before calling `execute`.
+_QUERY_BUILDER_METHODS = ("select", "insert", "upsert", "delete", "eq", "neq", "in_")
+
+
 @pytest.fixture
-def mock_supabase_client():
+def mock_groonga_client():
     """A mocked Supabase client, so the Groonga tests never reach a real database."""
-    with patch("haystack_integrations.document_stores.supabase.groonga_document_store.create_client") as mock_create:
-        mock_client = MagicMock()
-        mock_create.return_value = mock_client
+    with patch(f"{GROONGA_STORE_MODULE}.create_client") as mock_create:
+        client = MagicMock()
+        mock_create.return_value = client
 
-        mock_client.rpc.return_value.execute.return_value = MagicMock(data=[], count=0)
+        client.rpc.return_value.execute.return_value = MagicMock(data=[], count=0)
 
-        mock_table = MagicMock()
-        mock_client.table.return_value = mock_table
-        for method in ("select", "insert", "upsert", "delete", "eq", "neq", "in_"):
-            getattr(mock_table, method).return_value = mock_table
-        mock_table.execute.return_value = MagicMock(data=[], count=0)
+        table = MagicMock()
+        client.table.return_value = table
+        for method in _QUERY_BUILDER_METHODS:
+            getattr(table, method).return_value = table
+        table.execute.return_value = MagicMock(data=[], count=0)
 
-        yield mock_client
+        yield client
 
 
 @pytest.fixture
-def groonga_store(mock_supabase_client, monkeypatch) -> SupabaseGroongaDocumentStore:  # noqa: ARG001
-    """A warmed-up Groonga store backed by `mock_supabase_client`."""
+def mock_async_groonga_client():
+    """The async counterpart of `mock_groonga_client`: builder calls stay sync, only `execute` is awaited."""
+    with patch(f"{GROONGA_STORE_MODULE}.acreate_client", new_callable=AsyncMock) as mock_acreate:
+        client = MagicMock()
+        mock_acreate.return_value = client
+
+        client.rpc.return_value.execute = AsyncMock(return_value=MagicMock(data=[], count=0))
+
+        table = MagicMock()
+        client.table.return_value = table
+        for method in _QUERY_BUILDER_METHODS:
+            getattr(table, method).return_value = table
+        table.execute = AsyncMock(return_value=MagicMock(data=[], count=0))
+
+        yield client
+
+
+@pytest.fixture
+def mock_groonga_store(mock_groonga_client, monkeypatch) -> SupabaseGroongaDocumentStore:  # noqa: ARG001
+    """A warmed-up Groonga store backed by `mock_groonga_client`."""
+    store = _groonga_store(monkeypatch)
+    store.warm_up()
+    return store
+
+
+@pytest.fixture
+def mock_async_groonga_store(mock_async_groonga_client, monkeypatch) -> SupabaseGroongaDocumentStore:  # noqa: ARG001
+    """A Groonga store backed by `mock_async_groonga_client`, whose client is created on first async call."""
+    return _groonga_store(monkeypatch)
+
+
+def _groonga_store(monkeypatch) -> SupabaseGroongaDocumentStore:
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
-    store = SupabaseGroongaDocumentStore(
+    return SupabaseGroongaDocumentStore(
         supabase_url="https://fake-project.supabase.co",
         table_name="test_groonga_documents",
         recreate_table=False,
     )
-    store.warm_up()
-    return store
