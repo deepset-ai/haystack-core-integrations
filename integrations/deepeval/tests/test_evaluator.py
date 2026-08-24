@@ -6,12 +6,16 @@ from typing import ClassVar
 import pytest
 from deepeval.evaluate.types import EvaluationResult, TestResult
 from deepeval.metrics import BaseMetric, FaithfulnessMetric
-from deepeval.test_case import LLMTestCase, SingleTurnParams
+from deepeval.test_case import LLMTestCase
 from deepeval.test_run import MetricData
 from haystack import DeserializationError
 
 from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator
-from haystack_integrations.components.evaluators.deepeval.metrics import DeepEvalMetric, InputConverters
+from haystack_integrations.components.evaluators.deepeval.metrics import (
+    DeepEvalMetric,
+    InputConverters,
+    SingleTurnParams,
+)
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -148,10 +152,21 @@ def measure_locally(test_cases, metric) -> EvaluationResult:
     out = []
     for test_case in test_cases:
         score = metric.measure(test_case)
+        threshold = getattr(metric, "threshold", 0.0)
         r = TestResult(
             name=test_case.name or "",
             success=False,
-            metrics_data=[MetricData(name=metric.__name__, score=score, reason=metric.reason)],
+            # `threshold` and `success` are required by deepeval < 4 and optional after,
+            # so pass them explicitly to keep this double valid across the version floor.
+            metrics_data=[
+                MetricData(
+                    name=metric.__name__,
+                    score=score,
+                    reason=metric.reason,
+                    threshold=threshold,
+                    success=score >= threshold,
+                )
+            ],
             conversational=False,
             input=test_case.input,
             actual_output=test_case.actual_output,

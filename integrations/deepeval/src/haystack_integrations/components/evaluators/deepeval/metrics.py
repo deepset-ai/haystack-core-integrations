@@ -15,7 +15,12 @@ from deepeval.metrics import (
     ContextualRelevancyMetric,
     FaithfulnessMetric,
 )
-from deepeval.test_case import LLMTestCase, SingleTurnParams
+from deepeval.test_case import LLMTestCase
+
+try:  # deepeval >= 4 renamed this enum; keep working on the >=2.9.0 floor
+    from deepeval.test_case import SingleTurnParams
+except ImportError:  # pragma: no cover - exercised only on older deepeval
+    from deepeval.test_case import LLMTestCaseParams as SingleTurnParams  # type: ignore[no-redef]
 
 
 class DeepEvalMetric(Enum):
