@@ -8,7 +8,7 @@
 | src/haystack\_integrations/components/embedders/huggingface\_api/document\_embedder.py    |      126 |        6 |       34 |        5 |     93% |179-180, 259-\>263, 263-\>267, 346-350, 379-383 |
 | src/haystack\_integrations/components/embedders/huggingface\_api/text\_embedder.py        |       84 |        4 |       28 |        6 |     91% |143-144, 167-\>177, 168-\>172, 172-\>177, 267, 269 |
 | src/haystack\_integrations/components/generators/huggingface\_api/chat/chat\_generator.py |      235 |        8 |       88 |       16 |     93% |135-\>139, 137-\>139, 187, 220-\>222, 422-423, 490, 523-\>526, 585-\>588, 597-598, 635-\>638, 651, 673-\>678, 705-\>698, 709-\>712, 725, 744-\>749 |
-| src/haystack\_integrations/components/rankers/huggingface\_api/ranker.py                  |       91 |        9 |       24 |        2 |     90% |233-235, 275-276, 283, 300-302 |
+| src/haystack\_integrations/components/rankers/huggingface\_api/ranker.py                  |       91 |        9 |       24 |        2 |     90% |234-236, 276-277, 284, 301-303 |
 | **TOTAL**                                                                                 |  **588** |   **32** |  **184** |   **30** | **92%** |           |
 
 
