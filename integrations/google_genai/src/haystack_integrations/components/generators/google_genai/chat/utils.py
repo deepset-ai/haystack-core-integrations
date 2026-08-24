@@ -367,10 +367,18 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                                 ),
                             )
                         )
+                    elif isinstance(item, FileContent):
+                        tool_call_result_parts.append(
+                            types.FunctionResponsePart(
+                                inline_data=types.FunctionResponseBlob(
+                                    data=base64.b64decode(item.base64_data), mime_type=item.mime_type
+                                ),
+                            )
+                        )
                     else:
                         msg = (
                             "Unsupported content type in tool call result list. "
-                            "Only TextContent and ImageContent are supported."
+                            "Only TextContent, ImageContent, and FileContent are supported."
                         )
                         raise ValueError(msg)
                 parts.append(
