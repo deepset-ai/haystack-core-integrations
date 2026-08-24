@@ -46,8 +46,8 @@ class OpenDataLoaderConverter:
         Initialize the OpenDataLoader converter.
 
         :param output_format: Format OpenDataLoader should produce.
-        :param convert_kwargs: Additional arguments passed to `opendataloader_pdf.convert`.
-            See the [OpenDataLoader PDF Python options](https://opendataloader.org/docs/quick-start-python).
+        :param convert_kwargs: Additional arguments passed to `opendataloader_pdf.convert`. See the
+            [OpenDataLoader PDF Python options](https://opendataloader.org/docs/quick-start-python#convert-options).
         """
         self.output_format = output_format
         self.convert_kwargs = convert_kwargs or {}
