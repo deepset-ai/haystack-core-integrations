@@ -44,7 +44,7 @@ import re
 import time
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from haystack import Document
@@ -55,6 +55,7 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
+from haystack_integrations.agent_pack.advanced_rag.evaluation import extract_run_stats
 
 RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
@@ -102,39 +103,6 @@ class EvalCase:
     # purpose — too many retrievals is better than too few.
     max_metadata_calls: int = 5
     max_retrieval_calls: int = 5
-
-
-@dataclass
-class RunStats:
-    """Tool-level statistics extracted from one agent run."""
-
-    calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
-    errors: int = 0
-
-    @property
-    def inspected_first(self) -> bool:
-        """Whether `list_metadata_fields` was called before any retrieval tool."""
-        for name, _ in self.calls:
-            if name == "list_metadata_fields":
-                return True
-            if name in RETRIEVAL_TOOLS:
-                return False
-        return False
-
-    @property
-    def filtered_retrieval_calls(self) -> int:
-        """Number of retrieval tool calls that included a metadata filter."""
-        return sum(1 for name, args in self.calls if name in RETRIEVAL_TOOLS and args.get("filters"))
-
-    @property
-    def metadata_calls(self) -> int:
-        """Number of metadata-inspection tool calls."""
-        return sum(1 for name, _ in self.calls if name in METADATA_TOOLS)
-
-    @property
-    def retrieval_calls(self) -> int:
-        """Number of retrieval tool calls."""
-        return sum(1 for name, _ in self.calls if name in RETRIEVAL_TOOLS)
 
 
 SMALL_CASES = [
@@ -224,20 +192,6 @@ LARGE_CASES = [
         expect_absent=True,
     ),
 ]
-
-
-def extract_run_stats(messages: list[ChatMessage]) -> RunStats:
-    """
-    Extract tool calls and error results from an agent run.
-
-    :param messages: The messages returned by `agent.run(...)`.
-    :returns: The extracted statistics.
-    """
-    stats = RunStats()
-    for message in messages:
-        stats.calls.extend((tc.tool_name, tc.arguments or {}) for tc in message.tool_calls)
-        stats.errors += sum(1 for res in message.tool_call_results if res.error)
-    return stats
 
 
 def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
