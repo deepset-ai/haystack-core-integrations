@@ -111,7 +111,7 @@ def test_campaign_applies_gates_then_recommends_cheaper_candidate(tmp_path):
 
     assert result.recommendation is not None
     assert result.recommendation.evaluation.metrics.cost == 2.0
-    assert result.recommendation.reasons == ("cost_improvement",)
+    assert result.recommendation.reasons == ("single_sample", "cost_improvement")
     approved = result.recommendation.materialize(reference, assets)
     assert approved.chat_generator.model == "cheap"
     assert reference.chat_generator.model == "reference"
@@ -135,6 +135,23 @@ def test_the_reference_harness_is_reported_against_the_catalog_but_not_blocked_b
     assert result.reference_validation.violations == ("tool_not_approved:remote_tool",)
     # The baseline was still measured, so the operator can see what the non-compliant champion costs.
     assert evaluator.calls == ["reference"]
+
+
+def test_configuration_hash_is_stable_across_equivalent_harnesses(tmp_path):
+    """Resume depends on this: a harness holding components that regenerate ids per process must still hash the same."""
+    first, _, _ = build_campaign(tmp_path, ModelEvaluator(default_metrics()))
+    second, _, _ = build_campaign(tmp_path, ModelEvaluator(default_metrics()))
+
+    assert first.run().configuration_hash == second.run().configuration_hash
+
+
+def test_configuration_hash_tracks_the_reference_prompt(tmp_path):
+    evaluator = ModelEvaluator(default_metrics())
+    campaign, _, _ = build_campaign(tmp_path, evaluator)
+    baseline_hash = campaign.run().configuration_hash
+
+    campaign.reference = campaign.reference.clone(system_prompt="a different prompt")
+    assert campaign.run().configuration_hash != baseline_hash
 
 
 def test_gates_are_recomputed_rather_than_replayed_from_the_journal(tmp_path):
@@ -167,15 +184,18 @@ def test_gates_are_recomputed_rather_than_replayed_from_the_journal(tmp_path):
 
 
 def test_campaign_resumes_journaled_candidates(tmp_path):
+    """A resumed campaign with nothing left to measure costs nothing, baseline included."""
     evaluator = ModelEvaluator(default_metrics())
     campaign, _, _ = build_campaign(tmp_path, evaluator)
     first = campaign.run()
     second = campaign.run()
 
-    assert evaluator.calls.count("reference") == 2
-    assert evaluator.calls.count("cheap") == 1
-    assert evaluator.calls.count("bad") == 1
+    # Approved models are proposed in sorted order, and nothing is measured twice.
+    assert evaluator.calls == ["reference", "bad", "cheap"]
     assert first.configuration_hash == second.configuration_hash
+    assert first.baseline == second.baseline
+    assert first.recommendation is not None
+    assert second.recommendation is not None
 
 
 def test_a_changed_evaluation_set_invalidates_journaled_candidates(tmp_path):
@@ -262,7 +282,7 @@ def test_unvalidated_quality_is_reported_on_the_recommendation(tmp_path):
     campaign, _, _ = build_campaign(tmp_path, evaluator)
     recommendation = campaign.run().recommendation
     assert recommendation is not None
-    assert recommendation.reasons == ("quality_unvalidated", "cost_improvement")
+    assert recommendation.reasons == ("quality_unvalidated", "single_sample", "cost_improvement")
 
 
 def test_campaign_requires_replayable_successful_traces(tmp_path):

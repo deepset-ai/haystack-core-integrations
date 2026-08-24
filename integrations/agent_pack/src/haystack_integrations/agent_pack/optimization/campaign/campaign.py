@@ -11,10 +11,10 @@ from typing import Any
 
 from haystack import logging
 from haystack.components.agents import Agent
+from haystack.core.serialization import component_to_dict
 from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.campaign.dataclasses import (
     CampaignRecommendation,
     CampaignResult,
@@ -103,7 +103,7 @@ class HarnessOptimizationCampaign:
             raise ValueError(msg)
 
         configuration_hash = self._configuration_hash(reference_traces=reference_traces)
-        baseline = self.evaluator.evaluate(agent=self.reference, reference_traces=reference_traces, assets=self.assets)
+        baseline = self._baseline(configuration_hash=configuration_hash, reference_traces=reference_traces)
         recipes = self.proposer.propose(
             reference=self.reference,
             reference_traces=reference_traces,
@@ -182,6 +182,28 @@ class HarnessOptimizationCampaign:
         serialized = json.dumps(payload, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
 
+    def _baseline(self, *, configuration_hash: str, reference_traces: list[TraceArtifact]) -> EvaluationMetrics:
+        """
+        Measure the reference harness, reusing a journaled measurement of the same configuration.
+
+        The baseline is journaled like a candidate so resuming a campaign costs nothing when everything is already
+        measured. Without it, every resume pays for a full evaluation pass over the reference.
+        """
+        baseline_id = f"baseline:{configuration_hash}"
+        prior = self.journal.get(candidate_id=baseline_id)
+        if prior is not None and prior.metrics is not None:
+            return prior.metrics
+        metrics = self.evaluator.evaluate(agent=self.reference, reference_traces=reference_traces, assets=self.assets)
+        self.journal.append(
+            evaluation=CandidateEvaluation(
+                candidate_id=baseline_id,
+                configuration_hash=configuration_hash,
+                recipe={"kind": "reference"},
+                metrics=metrics,
+            )
+        )
+        return metrics
+
     @staticmethod
     def _candidate_id(*, configuration_hash: str, recipe: CandidateRecipe) -> str:
         """
@@ -197,23 +219,33 @@ class HarnessOptimizationCampaign:
         return hashlib.sha256(f"{configuration_hash}:{recipe_fingerprint(recipe=recipe)}".encode()).hexdigest()
 
     def _reference_fingerprint(self) -> dict[str, Any]:
-        """Describe the reference harness, falling back to its behavioural configuration if it will not serialize."""
+        """
+        Describe what about the reference harness determines its behaviour.
+
+        Deliberately not `Agent.to_dict()`: a full serialization pulls in the configuration of everything the harness
+        holds, and some of that is regenerated per process. `InMemoryDocumentStore`, for one, serializes a random
+        `index` UUID, so hashing the full form would change the campaign's identity on every run and make resume
+        impossible. What is described here is stable across processes; anything the campaign cannot see belongs in
+        `configuration_key`.
+        """
         try:
-            return {"serialized": self.reference.to_dict()}
+            generator: Any = component_to_dict(obj=self.reference.chat_generator, name="chat_generator")
         except Exception:
-            # A harness holding unserializable tools still needs a stable identity, so fall back to the
-            # configuration that actually determines its behaviour.
-            return {
-                "model": generator_model_id(generator=self.reference.chat_generator),
-                "generator_type": type(self.reference.chat_generator).__name__,
-                "system_prompt": self.reference.system_prompt,
-                "user_prompt": self.reference.user_prompt,
-                "tools": sorted(
-                    configured.name for configured in flatten_tools_or_toolsets(tools=self.reference.tools)
-                ),
-                "exit_conditions": list(self.reference.exit_conditions or []),
-                "max_agent_steps": self.reference.max_agent_steps,
-            }
+            generator = {"type": type(self.reference.chat_generator).__name__}
+        return {
+            "generator": generator,
+            # Every model in the harness, hooks and delegated agents included.
+            "models": list(self.assets.validate_agent(agent=self.reference).model_ids),
+            "tools": sorted(
+                [configured.name, configured.description]
+                for configured in flatten_tools_or_toolsets(tools=self.reference.tools)
+            ),
+            "system_prompt": self.reference.system_prompt,
+            "user_prompt": self.reference.user_prompt,
+            "exit_conditions": list(self.reference.exit_conditions or []),
+            "max_agent_steps": self.reference.max_agent_steps,
+            "tool_concurrency_limit": self.reference.tool_concurrency_limit,
+        }
 
     def _evaluator_fingerprint(self) -> dict[str, Any]:
         """Describe the evaluator, including its own fingerprint when it offers one."""
@@ -290,6 +322,9 @@ class HarnessOptimizationCampaign:
         reasons: list[str] = []
         if candidate.metrics.details.get("validated") is False:
             reasons.append("quality_unvalidated")
+        if candidate.metrics.quality_lower_bound is None:
+            # The evaluator scored each case once, so quality is a single sample of a non-deterministic run.
+            reasons.append("single_sample")
         if self._rank(metrics=candidate.metrics) >= self._rank(metrics=baseline):
             return None
         reasons.append("cost_improvement" if self.objectives.primary == "cost" else "latency_improvement")

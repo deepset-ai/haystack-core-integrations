@@ -24,6 +24,7 @@ The script does, against real models, everything the feature claims:
 Run it from the integration directory (`integrations/agent_pack`) with `OPENAI_API_KEY` set:
 
     hatch run test:python examples/harness_optimization_poc.py
+    hatch run test:python examples/harness_optimization_poc.py --max-cases 1
     hatch run test:python examples/harness_optimization_poc.py --repetitions 3
     hatch run test:python examples/harness_optimization_poc.py --proposer agent --docs-mcp
     hatch run test:python examples/harness_optimization_poc.py --drop-approved-tool get_metadata_field_range
@@ -182,6 +183,11 @@ def build_reference_agent(*, store: InMemoryDocumentStore, model: str) -> Agent:
         document_store=store,
         retriever=InMemoryBM25Retriever(document_store=store, top_k=5),
         llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
+        # Passed explicitly so the whole harness runs the model this script chose. Left to its default, the agent
+        # builds its backup-answer hook on a second model, which the asset catalog then rightly rejects as
+        # undeclared. Note that a model substitution replaces the coordinator generator only, so a candidate keeps
+        # this backup model; it costs nothing unless a run is cut off by `max_agent_steps`.
+        backup_answer_llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
     )
 
 
@@ -309,6 +315,12 @@ def parse_args() -> argparse.Namespace:
         help=f"Approved alternative model. Repeatable. Defaults to {', '.join(CANDIDATE_MODELS)}.",
     )
     parser.add_argument(
+        "--max-cases",
+        type=int,
+        default=None,
+        help="Evaluate only the first N questions. Use it for a cheap smoke run over the whole pipeline.",
+    )
+    parser.add_argument(
         "--repetitions",
         type=int,
         default=1,
@@ -363,7 +375,7 @@ def main() -> None:
 
     print("=== 1. reference harness ===")
     store = build_corpus()
-    cases = build_cases(store)
+    cases = build_cases(store)[: arguments.max_cases]
     reference = build_reference_agent(store=store, model=arguments.reference_model)
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference.tools))
     print(f"  model={arguments.reference_model} tools={tool_names}")

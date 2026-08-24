@@ -94,7 +94,8 @@ def test_advanced_rag_campaign_recommends_cheaper_model_at_quality_parity(tmp_pa
     assert result.baseline.quality == 1.0
     assert result.recommendation is not None
     assert result.recommendation.evaluation.recipe == {"kind": "model_substitution", "model_id": "cheap"}
-    assert result.recommendation.reasons == ("cost_improvement",)
+    # Scored once per case, so the recommendation says so.
+    assert result.recommendation.reasons == ("single_sample", "cost_improvement")
     assert result.recommendation.evaluation.metrics.quality == 1.0
     assert result.recommendation.evaluation.metrics.cost < result.baseline.cost
     assert result.recommendation.evaluation.metrics.details["validated"] is True

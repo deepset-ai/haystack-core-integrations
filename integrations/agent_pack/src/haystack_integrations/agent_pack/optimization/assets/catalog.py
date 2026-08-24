@@ -94,7 +94,13 @@ class ApprovedAssetCatalog:
         """
         validation = self.validate_agent(agent=agent)
         if not validation.allowed:
-            msg = f"Candidate uses unapproved assets: {', '.join(validation.violations)}."
+            # The models and tools found are listed too: a harness often runs a model the operator did not think to
+            # declare, such as one configured on a hook, and the violation alone does not say where it came from.
+            msg = (
+                f"Candidate uses unapproved assets: {', '.join(validation.violations)}. "
+                f"Models found: {', '.join(validation.model_ids) or 'none'}. "
+                f"Tools found: {', '.join(validation.tool_names) or 'none'}."
+            )
             raise ValueError(msg)
         if validation.warnings:
             logger.warning(
