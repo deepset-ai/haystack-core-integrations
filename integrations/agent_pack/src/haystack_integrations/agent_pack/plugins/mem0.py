@@ -27,7 +27,41 @@ _MEMORY_INSTRUCTIONS = """Use the long-term memory tools deliberately:
 
 
 class Mem0MemoryPlugin(AgentPlugin):
-    """Add Mem0-backed long-term memory tools and their required Agent State fields."""
+    """
+    Add Mem0-backed long-term memory tools and their required Agent State fields.
+
+    The plugin can be applied to any Agent and adds a `user_id` input by default:
+
+    ```python
+    from haystack.components.agents import Agent
+    from haystack.components.generators.chat import OpenAIChatGenerator
+    from haystack.dataclasses import ChatMessage
+    from haystack.tools import tool
+    from haystack_integrations.agent_pack import Mem0MemoryPlugin, apply_plugins
+    from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
+
+    @tool
+    def get_weather(city: str) -> str:
+        '''Return the current weather for a city.'''
+        return weather_service.get_current_weather(city=city)
+
+    store = Mem0MemoryStore()
+    agent = Agent(
+        chat_generator=OpenAIChatGenerator(),
+        tools=[get_weather],
+        system_prompt="Help the user plan activities based on the weather.",
+    )
+    agent = apply_plugins(
+        agent=agent,
+        plugins=[Mem0MemoryPlugin(memory_store=store)],
+    )
+
+    result = agent.run(
+        messages=[ChatMessage.from_user(text="What is the weather like in my favorite city?")],
+        user_id="alice",
+    )
+    ```
+    """
 
     def __init__(
         self,
