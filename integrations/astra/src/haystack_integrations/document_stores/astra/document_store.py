@@ -329,13 +329,25 @@ class AstraDocumentStore:
 
     @staticmethod
     def _normalize_distinct_values(values: list[Any]) -> list[Any]:
-        normalized_values: set[Any] = set()
+        # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain set/sorted()
+        # would silently merge them or crash comparing incomparable types (e.g. str vs bool). Dedupe and sort
+        # by (type, value) instead to keep values of different types distinct.
+        #
+        # This can't recover int/float distinctness lost upstream though: AstraDB's storage layer itself
+        # canonicalizes numerically equal int and float values (e.g. 1 and 1.0) to the same representation,
+        # so `values` here may already have merged them before we ever see them.
+        seen: set[tuple[str, Any]] = set()
+        normalized_values: list[Any] = []
         for value in values:
-            if isinstance(value, list):
-                normalized_values.update(item for item in value if item is not None)
-            elif value is not None:
-                normalized_values.add(value)
-        return sorted(normalized_values)
+            items = value if isinstance(value, list) else [value]
+            for item in items:
+                if item is None:
+                    continue
+                dedup_key = (type(item).__name__, item)
+                if dedup_key not in seen:
+                    seen.add(dedup_key)
+                    normalized_values.append(item)
+        return sorted(normalized_values, key=lambda value: (type(value).__name__, str(value)))
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
         return self.index.find_documents({}, projection={"content": 1, "meta": 1})
@@ -621,6 +633,12 @@ class AstraDocumentStore:
     ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search term or all possible values if no search term is given.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: AstraDB's storage layer canonicalizes numerically equal int and float values (e.g.
+        `1` and `1.0`) to the same representation, so those cannot be told apart once stored under the
+        same metadata field.
 
         :param metadata_field: The metadata field to inspect.
         :param search_term: Optional case-insensitive substring search term.
