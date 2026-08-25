@@ -124,6 +124,15 @@ class TestOpenRouterChatGeneratorAsyncUnit:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
+    async def test_run_async_with_generation_kwargs(self, chat_messages, mock_async_chat_completion, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        await component.run_async(chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert kwargs["extra_body"]["max_tokens"] == 10
+        assert kwargs["extra_body"]["temperature"] == 0.9
+
     async def test_run_async_with_reasoning(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
 
