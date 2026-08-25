@@ -73,6 +73,11 @@ class TikaDocumentConverter:
     For more options on running Tika,
     see the [official documentation](https://github.com/apache/tika-docker/blob/main/README.md#usage).
 
+    **Requires a Tika 3.x server.** The `tika` client's major version tracks the server line it
+    supports, and this integration pins the client to 3.x. A 4.x server renames the metadata key
+    that client reads (TIKA-4816), so the client returns no content and this component produces no
+    Documents. Use a 3.x image, for example `apache/tika:3.3.1.0`.
+
     Usage example:
     ```python
     from haystack_integrations.components.converters.tika import TikaDocumentConverter
@@ -94,7 +99,7 @@ class TikaDocumentConverter:
         """
         Create a TikaDocumentConverter component.
 
-        :param tika_url: Tika server URL.
+        :param tika_url: Tika server URL. Must be a Tika 3.x server; see the class docstring.
         :param store_full_path:
             If True, the full path of the file is stored in the metadata of the document.
             If False, only the file name is stored.
@@ -133,9 +138,21 @@ class TikaDocumentConverter:
             try:
                 # we extract the content as XHTML to preserve the structure of the document as much as possible
                 # this works for PDFs, but does not work for other file types (DOCX)
-                xhtml_content = tika_parser.from_buffer(
+                response = tika_parser.from_buffer(
                     io.BytesIO(bytestream.data), serverEndpoint=self.tika_url, xmlContent=True
-                )["content"]
+                )
+                if (status := response.get("status")) != 200:  # noqa: PLR2004
+                    msg = f"Tika server at {self.tika_url} returned status {status}."
+                    raise RuntimeError(msg)
+                xhtml_content = response["content"]
+                if xhtml_content is None:
+                    # Most likely a 4.x server: it reports content under a key the pinned 3.x
+                    # `tika` client does not read, so the client hands back None.
+                    msg = (
+                        f"Tika returned no content. This component requires a Tika 3.x server, "
+                        f"matching the 3.x tika client it pins; check the server at {self.tika_url}."
+                    )
+                    raise RuntimeError(msg)
                 xhtml_parser = XHTMLParser()
                 xhtml_parser.feed(xhtml_content)
                 text = "\f".join(xhtml_parser.pages)
