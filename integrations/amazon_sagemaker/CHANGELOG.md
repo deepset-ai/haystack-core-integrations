@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/amazon_sagemaker-v1.1.0] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `AmazonSageMaker` fixing Python 3.10 typing issue (#3696)
+- Standardize license files (#3771)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Amazon Sagemaker - add unit tests (#3191)
+
+### 🧹 Chores
+
+- Add missing -> None return type annotation to SagemakerGenerator.__init__ (#2971)
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/amazon_sagemaker-v1.0.0] - 2026-01-09
 
 ### 📚 Documentation
