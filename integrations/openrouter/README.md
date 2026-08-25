@@ -1,7 +1,7 @@
 # openrouter-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/openrouter-haystack.svg)](https://pypi.org/project/openrouter-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/openrouter-haystack.svg)](https://pypi.org/project/openrouterhaystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/openrouter-haystack.svg)](https://pypi.org/project/openrouter-haystack)
 
 - [Integration page](https://haystack.deepset.ai/integrations/openrouter)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/openrouter/CHANGELOG.md)

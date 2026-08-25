@@ -215,7 +215,15 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
                 if isinstance(item, TextContent):
                     content.append({"text": item.text})
                 elif isinstance(item, ImageContent):
-                    content.append(_convert_image_content_to_bedrock_format(item))
+                    content.append(_convert_image_content_to_bedrock_format(image_content=item))
+                elif isinstance(item, FileContent):
+                    content.append(_convert_file_content_to_bedrock_format(file_content=item))
+                else:
+                    err_msg = (
+                        "Unsupported content type in tool call result list. "
+                        "Only TextContent, ImageContent, and FileContent are supported."
+                    )
+                    raise ValueError(err_msg)
         else:
             err_msg = "Unsupported content type in tool call result"
             raise ValueError(err_msg)
