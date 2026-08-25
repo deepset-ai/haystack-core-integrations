@@ -599,6 +599,14 @@ class ArcadeDBDocumentStore:
         """
         Retrieves unique values for a field matching a search term or all possible values
         if no search term is given.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: ArcadeDB's `SELECT DISTINCT` treats a whole-number float (e.g. `1.0`) as identical
+        to a numerically equal int (`1`), so those two collapse into a single value even though a plain
+        row-by-row read preserves each value's own type. Floats with a fractional part (e.g. `1.5`) are
+        unaffected.
+
         :param metadata_field: The metadata field to inspect.
         :param search_term: Optional case-insensitive substring search term.
         :param from_: The starting index for pagination.
@@ -625,6 +633,8 @@ class ArcadeDBDocumentStore:
 
         where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
 
+        # Not fixable here: SELECT DISTINCT treats a whole-number float (1.0) as identical to a
+        # numerically equal int (1), so it collapses them - see this method's docstring.
         sql = f"SELECT DISTINCT {field_ref} AS val FROM `{self._type_name}`{where}"
         rows = self._command(sql)
 
