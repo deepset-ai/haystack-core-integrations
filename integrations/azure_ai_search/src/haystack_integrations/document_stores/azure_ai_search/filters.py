@@ -92,8 +92,18 @@ def _in(field: str, value: Any) -> str:
     if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
         msg = "Azure AI Search only supports a list of strings for 'in' comparators"
         raise AzureAISearchDocumentStoreFilterError(msg)
-    values = ",".join(_escape_odata_literal(v) for v in value)
-    return f"search.in({field},'{values}',',')"
+
+    # Azure's search.in() splits the value-list string on the supplied delimiter.
+    # If the delimiter also appears inside a value, the value is split apart.
+    # Pick a delimiter that does not occur in any of the values, so commas (or
+    # any other character) inside metadata values are preserved. If every
+    # candidate delimiter is present, fall back to an OR chain of eq clauses.
+    candidates = ["\u001f", "\u001e", "\u001d"]
+    for delimiter in candidates:
+        if all(delimiter not in v for v in value):
+            values = delimiter.join(_escape_odata_literal(v) for v in value)
+            return f"search.in({field},'{values}','{delimiter}')"
+    return " or ".join(f"{field} eq '{_escape_odata_literal(v)}'" for v in value)
 
 
 def _comparison_operator(field: str, value: Any, operator: str) -> str:

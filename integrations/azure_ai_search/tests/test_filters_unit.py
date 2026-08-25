@@ -20,7 +20,7 @@ from haystack_integrations.document_stores.azure_ai_search.filters import _norma
         ({"field": "meta.count", "operator": "!=", "value": 3}, "not (count eq 3)"),
         (
             {"field": "meta.page", "operator": "in", "value": ["1", "2"]},
-            "search.in(page,'1,2',',')",
+            "search.in(page,'1\u001f2','\u001f')",
         ),
         ({"field": "meta.count", "operator": ">", "value": 5}, "count gt 5"),
         ({"field": "meta.count", "operator": ">=", "value": 5}, "count ge 5"),
@@ -36,7 +36,12 @@ from haystack_integrations.document_stores.azure_ai_search.filters import _norma
         ({"field": "meta.name", "operator": "!=", "value": "O'Brien"}, "not (name eq 'O''Brien')"),
         (
             {"field": "meta.name", "operator": "in", "value": ["O'Brien", "d'Arc"]},
-            "search.in(name,'O''Brien,d''Arc',',')",
+            "search.in(name,'O''Brien\u001fd''Arc','\u001f')",
+        ),
+        # Values containing commas must not be split by Azure's search.in delimiter.
+        (
+            {"field": "meta.city", "operator": "in", "value": ["New York, NY", "Austin"]},
+            "search.in(city,'New York, NY\u001fAustin','\u001f')",
         ),
     ],
 )
