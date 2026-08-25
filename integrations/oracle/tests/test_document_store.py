@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import decimal
 import uuid
 from unittest.mock import MagicMock
 
@@ -198,21 +199,23 @@ class TestOracleDocumentStoreUnit:
         vals_sql, vals_params = cursor.execute.call_args_list[1][0]
 
         for sql in (count_sql, vals_sql):
-            assert "UPPER(JSON_VALUE(metadata, '$.category')) LIKE UPPER(:search)" in sql
+            assert "UPPER(JSON_QUERY(metadata, '$.category')) LIKE UPPER(:search)" in sql
 
         assert count_params["search"] == "%bar%"
         assert vals_params["search"] == "%bar%"
 
     def test_get_metadata_field_unique_values_parses_json_scalar_types(self, patched_store, mock_pool):
-        """Numeric/boolean JSON_VALUE results (returned by Oracle as text) are parsed back to their
-        original type; plain strings (not valid JSON when unquoted) are left as-is."""
+        """oracledb decodes a JSON_QUERY result from our native JSON column directly into a Python
+        value - str and bool need no conversion, but a JSON number decodes as Decimal and must be
+        converted to int or float to match what write_documents() was originally given."""
         _, _, cursor = mock_pool
         cursor.fetchone.return_value = (3,)
-        cursor.fetchall.return_value = [("1",), ("true",), ("bar",)]
+        cursor.fetchall.return_value = [(decimal.Decimal(1),), (True,), ("bar",)]
 
         values, total = patched_store.get_metadata_field_unique_values("priority")
 
         assert values == [1, True, "bar"]
+        assert all(type(v) in (int, bool, str) for v in values)
         assert total == 3
 
     def test_delete_table_executes_drop_and_index_sql(self, patched_store, mock_pool):
@@ -343,6 +346,41 @@ class TestOracleDocumentStore(
             document_store.write_documents([doc])
         self.assert_documents_are_equal(document_store.filter_documents(), [doc])
 
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: OracleDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. The ``metadata`` column is Oracle's native
+        ``JSON`` type, which canonicalizes numeric storage, so a whole-number float (e.g. 1.0) and a
+        numerically equal int (1) collapse into the same value regardless of which other values share
+        that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what Oracle can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0): a whole-number float would still collapse
+        with an int under Oracle's numeric canonicalization even in its own field, so a fractional value
+        is used to sidestep that ambiguity entirely.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
     # test_comparison_equal_with_none     → IS NULL
     # test_comparison_not_equal_with_none → IS NOT NULL
     # test_comparison_not_equal           → col != x OR IS NULL
@@ -449,6 +487,50 @@ class TestOracleDocumentStoreAsync(
     UpdateByFilterAsyncTest,
 ):
     """Async API surface tests."""
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_distinct_types_async(self, document_store: OracleDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. The ``metadata`` column is Oracle's native
+        ``JSON`` type, which canonicalizes numeric storage, so a whole-number float (e.g. 1.0) and a
+        numerically equal int (1) collapse into the same value regardless of which other values share
+        that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values_async() - using one field per type instead of one
+        shared field, which is what Oracle can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0): a whole-number float would still collapse
+        with an int under Oracle's numeric canonicalization even in its own field, so a fractional value
+        is used to sidestep that ambiguity entirely.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        int_values, int_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_int"
+        )
+        str_values, str_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_str"
+        )
+        float_values, float_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_float"
+        )
+        bool_values, bool_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_bool"
+        )
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
 
     @pytest.mark.asyncio
     async def test_async_write_and_count(self, embedding_store):
