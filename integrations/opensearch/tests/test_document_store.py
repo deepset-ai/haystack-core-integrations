@@ -1088,6 +1088,12 @@ class TestDocumentStore(
         assert len(unique_values_beyond) == 0
         assert total_beyond == 3
 
+    @pytest.mark.skip(
+        reason="OpenSearch's dynamic field mapping fixes a field's type from the first document written to it."
+    )
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: OpenSearchDocumentStore):
+        pass
+
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""
         docs = [

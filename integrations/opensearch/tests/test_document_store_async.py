@@ -193,6 +193,12 @@ class TestDocumentStoreAsync(
         with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
+    @pytest.mark.skip(
+        reason="OpenSearch's dynamic field mapping fixes a field's type from the first document written to it."
+    )
+    async def test_get_metadata_field_unique_values_distinct_types_async(self, document_store: OpenSearchDocumentStore):
+        pass
+
     @pytest.mark.asyncio
     async def test_count_not_empty_async(self, document_store: OpenSearchDocumentStore):
         # Override: haystack v2.28.0 is missing @staticmethod on this mixin method.
