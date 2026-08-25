@@ -752,9 +752,13 @@ class QdrantDocumentStore:
                     if value is not None:
                         if search_term is not None and search_term.lower() not in str(value).lower():
                             continue
+                        # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so
+                        # a plain set would silently merge them. Dedupe by (type, value) instead - lists
+                        # and dicts aren't hashable, so they're keyed by their str() form.
                         hashable_value = str(value) if isinstance(value, (list, dict)) else value
-                        if hashable_value not in unique_values_set:
-                            unique_values_set.add(hashable_value)
+                        dedup_key = (type(value), hashable_value)
+                        if dedup_key not in unique_values_set:
+                            unique_values_set.add(dedup_key)
                             unique_values.append(value)
 
     @staticmethod
