@@ -600,7 +600,16 @@ class MongoDBAtlasDocumentStore:
         """
         Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
 
-        :param metadata_field: The metadata field to retrieve unique values for.
+       Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
+       
+       **Note**: values of different types are kept distinct even when they compare equal in Python
+       (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+       one exception: MongoDB's aggregation `$group` compares numeric values across BSON subtypes, so a
+       whole-number float (e.g. `1.0`) is grouped together with a numerically equal int (`1`) and only
+       one of the two survives - regardless of whether they were written to the same metadata field.
+       Floats with a fractional part (e.g. `1.5`) are unaffected and stay distinct from ints.
+
+       :param metadata_field: The metadata field to retrieve unique values for.
         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
