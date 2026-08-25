@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/anthropic-v5.16.0] - 2026-08-24
+
+### 🚀 Features
+
+- Feat (anthropic): add file content support to tool result (#3827)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- *(anthropic)* Include cached tokens in the OpenAI-compatible prompt_tokens (#3717)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- Refactor Anthropic test suite (#3616)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/anthropic-v5.15.0] - 2026-07-17
 
 ### 🚀 Features

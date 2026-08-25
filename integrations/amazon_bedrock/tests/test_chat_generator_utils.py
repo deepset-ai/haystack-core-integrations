@@ -460,6 +460,56 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
+    def test_format_tool_result_message_with_file_content(self):
+        file_content = FileContent(
+            base64_data=base64.b64encode(b"This is a test document."),
+            mime_type="application/pdf",
+            filename="test document.pdf",
+            validation=False,
+        )
+        message = ChatMessage.from_tool(
+            tool_result=[TextContent("Here's the retrieved document"), file_content],
+            origin=ToolCall(id="123", tool_name="file_retriever", arguments={"path": "test document.pdf"}),
+        )
+
+        formatted_message = _format_tool_result_message(message)
+
+        assert formatted_message == {
+            "role": "user",
+            "content": [
+                {
+                    "toolResult": {
+                        "toolUseId": "123",
+                        "content": [
+                            {"text": "Here's the retrieved document"},
+                            {
+                                "document": {
+                                    "format": "pdf",
+                                    "source": {"bytes": b"This is a test document."},
+                                    "name": "test document",
+                                }
+                            },
+                        ],
+                    }
+                }
+            ],
+        }
+
+    def test_format_tool_result_message_with_unsupported_list_item_raises(self):
+        message = ChatMessage.from_tool(
+            tool_result=[TextContent("This is supported"), 256],
+            origin=ToolCall(id="123", tool_name="test_tool", arguments={}),
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"Unsupported content type in tool call result list. "
+                "Only TextContent, ImageContent, and FileContent are supported."
+            ),
+        ):
+            _format_tool_result_message(message)
+
     def test_format_message_thinking(self):
         assistant_message = ChatMessage.from_assistant(
             "This is a test message.",

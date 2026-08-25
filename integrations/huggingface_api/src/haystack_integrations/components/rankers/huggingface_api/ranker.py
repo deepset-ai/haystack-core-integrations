@@ -108,6 +108,7 @@ class HuggingFaceTEIRanker:
             self,
             url=self.url,
             top_k=self.top_k,
+            raw_scores=self.raw_scores,
             timeout=self.timeout,
             token=self.token,
             max_retries=self.max_retries,
