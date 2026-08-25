@@ -18,7 +18,7 @@ from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
-from haystack.tools import ComponentTool
+from haystack.tools import AgentTool
 
 from haystack_integrations.agent_pack.deep_research import prompts
 from haystack_integrations.agent_pack.deep_research.hooks import ScopeHook, WriteHook
@@ -82,27 +82,6 @@ def _make_researcher_agent(
     )
 
 
-# Minimal input schema for the research_subtopic tool
-_RESEARCH_SUBTOPIC_PARAMS = {
-    "type": "object",
-    "properties": {
-        "messages": {
-            "type": "array",
-            "description": "Exactly one user message whose content is the sub-question to research.",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "role": {"type": "string", "enum": ["user"]},
-                    "content": {"type": "string", "description": "The sub-question to research."},
-                },
-                "required": ["role", "content"],
-            },
-        }
-    },
-    "required": ["messages"],
-}
-
-
 def create_deep_research_agent(
     *,
     scope_llm: ChatGenerator | None = None,
@@ -156,16 +135,14 @@ def create_deep_research_agent(
         max_content_length=max_content_length,
     )
 
-    research_subtopic = ComponentTool(
-        component=researcher,
+    research_subtopic = AgentTool(
+        agent=researcher,
         name="research_subtopic",
         description=(
             "Research ONE focused sub-question in an isolated context. "
             "Pass the sub-question as a user message. "
             "Returns a compressed, cited summary of the findings."
         ),
-        parameters=_RESEARCH_SUBTOPIC_PARAMS,
-        outputs_to_string={"source": "last_message"},
         outputs_to_state={"notes": {"source": "last_message", "handler": _collect_note}},
     )
 
