@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mongodb-atlas-haystack.svg)](https://pypi.org/project/mongodb-atlas-haystack)
 
-- [Integration page](https://haystack.deepset.ai/integrations/mongodb-atlas)
+- [Integration page](https://haystack.deepset.ai/integrations/mongodb)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/mongodb_atlas/CHANGELOG.md)
 
 ---

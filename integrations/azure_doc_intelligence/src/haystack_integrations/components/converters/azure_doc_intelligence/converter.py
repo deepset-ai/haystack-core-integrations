@@ -65,7 +65,7 @@ class AzureDocumentIntelligenceConverter:
         endpoint: str,
         *,
         api_key: Secret = Secret.from_env_var("AZURE_DI_API_KEY"),
-        model_id: str = "prebuilt-document",
+        model_id: str = "prebuilt-layout",
         store_full_path: bool = False,
     ) -> None:
         """
@@ -79,9 +79,8 @@ class AzureDocumentIntelligenceConverter:
             to load from AZURE_DI_API_KEY environment variable.
         :param model_id:
             Azure model to use for analysis. Options:
-            - "prebuilt-document": General document analysis (default)
+            - "prebuilt-layout": Layout analysis with table and structure detection (default)
             - "prebuilt-read": Fast OCR for text extraction
-            - "prebuilt-layout": Enhanced layout analysis with better table/structure detection
             - Custom model IDs from your Azure resource
         :param store_full_path:
             If True, stores complete file path in metadata.

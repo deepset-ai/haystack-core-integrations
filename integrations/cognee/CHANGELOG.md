@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/cognee-v0.1.2] - 2026-08-25
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+- *(cognee)* Cap litellm below 1.97.0 on Python 3.10 (#3847)
+
+### 🧹 Chores
+
+- Drop haystack-experimental references (#3674)
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/cognee-v0.1.1] - 2026-07-15
 
 ### 🐛 Bug Fixes

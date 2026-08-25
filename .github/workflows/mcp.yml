@@ -81,10 +81,6 @@ jobs:
           # (e.g. `uvx mcp-server-time`). Installed on every OS so those tests run everywhere.
           pip install uv
 
-      - name: Set up Docker
-        if: runner.os == 'Linux'
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
       # we need to pull the mcp/brave-search image to run the test
       # on the actual mcp server as an example of real life usage
       # We also need to set the BRAVE_API_KEY environment variable
@@ -104,7 +100,7 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/mcp
@@ -128,7 +124,7 @@ jobs:
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/mcp
