@@ -2,10 +2,10 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-libreoffice-combined/htmlcov/index.html)
 
-| Name                                                                      |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|-------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/libreoffice/converter.py |      109 |        9 |       28 |        4 |     91% |200-201, 228-230, 284-285, 352-353 |
-| **TOTAL**                                                                 |  **109** |    **9** |   **28** |    **4** | **91%** |           |
+| Name                                                                      |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
+|-------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
+| src/haystack\_integrations/components/converters/libreoffice/converter.py |      111 |        0 |       32 |        0 |     100% |           |
+| **TOTAL**                                                                 |  **111** |    **0** |   **32** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
