@@ -97,7 +97,16 @@ class TestStaticHelpers:
         ],
     )
     def test_extract_distinct_values(self, rows, expected):
-        assert ArcadeDBDocumentStore._extract_distinct_values(rows) == expected
+        assert set(ArcadeDBDocumentStore._extract_distinct_values(rows)) == expected
+
+    def test_extract_distinct_values_keeps_types_distinct(self):
+        """Values that compare equal in Python (1 == True, 1 == 1.0) must not collapse into one."""
+        rows = [{"val": 1}, {"val": True}, {"val": 1.0}, {"val": "1"}]
+        values = ArcadeDBDocumentStore._extract_distinct_values(rows)
+
+        assert len(values) == 4
+        values_by_type = {type(value): value for value in values}
+        assert values_by_type.keys() == {int, bool, float, str}
 
     @pytest.mark.parametrize(
         "values,expected",

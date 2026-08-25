@@ -254,19 +254,33 @@ class ArcadeDBDocumentStore:
         return 0
 
     @staticmethod
-    def _extract_distinct_values(rows: list[dict[str, Any]]) -> set[Any]:
+    def _extract_distinct_values(rows: list[dict[str, Any]]) -> list[Any]:
         """
         Extracts and flattens unique non-None values from 'val' column result rows.
+
+        Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain set
+        would silently merge them. Dedupe by (type, value) instead to keep them distinct.
+
         :param rows: Raw result rows from ``_command``.
-        :returns: A set of unique values, preserving their original type.
+        :returns: A list of unique values, preserving their original type.
         """
-        result: set[Any] = set()
+        seen: set[tuple[type, Any]] = set()
+        result: list[Any] = []
+
+        def _add(value: Any) -> None:
+            dedup_key = (type(value), value)
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                result.append(value)
+
         for row in rows:
             val = row.get("val")
             if isinstance(val, list):
-                result.update(item for item in val if item is not None)
+                for item in val:
+                    if item is not None:
+                        _add(item)
             elif val is not None:
-                result.add(val)
+                _add(val)
         return result
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
@@ -614,7 +628,7 @@ class ArcadeDBDocumentStore:
         sql = f"SELECT DISTINCT {field_ref} AS val FROM `{self._type_name}`{where}"
         rows = self._command(sql)
 
-        all_values = sorted(self._extract_distinct_values(rows))
+        all_values = sorted(self._extract_distinct_values(rows), key=lambda value: (type(value).__name__, str(value)))
         total_count = len(all_values)
         return all_values[from_ : from_ + size], total_count
 
