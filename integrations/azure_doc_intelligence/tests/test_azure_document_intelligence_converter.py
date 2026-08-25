@@ -41,7 +41,7 @@ class TestAzureDocumentIntelligenceConverter:
         )
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
-        assert converter.model_id == "prebuilt-document"
+        assert converter.model_id == "prebuilt-layout"
         assert converter.store_full_path is False
 
     def test_init_custom_params(self):
@@ -49,12 +49,12 @@ class TestAzureDocumentIntelligenceConverter:
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_token("test_api_key"),
-            model_id="prebuilt-layout",
+            model_id="prebuilt-read",
             store_full_path=True,
         )
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
-        assert converter.model_id == "prebuilt-layout"
+        assert converter.model_id == "prebuilt-read"
         assert converter.store_full_path is True
 
     def test_to_dict(self):
@@ -62,7 +62,7 @@ class TestAzureDocumentIntelligenceConverter:
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
-            model_id="prebuilt-layout",
+            model_id="prebuilt-read",
             store_full_path=True,
         )
 
@@ -77,7 +77,7 @@ class TestAzureDocumentIntelligenceConverter:
             "init_parameters": {
                 "api_key": {"type": "env_var", "env_vars": ["AZURE_DI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
-                "model_id": "prebuilt-layout",
+                "model_id": "prebuilt-read",
                 "store_full_path": True,
             },
         }
@@ -92,7 +92,7 @@ class TestAzureDocumentIntelligenceConverter:
         data = converter.to_dict()
 
         assert data["init_parameters"]["endpoint"] == "https://test.cognitiveservices.azure.com/"
-        assert data["init_parameters"]["model_id"] == "prebuilt-document"
+        assert data["init_parameters"]["model_id"] == "prebuilt-layout"
         assert data["init_parameters"]["store_full_path"] is False
 
     def test_from_dict(self):
@@ -106,7 +106,7 @@ class TestAzureDocumentIntelligenceConverter:
             "init_parameters": {
                 "api_key": {"type": "env_var", "env_vars": ["AZURE_DI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
-                "model_id": "prebuilt-layout",
+                "model_id": "prebuilt-read",
                 "store_full_path": False,
             },
         }
@@ -114,7 +114,7 @@ class TestAzureDocumentIntelligenceConverter:
         converter = AzureDocumentIntelligenceConverter.from_dict(data)
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
-        assert converter.model_id == "prebuilt-layout"
+        assert converter.model_id == "prebuilt-read"
         assert converter.store_full_path is False
 
     def test_warm_up_initializes_client_only_once(self):
@@ -158,7 +158,7 @@ class TestAzureDocumentIntelligenceConverter:
         assert len(result["documents"]) == 1
         doc = result["documents"][0]
         assert doc.content == "# Heading\n\nHello"
-        assert doc.meta["model_id"] == "prebuilt-document"
+        assert doc.meta["model_id"] == "prebuilt-layout"
         assert doc.meta["page_count"] == 3
 
     def test_run_returns_raw_azure_response(self, warmed_converter):
@@ -263,7 +263,7 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert "documents" in results
         assert len(results["documents"]) == 1
         assert len(results["documents"][0].content) > 0
-        assert results["documents"][0].meta["model_id"] == "prebuilt-document"
+        assert results["documents"][0].meta["model_id"] == "prebuilt-layout"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")

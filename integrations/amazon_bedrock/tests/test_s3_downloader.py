@@ -331,6 +331,48 @@ class TestS3Downloader:
         assert final_path.exists()
         assert final_path.read_bytes() == b"complete content"
 
+    @pytest.mark.parametrize(
+        ("file_name", "expected_warning"),
+        [
+            ("../escaped.txt", "outside of 'file_root_path'"),
+            ("{tmp_path}/absolute.txt", "outside of 'file_root_path'"),
+            ("sub/..", "Refusing to overwrite the download root directory"),
+        ],
+        ids=["traversal", "absolute", "root_itself"],
+    )
+    def test_run_skips_file_name_escaping_root(
+        self, tmp_path, mock_s3_storage, mock_boto3_session, caplog, file_name, expected_warning
+    ):
+        # Attacker-controlled document metadata must not be able to write outside of file_root_path.
+        root = tmp_path / "root"
+        root.mkdir()
+        d = S3Downloader(file_root_path=str(root))
+        d._storage = mock_s3_storage
+
+        out = d.run(documents=[Document(meta={"file_name": file_name.format(tmp_path=tmp_path)})])
+
+        assert out["documents"] == []
+        assert list(tmp_path.iterdir()) == [root]  # nothing was written outside of the root
+        mock_s3_storage.download.assert_not_called()
+        assert expected_warning in caplog.text
+
+    def test_run_skips_only_the_escaping_document(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        # One malicious document must not stop the batch, and nested names inside the root keep working.
+        root = tmp_path / "root"
+        root.mkdir()
+        d = S3Downloader(file_root_path=str(root))
+        d._storage = mock_s3_storage
+
+        out = d.run(
+            documents=[
+                Document(meta={"file_name": "../escaped.txt"}),
+                Document(meta={"file_name": "nested/dir/file.txt"}),
+            ]
+        )
+
+        assert [doc.meta["file_path"] for doc in out["documents"]] == [str(root / "nested" / "dir" / "file.txt")]
+        assert not (tmp_path / "escaped.txt").exists()
+
     def test_cleanup_cache_evicts_old_files(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(file_root_path=str(tmp_path), max_cache_size=1)
         d._storage = mock_s3_storage

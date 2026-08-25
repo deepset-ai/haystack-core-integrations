@@ -272,8 +272,9 @@ class WatsonxChatGenerator:
             A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:
-            Additional keyword arguments for text generation. These parameters will potentially override the parameters
-            passed in the `__init__` method.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             If provided this will override the `streaming_callback` set in the `__init__` method.
@@ -315,8 +316,9 @@ class WatsonxChatGenerator:
             A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:
-            Additional keyword arguments for text generation. These parameters will potentially override the parameters
-            passed in the `__init__` method.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             If provided this will override the `streaming_callback` set in the `__init__` method.

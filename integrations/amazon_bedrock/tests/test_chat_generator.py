@@ -55,7 +55,7 @@ MODELS_TO_TEST_WITH_IMAGE_INPUT = [
     "qwen.qwen3-vl-235b-a22b",
 ]
 
-MODELS_TO_TEST_WITH_IMAGE_TOOL_OUTPUT = [
+MODELS_TO_TEST_WITH_MULTIMODAL_TOOL_OUTPUT = [
     "global.anthropic.claude-sonnet-4-6",
 ]
 
@@ -824,6 +824,23 @@ class TestAmazonBedrockChatGenerator:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Paris"
 
+    def test_run_with_generation_kwargs(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            generation_kwargs={"maxTokens": 100, "temperature": 0.5},
+        )
+        generator.client = MagicMock()
+        generator.client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+            "metrics": {"latencyMs": 100},
+        }
+        generator.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = generator.client.converse.call_args
+        assert kwargs["inferenceConfig"] == {"maxTokens": 100, "temperature": 0.9}
+
     def test_run_client_error(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
@@ -878,6 +895,33 @@ class TestAmazonBedrockChatGenerator:
         result = await generator.run_async([ChatMessage.from_user("What's the capital of France?")])
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Paris"
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            generation_kwargs={"maxTokens": 100, "temperature": 0.5},
+        )
+        mock_async_client = AsyncMock()
+        mock_async_client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+            "metrics": {"latencyMs": 100},
+        }
+
+        mock_session = MagicMock()
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_session.create_client.return_value = mock_cm
+
+        generator.async_session = mock_session
+
+        await generator.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_async_client.converse.call_args
+        assert kwargs["inferenceConfig"] == {"maxTokens": 100, "temperature": 0.9}
 
     def test_run_with_string_input(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -1041,31 +1085,36 @@ class TestAmazonBedrockChatGeneratorInference:
         assert first_reply.text
         assert "earth" in first_reply.text.lower()
 
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_TOOL_OUTPUT)
-    def test_live_run_agent_with_images_in_tool_result(self, model_name, test_files_path):
-        def retrieve_image():
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_MULTIMODAL_TOOL_OUTPUT)
+    def test_live_run_agent_with_multimodal_content_in_tool_result(self, model_name, test_files_path):
+        def retrieve_multimodal_content():
             return [
-                TextContent("Here is the retrieved image."),
+                TextContent("Here are the retrieved image and document."),
                 ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
+                FileContent.from_file_path(test_files_path / "sample_pdf_1.pdf"),
             ]
 
-        image_retriever_tool = create_tool_from_function(
-            name="retrieve_image",
-            description="Tool to retrieve an image",
-            function=retrieve_image,
+        multimodal_retriever_tool = create_tool_from_function(
+            name="retrieve_multimodal_content",
+            description="Tool to retrieve an image and a document",
+            function=retrieve_multimodal_content,
+            outputs_to_string={"raw_result": True},
         )
-        image_retriever_tool.outputs_to_string = {"raw_result": True}
 
         agent = Agent(
             chat_generator=AmazonBedrockChatGenerator(model=model_name),
-            system_prompt="You are an Agent that can retrieve images and describe them.",
-            tools=[image_retriever_tool],
+            system_prompt="You are an Agent that can retrieve and analyze images and documents.",
+            tools=[multimodal_retriever_tool],
         )
 
-        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
+        user_message = ChatMessage.from_user(
+            "Retrieve the image and document. Identify what is shown in the image. Then determine whether the document "
+            "is a paper about Large Language Models and answer that part with exactly 'yes' or 'no'. Respond briefly."
+        )
         result = agent.run(messages=[user_message])
 
         assert "apple" in result["last_message"].text.lower()
+        assert "no" in result["last_message"].text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     def test_default_inference_with_streaming(self, model_name, chat_messages):
