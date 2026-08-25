@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/ragas-v4.2.0] - 2026-08-24
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Route ragas metric deserialization through the gated import helper (#3680)
+- Standardize license files (#3771)
+- Serialize missing init params in to_dict (transformers, huggingface_api, ragas) (#3808)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/ragas-v4.1.2] - 2026-07-20
 
 ### 🐛 Bug Fixes

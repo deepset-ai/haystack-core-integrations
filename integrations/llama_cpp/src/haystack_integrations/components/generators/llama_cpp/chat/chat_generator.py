@@ -350,6 +350,8 @@ class LlamaCppChatGenerator:
             A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:  A dictionary containing keyword arguments to customize text generation.
+            These are merged per key with the `generation_kwargs` passed at initialization: keys provided here
+            take precedence, keys set only at initialization are kept.
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
         :param tools:
@@ -441,6 +443,8 @@ class LlamaCppChatGenerator:
             A list of ChatMessage instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:  A dictionary containing keyword arguments to customize text generation.
+            These are merged per key with the `generation_kwargs` passed at initialization: keys provided here
+            take precedence, keys set only at initialization are kept.
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
         :param tools:
