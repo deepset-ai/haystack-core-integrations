@@ -601,7 +601,6 @@ class MongoDBAtlasDocumentStore:
         Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
 
        Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
-       
        **Note**: values of different types are kept distinct even when they compare equal in Python
        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
        one exception: MongoDB's aggregation `$group` compares numeric values across BSON subtypes, so a
