@@ -49,6 +49,11 @@ def test_get_embedding_function_invalid_name_raises():
         get_embedding_function("NonExistentEmbeddingFunction")
 
 
+def test_get_embedding_function_trust_remote_code_raises():
+    with pytest.raises(ChromaDocumentStoreConfigError, match="trust_remote_code"):
+        get_embedding_function("SentenceTransformerEmbeddingFunction", trust_remote_code=True)
+
+
 class TestDocumentStoreUnit:
     def test_init_in_memory(self):
         store = ChromaDocumentStore()

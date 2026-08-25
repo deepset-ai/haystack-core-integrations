@@ -43,8 +43,12 @@ def get_embedding_function(function_name: str, **kwargs: Any) -> EmbeddingFuncti
     :param function_name: the name of the embedding function.
     :param kwargs: additional arguments to pass to the embedding function.
     :returns: the loaded embedding function.
-    :raises ChromaDocumentStoreConfigError: if the function name is invalid.
+    :raises ChromaDocumentStoreConfigError: if the function name is invalid or `trust_remote_code` is set.
     """
+    if kwargs.get("trust_remote_code"):
+        # CVE-2026-45829/45833: trust_remote_code lets a model repo run arbitrary code on load.
+        msg = "Setting 'trust_remote_code=True' in embedding_function_params is not allowed."
+        raise ChromaDocumentStoreConfigError(msg)
     try:
         return FUNCTION_REGISTRY[function_name](**kwargs)
     except KeyError:
