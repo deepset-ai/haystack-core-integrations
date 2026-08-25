@@ -1040,6 +1040,49 @@ class TestOllamaChatGeneratorRun:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_generation_kwargs(self, mock_client):
+        generator = OllamaChatGenerator(generation_kwargs={"num_predict": 100, "temperature": 0.5})
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        generator.run(messages=[ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_client_instance.chat.call_args
+        assert kwargs["options"] == {"num_predict": 100, "temperature": 0.9}
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_with_generation_kwargs(self, mock_async_client):
+        generator = OllamaChatGenerator(generation_kwargs={"num_predict": 100, "temperature": 0.5})
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(return_value=mock_response)
+
+        await generator.run_async(messages=[ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_async_client_instance.chat.call_args
+        assert kwargs["options"] == {"num_predict": 100, "temperature": 0.9}
+
     @pytest.mark.asyncio
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
     async def test_run_async_with_string_input(self, mock_async_client):

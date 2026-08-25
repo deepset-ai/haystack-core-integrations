@@ -1,4 +1,4 @@
-# Google Gen AI Haystack Integration
+# google-genai-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/google-genai-haystack.svg)](https://pypi.org/project/google-genai-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/google-genai-haystack.svg)](https://pypi.org/project/google-genai-haystack)
