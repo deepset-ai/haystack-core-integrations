@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/transformers-v0.3.0] - 2026-08-24
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Serialize missing init params in to_dict (transformers, huggingface_api, ragas) (#3808)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/transformers-v0.2.0] - 2026-07-06
 
 ### 📚 Documentation
