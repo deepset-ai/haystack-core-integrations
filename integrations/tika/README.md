@@ -3,8 +3,10 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/tika-haystack.svg)](https://pypi.org/project/tika-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/tika-haystack.svg)](https://pypi.org/project/tika-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/tika)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/tika/CHANGELOG.md)
-- [Integration](https://haystack.deepset.ai/integrations/tika)
+
+---
 
 ## Contributing
 

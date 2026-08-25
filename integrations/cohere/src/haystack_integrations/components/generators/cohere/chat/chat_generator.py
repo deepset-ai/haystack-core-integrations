@@ -652,8 +652,9 @@ class CohereChatGenerator:
 
         :param messages: list of `ChatMessage` instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param generation_kwargs: additional keyword arguments for chat generation. These parameters will
-            potentially override the parameters passed in the __init__ method.
+        :param generation_kwargs: additional keyword arguments for chat generation. These are merged per key
+            with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys set
+            only at initialization are kept.
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
@@ -720,8 +721,9 @@ class CohereChatGenerator:
 
         :param messages: list of `ChatMessage` instances representing the input messages.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param generation_kwargs: additional keyword arguments for chat generation. These parameters will
-            potentially override the parameters passed in the __init__ method.
+        :param generation_kwargs: additional keyword arguments for chat generation. These are merged per key
+            with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys set
+            only at initialization are kept.
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.

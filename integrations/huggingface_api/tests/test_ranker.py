@@ -60,6 +60,14 @@ class TestHuggingFaceTEIRanker:
         assert data["init_parameters"]["max_retries"] == 4
         assert data["init_parameters"]["retry_status_codes"] == [500, 502]
 
+    def test_raw_scores_survives_a_serialization_round_trip(self, del_hf_env_vars_if_empty):
+        """raw_scores goes into the request payload, so losing it changes what the API returns."""
+        ranker = HuggingFaceTEIRanker(url="https://api.my-tei-service.com", raw_scores=True)
+
+        restored = HuggingFaceTEIRanker.from_dict(ranker.to_dict())
+
+        assert restored.raw_scores is True
+
     def test_from_dict(self, del_hf_env_vars_if_empty):
         """Test deserialization from dict with environment variable token"""
         data = {

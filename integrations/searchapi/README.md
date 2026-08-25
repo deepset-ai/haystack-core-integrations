@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/searchapi-haystack.svg)](https://pypi.org/project/searchapi-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/searchapi-haystack.svg)](https://pypi.org/project/searchapi-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/searchapi)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/searchapi/CHANGELOG.md)
 
 ---
