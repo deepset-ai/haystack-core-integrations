@@ -33,6 +33,11 @@ def _create_openai_clients(
     if max_retries is not None:
         client_kwargs["max_retries"] = max_retries
 
-    sync_client = OpenAI(http_client=init_http_client(http_client_kwargs, async_client=False), **client_kwargs)
-    async_client = AsyncOpenAI(http_client=init_http_client(http_client_kwargs, async_client=True), **client_kwargs)
+    # openai>=3 annotates http_client as httpx2, but legacy httpx clients are supported at runtime.
+    # https://github.com/openai/openai-python/blob/main/httpx2.md
+    sync_http_client = init_http_client(http_client_kwargs, async_client=False)
+    async_http_client = init_http_client(http_client_kwargs, async_client=True)
+
+    sync_client = OpenAI(http_client=sync_http_client, **client_kwargs)  # type: ignore[arg-type]
+    async_client = AsyncOpenAI(http_client=async_http_client, **client_kwargs)  # type: ignore[arg-type]
     return sync_client, async_client

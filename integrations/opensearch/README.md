@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/opensearch-haystack.svg)](https://pypi.org/project/opensearch-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/opensearch-haystack.svg)](https://pypi.org/project/opensearch-haystack)
 
-- [Integration page](https://haystack.deepset.ai/integrations/opensearch)
+- [Integration page](https://haystack.deepset.ai/integrations/opensearch-document-store)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/opensearch/CHANGELOG.md)
 
 ---
