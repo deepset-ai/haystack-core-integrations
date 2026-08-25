@@ -64,6 +64,45 @@ class TestExtractSourcesInfo:
         with pytest.raises(ValueError, match="has an unsupported MIME type"):
             _extract_sources_info(documents=[document], file_path_meta_field="file_path", root_path="")
 
+    def test_extract_sources_info_rejects_path_traversal(self, test_files_path):
+        # Attacker-controlled document metadata attempts to escape the configured root.
+        document = Document(content="test", meta={"file_path": "../../../../../../etc/passwd"})
+        with pytest.raises(ValueError, match="escapes the configured root"):
+            _extract_sources_info(
+                documents=[document], file_path_meta_field="file_path", root_path=str(test_files_path)
+            )
+
+    def test_extract_sources_info_rejects_absolute_outside_root(self, test_files_path, tmp_path):
+        # Absolute path that lies outside the configured root must be rejected before any IO.
+        outside_file = tmp_path / "secret.png"
+        outside_file.write_bytes(b"secret")
+        document = Document(content="test", meta={"file_path": str(outside_file)})
+        with pytest.raises(ValueError, match="escapes the configured root"):
+            _extract_sources_info(
+                documents=[document], file_path_meta_field="file_path", root_path=str(test_files_path)
+            )
+
+    def test_extract_sources_info_rejects_symlink_escaping_root(self, tmp_path):
+        # A symlink inside the root pointing outside of it must not be followed.
+        outside_file = tmp_path / "secret.png"
+        outside_file.write_bytes(b"secret")
+        root = tmp_path / "root"
+        root.mkdir()
+        (root / "link.png").symlink_to(outside_file)
+        document = Document(content="test", meta={"file_path": "link.png"})
+        with pytest.raises(ValueError, match="escapes the configured root"):
+            _extract_sources_info(documents=[document], file_path_meta_field="file_path", root_path=str(root))
+
+    def test_extract_sources_info_accepts_path_inside_root(self, test_files_path):
+        # When the resolved path is inside the configured root, processing must succeed.
+        document = Document(content="test", meta={"file_path": "banana.png"})
+        sources_info = _extract_sources_info(
+            documents=[document], file_path_meta_field="file_path", root_path=str(test_files_path)
+        )
+        assert len(sources_info) == 1
+        assert sources_info[0]["mime_type"] == "image/png"
+        assert sources_info[0]["path"] == (test_files_path / "banana.png").resolve()
+
 
 class TestGoogleGenAIMultimodalDocumentEmbedder:
     def test_init_with_parameters(self):

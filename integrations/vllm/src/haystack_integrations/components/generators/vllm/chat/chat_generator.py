@@ -451,8 +451,9 @@ class VLLMChatGenerator:
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param generation_kwargs:
-            Additional keyword arguments for text generation. These parameters will
-            override the parameters passed during component initialization.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
             For details on vLLM API parameters, see
             [vLLM documentation](https://docs.vllm.ai/en/stable/serving/openai_compatible_server/).
         :param tools:
@@ -509,8 +510,9 @@ class VLLMChatGenerator:
             A callback function that is called when a new token is received from the stream.
             Must be a coroutine.
         :param generation_kwargs:
-            Additional keyword arguments for text generation. These parameters will
-            override the parameters passed during component initialization.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
             For details on vLLM API parameters, see
             [vLLM documentation](https://docs.vllm.ai/en/stable/serving/openai_compatible_server/).
         :param tools:

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/fastembed-v2.7.0] - 2026-08-24
+
+### 🚀 Features
+
+- *(fastembed)* Add Python 3.14 support (#3829)
+
+
 ## [integrations/fastembed-v2.6.0] - 2026-08-12
 
 ### 🚀 Features
