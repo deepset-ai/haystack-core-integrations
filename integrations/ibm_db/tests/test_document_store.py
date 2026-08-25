@@ -661,7 +661,9 @@ class TestIBMDb2DocumentStoreUnit:
     def test_get_metadata_field_unique_values_builds_paginated_sql(self, mocked_store):
         store, _, cur = mocked_store
         cur.fetchone.return_value = (2,)
-        cur.fetchall.return_value = [("A",), ("B",)]
+        # JSON_QUERY returns the literal JSON form of a string - quoted - unlike JSON_VALUE which
+        # dequotes it; json.loads() below relies on that to tell a string apart from a number.
+        cur.fetchall.return_value = [('"A"',), ('"B"',)]
 
         values, total_count = store.get_metadata_field_unique_values("meta.category", from_=5, size=10)
 
@@ -682,7 +684,7 @@ class TestIBMDb2DocumentStoreUnit:
     def test_get_metadata_field_unique_values_applies_search_term(self, mocked_store):
         store, _, cur = mocked_store
         cur.fetchone.return_value = (1,)
-        cur.fetchall.return_value = [("Python-based",)]
+        cur.fetchall.return_value = [('"Python-based"',)]
 
         store.get_metadata_field_unique_values("meta.category", search_term="python")
 
