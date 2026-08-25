@@ -250,13 +250,13 @@ class SentenceTransformersSimilarityRanker:
         if not documents:
             return {"documents": []}
 
-        top_k = top_k or self.top_k
-        scale_score = scale_score or self.scale_score
-        score_threshold = score_threshold or self.score_threshold
-
-        if top_k <= 0:
+        if top_k is not None and top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+
+        top_k = self.top_k if top_k is None else top_k
+        scale_score = self.scale_score if scale_score is None else scale_score
+        score_threshold = self.score_threshold if score_threshold is None else score_threshold
 
         deduplicated_documents = _deduplicate_documents(documents)
         prepared_query = self.query_prefix + query + self.query_suffix
