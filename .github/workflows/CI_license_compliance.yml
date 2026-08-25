@@ -12,7 +12,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|llama-cpp-python|tqdm|psycopg|mistralai|pgvector|twelvelabs).*"
+  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|llama-cpp-python|tqdm|psycopg|mistralai|pgvector|twelvelabs|mariadb).*"
 
   # Exclusions must be explicitly motivated
   #
@@ -26,6 +26,7 @@ env:
 
   # - tqdm is MLP but there are no better alternatives
   # - psycopg is LGPL-3.0 but FOSSA is fine with it
+  # - mariadb (MariaDB Connector/Python) is LGPL-2.1 but FOSSA is fine with it
 
 jobs:
   license_check_direct:

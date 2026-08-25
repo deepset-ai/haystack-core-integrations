@@ -498,6 +498,15 @@ class TestMistralChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
+    def test_run_with_generation_kwargs(self, chat_messages, mock_chat_completion, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        component.run(chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.9
+
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),
         reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",

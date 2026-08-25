@@ -963,11 +963,12 @@ class TestLlamaCppChatGenerator:
         assert result["replies"][0].text == "Generated text"
         assert result["replies"][0].role == ChatRole.ASSISTANT
 
-    def test_run_with_generation_kwargs(self, generator_mock):
-        """
-        Test that a valid message and generation kwargs returns a list of replies.
-        """
-        generator, mock_model = generator_mock
+    def test_run_with_generation_kwargs(self):
+        mock_model = MagicMock()
+        generator = LlamaCppChatGenerator(
+            model="test_model.gguf", generation_kwargs={"max_tokens": 128, "temperature": 0.5}
+        )
+        generator._model = mock_model
         mock_output = {
             "id": "unique-id-123",
             "model": "Test Model Path",
@@ -978,8 +979,11 @@ class TestLlamaCppChatGenerator:
             "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
         }
         mock_model.create_chat_completion.return_value = mock_output
-        generation_kwargs = {"max_tokens": 128}
-        result = generator.run([ChatMessage.from_system("Write a 200 word paragraph.")], generation_kwargs)
+        result = generator.run([ChatMessage.from_system("Write a 200 word paragraph.")], {"temperature": 0.9})
+
+        call_kwargs = mock_model.create_chat_completion.call_args[1]
+        assert call_kwargs["max_tokens"] == 128
+        assert call_kwargs["temperature"] == 0.9
         assert result["replies"][0].text == "Generated text"
         assert result["replies"][0].meta["finish_reason"] == "length"
 
@@ -1227,9 +1231,12 @@ class TestLlamaCppChatGeneratorAsync:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 0
 
-    async def test_run_async_with_params(self, generator_mock):
-        """Test that run_async passes generation_kwargs correctly."""
-        generator, mock_model = generator_mock
+    async def test_run_async_with_generation_kwargs(self):
+        mock_model = MagicMock()
+        generator = LlamaCppChatGenerator(
+            model="test_model.gguf", generation_kwargs={"max_tokens": 128, "temperature": 0.5}
+        )
+        generator._model = mock_model
         mock_output = {
             "id": "unique-id-123",
             "model": "Test Model Path",
@@ -1243,15 +1250,15 @@ class TestLlamaCppChatGeneratorAsync:
 
         response = await generator.run_async(
             messages=[ChatMessage.from_system("Write a 200 word paragraph.")],
-            generation_kwargs={"max_tokens": 128, "temperature": 0.5},
+            generation_kwargs={"temperature": 0.9},
         )
 
-        assert response["replies"][0].text == "Generated text"
-        assert response["replies"][0].meta["finish_reason"] == "length"
         mock_model.create_chat_completion.assert_called_once()
         call_kwargs = mock_model.create_chat_completion.call_args[1]
         assert call_kwargs["max_tokens"] == 128
-        assert call_kwargs["temperature"] == 0.5
+        assert call_kwargs["temperature"] == 0.9
+        assert response["replies"][0].text == "Generated text"
+        assert response["replies"][0].meta["finish_reason"] == "length"
 
     async def test_run_async_with_string_input(self, generator_mock):
         """Test that a string input is converted to a user ChatMessage and returns a list of replies."""
