@@ -333,9 +333,10 @@ class AstraDocumentStore:
         # would silently merge them or crash comparing incomparable types (e.g. str vs bool). Dedupe and sort
         # by (type, value) instead to keep values of different types distinct.
         #
-        # This can't recover int/float distinctness lost upstream though: AstraDB's storage layer itself
-        # canonicalizes numerically equal int and float values (e.g. 1 and 1.0) to the same representation,
-        # so `values` here may already have merged them before we ever see them.
+        # This can't recover a whole-number float's distinctness from int though: AstraDB's Data API
+        # canonicalizes any whole-number float (e.g. 1.0) to an int on storage, unconditionally - not
+        # only when it shares a field with an actual int - so `values` here may already contain int
+        # where the caller wrote a whole-number float, before we ever see it.
         seen: set[tuple[str, Any]] = set()
         normalized_values: list[Any] = []
         for value in values:
@@ -636,9 +637,12 @@ class AstraDocumentStore:
 
         **Note**: values of different types are kept distinct even when they compare equal in Python
         (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
-        one exception: AstraDB's storage layer canonicalizes numerically equal int and float values (e.g.
-        `1` and `1.0`) to the same representation, so those cannot be told apart once stored under the
-        same metadata field.
+        one exception.
+        AstraDB's Data API canonicalizes any whole-number float (e.g. `1.0`) to an int on storage, unconditionally so a
+        whole-number float is always returned back as an int, never as a float.
+        Example: 1.0 (float) is sent to storage and comes back a 1 (int)
+
+        Exception are floats with a fractional part (e.g. `1.5`) are unaffected and round-trip normally.
 
         :param metadata_field: The metadata field to inspect.
         :param search_term: Optional case-insensitive substring search term.
