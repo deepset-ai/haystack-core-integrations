@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.18.0] - 2026-08-26
+
+### 🐛 Bug Fixes
+
+- `AmazonBedrockRetriever` was missing some last details (#3842)
+
+
 ## [integrations/amazon_bedrock-v6.17.0] - 2026-08-21
 
 ### 🚀 Features
