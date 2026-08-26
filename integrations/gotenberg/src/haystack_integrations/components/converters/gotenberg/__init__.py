@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.converters.gotenberg.converter import ConversionType, GotenbergFileConverter
+from haystack_integrations.components.converters.gotenberg.converter import GotenbergFileConverter
 
-__all__ = ["ConversionType", "GotenbergFileConverter"]
+__all__ = ["GotenbergFileConverter"]
