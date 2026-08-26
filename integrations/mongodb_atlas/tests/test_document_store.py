@@ -131,8 +131,9 @@ class TestMongoDBDocumentStoreUnit:
         assert count == 5
         pipeline = collection.aggregate.call_args[0][0]
         assert pipeline[0]["$group"] == {"_id": "$meta.category"}
-        assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
-        assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
+        assert pipeline[1]["$match"] == {"_id": {"$ne": None}}
+        assert pipeline[2]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
+        assert pipeline[3]["$facet"]["values"][2]["$limit"] == 2
 
     def test_close(self, local_store):
         connection = MagicMock()
@@ -263,6 +264,40 @@ class TestDocumentStore(
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: MongoDBAtlasDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. MongoDB's aggregation `$group` compares
+        numeric values across BSON subtypes (int vs double), so an int and a numerically equal float
+        (e.g. 1 and 1.0) collapse into a single group regardless of which other values share that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what MongoDB can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0): a whole-number float would still collapse
+        with an int under MongoDB's numeric comparison even in its own field, so a fractional value is
+        used to sidestep that ambiguity entirely.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
     def test_write_blob(self, document_store: MongoDBAtlasDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(blob=bytestream)]
@@ -347,43 +382,6 @@ class TestDocumentStore(
                 or (d.meta.get("page") == "90" and d.meta.get("chapter") == "conclusion")
             ],
         )
-
-    def test_get_metadata_field_unique_values(self, document_store: MongoDBAtlasDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"tag": "alpha"}),
-            Document(content="Doc 2", meta={"tag": "beta"}),
-            Document(content="Doc 3", meta={"tag": "gamma"}),
-            Document(content="Doc 4", meta={"tag": "alpha"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("tag")
-        assert total_count == 3
-        assert sorted(values) == ["alpha", "beta", "gamma"]
-
-        values_subset, count_subset = document_store.get_metadata_field_unique_values(
-            "tag", search_term="b", from_=0, size=10
-        )
-        assert count_subset == 1
-        assert sorted(values_subset) == ["beta"]
-
-        values_page, count_page = document_store.get_metadata_field_unique_values("tag", from_=1, size=1)
-        assert count_page == 3
-        assert len(values_page) == 1
-        assert values_page[0] in ["alpha", "beta", "gamma"]
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store: MongoDBAtlasDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
 
     def test_custom_content_field(self, real_collection):
         database_name, collection_name, client = real_collection

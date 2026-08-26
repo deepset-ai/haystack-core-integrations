@@ -282,6 +282,39 @@ class TestDocumentStore(
         # Astra does not support filtering on None, it returns empty list
         TestDocumentStore.assert_documents_are_equal(result, [])
 
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: AstraDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what AstraDB can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0): AstraDB's Data API canonicalizes any
+        whole-number float to an int on storage - unconditionally, not just when it shares a field with
+        an int - so a whole-number float could never come back as a float here regardless of field
+        separation. A fractional value has no such ambiguity and round-trips as a float.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
     def test_write_documents(self, document_store: AstraDocumentStore):
         """
         Test write_documents() overwrites stored Document when trying to write one with same id
@@ -410,16 +443,3 @@ class TestDocumentStore(
         TestDocumentStore.assert_documents_are_equal(
             result, [d for d in filterable_docs if d.meta.get("number") is None]
         )
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
