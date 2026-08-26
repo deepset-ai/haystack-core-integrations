@@ -83,6 +83,7 @@ on:
       - "Test / sentence_transformers"
       - "Test / serperdev"
       - "Test / snowflake"
+      - "Test / solr"
       - "Test / spacy"
       - "Test / sqlalchemy"
       - "Test / stackit"
