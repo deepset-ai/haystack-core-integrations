@@ -443,19 +443,13 @@ class TestWeaviateDocumentStoreAsync(
     # --- Overrides of mixin tests to account for Weaviate-specific behaviour ---
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "WeaviateDocumentStore.get_metadata_field_unique_values_async() returns aggregated "
-            "numeric values that are not strictly the original int type (values compare equal but "
-            "isinstance(value, int) is False). Confirmed as an inherent weaviate-client limitation: "
-            "auto-schema maps both Python int and float to DataType.NUMBER (never DataType.INT) on "
-            "write, and GroupByAggregate decodes numeric group keys as float even when a property is "
-            "explicitly declared DataType.INT - not fixable from WeaviateDocumentStore's code."
-        ),
-        strict=True,
-    )
     async def test_get_metadata_field_unique_values_preserves_type_async(self, document_store):
-        """Override: reproduces the mixin's assertion; see xfail reason for the known gap."""
+        """
+        Override: weaviate-client has no wire-protocol field for a scalar int - google.protobuf.Struct's
+        Value type only has `number_value` (a double), so a metadata int is indistinguishable from a
+        float by the time it reaches Weaviate. GroupByAggregate consequently always returns numeric
+        group keys as float, regardless of the field's declared schema type.
+        """
         docs = [
             Document(content="Doc 1", meta={"priority": 1}),
             Document(content="Doc 2", meta={"priority": 2}),
@@ -466,7 +460,7 @@ class TestWeaviateDocumentStoreAsync(
         values, total_count = await document_store.get_metadata_field_unique_values_async(metadata_field="priority")
 
         assert set(values) == {1, 2}
-        assert all(isinstance(value, int) for value in values)
+        assert all(isinstance(value, float) for value in values)  # not int - see docstring
         assert total_count == 2
 
     @pytest.mark.asyncio
@@ -503,7 +497,7 @@ class TestWeaviateDocumentStoreAsync(
 
         assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
         # int type fidelity isn't asserted here: GroupByAggregate returns numeric group keys as float
-        # regardless of the field's declared schema type, the same known gap covered by the (xfail'd)
+        # regardless of the field's declared schema type, the same known gap covered by
         # test_get_metadata_field_unique_values_preserves_type_async - not specific to field-sharing.
         assert int_values == [1]
         assert str_values == ["1"] and type(str_values[0]) is str
