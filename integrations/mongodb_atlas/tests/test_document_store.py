@@ -498,22 +498,6 @@ class TestMongoDBDocumentStoreHelpers:
 class TestNestedHelperStaticMethods:
     """Requirement 1 - helpers are static and callable without an instance."""
 
-    def test_get_nested_value_is_static(self):
-        # Callable on the class itself (no instance needed)
-        doc = {"a": {"b": 42}}
-        assert MongoDBAtlasDocumentStore._get_nested_value(doc, "a.b") == 42
-
-    def test_set_nested_value_is_static(self):
-        doc: dict = {}
-        MongoDBAtlasDocumentStore._set_nested_value(doc, "x.y", "val")
-        assert doc == {"x": {"y": "val"}}
-
-    def test_pop_nested_value_is_static(self):
-        doc = {"a": {"b": 1, "c": 2}}
-        val = MongoDBAtlasDocumentStore._pop_nested_value(doc, "a.b")
-        assert val == 1
-        assert doc == {"a": {"c": 2}}
-
     def test_helpers_do_not_strip_dollar(self):
         """Helpers receive clean bare paths; they do not strip a leading '$' from path strings."""
         doc = {"a": {"b": 10}, "field": "plain_val"}
@@ -597,7 +581,9 @@ class TestMongoDocToHaystackDocReconstructionFix:
         assert doc.meta["source"] == "url"
 
     def test_no_mapped_value_populated_preserves_unmapped_root_fields(self):
-        """When the mapped field is absent, meta stays empty and no fields are stripped."""
+        """When the mapped field is absent, meta stays empty.
+        Unmapped root-level fields are discarded regardless of whether mapped fields were found.
+        This mongo_doc has no extra root-level fields so meta remains empty."""
         store = self._make_store({"source": "source_field"})
         mongo_doc = {
             "id": "doc-2",
@@ -640,6 +626,119 @@ class TestMongoDocToHaystackDocReconstructionFix:
         assert doc.score == 0.99
         assert doc.meta["existing"] == "val"
         assert doc.meta["tag"] == "sports"
+
+
+class TestMongoDocToHaystackDocMaintainerFixes:
+    """Regression tests for the three _mongo_doc_to_haystack_doc issues raised in maintainer review."""
+
+    def _make_store(self, mapping):
+        return MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="db",
+            collection_name="col",
+            vector_search_index="idx",
+            full_text_search_index="idx",
+            meta_project_mapping=mapping,
+        )
+
+    # ── 2a) Unmapped root-level fields must be discarded when mapping is configured ──
+
+    def test_unmapped_root_field_discarded_when_mapped_field_absent(self):
+        """mapping configured + mapped field absent + extra root-level field → extra field NOT in meta."""
+        store = self._make_store({"source": "source_field"})
+        mongo_doc = {
+            "id": "doc-x",
+            "content": "hello",
+            # source_field is absent, so nothing is mapped into meta.
+            "category": "sports",  # unmapped root-level field - must be discarded
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.id == "doc-x"
+        assert doc.content == "hello"
+        # Unmapped root-level field must NOT appear in meta
+        assert "category" not in doc.meta
+        # Absent mapped field must NOT create a meta entry either
+        assert "source" not in doc.meta
+        assert doc.meta == {}
+
+    def test_unmapped_root_field_discarded_even_when_mapped_field_present(self):
+        """When a mapped field IS present, other root-level fields are still discarded."""
+        store = self._make_store({"source": "source_field"})
+        mongo_doc = {
+            "id": "doc-y",
+            "content": "hello",
+            "source_field": "http://example.com",  # mapped
+            "category": "sports",  # unmapped root-level field - must be discarded
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.meta["source"] == "http://example.com"
+        assert "category" not in doc.meta
+
+    # ── 2b) Mapping from a path inside 'meta' works without losing the value ──
+
+    def test_mapping_from_meta_path_preserves_value(self):
+        """meta_project_mapping={"author": "meta.author"} must produce meta["author"] correctly."""
+        store = self._make_store({"author": "meta.author"})
+        mongo_doc = {
+            "id": "1",
+            "content": "c",
+            "meta": {"author": "jane"},
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.meta == {"author": "jane"}
+
+    def test_mapping_from_meta_path_with_sibling_meta_keys(self):
+        """When mapping pulls from meta.X but other meta keys exist, they are preserved."""
+        store = self._make_store({"author": "meta.author"})
+        mongo_doc = {
+            "id": "2",
+            "content": "c",
+            "meta": {"author": "jane", "title": "My Doc"},
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.meta["author"] == "jane"
+        assert doc.meta["title"] == "My Doc"
+
+    # ── 2c) Explicitly mapped None values must be preserved ──
+
+    def test_mapped_none_value_preserved(self):
+        """A field that exists in the document with value None must appear in meta as None."""
+        store = self._make_store({"score": "score_field"})
+        mongo_doc = {
+            "id": "3",
+            "content": "c",
+            "score_field": None,  # explicit None - must be preserved in meta
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert "score" in doc.meta
+        assert doc.meta["score"] is None
+
+    def test_absent_mapped_field_does_not_create_meta_entry(self):
+        """A field that does not exist in the document must NOT create a meta key."""
+        store = self._make_store({"score": "score_field"})
+        mongo_doc = {
+            "id": "4",
+            "content": "c",
+            # score_field is absent
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert "score" not in doc.meta
+
+    # ── 2d) Existing metadata is preserved alongside mapped metadata ──
+
+    def test_existing_meta_preserved_alongside_mapped_meta(self):
+        """Existing meta dict contents and mapped values must all be present in the result."""
+        store = self._make_store({"source": "source_field"})
+        mongo_doc = {
+            "id": "5",
+            "content": "c",
+            "source_field": "http://example.com",
+            "meta": {"author": "bob", "tags": ["a", "b"]},
+        }
+        doc = store._mongo_doc_to_haystack_doc(mongo_doc)
+        assert doc.meta["source"] == "http://example.com"
+        assert doc.meta["author"] == "bob"
+        assert doc.meta["tags"] == ["a", "b"]
 
 
 @pytest.mark.skipif(

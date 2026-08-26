@@ -21,6 +21,10 @@ from haystack_integrations.document_stores.mongodb_atlas.filters import _normali
 
 logger = logging.getLogger(__name__)
 
+# Sentinel object used by _pop_nested_value to distinguish "path not found"
+# from "path exists and its value is None".
+_MISSING: object = object()
+
 
 class MongoDBAtlasDocumentStore:
     """
@@ -1330,31 +1334,37 @@ class MongoDBAtlasDocumentStore:
         val[parts[-1]] = value
 
     @staticmethod
-    def _pop_nested_value(doc: dict[str, Any], path: str) -> Any:
+    def _pop_nested_value(doc: dict[str, Any], path: str, *, default: Any = _MISSING) -> Any:
         """
         Remove and return the value at *path* (dot-separated) in *doc*.
 
         Empty intermediate dicts are pruned after removal.
-        Returns ``None`` if the path does not exist.
+
+        :param doc: The document dictionary to pop from.
+        :param path: Dot-separated key path, e.g. ``"meta.author"``.
+        :param default: Value to return when the path does not exist.  Defaults
+            to the module-level ``_MISSING`` sentinel so callers can distinguish
+            between "path not found" and "path exists with value ``None``".
+        :returns: The value at *path*, or *default* if the path does not exist.
         """
         parts = path.split(".")
 
         def rec_pop(d: dict[str, Any], path_parts: list[str]) -> tuple[Any, bool]:
             if not path_parts:
-                return None, False
+                return default, False
             key = path_parts[0]
             if len(path_parts) == 1:
                 if key in d:
                     val = d.pop(key)
                     return val, len(d) == 0
-                return None, False
+                return default, False
 
             if key in d and isinstance(d[key], dict):
                 val, should_delete_parent = rec_pop(d[key], path_parts[1:])
                 if should_delete_parent:
                     d.pop(key)
                 return val, len(d) == 0
-            return None, False
+            return default, False
 
         val, _ = rec_pop(doc, parts)
         return val
@@ -1401,20 +1411,31 @@ class MongoDBAtlasDocumentStore:
             mongo_doc["embedding"] = mongo_doc.pop(self.embedding_field, None)
 
         if self.meta_project_mapping:
-            meta = mongo_doc.setdefault("meta", {})
+            # Phase 1: collect mapped values before touching mongo_doc["meta"].
+            # Using _MISSING as sentinel so that an explicit None value in the source
+            # is preserved and not confused with "field absent".
+            mapped_meta: dict[str, Any] = {}
             for meta_key, mongo_field in self.meta_project_mapping.items():
-                val = self._pop_nested_value(mongo_doc, mongo_field)
-                if val is not None:
-                    meta[meta_key] = val
+                val = self._pop_nested_value(mongo_doc, mongo_field, default=_MISSING)
+                if val is not _MISSING:
+                    mapped_meta[meta_key] = val
 
-            # Document.from_dict() raises ValueError when a non-empty 'meta' dict coexists with
-            # unrecognised top-level keys (it treats them as flattened metadata).  When the
-            # mapping has populated meta, drop any leftover root-level fields that are not
-            # recognised Haystack Document fields so that reconstruction always succeeds.
-            if meta:
-                for key in list(mongo_doc.keys()):
-                    if key not in self._DOCUMENT_FIELDS:
-                        mongo_doc.pop(key)
+            # Phase 2: With an explicit mapping, unmapped root-level MongoDB fields
+            # must not become Haystack metadata - discard them unconditionally so
+            # that behavior is consistent regardless of which mapped fields were
+            # present in any given document.
+            for key in list(mongo_doc):
+                if key not in self._DOCUMENT_FIELDS:
+                    mongo_doc.pop(key)
+
+            # Phase 3: Re-read meta fresh (Phase 1's _pop_nested_value may have
+            # pruned or detached the original "meta" dict when the mapped path was
+            # inside meta, e.g. "meta.author").  Only then merge mapped values in.
+            meta = mongo_doc.get("meta")
+            if not isinstance(meta, dict):
+                meta = {}
+            meta.update(mapped_meta)
+            mongo_doc["meta"] = meta
 
         return Document.from_dict(mongo_doc)
 
