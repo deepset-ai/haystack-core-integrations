@@ -683,15 +683,15 @@ class WeaviateDocumentStore:
         :param size: The maximum number of unique values to return. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
-        :raises ValueError: If the field is not found in the collection schema.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
 
         config = self.collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
         if field_name not in schema_fields:
-            msg = f"Field '{field_name}' not found in collection schema"
-            raise ValueError(msg)
+            # No document has ever written this field, so Weaviate's auto-schema never created a
+            # property for it - there are no values to aggregate.
+            return [], 0
 
         weaviate_filter = None
         if filters:
@@ -730,7 +730,6 @@ class WeaviateDocumentStore:
         :param size: The maximum number of unique values to return. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
-        :raises ValueError: If the field is not found in the collection schema.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
 
@@ -738,8 +737,9 @@ class WeaviateDocumentStore:
         config = await collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
         if field_name not in schema_fields:
-            msg = f"Field '{field_name}' not found in collection schema"
-            raise ValueError(msg)
+            # No document has ever written this field, so Weaviate's auto-schema never created a
+            # property for it - there are no values to aggregate.
+            return [], 0
 
         weaviate_filter = None
         if filters:
