@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -210,3 +211,32 @@ class TestGladiaTranscriber:
         ):
             with pytest.raises(RuntimeError, match="Gladia transcription failed: Corrupt audio format"):
                 transcriber.run(sources=["https://example.com/audio.mp3"])
+
+    @pytest.mark.skipif(
+        not os.environ.get("GLADIA_API_KEY"),
+        reason="Export GLADIA_API_KEY to run integration tests.",
+    )
+    @pytest.mark.integration
+    def test_run_integration(self, test_files_path):
+        transcriber = GladiaTranscriber(api_key=Secret.from_env_var("GLADIA_API_KEY"))
+        audio_file = test_files_path / "audio" / "answer.wav"
+        result = transcriber.run(sources=[audio_file])
+        docs = result["documents"]
+        assert len(docs) == 1
+        assert isinstance(docs[0], Document)
+        assert docs[0].content
+
+    @pytest.mark.skipif(
+        not os.environ.get("GLADIA_API_KEY"),
+        reason="Export GLADIA_API_KEY to run integration tests.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_run_async_integration(self, test_files_path):
+        transcriber = GladiaTranscriber(api_key=Secret.from_env_var("GLADIA_API_KEY"))
+        audio_file = test_files_path / "audio" / "answer.wav"
+        result = await transcriber.run_async(sources=[audio_file])
+        docs = result["documents"]
+        assert len(docs) == 1
+        assert isinstance(docs[0], Document)
+        assert docs[0].content

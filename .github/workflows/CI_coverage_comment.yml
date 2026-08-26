@@ -37,6 +37,7 @@ on:
       - "Test / firecrawl"
       - "Test / funasr"
       - "Test / github"
+      - "Test / gladia"
       - "Test / google-genai"
       - "Test / google_drive"
       - "Test / hanlp"
