@@ -525,11 +525,13 @@ class FAISSDocumentStore:
         counts = {}
 
         for field in metadata_fields:
-            unique_vals = set()
+            # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain
+            # set would silently merge them. Dedupe by (type, value) instead to keep them distinct.
+            unique_vals: set[tuple[type, Any]] = set()
             for doc in filtered_docs:
                 val = FAISSDocumentStore._get_doc_value(doc, field)
                 if val is not None:
-                    unique_vals.add(val)
+                    unique_vals.add((type(val), val))
             counts[field] = len(unique_vals)
 
         return dict(counts)
