@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v7.0.0] - 2026-08-26
+
+### 🌀 Miscellaneous
+
+- !fix: `BedrockKnowledgeBaseRetriever` → `AmazonBedrockKnowledgeBaseRetriever` (#3859)
+
 ## [integrations/amazon_bedrock-v6.18.0] - 2026-08-26
 
 ### 🐛 Bug Fixes
