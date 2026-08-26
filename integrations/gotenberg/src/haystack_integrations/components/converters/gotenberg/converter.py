@@ -8,7 +8,7 @@ from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Literal, NamedTuple, TypedDict
+from typing import Any, Literal, NamedTuple
 from urllib.parse import urlparse
 
 from gotenberg_client import AsyncGotenbergClient, SyncGotenbergClient
@@ -31,12 +31,6 @@ MIME_TYPE_EXTENSIONS = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
 }
-
-
-class GotenbergFileConverterOutput(TypedDict):
-    """The output returned by `GotenbergFileConverter`."""
-
-    output: list[ByteStream]
 
 
 class _PreparedSource(NamedTuple):
@@ -110,9 +104,26 @@ class GotenbergFileConverter:
     Convert files, UTF-8 HTML or Markdown, and web URLs to ordered PDFs with Gotenberg.
 
     Resources are supported only for HTML and Markdown conversions.
+
+    ### Usage example
+
+    ```python
+    from haystack_integrations.components.converters.gotenberg import GotenbergFileConverter
+
+    converter = GotenbergFileConverter()
+    result = converter.run(sources=["<h1>Hello from Haystack</h1>"], conversion_type="html")
+    pdf = result["output"][0]
+    ```
     """
 
     def __init__(self, url: str = "http://localhost:3000", timeout: float = 30.0) -> None:
+        """
+        Create a Gotenberg file converter.
+
+        :param url: The URL of the Gotenberg service.
+        :param timeout: The request timeout in seconds.
+        :raises ValueError: If `url` is not a valid HTTP(S) URL or `timeout` is not greater than zero.
+        """
         parsed_url = urlparse(url)
         if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
             msg = "url must be a valid HTTP(S) Gotenberg service URL"
@@ -134,6 +145,7 @@ class GotenbergFileConverter:
 
     @staticmethod
     def _pdf(response: SingleFileResponse | ZipFileResponse) -> ByteStream:
+        """Convert a Gotenberg response to a PDF byte stream."""
         if response.is_zip:
             msg = "Gotenberg unexpectedly returned a ZIP archive instead of one PDF"
             raise RuntimeError(msg)
@@ -141,6 +153,7 @@ class GotenbergFileConverter:
 
     @staticmethod
     def _libreoffice_source(source: Source, directory: Path, index: int) -> Path:
+        """Validate a LibreOffice source and return its file path."""
         if isinstance(source, ByteStream):
             file_path = source.meta.get("file_path")
             filename = Path(str(file_path)).name if file_path else ""
@@ -175,6 +188,7 @@ class GotenbergFileConverter:
 
     @staticmethod
     def _markdown_filename(filename: str | None) -> str:
+        """Return a safe filename for a Markdown source."""
         name = filename or "document.md"
         safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", Path(name).name)
         if not safe_name or safe_name in {".", ".."}:
@@ -189,6 +203,7 @@ class GotenbergFileConverter:
     def _prepare(
         self, sources: list[Source], conversion_type: ConversionType, resources: list[Path] | None
     ) -> Generator[tuple[list[_PreparedSource], list[Path]], None, None]:
+        """Validate and normalize sources and resources for conversion."""
         if conversion_type not in {"libreoffice", "html", "markdown", "url"}:
             msg = f"Unsupported conversion_type: {conversion_type!r}; expected libreoffice, html, markdown, or url"
             raise ValueError(msg)
@@ -241,14 +256,30 @@ class GotenbergFileConverter:
     @component.output_types(output=list[ByteStream])
     def run(
         self, sources: list[Source], conversion_type: ConversionType, resources: list[Path] | None = None
-    ) -> GotenbergFileConverterOutput:
+    ) -> dict[str, list[ByteStream]]:
         """
         Convert sources to PDF using the selected Gotenberg route.
 
-        :param sources: Sources interpreted according to `conversion_type`.
-        :param conversion_type: Route to use: `libreoffice`, `html`, `markdown`, or `url`.
-        :param resources: Optional resource files for HTML or Markdown conversion only.
-        :returns: One PDF byte stream per source, in input order.
+        The accepted source forms depend on `conversion_type`:
+
+        - `libreoffice`: Local file paths (`str` or `Path`) or `ByteStream` objects. Paths must have a file
+          extension. A `ByteStream` must provide an extension in `meta["file_path"]` or through a recognized
+          `mime_type`.
+        - `html`: HTML text as a `str`, or a `Path` or `ByteStream` containing UTF-8 HTML.
+        - `markdown`: Markdown text as a `str`, or a `Path` or `ByteStream` containing UTF-8 Markdown.
+        - `url`: HTTP(S) URL strings.
+
+        :param sources: Sources to convert. One PDF is produced for each source, in input order.
+        :param conversion_type: Conversion route to use: `libreoffice`, `html`, `markdown`, or `url`.
+        :param resources: Optional local resource files for HTML and Markdown conversions. Resource filenames must be
+            unique and cannot be `index.html`. For Markdown conversion, they cannot conflict with the Markdown source
+            filename.
+        :returns: A dictionary containing an `"output"` list with one PDF `ByteStream` per source, in input order.
+            Each output has the MIME type `application/pdf`.
+        :raises TypeError: If a source or resource has an unsupported type.
+        :raises FileNotFoundError: If a local source or resource does not exist or is not a file.
+        :raises ValueError: If the conversion type, sources, resources, source contents, URLs, or filenames are invalid.
+        :raises RuntimeError: If Gotenberg returns a ZIP archive instead of a PDF.
         """
         with self._prepare(sources, conversion_type, resources) as (prepared, resource_paths):
             with SyncGotenbergClient(self.url, timeout=self.timeout, backend="httpx") as client:
@@ -258,14 +289,30 @@ class GotenbergFileConverter:
     @component.output_types(output=list[ByteStream])
     async def run_async(
         self, sources: list[Source], conversion_type: ConversionType, resources: list[Path] | None = None
-    ) -> GotenbergFileConverterOutput:
+    ) -> dict[str, list[ByteStream]]:
         """
-        Asynchronously convert sources using the selected Gotenberg route.
+        Asynchronously convert sources to PDF using the selected Gotenberg route.
 
-        :param sources: Sources interpreted according to `conversion_type`.
-        :param conversion_type: Route to use: `libreoffice`, `html`, `markdown`, or `url`.
-        :param resources: Optional resource files for HTML or Markdown conversion only.
-        :returns: One PDF byte stream per source, in input order.
+        The accepted source forms depend on `conversion_type`:
+
+        - `libreoffice`: Local file paths (`str` or `Path`) or `ByteStream` objects. Paths must have a file
+          extension. A `ByteStream` must provide an extension in `meta["file_path"]` or through a recognized
+          `mime_type`.
+        - `html`: HTML text as a `str`, or a `Path` or `ByteStream` containing UTF-8 HTML.
+        - `markdown`: Markdown text as a `str`, or a `Path` or `ByteStream` containing UTF-8 Markdown.
+        - `url`: HTTP(S) URL strings.
+
+        :param sources: Sources to convert. One PDF is produced for each source, in input order.
+        :param conversion_type: Conversion route to use: `libreoffice`, `html`, `markdown`, or `url`.
+        :param resources: Optional local resource files for HTML and Markdown conversions. Resource filenames must be
+            unique and cannot be `index.html`. For Markdown conversion, they cannot conflict with the Markdown source
+            filename.
+        :returns: A dictionary containing an `"output"` list with one PDF `ByteStream` per source, in input order.
+            Each output has the MIME type `application/pdf`.
+        :raises TypeError: If a source or resource has an unsupported type.
+        :raises FileNotFoundError: If a local source or resource does not exist or is not a file.
+        :raises ValueError: If the conversion type, sources, resources, source contents, URLs, or filenames are invalid.
+        :raises RuntimeError: If Gotenberg returns a ZIP archive instead of a PDF.
         """
         with self._prepare(sources, conversion_type, resources) as (prepared, resource_paths):
             async with AsyncGotenbergClient(self.url, timeout=self.timeout, backend="httpx") as client:
