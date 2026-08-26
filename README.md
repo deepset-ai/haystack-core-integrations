@@ -6,7 +6,7 @@
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/falkordb/cypher\_retriever.py    |       29 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/falkordb/embedding\_retriever.py |       32 |        0 |        4 |        1 |     97% |   90-\>92 |
-| src/haystack\_integrations/document\_stores/falkordb/document\_store.py           |      373 |       20 |      118 |        4 |     94% |225-229, 239-247, 447-449, 575, 578, 652, 742-744, 800-803 |
+| src/haystack\_integrations/document\_stores/falkordb/document\_store.py           |      373 |       20 |      118 |        4 |     94% |225-229, 239-247, 447-449, 575, 578, 660, 750-752, 808-811 |
 | **TOTAL**                                                                         |  **434** |   **20** |  **126** |    **5** | **94%** |           |
 
 
