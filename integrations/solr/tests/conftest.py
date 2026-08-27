@@ -14,12 +14,6 @@ from haystack_integrations.document_stores.solr import SolrDocumentStore
 
 SOLR_URL = os.environ.get("SOLR_URL", "http://localhost:8983/solr")
 
-#: Dimension used by `haystack.testing.document_store.create_filterable_docs`.
-#:
-#: Every test must use this one value. Test cores are created from the shared `_default` configset, and
-#: such cores reference the configset's managed schema instead of owning one, so the `embedding` field
-#: is shared across all of them. A store built with a different dimension would write a conflicting
-#: field type into that shared schema and every later test would be refused.
 TEST_EMBEDDING_DIM = 768
 
 

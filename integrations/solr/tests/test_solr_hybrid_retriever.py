@@ -95,9 +95,6 @@ class TestInit:
 class TestSerialization:
     @pytest.fixture(autouse=True)
     def openai_api_key(self, monkeypatch):
-        # These tests build a real OpenAITextEmbedder, which resolves its key at init. A component
-        # defined in the test module itself cannot be used here: Haystack only deserializes classes
-        # from allowlisted modules, and `tests.*` is not one of them.
         monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
 
     def test_to_dict(self, store):
