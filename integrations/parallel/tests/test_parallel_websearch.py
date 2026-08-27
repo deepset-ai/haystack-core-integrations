@@ -53,7 +53,6 @@ def _component_with_transport(
     **kwargs,
 ) -> ParallelWebSearch:
     component = ParallelWebSearch(api_key=Secret.from_token("test-api-key"), **kwargs)
-    component.warm_up()
     transport = _make_transport(captured, response, status_code)
     component._client = httpx.Client(transport=transport)
     component._async_client = httpx.AsyncClient(transport=transport)
@@ -87,6 +86,57 @@ class TestParallelWebSearch:
         deserialized = component_from_dict(ParallelWebSearch, data, name="websearch")
         assert deserialized.top_k == 7
         assert deserialized.search_params == {"mode": "advanced"}
+
+    def test_warm_up_only_creates_the_sync_client(self):
+        component = ParallelWebSearch(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        assert isinstance(component._client, httpx.Client)
+        # the async client belongs on the serving event loop, so warm_up_async owns it
+        assert component._async_client is None
+        component.close()
+
+    def test_warm_up_and_close_are_idempotent(self):
+        component = ParallelWebSearch(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        client = component._client
+        component.warm_up()
+        assert component._client is client
+
+        component.close()
+        assert component._client is None
+        component.close()
+        assert component._client is None
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async_and_close_async(self):
+        component = ParallelWebSearch(api_key=Secret.from_token("test-api-key"))
+        await component.warm_up_async()
+        assert isinstance(component._async_client, httpx.AsyncClient)
+        assert component._client is None
+
+        await component.close_async()
+        assert component._async_client is None
+        await component.close_async()
+        assert component._async_client is None
+
+    @pytest.mark.asyncio
+    async def test_run_async_warms_up_the_async_client(self, monkeypatch):
+        captured: list[httpx.Request] = []
+        transport = _make_transport(captured)
+        real_async_client = httpx.AsyncClient
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: real_async_client(transport=transport, **kwargs))
+
+        component = ParallelWebSearch(api_key=Secret.from_token("test-api-key"))
+        assert component._async_client is None
+
+        result = await component.run_async(query="test")
+
+        assert component._async_client is not None
+        assert len(captured) == 1
+        assert len(result["documents"]) == 2
+
+        await component.close_async()
+        assert component._async_client is None
 
     def test_run_sends_query_objective_and_top_k(self):
         captured: list[httpx.Request] = []
@@ -203,6 +253,8 @@ class TestParallelWebSearchInference:
         component = ParallelWebSearch(top_k=3)
         result = component.run(query="What is Haystack by deepset?")
         assert len(result["documents"]) > 0
+        # top_k has to reach the API as advanced_settings.max_results, which mocks cannot prove
+        assert len(result["documents"]) <= 3
         assert len(result["links"]) > 0
         assert result["documents"][0].content
 
@@ -211,4 +263,5 @@ class TestParallelWebSearchInference:
         component = ParallelWebSearch(top_k=3)
         result = await component.run_async(query="What is Haystack by deepset?")
         assert len(result["documents"]) > 0
+        assert len(result["documents"]) <= 3
         assert len(result["links"]) > 0

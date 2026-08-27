@@ -102,14 +102,37 @@ class ParallelWebSearch:
 
     def warm_up(self) -> None:
         """
-        Initialize the sync and async HTTP clients.
+        Initialize the sync HTTP client.
 
         Called automatically on first use. Can be called explicitly to avoid cold-start latency.
         """
         if self._client is None:
             self._client = httpx.Client(timeout=self.timeout)
+
+    async def warm_up_async(self) -> None:
+        """
+        Initialize the async HTTP client on the serving event loop.
+
+        Called automatically on first use. Can be called explicitly to avoid cold-start latency.
+        """
         if self._async_client is None:
             self._async_client = httpx.AsyncClient(timeout=self.timeout)
+
+    def close(self) -> None:
+        """
+        Release the sync HTTP client.
+        """
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """
+        Release the async HTTP client.
+        """
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
 
     @component.output_types(documents=list[Document], links=list[str])
     def run(
@@ -137,7 +160,14 @@ class ParallelWebSearch:
             json=self._build_body(query, search_params),
         )
         response.raise_for_status()
-        return self._parse_response(response.json())
+        parsed = self._parse_response(response.json())
+
+        logger.debug(
+            "Parallel returned {number_documents} documents for the query '{query}'",
+            number_documents=len(parsed["documents"]),
+            query=query,
+        )
+        return parsed
 
     @component.output_types(documents=list[Document], links=list[str])
     async def run_async(
@@ -157,7 +187,7 @@ class ParallelWebSearch:
             - `links`: List of URLs from the search results.
         """
         if self._async_client is None:
-            self.warm_up()
+            await self.warm_up_async()
 
         response = await self._async_client.post(  # type: ignore[union-attr]
             PARALLEL_SEARCH_URL,
@@ -165,7 +195,14 @@ class ParallelWebSearch:
             json=self._build_body(query, search_params),
         )
         response.raise_for_status()
-        return self._parse_response(response.json())
+        parsed = self._parse_response(response.json())
+
+        logger.debug(
+            "Parallel returned {number_documents} documents for the query '{query}'",
+            number_documents=len(parsed["documents"]),
+            query=query,
+        )
+        return parsed
 
     @staticmethod
     def _parse_response(response: dict[str, Any]) -> dict[str, Any]:

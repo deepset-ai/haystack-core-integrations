@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage
 from haystack.utils.auth import Secret
 from openai.types.responses import Response
@@ -63,6 +64,9 @@ class TestParallelChatGenerator:
         assert component.api_base_url == "https://api.parallel.ai/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+        # a research call can take ~30-60s on the high tier, so the 30s OpenAI default is too short
+        assert component.timeout == 120.0
+        assert component.max_retries == 3
 
     def test_missing_api_key_raises_on_use(self, monkeypatch):
         monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
@@ -83,6 +87,35 @@ class TestParallelChatGenerator:
         assert component.generation_kwargs == {"reasoning": {"effort": "high"}}
         assert component.extra_headers == {"test-header": "test-value"}
 
+    def test_client_uses_research_friendly_timeout(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_TIMEOUT", raising=False)
+        monkeypatch.delenv("OPENAI_MAX_RETRIES", raising=False)
+        component = ParallelChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+
+        assert component.client.timeout == 120.0
+        assert component.client.max_retries == 3
+
+    def test_warns_on_unsupported_model(self, caplog):
+        ParallelChatGenerator(api_key=Secret.from_token("test-api-key"), model="gpt-4o")
+        assert "not supported by the Parallel Responses API" in caplog.text
+
+    def test_warns_on_generation_kwargs_the_api_ignores(self, caplog):
+        ParallelChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"temperature": 0.5, "top_p": 0.9, "reasoning": {"effort": "low"}},
+        )
+        assert "have no effect on the response" in caplog.text
+        # only the ignored keys are named; `reasoning` is honoured and must not be flagged
+        assert "temperature, top_p" in caplog.text
+
+    def test_does_not_warn_on_supported_generation_kwargs(self, caplog):
+        ParallelChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"reasoning": {"effort": "high"}},
+        )
+        assert caplog.text == ""
+
     def test_supported_models_listed(self):
         assert ParallelChatGenerator.SUPPORTED_MODELS == ["parallel"]
 
@@ -95,12 +128,16 @@ class TestParallelChatGenerator:
         init_parameters = data["init_parameters"]
         assert init_parameters["model"] == "parallel"
         assert init_parameters["api_base_url"] == "https://api.parallel.ai/v1"
+        assert init_parameters["timeout"] == 120.0
+        assert init_parameters["max_retries"] == 3
         assert "organization" not in init_parameters
         assert "tools" not in init_parameters
 
         deserialized = ParallelChatGenerator.from_dict(data)
         assert deserialized.model == "parallel"
         assert deserialized.api_base_url == "https://api.parallel.ai/v1"
+        assert deserialized.timeout == 120.0
+        assert deserialized.max_retries == 3
 
     def test_to_dict_with_parameters_round_trip(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
@@ -123,6 +160,18 @@ class TestParallelChatGenerator:
         assert deserialized.timeout == 10
         assert deserialized.max_retries == 2
         assert deserialized._http_client_kwargs == {"proxy": "http://localhost:8080"}
+
+    def test_from_dict_is_inherited_and_restores_the_streaming_callback(self, monkeypatch):
+        monkeypatch.setenv("PARALLEL_API_KEY", "test-api-key")
+        component = ParallelChatGenerator(streaming_callback=print_streaming_chunk)
+        data = component.to_dict()
+        assert data["init_parameters"]["streaming_callback"] == (
+            "haystack.components.generators.utils.print_streaming_chunk"
+        )
+
+        deserialized = ParallelChatGenerator.from_dict(data)
+        assert deserialized.streaming_callback is print_streaming_chunk
+        assert deserialized.api_key == Secret.from_env_var("PARALLEL_API_KEY")
 
     def test_run_uses_responses_create(self, chat_messages):
         component = ParallelChatGenerator(api_key=Secret.from_token("test-api-key"))

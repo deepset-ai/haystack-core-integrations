@@ -5,12 +5,13 @@
 import importlib.metadata
 from typing import Any, ClassVar
 
-from haystack import component, default_from_dict
+from haystack import component, logging
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.core.serialization import generate_qualified_class_name
 from haystack.dataclasses import StreamingCallbackT
-from haystack.utils import deserialize_callable
 from haystack.utils.auth import Secret
+
+logger = logging.getLogger(__name__)
 
 _INTEGRATION_SLUG = "haystack"
 _PACKAGE_NAME = "parallel-haystack"
@@ -25,6 +26,22 @@ _INIT_PARAMETERS: tuple[str, ...] = (
     "extra_headers",
     "max_retries",
     "http_client_kwargs",
+)
+
+# Accepted by the API for SDK compatibility but silently ignored, so a request that sets them
+# succeeds while behaving as if they were never passed.
+# See https://docs.parallel.ai/responses-api/openai-compatibility
+_IGNORED_GENERATION_KWARGS: tuple[str, ...] = (
+    "include",
+    "max_output_tokens",
+    "parallel_tool_calls",
+    "store",
+    "temperature",
+    "tool_choice",
+    "tools",
+    "top_p",
+    "truncation",
+    "user",
 )
 
 
@@ -60,8 +77,12 @@ class ParallelChatGenerator(OpenAIResponsesChatGenerator):
     for details.
 
     It uses the [ChatMessage](https://docs.haystack.deepset.ai/docs/chatmessage) format in input and output.
-    Web grounding is built in, so tool calling and sampling parameters
-    (`temperature`, `top_p`, ...) are not supported by the API.
+    Web grounding is built in, so tool calling and sampling parameters (`tools`, `temperature`,
+    `top_p`, ...) are accepted for SDK compatibility but silently ignored by the API; this component
+    warns when it sees them.
+
+    Because a single call runs live research, `timeout` defaults to 120 seconds rather than the
+    30 seconds inherited from the OpenAI client, so that the `high` tier fits comfortably.
 
     ### Usage example
     ```python
@@ -88,9 +109,9 @@ class ParallelChatGenerator(OpenAIResponsesChatGenerator):
         api_base_url: str | None = "https://api.parallel.ai/v1",
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
-        timeout: float | None = None,
+        timeout: float | None = 120.0,
         extra_headers: dict[str, Any] | None = None,
-        max_retries: int | None = None,
+        max_retries: int | None = 3,
         http_client_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
@@ -109,14 +130,36 @@ class ParallelChatGenerator(OpenAIResponsesChatGenerator):
             `reasoning` (e.g. `{"effort": "low"}`) to select the research tier or
             `text` for structured output.
         :param timeout:
-            Timeout for Parallel API calls.
+            Timeout in seconds for Parallel API calls. Defaults to 120 seconds, which leaves room for
+            the `high` research tier (~30-60s). Pass `None` to fall back to the OpenAI client default
+            (the `OPENAI_TIMEOUT` environment variable, or 30 seconds), which is too short for most
+            research calls.
         :param extra_headers:
             Additional HTTP headers to include in requests to the Parallel API.
         :param max_retries:
-            Maximum number of retries to contact Parallel after an internal error.
+            Maximum number of retries to contact Parallel after an internal error. Kept low because
+            every retry runs a full research call. Pass `None` to fall back to the OpenAI client
+            default (the `OPENAI_MAX_RETRIES` environment variable, or 5).
         :param http_client_kwargs:
             A dictionary of keyword arguments to configure a custom `httpx.Client` or `httpx.AsyncClient`.
         """
+        if model not in self.SUPPORTED_MODELS:
+            logger.warning(
+                "Model {model} is not supported by the Parallel Responses API, which only serves "
+                "{supported_models}. The request is sent anyway and the API is expected to reject it.",
+                model=model,
+                supported_models=", ".join(self.SUPPORTED_MODELS),
+            )
+
+        ignored = sorted(set(generation_kwargs or {}) & set(_IGNORED_GENERATION_KWARGS))
+        if ignored:
+            logger.warning(
+                "The generation_kwargs {ignored} are accepted by the Parallel Responses API for SDK "
+                "compatibility but have no effect on the response. Use `reasoning` to select the research "
+                "tier and `text` for structured output instead.",
+                ignored=", ".join(ignored),
+            )
+
         self.extra_headers = extra_headers
         super(ParallelChatGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
@@ -150,18 +193,3 @@ class ParallelChatGenerator(OpenAIResponsesChatGenerator):
             key: value for key, value in data["init_parameters"].items() if key in _INIT_PARAMETERS
         }
         return data
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ParallelChatGenerator":
-        """
-        Deserialize this component from a dictionary.
-
-        :param data: The dictionary representation of this component.
-        :returns:
-            The deserialized component instance.
-        """
-        serialized_callback_handler = data.get("init_parameters", {}).get("streaming_callback")
-        if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
-
-        return default_from_dict(cls, data)
