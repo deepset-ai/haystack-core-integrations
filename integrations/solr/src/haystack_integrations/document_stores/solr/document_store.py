@@ -16,7 +16,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .client import _SolrClient
 from .errors import SolrDocumentStoreConfigError
-from .filters import escape_query_chars, normalize_filters
+from .filters import normalize_filters
 from .schema import (
     BLOB_FIELD,
     CONTENT_FIELD,
@@ -551,14 +551,38 @@ class SolrDocumentStore:
 
     @staticmethod
     def _existing_ids_payload(document_ids: list[str]) -> dict[str, Any]:
-        # `{!terms}` avoids scoring and sidesteps query escaping for the id values.
-        escaped = ",".join(escape_query_chars(document_id) for document_id in document_ids)
-        return {
-            "query": MATCH_ALL,
-            "filter": [f"{{!terms f={ID_FIELD}}}{escaped}"],
-            "limit": len(document_ids),
-            "fields": [ID_FIELD],
-        }
+        """
+        Build the real-time get request asking which of `document_ids` already exist.
+
+        The ids travel as repeated `id` parameters rather than inside a query, because the real-time
+        get handler takes them verbatim. Nothing parses them, so no id needs escaping and no
+        separator can collide with an id's own characters - a query-based lookup gets both wrong for
+        any id containing Lucene syntax, whitespace or a comma.
+
+        Being a real-time get, it also sees documents that have been written but not yet committed,
+        which a search cannot. On a core configured without an update log it quietly falls back to
+        the committed index, which is no worse than a search.
+
+        The parameters go in the request body so that a large batch cannot overflow the URL.
+        """
+        return {"params": {"id": list(document_ids), "fl": ID_FIELD}}
+
+    @staticmethod
+    def _existing_ids_from_response(payload: dict[str, Any]) -> set[str]:
+        """
+        Read the ids out of a real-time get response.
+
+        Solr answers a lookup of several ids with a `response` block, but a lookup of exactly one
+        with a bare `doc` that is `null` when the document does not exist. Writing a single document
+        is common enough that both shapes have to be handled.
+
+        :param payload: the parsed real-time get response.
+        :returns: the ids that already exist in the core.
+        """
+        if "response" in payload:
+            return {doc[ID_FIELD] for doc in payload["response"].get("docs", [])}
+        document = payload.get("doc")
+        return {document[ID_FIELD]} if document else set()
 
     def _batches(self, documents: list[Document]) -> list[list[dict[str, Any]]]:
         solr_documents = [document_to_solr(document) for document in documents]
@@ -607,10 +631,10 @@ class SolrDocumentStore:
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
             payload = self._solr_client.request(
                 "POST",
-                f"{self._core}/query",
+                f"{self._core}/get",
                 json_body=self._existing_ids_payload([document.id for document in documents]),
             )
-            existing = {doc[ID_FIELD] for doc in payload.get("response", {}).get("docs", [])}
+            existing = self._existing_ids_from_response(payload)
             documents = self._apply_duplicate_policy(documents, policy, existing)
             if not documents:
                 return 0
@@ -639,10 +663,10 @@ class SolrDocumentStore:
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
             payload = await self._solr_client.request_async(
                 "POST",
-                f"{self._core}/query",
+                f"{self._core}/get",
                 json_body=self._existing_ids_payload([document.id for document in documents]),
             )
-            existing = {doc[ID_FIELD] for doc in payload.get("response", {}).get("docs", [])}
+            existing = self._existing_ids_from_response(payload)
             documents = self._apply_duplicate_policy(documents, policy, existing)
             if not documents:
                 return 0

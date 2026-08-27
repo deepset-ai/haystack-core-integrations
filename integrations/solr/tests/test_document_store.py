@@ -7,6 +7,7 @@ import json
 import httpx
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
+from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
@@ -402,6 +403,57 @@ class TestInputValidation:
             store.write_documents([Document(content="x", meta={"bad key": 1})], DuplicatePolicy.OVERWRITE)
 
 
+#: Ids that a query-based duplicate check mangles: Lucene syntax characters, whitespace, and the
+#: comma that a `{!terms}` clause uses to separate its values.
+NASTY_IDS = ["a-b", "a b", "a:b", "a,b", "a\\b", 'a"b', "a\nb", "a+b", "a/b", "plain"]
+
+
+class TestDuplicateDetection:
+    """The existing-id lookup has to reach Solr in a form that cannot mangle the ids."""
+
+    def test_ids_are_passed_through_verbatim(self):
+        """The real-time get handler parses nothing, so an escaped id would simply never match."""
+        assert SolrDocumentStore._existing_ids_payload(NASTY_IDS) == {"params": {"id": NASTY_IDS, "fl": "id"}}
+
+    def test_the_id_list_is_copied(self):
+        ids = ["1"]
+        payload = SolrDocumentStore._existing_ids_payload(ids)
+        ids.append("2")
+        assert payload["params"]["id"] == ["1"]
+
+    @pytest.mark.parametrize(
+        ("payload", "expected"),
+        [
+            ({"response": {"docs": [{"id": "1"}, {"id": "2"}]}}, {"1", "2"}),
+            ({"response": {"numFound": 0, "docs": []}}, set()),
+            ({"response": {}}, set()),
+            # A lookup of exactly one id answers with a bare doc instead of a response block.
+            ({"doc": {"id": "1"}}, {"1"}),
+            ({"doc": None}, set()),
+            ({}, set()),
+        ],
+    )
+    def test_both_response_shapes_are_understood(self, payload, expected):
+        assert SolrDocumentStore._existing_ids_from_response(payload) == expected
+
+    def test_the_lookup_uses_the_real_time_get_handler(self):
+        """A search would miss uncommitted writes, so the check must not go to `/query`."""
+        paths: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            paths.append(request.url.path)
+            if request.url.path.endswith("/get"):
+                return httpx.Response(200, json={"doc": {"id": "a-b"}})
+            return httpx.Response(200, json={"responseHeader": {"status": 0}})
+
+        store = _mock_store(_bootstrap_aware(handler))
+        with pytest.raises(DuplicateDocumentError):
+            store.write_documents([Document(id="a-b", content="x")], DuplicatePolicy.FAIL)
+
+        assert any(path.endswith("/get") for path in paths)
+        assert not any(path.endswith("/query") for path in paths)
+
+
 class TestFuzziness:
     def test_zero_leaves_the_query_untouched(self):
         assert SolrDocumentStore._apply_fuzziness('apache "solr search"', 0) == 'apache "solr search"'
@@ -601,3 +653,64 @@ class TestSolrSpecificBehaviour:
         document_store.write_documents([Document(id="1", content="x")], DuplicatePolicy.OVERWRITE)
         document_store.close()
         assert document_store.count_documents() == 1
+
+    @pytest.mark.parametrize("document_id", NASTY_IDS)
+    def test_duplicate_detection_survives_special_characters_in_ids(self, document_store, document_id):
+        """
+        Lucene syntax, whitespace or a comma in an id must not defeat the duplicate check.
+
+        A query-based lookup has to escape those characters, and the escaping is exactly what breaks
+        it: the ids stop matching, so `FAIL` overwrites without raising and `SKIP` replaces the
+        stored document instead of leaving it alone.
+        """
+        document_store.write_documents([Document(id=document_id, content="ORIGINAL")], DuplicatePolicy.OVERWRITE)
+
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents([Document(id=document_id, content="CLOBBER")], DuplicatePolicy.FAIL)
+
+        written = document_store.write_documents([Document(id=document_id, content="CLOBBER")], DuplicatePolicy.SKIP)
+        assert written == 0
+        assert document_store.filter_documents()[0].content == "ORIGINAL"
+
+    def test_duplicate_detection_across_a_batch(self, document_store):
+        """Several ids answer with a `response` block where a single one answers with a bare doc."""
+        ids = ["a-b", "a b", "a,b", "plain"]
+        document_store.write_documents(
+            [Document(id=document_id, content="ORIGINAL") for document_id in ids], DuplicatePolicy.OVERWRITE
+        )
+
+        assert (
+            document_store.write_documents(
+                [Document(id=document_id, content="CLOBBER") for document_id in ids], DuplicatePolicy.SKIP
+            )
+            == 0
+        )
+        # A mixed batch writes the new document and skips the one that is already there.
+        assert (
+            document_store.write_documents(
+                [Document(id="a-b", content="CLOBBER"), Document(id="fresh", content="NEW")],
+                DuplicatePolicy.SKIP,
+            )
+            == 1
+        )
+        assert {document.id: document.content for document in document_store.filter_documents()} == {
+            "a-b": "ORIGINAL",
+            "a b": "ORIGINAL",
+            "a,b": "ORIGINAL",
+            "plain": "ORIGINAL",
+            "fresh": "NEW",
+        }
+
+    def test_duplicate_detection_sees_uncommitted_documents(self, solr_store):
+        """
+        With `commit=False` a search cannot see the previous write, but a real-time get can.
+
+        That is the configuration a deployment which does not want to commit on every batch runs in,
+        and duplicate detection has to keep working there.
+        """
+        store = solr_store(commit=False)
+        store.write_documents([Document(id="1", content="ORIGINAL")], DuplicatePolicy.OVERWRITE)
+
+        with pytest.raises(DuplicateDocumentError):
+            store.write_documents([Document(id="1", content="CLOBBER")], DuplicatePolicy.FAIL)
+        assert store.write_documents([Document(id="1", content="CLOBBER")], DuplicatePolicy.SKIP) == 0

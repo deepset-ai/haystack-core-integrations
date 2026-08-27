@@ -103,3 +103,30 @@ class TestSolrAsyncSpecificBehaviour:
         await document_store.write_documents_async([Document(id="1", content="x")], DuplicatePolicy.OVERWRITE)
         await document_store.close_async()
         assert await document_store.count_documents_async() == 1
+
+    @pytest.mark.parametrize("document_id", ["a-b", "a b", "a,b", 'a"b', "a\nb", "plain"])
+    async def test_duplicate_detection_survives_special_characters_in_ids(self, document_store, document_id):
+        """The async path looks ids up the same way, so it must survive the same ids."""
+        await document_store.write_documents_async(
+            [Document(id=document_id, content="ORIGINAL")], DuplicatePolicy.OVERWRITE
+        )
+
+        with pytest.raises(DuplicateDocumentError):
+            await document_store.write_documents_async(
+                [Document(id=document_id, content="CLOBBER")], DuplicatePolicy.FAIL
+            )
+
+        written = await document_store.write_documents_async(
+            [Document(id=document_id, content="CLOBBER")], DuplicatePolicy.SKIP
+        )
+        assert written == 0
+        assert (await document_store.filter_documents_async())[0].content == "ORIGINAL"
+
+    async def test_duplicate_detection_sees_uncommitted_documents(self, solr_store):
+        """`commit=False` writes are invisible to a search but visible to a real-time get."""
+        store = solr_store(commit=False)
+        await store.write_documents_async([Document(id="1", content="ORIGINAL")], DuplicatePolicy.OVERWRITE)
+
+        with pytest.raises(DuplicateDocumentError):
+            await store.write_documents_async([Document(id="1", content="CLOBBER")], DuplicatePolicy.FAIL)
+        assert await store.write_documents_async([Document(id="1", content="CLOBBER")], DuplicatePolicy.SKIP) == 0
