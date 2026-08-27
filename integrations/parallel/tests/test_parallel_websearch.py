@@ -222,6 +222,37 @@ class TestParallelWebSearch:
         assert documents[1].meta["title"] == ""
         assert "publish_date" not in documents[1].meta
         assert links == ["https://example.com", "https://example.org"]
+        assert result["session_id"] == "session_xyz"
+
+    def test_run_returns_session_id_echoed_from_search_params(self):
+        captured: list[httpx.Request] = []
+        component = _component_with_transport(
+            captured,
+            response={**SAMPLE_RESPONSE, "session_id": "session_from_caller"},
+            search_params={"session_id": "session_from_caller"},
+        )
+
+        result = component.run(query="test")
+
+        assert json.loads(captured[0].content)["session_id"] == "session_from_caller"
+        assert result["session_id"] == "session_from_caller"
+
+    def test_run_session_id_defaults_to_empty_string_when_absent(self):
+        captured: list[httpx.Request] = []
+        response = {k: v for k, v in SAMPLE_RESPONSE.items() if k != "session_id"}
+        component = _component_with_transport(captured, response=response)
+
+        result = component.run(query="test")
+
+        assert result["session_id"] == ""
+        assert len(result["documents"]) == 2
+
+    def test_declares_session_id_output_socket(self):
+        # The socket has to be declared for `session_id` to be connectable in a pipeline.
+        sockets = ParallelWebSearch(api_key=Secret.from_token("test-api-key")).__haystack_output__
+        assert sockets.get("session_id").type is str
+        assert sockets.get("documents") is not None
+        assert sockets.get("links") is not None
 
     def test_run_raises_on_http_error(self):
         captured: list[httpx.Request] = []
@@ -241,6 +272,7 @@ class TestParallelWebSearch:
         body = json.loads(captured[0].content)
         assert body["search_queries"] == ["What is Haystack?"]
         assert len(result["documents"]) == 2
+        assert result["session_id"] == "session_xyz"
 
 
 @pytest.mark.skipif(
@@ -257,6 +289,7 @@ class TestParallelWebSearchInference:
         assert len(result["documents"]) <= 3
         assert len(result["links"]) > 0
         assert result["documents"][0].content
+        assert result["session_id"]
 
     @pytest.mark.asyncio
     async def test_live_run_async(self):
@@ -265,3 +298,4 @@ class TestParallelWebSearchInference:
         assert len(result["documents"]) > 0
         assert len(result["documents"]) <= 3
         assert len(result["links"]) > 0
+        assert result["session_id"]
