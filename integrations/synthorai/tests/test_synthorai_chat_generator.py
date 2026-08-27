@@ -30,8 +30,11 @@ class TestSynthoraiChatGenerator:
 
     def test_init_fails_without_api_key(self, monkeypatch):
         monkeypatch.delenv("SYNTHORAI_API_KEY", raising=False)
-        with pytest.raises(ValueError):
-            SynthoraiChatGenerator()
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client
+            # is created in warm_up
+            component = SynthoraiChatGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self, monkeypatch):
         monkeypatch.setenv("SYNTHORAI_API_KEY", "test-api-key")
