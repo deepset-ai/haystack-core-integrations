@@ -87,8 +87,7 @@ class AnthropicTokenCounter:
         if tools:
             flattened = flatten_tools_or_toolsets(tools)
             kwargs["tools"] = [
-                ToolParam(name=t.name, description=t.description, input_schema=t.parameters)
-                for t in flattened
+                ToolParam(name=t.name, description=t.description, input_schema=t.parameters) for t in flattened
             ]
 
         response = self._client.messages.count_tokens(**kwargs)
