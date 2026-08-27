@@ -10,7 +10,7 @@ from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 
-from .sparse_embedding import _embed_sparse, _embed_sparse_async, _request_headers
+from .sparse_embedding_utils import _embed_sparse, _embed_sparse_async, _request_headers
 
 
 @component

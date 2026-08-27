@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
@@ -14,7 +15,7 @@ from haystack_integrations.components.embedders.huggingface_api import HuggingFa
 API_BASE_URL = "http://localhost:8080"
 
 
-def sparse_response(data):
+def sparse_response(data: Any) -> MagicMock:
     response = MagicMock(spec=httpx.Response)
     response.json.return_value = data
     return response
@@ -22,11 +23,11 @@ def sparse_response(data):
 
 class TestHuggingFaceAPISparseTextEmbedder:
     @pytest.mark.parametrize("api_base_url", ["not-a-url", "ftp://localhost/path", "localhost:8080"])
-    def test_init_rejects_invalid_api_base_url(self, api_base_url):
+    def test_init_rejects_invalid_api_base_url(self, api_base_url: str) -> None:
         with pytest.raises(ValueError, match="api_base_url must be a valid HTTP URL"):
             HuggingFaceAPISparseTextEmbedder(api_base_url=api_base_url)
 
-    def test_init_defaults(self):
+    def test_init_defaults(self) -> None:
         embedder = HuggingFaceAPISparseTextEmbedder()
 
         assert embedder.api_base_url == "http://localhost:8080"
@@ -35,7 +36,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert embedder.timeout == 30.0
         assert embedder.headers == {}
 
-    def test_to_dict_and_from_dict_preserve_env_secret(self, monkeypatch):
+    def test_to_dict_and_from_dict_preserve_env_secret(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CUSTOM_HF_TOKEN", "resolved-token")
         embedder = HuggingFaceAPISparseTextEmbedder(
             api_base_url="https://tei.example.test/base/",
@@ -71,20 +72,20 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert "_client" not in data["init_parameters"]
         assert "_async_client" not in data["init_parameters"]
 
-    def test_token_secret_cannot_be_serialized(self):
+    def test_token_secret_cannot_be_serialized(self) -> None:
         embedder = HuggingFaceAPISparseTextEmbedder(token=Secret.from_token("do-not-serialize"))
 
         with pytest.raises(ValueError, match="Cannot serialize token-based secret"):
             embedder.to_dict()
 
     @pytest.mark.parametrize("invalid_text", [None, 42, ["text"]])
-    def test_run_rejects_non_string_input(self, invalid_text):
+    def test_run_rejects_non_string_input(self, invalid_text: Any) -> None:
         embedder = HuggingFaceAPISparseTextEmbedder()
 
         with pytest.raises(TypeError, match="expects a string"):
             embedder.run(invalid_text)
 
-    def test_run_posts_tei_request_and_converts_response(self):
+    def test_run_posts_tei_request_and_converts_response(self) -> None:
         response = sparse_response([[{"index": 12, "value": 1}, {"index": 99, "value": 0.25}]])
         embedder = HuggingFaceAPISparseTextEmbedder(
             api_base_url="https://tei.example.test/api/",
@@ -106,7 +107,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert result == {"sparse_embedding": SparseEmbedding(indices=[12, 99], values=[1.0, 0.25])}
 
     @pytest.mark.asyncio
-    async def test_run_async_uses_async_client_and_request_options(self):
+    async def test_run_async_uses_async_client_and_request_options(self) -> None:
         response = sparse_response([[{"index": 7, "value": 2.5}]])
         client = MagicMock(spec=httpx.AsyncClient)
         client.post = AsyncMock(return_value=response)
@@ -122,7 +123,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert result["sparse_embedding"] == SparseEmbedding(indices=[7], values=[2.5])
 
     @pytest.mark.parametrize("payload", [{"index": 1, "value": 0.5}, [], [[{"index": 1}]]])
-    def test_run_rejects_malformed_tei_responses(self, payload):
+    def test_run_rejects_malformed_tei_responses(self, payload: Any) -> None:
         embedder = HuggingFaceAPISparseTextEmbedder()
         embedder._client = MagicMock(spec=httpx.Client)
         embedder._client.post.return_value = sparse_response(payload)
@@ -130,7 +131,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
         with pytest.raises(ValueError):
             embedder.run("text")
 
-    def test_run_propagates_http_error(self):
+    def test_run_propagates_http_error(self) -> None:
         request = httpx.Request("POST", "http://localhost:8080/embed_sparse")
         error_response = httpx.Response(503, request=request)
 
@@ -144,8 +145,16 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert exc_info.value.response.status_code == 503
 
     @pytest.mark.integration
-    def test_live_run_tei(self):
+    def test_live_run_tei(self) -> None:
         result = HuggingFaceAPISparseTextEmbedder(api_base_url=API_BASE_URL).run("sparse retrieval")
+
+        assert isinstance(result["sparse_embedding"], SparseEmbedding)
+        assert result["sparse_embedding"].indices
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async_tei(self) -> None:
+        result = await HuggingFaceAPISparseTextEmbedder(api_base_url=API_BASE_URL).run_async("sparse retrieval")
 
         assert isinstance(result["sparse_embedding"], SparseEmbedding)
         assert result["sparse_embedding"].indices
