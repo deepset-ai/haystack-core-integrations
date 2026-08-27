@@ -87,6 +87,7 @@ on:
       - "Test / sqlalchemy"
       - "Test / stackit"
       - "Test / supabase"
+      - "Test / synthorai"
       - "Test / tavily"
       - "Test / tika"
       - "Test / togetherai"

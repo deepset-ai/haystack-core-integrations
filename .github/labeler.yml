@@ -433,6 +433,11 @@ integration:supabase:
       - any-glob-to-any-file: "integrations/supabase/**/*"
       - any-glob-to-any-file: ".github/workflows/supabase.yml"
 
+integration:synthorai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/synthorai/**/*"
+      - any-glob-to-any-file: ".github/workflows/synthorai.yml"
+
 integration:tavily:
   - changed-files:
       - any-glob-to-any-file: "integrations/tavily/**/*"
