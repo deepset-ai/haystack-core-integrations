@@ -128,8 +128,8 @@ class SolrDocumentStore:
             case for a stock installation, so this defaults to `False` and most deployments should
             create the core out of band.
         :param manage_schema: whether to create the fields the document store needs and disable Solr's
-            schemaless field guessing. Set to `False` to manage the schema yourself, in which case see
-            the README for the fields that are required.
+            schemaless field guessing. Set to `False` to manage the schema yourself, in which case
+            `schema.schema_payload` is the definitive list of the fields and dynamic fields required.
         :param config_set: configset used when `create_core` is enabled.
         :param vector_field_type_params: extra attributes for the vector field type, for example
             `{"hnswM": 32}` on Solr 10 or `{"hnswMaxConnections": 32}` on Solr 9. Left unset by default
