@@ -10,7 +10,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.tools import create_tool_from_function
 from haystack.utils.auth import Secret
 
-from haystack_integrations.components.generators.anthropic import AnthropicTokenCounter
+from haystack_integrations.token_counters.anthropic import AnthropicTokenCounter
 
 
 def weather_tool(city: str) -> str:
@@ -49,7 +49,7 @@ class TestAnthropicTokenCounterSerde:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         c = AnthropicTokenCounter(model="claude-sonnet-4-5", timeout=10.0, max_retries=2)
         d = c.to_dict()
-        assert d["type"] == "haystack_integrations.components.generators.anthropic.token_counter.AnthropicTokenCounter"
+        assert d["type"] == "haystack_integrations.token_counters.anthropic.token_counter.AnthropicTokenCounter"
         assert d["init_parameters"]["model"] == "claude-sonnet-4-5"
         assert d["init_parameters"]["timeout"] == 10.0
         assert d["init_parameters"]["max_retries"] == 2

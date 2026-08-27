@@ -4,15 +4,14 @@
 
 from typing import Any
 
-from haystack import default_from_dict, default_to_dict
-from haystack.dataclasses import ChatMessage
-from haystack.tools import Tool, flatten_tools_or_toolsets
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
-
 from anthropic import Anthropic
 from anthropic.types import ToolParam
+from haystack import default_from_dict, default_to_dict
+from haystack.dataclasses import ChatMessage
+from haystack.tools import ToolsType, flatten_tools_or_toolsets
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from .chat.utils import _convert_messages_to_anthropic_format
+from haystack_integrations.components.generators.anthropic.chat.utils import _convert_messages_to_anthropic_format
 
 
 class AnthropicTokenCounter:
@@ -25,7 +24,7 @@ class AnthropicTokenCounter:
     Usage example:
     ```python
     from haystack.dataclasses import ChatMessage
-    from haystack_integrations.components.generators.anthropic import AnthropicTokenCounter
+    from haystack_integrations.token_counters.anthropic import AnthropicTokenCounter
 
     counter = AnthropicTokenCounter(model="claude-sonnet-4-5")
     messages = [
@@ -50,7 +49,7 @@ class AnthropicTokenCounter:
 
         :param model: The Anthropic model to use for tokenization. Token counts are
             model-specific; always count against the model you intend to use.
-        :param api_key: The Anthropic API key. Defaults to the ``ANTHROPIC_API_KEY``
+        :param api_key: The Anthropic API key. Defaults to the `ANTHROPIC_API_KEY`
             environment variable.
         :param timeout: HTTP timeout in seconds for the Anthropic client.
         :param max_retries: Maximum number of retries for failed requests.
@@ -68,7 +67,7 @@ class AnthropicTokenCounter:
 
         self._client = Anthropic(**client_kwargs)
 
-    def count(self, messages: list[ChatMessage], tools: list[Tool] | None = None) -> int:
+    def count(self, messages: list[ChatMessage], tools: ToolsType | None = None) -> int:
         """
         Count the tokens for the given messages and optional tools.
 
