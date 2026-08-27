@@ -954,28 +954,36 @@ class TestGoogleGenAIChatGeneratorInference:
         assert "name" in parsed
         assert "country" in parsed
 
-    def test_live_run_agent_with_images_in_tool_result(self, test_files_path):
-        def retrieve_image():
+    def test_live_run_agent_with_multimodal_content_in_tool_result(self, test_files_path):
+        def retrieve_multimodal_content():
             return [
-                TextContent("Here is the retrieved image."),
-                ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
+                TextContent("Here are the retrieved image and document."),
+                ImageContent.from_file_path(file_path=test_files_path / "apple.jpg", size=(100, 100)),
+                FileContent.from_file_path(file_path=test_files_path / "sample_pdf_3.pdf"),
             ]
 
-        image_retriever_tool = create_tool_from_function(
-            name="retrieve_image", description="Tool to retrieve an image", function=retrieve_image
+        multimodal_retriever_tool = create_tool_from_function(
+            name="retrieve_multimodal_content",
+            description="Tool to retrieve an image and a document",
+            function=retrieve_multimodal_content,
+            outputs_to_string={"raw_result": True},
         )
-        image_retriever_tool.outputs_to_string = {"raw_result": True}
 
         agent = Agent(
             chat_generator=GoogleGenAIChatGenerator(model="gemini-3-flash-preview"),
-            system_prompt="You are an Agent that can retrieve images and describe them.",
-            tools=[image_retriever_tool],
+            system_prompt="You are an Agent that can retrieve and analyze images and documents.",
+            tools=[multimodal_retriever_tool],
         )
 
-        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
+        user_message = ChatMessage.from_user(
+            "Retrieve the image and document. Describe what is shown in the image in no more than 5 words. Then "
+            "determine whether the document is a paper about Large Language Models and answer that part with exactly "
+            "'yes' or 'no'."
+        )
         result = agent.run(messages=[user_message])
 
         assert "apple" in result["last_message"].text.lower()
+        assert "no" in result["last_message"].text.lower()
 
 
 @pytest.mark.skipif(

@@ -66,6 +66,41 @@ class TestDocumentStore(
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: PgvectorDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. This store's ``meta`` column is JSONB, and
+        PostgreSQL's JSONB equality treats a whole-number float (e.g. 1.0) and a numerically equal int
+        (1) as the same value, so ``SELECT DISTINCT meta->'field'`` collapses them regardless of which
+        other values share that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what this store can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0): a whole-number float would still collapse
+        with an int under PostgreSQL's JSONB numeric equality even in its own field, so a fractional
+        value is used to sidestep that ambiguity entirely.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
     def test_write_blob(self, document_store: PgvectorDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(id="1", blob=bytestream)]
@@ -596,187 +631,30 @@ def test_get_metadata_field_min_max(document_store: PgvectorDocumentStore):
 
 
 @pytest.mark.integration
-def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore):
-    # Test with string values
+def test_get_metadata_field_unique_values_pagination_edge_cases(document_store: PgvectorDocumentStore):
+    """
+    Edge cases not covered by the shared GetMetadataFieldUniqueValuesTest mixin's pagination test:
+    size larger than the total count, from_ beyond the total count, and single-item-per-page paging.
+    """
     docs = [
-        Document(content="Python programming", meta={"category": "A", "language": "Python"}),
-        Document(content="Java programming", meta={"category": "B", "language": "Java"}),
-        Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
-        Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
-        Document(content="Python data science", meta={"category": "A", "language": "Python"}),
-        Document(content="Java backend", meta={"category": "B", "language": "Java"}),
+        Document(content="Python programming", meta={"category": "A"}),
+        Document(content="Java programming", meta={"category": "B"}),
+        Document(content="JavaScript development", meta={"category": "C"}),
     ]
     document_store.write_documents(docs)
 
-    # Test getting all unique values without search term
-    unique_values, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 0, 10)
-    assert set(unique_values) == {"A", "B", "C"}
-    assert total_count == 3
-
-    # Test with "meta." prefix
-    unique_languages, total_languages = document_store.get_metadata_field_unique_values("meta.language", None, 0, 10)
-    assert set(unique_languages) == {"Python", "Java", "JavaScript"}
-    assert total_languages == 3
-
-    # Test pagination - first page
-    unique_values_page1, total_count_page1 = document_store.get_metadata_field_unique_values(
-        "meta.category", None, 0, 2
-    )
-    assert len(unique_values_page1) == 2
-    assert all(val in ["A", "B", "C"] for val in unique_values_page1)
-    assert total_count_page1 == 3
-
-    # Test pagination - second page
-    unique_values_page2, total_count_page2 = document_store.get_metadata_field_unique_values(
-        "meta.category", None, 2, 2
-    )
-    assert len(unique_values_page2) == 1
-    assert unique_values_page2[0] in ["A", "B", "C"]
-    assert total_count_page2 == 3
-
-    # Test pagination - verify pages don't overlap
-    assert not set(unique_values_page1).intersection(set(unique_values_page2))
-
-    # Test pagination - verify all values are covered
-    all_values = set(unique_values_page1) | set(unique_values_page2)
-    assert all_values == {"A", "B", "C"}
-
-    # Test pagination - size larger than total count
     unique_values_large, total_large = document_store.get_metadata_field_unique_values("meta.category", None, 0, 100)
-    assert len(unique_values_large) == 3
     assert set(unique_values_large) == {"A", "B", "C"}
     assert total_large == 3
 
-    # Test pagination - from_ beyond total count (should return empty)
     unique_values_beyond, total_beyond = document_store.get_metadata_field_unique_values("meta.category", None, 10, 10)
     assert len(unique_values_beyond) == 0
     assert total_beyond == 3
 
-    # Test pagination - single item per page
     unique_values_single1, _ = document_store.get_metadata_field_unique_values("meta.category", None, 0, 1)
     unique_values_single2, _ = document_store.get_metadata_field_unique_values("meta.category", None, 1, 1)
     unique_values_single3, _ = document_store.get_metadata_field_unique_values("meta.category", None, 2, 1)
     assert len(unique_values_single1) == 1
     assert len(unique_values_single2) == 1
     assert len(unique_values_single3) == 1
-    # All three pages should be different
     assert len(set(unique_values_single1 + unique_values_single2 + unique_values_single3)) == 3
-
-    # Test with search term - case-insensitive substring match against the metadata field's OWN value
-    # (not against document content).
-    unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
-        "meta.language", "Python", 0, 10
-    )
-    assert set(unique_values_filtered) == {"Python"}
-    assert total_filtered == 1
-
-    # Case-insensitivity: lowercase search term should still match "Python"
-    unique_values_lower, total_lower = document_store.get_metadata_field_unique_values("meta.language", "python", 0, 10)
-    assert set(unique_values_lower) == {"Python"}
-    assert total_lower == 1
-
-    # Substring matching: "Java" is a substring of both "Java" and "JavaScript"
-    unique_values_java, total_java = document_store.get_metadata_field_unique_values("meta.language", "Java", 0, 10)
-    assert set(unique_values_java) == {"Java", "JavaScript"}
-    assert total_java == 2
-
-    # Substring matching in the middle/end of a value
-    unique_values_script, total_script = document_store.get_metadata_field_unique_values(
-        "meta.language", "Script", 0, 10
-    )
-    assert set(unique_values_script) == {"JavaScript"}
-    assert total_script == 1
-
-    # Test pagination with search term
-    unique_values_search_page1, total_search = document_store.get_metadata_field_unique_values(
-        "meta.language", "Python", 0, 1
-    )
-    assert len(unique_values_search_page1) == 1
-    assert unique_values_search_page1[0] == "Python"
-    assert total_search == 1
-
-    # Test pagination with search term - beyond results
-    unique_values_search_empty, total_search_empty = document_store.get_metadata_field_unique_values(
-        "meta.language", "Python", 10, 10
-    )
-    assert len(unique_values_search_empty) == 0
-    assert total_search_empty == 1
-
-    # Test that search_term matches metadata VALUE, not content
-    content_vs_metadata_docs = [
-        Document(content="This document mentions Python explicitly", meta={"topic": "cooking"}),
-        Document(content="Unrelated content about recipes", meta={"topic": "python-tutorial"}),
-    ]
-    document_store.write_documents(content_vs_metadata_docs)
-
-    unique_topics, total_topics = document_store.get_metadata_field_unique_values("meta.topic", "python", 0, 10)
-    assert set(unique_topics) == {"python-tutorial"}
-    assert total_topics == 1
-
-    # Test with integer values
-    int_docs = [
-        Document(content="Doc 1", meta={"priority": 1}),
-        Document(content="Doc 2", meta={"priority": 2}),
-        Document(content="Doc 3", meta={"priority": 1}),
-        Document(content="Doc 4", meta={"priority": 3}),
-    ]
-    document_store.write_documents(int_docs)
-    unique_priorities, total_priorities = document_store.get_metadata_field_unique_values("meta.priority", None, 0, 10)
-    assert set(unique_priorities) == {1, 2, 3}
-    assert total_priorities == 3
-
-    # Test with search term on integer field - substring match against the field's own (stringified)
-    # value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does. The returned
-    # values themselves keep their original type (int here), only the match is textual.
-    unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
-        "meta.priority", "1", 0, 10
-    )
-    assert set(unique_priorities_filtered) == {1}
-    assert total_priorities_filtered == 1
-
-
-@pytest.mark.integration
-def test_get_metadata_field_unique_values_with_filters(document_store: PgvectorDocumentStore):
-    docs = [
-        Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-        Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-        Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-    ]
-    document_store.write_documents(docs)
-
-    filters = {"field": "meta.status", "operator": "==", "value": "active"}
-    values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
-    assert set(values) == {"A", "B"}
-    assert total == 2
-
-
-@pytest.mark.integration
-def test_get_metadata_field_unique_values_no_search_term(document_store: PgvectorDocumentStore):
-    docs = [
-        Document(content="mentions tsvector and content in the body", meta={"category": "A"}),
-        Document(content="another document", meta={"category": "B"}),
-    ]
-    document_store.write_documents(docs)
-
-    values, total = document_store.get_metadata_field_unique_values("meta.category")
-
-    assert set(values) == {"A", "B"}
-    assert total == 2
-
-
-@pytest.mark.integration
-def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(
-    document_store: PgvectorDocumentStore,
-):
-    docs = [
-        # "python" appears in the content but NOT in the category value -> must be EXCLUDED
-        Document(content="Python programming guide", meta={"category": "Backend"}),
-        # "python" appears in the category value but NOT in the content -> must be INCLUDED
-        Document(content="General purpose scripting language", meta={"category": "Python-based"}),
-    ]
-    document_store.write_documents(docs)
-
-    values, total = document_store.get_metadata_field_unique_values("meta.category", search_term="python")
-
-    assert values == ["Python-based"]
-    assert total == 1

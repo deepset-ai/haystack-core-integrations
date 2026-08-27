@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v4.8.0] - 2026-08-24
+
+### 🚀 Features
+
+- Feat (google-genai): add file content support in tool result (#3828)
+
+
 ## [integrations/google_genai-v4.7.1] - 2026-08-20
 
 ### 🐛 Bug Fixes

@@ -7,3 +7,4 @@ exclude-newer = "24 hours"
 [exclude-newer-package]
 haystack-ai = false
 tavily-haystack = false
+pgvector-haystack = false

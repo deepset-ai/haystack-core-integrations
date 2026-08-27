@@ -894,15 +894,26 @@ class PineconeDocumentStore:
     ) -> tuple[list[Any], int]:
         """Helper method to get unique values for a metadata field with search and pagination."""
         field_name = metadata_field.removeprefix("meta.")
-        unique_values: set[Any] = set()
+        # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain set
+        # would silently merge them. Dedupe by (type, value) instead to keep them distinct.
+        seen: set[tuple[type, Any]] = set()
+        unique_values: list[Any] = []
+
+        def _add(value: Any) -> None:
+            dedup_key = (type(value), value)
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                unique_values.append(value)
+
         for doc in documents:
             if doc.meta and field_name in doc.meta:
                 value = doc.meta[field_name]
                 # Handle list values
                 if isinstance(value, list):
-                    unique_values.update(value)
+                    for item in value:
+                        _add(item)
                 else:
-                    unique_values.add(value)
+                    _add(value)
 
         # Convert to sorted list
         unique_values_list = sorted(unique_values, key=str)
@@ -1083,6 +1094,11 @@ class PineconeDocumentStore:
         Note: This method fetches documents and extracts unique values in Python.
         Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
 
+        Note: Pinecone stores numeric metadata values as `float` (see `_convert_meta_to_int`), so an
+        int written for an arbitrary field may come back as a numerically equal float rather than int.
+        Values of different types are otherwise kept distinct even when they compare equal in Python
+        (e.g. the int `1` and the bool `True` are returned as two separate values).
+
         :param metadata_field: The metadata field name to get unique values for.
         :param search_term: Optional search term to filter values (case-insensitive substring match).
         :param from_: Starting offset for pagination (default: 0).
@@ -1106,6 +1122,11 @@ class PineconeDocumentStore:
 
         Note: This method fetches documents and extracts unique values in Python.
         Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        Note: Pinecone stores numeric metadata values as `float` (see `_convert_meta_to_int`), so an
+        int written for an arbitrary field may come back as a numerically equal float rather than int.
+        Values of different types are otherwise kept distinct even when they compare equal in Python
+        (e.g. the int `1` and the bool `True` are returned as two separate values).
 
         :param metadata_field: The metadata field name to get unique values for.
         :param search_term: Optional search term to filter values (case-insensitive substring match).
