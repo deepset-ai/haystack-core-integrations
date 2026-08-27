@@ -5,6 +5,7 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
 from haystack.core.serialization import allow_deserialization_module
 from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.tools import AgentTool
 
 from haystack_integrations.agent_pack.deep_research.agent import (
     _collect_note,
@@ -69,6 +70,9 @@ def test_create_deep_research_agent():
         max_orchestrator_steps=6,
     )
     assert [t.name for t in agent.tools] == ["research_subtopic", "think_tool"]
+    assert isinstance(agent.tools[0], AgentTool)
+    assert agent.tools[0].parameters["properties"]["messages"]["minItems"] == 1
+    assert agent.tools[0].parameters["properties"]["messages"]["maxItems"] == 1
     assert agent.exit_conditions == ["text"]
     assert agent.max_agent_steps == 6
     assert agent.tool_concurrency_limit == 2
@@ -115,6 +119,7 @@ def test_create_deep_research_agent_serialization_roundtrip():
 
     assert isinstance(restored, Agent)
     assert [t.name for t in restored.tools] == ["research_subtopic", "think_tool"]
+    assert isinstance(restored.tools[0], AgentTool)
     assert [type(h) for h in restored.hooks["before_run"]] == [ScopeHook]
     assert [type(h) for h in restored.hooks["after_run"]] == [WriteHook]
     assert set(restored.state_schema) >= {"notes", "brief", "report"}

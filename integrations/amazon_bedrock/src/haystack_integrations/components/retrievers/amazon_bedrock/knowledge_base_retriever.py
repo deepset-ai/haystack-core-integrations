@@ -39,7 +39,7 @@ def _get_source_uri(result: dict) -> str:
 
 
 @component
-class BedrockKnowledgeBaseRetriever:
+class AmazonBedrockKnowledgeBaseRetriever:
     """
     Retrieves documents from an Amazon Bedrock Managed Knowledge Base.
 
@@ -48,9 +48,9 @@ class BedrockKnowledgeBaseRetriever:
     Usage example:
     ```python
     from haystack.utils import Secret
-    from haystack_integrations.components.retrievers.amazon_bedrock import BedrockKnowledgeBaseRetriever
+    from haystack_integrations.components.retrievers.amazon_bedrock import AmazonBedrockKnowledgeBaseRetriever
 
-    retriever = BedrockKnowledgeBaseRetriever(
+    retriever = AmazonBedrockKnowledgeBaseRetriever(
         knowledge_base_id="ABCDEFGHIJ",
         aws_region_name=Secret.from_token("eu-central-1"),
     )
@@ -62,7 +62,7 @@ class BedrockKnowledgeBaseRetriever:
         print(doc.score)
     ```
 
-    BedrockKnowledgeBaseRetriever uses AWS for authentication. You can use the AWS CLI to authenticate through
+    AmazonBedrockKnowledgeBaseRetriever uses AWS for authentication. You can use the AWS CLI to authenticate through
     your IAM. For more information on setting up an IAM identity-based policy, see [Amazon Bedrock documentation]
     (https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_id-based-policy-examples.html).
 
@@ -87,7 +87,7 @@ class BedrockKnowledgeBaseRetriever:
         use_agentic_retrieval: bool | None = None,
     ) -> None:
         """
-        Create the BedrockKnowledgeBaseRetriever component.
+        Create the AmazonBedrockKnowledgeBaseRetriever component.
 
         :param knowledge_base_id: The ID of the Bedrock Knowledge Base. Falls back to the AWS_KNOWLEDGE_BASE_ID
             environment variable.
@@ -244,7 +244,7 @@ class BedrockKnowledgeBaseRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BedrockKnowledgeBaseRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonBedrockKnowledgeBaseRetriever":
         """
         Deserializes the component from a dictionary.
 
