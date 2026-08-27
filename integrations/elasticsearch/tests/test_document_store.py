@@ -906,6 +906,47 @@ class TestDocumentStore(
         assert float_values == [1.5] and type(float_values[0]) is float
         assert bool_values == [True] and type(bool_values[0]) is bool
 
+    def test_get_metadata_field_unique_values_pagination_beyond_total(self, document_store: ElasticsearchDocumentStore):
+        """
+        Edge case not covered by the shared GetMetadataFieldUniqueValuesTest mixin's pagination test:
+        a `from_` beyond the total bucket count must hit `_skip_unique_values`'s early-return branch
+        (a page comes back with fewer buckets than requested) and still report the correct total_count.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "C"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(
+            metadata_field="category", from_=10, size=10
+        )
+        assert values == []
+        assert total_count == 3
+
+    def test_get_metadata_field_unique_values_search_term_numeric_field(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        """
+        Edge case not covered by the shared mixin's search_term test (string fields only): the
+        substring-match script converts the field's doc-value via `.toString()`, a distinct code
+        path for a numeric field.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(
+            metadata_field="priority", search_term="1"
+        )
+        assert values == [1] and type(values[0]) is int
+        assert total_count == 1
+
     def test_write_documents_with_sparse_vectors(self):
         store = ElasticsearchDocumentStore(
             hosts=["http://localhost:9200"], index="test_sync_sparse", sparse_vector_field="sparse_vec"

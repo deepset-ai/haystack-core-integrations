@@ -130,6 +130,48 @@ class TestElasticsearchDocumentStoreAsync(
         assert bool_values == [True] and type(bool_values[0]) is bool
 
     @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_pagination_beyond_total_async(self, document_store):
+        """
+        Edge case not covered by the shared GetMetadataFieldUniqueValuesAsyncTest mixin's pagination
+        test: a `from_` beyond the total bucket count must hit `_skip_unique_values_async`'s
+        early-return branch (a page comes back with fewer buckets than requested) and still report
+        the correct total_count.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "C"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="category", from_=10, size=10
+        )
+        assert values == []
+        assert total_count == 3
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_search_term_numeric_field_async(self, document_store):
+        """
+        Edge case not covered by the shared mixin's search_term test (string fields only): the
+        substring-match script converts the field's doc-value via `.toString()`, a distinct code
+        path for a numeric field.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority", search_term="1"
+        )
+        assert values == [1] and type(values[0]) is int
+        assert total_count == 1
+
+    @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):
         """Test write_documents with invalid document type"""
         invalid_docs = [{"id": "1", "content": "test"}]  # Dictionary instead of Document object
