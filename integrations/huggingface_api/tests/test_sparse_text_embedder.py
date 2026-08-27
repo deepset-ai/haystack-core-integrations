@@ -145,13 +145,13 @@ class TestHuggingFaceAPISparseTextEmbedder:
         """An explicit header must not be replaced by a token that only happens to be set in the environment."""
         monkeypatch.delenv("HF_API_TOKEN", raising=False)
         monkeypatch.setenv("HF_TOKEN", "env-token")
-        embedder = HuggingFaceAPISparseTextEmbedder(headers={"Authorization": "Basic dXNlcjpwYXNz"})
+        embedder = HuggingFaceAPISparseTextEmbedder(headers={"Authorization": "Basic test-key"})
 
         with patched_client() as (client, constructor):
             client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
             embedder.run("text")
 
-        assert constructor.call_args.kwargs["headers"] == {"Authorization": "Basic dXNlcjpwYXNz"}
+        assert constructor.call_args.kwargs["headers"] == {"Authorization": "Basic test-key"}
 
     def test_token_is_resolved_per_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The token is read at request time, so a rotated environment variable is picked up."""

@@ -270,14 +270,14 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         monkeypatch.delenv("HF_API_TOKEN", raising=False)
         monkeypatch.setenv("HF_TOKEN", "env-token")
         embedder = HuggingFaceAPISparseDocumentEmbedder(
-            progress_bar=False, headers={"Authorization": "Basic dXNlcjpwYXNz"}
+            progress_bar=False, headers={"Authorization": "Basic test-key"}
         )
 
         with patched_client() as (client, constructor):
             client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
             embedder.run([Document(content="one")])
 
-        assert constructor.call_args.kwargs["headers"] == {"Authorization": "Basic dXNlcjpwYXNz"}
+        assert constructor.call_args.kwargs["headers"] == {"Authorization": "Basic test-key"}
 
     @pytest.mark.asyncio
     async def test_async_concurrency_limit_is_respected(self) -> None:
