@@ -380,6 +380,20 @@ def test_get_metadata_field_unique_values_preserves_non_string_types():
     assert total_count == 2
 
 
+def test_get_metadata_field_unique_values_unknown_field_returns_empty():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+
+    values, total_count = document_store.get_metadata_field_unique_values(metadata_field="missing_field")
+
+    assert values == []
+    assert total_count == 0
+    search_client.search.assert_not_called()
+
+
 def test_query_sql_raises_not_implemented():
     document_store = AzureAISearchDocumentStore(
         api_key=Secret.from_token("fake-api-key"),
@@ -819,6 +833,98 @@ class TestDocumentStore(
 
     @pytest.mark.parametrize(
         "document_store",
+        [{"metadata_fields": {"category": str}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_meta_prefix(self, document_store: AzureAISearchDocumentStore):
+        """Override to use a document_store with required metadata fields."""
+        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_meta_prefix(document_store)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_search_term(self, document_store: AzureAISearchDocumentStore):
+        """Override to use a document_store with required metadata fields."""
+        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_search_term(document_store)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_pagination(self, document_store: AzureAISearchDocumentStore):
+        """Override to use a document_store with required metadata fields."""
+        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_pagination(document_store)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_empty_store(self, document_store: AzureAISearchDocumentStore):
+        """Override to use a document_store with required metadata fields."""
+        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_empty_store(document_store)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"priority": int}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_preserves_type(self, document_store: AzureAISearchDocumentStore):
+        """Override to use a document_store with required metadata fields."""
+        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_preserves_type(document_store)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [
+            {
+                "metadata_fields": {
+                    "priority_int": int,
+                    "priority_str": str,
+                    "priority_float": float,
+                    "priority_bool": bool,
+                }
+            }
+        ],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: AzureAISearchDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. Azure AI Search fixes the index schema at
+        creation time and binds every field to a single Edm.* type, so one field cannot hold values of
+        four different types - the writes for the mismatched types are rejected by the service.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what Azure AI Search can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0) to keep the value unambiguous, matching
+        the pattern used by the other document stores hitting this limitation.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
+    @pytest.mark.parametrize(
+        "document_store",
         [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
         indirect=True,
     )
@@ -886,45 +992,12 @@ class TestDocumentStore(
 
     @pytest.mark.parametrize(
         "document_store",
-        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_integration(self, document_store: AzureAISearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "news", "status": "draft", "priority": 1}),
-            Document(content="Doc 2", meta={"category": "guides", "status": "published", "priority": 8}),
-            Document(content="Doc 3", meta={"category": "docs", "status": "draft", "priority": 3}),
-            Document(content="Doc 4", meta={"category": "news", "status": "archived", "priority": 10}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category",
-            search_term="d",
-            from_=0,
-            size=10,
-        )
-
-        assert values == ["docs", "guides"]
-        assert total_count == 2
-
-    @pytest.mark.parametrize(
-        "document_store",
         [{"metadata_fields": {"category": str, "status": str}}],
         indirect=True,
     )
     def test_get_metadata_field_unique_values_with_filters(self, document_store: AzureAISearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
+        """Override to use a document_store with required metadata fields."""
+        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_with_filters(document_store)
 
     def test_query_sql_integration(self, document_store: AzureAISearchDocumentStore):
         with pytest.raises(NotImplementedError, match="does not support SQL queries"):
