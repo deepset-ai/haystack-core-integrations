@@ -71,6 +71,13 @@ def _mock_store(handler, **kwargs) -> SolrDocumentStore:
     return store
 
 
+def _mock_store_async(handler, **kwargs) -> SolrDocumentStore:
+    """The async counterpart of `_mock_store`. `MockTransport` serves both client kinds."""
+    store = SolrDocumentStore(url="http://solr.test/solr", core="unit", auth=None, **kwargs)
+    store._solr_client._async_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    return store
+
+
 class TestSerialization:
     def test_to_dict(self):
         store = SolrDocumentStore(url="http://solr.test/solr", core="docs", embedding_dim=4, auth=None)
@@ -299,11 +306,511 @@ class TestRequestConstruction:
             store.count_documents()
 
 
+#: One canned payload answering every Solr endpoint the store talks to.
+#:
+#: Solr responses are dicts and each method reads only the keys it cares about, so a single payload
+#: carrying all of them serves every call. `nextCursorMark` deliberately equals the cursor the store
+#: opens with, which is what makes a paginating call stop after one page.
+_FAKE_SOLR_PAYLOAD: dict = {
+    "responseHeader": {"status": 0},
+    "response": {
+        "numFound": 2,
+        "docs": [
+            {"id": "1", "content": "first", "meta_l_page": 1, "score": 3.5},
+            {"id": "2", "content": "second", "meta_s_title": "t", "score": 1.5},
+        ],
+    },
+    "nextCursorMark": "*",
+    # `min_0`/`max_0` for get_metadata_field_min_max, `f0_0` for count_unique_metadata_by_filter.
+    "facets": {"min_0": 1, "max_0": 9, "f0_0": {"numBuckets": 3}},
+    # Classic facets render a flat [value, count, value, count] list.
+    "facet_counts": {"facet_fields": {"meta_l_page": ["1", 2, "5", 1]}},
+    # Luke reports the metadata fields actually present in the index.
+    "fields": {"meta_l_page": {}, "meta_s_title": {}, "_version_": {}},
+    # A real-time get of a single absent id.
+    "doc": None,
+}
+
+
+def _fake_solr(request: httpx.Request) -> httpx.Response:
+    """Answer any Solr endpoint, recording the path on the request's extensions for assertions."""
+    if request.url.path.endswith("/admin/info/system"):
+        return httpx.Response(200, json=_system_info())
+    if request.url.path.endswith("/config/overlay"):
+        return httpx.Response(
+            200,
+            json={"responseHeader": {"status": 0}, "overlay": {"userProps": {"update.autoCreateFields": "false"}}},
+        )
+    if request.url.path.endswith("/schema"):
+        return httpx.Response(200, json={"schema": {}, "responseHeader": {"status": 0}})
+    return httpx.Response(200, json=_FAKE_SOLR_PAYLOAD)
+
+
+def _normalise(result):
+    """Compare document lists by id, so a row in the table below stays a one-liner."""
+    if isinstance(result, list) and result and isinstance(result[0], Document):
+        return [document.id for document in result]
+    return result
+
+
+_FILTERS = {"field": "meta.page", "operator": "==", "value": 1}
+
+#: (label, endpoint the call has to reach, expected result, sync call, async call)
+#:
+#: Every store method issues a request, so unit tests only reach past the first line of one by
+#: serving it a fake Solr. Driving the whole surface from one table keeps that cheap, and pins two
+#: things worth pinning: the endpoint each call uses, and what it makes of the response.
+_STORE_CALLS = [
+    ("count_documents", "/query", 2, lambda s: s.count_documents(), lambda s: s.count_documents_async()),
+    (
+        "count_documents_by_filter",
+        "/query",
+        2,
+        lambda s: s.count_documents_by_filter(_FILTERS),
+        lambda s: s.count_documents_by_filter_async(_FILTERS),
+    ),
+    ("filter_documents", "/query", ["1", "2"], lambda s: s.filter_documents(), lambda s: s.filter_documents_async()),
+    (
+        "filter_documents_with_filters",
+        "/query",
+        ["1", "2"],
+        lambda s: s.filter_documents(_FILTERS),
+        lambda s: s.filter_documents_async(_FILTERS),
+    ),
+    (
+        "write_documents",
+        "/update",
+        1,
+        lambda s: s.write_documents([Document(id="1", content="x")], DuplicatePolicy.OVERWRITE),
+        lambda s: s.write_documents_async([Document(id="1", content="x")], DuplicatePolicy.OVERWRITE),
+    ),
+    (
+        # A deduplicating write consults the real-time get handler first, and the fake reports id
+        # "1" as already present - so nothing is written.
+        "write_documents_skips_a_duplicate",
+        "/get",
+        0,
+        lambda s: s.write_documents([Document(id="1", content="x")], DuplicatePolicy.SKIP),
+        lambda s: s.write_documents_async([Document(id="1", content="x")], DuplicatePolicy.SKIP),
+    ),
+    (
+        "delete_documents",
+        "/update",
+        None,
+        lambda s: s.delete_documents(["1"]),
+        lambda s: s.delete_documents_async(["1"]),
+    ),
+    (
+        "delete_all_documents",
+        "/update",
+        None,
+        lambda s: s.delete_all_documents(),
+        lambda s: s.delete_all_documents_async(),
+    ),
+    (
+        "delete_by_filter",
+        "/update",
+        2,
+        lambda s: s.delete_by_filter(_FILTERS),
+        lambda s: s.delete_by_filter_async(_FILTERS),
+    ),
+    (
+        "update_by_filter",
+        "/update",
+        2,
+        lambda s: s.update_by_filter(_FILTERS, {"flag": True}),
+        lambda s: s.update_by_filter_async(_FILTERS, {"flag": True}),
+    ),
+    (
+        "get_metadata_fields_info",
+        "/admin/luke",
+        {"page": {"type": "int"}, "title": {"type": "str"}},
+        lambda s: s.get_metadata_fields_info(),
+        lambda s: s.get_metadata_fields_info_async(),
+    ),
+    (
+        "get_metadata_field_min_max",
+        "/query",
+        {"min": 1, "max": 9},
+        lambda s: s.get_metadata_field_min_max("meta.page"),
+        lambda s: s.get_metadata_field_min_max_async("meta.page"),
+    ),
+    (
+        "count_unique_metadata_by_filter",
+        "/query",
+        {"page": 3},
+        lambda s: s.count_unique_metadata_by_filter(_FILTERS, ["page"]),
+        lambda s: s.count_unique_metadata_by_filter_async(_FILTERS, ["page"]),
+    ),
+    (
+        # Only the classic facet API can filter buckets by substring, so this one uses /select.
+        "get_metadata_field_unique_values",
+        "/select",
+        ([1, 5], 2),
+        lambda s: s.get_metadata_field_unique_values("page"),
+        lambda s: s.get_metadata_field_unique_values_async("page"),
+    ),
+    (
+        "bm25_retrieval",
+        "/query",
+        ["1", "2"],
+        lambda s: s._bm25_retrieval("apache solr"),
+        lambda s: s._bm25_retrieval_async("apache solr"),
+    ),
+    (
+        "embedding_retrieval",
+        "/query",
+        ["1", "2"],
+        lambda s: s._embedding_retrieval([0.1, 0.2]),
+        lambda s: s._embedding_retrieval_async([0.1, 0.2]),
+    ),
+]
+
+_STORE_CALL_IDS = [row[0] for row in _STORE_CALLS]
+
+
+class TestEveryCallAgainstAFakeSolr:
+    """Drives the whole store surface over a fake Solr, sync and async."""
+
+    @pytest.mark.parametrize(("endpoint", "expected", "call"), [row[1:4] for row in _STORE_CALLS], ids=_STORE_CALL_IDS)
+    def test_sync(self, endpoint, expected, call):
+        paths: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            paths.append(request.url.path)
+            return _fake_solr(request)
+
+        store = _mock_store(handler)
+        assert _normalise(call(store)) == expected
+        assert any(path.endswith(endpoint) for path in paths), f"{endpoint} was never requested: {paths}"
+
+    @pytest.mark.parametrize(
+        ("endpoint", "expected", "call"),
+        [(row[1], row[2], row[4]) for row in _STORE_CALLS],
+        ids=_STORE_CALL_IDS,
+    )
+    async def test_async(self, endpoint, expected, call):
+        paths: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            paths.append(request.url.path)
+            return _fake_solr(request)
+
+        store = _mock_store_async(handler)
+        assert _normalise(await call(store)) == expected
+        assert any(path.endswith(endpoint) for path in paths), f"{endpoint} was never requested: {paths}"
+
+
+#: A Solr holding nothing: no documents, no facets, and a Luke response reporting no fields.
+_EMPTY_SOLR_PAYLOAD: dict = {
+    "responseHeader": {"status": 0},
+    "response": {"numFound": 0, "docs": []},
+    "nextCursorMark": "*",
+    "facets": {},
+    "facet_counts": {"facet_fields": {}},
+    "fields": {},
+    "doc": None,
+}
+
+
+def _empty_solr(request: httpx.Request) -> httpx.Response:
+    if request.url.path.endswith(("/admin/info/system", "/config/overlay", "/schema")):
+        return _fake_solr(request)
+    return httpx.Response(200, json=_EMPTY_SOLR_PAYLOAD)
+
+
+#: (label, expected result, sync call, async call) against a store with nothing in it.
+#:
+#: Every one of these is an early return that a populated Solr never reaches, and each is a
+#: documented promise: an empty store reports zeroes and empty spans rather than failing.
+_EMPTY_STORE_CALLS = [
+    (
+        "write_no_documents",
+        0,
+        lambda s: s.write_documents([]),
+        lambda s: s.write_documents_async([]),
+    ),
+    (
+        # No duplicates come back, so the whole batch is kept.
+        "write_documents_without_duplicates",
+        1,
+        lambda s: s.write_documents([Document(id="1", content="x")], DuplicatePolicy.FAIL),
+        lambda s: s.write_documents_async([Document(id="1", content="x")], DuplicatePolicy.FAIL),
+    ),
+    (
+        "delete_no_documents",
+        None,
+        lambda s: s.delete_documents([]),
+        lambda s: s.delete_documents_async([]),
+    ),
+    (
+        "delete_by_filter_matching_nothing",
+        0,
+        lambda s: s.delete_by_filter(_FILTERS),
+        lambda s: s.delete_by_filter_async(_FILTERS),
+    ),
+    (
+        "update_by_filter_matching_nothing",
+        0,
+        lambda s: s.update_by_filter(_FILTERS, {"flag": True}),
+        lambda s: s.update_by_filter_async(_FILTERS, {"flag": True}),
+    ),
+    (
+        "metadata_fields_info_of_an_empty_store",
+        {},
+        lambda s: s.get_metadata_fields_info(),
+        lambda s: s.get_metadata_fields_info_async(),
+    ),
+    (
+        "count_unique_metadata_without_facets",
+        {"page": 0},
+        lambda s: s.count_unique_metadata_by_filter(_FILTERS, ["page"]),
+        lambda s: s.count_unique_metadata_by_filter_async(_FILTERS, ["page"]),
+    ),
+    (
+        "min_max_of_a_field_with_no_numeric_values",
+        {"min": None, "max": None},
+        lambda s: s.get_metadata_field_min_max("page"),
+        lambda s: s.get_metadata_field_min_max_async("page"),
+    ),
+    (
+        "unique_values_of_an_absent_field",
+        ([], 0),
+        lambda s: s.get_metadata_field_unique_values("page"),
+        lambda s: s.get_metadata_field_unique_values_async("page"),
+    ),
+]
+
+_EMPTY_CALL_IDS = [row[0] for row in _EMPTY_STORE_CALLS]
+
+
+class TestEveryCallAgainstAnEmptySolr:
+    """The early returns a populated Solr never reaches."""
+
+    @pytest.mark.parametrize(("expected", "call"), [row[1:3] for row in _EMPTY_STORE_CALLS], ids=_EMPTY_CALL_IDS)
+    def test_sync(self, expected, call):
+        assert _normalise(call(_mock_store(_empty_solr))) == expected
+
+    @pytest.mark.parametrize(
+        ("expected", "call"), [(row[1], row[3]) for row in _EMPTY_STORE_CALLS], ids=_EMPTY_CALL_IDS
+    )
+    async def test_async(self, expected, call):
+        assert _normalise(await call(_mock_store_async(_empty_solr))) == expected
+
+
+class TestPagination:
+    """`cursorMark` paging has to follow the cursor Solr hands back, not stop at the first page."""
+
+    @staticmethod
+    def _two_page_handler():
+        pages = iter(["page2", "page2"])  # second response repeats the cursor, which ends the loop
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith(("/admin/info/system", "/config/overlay", "/schema")):
+                return _fake_solr(request)
+            if request.url.path.endswith("/update"):
+                return httpx.Response(200, json={"responseHeader": {"status": 0}})
+            cursor = json.loads(request.content).get("params", {}).get("cursorMark")
+            document_id = "1" if cursor == "*" else "2"
+            return httpx.Response(
+                200,
+                json={
+                    "responseHeader": {"status": 0},
+                    "response": {"numFound": 2, "docs": [{"id": document_id, "content": "x"}]},
+                    "nextCursorMark": next(pages),
+                },
+            )
+
+        return handler
+
+    def test_filter_documents_follows_the_cursor(self):
+        assert [d.id for d in _mock_store(self._two_page_handler()).filter_documents()] == ["1", "2"]
+
+    async def test_filter_documents_async_follows_the_cursor(self):
+        documents = await _mock_store_async(self._two_page_handler()).filter_documents_async()
+        assert [document.id for document in documents] == ["1", "2"]
+
+    def test_update_by_filter_pages_too(self):
+        """It reads with its own paginating helper, so that one has to follow the cursor as well."""
+        assert _mock_store(self._two_page_handler()).update_by_filter(_FILTERS, {"flag": True}) == 2
+
+    async def test_update_by_filter_async_pages_too(self):
+        store = _mock_store_async(self._two_page_handler())
+        assert await store.update_by_filter_async(_FILTERS, {"flag": True}) == 2
+
+
+class TestPureHelpers:
+    """The branchy pure helpers, whose alternatives one trip through a public method cannot reach."""
+
+    @pytest.mark.parametrize(
+        ("type_code", "raw", "expected"),
+        [
+            ("l", "10", 10),
+            ("ls", "10", 10),
+            ("d", "1.5", 1.5),
+            ("ds", "1.5", 1.5),
+            ("b", "true", True),
+            ("bs", "false", False),
+            ("s", "text", "text"),
+        ],
+    )
+    def test_classic_facet_values_are_decoded_by_type_code(self, type_code, raw, expected):
+        """Classic facets render every bucket as a string, so the type code restores the type."""
+        decoded = SolrDocumentStore._decode_facet_value(raw, type_code)
+        assert decoded == expected
+        assert isinstance(decoded, type(expected))
+
+    @pytest.mark.parametrize(
+        ("type_code", "expected"),
+        [("s", "str"), ("l", "int"), ("d", "float"), ("b", "bool"), ("ss", "list[str]"), ("j", "object")],
+    )
+    def test_python_type_names_reported_for_each_type_code(self, type_code, expected):
+        assert SolrDocumentStore._python_type_for_code(type_code) == expected
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({}, {"commit": True}),
+            ({"commit": False}, {}),
+            ({"commit_within_ms": 500}, {"commitWithin": 500, "commit": True}),
+            ({"commit": False, "commit_within_ms": 500}, {"commitWithin": 500}),
+        ],
+    )
+    def test_update_params(self, kwargs, expected):
+        assert SolrDocumentStore(auth=None, **kwargs)._update_params() == expected
+
+    def test_min_max_is_none_when_solr_reported_no_values(self):
+        """Solr omits min/max entirely when nothing matched, so a missing key means "no value"."""
+        assert SolrDocumentStore._min_max_from_response({"facets": {"min_0": None, "max_0": None}}) == {
+            "min": None,
+            "max": None,
+        }
+
+    def test_min_max_spans_every_numeric_field_of_a_key(self):
+        """A key stored as both int and float lives in two fields, and the span covers both."""
+        payload = {"facets": {"min_0": 5, "max_0": 5, "min_1": 0.5, "max_1": 9.5}}
+        assert SolrDocumentStore._min_max_from_response(payload) == {"min": 0.5, "max": 9.5}
+
+    def test_only_numeric_fields_can_be_spanned(self):
+        fields = {"meta_l_a": "l", "meta_d_b": "d", "meta_s_c": "s", "meta_b_d": "b"}
+        assert sorted(SolrDocumentStore._numeric_fields(fields)) == ["meta_d_b", "meta_l_a"]
+
+    def test_luke_reports_only_metadata_fields(self):
+        """Solr's own fields must not be mistaken for metadata."""
+        payload = {"fields": {"meta_l_page": {}, "id": {}, "_version_": {}, "content": {}, "meta_ss_tags": {}}}
+        assert SolrDocumentStore._meta_fields_from_luke(payload) == {
+            "meta_l_page": ("l", "page"),
+            "meta_ss_tags": ("ss", "tags"),
+        }
+
+    def test_a_key_stored_under_several_type_codes_reports_the_first(self):
+        payload = {"fields": {"meta_s_page": {}, "meta_l_page": {}}}
+        assert SolrDocumentStore()._fields_info_from_luke(payload) == {"page": {"type": "int"}}
+
+    def test_unique_value_search_terms_are_case_insensitive(self):
+        params = SolrDocumentStore._unique_values_params("meta_s_a", None, "needle")
+        assert params["facet.contains"] == "needle"
+        assert params["facet.contains.ignoreCase"] is True
+
+    def test_unique_value_params_omit_the_search_term_when_absent(self):
+        assert "facet.contains" not in SolrDocumentStore._unique_values_params("meta_s_a", None, None)
+
+    def test_no_facets_means_every_field_counts_zero(self):
+        assert SolrDocumentStore._unique_counts_from_response({}, {"page": ["f0_0"]}) == {"page": 0}
+
+    def test_merging_meta_keeps_the_document_id(self):
+        """The rewrite has to preserve identity, or update_by_filter would orphan the original."""
+        document = Document(id="fixed", content="x", meta={"a": 1})
+        (merged,) = SolrDocumentStore._merge_meta([document], {"b": 2})
+        assert merged.id == "fixed"
+        assert merged.meta == {"a": 1, "b": 2}
+
+    @pytest.mark.parametrize(("field", "expected"), [("meta.page", "page"), ("page", "page"), ("id", "id")])
+    def test_the_meta_prefix_is_optional(self, field, expected):
+        assert SolrDocumentStore._strip_meta_prefix(field) == expected
+
+    def test_documents_are_split_into_batches(self):
+        store = SolrDocumentStore(auth=None, batch_size=2)
+        batches = store._batches([Document(id=str(index), content="x") for index in range(5)])
+        assert [len(batch) for batch in batches] == [2, 2, 1]
+
+    def test_unique_value_params_carry_the_filters(self):
+        params = SolrDocumentStore._unique_values_params("meta_s_a", _FILTERS, None)
+        assert params["fq"] == "meta_l_page:1"
+
+    def test_a_field_that_is_not_a_vector_field_is_not_checked(self):
+        """Only a `DenseVectorField` has a dimension to disagree about."""
+        SolrDocumentStore(embedding_dim=768, auth=None)._verify_vector_field(
+            {
+                "schema": {
+                    "fields": [{"name": "embedding", "type": "string"}],
+                    "fieldTypes": [{"name": "string", "class": "solr.StrField"}],
+                }
+            }
+        )
+
+
+class TestLifecycle:
+    def test_close_resets_the_bootstrap(self):
+        """The next call has to bootstrap again, because the connection is gone."""
+        store = _mock_store(_fake_solr)
+        store.count_documents()
+        assert store._initialized is True
+
+        store.close()
+        assert store._initialized is False
+        assert store._solr_client._client is None
+
+    async def test_close_async_resets_the_bootstrap(self):
+        store = _mock_store_async(_fake_solr)
+        await store.count_documents_async()
+        assert store._async_initialized is True
+
+        await store.close_async()
+        assert store._async_initialized is False
+        assert store._solr_client._async_client is None
+
+    @pytest.mark.parametrize(
+        ("from_", "size", "expected"),
+        [(0, 10, [1, 5]), (0, 1, [1]), (1, 1, [5]), (2, 1, []), (1, 10, [5])],
+    )
+    def test_unique_values_are_paginated_but_the_total_is_not(self, from_, size, expected):
+        """The count has to cover every matching value, not just the page being returned."""
+        store = _mock_store(_fake_solr)
+        assert store.get_metadata_field_unique_values("page", from_=from_, size=size) == (expected, 2)
+
+    async def test_unique_values_are_paginated_async(self):
+        store = _mock_store_async(_fake_solr)
+        assert await store.get_metadata_field_unique_values_async("page", from_=1, size=1) == ([5], 2)
+
+    async def test_bm25_async_rejects_an_empty_query(self):
+        with pytest.raises(ValueError, match="query must be a non empty string"):
+            await SolrDocumentStore(auth=None)._bm25_retrieval_async("")
+
+    async def test_embedding_retrieval_async_rejects_an_empty_embedding(self):
+        with pytest.raises(ValueError, match="must be a non-empty list of floats"):
+            await SolrDocumentStore(auth=None)._embedding_retrieval_async([])
+
+    @pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
+    async def test_json_encoded_metadata_cannot_be_faceted(self, sync):
+        """A JSON fallback field is opaque to Solr and not indexed, so it has no buckets to list."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/admin/luke"):
+                return httpx.Response(200, json={"responseHeader": {"status": 0}, "fields": {"meta_j_nested": {}}})
+            return _fake_solr(request)
+
+        if sync:
+            assert _mock_store(handler).get_metadata_field_unique_values("nested") == ([], 0)
+        else:
+            assert await _mock_store_async(handler).get_metadata_field_unique_values_async("nested") == ([], 0)
+
+
 class TestBootstrap:
     """The sequence of calls the store makes on first use."""
 
     @staticmethod
-    def _recording_handler(paths, *, core_exists=True):
+    def _recording_handler(paths, *, core_exists=True, schemaless_off=True):
         def handler(request: httpx.Request) -> httpx.Response:
             path = request.url.path
             paths.append(f"{request.method} {path}")
@@ -320,7 +827,8 @@ class TestBootstrap:
                     200,
                     json={
                         "responseHeader": {"status": 0},
-                        "overlay": {"userProps": {"update.autoCreateFields": "false"}},
+                        # `autoCreateFields: false` is what "schemaless guessing is already off" looks like.
+                        "overlay": {"userProps": {"update.autoCreateFields": "false" if schemaless_off else "true"}},
                     },
                 )
             if path.endswith("/schema"):
@@ -328,6 +836,39 @@ class TestBootstrap:
             return httpx.Response(200, json={"responseHeader": {"status": 0}, "response": {"numFound": 0}})
 
         return handler
+
+    def test_schemaless_guessing_is_turned_off_when_still_on(self):
+        """The overlay is only written when it does not already say what the store needs."""
+        paths: list[str] = []
+        store = _mock_store(self._recording_handler(paths, schemaless_off=False))
+        store.count_documents()
+        assert "POST /solr/unit/config" in paths
+
+    def test_schemaless_guessing_is_left_alone_when_already_off(self):
+        paths: list[str] = []
+        store = _mock_store(self._recording_handler(paths, schemaless_off=True))
+        store.count_documents()
+        assert "POST /solr/unit/config" not in paths
+
+    async def test_the_async_bootstrap_creates_the_core_and_the_schema(self):
+        """The async bootstrap is a separate code path and has to do the same work as the sync one."""
+        paths: list[str] = []
+        store = _mock_store_async(
+            self._recording_handler(paths, core_exists=False, schemaless_off=False),
+            create_core=True,
+        )
+        await store.count_documents_async()
+
+        assert sum("/admin/cores" in path for path in paths) == 2  # STATUS, then CREATE
+        assert "POST /solr/unit/config" in paths
+        assert any(path.endswith("/schema") for path in paths)
+
+    async def test_the_async_bootstrap_runs_only_once(self):
+        paths: list[str] = []
+        store = _mock_store_async(self._recording_handler(paths))
+        await store.count_documents_async()
+        await store.count_documents_async()
+        assert sum(path.endswith("/admin/info/system") for path in paths) == 1
 
     def test_manage_schema_false_touches_no_schema_endpoints(self):
         """Opting out has to mean the store leaves the core's configuration completely alone."""
