@@ -402,6 +402,29 @@ class TestInputValidation:
             store.write_documents([Document(content="x", meta={"bad key": 1})], DuplicatePolicy.OVERWRITE)
 
 
+class TestFuzziness:
+    def test_zero_leaves_the_query_untouched(self):
+        assert SolrDocumentStore._apply_fuzziness('apache "solr search"', 0) == 'apache "solr search"'
+
+    def test_bare_terms_get_a_fuzzy_suffix(self):
+        assert SolrDocumentStore._apply_fuzziness("apache solr", 1) == "apache~1 solr~1"
+
+    def test_quoted_phrases_are_left_alone(self):
+        """`"a b"~1` is a proximity slop, not a fuzzy phrase, so a phrase must not be suffixed."""
+        assert SolrDocumentStore._apply_fuzziness('"apache solr" other', 1) == '"apache solr" other~1'
+
+    def test_a_prefixed_phrase_is_one_token(self):
+        """`+`/`-` glued to a phrase belongs to the phrase, so the whole token stays unsuffixed."""
+        assert SolrDocumentStore._apply_fuzziness('+"apache solr" -cooking', 2) == '+"apache solr" -cooking~2'
+
+    def test_field_qualified_terms_still_get_a_suffix(self):
+        assert SolrDocumentStore._apply_fuzziness("content:apache", 1) == "content:apache~1"
+
+    def test_an_unbalanced_quote_is_not_dropped(self):
+        """Substituting rather than re-joining is what keeps a malformed query's characters intact."""
+        assert SolrDocumentStore._apply_fuzziness('"apache solr', 1) == '"apache~1 solr~1'
+
+
 class TestScoreScaling:
     def test_scale_score_is_actually_applied(self):
         """The scaled score has to land back on the documents the caller receives."""

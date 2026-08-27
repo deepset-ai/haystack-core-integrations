@@ -47,8 +47,8 @@ class SolrHybridRetriever:
 
     def __init__(
         self,
-        *,
         document_store: SolrDocumentStore,
+        *,
         embedder: TextEmbedder,
         filters_bm25: dict[str, Any] | None = None,
         fuzziness: int = 0,

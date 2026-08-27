@@ -38,6 +38,11 @@ def store() -> SolrDocumentStore:
 
 
 class TestInit:
+    def test_document_store_may_be_positional(self, store):
+        """Matches the Elasticsearch and OpenSearch hybrid retrievers, which take it positionally."""
+        retriever = SolrHybridRetriever(store, embedder=FakeTextEmbedder())
+        assert retriever.document_store is store
+
     def test_builds_the_wrapped_pipeline(self, store):
         retriever = SolrHybridRetriever(document_store=store, embedder=FakeTextEmbedder())
         assert isinstance(retriever.pipeline, Pipeline)

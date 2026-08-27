@@ -4,6 +4,7 @@
 
 import math
 import os
+import re
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -53,6 +54,10 @@ SCHEMALESS_PROPERTY = "update.autoCreateFields"
 #: Divisor applied before the logistic squash in `scale_score`, matching the other search-engine
 #: document stores so that scaled scores are comparable across backends.
 BM25_SCALING_FACTOR = 8
+
+#: One whitespace-delimited query token, where a quoted span counts as part of the token it sits in.
+#: Matching `+"a b"` as a single token is what stops a fuzzy suffix from landing on a phrase.
+_FUZZY_TOKEN = re.compile(r'(?:[^\s"]|"[^"]*")+')
 
 
 class SolrDocumentStore:
@@ -1146,8 +1151,16 @@ class SolrDocumentStore:
         if not fuzziness:
             return query
         # edismax accepts a per-term fuzzy suffix; the terms themselves stay unescaped so that the
-        # parser keeps handling phrases and +/- prefixes the way a user would expect.
-        return " ".join(f"{term}~{fuzziness}" for term in query.split())
+        # parser keeps handling +/- prefixes the way a user would expect.
+        #
+        # Any token containing a quote is left alone: `~n` after a phrase is a proximity slop rather
+        # than a fuzzy match, and inside the quotes it would just be analysed away - either way the
+        # phrase would silently stop meaning what the caller wrote. Substituting rather than
+        # re-joining keeps whatever the pattern does not match, so an unbalanced quote survives.
+        return _FUZZY_TOKEN.sub(
+            lambda match: match.group() if '"' in match.group() else f"{match.group()}~{fuzziness}",
+            query,
+        )
 
     def _bm25_payload(
         self,
