@@ -11,9 +11,9 @@
 | src/haystack\_integrations/components/retrievers/elasticsearch/inference\_sparse\_retriever.py     |       42 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/sparse\_embedding\_retriever.py     |       39 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/sql\_retriever.py                   |       57 |        0 |       14 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      675 |       54 |      224 |       32 |     90% |176-177, 353, 355, 392-394, 429-431, 445-\>437, 460-461, 478-479, 498, 560, 636-637, 640-641, 687-\>692, 780-\>785, 834, 841-842, 978-980, 1006-1008, 1034-1036, 1069-1071, 1104-1106, 1129-1130, 1151, 1156, 1188-1189, 1244-1245, 1247-\>1250, 1594-\>1593, 1631-\>1630, 1633-\>1630, 1667, 1703-1704, 1709, 1876, 1927, 1948, 1952 |
+| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      675 |       53 |      224 |       31 |     90% |176-177, 353, 355, 392-394, 429-431, 445-\>437, 460-461, 478-479, 498, 560, 636-637, 640-641, 687-\>692, 780-\>785, 834, 841-842, 978-980, 1006-1008, 1034-1036, 1069-1071, 1104-1106, 1129-1130, 1151, 1156, 1188-1189, 1244-1245, 1247-\>1250, 1594-\>1593, 1631-\>1630, 1633-\>1630, 1667, 1703-1704, 1709, 1876, 1927, 1948 |
 | src/haystack\_integrations/document\_stores/elasticsearch/filters.py                               |      135 |        0 |       72 |        0 |    100% |           |
-| **TOTAL**                                                                                          | **1151** |   **54** |  **348** |   **35** | **94%** |           |
+| **TOTAL**                                                                                          | **1151** |   **53** |  **348** |   **34** | **94%** |           |
 
 
 ## Setup coverage badge
