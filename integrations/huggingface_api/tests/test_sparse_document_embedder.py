@@ -269,9 +269,7 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         """An explicit header must not be replaced by a token that only happens to be set in the environment."""
         monkeypatch.delenv("HF_API_TOKEN", raising=False)
         monkeypatch.setenv("HF_TOKEN", "env-token")
-        embedder = HuggingFaceAPISparseDocumentEmbedder(
-            progress_bar=False, headers={"Authorization": "Basic test-key"}
-        )
+        embedder = HuggingFaceAPISparseDocumentEmbedder(progress_bar=False, headers={"Authorization": "Basic test-key"})
 
         with patched_client() as (client, constructor):
             client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
