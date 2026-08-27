@@ -69,7 +69,8 @@ class ParallelWebSearch:
             Additional parameters passed to the Parallel Search API.
             See the [Parallel Search API reference](https://docs.parallel.ai/api-reference/search/search)
             for available options. Supported keys include: `objective` (natural-language search goal,
-            defaults to the query), `mode` (`turbo`, `basic`, or `advanced`), `max_chars_total`,
+            defaults to the query), `mode` (`turbo`, `fast`, `basic`, or `advanced`, in increasing
+            order of latency and quality; the API defaults to `advanced`), `max_chars_total`,
             `session_id`, `client_model`, and `advanced_settings` (nested `source_policy` domain and
             date filters, `fetch_policy`, `excerpt_settings`, `location`, `max_results`).
         :param timeout:
