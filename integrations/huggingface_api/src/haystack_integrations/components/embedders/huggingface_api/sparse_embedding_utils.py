@@ -9,11 +9,21 @@ from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 
 
-def _request_headers(headers: dict[str, str], token: Secret | None) -> dict[str, str]:
-    request_headers = headers.copy()
+def _build_client_kwargs(
+    *, api_base_url: str, timeout: float | None, headers: dict[str, str], token: Secret | None
+) -> dict[str, Any]:
+    """
+    Build the `httpx` client options shared by the sync and async clients.
+
+    `headers` is applied after the token, so an `Authorization` header passed at initialization wins over the one
+    derived from `token`. Otherwise, an explicit header would be silently replaced whenever `HF_TOKEN` happens to be
+    set in the environment.
+    """
+    request_headers: dict[str, str] = {}
     if token and (token_value := token.resolve_value()):
         request_headers["Authorization"] = f"Bearer {token_value}"
-    return request_headers
+    request_headers.update(headers)
+    return {"base_url": f"{api_base_url.rstrip('/')}/", "timeout": timeout, "headers": request_headers}
 
 
 def _parse_sparse_embeddings(result: Any, expected_count: int) -> list[SparseEmbedding]:

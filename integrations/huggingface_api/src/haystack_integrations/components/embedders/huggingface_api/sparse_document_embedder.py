@@ -14,7 +14,7 @@ from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 from tqdm import tqdm
 
-from .sparse_embedding_utils import _embed_sparse, _embed_sparse_async, _request_headers
+from .sparse_embedding_utils import _build_client_kwargs, _embed_sparse, _embed_sparse_async
 
 
 @component
@@ -86,10 +86,6 @@ class HuggingFaceAPISparseDocumentEmbedder:
         self.timeout = timeout
         self.headers = headers or {}
         self.concurrency_limit = concurrency_limit
-        base_url = f"{self.api_base_url.rstrip('/')}/"
-        client_headers = _request_headers(self.headers, self.token)
-        self._client = httpx.Client(base_url=base_url, timeout=self.timeout, headers=client_headers)
-        self._async_client = httpx.AsyncClient(base_url=base_url, timeout=self.timeout, headers=client_headers)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -113,6 +109,11 @@ class HuggingFaceAPISparseDocumentEmbedder:
         """Deserialize this component from a dictionary."""
         return default_from_dict(cls, data)
 
+    def _client_kwargs(self) -> dict[str, Any]:
+        return _build_client_kwargs(
+            api_base_url=self.api_base_url, timeout=self.timeout, headers=self.headers, token=self.token
+        )
+
     def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         texts = []
         for document in documents:
@@ -124,24 +125,24 @@ class HuggingFaceAPISparseDocumentEmbedder:
             texts.append(self.prefix + self.embedding_separator.join([*meta, document.content or ""]) + self.suffix)
         return texts
 
-    def _embed_batches(self, texts: list[str]) -> list[SparseEmbedding]:
+    def _embed_batches(self, client: httpx.Client, texts: list[str]) -> list[SparseEmbedding]:
         embeddings = []
         for start in tqdm(
             range(0, len(texts), self.batch_size),
             disable=not self.progress_bar,
             desc="Calculating sparse embeddings",
         ):
-            embeddings.extend(_embed_sparse(client=self._client, inputs=texts[start : start + self.batch_size]))
+            embeddings.extend(_embed_sparse(client=client, inputs=texts[start : start + self.batch_size]))
         return embeddings
 
-    async def _embed_batches_async(self, texts: list[str]) -> list[SparseEmbedding]:
+    async def _embed_batches_async(self, client: httpx.AsyncClient, texts: list[str]) -> list[SparseEmbedding]:
         semaphore = Semaphore(self.concurrency_limit)
         batches = [texts[start : start + self.batch_size] for start in range(0, len(texts), self.batch_size)]
         progress = tqdm(total=len(batches), disable=not self.progress_bar, desc="Calculating sparse embeddings")
 
         async def embed_batch(batch: list[str]) -> list[SparseEmbedding]:
             async with semaphore:
-                result = await _embed_sparse_async(client=self._async_client, inputs=batch)
+                result = await _embed_sparse_async(client=client, inputs=batch)
                 progress.update(1)
                 return result
 
@@ -168,7 +169,9 @@ class HuggingFaceAPISparseDocumentEmbedder:
         :returns: Copies of the Documents with sparse embeddings.
         """
         self._validate_documents(documents)
-        embeddings = self._embed_batches(self._prepare_texts_to_embed(documents))
+        texts = self._prepare_texts_to_embed(documents)
+        with httpx.Client(**self._client_kwargs()) as client:
+            embeddings = self._embed_batches(client, texts)
         return {
             "documents": [
                 replace(document, sparse_embedding=embedding)
@@ -185,7 +188,9 @@ class HuggingFaceAPISparseDocumentEmbedder:
         :returns: Copies of the Documents with sparse embeddings.
         """
         self._validate_documents(documents)
-        embeddings = await self._embed_batches_async(self._prepare_texts_to_embed(documents))
+        texts = self._prepare_texts_to_embed(documents)
+        async with httpx.AsyncClient(**self._client_kwargs()) as client:
+            embeddings = await self._embed_batches_async(client, texts)
         return {
             "documents": [
                 replace(document, sparse_embedding=embedding)

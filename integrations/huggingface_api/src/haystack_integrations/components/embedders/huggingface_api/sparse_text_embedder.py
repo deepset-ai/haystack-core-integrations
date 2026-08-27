@@ -10,7 +10,7 @@ from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 
-from .sparse_embedding_utils import _embed_sparse, _embed_sparse_async, _request_headers
+from .sparse_embedding_utils import _build_client_kwargs, _embed_sparse, _embed_sparse_async
 
 
 @component
@@ -59,10 +59,6 @@ class HuggingFaceAPISparseTextEmbedder:
         self.suffix = suffix
         self.timeout = timeout
         self.headers = headers or {}
-        base_url = f"{self.api_base_url.rstrip('/')}/"
-        client_headers = _request_headers(self.headers, self.token)
-        self._client = httpx.Client(base_url=base_url, timeout=self.timeout, headers=client_headers)
-        self._async_client = httpx.AsyncClient(base_url=base_url, timeout=self.timeout, headers=client_headers)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -81,6 +77,11 @@ class HuggingFaceAPISparseTextEmbedder:
         """Deserialize this component from a dictionary."""
         return default_from_dict(cls, data)
 
+    def _client_kwargs(self) -> dict[str, Any]:
+        return _build_client_kwargs(
+            api_base_url=self.api_base_url, timeout=self.timeout, headers=self.headers, token=self.token
+        )
+
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):
             msg = (
@@ -98,7 +99,8 @@ class HuggingFaceAPISparseTextEmbedder:
         :param text: Text to embed.
         :returns: The sparse embedding of the input text.
         """
-        embeddings = _embed_sparse(client=self._client, inputs=self._prepare_input(text))
+        with httpx.Client(**self._client_kwargs()) as client:
+            embeddings = _embed_sparse(client=client, inputs=self._prepare_input(text))
         return {"sparse_embedding": embeddings[0]}
 
     @component.output_types(sparse_embedding=SparseEmbedding)
@@ -109,5 +111,6 @@ class HuggingFaceAPISparseTextEmbedder:
         :param text: Text to embed.
         :returns: The sparse embedding of the input text.
         """
-        embeddings = await _embed_sparse_async(client=self._async_client, inputs=self._prepare_input(text))
+        async with httpx.AsyncClient(**self._client_kwargs()) as client:
+            embeddings = await _embed_sparse_async(client=client, inputs=self._prepare_input(text))
         return {"sparse_embedding": embeddings[0]}

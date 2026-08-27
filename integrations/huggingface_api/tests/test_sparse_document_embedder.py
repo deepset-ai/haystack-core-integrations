@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import MagicMock, call, patch
 
 import httpx
 import pytest
@@ -15,12 +17,33 @@ from haystack.utils import Secret
 from haystack_integrations.components.embedders.huggingface_api import HuggingFaceAPISparseDocumentEmbedder
 
 API_BASE_URL = "http://localhost:8080"
+MODULE = "haystack_integrations.components.embedders.huggingface_api.sparse_document_embedder"
 
 
 def sparse_response(data: Any) -> MagicMock:
     response = MagicMock(spec=httpx.Response)
     response.json.return_value = data
     return response
+
+
+@contextmanager
+def patched_client(*, is_async: bool = False) -> Iterator[tuple[MagicMock, MagicMock]]:
+    """
+    Patch the `httpx` client constructor and yield the (client, constructor) mocks.
+
+    The component builds a client per call, so tests reach the client through the constructor rather than through
+    an attribute. `__enter__`/`__aenter__` yield the same mock, so `client.post` assertions read naturally.
+    """
+    name = "AsyncClient" if is_async else "Client"
+    client = MagicMock(spec=getattr(httpx, name))
+    if is_async:
+        client.__aenter__.return_value = client
+        client.__aexit__.return_value = False
+    else:
+        client.__enter__.return_value = client
+        client.__exit__.return_value = False
+    with patch(f"{MODULE}.httpx.{name}", return_value=client) as constructor:
+        yield client, constructor
 
 
 class TestHuggingFaceAPISparseDocumentEmbedder:
@@ -95,8 +118,6 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         assert restored.headers == {"X-Test": "yes"}
         assert restored.concurrency_limit == 3
         assert restored.token is not None and restored.token.resolve_value() == "secret"
-        assert "_client" not in data["init_parameters"]
-        assert "_async_client" not in data["init_parameters"]
 
     def test_token_secret_cannot_be_serialized(self) -> None:
         embedder = HuggingFaceAPISparseDocumentEmbedder(token=Secret.from_token("do-not-serialize"))
@@ -132,22 +153,22 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
 
     def test_empty_list_returns_without_http_request(self) -> None:
         embedder = HuggingFaceAPISparseDocumentEmbedder(progress_bar=False)
-        embedder._client = MagicMock(spec=httpx.Client)
 
-        result = embedder.run([])
+        with patched_client() as (client, _):
+            result = embedder.run([])
 
         assert result == {"documents": []}
-        embedder._client.post.assert_not_called()
+        client.post.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_empty_list_async_returns_without_http_request(self) -> None:
         embedder = HuggingFaceAPISparseDocumentEmbedder(progress_bar=False)
-        embedder._async_client = MagicMock(spec=httpx.AsyncClient)
 
-        result = await embedder.run_async([])
+        with patched_client(is_async=True) as (client, _):
+            result = await embedder.run_async([])
 
         assert result == {"documents": []}
-        embedder._async_client.post.assert_not_called()
+        client.post.assert_not_called()
 
     def test_run_batches_requests_preserves_order_and_copies_documents(self) -> None:
         documents = [Document(content=f"doc {number}", meta={"number": number}) for number in range(5)]
@@ -166,12 +187,15 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
             headers={"X-Tenant": "tenant"},
         )
 
-        client = MagicMock(spec=httpx.Client)
-        client.post.side_effect = responses
-        embedder._client = client
+        with patched_client() as (client, constructor):
+            client.post.side_effect = responses
+            result = embedder.run(documents)
 
-        result = embedder.run(documents)
-
+        constructor.assert_called_once_with(
+            base_url="http://tei:80/root/",
+            timeout=6,
+            headers={"Authorization": "Bearer token", "X-Tenant": "tenant"},
+        )
         assert client.post.call_args_list == [
             call("embed_sparse", json={"inputs": ["passage: doc 0", "passage: doc 1"]}),
             call("embed_sparse", json={"inputs": ["passage: doc 2", "passage: doc 3"]}),
@@ -193,21 +217,67 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
             offset = int(inputs[0].split()[-1])
             return sparse_response([[{"index": offset + position, "value": 1}] for position, _ in enumerate(inputs)])
 
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.post = AsyncMock(side_effect=post)
         documents = [Document(content=f"doc {number}") for number in range(4)]
         embedder = HuggingFaceAPISparseDocumentEmbedder(
             api_base_url="https://tei.test/", batch_size=2, progress_bar=False, timeout=None, headers={"X-Test": "yes"}
         )
-        embedder._async_client = client
 
-        result = await embedder.run_async(documents)
+        with patched_client(is_async=True) as (client, constructor):
+            client.post.side_effect = post
+            result = await embedder.run_async(documents)
 
+        # Both batches share the single client opened for this call.
+        constructor.assert_called_once_with(base_url="https://tei.test/", timeout=None, headers={"X-Test": "yes"})
         assert client.post.await_args_list == [
             call("embed_sparse", json={"inputs": ["doc 0", "doc 1"]}),
             call("embed_sparse", json={"inputs": ["doc 2", "doc 3"]}),
         ]
         assert [document.sparse_embedding.indices for document in result["documents"]] == [[0], [1], [2], [3]]
+
+    @pytest.mark.asyncio
+    async def test_run_async_builds_and_closes_a_client_per_call(self) -> None:
+        """
+        The component must not hold on to an `httpx.AsyncClient`.
+
+        A cached client binds its keep-alive connection pool to the first event loop that used it, so a component
+        reused under a second `asyncio.run` would fail with `RuntimeError: Event loop is closed`.
+        """
+        embedder = HuggingFaceAPISparseDocumentEmbedder(progress_bar=False)
+
+        with patched_client(is_async=True) as (client, constructor):
+            client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
+            await embedder.run_async([Document(content="one")])
+            await embedder.run_async([Document(content="two")])
+
+        assert constructor.call_count == 2
+        assert client.__aexit__.await_count == 2
+        assert not hasattr(embedder, "_async_client")
+
+    def test_run_builds_and_closes_a_client_per_call(self) -> None:
+        embedder = HuggingFaceAPISparseDocumentEmbedder(progress_bar=False)
+
+        with patched_client() as (client, constructor):
+            client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
+            embedder.run([Document(content="one")])
+            embedder.run([Document(content="two")])
+
+        assert constructor.call_count == 2
+        assert client.__exit__.call_count == 2
+        assert not hasattr(embedder, "_client")
+
+    def test_explicit_authorization_header_wins_over_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An explicit header must not be replaced by a token that only happens to be set in the environment."""
+        monkeypatch.delenv("HF_API_TOKEN", raising=False)
+        monkeypatch.setenv("HF_TOKEN", "env-token")
+        embedder = HuggingFaceAPISparseDocumentEmbedder(
+            progress_bar=False, headers={"Authorization": "Basic dXNlcjpwYXNz"}
+        )
+
+        with patched_client() as (client, constructor):
+            client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
+            embedder.run([Document(content="one")])
+
+        assert constructor.call_args.kwargs["headers"] == {"Authorization": "Basic dXNlcjpwYXNz"}
 
     @pytest.mark.asyncio
     async def test_async_concurrency_limit_is_respected(self) -> None:
@@ -223,31 +293,29 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
             return [SparseEmbedding(indices=[int(text)], values=[1.0]) for text in kwargs["inputs"]]
 
         embedder = HuggingFaceAPISparseDocumentEmbedder(batch_size=1, concurrency_limit=2, progress_bar=False)
-        with patch(
-            "haystack_integrations.components.embedders.huggingface_api.sparse_document_embedder._embed_sparse_async",
-            side_effect=embed_batch,
-        ):
-            embeddings = await embedder._embed_batches_async(["0", "1", "2", "3"])
+        client = MagicMock(spec=httpx.AsyncClient)
+        with patch(f"{MODULE}._embed_sparse_async", side_effect=embed_batch):
+            embeddings = await embedder._embed_batches_async(client, ["0", "1", "2", "3"])
 
         assert maximum_active == 2
         assert [embedding.indices for embedding in embeddings] == [[0], [1], [2], [3]]
 
     def test_run_rejects_response_with_wrong_embedding_count(self) -> None:
         embedder = HuggingFaceAPISparseDocumentEmbedder(progress_bar=False)
-        embedder._client = MagicMock(spec=httpx.Client)
-        embedder._client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
 
-        with pytest.raises(ValueError, match="Expected one sparse embedding per input"):
+        with (
+            patched_client() as (client, _),
+            pytest.raises(ValueError, match="Expected one sparse embedding per input"),
+        ):
+            client.post.return_value = sparse_response([[{"index": 1, "value": 1}]])
             embedder.run([Document(content="one"), Document(content="two")])
 
     def test_run_propagates_http_error(self) -> None:
         request = httpx.Request("POST", "http://localhost:8080/embed_sparse")
-        response = httpx.Response(500, request=request)
         embedder = HuggingFaceAPISparseDocumentEmbedder(progress_bar=False)
-        embedder._client = MagicMock(spec=httpx.Client)
-        embedder._client.post.return_value = response
 
-        with pytest.raises(httpx.HTTPStatusError):
+        with patched_client() as (client, _), pytest.raises(httpx.HTTPStatusError):
+            client.post.return_value = httpx.Response(500, request=request)
             embedder.run([Document(content="text")])
 
     @pytest.mark.integration
