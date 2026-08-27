@@ -7,7 +7,7 @@ from typing import Any
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool, flatten_tools_or_toolsets
-from haystack.utils.auth import Secret
+from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from anthropic import Anthropic
 from anthropic.types import ToolParam
@@ -116,7 +116,5 @@ class AnthropicTokenCounter:
         :param data: The dictionary to deserialize from.
         :returns: The deserialized token counter.
         """
-        from haystack.utils.auth import deserialize_secrets_inplace
-
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)

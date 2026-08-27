@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses import ChatMessage
-from haystack.tools import Tool, create_tool_from_function
+from haystack.tools import create_tool_from_function
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic import AnthropicTokenCounter
