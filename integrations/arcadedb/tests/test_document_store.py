@@ -89,15 +89,17 @@ class TestStaticHelpers:
     @pytest.mark.parametrize(
         "rows,expected",
         [
-            ([], set()),
-            ([{"val": "a"}, {"val": "b"}], {"a", "b"}),
-            ([{"val": None}], set()),
-            ([{"val": [1, 2, None, 3]}], {1, 2, 3}),
-            ([{"val": "x"}, {"val": None}, {"val": ["a", "b"]}], {"x", "a", "b"}),
+            ([], []),
+            ([{"val": "a"}, {"val": "b"}], ["a", "b"]),
+            ([{"val": None}], []),
+            ([{"val": [1, 2, None, 3]}], [1, 2, 3]),
+            ([{"val": "x"}, {"val": None}, {"val": ["a", "b"]}], ["x", "a", "b"]),
+            # duplicates collapse, keeping the first occurrence, across both scalar and list rows
+            ([{"val": "a"}, {"val": "a"}, {"val": ["a", "b"]}], ["a", "b"]),
         ],
     )
     def test_extract_distinct_values(self, rows, expected):
-        assert set(ArcadeDBDocumentStore._extract_distinct_values(rows)) == expected
+        assert ArcadeDBDocumentStore._extract_distinct_values(rows) == expected
 
     def test_extract_distinct_values_keeps_types_distinct(self):
         """Values that compare equal in Python (1 == True, 1 == 1.0) must not collapse into one."""
@@ -107,6 +109,27 @@ class TestStaticHelpers:
         assert len(values) == 4
         values_by_type = {type(value): value for value in values}
         assert values_by_type.keys() == {int, bool, float, str}
+
+    @pytest.mark.parametrize(
+        "values,expected",
+        [
+            # numbers keep numeric order instead of degrading to string order ("10" before "2")
+            ([10, 1, 20, 2, 3], [1, 2, 3, 10, 20]),
+            ([1.5, 0.5, 10.25], [0.5, 1.5, 10.25]),
+            (["b", "a", "C"], ["C", "a", "b"]),
+            ([], []),
+        ],
+    )
+    def test_sort_values_by_type(self, values, expected):
+        assert ArcadeDBDocumentStore._sort_values_by_type(values) == expected
+
+    def test_sort_values_by_type_groups_incomparable_types(self):
+        """Mixed types can't be compared with `<`, so they're grouped by type name instead of raising."""
+        result = ArcadeDBDocumentStore._sort_values_by_type([1, "a", 2.5, True])
+
+        # `1 == True` and `1 == 1.0`, so equality alone can't prove the grouping - check the types.
+        assert [type(value).__name__ for value in result] == ["bool", "float", "int", "str"]
+        assert result == [True, 2.5, 1, "a"]
 
     @pytest.mark.parametrize(
         "values,expected",
@@ -528,6 +551,22 @@ class TestArcadeDBDocumentStore(
         result = document_store.get_metadata_field_min_max("nonexistent")
 
         assert result == {"min": None, "max": None}
+
+    def test_get_metadata_field_unique_values_numeric_ordering(self, document_store: ArcadeDBDocumentStore):
+        """
+        Numeric values must come back in numeric order, not string order ("10" sorts before "2").
+        The base mixin's pagination test only uses string values, so it can't catch that - and getting
+        it wrong silently changes which values land on which page.
+        """
+        docs = [Document(content=f"Doc {value}", meta={"priority": value}) for value in [10, 1, 20, 2, 3]]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("priority", size=10)
+        assert values == [1, 2, 3, 10, 20]
+        assert total_count == 5
+
+        first_page, _ = document_store.get_metadata_field_unique_values("priority", from_=0, size=2)
+        assert first_page == [1, 2]
 
     def test_get_metadata_field_unique_values_no_matches(self, document_store: ArcadeDBDocumentStore):
         """Returns empty results when no metadata values match the search term."""

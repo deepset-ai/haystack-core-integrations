@@ -5,6 +5,7 @@
 """ArcadeDB DocumentStore for Haystack 2.x — document storage + vector search via HTTP/JSON API."""
 
 import logging
+from collections import defaultdict
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, ClassVar
@@ -282,6 +283,24 @@ class ArcadeDBDocumentStore:
             elif val is not None:
                 _add(val)
         return result
+
+    @staticmethod
+    def _sort_values_by_type(values: list[Any]) -> list[Any]:
+        """
+        Sorts values deterministically without ever comparing across types.
+
+        Values of different types aren't mutually comparable (`1 < "a"` raises `TypeError`), so values
+        are grouped by type name and each group is sorted on its own. Sorting the whole list on
+        `str(value)` would avoid the same error, but it would also degrade numbers to string order
+        (`10` before `2`), so each group keeps its own natural ordering instead.
+
+        :param values: The values to sort.
+        :returns: The values, grouped by type name and sorted within each group.
+        """
+        grouped: dict[str, list[Any]] = defaultdict(list)
+        for value in values:
+            grouped[type(value).__name__].append(value)
+        return [value for type_name in sorted(grouped) for value in sorted(grouped[type_name])]
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
         """
@@ -638,7 +657,7 @@ class ArcadeDBDocumentStore:
         sql = f"SELECT DISTINCT {field_ref} AS val FROM `{self._type_name}`{where}"
         rows = self._command(sql)
 
-        all_values = sorted(self._extract_distinct_values(rows), key=lambda value: (type(value).__name__, str(value)))
+        all_values = self._sort_values_by_type(self._extract_distinct_values(rows))
         total_count = len(all_values)
         return all_values[from_ : from_ + size], total_count
 
