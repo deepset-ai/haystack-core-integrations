@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v7.0.0] - 2026-08-26
+
+### 🌀 Miscellaneous
+
+- !fix: `BedrockKnowledgeBaseRetriever` → `AmazonBedrockKnowledgeBaseRetriever` (#3859)
+
+## [integrations/amazon_bedrock-v6.18.0] - 2026-08-26
+
+### 🐛 Bug Fixes
+
+- `AmazonBedrockRetriever` was missing some last details (#3842)
+
+
+## [integrations/amazon_bedrock-v6.17.0] - 2026-08-21
+
+### 🚀 Features
+
+- Feat (bedrock): add support for file content in a tool result (#3826)
+
+
 ## [integrations/amazon_bedrock-v6.16.2] - 2026-08-18
 
 ### 🐛 Bug Fixes

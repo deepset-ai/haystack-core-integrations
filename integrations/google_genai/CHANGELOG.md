@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/google_genai-v4.8.0] - 2026-08-24
+
+### 🚀 Features
+
+- Feat (google-genai): add file content support in tool result (#3828)
+
+
+## [integrations/google_genai-v4.7.1] - 2026-08-20
+
+### 🐛 Bug Fixes
+
+- Fix finish reason mapping for streaming Gemini models (#3823)
+
+
+## [integrations/google_genai-v4.7.0] - 2026-08-20
+
+### 📚 Documentation
+
+- *(gemini)* Update defaults to 3.7 Flash (#3816)
+
+
 ## [integrations/google_genai-v4.6.1] - 2026-08-18
 
 ### 🐛 Bug Fixes
