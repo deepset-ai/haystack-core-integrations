@@ -259,8 +259,8 @@ class ArcadeDBDocumentStore:
         """
         Extracts and flattens unique non-None values from 'val' column result rows.
 
-        Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain set
-        would silently merge them. Dedupe by (type, value) instead to keep them distinct.
+        Values of different types can be equal in Python (`1 == True == 1.0`), so dedupe by (type, value)
+        rather than by value alone.
 
         :param rows: Raw result rows from ``_command``.
         :returns: A list of unique values, preserving their original type.
@@ -287,19 +287,12 @@ class ArcadeDBDocumentStore:
     @staticmethod
     def _sort_values_by_type(values: list[Any]) -> list[Any]:
         """
-        Sorts values deterministically without ever comparing values that aren't mutually comparable.
+        Sorts values without ever comparing ones that aren't mutually comparable.
 
-        `1 < "a"` raises `TypeError`, so values are split into mutually comparable groups, keyed by type
-        name, and each group is sorted on its own. `int`, `float` and `bool` share one `"number"` group
-        so numeric order holds across the three types: a field holding both `2.5` and `10` sorts as
-        `[2.5, 10]` instead of putting every float ahead of every int. Sorting the whole list on
-        `str(value)` would dodge the `TypeError` too, but it would degrade numbers to string order
-        (`10` before `2`), so each group keeps its own natural ordering instead.
-
-        Values that compare equal but differ in type (`1 == 1.0 == True`) can't be ordered by value
-        alone, and `SELECT DISTINCT` gives no row-order guarantee, so the type name breaks the tie.
-        Without it their order would follow whatever order the server happened to return them in, and
-        paginating through the values could repeat one and skip another.
+        `1 < "a"` raises `TypeError`, so each type group is sorted on its own. `int`, `float` and `bool`
+        share one group to keep numeric order across them; sorting everything on `str(value)` would avoid
+        the `TypeError` too, but puts `10` before `2`. Values equal across types (`1 == 1.0 == True`)
+        tie-break on type name, since `SELECT DISTINCT` gives no row order and pagination needs one.
 
         :param values: The values to sort.
         :returns: The values, grouped into mutually comparable types and sorted within each group.
