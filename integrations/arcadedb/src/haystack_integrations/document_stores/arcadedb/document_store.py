@@ -287,20 +287,24 @@ class ArcadeDBDocumentStore:
     @staticmethod
     def _sort_values_by_type(values: list[Any]) -> list[Any]:
         """
-        Sorts values deterministically without ever comparing across types.
+        Sorts values deterministically without ever comparing values that aren't mutually comparable.
 
-        Values of different types aren't mutually comparable (`1 < "a"` raises `TypeError`), so values
-        are grouped by type name and each group is sorted on its own. Sorting the whole list on
-        `str(value)` would avoid the same error, but it would also degrade numbers to string order
+        `1 < "a"` raises `TypeError`, so values are split into mutually comparable groups and each group
+        is sorted on its own. `int`, `float` and `bool` are mutually comparable, so they share one group
+        and keep numeric order across types - a field holding both `2.5` and `10` would otherwise come
+        back as `[2.5, 10]` only by accident of the type names, and as `[2.5, 1, 3]` when it doesn't.
+        Every other type forms its own group, keyed by type name. Sorting the whole list on `str(value)`
+        would avoid the same `TypeError`, but it would also degrade numbers to string order
         (`10` before `2`), so each group keeps its own natural ordering instead.
 
         :param values: The values to sort.
-        :returns: The values, grouped by type name and sorted within each group.
+        :returns: The values, grouped into mutually comparable types and sorted within each group.
         """
         grouped: dict[str, list[Any]] = defaultdict(list)
         for value in values:
-            grouped[type(value).__name__].append(value)
-        return [value for type_name in sorted(grouped) for value in sorted(grouped[type_name])]
+            group = "number" if isinstance(value, (bool, int, float)) else type(value).__name__
+            grouped[group].append(value)
+        return [value for group in sorted(grouped) for value in sorted(grouped[group])]
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
         """

@@ -118,18 +118,24 @@ class TestStaticHelpers:
             ([1.5, 0.5, 10.25], [0.5, 1.5, 10.25]),
             (["b", "a", "C"], ["C", "a", "b"]),
             ([], []),
+            # ints and floats are mutually comparable, so a field holding both still sorts numerically
+            # instead of putting every float ahead of every int
+            ([2.5, 1, 3], [1, 2.5, 3]),
+            ([1, 2, 3, 1.5], [1, 1.5, 2, 3]),
+            ([9.99, 10, 1], [1, 9.99, 10]),
         ],
     )
     def test_sort_values_by_type(self, values, expected):
         assert ArcadeDBDocumentStore._sort_values_by_type(values) == expected
 
     def test_sort_values_by_type_groups_incomparable_types(self):
-        """Mixed types can't be compared with `<`, so they're grouped by type name instead of raising."""
+        """Mixed types can't all be compared with `<`, so they're grouped instead of raising."""
         result = ArcadeDBDocumentStore._sort_values_by_type([1, "a", 2.5, True])
 
         # `1 == True` and `1 == 1.0`, so equality alone can't prove the grouping - check the types.
-        assert [type(value).__name__ for value in result] == ["bool", "float", "int", "str"]
-        assert result == [True, 2.5, 1, "a"]
+        # int, float and bool share one numeric group; the str sorts on its own.
+        assert [type(value).__name__ for value in result] == ["int", "bool", "float", "str"]
+        assert result == [1, True, 2.5, "a"]
 
     @pytest.mark.parametrize(
         "values,expected",
