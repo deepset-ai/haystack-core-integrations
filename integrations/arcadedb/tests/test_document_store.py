@@ -4,6 +4,7 @@
 
 import dataclasses
 import datetime
+import itertools
 import os
 from unittest.mock import MagicMock, Mock
 
@@ -134,8 +135,22 @@ class TestStaticHelpers:
 
         # `1 == True` and `1 == 1.0`, so equality alone can't prove the grouping - check the types.
         # int, float and bool share one numeric group; the str sorts on its own.
-        assert [type(value).__name__ for value in result] == ["int", "bool", "float", "str"]
-        assert result == [1, True, 2.5, "a"]
+        assert [type(value).__name__ for value in result] == ["bool", "int", "float", "str"]
+        assert result == [True, 1, 2.5, "a"]
+
+    def test_sort_values_by_type_is_independent_of_input_order(self):
+        """
+        Values that compare equal but differ in type must always come back in the same order.
+
+        `SELECT DISTINCT` gives no row-order guarantee, so if the tie between `1`, `1.0` and `True`
+        were left to the sort's stability, the order would follow whatever the server happened to
+        return - and one page of values could repeat a value that the next page then skips.
+        """
+        for permutation in itertools.permutations([1, 1.0, True, "1"]):
+            result = ArcadeDBDocumentStore._sort_values_by_type(list(permutation))
+
+            # `1 == 1.0 == True`, so only the types can show the ordering is really stable.
+            assert [type(value).__name__ for value in result] == ["bool", "float", "int", "str"]
 
     @pytest.mark.parametrize(
         "values,expected",
