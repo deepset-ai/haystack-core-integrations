@@ -876,6 +876,77 @@ class TestDocumentStore(
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: ElasticsearchDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. Elasticsearch's dynamic field mapping fixes
+        a field's type from the first document written to it, so that scenario raises a
+        document_parsing_exception here instead.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what Elasticsearch can actually support.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
+    def test_get_metadata_field_unique_values_pagination_beyond_total(self, document_store: ElasticsearchDocumentStore):
+        """
+        Edge case not covered by the shared GetMetadataFieldUniqueValuesTest mixin's pagination test:
+        a `from_` beyond the total bucket count must hit `_skip_unique_values`'s early-return branch
+        (a page comes back with fewer buckets than requested) and still report the correct total_count.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "C"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(
+            metadata_field="category", from_=10, size=10
+        )
+        assert values == []
+        assert total_count == 3
+
+    def test_get_metadata_field_unique_values_search_term_numeric_field(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        """
+        Edge case not covered by the shared mixin's search_term test (string fields only): the
+        substring-match script converts the field's doc-value via `.toString()`, a distinct code
+        path for a numeric field.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(
+            metadata_field="priority", search_term="1"
+        )
+        assert values == [1] and type(values[0]) is int
+        assert total_count == 1
+
     def test_write_documents_with_sparse_vectors(self):
         store = ElasticsearchDocumentStore(
             hosts=["http://localhost:9200"], index="test_sync_sparse", sparse_vector_field="sparse_vec"
@@ -1252,171 +1323,6 @@ class TestDocumentStore(
         assert fields_info["category"]["type"] == "keyword"
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
-
-    def test_get_metadata_field_unique_values(self, document_store: ElasticsearchDocumentStore):
-        docs = [
-            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
-            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
-            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
-            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
-            Document(content="Python data science", meta={"category": "A", "language": "Python"}),
-            Document(content="Java backend", meta={"category": "B", "language": "Java"}),
-        ]
-        document_store.write_documents(docs)
-
-        # Test getting all unique values without search term
-        unique_values, total_count = document_store.get_metadata_field_unique_values(
-            metadata_field="category", search_term=None, from_=0, size=10
-        )
-        assert set(unique_values) == {"A", "B", "C"}
-        assert total_count == 3
-
-        # Test field name normalization - the "meta." prefix is optional and must give identical results
-        unique_values_prefixed, total_count_prefixed = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term=None, from_=0, size=10
-        )
-        assert set(unique_values_prefixed) == set(unique_values)
-        assert total_count_prefixed == total_count
-
-        unique_languages, total_languages = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.language", search_term=None, from_=0, size=10
-        )
-        assert set(unique_languages) == {"Python", "Java", "JavaScript"}
-        assert total_languages == 3
-
-        # Test pagination - first page
-        unique_values_page1, total_count_page1 = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term=None, from_=0, size=2
-        )
-        assert len(unique_values_page1) == 2
-        assert all(val in ["A", "B", "C"] for val in unique_values_page1)
-        assert total_count_page1 == 3
-
-        # Test pagination - second page, via from_ (triggers the offset-walk internally)
-        unique_values_page2, total_count_page2 = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term=None, from_=2, size=2
-        )
-        assert len(unique_values_page2) == 1
-        assert unique_values_page2[0] in ["A", "B", "C"]
-        assert total_count_page2 == 3
-
-        # Pages don't overlap and together cover all values
-        assert not set(unique_values_page1).intersection(set(unique_values_page2))
-        assert set(unique_values_page1) | set(unique_values_page2) == {"A", "B", "C"}
-
-        # Test pagination - from_ beyond total count (should return empty, but a valid total_count)
-        unique_values_beyond, total_beyond = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term=None, from_=10, size=10
-        )
-        assert len(unique_values_beyond) == 0
-        assert total_beyond == 3
-
-        # Test with search term - matches the metadata field's own value, not document content
-        unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.language", search_term="Python", from_=0, size=10
-        )
-        assert set(unique_values_filtered) == {"Python"}
-        assert total_filtered == 1
-
-        # Case-insensitivity
-        unique_values_lower, total_lower = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.language", search_term="python", from_=0, size=10
-        )
-        assert set(unique_values_lower) == {"Python"}
-        assert total_lower == 1
-
-        # Substring matching - "Java" matches both "Java" and "JavaScript"
-        unique_values_java, total_java = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.language", search_term="Java", from_=0, size=10
-        )
-        assert set(unique_values_java) == {"Java", "JavaScript"}
-        assert total_java == 2
-
-        # Test that search_term matches metadata VALUE, not content
-        content_vs_metadata_docs = [
-            Document(content="This document mentions Python explicitly", meta={"topic": "cooking"}),
-            Document(content="Unrelated content about recipes", meta={"topic": "python-tutorial"}),
-        ]
-        document_store.write_documents(content_vs_metadata_docs)
-
-        unique_topics, total_topics = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.topic", search_term="python", from_=0, size=10
-        )
-        assert set(unique_topics) == {"python-tutorial"}
-        assert total_topics == 1
-
-        # Test with integer values
-        int_docs = [
-            Document(content="Doc 1", meta={"priority": 1}),
-            Document(content="Doc 2", meta={"priority": 2}),
-            Document(content="Doc 3", meta={"priority": 1}),
-            Document(content="Doc 4", meta={"priority": 3}),
-        ]
-        document_store.write_documents(int_docs)
-        unique_priorities, total_priorities = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.priority", search_term=None, from_=0, size=10
-        )
-        assert set(unique_priorities) == {1, 2, 3}
-        assert total_priorities == 3
-
-        # Test with search term on integer field - substring match against the field's own
-        # (stringified) value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
-        # The returned values themselves keep their original type (int here), only the match is textual.
-        unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.priority", search_term="1", from_=0, size=10
-        )
-        assert set(unique_priorities_filtered) == {1}
-        assert total_priorities_filtered == 1
-
-    def test_get_metadata_field_unique_values_with_filters(self, document_store: ElasticsearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
-    def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(
-        self, document_store: ElasticsearchDocumentStore
-    ):
-        """
-        `search_term` must filter by substring match on the metadata field's own value, not by matching
-        against the document's `content`.
-        """
-        docs = [
-            # "Python" appears in the content but NOT in the category value -> must be EXCLUDED
-            Document(content="Python programming guide", meta={"category": "Backend"}),
-            # "Python" appears in the category value but NOT in the content -> must be INCLUDED
-            Document(content="General purpose scripting language", meta={"category": "Python-based"}),
-        ]
-        document_store.write_documents(docs)
-
-        unique_values, _ = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term="Python", from_=0, size=10
-        )
-
-        assert unique_values == ["Python-based"]
-
-    def test_get_metadata_field_unique_values_search_term_case_insensitive(
-        self, document_store: ElasticsearchDocumentStore
-    ):
-        docs = [
-            Document(content="n/a", meta={"category": "Python-based"}),
-            Document(content="n/a", meta={"category": "Java-based"}),
-        ]
-        document_store.write_documents(docs)
-
-        unique_values, _ = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term="PYTHON", from_=0, size=10
-        )
-
-        assert unique_values == ["Python-based"]
-        assert "Backend" not in unique_values
 
     def test_query_sql(self, document_store: ElasticsearchDocumentStore):
         docs = [
