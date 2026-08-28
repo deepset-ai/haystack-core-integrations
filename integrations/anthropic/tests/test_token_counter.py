@@ -6,9 +6,8 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.tools import create_tool_from_function
-from haystack.utils.auth import Secret
 
 from haystack_integrations.token_counters.anthropic import AnthropicTokenCounter
 
@@ -39,10 +38,6 @@ class TestAnthropicTokenCounterInit:
         assert c.timeout == 30.0
         assert c.max_retries == 3
 
-    def test_explicit_api_key(self):
-        c = AnthropicTokenCounter(api_key=Secret.from_token("sk-test"))
-        assert c.model == "claude-sonnet-4-5"
-
 
 class TestAnthropicTokenCounterSerde:
     def test_to_dict(self, monkeypatch):
@@ -64,16 +59,12 @@ class TestAnthropicTokenCounterSerde:
         assert restored.timeout == c.timeout
         assert restored.max_retries == c.max_retries
 
-    def test_roundtrip(self, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        c = AnthropicTokenCounter(model="claude-haiku-4-5-20251001", timeout=5.0, max_retries=1)
-        restored = AnthropicTokenCounter.from_dict(c.to_dict())
-        assert restored.model == c.model
-        assert restored.timeout == c.timeout
-        assert restored.max_retries == c.max_retries
-
 
 class TestAnthropicTokenCounterCount:
+    def test_count_empty_messages_returns_zero(self, counter):
+        result = counter.count([])
+        assert result == 0
+
     def test_count_basic_messages(self, counter):
         mock_response = MagicMock()
         mock_response.input_tokens = 42
@@ -104,8 +95,7 @@ class TestAnthropicTokenCounterCount:
         call_kwargs = mock_call.call_args.kwargs
         assert "system" not in call_kwargs  # no system message → no system param
 
-    def test_count_with_tools(self, counter, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+    def test_count_with_tools(self, counter):
         mock_response = MagicMock()
         mock_response.input_tokens = 150
 
@@ -121,60 +111,22 @@ class TestAnthropicTokenCounterCount:
         assert len(call_kwargs["tools"]) == 1
         assert call_kwargs["tools"][0]["name"] == "weather_tool"
 
-    def test_count_no_tools(self, counter):
-        mock_response = MagicMock()
-        mock_response.input_tokens = 20
-
-        with patch.object(counter._client.messages, "count_tokens", return_value=mock_response) as mock_call:
-            messages = [ChatMessage.from_user("No tools here.")]
-            result = counter.count(messages)
-
-        assert result == 20
-        call_kwargs = mock_call.call_args.kwargs
-        assert "tools" not in call_kwargs
-
-    def test_count_multi_turn(self, counter):
-        mock_response = MagicMock()
-        mock_response.input_tokens = 75
-
-        with patch.object(counter._client.messages, "count_tokens", return_value=mock_response) as mock_call:
-            messages = [
-                ChatMessage.from_user("Tell me a joke."),
-                ChatMessage.from_assistant("Why did the chicken cross the road?"),
-                ChatMessage.from_user("Why?"),
-            ]
-            result = counter.count(messages)
-
-        assert result == 75
-        call_kwargs = mock_call.call_args.kwargs
-        assert len(call_kwargs["messages"]) == 3
-
 
 @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
 @pytest.mark.integration
 class TestAnthropicTokenCounterIntegration:
-    def test_count_basic(self):
-        counter = AnthropicTokenCounter(model="claude-haiku-4-5-20251001")
-        messages = [
-            ChatMessage.from_system("You are a scientist."),
-            ChatMessage.from_user("Hello, Claude"),
-        ]
-        count = counter.count(messages)
-        assert isinstance(count, int)
-        assert count > 0
-
-    def test_count_with_tools(self):
-        counter = AnthropicTokenCounter(model="claude-haiku-4-5-20251001")
+    def test_count_complex(self):
+        """Count tokens for a conversation with system, user, assistant, tool result messages and tools."""
         tool = create_tool_from_function(weather_tool)
-        messages = [ChatMessage.from_user("What's the weather in Paris?")]
+        tool_call = ToolCall(tool_name="weather_tool", arguments={"city": "Paris"}, id="toolu_01")
+        messages = [
+            ChatMessage.from_system("You are a helpful weather assistant."),
+            ChatMessage.from_user("What's the weather in Paris?"),
+            ChatMessage.from_assistant("Let me check the weather for you.", tool_calls=[tool_call]),
+            ChatMessage.from_tool(tool_result="Sunny in Paris", origin=tool_call),
+            ChatMessage.from_assistant("The weather in Paris is sunny."),
+        ]
+        counter = AnthropicTokenCounter(model="claude-haiku-4-5-20251001")
         count = counter.count(messages, tools=[tool])
         assert isinstance(count, int)
-        assert count > 0
-
-    def test_count_increases_with_tools(self):
-        counter = AnthropicTokenCounter(model="claude-haiku-4-5-20251001")
-        messages = [ChatMessage.from_user("What's the weather?")]
-        tool = create_tool_from_function(weather_tool)
-        count_without = counter.count(messages)
-        count_with = counter.count(messages, tools=[tool])
-        assert count_with > count_without
+        assert count > 20

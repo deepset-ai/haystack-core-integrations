@@ -48,10 +48,10 @@ from haystack_integrations.components.generators.anthropic.chat.utils import (
     _convert_chat_completion_to_chat_message,
     _convert_file_content_to_anthropic_format,
     _convert_image_content_to_anthropic_format,
-    _convert_messages_to_anthropic_format,
     _finalize_reasoning_group,
     _get_openai_compatible_usage,
     _has_server_tool_blocks,
+    convert_messages_to_anthropic_format,
 )
 
 CITATION = {
@@ -926,7 +926,7 @@ class TestConvertStreamingChunksToChatMessage:
 
 
 class TestConvertMessagesToAnthropicFormat:
-    def test_convert_messages_to_anthropic_format_replays_server_tool_content(self):
+    def testconvert_messages_to_anthropic_format_replays_server_tool_content(self):
         raw_blocks = [
             {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {"query": "haystack"}},
             {
@@ -960,7 +960,7 @@ class TestConvertMessagesToAnthropicFormat:
             meta={"raw_content_for_server_tools": raw_blocks},
         )
 
-        _, non_system = _convert_messages_to_anthropic_format([ChatMessage.from_user("hi"), assistant])
+        _, non_system = convert_messages_to_anthropic_format([ChatMessage.from_user("hi"), assistant])
 
         assert non_system[1]["role"] == "assistant"
         replayed = non_system[1]["content"]
@@ -970,7 +970,7 @@ class TestConvertMessagesToAnthropicFormat:
         assert replayed[1]["content"][0]["encrypted_content"] == "ENCRYPTED_PAYLOAD"
         assert replayed[2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
 
-    def test_convert_messages_to_anthropic_format_replay_does_not_duplicate_tool_calls(self):
+    def testconvert_messages_to_anthropic_format_replay_does_not_duplicate_tool_calls(self):
         """The raw blocks already hold the tool_use block; it must not be appended twice."""
         raw_blocks = [
             {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {}},
@@ -983,28 +983,28 @@ class TestConvertMessagesToAnthropicFormat:
             meta={"raw_content_for_server_tools": raw_blocks},
         )
 
-        _, non_system = _convert_messages_to_anthropic_format([assistant])
+        _, non_system = convert_messages_to_anthropic_format([assistant])
         replayed = non_system[0]["content"]
 
         assert [b["type"] for b in replayed].count("tool_use") == 1
 
     def test_convert_message_to_anthropic_format_from_system(self):
         messages = [ChatMessage.from_system("You are good assistant")]
-        assert _convert_messages_to_anthropic_format(messages) == (
+        assert convert_messages_to_anthropic_format(messages) == (
             [{"type": "text", "text": "You are good assistant"}],
             [],
         )
 
     def test_convert_message_to_anthropic_format_from_user(self):
         messages = [ChatMessage.from_user("I have a question")]
-        assert _convert_messages_to_anthropic_format(messages) == (
+        assert convert_messages_to_anthropic_format(messages) == (
             [],
             [{"role": "user", "content": [{"type": "text", "text": "I have a question"}]}],
         )
 
     def test_convert_message_to_anthropic_format_from_assistant(self):
         messages = [ChatMessage.from_assistant(text="I have an answer", meta={"finish_reason": "stop"})]
-        assert _convert_messages_to_anthropic_format(messages) == (
+        assert convert_messages_to_anthropic_format(messages) == (
             [],
             [{"role": "assistant", "content": [{"type": "text", "text": "I have an answer"}]}],
         )
@@ -1014,7 +1014,7 @@ class TestConvertMessagesToAnthropicFormat:
                 tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
             )
         ]
-        result = _convert_messages_to_anthropic_format(messages)
+        result = convert_messages_to_anthropic_format(messages)
         assert result == (
             [],
             [
@@ -1031,7 +1031,7 @@ class TestConvertMessagesToAnthropicFormat:
                 tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})],
             )
         ]
-        result = _convert_messages_to_anthropic_format(messages)
+        result = convert_messages_to_anthropic_format(messages)
         assert result == (
             [],
             [
@@ -1048,7 +1048,7 @@ class TestConvertMessagesToAnthropicFormat:
                 tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})],
             )
         ]
-        result = _convert_messages_to_anthropic_format(messages)
+        result = convert_messages_to_anthropic_format(messages)
         assert result == (
             [],
             [
@@ -1069,7 +1069,7 @@ class TestConvertMessagesToAnthropicFormat:
                 tool_result=tool_result, origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
             )
         ]
-        assert _convert_messages_to_anthropic_format(messages) == (
+        assert convert_messages_to_anthropic_format(messages) == (
             [],
             [
                 {
@@ -1105,7 +1105,7 @@ class TestConvertMessagesToAnthropicFormat:
                 tool_result=tool_result, origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
             )
         ]
-        assert _convert_messages_to_anthropic_format(messages) == (
+        assert convert_messages_to_anthropic_format(messages) == (
             [],
             [
                 {
@@ -1162,7 +1162,7 @@ class TestConvertMessagesToAnthropicFormat:
             ),
         ]
 
-        system_messages, non_system_messages = _convert_messages_to_anthropic_format(messages)
+        system_messages, non_system_messages = convert_messages_to_anthropic_format(messages)
 
         assert system_messages == [{"type": "text", "text": "You are good assistant"}]
         assert non_system_messages == [
@@ -1204,7 +1204,7 @@ class TestConvertMessagesToAnthropicFormat:
         image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
         message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
-        _, non_system_messages = _convert_messages_to_anthropic_format([message])
+        _, non_system_messages = convert_messages_to_anthropic_format([message])
 
         assert len(non_system_messages) == 1
         anthropic_message = non_system_messages[0]
@@ -1228,7 +1228,7 @@ class TestConvertMessagesToAnthropicFormat:
         file_content = FileContent(base64_data=base64_data, mime_type="application/pdf", extra=extra)
         message = ChatMessage.from_user(content_parts=["Describe this document", file_content])
 
-        _, non_system_messages = _convert_messages_to_anthropic_format([message])
+        _, non_system_messages = convert_messages_to_anthropic_format([message])
         assert non_system_messages == [
             {
                 "role": "user",
@@ -1250,23 +1250,23 @@ class TestConvertMessagesToAnthropicFormat:
         """
         message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
         with pytest.raises(ValueError):
-            _convert_messages_to_anthropic_format([message])
+            convert_messages_to_anthropic_format([message])
 
         tool_call_null_id = ToolCall(id=None, tool_name="weather", arguments={"city": "Paris"})
         message = ChatMessage.from_assistant(tool_calls=[tool_call_null_id])
         with pytest.raises(ValueError):
-            _convert_messages_to_anthropic_format([message])
+            convert_messages_to_anthropic_format([message])
 
         message = ChatMessage.from_tool(tool_result="result", origin=tool_call_null_id)
         with pytest.raises(ValueError):
-            _convert_messages_to_anthropic_format([message])
+            convert_messages_to_anthropic_format([message])
 
         base64_data = "JVBERi0xLjEKMSAwIG9iago8PC9UeXBlL0NhdGFsb2c+PgplbmRvYmoKdHJhaWxlcgo8PC9Sb290IDEgMCBSPj4KJSVFT0Y="
         file_content = FileContent(base64_data=base64_data, mime_type="application/pdf")
         message = ChatMessage.from_assistant()
         message = replace(message, _content=[file_content])
         with pytest.raises(ValueError, match="File content is only supported for user messages"):
-            _convert_messages_to_anthropic_format([message])
+            convert_messages_to_anthropic_format([message])
 
 
 class TestConvertImageContentToAnthropicFormat:

@@ -4,14 +4,14 @@
 
 from typing import Any
 
-from anthropic import Anthropic
-from anthropic.types import ToolParam
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage
 from haystack.tools import ToolsType, flatten_tools_or_toolsets
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.generators.anthropic.chat.utils import _convert_messages_to_anthropic_format
+from anthropic import Anthropic
+from anthropic.types import ToolParam
+from haystack_integrations.components.generators.anthropic.chat.utils import convert_messages_to_anthropic_format
 
 
 class AnthropicTokenCounter:
@@ -75,7 +75,10 @@ class AnthropicTokenCounter:
         :param tools: Optional list of Tools whose schemas are included in the count.
         :returns: The number of input tokens.
         """
-        system_messages, non_system_messages = _convert_messages_to_anthropic_format(messages)
+        if not messages:
+            return 0
+
+        system_messages, non_system_messages = convert_messages_to_anthropic_format(messages)
 
         kwargs: dict[str, Any] = {
             "model": self.model,
@@ -86,7 +89,7 @@ class AnthropicTokenCounter:
         if tools:
             flattened = flatten_tools_or_toolsets(tools)
             kwargs["tools"] = [
-                ToolParam(name=t.name, description=t.description, input_schema=t.parameters) for t in flattened
+                ToolParam(name=t.name, description=t.description or "", input_schema=t.parameters) for t in flattened
             ]
 
         response = self._client.messages.count_tokens(**kwargs)
