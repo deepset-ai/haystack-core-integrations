@@ -5,6 +5,7 @@
 """ArcadeDB DocumentStore for Haystack 2.x — document storage + vector search via HTTP/JSON API."""
 
 import logging
+from collections import defaultdict
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, ClassVar
@@ -282,6 +283,36 @@ class ArcadeDBDocumentStore:
             elif val is not None:
                 _add(val)
         return result
+
+    @staticmethod
+    def _sort_values_by_type(values: list[Any]) -> list[Any]:
+        """
+        Sorts values deterministically without ever comparing values that aren't mutually comparable.
+
+        `1 < "a"` raises `TypeError`, so values are split into mutually comparable groups, keyed by type
+        name, and each group is sorted on its own. `int`, `float` and `bool` share one `"number"` group
+        so numeric order holds across the three types: a field holding both `2.5` and `10` sorts as
+        `[2.5, 10]` instead of putting every float ahead of every int. Sorting the whole list on
+        `str(value)` would dodge the `TypeError` too, but it would degrade numbers to string order
+        (`10` before `2`), so each group keeps its own natural ordering instead.
+
+        Values that compare equal but differ in type (`1 == 1.0 == True`) can't be ordered by value
+        alone, and `SELECT DISTINCT` gives no row-order guarantee, so the type name breaks the tie.
+        Without it their order would follow whatever order the server happened to return them in, and
+        paginating through the values could repeat one and skip another.
+
+        :param values: The values to sort.
+        :returns: The values, grouped into mutually comparable types and sorted within each group.
+        """
+
+        def sort_key(value: Any) -> tuple[Any, str]:
+            return value, type(value).__name__
+
+        grouped: dict[str, list[Any]] = defaultdict(list)
+        for value in values:
+            group = "number" if isinstance(value, (bool, int, float)) else type(value).__name__
+            grouped[group].append(value)
+        return [value for group in sorted(grouped) for value in sorted(grouped[group], key=sort_key)]
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
         """
@@ -639,7 +670,7 @@ class ArcadeDBDocumentStore:
         sql = f"SELECT DISTINCT {field_ref} AS val, {field_ref}.type() AS val_type FROM `{self._type_name}`{where}"
         rows = self._command(sql)
 
-        all_values = sorted(self._extract_distinct_values(rows), key=lambda value: (type(value).__name__, str(value)))
+        all_values = self._sort_values_by_type(self._extract_distinct_values(rows))
         total_count = len(all_values)
         return all_values[from_ : from_ + size], total_count
 
