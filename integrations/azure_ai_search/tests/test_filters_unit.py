@@ -20,7 +20,7 @@ from haystack_integrations.document_stores.azure_ai_search.filters import _norma
         ({"field": "meta.count", "operator": "!=", "value": 3}, "not (count eq 3)"),
         (
             {"field": "meta.page", "operator": "in", "value": ["1", "2"]},
-            "search.in(page,'1\u001f2','\u001f')",
+            "search.in(page,'1,2',',')",
         ),
         ({"field": "meta.count", "operator": ">", "value": 5}, "count gt 5"),
         ({"field": "meta.count", "operator": ">=", "value": 5}, "count ge 5"),
@@ -36,16 +36,32 @@ from haystack_integrations.document_stores.azure_ai_search.filters import _norma
         ({"field": "meta.name", "operator": "!=", "value": "O'Brien"}, "not (name eq 'O''Brien')"),
         (
             {"field": "meta.name", "operator": "in", "value": ["O'Brien", "d'Arc"]},
-            "search.in(name,'O''Brien\u001fd''Arc','\u001f')",
+            "search.in(name,'O''Brien,d''Arc',',')",
         ),
         # Values containing commas must not be split by Azure's search.in delimiter.
+        # The comma is unsafe here, so a pipe delimiter is chosen instead.
         (
             {"field": "meta.city", "operator": "in", "value": ["New York, NY", "Austin"]},
-            "search.in(city,'New York, NY\u001fAustin','\u001f')",
+            "search.in(city,'New York, NY|Austin','|')",
+        ),
+        # When a value contains a common delimiter that is still safe, prefer it over
+        # control characters so the generated OData is easier to read.
+        (
+            {"field": "meta.city", "operator": "in", "value": ["Paris", "Berlin"]},
+            "search.in(city,'Paris,Berlin',',')",
         ),
     ],
 )
 def test_normalize_filters_comparison_conditions(filters, expected):
+    assert _normalize_filters(filters) == expected
+
+
+def test_normalize_filters_in_fallback_to_or_chain():
+    # If every candidate delimiter appears somewhere in the values, search.in cannot
+    # be used safely. Fall back to an OR chain of equality clauses.
+    value = "has_all_delimiters,|;\u001f\u001e\u001d"
+    filters = {"field": "meta.tag", "operator": "in", "value": [value]}
+    expected = f"tag eq '{value}'"
     assert _normalize_filters(filters) == expected
 
 

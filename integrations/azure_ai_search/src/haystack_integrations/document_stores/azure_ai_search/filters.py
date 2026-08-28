@@ -98,7 +98,7 @@ def _in(field: str, value: Any) -> str:
     # Pick a delimiter that does not occur in any of the values, so commas (or
     # any other character) inside metadata values are preserved. If every
     # candidate delimiter is present, fall back to an OR chain of eq clauses.
-    candidates = ["\u001f", "\u001e", "\u001d"]
+    candidates = [",", "|", ";", "\u001f", "\u001e", "\u001d"]
     for delimiter in candidates:
         if all(delimiter not in v for v in value):
             values = delimiter.join(_escape_odata_literal(v) for v in value)
