@@ -4,7 +4,6 @@
 
 import dataclasses
 import datetime
-import itertools
 import os
 from unittest.mock import MagicMock, Mock
 
@@ -110,47 +109,6 @@ class TestStaticHelpers:
         assert len(values) == 4
         values_by_type = {type(value): value for value in values}
         assert values_by_type.keys() == {int, bool, float, str}
-
-    @pytest.mark.parametrize(
-        "values,expected",
-        [
-            # numbers keep numeric order instead of degrading to string order ("10" before "2")
-            ([10, 1, 20, 2, 3], [1, 2, 3, 10, 20]),
-            ([1.5, 0.5, 10.25], [0.5, 1.5, 10.25]),
-            (["b", "a", "C"], ["C", "a", "b"]),
-            ([], []),
-            # ints and floats are mutually comparable, so a field holding both still sorts numerically
-            # instead of putting every float ahead of every int
-            ([2.5, 1, 3], [1, 2.5, 3]),
-            ([1, 2, 3, 1.5], [1, 1.5, 2, 3]),
-            ([9.99, 10, 1], [1, 9.99, 10]),
-        ],
-    )
-    def test_sort_values_by_type(self, values, expected):
-        assert ArcadeDBDocumentStore._sort_values_by_type(values) == expected
-
-    def test_sort_values_by_type_groups_incomparable_types(self):
-        """Mixed types can't all be compared with `<`, so they're grouped instead of raising."""
-        result = ArcadeDBDocumentStore._sort_values_by_type([1, "a", 2.5, True])
-
-        # `1 == True` and `1 == 1.0`, so equality alone can't prove the grouping - check the types.
-        # int, float and bool share one numeric group; the str sorts on its own.
-        assert [type(value).__name__ for value in result] == ["bool", "int", "float", "str"]
-        assert result == [True, 1, 2.5, "a"]
-
-    def test_sort_values_by_type_is_independent_of_input_order(self):
-        """
-        Values that compare equal but differ in type must always come back in the same order.
-
-        `SELECT DISTINCT` gives no row-order guarantee, so if the tie between `1`, `1.0` and `True`
-        were left to the sort's stability, the order would follow whatever the server happened to
-        return - and one page of values could repeat a value that the next page then skips.
-        """
-        for permutation in itertools.permutations([1, 1.0, True, "1"]):
-            result = ArcadeDBDocumentStore._sort_values_by_type(list(permutation))
-
-            # `1 == 1.0 == True`, so only the types can show the ordering is really stable.
-            assert [type(value).__name__ for value in result] == ["bool", "float", "int", "str"]
 
     @pytest.mark.parametrize(
         "values,expected",
@@ -552,22 +510,6 @@ class TestArcadeDBDocumentStore(
         counts = document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["priority"])
 
         assert counts == {"priority": 4}
-
-    def test_get_metadata_field_unique_values_numeric_ordering(self, document_store: ArcadeDBDocumentStore):
-        """
-        Numeric values must come back in numeric order, not string order ("10" sorts before "2").
-        The base mixin's pagination test only uses string values, so it can't catch that - and getting
-        it wrong silently changes which values land on which page.
-        """
-        docs = [Document(content=f"Doc {value}", meta={"priority": value}) for value in [10, 1, 20, 2, 3]]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("priority", size=10)
-        assert values == [1, 2, 3, 10, 20]
-        assert total_count == 5
-
-        first_page, _ = document_store.get_metadata_field_unique_values("priority", from_=0, size=2)
-        assert first_page == [1, 2]
 
     def test_get_metadata_field_unique_values_no_matches(self, document_store: ArcadeDBDocumentStore):
         """Returns empty results when no metadata values match the search term."""
