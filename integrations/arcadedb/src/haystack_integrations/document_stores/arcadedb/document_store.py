@@ -559,7 +559,10 @@ class ArcadeDBDocumentStore:
         counts = {}
         for field in metadata_fields:  # Arcade doesn't support COUNT(DISTINCT..)
             field_name = field.removeprefix("meta.")
-            sql = f"SELECT DISTINCT meta[{_sql_str(field_name)}] AS val FROM `{self._type_name}`"
+            field_ref = f"meta[{_sql_str(field_name)}]"
+            # Projecting the value's type makes DISTINCT type-aware, so an int and a numerically equal
+            # float stay two values instead of collapsing into one - see get_metadata_field_unique_values.
+            sql = f"SELECT DISTINCT {field_ref} AS val, {field_ref}.type() AS val_type FROM `{self._type_name}`"
             if where:
                 sql += f" WHERE {where}"
             rows = self._command(sql)
@@ -623,12 +626,9 @@ class ArcadeDBDocumentStore:
         Retrieves unique values for a field matching a search term or all possible values
         if no search term is given.
 
-        **Note**: values of different types are kept distinct even when they compare equal in Python
-        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
-        one exception: ArcadeDB's `SELECT DISTINCT` treats a whole-number float (e.g. `1.0`) as identical
-        to a numerically equal int (`1`), so those two collapse into a single value even though a plain
-        row-by-row read preserves each value's own type. Floats with a fractional part (e.g. `1.5`) are
-        unaffected.
+        **Note**: values of different types are kept distinct even when they compare equal in Python, so
+        the int `1`, the float `1.0`, the bool `True` and the str `"1"` are returned as four separate
+        values.
 
         :param metadata_field: The metadata field to inspect.
         :param search_term: Optional case-insensitive substring search term.
@@ -656,9 +656,10 @@ class ArcadeDBDocumentStore:
 
         where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
 
-        # Not fixable here: SELECT DISTINCT treats a whole-number float (1.0) as identical to a
-        # numerically equal int (1), so it collapses them - see this method's docstring.
-        sql = f"SELECT DISTINCT {field_ref} AS val FROM `{self._type_name}`{where}"
+        # On its own, SELECT DISTINCT treats a whole-number float (1.0) as identical to a numerically
+        # equal int (1) and collapses them. Projecting the value's type alongside it makes DISTINCT
+        # type-aware, so both survive; `_extract_distinct_values` only reads `val`.
+        sql = f"SELECT DISTINCT {field_ref} AS val, {field_ref}.type() AS val_type FROM `{self._type_name}`{where}"
         rows = self._command(sql)
 
         all_values = self._sort_values_by_type(self._extract_distinct_values(rows))
