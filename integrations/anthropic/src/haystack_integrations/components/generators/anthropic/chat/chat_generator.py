@@ -34,10 +34,10 @@ from .utils import (
     _accumulate_raw_content_blocks,
     _convert_anthropic_chunk_to_streaming_chunk,
     _convert_chat_completion_to_chat_message,
+    _convert_messages_to_anthropic_format,
     _extract_citations,
     _has_server_tool_blocks,
     _process_reasoning_contents,
-    convert_messages_to_anthropic_format,
 )
 
 logger = logging.getLogger(__name__)
@@ -286,7 +286,7 @@ class AnthropicChatGenerator:
             )
         generation_kwargs = {k: v for k, v in generation_kwargs.items() if k in self.ALLOWED_PARAMS}
 
-        system_messages, non_system_messages = convert_messages_to_anthropic_format(messages)
+        system_messages, non_system_messages = _convert_messages_to_anthropic_format(messages)
 
         # prompt caching
 

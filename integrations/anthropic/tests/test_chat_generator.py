@@ -27,8 +27,8 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
     AnthropicChatGenerator,
 )
 from haystack_integrations.components.generators.anthropic.chat.utils import (
+    _convert_messages_to_anthropic_format,
     _has_server_tool_blocks,
-    convert_messages_to_anthropic_format,
 )
 
 
@@ -721,7 +721,7 @@ class TestPromptCaching:
             },
         )
         sys = ChatMessage.from_system("hi", meta={"cache_control": {"type": "ephemeral", "example_key": "example_val"}})
-        sys_blocks, non_sys = convert_messages_to_anthropic_format([sys, user])
+        sys_blocks, non_sys = _convert_messages_to_anthropic_format([sys, user])
 
         assert sys_blocks[0]["cache_control"] == {"type": "ephemeral", "example_key": "example_val"}
         assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
@@ -1202,7 +1202,7 @@ class TestIntegration:
         assert message.meta["citations"][0]["url"]
 
         # the replayed turn carries the encrypted fields back unchanged
-        _, non_system = convert_messages_to_anthropic_format([message])
+        _, non_system = _convert_messages_to_anthropic_format([message])
         assert non_system[0]["content"] == raw_content
 
     def test_live_run_agent_with_multimodal_content_in_tool_result(self, test_files_path):

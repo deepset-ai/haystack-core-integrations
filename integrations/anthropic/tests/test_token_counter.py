@@ -20,16 +20,19 @@ def weather_tool(city: str) -> str:
 @pytest.fixture()
 def counter(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-    return AnthropicTokenCounter(model="claude-sonnet-4-5")
+    c = AnthropicTokenCounter(model="claude-sonnet-4-5")
+    c.warm_up()
+    return c
 
 
 class TestAnthropicTokenCounterInit:
     def test_default_init(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        c = AnthropicTokenCounter()
+        c = AnthropicTokenCounter(model="claude-sonnet-4-5")
         assert c.model == "claude-sonnet-4-5"
         assert c.timeout is None
         assert c.max_retries is None
+        assert c.client is None  # client not initialized until warm_up
 
     def test_custom_init(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
@@ -37,6 +40,21 @@ class TestAnthropicTokenCounterInit:
         assert c.model == "claude-opus-4-5"
         assert c.timeout == 30.0
         assert c.max_retries == 3
+
+    def test_warm_up_initializes_client(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        c = AnthropicTokenCounter(model="claude-sonnet-4-5")
+        assert c.client is None
+        c.warm_up()
+        assert c.client is not None
+
+    def test_warm_up_is_idempotent(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        c = AnthropicTokenCounter(model="claude-sonnet-4-5")
+        c.warm_up()
+        first_client = c.client
+        c.warm_up()
+        assert c.client is first_client  # same instance, not re-created
 
 
 class TestAnthropicTokenCounterSerde:
@@ -61,15 +79,15 @@ class TestAnthropicTokenCounterSerde:
 
 
 class TestAnthropicTokenCounterCount:
-    def test_count_empty_messages_returns_zero(self, counter):
-        result = counter.count([])
-        assert result == 0
+    def test_count_empty_returns_zero(self, counter):
+        assert counter.count([]) == 0
+        assert counter.count([], tools=None) == 0
 
     def test_count_basic_messages(self, counter):
         mock_response = MagicMock()
         mock_response.input_tokens = 42
 
-        with patch.object(counter._client.messages, "count_tokens", return_value=mock_response) as mock_call:
+        with patch.object(counter.client.messages, "count_tokens", return_value=mock_response) as mock_call:
             messages = [
                 ChatMessage.from_system("You are helpful."),
                 ChatMessage.from_user("Hello!"),
@@ -87,7 +105,7 @@ class TestAnthropicTokenCounterCount:
         mock_response = MagicMock()
         mock_response.input_tokens = 10
 
-        with patch.object(counter._client.messages, "count_tokens", return_value=mock_response) as mock_call:
+        with patch.object(counter.client.messages, "count_tokens", return_value=mock_response) as mock_call:
             messages = [ChatMessage.from_user("How many tokens?")]
             result = counter.count(messages)
 
@@ -101,7 +119,7 @@ class TestAnthropicTokenCounterCount:
 
         tool = create_tool_from_function(weather_tool)
 
-        with patch.object(counter._client.messages, "count_tokens", return_value=mock_response) as mock_call:
+        with patch.object(counter.client.messages, "count_tokens", return_value=mock_response) as mock_call:
             messages = [ChatMessage.from_user("What's the weather in Paris?")]
             result = counter.count(messages, tools=[tool])
 
@@ -110,6 +128,23 @@ class TestAnthropicTokenCounterCount:
         assert "tools" in call_kwargs
         assert len(call_kwargs["tools"]) == 1
         assert call_kwargs["tools"][0]["name"] == "weather_tool"
+
+    def test_count_auto_warms_up(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        c = AnthropicTokenCounter(model="claude-sonnet-4-5")
+        assert c.client is None
+
+        mock_response = MagicMock()
+        mock_response.input_tokens = 5
+
+        with patch("haystack_integrations.token_counters.anthropic.token_counter.Anthropic") as mock_anthropic:
+            mock_client = MagicMock()
+            mock_anthropic.return_value = mock_client
+            mock_client.messages.count_tokens.return_value = mock_response
+            result = c.count([ChatMessage.from_user("hi")])
+
+        assert c.client is not None
+        assert result == 5
 
 
 @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")

@@ -11,7 +11,7 @@ from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
 from anthropic import Anthropic
 from anthropic.types import ToolParam
-from haystack_integrations.components.generators.anthropic.chat.utils import convert_messages_to_anthropic_format
+from haystack_integrations.components.generators.anthropic.chat.utils import _convert_messages_to_anthropic_format
 
 
 class AnthropicTokenCounter:
@@ -38,9 +38,9 @@ class AnthropicTokenCounter:
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-5",
-        api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
+        model: str,
         *,
+        api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
         timeout: float | None = None,
         max_retries: int | None = None,
     ) -> None:
@@ -58,14 +58,18 @@ class AnthropicTokenCounter:
         self.api_key = api_key
         self.timeout = timeout
         self.max_retries = max_retries
+        self.client: Anthropic | None = None
 
-        client_kwargs: dict[str, Any] = {"api_key": api_key.resolve_value()}
-        if timeout is not None:
-            client_kwargs["timeout"] = timeout
-        if max_retries is not None:
-            client_kwargs["max_retries"] = max_retries
-
-        self._client = Anthropic(**client_kwargs)
+    def warm_up(self) -> None:
+        """Initialize the Anthropic client."""
+        if self.client is not None:
+            return
+        client_kwargs: dict[str, Any] = {"api_key": self.api_key.resolve_value()}
+        if self.timeout is not None:
+            client_kwargs["timeout"] = self.timeout
+        if self.max_retries is not None:
+            client_kwargs["max_retries"] = self.max_retries
+        self.client = Anthropic(**client_kwargs)
 
     def count(self, messages: list[ChatMessage], tools: ToolsType | None = None) -> int:
         """
@@ -73,12 +77,17 @@ class AnthropicTokenCounter:
 
         :param messages: The list of ChatMessages to count tokens for.
         :param tools: Optional list of Tools whose schemas are included in the count.
-        :returns: The number of input tokens.
+        :returns: The number of input tokens, or `0` when there is nothing to measure.
         """
-        if not messages:
+        if not messages and not tools:
             return 0
 
-        system_messages, non_system_messages = convert_messages_to_anthropic_format(messages)
+        self.warm_up()
+        if self.client is None:
+            msg = "The Anthropic client was not initialized."
+            raise RuntimeError(msg)
+
+        system_messages, non_system_messages = _convert_messages_to_anthropic_format(messages)
 
         kwargs: dict[str, Any] = {
             "model": self.model,
@@ -92,7 +101,7 @@ class AnthropicTokenCounter:
                 ToolParam(name=t.name, description=t.description or "", input_schema=t.parameters) for t in flattened
             ]
 
-        response = self._client.messages.count_tokens(**kwargs)
+        response = self.client.messages.count_tokens(**kwargs)
         return response.input_tokens
 
     def to_dict(self) -> dict[str, Any]:

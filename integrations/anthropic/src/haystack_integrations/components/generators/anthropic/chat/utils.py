@@ -226,7 +226,7 @@ def _convert_tool_calls_to_anthropic_format(tool_calls: list[ToolCall]) -> list[
     return anthropic_tool_calls
 
 
-def convert_messages_to_anthropic_format(
+def _convert_messages_to_anthropic_format(
     messages: list[ChatMessage],
 ) -> tuple[list[TextBlockParam], list[MessageParam]]:
     """
