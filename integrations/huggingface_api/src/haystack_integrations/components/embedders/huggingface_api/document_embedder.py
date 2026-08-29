@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from asyncio import Semaphore, gather
+from collections.abc import AsyncIterator
 from dataclasses import replace
 from itertools import chain
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
+from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 from huggingface_hub import AsyncInferenceClient, InferenceClient
@@ -19,6 +21,12 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFModelType,
     _check_valid_model,
 )
+
+with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
+    import grpc
+
+    from haystack_integrations.components.embedders.huggingface_api._grpc import tei_pb2, tei_pb2_grpc
+
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +117,7 @@ class HuggingFaceAPIDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         concurrency_limit: int = 4,
+        use_grpc: bool = False,
     ) -> None:
         """
         Creates a HuggingFaceAPIDocumentEmbedder component.
@@ -137,7 +146,7 @@ class HuggingFaceAPIDocumentEmbedder:
             if the backend uses Text Embeddings Inference.
             If `api_type` is `SERVERLESS_INFERENCE_API`, this parameter is ignored.
         :param batch_size:
-            Number of documents to process at once.
+            Number of documents to process at once when using HTTP. This parameter is ignored when using gRPC.
         :param progress_bar:
             If `True`, shows a progress bar when running.
         :param meta_fields_to_embed:
@@ -147,6 +156,8 @@ class HuggingFaceAPIDocumentEmbedder:
         :param concurrency_limit:
             The maximum number of requests that should be allowed to run concurrently.
             This parameter is only used in the `run_async` method.
+        :param use_grpc:
+            Uses the gRPC API instead of HTTP. Requires installing the `grpc` optional dependency.
         :raises ValueError:
             If the required `model` or `url` is missing from `api_params`, the `url` is invalid,
             or the `api_type` is unknown.
@@ -171,13 +182,20 @@ class HuggingFaceAPIDocumentEmbedder:
                     "parameter in `api_params`."
                 )
                 raise ValueError(msg)
-            if not is_valid_http_url(url):
+            if not use_grpc and not is_valid_http_url(url):
                 msg = f"Invalid URL: {url}"
                 raise ValueError(msg)
             model_or_url = url
         else:
             msg = f"Unknown api_type {api_type}"
             raise ValueError(msg)
+
+        if use_grpc:
+            grpc_import.check()
+            self._channel = grpc.insecure_channel(model_or_url)
+            self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            self._async_channel = grpc.aio.insecure_channel(model_or_url)
+            self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
 
         client_args: dict[str, Any] = {"model": model_or_url, "token": token.resolve_value() if token else None}
 
@@ -188,6 +206,7 @@ class HuggingFaceAPIDocumentEmbedder:
         self.suffix = suffix
         self.truncate = truncate
         self.normalize = normalize
+        self.use_grpc = use_grpc
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
@@ -212,6 +231,7 @@ class HuggingFaceAPIDocumentEmbedder:
             token=self.token,
             truncate=self.truncate,
             normalize=self.normalize,
+            use_grpc=self.use_grpc,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
@@ -266,6 +286,29 @@ class HuggingFaceAPIDocumentEmbedder:
                 normalize = None
         return truncate, normalize
 
+    def _embed_batch_grpc(self, texts_to_embed: list[str]) -> list[list[float]]:
+        """Embed all texts through a single gRPC stream."""
+        if not texts_to_embed:
+            return []
+
+        responses = self._stub.EmbedStream(
+            tei_pb2.EmbedRequest(inputs=text, truncate=self.truncate, normalize=self.normalize)
+            for text in texts_to_embed
+        )
+        embeddings = [
+            list(response.embeddings)
+            for response in tqdm(
+                responses,
+                total=len(texts_to_embed),
+                disable=not self.progress_bar,
+                desc="Calculating embeddings",
+            )
+        ]
+        if len(embeddings) != len(texts_to_embed):
+            msg = f"Expected {len(texts_to_embed)} embeddings, got {len(embeddings)}"
+            raise ValueError(msg)
+        return embeddings
+
     def _embed_batch(self, texts_to_embed: list[str], batch_size: int) -> list[list[float]]:
         """
         Embed a list of texts in batches.
@@ -287,6 +330,38 @@ class HuggingFaceAPIDocumentEmbedder:
             all_embeddings.extend(np_embeddings.tolist())
 
         return all_embeddings
+
+    async def _embed_batch_grpc_async(self, texts_to_embed: list[str]) -> list[list[float]]:
+        """Embed texts through concurrent gRPC streams."""
+        if not texts_to_embed:
+            return []
+
+        # Split texts evenly into ordered streams, up to the concurrency limit.
+        stream_count = min(max(1, self.concurrency_limit), len(texts_to_embed))
+        streams = [
+            texts_to_embed[len(texts_to_embed) * i // stream_count : len(texts_to_embed) * (i + 1) // stream_count]
+            for i in range(stream_count)
+        ]
+
+        pbar = tqdm(total=stream_count, disable=not self.progress_bar, desc="Calculating embeddings")
+
+        async def _runner(texts: list[str]) -> list[list[float]]:
+            async def _requests() -> AsyncIterator[tei_pb2.EmbedRequest]:
+                for text in texts:
+                    yield tei_pb2.EmbedRequest(inputs=text, truncate=self.truncate, normalize=self.normalize)
+
+            responses = self._async_stub.EmbedStream(_requests())
+            embeddings = [list(response.embeddings) async for response in responses]
+            if len(embeddings) != len(texts):
+                msg = f"Expected {len(texts)} embeddings, got {len(embeddings)}"
+                raise ValueError(msg)
+            pbar.update(1)
+            return embeddings
+
+        try:
+            return [*chain(*await gather(*(_runner(texts) for texts in streams)))]
+        finally:
+            pbar.close()
 
     async def _embed_batch_async(self, texts_to_embed: list[str], batch_size: int) -> list[list[float]]:
         """
@@ -351,7 +426,10 @@ class HuggingFaceAPIDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
+        if self.use_grpc:
+            embeddings = self._embed_batch_grpc(texts_to_embed)
+        else:
+            embeddings = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
 
         new_documents = []
         for doc, emb in zip(documents, embeddings, strict=True):
@@ -384,7 +462,10 @@ class HuggingFaceAPIDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings = await self._embed_batch_async(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
+        if self.use_grpc:
+            embeddings = await self._embed_batch_grpc_async(texts_to_embed)
+        else:
+            embeddings = await self._embed_batch_async(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
 
         new_documents = []
         for doc, emb in zip(documents, embeddings, strict=True):
