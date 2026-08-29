@@ -15,11 +15,11 @@ API_KEY_ENV_VAR = "CONTEXT_API_KEY"
 DEFAULT_API_URL = "https://api.context.dev/v1"
 
 try:
-    _VERSION = version("context-haystack")
+    _VERSION = version("context-dev-haystack")
 except PackageNotFoundError:  # pragma: no cover
     _VERSION = "0.0.0-dev"
 
-USER_AGENT = f"context-haystack/{_VERSION} contextdev-integration/deepset-ai-haystack-core-integrations"
+USER_AGENT = f"context-dev-haystack/{_VERSION} contextdev-integration/deepset-ai-haystack-core-integrations"
 
 
 class ContextError(ComponentError):

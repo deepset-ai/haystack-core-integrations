@@ -1,7 +1,7 @@
-# context-haystack
+# context-dev-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/context-haystack.svg)](https://pypi.org/project/context-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/context-haystack.svg)](https://pypi.org/project/context-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/context-dev-haystack.svg)](https://pypi.org/project/context-dev-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/context-dev-haystack.svg)](https://pypi.org/project/context-dev-haystack)
 
 - [Context.dev documentation](https://docs.context.dev)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/context/CHANGELOG.md)
@@ -11,7 +11,7 @@
 ## Installation
 
 ```bash
-pip install context-haystack
+pip install context-dev-haystack
 ```
 
 Create an API key in the [Context.dev dashboard](https://www.context.dev/dashboard/api-keys) and set it in your environment:

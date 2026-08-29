@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "context-haystack"
+name = "context-dev-haystack"
 dynamic = ["version"]
 description = "Haystack components for Context.dev web search, page fetching, and crawling"
 readme = "README.md"
