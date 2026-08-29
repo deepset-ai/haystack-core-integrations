@@ -105,6 +105,7 @@ class TestHuggingFaceAPITextEmbedder:
                 "suffix": "suffix",
                 "truncate": False,
                 "normalize": True,
+                "use_grpc": False,
             },
         }
 
@@ -217,6 +218,37 @@ class TestHuggingFaceAPITextEmbedder:
 
             with pytest.raises(ValueError):
                 embedder.run(text="The food was delicious")
+
+    @pytest.mark.integration
+    # `use_grpc` initializes an aio channel, which requires an active event loop.
+    @pytest.mark.asyncio
+    async def test_live_run_tei_grpc(self) -> None:
+        embedder = HuggingFaceAPITextEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "localhost:8081"},
+            use_grpc=True,
+        )
+        try:
+            result = embedder.run("This is a test sentence for embedding.")
+        finally:
+            await embedder._async_channel.close()
+
+        assert len(result["embedding"]) == 384
+        assert all(isinstance(value, float) for value in result["embedding"])
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async_tei_grpc(self) -> None:
+        embedder = HuggingFaceAPITextEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "localhost:8081"},
+            use_grpc=True,
+        )
+
+        result = await embedder.run_async("This is a test sentence for embedding.")
+
+        assert len(result["embedding"]) == 384
+        assert all(isinstance(value, float) for value in result["embedding"])
 
     @pytest.mark.integration
     @pytest.mark.skipif(

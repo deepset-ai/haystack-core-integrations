@@ -5,6 +5,7 @@
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 from huggingface_hub import AsyncInferenceClient, InferenceClient
@@ -14,6 +15,12 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFModelType,
     _check_valid_model,
 )
+
+with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
+    import grpc
+
+    from haystack_integrations.components.embedders.huggingface_api._grpc import tei_pb2, tei_pb2_grpc
+
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +93,7 @@ class HuggingFaceAPITextEmbedder:
         suffix: str = "",
         truncate: bool | None = True,
         normalize: bool | None = False,
+        use_grpc: bool = False,
     ) -> None:
         """
         Creates a HuggingFaceAPITextEmbedder component.
@@ -113,6 +121,8 @@ class HuggingFaceAPITextEmbedder:
             Applicable when `api_type` is `TEXT_EMBEDDINGS_INFERENCE`, or `INFERENCE_ENDPOINTS`
             if the backend uses Text Embeddings Inference.
             If `api_type` is `SERVERLESS_INFERENCE_API`, this parameter is ignored.
+        :param use_grpc:
+            Uses the gRPC API instead of HTTP. Requires installing the `grpc` optional dependency.
         :raises ValueError:
             If the required `model` or `url` is missing from `api_params`, the `url` is invalid,
             or the `api_type` is unknown.
@@ -135,13 +145,20 @@ class HuggingFaceAPITextEmbedder:
                     "parameter in `api_params`."
                 )
                 raise ValueError(msg)
-            if not is_valid_http_url(url):
+            if not use_grpc and not is_valid_http_url(url):
                 msg = f"Invalid URL: {url}"
                 raise ValueError(msg)
             model_or_url = url
         else:
             msg = f"Unknown api_type {api_type}"
             raise ValueError(msg)
+
+        if use_grpc:
+            grpc_import.check()
+            self._channel = grpc.insecure_channel(model_or_url)
+            self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            self._async_channel = grpc.aio.insecure_channel(model_or_url)
+            self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
 
         self.api_type = api_type
         self.api_params = api_params
@@ -150,6 +167,7 @@ class HuggingFaceAPITextEmbedder:
         self.suffix = suffix
         self.truncate = truncate
         self.normalize = normalize
+        self.use_grpc = use_grpc
         self._client = InferenceClient(model_or_url, token=token.resolve_value() if token else None)
         self._async_client = AsyncInferenceClient(model_or_url, token=token.resolve_value() if token else None)
 
@@ -194,6 +212,7 @@ class HuggingFaceAPITextEmbedder:
             token=self.token,
             truncate=self.truncate,
             normalize=self.normalize,
+            use_grpc=self.use_grpc,
         )
 
     @classmethod
@@ -226,6 +245,12 @@ class HuggingFaceAPITextEmbedder:
         """
         text_to_embed, truncate_val, normalize_val = self._prepare_input(text)
 
+        if self.use_grpc:
+            response = self._stub.Embed(
+                tei_pb2.EmbedRequest(inputs=text_to_embed, truncate=truncate_val, normalize=normalize_val)
+            )
+            return {"embedding": list(response.embeddings)}
+
         np_embedding = self._client.feature_extraction(
             text=text_to_embed, truncate=truncate_val, normalize=normalize_val
         )
@@ -257,6 +282,12 @@ class HuggingFaceAPITextEmbedder:
             - `embedding`: The embedding of the input text.
         """
         text_to_embed, truncate_val, normalize_val = self._prepare_input(text)
+
+        if self.use_grpc:
+            response = await self._async_stub.Embed(
+                tei_pb2.EmbedRequest(inputs=text_to_embed, truncate=truncate_val, normalize=normalize_val)
+            )
+            return {"embedding": list(response.embeddings)}
 
         np_embedding = await self._async_client.feature_extraction(
             text=text_to_embed, truncate=truncate_val, normalize=normalize_val
