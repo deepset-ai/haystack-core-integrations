@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from asyncio import Semaphore, gather
+from collections.abc import AsyncIterator
 from dataclasses import replace
 from itertools import chain
 from typing import Any
@@ -10,11 +11,17 @@ from typing import Any
 import httpx
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses import SparseEmbedding
+from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 from tqdm import tqdm
 
 from .sparse_embedding_utils import _build_client_kwargs, _embed_sparse, _embed_sparse_async
+
+with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
+    import grpc
+
+    from haystack_integrations.components.embedders.huggingface_api._grpc import tei_pb2, tei_pb2_grpc
 
 
 @component
@@ -48,6 +55,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
         timeout: float | None = 30.0,
         headers: dict[str, str] | None = None,
         concurrency_limit: int = 4,
+        use_grpc: bool = False,
     ) -> None:
         """
         Create a sparse Document embedder backed by TEI.
@@ -56,16 +64,18 @@ class HuggingFaceAPISparseDocumentEmbedder:
         :param token: Token sent to TEI as HTTP bearer authorization, if set.
         :param prefix: A string to add before each prepared Document text.
         :param suffix: A string to add after each prepared Document text.
-        :param batch_size: Number of Documents sent in each request.
+        :param batch_size: Number of Documents sent in each HTTP request. This parameter is ignored when using gRPC.
         :param progress_bar: If `True`, show a progress bar while embedding.
         :param meta_fields_to_embed: Metadata fields to embed before the Document content.
         :param embedding_separator: Separator for metadata fields and Document content.
         :param timeout: HTTP request timeout in seconds. Set to `None` to disable it.
         :param headers: Additional HTTP headers to send with each request.
         :param concurrency_limit: Maximum concurrent requests made by `run_async`.
-        :raises ValueError: If `api_base_url` is invalid or a numeric parameter is not positive.
+        :param use_grpc: Use the gRPC API instead of HTTP. This is supported only by TEI and requires installing the
+            `grpc` optional dependency. When enabled, `api_base_url` is used as the gRPC target.
+        :raises ValueError: If `api_base_url` is invalid when using HTTP or a numeric parameter is not positive.
         """
-        if not is_valid_http_url(api_base_url):
+        if not use_grpc and not is_valid_http_url(api_base_url):
             msg = f"api_base_url must be a valid HTTP URL, but got {api_base_url}"
             raise ValueError(msg)
         if batch_size <= 0:
@@ -74,6 +84,13 @@ class HuggingFaceAPISparseDocumentEmbedder:
         if concurrency_limit <= 0:
             msg = f"concurrency_limit must be > 0, but got {concurrency_limit}"
             raise ValueError(msg)
+
+        if use_grpc:
+            grpc_import.check()
+            self._channel = grpc.insecure_channel(api_base_url)
+            self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            self._async_channel = grpc.aio.insecure_channel(api_base_url)
+            self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
 
         self.api_base_url = api_base_url
         self.token = token
@@ -86,6 +103,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
         self.timeout = timeout
         self.headers = headers or {}
         self.concurrency_limit = concurrency_limit
+        self.use_grpc = use_grpc
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -102,6 +120,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
             timeout=self.timeout,
             headers=self.headers,
             concurrency_limit=self.concurrency_limit,
+            use_grpc=self.use_grpc,
         )
 
     @classmethod
@@ -124,6 +143,65 @@ class HuggingFaceAPISparseDocumentEmbedder:
             ]
             texts.append(self.prefix + self.embedding_separator.join([*meta, document.content or ""]) + self.suffix)
         return texts
+
+    def _embed_batch_grpc(self, texts: list[str]) -> list[SparseEmbedding]:
+        """Embed all texts through a single gRPC stream."""
+        if not texts:
+            return []
+
+        responses = self._stub.EmbedSparseStream(tei_pb2.EmbedSparseRequest(inputs=text) for text in texts)
+        embeddings = [
+            SparseEmbedding(
+                indices=[sparse_value.index for sparse_value in response.sparse_embeddings],
+                values=[sparse_value.value for sparse_value in response.sparse_embeddings],
+            )
+            for response in tqdm(
+                responses,
+                total=len(texts),
+                disable=not self.progress_bar,
+                desc="Calculating sparse embeddings",
+            )
+        ]
+        if len(embeddings) != len(texts):
+            msg = f"Expected {len(texts)} sparse embeddings, got {len(embeddings)}"
+            raise ValueError(msg)
+        return embeddings
+
+    async def _embed_batch_grpc_async(self, texts: list[str]) -> list[SparseEmbedding]:
+        """Embed texts through concurrent gRPC streams."""
+        if not texts:
+            return []
+
+        stream_count = min(max(1, self.concurrency_limit), len(texts))
+        streams = [
+            texts[len(texts) * index // stream_count : len(texts) * (index + 1) // stream_count]
+            for index in range(stream_count)
+        ]
+        progress = tqdm(total=stream_count, disable=not self.progress_bar, desc="Calculating sparse embeddings")
+
+        async def embed_stream(stream_texts: list[str]) -> list[SparseEmbedding]:
+            async def requests() -> AsyncIterator[tei_pb2.EmbedSparseRequest]:
+                for text in stream_texts:
+                    yield tei_pb2.EmbedSparseRequest(inputs=text)
+
+            responses = self._async_stub.EmbedSparseStream(requests())
+            embeddings = [
+                SparseEmbedding(
+                    indices=[sparse_value.index for sparse_value in response.sparse_embeddings],
+                    values=[sparse_value.value for sparse_value in response.sparse_embeddings],
+                )
+                async for response in responses
+            ]
+            if len(embeddings) != len(stream_texts):
+                msg = f"Expected {len(stream_texts)} sparse embeddings, got {len(embeddings)}"
+                raise ValueError(msg)
+            progress.update(1)
+            return embeddings
+
+        try:
+            return list(chain.from_iterable(await gather(*(embed_stream(stream) for stream in streams))))
+        finally:
+            progress.close()
 
     def _embed_batches(self, client: httpx.Client, texts: list[str]) -> list[SparseEmbedding]:
         embeddings = []
@@ -170,8 +248,11 @@ class HuggingFaceAPISparseDocumentEmbedder:
         """
         self._validate_documents(documents)
         texts = self._prepare_texts_to_embed(documents)
-        with httpx.Client(**self._client_kwargs()) as client:
-            embeddings = self._embed_batches(client, texts)
+        if self.use_grpc:
+            embeddings = self._embed_batch_grpc(texts)
+        else:
+            with httpx.Client(**self._client_kwargs()) as client:
+                embeddings = self._embed_batches(client, texts)
         return {
             "documents": [
                 replace(document, sparse_embedding=embedding)
@@ -189,8 +270,11 @@ class HuggingFaceAPISparseDocumentEmbedder:
         """
         self._validate_documents(documents)
         texts = self._prepare_texts_to_embed(documents)
-        async with httpx.AsyncClient(**self._client_kwargs()) as client:
-            embeddings = await self._embed_batches_async(client, texts)
+        if self.use_grpc:
+            embeddings = await self._embed_batch_grpc_async(texts)
+        else:
+            async with httpx.AsyncClient(**self._client_kwargs()) as client:
+                embeddings = await self._embed_batches_async(client, texts)
         return {
             "documents": [
                 replace(document, sparse_embedding=embedding)
