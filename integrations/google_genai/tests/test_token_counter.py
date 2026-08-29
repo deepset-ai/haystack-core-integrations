@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from unittest.mock import Mock
 
 import pytest
@@ -156,6 +157,10 @@ class TestGoogleGenAITokenCounterCount:
         assert counter.client is None
 
 
+@pytest.mark.skipif(
+    not os.environ.get("GOOGLE_API_KEY", None) and not os.environ.get("GEMINI_API_KEY", None),
+    reason="Export an env var called GOOGLE_API_KEY or GEMINI_API_KEY containing the Google API key to run this test.",
+)
 @pytest.mark.integration
 class TestGoogleGenAITokenCounterInference:
     def test_live_count(self, tools):
