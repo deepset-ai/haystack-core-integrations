@@ -20,6 +20,8 @@ from haystack.dataclasses import ByteStream
 from typing_extensions import Self
 
 _Route = Literal["libreoffice", "html", "markdown", "url"]
+# Supported Gotenberg LibreOffice conversion input formats:
+# https://gotenberg.dev/docs/convert-with-libreoffice/convert-to-pdf
 _LIBREOFFICE_EXTENSIONS = frozenset(
     {
         ".123",
