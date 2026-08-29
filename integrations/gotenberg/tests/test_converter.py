@@ -10,7 +10,7 @@ import pytest
 from gotenberg_client.responses import SingleFileResponse
 from haystack.dataclasses import ByteStream
 
-from haystack_integrations.components.converters.gotenberg import ConversionType, GotenbergFileConverter
+from haystack_integrations.components.converters.gotenberg import GotenbergFileConverter
 
 CONVERTER_MODULE = "haystack_integrations.components.converters.gotenberg.converter"
 
@@ -22,16 +22,19 @@ def _response(content: bytes = b"%PDF-mocked", *, is_zip: bool = False) -> Mock:
     return response
 
 
-def _assert_pdf(result: dict, content: bytes = b"%PDF-mocked") -> None:
-    assert result == {"output": [ByteStream(data=content, mime_type="application/pdf")]}
+def _assert_pdf(result: dict, content: bytes = b"%PDF-mocked", meta: dict | None = None) -> None:
+    assert result == {"output": [ByteStream(data=content, meta=meta or {}, mime_type="application/pdf")]}
 
 
 @pytest.fixture(autouse=True)
-def mock_gotenberg_clients():
-    """Patch both SDK clients so unit tests can never contact Gotenberg or the network."""
+def mock_gotenberg_clients(request: pytest.FixtureRequest):
+    """Patch SDK clients for unit tests without affecting integration tests."""
+    if request.node.get_closest_marker("integration"):
+        yield None
+        return
     with (
-        patch(f"{CONVERTER_MODULE}.SyncGotenbergClient", autospec=True) as sync_factory,
-        patch(f"{CONVERTER_MODULE}.AsyncGotenbergClient", autospec=True) as async_factory,
+        patch(target=f"{CONVERTER_MODULE}.SyncGotenbergClient", autospec=True) as sync_factory,
+        patch(target=f"{CONVERTER_MODULE}.AsyncGotenbergClient", autospec=True) as async_factory,
     ):
         sync_client = sync_factory.return_value.__enter__.return_value
         async_client = MagicMock()
@@ -44,11 +47,29 @@ def mock_gotenberg_clients():
         )
 
 
-def test_init_serialization_and_conversion_type_export() -> None:
-    conversion_type: ConversionType = "html"
+@pytest.fixture
+def make_route(mock_gotenberg_clients):
+    """Configure and return a synchronous mock route for a Gotenberg endpoint."""
+
+    def make(kind: str, content: bytes = b"%PDF-mocked") -> MagicMock:
+        route = MagicMock()
+        route.run.return_value = _response(content=content)
+        endpoint, method = {
+            "url": (mock_gotenberg_clients.sync_client.chromium.url_to_pdf, "url"),
+            "html": (mock_gotenberg_clients.sync_client.chromium.html_to_pdf, "string_index"),
+            "markdown": (mock_gotenberg_clients.sync_client.chromium.markdown_to_pdf, "string_index"),
+            "libreoffice": (mock_gotenberg_clients.sync_client.libre_office.to_pdf, "convert"),
+        }[kind]
+        endpoint.return_value = route
+        getattr(route, method).return_value = route
+        return route
+
+    return make
+
+
+def test_init_and_serialization_round_trip() -> None:
     converter = GotenbergFileConverter(url="https://gotenberg.example/", timeout=12.5)
 
-    assert conversion_type == "html"
     assert converter.url == "https://gotenberg.example"
     assert converter.timeout == 12.5
     data = converter.to_dict()
@@ -57,7 +78,7 @@ def test_init_serialization_and_conversion_type_export() -> None:
         "init_parameters": {"url": "https://gotenberg.example", "timeout": 12.5},
     }
 
-    restored = GotenbergFileConverter.from_dict(data)
+    restored = GotenbergFileConverter.from_dict(data=data)
     assert restored.url == converter.url
     assert restored.timeout == converter.timeout
 
@@ -74,315 +95,597 @@ def test_init_rejects_invalid_timeout(timeout: float) -> None:
         GotenbergFileConverter(timeout=timeout)
 
 
-def test_run_requires_conversion_type() -> None:
-    with pytest.raises(TypeError, match="conversion_type"):
-        GotenbergFileConverter().run(["source"])
-
-
-@pytest.mark.asyncio
-async def test_run_async_requires_conversion_type() -> None:
-    with pytest.raises(TypeError, match="conversion_type"):
-        await GotenbergFileConverter().run_async(["source"])
-
-
-def test_run_rejects_invalid_conversion_type() -> None:
-    with pytest.raises(ValueError, match="Unsupported conversion_type"):
-        GotenbergFileConverter().run(["source"], "pdf")
-
-
-@pytest.mark.asyncio
-async def test_run_async_rejects_invalid_conversion_type() -> None:
-    with pytest.raises(ValueError, match="Unsupported conversion_type"):
-        await GotenbergFileConverter().run_async(["source"], "pdf")
-
-
-@pytest.mark.parametrize("conversion_type", ["libreoffice", "html", "markdown", "url"])
-def test_all_routes_reject_empty_sources(conversion_type: ConversionType) -> None:
+def test_run_rejects_empty_sources() -> None:
     with pytest.raises(ValueError, match="at least one"):
-        GotenbergFileConverter().run([], conversion_type=conversion_type)
-
-
-def test_libreoffice_run_converts_path_and_bytestreams_in_order(tmp_path: Path, mock_gotenberg_clients) -> None:
-    path = tmp_path / "quarterly report.docx"
-    path.write_bytes(b"docx bytes")
-    metadata_stream = ByteStream(
-        data=b"spreadsheet bytes",
-        meta={"file_path": "/uploads/budget.xlsx"},
-        mime_type="application/custom-spreadsheet",
-    )
-    mime_stream = ByteStream(data=b"plain text bytes", mime_type="text/plain")
-    captured_uploads: list[tuple[str, bytes]] = []
-
-    path_route = MagicMock()
-    path_route.convert.return_value = path_route
-    path_route.run.return_value = _response(b"%PDF-path")
-    metadata_route = MagicMock()
-    metadata_route.convert.side_effect = lambda upload: (
-        captured_uploads.append((upload.suffix, upload.read_bytes())) or metadata_route
-    )
-    metadata_route.run.return_value = _response(b"%PDF-metadata")
-    mime_route = MagicMock()
-    mime_route.convert.side_effect = lambda upload: (
-        captured_uploads.append((upload.suffix, upload.read_bytes())) or mime_route
-    )
-    mime_route.run.return_value = _response(b"%PDF-mime")
-    mock_gotenberg_clients.sync_client.libre_office.to_pdf.side_effect = [
-        path_route,
-        metadata_route,
-        mime_route,
-    ]
-
-    result = GotenbergFileConverter(url="http://gotenberg:3000", timeout=7).run(
-        [path, metadata_stream, mime_stream], conversion_type="libreoffice"
-    )
-
-    mock_gotenberg_clients.sync_factory.assert_called_once_with("http://gotenberg:3000", timeout=7, backend="httpx")
-    path_route.convert.assert_called_once_with(path)
-    (metadata_upload,) = metadata_route.convert.call_args.args
-    (mime_upload,) = mime_route.convert.call_args.args
-    assert isinstance(metadata_upload, Path)
-    assert isinstance(mime_upload, Path)
-    assert metadata_upload.name == "1-budget.xlsx"
-    assert mime_upload.name == "2-document.txt"
-    assert metadata_upload.parent == mime_upload.parent
-    assert metadata_upload.parent.name.startswith("haystack-gotenberg-")
-    assert captured_uploads == [(".xlsx", b"spreadsheet bytes"), (".txt", b"plain text bytes")]
-    assert not metadata_upload.exists()
-    assert not mime_upload.exists()
-    assert [item.data for item in result["output"]] == [b"%PDF-path", b"%PDF-metadata", b"%PDF-mime"]
-    assert all(item.mime_type == "application/pdf" for item in result["output"])
+        GotenbergFileConverter().run(sources=[])
 
 
 @pytest.mark.asyncio
-async def test_libreoffice_run_async_converts_metadata_and_mime_bytestreams(mock_gotenberg_clients) -> None:
-    metadata_route = MagicMock()
-    metadata_route.run = AsyncMock(return_value=_response(b"%PDF-async-metadata"))
-    mime_route = MagicMock()
-    mime_route.run = AsyncMock(return_value=_response(b"%PDF-async-mime"))
-    captured_uploads: list[tuple[str, bytes]] = []
-    metadata_route.convert.side_effect = lambda upload: (
-        captured_uploads.append((upload.suffix, upload.read_bytes())) or metadata_route
-    )
-    mime_route.convert.side_effect = lambda upload: (
-        captured_uploads.append((upload.suffix, upload.read_bytes())) or mime_route
-    )
-    mock_gotenberg_clients.async_client.libre_office.to_pdf.side_effect = [metadata_route, mime_route]
-    metadata_source = ByteStream(data=b"presentation", meta={"file_path": "slides.pptx"})
-    mime_source = ByteStream(data=b"async text", mime_type="text/plain")
-
-    result = await GotenbergFileConverter(timeout=3).run_async(
-        [metadata_source, mime_source], conversion_type="libreoffice"
-    )
-
-    mock_gotenberg_clients.async_factory.assert_called_once_with("http://localhost:3000", timeout=3, backend="httpx")
-    (metadata_upload,) = metadata_route.convert.call_args.args
-    (mime_upload,) = mime_route.convert.call_args.args
-    assert isinstance(metadata_upload, Path)
-    assert isinstance(mime_upload, Path)
-    assert metadata_upload.name == "0-slides.pptx"
-    assert mime_upload.name == "1-document.txt"
-    assert metadata_upload.parent == mime_upload.parent
-    assert metadata_upload.parent.name.startswith("haystack-gotenberg-")
-    assert captured_uploads == [(".pptx", b"presentation"), (".txt", b"async text")]
-    assert not metadata_upload.exists()
-    assert not mime_upload.exists()
-    assert [item.data for item in result["output"]] == [b"%PDF-async-metadata", b"%PDF-async-mime"]
-    assert all(item.mime_type == "application/pdf" for item in result["output"])
+async def test_run_async_rejects_empty_sources() -> None:
+    with pytest.raises(ValueError, match="at least one"):
+        await GotenbergFileConverter().run_async(sources=[])
 
 
-def test_html_run_reads_path_and_uploads_resources(tmp_path: Path, mock_gotenberg_clients) -> None:
-    source = tmp_path / "page.html"
-    source.write_text("<h1>Hello</h1>", encoding="utf-8")
-    css = tmp_path / "style.css"
-    css.write_text("body { color: black; }", encoding="utf-8")
+@pytest.mark.parametrize(
+    ("filename", "kind", "content"),
+    [
+        *[
+            (f"REPORT{suffix.upper()}", "libreoffice", b"docx bytes")
+            for suffix in ".docx .pages .xlsx .key .vsdx .png .pdf .uot".split()
+        ],
+        *[(f"page{suffix}", "html", "<h1>Local HTML</h1>") for suffix in ".html .htm .xhtml".split()],
+        *[(f"release notes{suffix}", "markdown", "# Local Markdown") for suffix in ".md .markdown".split()],
+    ],
+)
+@pytest.mark.parametrize("source_type", ["str", "path"])
+def test_local_sources_route_by_suffix(
+    tmp_path: Path, make_route, filename: str, kind: str, content: str | bytes, source_type: str
+) -> None:
+    path = tmp_path / filename
+    if isinstance(content, bytes):
+        path.write_bytes(data=content)
+    else:
+        path.write_text(data=content, encoding="utf-8")
+    route = make_route(kind=kind)
+    staged_paths: list[Path] = []
+
+    def capture_markdown(markdown_file: Path) -> None:
+        staged_paths.append(markdown_file)
+        assert markdown_file.read_text(encoding="utf-8") == content
+
+    if kind == "markdown":
+        route.markdown_file.side_effect = capture_markdown
+
+    result = GotenbergFileConverter().run(sources=[str(path) if source_type == "str" else path])
+
+    route.run.assert_called_once_with()
+    if kind == "libreoffice":
+        route.convert.assert_called_once_with(input_file_path=path)
+    elif kind == "html":
+        route.string_index.assert_called_once_with(index=content)
+    else:
+        assert len(staged_paths) == 1
+        staged_path = staged_paths[0]
+        assert staged_path.name == "release_notes.md"
+        assert staged_path.parent.parent.name.startswith("haystack-gotenberg-")
+        assert not staged_path.exists()
+        route.markdown_file.assert_called_once_with(markdown_file=staged_path)
+        assert '{{ toHTML "release_notes.md" }}' in route.string_index.call_args.kwargs["index"]
+    _assert_pdf(result=result)
+
+
+@pytest.mark.parametrize("url", ["http://example.test/page", "https://example.test/secure?q=1"])
+def test_http_and_https_strings_route_to_url(mock_gotenberg_clients, url: str) -> None:
+    route = MagicMock()
+    route.url.return_value = route
+    route.run.return_value = _response()
+    mock_gotenberg_clients.sync_client.chromium.url_to_pdf.return_value = route
+
+    result = GotenbergFileConverter().run(sources=[url])
+
+    mock_gotenberg_clients.sync_client.chromium.url_to_pdf.assert_called_once_with()
+    route.url.assert_called_once_with(url=url)
+    route.run.assert_called_once_with()
+    _assert_pdf(result=result)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http:///missing-host",
+        "https://",
+        "https://example.test:not-a-port/page",
+    ],
+)
+def test_malformed_http_urls_are_rejected(url: str) -> None:
+    with pytest.raises(ValueError, match=r"Malformed HTTP\(S\) URL"):
+        GotenbergFileConverter().run(sources=[url])
+
+
+@pytest.mark.parametrize("url", ["ftp://example.test/file", "file:///tmp/page.html"])
+def test_unsupported_url_schemes_are_rejected(url: str) -> None:
+    with pytest.raises(ValueError, match="Unsupported URL scheme"):
+        GotenbergFileConverter().run(sources=[url])
+
+
+@pytest.mark.parametrize("source_type", ["str", "path"])
+def test_missing_local_file_is_rejected(tmp_path: Path, source_type: str) -> None:
+    path = tmp_path / "missing.docx"
+    source = str(path) if source_type == "str" else path
+
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        GotenbergFileConverter().run(sources=[source])
+
+
+def test_colon_in_local_string_path_is_not_treated_as_url(tmp_path: Path, mock_gotenberg_clients) -> None:
+    source = tmp_path / "quarterly:report.docx"
+    source.write_bytes(data=b"docx")
+    route = MagicMock()
+    route.convert.return_value = route
+    route.run.return_value = _response()
+    mock_gotenberg_clients.sync_client.libre_office.to_pdf.return_value = route
+
+    GotenbergFileConverter().run(sources=[str(source)])
+
+    route.convert.assert_called_once_with(input_file_path=source)
+
+
+def test_extensionless_local_file_is_rejected(tmp_path: Path) -> None:
+    source = tmp_path / "document"
+    source.write_text(data="content", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing a file extension"):
+        GotenbergFileConverter().run(sources=[source])
+
+
+def test_unsupported_local_suffix_is_rejected(tmp_path: Path) -> None:
+    source = tmp_path / "program.exe"
+    source.write_bytes(data=b"binary")
+
+    with pytest.raises(ValueError, match=r"Unsupported local source suffix: '\.exe'"):
+        GotenbergFileConverter().run(sources=[source])
+
+
+def test_unsupported_source_type_is_rejected() -> None:
+    with pytest.raises(TypeError, match="expected str, Path, or ByteStream"):
+        GotenbergFileConverter().run(sources=[object()])
+
+
+@pytest.mark.parametrize("mime_type", [None, "", "   ", " ; charset=UTF-8"])
+def test_bytestream_requires_non_empty_mime_type(mime_type: str | None) -> None:
+    source = ByteStream(data=b"document", mime_type=mime_type)
+
+    with pytest.raises(ValueError, match="require a non-empty mime_type"):
+        GotenbergFileConverter().run(sources=[source])
+
+
+def test_bytestream_mime_type_is_normalized(mock_gotenberg_clients) -> None:
+    route = MagicMock()
+    route.convert.return_value = route
+    route.run.return_value = _response()
+    staged_paths: list[Path] = []
+
+    def capture_upload(input_file_path: Path) -> MagicMock:
+        staged_paths.append(input_file_path)
+        assert input_file_path.read_bytes() == b"plain text"
+        return route
+
+    route.convert.side_effect = capture_upload
+    mock_gotenberg_clients.sync_client.libre_office.to_pdf.return_value = route
+    source = ByteStream(data=b"plain text", mime_type="  TEXT/PLAIN ; charset=UTF-8 ")
+
+    result = GotenbergFileConverter().run(sources=[source])
+
+    assert len(staged_paths) == 1
+    staged_path = staged_paths[0]
+    assert staged_path.name == "0-document.txt"
+    assert not staged_path.exists()
+    route.convert.assert_called_once_with(input_file_path=staged_path)
+    _assert_pdf(result=result)
+
+
+@pytest.mark.parametrize("mime_type", ["text/html", "application/xhtml+xml"])
+def test_html_mime_aliases_route_to_html(mock_gotenberg_clients, mime_type: str) -> None:
     route = MagicMock()
     route.string_index.return_value = route
     route.run.return_value = _response()
     mock_gotenberg_clients.sync_client.chromium.html_to_pdf.return_value = route
+    source = ByteStream(data=b"<p>Typed HTML</p>", mime_type=mime_type)
 
-    result = GotenbergFileConverter().run([source], conversion_type="html", resources=[css])
+    result = GotenbergFileConverter().run(sources=[source])
 
-    mock_gotenberg_clients.sync_client.chromium.html_to_pdf.assert_called_once_with()
-    route.string_index.assert_called_once_with("<h1>Hello</h1>")
-    route.resources.assert_called_once_with([css])
-    _assert_pdf(result)
-
-
-@pytest.mark.asyncio
-async def test_html_run_async_reads_utf8_bytestream(mock_gotenberg_clients) -> None:
-    route = MagicMock()
-    route.string_index.return_value = route
-    route.run = AsyncMock(return_value=_response(b"%PDF-async-html"))
-    mock_gotenberg_clients.async_client.chromium.html_to_pdf.return_value = route
-
-    result = await GotenbergFileConverter().run_async([ByteStream(data="<p>Hé</p>".encode())], conversion_type="html")
-
-    route.string_index.assert_called_once_with("<p>Hé</p>")
-    route.resources.assert_not_called()
-    _assert_pdf(result, b"%PDF-async-html")
+    route.string_index.assert_called_once_with(index="<p>Typed HTML</p>")
+    mock_gotenberg_clients.sync_client.libre_office.to_pdf.assert_not_called()
+    _assert_pdf(result=result)
 
 
-def test_markdown_run_builds_template_and_uploads_resources(tmp_path: Path, mock_gotenberg_clients) -> None:
-    image = tmp_path / "logo.png"
-    image.write_bytes(b"image")
+@pytest.mark.parametrize("mime_type", ["text/markdown", "text/x-markdown"])
+def test_markdown_mime_aliases_route_to_markdown(mock_gotenberg_clients, mime_type: str) -> None:
     route = MagicMock()
     route.string_index.return_value = route
     route.run.return_value = _response()
-    uploaded_markdown: dict[str, str] = {}
+    staged_paths: list[Path] = []
 
-    def capture_markdown(path: Path) -> MagicMock:
-        uploaded_markdown["name"] = path.name
-        uploaded_markdown["text"] = path.read_text(encoding="utf-8")
-        return route
+    def capture_markdown(markdown_file: Path) -> None:
+        staged_paths.append(markdown_file)
 
     route.markdown_file.side_effect = capture_markdown
     mock_gotenberg_clients.sync_client.chromium.markdown_to_pdf.return_value = route
-    source = ByteStream(data=b"# Heading", meta={"file_path": "/uploads/my notes.md"})
+    source = ByteStream(data=b"# Typed Markdown", mime_type=mime_type)
 
-    result = GotenbergFileConverter().run([source], conversion_type="markdown", resources=[image])
+    result = GotenbergFileConverter().run(sources=[source])
 
-    assert uploaded_markdown == {"name": "my_notes.md", "text": "# Heading"}
-    assert '{{ toHTML "my_notes.md" }}' in route.string_index.call_args.args[0]
-    route.resources.assert_called_once_with([image])
-    _assert_pdf(result)
-
-
-@pytest.mark.asyncio
-async def test_markdown_run_async_uses_default_filename(mock_gotenberg_clients) -> None:
-    route = MagicMock()
-    route.string_index.return_value = route
-    route.run = AsyncMock(return_value=_response(b"%PDF-async-markdown"))
-    uploaded_names: list[str] = []
-    route.markdown_file.side_effect = lambda path: uploaded_names.append(path.name)
-    mock_gotenberg_clients.async_client.chromium.markdown_to_pdf.return_value = route
-
-    result = await GotenbergFileConverter().run_async(["# Async"], conversion_type="markdown")
-
-    assert uploaded_names == ["document.md"]
-    assert '{{ toHTML "document.md" }}' in route.string_index.call_args.args[0]
-    _assert_pdf(result, b"%PDF-async-markdown")
-
-
-def test_url_run_converts_each_url_in_order(mock_gotenberg_clients) -> None:
-    first = MagicMock()
-    first.url.return_value = first
-    first.run.return_value = _response(b"%PDF-one")
-    second = MagicMock()
-    second.url.return_value = second
-    second.run.return_value = _response(b"%PDF-two")
-    mock_gotenberg_clients.sync_client.chromium.url_to_pdf.side_effect = [first, second]
-
-    result = GotenbergFileConverter().run(["https://one.example/page", "http://two.example"], conversion_type="url")
-
-    assert mock_gotenberg_clients.sync_client.chromium.url_to_pdf.call_args_list == [call(), call()]
-    first.url.assert_called_once_with("https://one.example/page")
-    second.url.assert_called_once_with("http://two.example")
-    assert [item.data for item in result["output"]] == [b"%PDF-one", b"%PDF-two"]
-
-
-@pytest.mark.asyncio
-async def test_url_run_async_calls_url_route(mock_gotenberg_clients) -> None:
-    route = MagicMock()
-    route.url.return_value = route
-    route.run = AsyncMock(return_value=_response(b"%PDF-async-url"))
-    mock_gotenberg_clients.async_client.chromium.url_to_pdf.return_value = route
-
-    result = await GotenbergFileConverter().run_async(["https://example.test"], conversion_type="url")
-
-    route.url.assert_called_once_with("https://example.test")
-    _assert_pdf(result, b"%PDF-async-url")
+    assert len(staged_paths) == 1
+    route.markdown_file.assert_called_once_with(markdown_file=staged_paths[0])
+    assert '{{ toHTML "document.md" }}' in route.string_index.call_args.kwargs["index"]
+    assert not staged_paths[0].exists()
+    _assert_pdf(result=result)
 
 
 @pytest.mark.parametrize(
-    ("sources", "exception", "message"),
+    ("mime_type", "expected_suffix"),
     [
-        (
-            [ByteStream(data=b"document", mime_type="application/x-unrecognized-gotenberg")],
-            ValueError,
-            "either a filename with an extension.*recognized mime_type",
-        ),
-        ([ByteStream(data=b"document", meta={"file_path": "document"})], ValueError, "recognized mime_type"),
-        ([object()], TypeError, "Unsupported LibreOffice source type"),
+        ("application/msword", ".doc"),
+        ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx"),
+        ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
+        ("application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx"),
+        ("application/postscript", ".eps"),
+        ("image/pict", ".pct"),
     ],
 )
-def test_libreoffice_validates_source(sources: list, exception: type[Exception], message: str) -> None:
-    with pytest.raises(exception, match=message):
-        GotenbergFileConverter().run(sources, conversion_type="libreoffice")
+def test_common_office_mime_types_route_to_libreoffice(
+    mock_gotenberg_clients, mime_type: str, expected_suffix: str
+) -> None:
+    route = MagicMock()
+    route.convert.return_value = route
+    route.run.return_value = _response()
+    staged_paths: list[Path] = []
+    route.convert.side_effect = lambda input_file_path: staged_paths.append(input_file_path) or route
+    mock_gotenberg_clients.sync_client.libre_office.to_pdf.return_value = route
+    source = ByteStream(data=b"office bytes", mime_type=mime_type)
+
+    result = GotenbergFileConverter().run(sources=[source])
+
+    assert len(staged_paths) == 1
+    assert staged_paths[0].suffix == expected_suffix
+    assert not staged_paths[0].exists()
+    route.convert.assert_called_once_with(input_file_path=staged_paths[0])
+    _assert_pdf(result=result)
 
 
-def test_libreoffice_validates_path_and_rejects_resources(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="does not exist"):
-        GotenbergFileConverter().run([tmp_path / "missing.docx"], conversion_type="libreoffice")
+def test_unsupported_bytestream_mime_type_is_rejected() -> None:
+    source = ByteStream(data=b"unknown", mime_type="application/x-unrecognized-gotenberg")
 
-    extensionless = tmp_path / "document"
-    extensionless.write_text("content", encoding="utf-8")
-    with pytest.raises(ValueError, match="extension"):
-        GotenbergFileConverter().run([extensionless], conversion_type="libreoffice")
-    with pytest.raises(ValueError, match="resources are not supported"):
-        GotenbergFileConverter().run([extensionless], conversion_type="libreoffice", resources=[])
+    with pytest.raises(ValueError, match="Unsupported ByteStream MIME type"):
+        GotenbergFileConverter().run(sources=[source])
 
 
-@pytest.mark.parametrize("conversion_type", ["html", "markdown"])
-def test_text_routes_validate_source_type_existence_and_utf8(tmp_path: Path, conversion_type: ConversionType) -> None:
-    source_name = conversion_type.upper() if conversion_type == "html" else "Markdown"
-    with pytest.raises(TypeError, match=f"Unsupported {source_name}"):
-        GotenbergFileConverter().run([object()], conversion_type=conversion_type)
-    with pytest.raises(FileNotFoundError, match="does not exist"):
-        GotenbergFileConverter().run([tmp_path / "missing.txt"], conversion_type=conversion_type)
-    with pytest.raises(ValueError, match="UTF-8"):
-        GotenbergFileConverter().run([ByteStream(data=b"\xff")], conversion_type=conversion_type)
+def test_mime_derived_staged_extension_overrides_metadata_suffix(mock_gotenberg_clients) -> None:
+    route = MagicMock()
+    route.convert.return_value = route
+    route.run.return_value = _response()
+    captured: list[tuple[Path, bytes]] = []
+
+    def capture_upload(input_file_path: Path) -> MagicMock:
+        captured.append((input_file_path, input_file_path.read_bytes()))
+        return route
+
+    route.convert.side_effect = capture_upload
+    mock_gotenberg_clients.sync_client.libre_office.to_pdf.return_value = route
+    source = ByteStream(
+        data=b"actual docx",
+        meta={"file_path": "/uploads/misleading report:final.markdown", "source": "upload"},
+        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+    result = GotenbergFileConverter().run(sources=[source])
+
+    assert len(captured) == 1
+    staged_path, staged_data = captured[0]
+    assert staged_path.name == "0-misleading_report_final.docx"
+    assert staged_data == b"actual docx"
+    assert not staged_path.exists()
+    route.convert.assert_called_once_with(input_file_path=staged_path)
+    _assert_pdf(
+        result=result,
+        meta={"file_path": "/uploads/misleading report:final.markdown", "source": "upload"},
+    )
 
 
-@pytest.mark.parametrize("conversion_type", ["html", "markdown"])
-def test_text_routes_validate_resources(tmp_path: Path, conversion_type: ConversionType) -> None:
+def test_mixed_batch_routes_each_source_and_preserves_pdf_order(tmp_path: Path, mock_gotenberg_clients) -> None:
+    office_path = tmp_path / "report.docx"
+    office_path.write_bytes(data=b"docx")
+
+    url_route = MagicMock()
+    url_route.url.return_value = url_route
+    url_route.run.return_value = _response(content=b"%PDF-url")
+    html_route = MagicMock()
+    html_route.string_index.return_value = html_route
+    html_route.run.return_value = _response(content=b"%PDF-html")
+    markdown_route = MagicMock()
+    markdown_route.string_index.return_value = markdown_route
+    markdown_route.run.return_value = _response(content=b"%PDF-markdown")
+    staged_markdown_paths: list[Path] = []
+
+    def capture_markdown(markdown_file: Path) -> None:
+        staged_markdown_paths.append(markdown_file)
+        assert markdown_file.read_text(encoding="utf-8") == "# Markdown"
+
+    markdown_route.markdown_file.side_effect = capture_markdown
+    office_route = MagicMock()
+    office_route.convert.return_value = office_route
+    office_route.run.return_value = _response(content=b"%PDF-office")
+    mock_gotenberg_clients.sync_client.chromium.url_to_pdf.return_value = url_route
+    mock_gotenberg_clients.sync_client.chromium.html_to_pdf.return_value = html_route
+    mock_gotenberg_clients.sync_client.chromium.markdown_to_pdf.return_value = markdown_route
+    mock_gotenberg_clients.sync_client.libre_office.to_pdf.return_value = office_route
+
+    result = GotenbergFileConverter(url="http://gotenberg:3000", timeout=7).run(
+        sources=[
+            "https://example.test",
+            ByteStream(data=b"<h1>HTML</h1>", mime_type="text/html"),
+            ByteStream(data=b"# Markdown", mime_type="text/markdown"),
+            office_path,
+        ]
+    )
+
+    mock_gotenberg_clients.sync_factory.assert_called_once_with(
+        host="http://gotenberg:3000", timeout=7, backend="httpx"
+    )
+    url_route.url.assert_called_once_with(url="https://example.test")
+    html_route.string_index.assert_called_once_with(index="<h1>HTML</h1>")
+    assert len(staged_markdown_paths) == 1
+    staged_markdown_path = staged_markdown_paths[0]
+    assert staged_markdown_path.name == "document.md"
+    assert not staged_markdown_path.exists()
+    markdown_route.markdown_file.assert_called_once_with(markdown_file=staged_markdown_path)
+    office_route.convert.assert_called_once_with(input_file_path=office_path)
+    assert [item.data for item in result["output"]] == [
+        b"%PDF-url",
+        b"%PDF-html",
+        b"%PDF-markdown",
+        b"%PDF-office",
+    ]
+    assert all(item.mime_type == "application/pdf" for item in result["output"])
+
+
+def test_resources_are_only_passed_to_text_routes_in_mixed_batch(tmp_path: Path, mock_gotenberg_clients) -> None:
+    resource = tmp_path / "styles.css"
+    resource.write_text(data="body {}", encoding="utf-8")
+    office_path = tmp_path / "report.docx"
+    office_path.write_bytes(data=b"docx")
+
+    url_route = MagicMock()
+    url_route.url.return_value = url_route
+    url_route.run.return_value = _response(content=b"%PDF-url")
+    office_route = MagicMock()
+    office_route.convert.return_value = office_route
+    office_route.run.return_value = _response(content=b"%PDF-office")
+    html_route = MagicMock()
+    html_route.string_index.return_value = html_route
+    html_route.run.return_value = _response(content=b"%PDF-html")
+    markdown_route = MagicMock()
+    markdown_route.string_index.return_value = markdown_route
+    markdown_route.run.return_value = _response(content=b"%PDF-markdown")
+    mock_gotenberg_clients.sync_client.chromium.url_to_pdf.return_value = url_route
+    mock_gotenberg_clients.sync_client.libre_office.to_pdf.return_value = office_route
+    mock_gotenberg_clients.sync_client.chromium.html_to_pdf.return_value = html_route
+    mock_gotenberg_clients.sync_client.chromium.markdown_to_pdf.return_value = markdown_route
+
+    result = GotenbergFileConverter().run(
+        sources=[
+            "https://example.test",
+            office_path,
+            ByteStream(data=b"<p>HTML</p>", mime_type="text/html"),
+            ByteStream(data=b"# Markdown", mime_type="text/markdown"),
+        ],
+        resources=[resource],
+    )
+
+    url_route.resources.assert_not_called()
+    office_route.resources.assert_not_called()
+    html_route.resources.assert_called_once_with(resources=[resource])
+    markdown_route.resources.assert_called_once_with(resources=[resource])
+    assert [item.data for item in result["output"]] == [
+        b"%PDF-url",
+        b"%PDF-office",
+        b"%PDF-html",
+        b"%PDF-markdown",
+    ]
+
+
+def test_run_applies_shared_metadata_to_every_source(mock_gotenberg_clients) -> None:
+    first = MagicMock()
+    first.url.return_value = first
+    first.run.return_value = _response(content=b"%PDF-one")
+    second = MagicMock()
+    second.url.return_value = second
+    second.run.return_value = _response(content=b"%PDF-two")
+    mock_gotenberg_clients.sync_client.chromium.url_to_pdf.side_effect = [first, second]
+
+    result = GotenbergFileConverter().run(
+        sources=["https://one.example", "https://two.example"],
+        meta={"batch": "shared"},
+    )
+
+    assert [item.meta for item in result["output"]] == [{"batch": "shared"}, {"batch": "shared"}]
+
+
+@pytest.mark.asyncio
+async def test_run_async_uses_async_client_and_aligns_metadata_with_pdf_order(mock_gotenberg_clients) -> None:
+    first = MagicMock()
+    first.url.return_value = first
+    first.run = AsyncMock(return_value=_response(content=b"%PDF-one"))
+    second = MagicMock()
+    second.url.return_value = second
+    second.run = AsyncMock(return_value=_response(content=b"%PDF-two"))
+    mock_gotenberg_clients.async_client.chromium.url_to_pdf.side_effect = [first, second]
+
+    result = await GotenbergFileConverter(timeout=3).run_async(
+        sources=["https://one.example", "http://two.example"],
+        meta=[{"source": "one"}, {"source": "two"}],
+    )
+
+    mock_gotenberg_clients.async_factory.assert_called_once_with(
+        host="http://localhost:3000", timeout=3, backend="httpx"
+    )
+    assert mock_gotenberg_clients.async_client.chromium.url_to_pdf.call_args_list == [call(), call()]
+    first.url.assert_called_once_with(url="https://one.example")
+    second.url.assert_called_once_with(url="http://two.example")
+    first.run.assert_awaited_once_with()
+    second.run.assert_awaited_once_with()
+    assert [item.data for item in result["output"]] == [b"%PDF-one", b"%PDF-two"]
+    assert [item.meta for item in result["output"]] == [{"source": "one"}, {"source": "two"}]
+
+
+@pytest.mark.asyncio
+async def test_run_async_routes_mixed_mime_and_local_sources(tmp_path: Path, mock_gotenberg_clients) -> None:
+    office_path = tmp_path / "report.docx"
+    office_path.write_bytes(data=b"docx")
+    html_route = MagicMock()
+    html_route.string_index.return_value = html_route
+    html_route.run = AsyncMock(return_value=_response(content=b"%PDF-html"))
+    office_route = MagicMock()
+    office_route.convert.return_value = office_route
+    office_route.run = AsyncMock(return_value=_response(content=b"%PDF-office"))
+    mock_gotenberg_clients.async_client.chromium.html_to_pdf.return_value = html_route
+    mock_gotenberg_clients.async_client.libre_office.to_pdf.return_value = office_route
+
+    result = await GotenbergFileConverter().run_async(
+        sources=[ByteStream(data=b"<p>Async</p>", mime_type="text/html"), office_path]
+    )
+
+    html_route.string_index.assert_called_once_with(index="<p>Async</p>")
+    html_route.run.assert_awaited_once_with()
+    office_route.convert.assert_called_once_with(input_file_path=office_path)
+    office_route.run.assert_awaited_once_with()
+    assert [item.data for item in result["output"]] == [b"%PDF-html", b"%PDF-office"]
+
+
+def test_explicit_meta_overrides_bytestream_meta_and_preserves_other_keys(mock_gotenberg_clients) -> None:
+    route = MagicMock()
+    route.string_index.return_value = route
+    route.run.return_value = _response()
+    mock_gotenberg_clients.sync_client.chromium.html_to_pdf.return_value = route
+    source = ByteStream(
+        data=b"<p>Metadata</p>",
+        meta={"file_path": "original.html", "priority": "source", "source_only": True},
+        mime_type="text/html",
+    )
+
+    result = GotenbergFileConverter().run(
+        sources=[source],
+        meta={"priority": "explicit", "explicit_only": True},
+    )
+
+    _assert_pdf(
+        result=result,
+        meta={
+            "file_path": "original.html",
+            "priority": "explicit",
+            "source_only": True,
+            "explicit_only": True,
+        },
+    )
+
+
+def test_metadata_list_length_must_match_sources() -> None:
+    with pytest.raises(ValueError, match="length of the metadata list"):
+        GotenbergFileConverter().run(
+            sources=["https://one.example", "https://two.example"],
+            meta=[{"source": "one"}],
+        )
+
+
+@pytest.mark.asyncio
+async def test_run_async_metadata_list_length_must_match_sources() -> None:
+    with pytest.raises(ValueError, match="length of the metadata list"):
+        await GotenbergFileConverter().run_async(
+            sources=["https://one.example", "https://two.example"],
+            meta=[{"source": "one"}],
+        )
+
+
+def test_resource_validation(tmp_path: Path) -> None:
     first_dir = tmp_path / "one"
     second_dir = tmp_path / "two"
     first_dir.mkdir()
     second_dir.mkdir()
     first = first_dir / "style.css"
     duplicate = second_dir / "style.css"
-    first.write_text("one", encoding="utf-8")
-    duplicate.write_text("two", encoding="utf-8")
+    first.write_text(data="one", encoding="utf-8")
+    duplicate.write_text(data="two", encoding="utf-8")
     index = tmp_path / "index.html"
-    index.write_text("reserved", encoding="utf-8")
+    index.write_text(data="reserved", encoding="utf-8")
 
     with pytest.raises(TypeError, match="expected Path"):
-        GotenbergFileConverter().run(["text"], conversion_type=conversion_type, resources=[str(first)])
+        GotenbergFileConverter().run(sources=["https://example.test"], resources=[str(first)])
     with pytest.raises(FileNotFoundError, match="does not exist"):
-        GotenbergFileConverter().run(["text"], conversion_type=conversion_type, resources=[tmp_path / "missing.css"])
+        GotenbergFileConverter().run(sources=["https://example.test"], resources=[tmp_path / "missing.css"])
     with pytest.raises(ValueError, match="unique"):
-        GotenbergFileConverter().run(["text"], conversion_type=conversion_type, resources=[first, duplicate])
+        GotenbergFileConverter().run(sources=["https://example.test"], resources=[first, duplicate])
     with pytest.raises(ValueError, match="reserved"):
-        GotenbergFileConverter().run(["text"], conversion_type=conversion_type, resources=[index])
+        GotenbergFileConverter().run(sources=["https://example.test"], resources=[index])
 
 
-def test_markdown_rejects_resource_conflicting_with_source(tmp_path: Path) -> None:
+def test_markdown_rejects_resource_conflicting_with_staged_source(tmp_path: Path) -> None:
     resource = tmp_path / "notes.md"
-    resource.write_text("resource", encoding="utf-8")
-    source = ByteStream(data=b"source", meta={"file_path": "notes.md"})
+    resource.write_text(data="resource", encoding="utf-8")
+    source = ByteStream(
+        data=b"# Source",
+        meta={"file_path": "/uploads/notes.markdown"},
+        mime_type="text/markdown",
+    )
 
     with pytest.raises(ValueError, match="conflicts"):
-        GotenbergFileConverter().run([source], conversion_type="markdown", resources=[resource])
+        GotenbergFileConverter().run(sources=[source], resources=[resource])
 
 
-@pytest.mark.parametrize("sources", [["localhost:8080"], ["file:///tmp/page.html"]])
-def test_url_route_rejects_invalid_urls(sources: list[str]) -> None:
-    with pytest.raises(ValueError, match=r"valid HTTP\(S\)"):
-        GotenbergFileConverter().run(sources, conversion_type="url")
+@pytest.mark.parametrize(
+    ("mime_type", "expected_kind"),
+    [("text/html", "HTML"), ("text/markdown", "Markdown")],
+)
+def test_invalid_utf8_is_rejected_for_text_mime_routes(mime_type: str, expected_kind: str) -> None:
+    source = ByteStream(data=b"\xff", mime_type=mime_type)
 
-
-def test_url_route_rejects_non_string_and_resources() -> None:
-    with pytest.raises(TypeError, match=r"HTTP\(S\) string"):
-        GotenbergFileConverter().run([Path("page.html")], conversion_type="url")
-    with pytest.raises(ValueError, match="resources are not supported"):
-        GotenbergFileConverter().run(["https://example.test"], conversion_type="url", resources=[])
+    with pytest.raises(ValueError, match=f"{expected_kind} sources must contain UTF-8 text"):
+        GotenbergFileConverter().run(sources=[source])
 
 
 def test_sdk_zip_response_is_rejected(mock_gotenberg_clients) -> None:
     route = MagicMock()
     route.url.return_value = route
-    route.run.return_value = _response(b"PK archive", is_zip=True)
+    route.run.return_value = _response(content=b"PK archive", is_zip=True)
     mock_gotenberg_clients.sync_client.chromium.url_to_pdf.return_value = route
 
     with pytest.raises(RuntimeError, match="ZIP archive"):
-        GotenbergFileConverter().run(["https://example.test"], conversion_type="url")
+        GotenbergFileConverter().run(sources=["https://example.test"])
+
+
+def _assert_integration_pdf(result: dict) -> None:
+    assert len(result["output"]) == 1
+    output = result["output"][0]
+    assert isinstance(output, ByteStream)
+    assert output.mime_type == "application/pdf"
+    assert output.data.startswith(b"%PDF-")
+
+
+@pytest.mark.integration
+def test_libreoffice_converts_local_file_routed_by_suffix() -> None:
+    source = Path("tests/test_files/docx/sample_docx.docx")
+
+    result = GotenbergFileConverter().run(sources=[source])
+
+    _assert_integration_pdf(result=result)
+
+
+@pytest.mark.integration
+def test_html_converts_document() -> None:
+    source = ByteStream(
+        data=b"<!doctype html><html><body><h1>Haystack HTML integration test</h1></body></html>",
+        mime_type="text/html",
+    )
+
+    result = GotenbergFileConverter().run(sources=[source])
+
+    _assert_integration_pdf(result=result)
+
+
+@pytest.mark.integration
+def test_markdown_converts_document() -> None:
+    source = ByteStream(
+        data=b"# Haystack Markdown integration test\n\nConverted by Gotenberg.",
+        mime_type="text/markdown",
+    )
+
+    result = GotenbergFileConverter().run(sources=[source])
+
+    _assert_integration_pdf(result=result)
+
+
+@pytest.mark.integration
+def test_url_converts_page_without_external_network() -> None:
+    # The Gotenberg container's own health endpoint makes this deterministic and external-network independent.
+    result = GotenbergFileConverter().run(sources=["http://localhost:3000/health"])
+
+    _assert_integration_pdf(result=result)
