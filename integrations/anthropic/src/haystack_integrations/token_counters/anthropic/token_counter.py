@@ -71,6 +71,12 @@ class AnthropicTokenCounter:
             client_kwargs["max_retries"] = self.max_retries
         self.client = Anthropic(**client_kwargs)
 
+    def close(self) -> None:
+        """Close the Anthropic client and release its underlying HTTP resources."""
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+
     def count(self, messages: list[ChatMessage], tools: ToolsType | None = None) -> int:
         """
         Count the tokens for the given messages and optional tools.

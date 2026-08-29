@@ -56,6 +56,20 @@ class TestAnthropicTokenCounterInit:
         c.warm_up()
         assert c.client is first_client  # same instance, not re-created
 
+    def test_close_releases_client(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        c = AnthropicTokenCounter(model="claude-sonnet-4-5")
+        c.warm_up()
+        assert c.client is not None
+        c.close()
+        assert c.client is None
+
+    def test_close_before_warm_up_is_safe(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        c = AnthropicTokenCounter(model="claude-sonnet-4-5")
+        c.close()  # should not raise
+        assert c.client is None
+
 
 class TestAnthropicTokenCounterSerde:
     def test_to_dict(self, monkeypatch):
