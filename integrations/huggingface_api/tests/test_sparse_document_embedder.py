@@ -26,6 +26,10 @@ def sparse_response(data: Any) -> MagicMock:
     return response
 
 
+def grpc_sparse_response(index: int, value: float) -> MagicMock:
+    return MagicMock(sparse_embeddings=[MagicMock(index=index, value=value)])
+
+
 @contextmanager
 def patched_client(*, is_async: bool = False) -> Iterator[tuple[MagicMock, MagicMock]]:
     """
@@ -68,6 +72,27 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         assert embedder.timeout == 30.0
         assert embedder.headers == {}
         assert embedder.concurrency_limit == 4
+        assert embedder.use_grpc is False
+
+    def test_init_grpc_uses_api_base_url_as_target_without_http_validation(self) -> None:
+        sync_channel = MagicMock()
+        async_channel = MagicMock()
+        sync_stub = MagicMock()
+        async_stub = MagicMock()
+
+        with (
+            patch(f"{MODULE}.grpc.insecure_channel", return_value=sync_channel) as sync_channel_constructor,
+            patch(f"{MODULE}.grpc.aio.insecure_channel", return_value=async_channel) as async_channel_constructor,
+            patch(f"{MODULE}.tei_pb2_grpc.EmbedStub", side_effect=[sync_stub, async_stub]) as stub_constructor,
+        ):
+            embedder = HuggingFaceAPISparseDocumentEmbedder(api_base_url="localhost:8082", use_grpc=True)
+
+        sync_channel_constructor.assert_called_once_with("localhost:8082")
+        async_channel_constructor.assert_called_once_with("localhost:8082")
+        assert stub_constructor.call_args_list == [call(sync_channel), call(async_channel)]
+        assert embedder._stub is sync_stub
+        assert embedder._async_stub is async_stub
+        assert embedder.use_grpc is True
 
     def test_to_dict_and_from_dict_preserve_configuration_and_secret(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CUSTOM_HF_TOKEN", "secret")
@@ -104,6 +129,7 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
             "timeout": None,
             "headers": {"X-Test": "yes"},
             "concurrency_limit": 3,
+            "use_grpc": False,
         }
         restored = HuggingFaceAPISparseDocumentEmbedder.from_dict(data)
 
@@ -117,6 +143,7 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         assert restored.timeout is None
         assert restored.headers == {"X-Test": "yes"}
         assert restored.concurrency_limit == 3
+        assert restored.use_grpc is False
         assert restored.token is not None and restored.token.resolve_value() == "secret"
 
     def test_token_secret_cannot_be_serialized(self) -> None:
@@ -207,6 +234,82 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         assert all(new is not original for original, new in zip(documents, output, strict=True))
         assert all(original.sparse_embedding is None for original in documents)
         assert [document.meta for document in output] == [document.meta for document in documents]
+
+    @pytest.mark.asyncio
+    async def test_run_grpc_uses_one_stream_converts_embeddings_and_validates_response_count(self) -> None:
+        documents = [Document(content="doc 1"), Document(content="doc 2")]
+        requests = []
+        stream_count = 0
+
+        def embed_sparse_stream(stream: Any) -> list[MagicMock]:
+            nonlocal stream_count
+            stream_count += 1
+            stream_requests = list(stream)
+            requests.extend(stream_requests)
+            return [grpc_sparse_response(position, float(position)) for position, _ in enumerate(stream_requests, 1)]
+
+        embedder = HuggingFaceAPISparseDocumentEmbedder(
+            api_base_url="localhost:8082", use_grpc=True, batch_size=1, progress_bar=False
+        )
+        try:
+            embedder._stub.EmbedSparseStream = embed_sparse_stream
+            result = embedder.run(documents)
+
+            assert stream_count == 1
+            assert [request.inputs for request in requests] == ["doc 1", "doc 2"]
+            assert [document.sparse_embedding.indices for document in result["documents"]] == [[1], [2]]
+            assert [document.sparse_embedding.values for document in result["documents"]] == [[1.0], [2.0]]
+
+            embedder._stub.EmbedSparseStream = lambda stream: [grpc_sparse_response(1, 1.0)]
+            with pytest.raises(ValueError, match="Expected 2 sparse embeddings, got 1"):
+                embedder.run(documents)
+        finally:
+            await embedder._async_channel.close()
+
+    @pytest.mark.asyncio
+    async def test_run_async_grpc_uses_balanced_concurrent_streams_and_preserves_order(self) -> None:
+        streams: list[list[str]] = []
+        all_streams_started = asyncio.Event()
+
+        def embed_sparse_stream(stream: Any) -> Any:
+            stream_requests: list[str] = []
+            streams.append(stream_requests)
+            if len(streams) == 3:
+                all_streams_started.set()
+
+            async def responses() -> Any:
+                await all_streams_started.wait()
+                async for request in stream:
+                    stream_requests.append(request.inputs)
+                    number = int(request.inputs.removeprefix("doc "))
+                    yield grpc_sparse_response(number, float(number))
+
+            return responses()
+
+        documents = [Document(content=f"doc {number}") for number in range(1, 8)]
+        embedder = HuggingFaceAPISparseDocumentEmbedder(
+            api_base_url="localhost:8082", use_grpc=True, concurrency_limit=3, batch_size=1, progress_bar=False
+        )
+        try:
+            embedder._async_stub.EmbedSparseStream = embed_sparse_stream
+            result = await embedder.run_async(documents)
+        finally:
+            await embedder._async_channel.close()
+
+        assert streams == [
+            ["doc 1", "doc 2"],
+            ["doc 3", "doc 4"],
+            ["doc 5", "doc 6", "doc 7"],
+        ]
+        assert [document.sparse_embedding.indices for document in result["documents"]] == [
+            [1],
+            [2],
+            [3],
+            [4],
+            [5],
+            [6],
+            [7],
+        ]
 
     @pytest.mark.asyncio
     async def test_run_async_batches_with_one_client_and_preserves_batch_order(self) -> None:
@@ -315,6 +418,42 @@ class TestHuggingFaceAPISparseDocumentEmbedder:
         with patched_client() as (client, _), pytest.raises(httpx.HTTPStatusError):
             client.post.return_value = httpx.Response(500, request=request)
             embedder.run([Document(content="text")])
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_tei_grpc(self) -> None:
+        documents = [Document(content="sparse retrieval"), Document(content="dense retrieval")]
+        embedder = HuggingFaceAPISparseDocumentEmbedder(
+            api_base_url="localhost:8082", use_grpc=True, progress_bar=False
+        )
+        try:
+            result = embedder.run(documents)
+        finally:
+            await embedder._async_channel.close()
+
+        documents_with_embeddings = result["documents"]
+        assert len(documents_with_embeddings) == len(documents)
+        for document in documents_with_embeddings:
+            assert isinstance(document.sparse_embedding, SparseEmbedding)
+            assert document.sparse_embedding.indices
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async_tei_grpc(self) -> None:
+        documents = [Document(content="sparse retrieval"), Document(content="dense retrieval")]
+        embedder = HuggingFaceAPISparseDocumentEmbedder(
+            api_base_url="localhost:8082", use_grpc=True, progress_bar=False
+        )
+        try:
+            result = await embedder.run_async(documents)
+        finally:
+            await embedder._async_channel.close()
+
+        documents_with_embeddings = result["documents"]
+        assert len(documents_with_embeddings) == len(documents)
+        for document in documents_with_embeddings:
+            assert isinstance(document.sparse_embedding, SparseEmbedding)
+            assert document.sparse_embedding.indices
 
     @pytest.mark.integration
     def test_live_run_tei(self) -> None:

@@ -4,8 +4,9 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import httpx
 import pytest
@@ -13,6 +14,7 @@ from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.huggingface_api import HuggingFaceAPISparseTextEmbedder
+from haystack_integrations.components.embedders.huggingface_api._grpc import tei_pb2
 
 API_BASE_URL = "http://localhost:8080"
 MODULE = "haystack_integrations.components.embedders.huggingface_api.sparse_text_embedder"
@@ -22,6 +24,21 @@ def sparse_response(data: Any) -> MagicMock:
     response = MagicMock(spec=httpx.Response)
     response.json.return_value = data
     return response
+
+
+@contextmanager
+def patched_grpc() -> Iterator[tuple[MagicMock, MagicMock, MagicMock, MagicMock]]:
+    sync_channel = MagicMock()
+    async_channel = MagicMock()
+    sync_stub = MagicMock()
+    async_stub = MagicMock()
+    async_stub.EmbedSparse = AsyncMock()
+    with (
+        patch(f"{MODULE}.grpc.insecure_channel", return_value=sync_channel),
+        patch(f"{MODULE}.grpc.aio.insecure_channel", return_value=async_channel),
+        patch(f"{MODULE}.tei_pb2_grpc.EmbedStub", side_effect=[sync_stub, async_stub]),
+    ):
+        yield sync_channel, async_channel, sync_stub, async_stub
 
 
 @contextmanager
@@ -58,6 +75,27 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert embedder.suffix == ""
         assert embedder.timeout == 30.0
         assert embedder.headers == {}
+        assert not embedder.use_grpc
+
+    def test_init_grpc_uses_api_base_url_as_target(self) -> None:
+        sync_channel = MagicMock()
+        async_channel = MagicMock()
+        sync_stub = MagicMock()
+        async_stub = MagicMock()
+        with (
+            patch(f"{MODULE}.grpc.insecure_channel", return_value=sync_channel) as sync_channel_constructor,
+            patch(f"{MODULE}.grpc.aio.insecure_channel", return_value=async_channel) as async_channel_constructor,
+            patch(f"{MODULE}.tei_pb2_grpc.EmbedStub", side_effect=[sync_stub, async_stub]) as stub_constructor,
+        ):
+            embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+
+        sync_channel_constructor.assert_called_once_with("localhost:8082")
+        async_channel_constructor.assert_called_once_with("localhost:8082")
+        assert stub_constructor.call_args_list == [call(sync_channel), call(async_channel)]
+        assert embedder.api_base_url == "localhost:8082"
+        assert embedder.use_grpc
+        assert embedder._stub is sync_stub
+        assert embedder._async_stub is async_stub
 
     def test_to_dict_and_from_dict_preserve_env_secret(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CUSTOM_HF_TOKEN", "resolved-token")
@@ -82,6 +120,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
                 "suffix": "!",
                 "timeout": None,
                 "headers": {"X-Tenant": "test"},
+                "use_grpc": False,
             },
         }
         restored = HuggingFaceAPISparseTextEmbedder.from_dict(data)
@@ -90,6 +129,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert restored.suffix == "!"
         assert restored.timeout is None
         assert restored.headers == {"X-Tenant": "test"}
+        assert not restored.use_grpc
         assert restored.token is not None
         assert restored.token.resolve_value() == "resolved-token"
 
@@ -129,6 +169,21 @@ class TestHuggingFaceAPISparseTextEmbedder:
         client.post.assert_called_once_with("embed_sparse", json={"inputs": "query: cheese </s>"})
         response.raise_for_status.assert_called_once_with()
         assert result == {"sparse_embedding": SparseEmbedding(indices=[12, 99], values=[1.0, 0.25])}
+
+    def test_run_grpc_calls_embed_sparse_and_converts_response(self) -> None:
+        with patched_grpc() as (_, _, sync_stub, _):
+            sync_stub.EmbedSparse.return_value = SimpleNamespace(
+                sparse_embeddings=[SimpleNamespace(index=12, value=1.0), SimpleNamespace(index=99, value=0.25)]
+            )
+            embedder = HuggingFaceAPISparseTextEmbedder(
+                api_base_url="localhost:8082", prefix="query: ", suffix=" </s>", use_grpc=True
+            )
+            result = embedder.run("cheese")
+
+        sync_stub.EmbedSparse.assert_called_once_with(tei_pb2.EmbedSparseRequest(inputs="query: cheese </s>"))
+        assert result == {"sparse_embedding": SparseEmbedding(indices=[12, 99], values=[1.0, 0.25])}
+        assert all(isinstance(index, int) for index in result["sparse_embedding"].indices)
+        assert all(isinstance(value, float) for value in result["sparse_embedding"].values)
 
     def test_token_is_sent_as_bearer_authorization(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("HF_API_TOKEN", raising=False)
@@ -189,6 +244,22 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert result["sparse_embedding"] == SparseEmbedding(indices=[7], values=[2.5])
 
     @pytest.mark.asyncio
+    async def test_run_async_grpc_awaits_embed_sparse_and_converts_response(self) -> None:
+        with patched_grpc() as (_, _, _, async_stub):
+            async_stub.EmbedSparse.return_value = SimpleNamespace(
+                sparse_embeddings=[SimpleNamespace(index=7, value=2.5)]
+            )
+            embedder = HuggingFaceAPISparseTextEmbedder(
+                api_base_url="localhost:8082", prefix="query: ", suffix="!", use_grpc=True
+            )
+            result = await embedder.run_async("input")
+
+        async_stub.EmbedSparse.assert_awaited_once_with(tei_pb2.EmbedSparseRequest(inputs="query: input!"))
+        assert result == {"sparse_embedding": SparseEmbedding(indices=[7], values=[2.5])}
+        assert isinstance(result["sparse_embedding"].indices[0], int)
+        assert isinstance(result["sparse_embedding"].values[0], float)
+
+    @pytest.mark.asyncio
     async def test_run_async_builds_and_closes_a_client_per_call(self) -> None:
         """
         The component must not hold on to an `httpx.AsyncClient`.
@@ -246,6 +317,31 @@ class TestHuggingFaceAPISparseTextEmbedder:
             embedder.run("text")
 
         assert exc_info.value.response.status_code == 503
+
+    @pytest.mark.integration
+    # `use_grpc` eagerly initializes an aio channel, so this test must run in an active event loop.
+    @pytest.mark.asyncio
+    async def test_live_run_tei_grpc(self) -> None:
+        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+        try:
+            result = embedder.run("sparse retrieval")
+        finally:
+            await embedder._async_channel.close()
+
+        assert isinstance(result["sparse_embedding"], SparseEmbedding)
+        assert result["sparse_embedding"].indices
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async_tei_grpc(self) -> None:
+        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+        try:
+            result = await embedder.run_async("sparse retrieval")
+        finally:
+            await embedder._async_channel.close()
+
+        assert isinstance(result["sparse_embedding"], SparseEmbedding)
+        assert result["sparse_embedding"].indices
 
     @pytest.mark.integration
     def test_live_run_tei(self) -> None:

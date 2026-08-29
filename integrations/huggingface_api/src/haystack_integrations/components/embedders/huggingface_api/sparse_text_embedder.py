@@ -7,10 +7,16 @@ from typing import Any
 import httpx
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import SparseEmbedding
+from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 
 from .sparse_embedding_utils import _build_client_kwargs, _embed_sparse, _embed_sparse_async
+
+with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
+    import grpc
+
+    from haystack_integrations.components.embedders.huggingface_api._grpc import tei_pb2, tei_pb2_grpc
 
 
 @component
@@ -38,6 +44,7 @@ class HuggingFaceAPISparseTextEmbedder:
         suffix: str = "",
         timeout: float | None = 30.0,
         headers: dict[str, str] | None = None,
+        use_grpc: bool = False,
     ) -> None:
         """
         Create a sparse text embedder backed by TEI.
@@ -48,17 +55,28 @@ class HuggingFaceAPISparseTextEmbedder:
         :param suffix: A string to add after the text.
         :param timeout: HTTP request timeout in seconds. Set to `None` to disable it.
         :param headers: Additional HTTP headers to send with each request.
-        :raises ValueError: If `api_base_url` is not a valid HTTP URL.
+        :param use_grpc: Use the gRPC API instead of HTTP. This is supported only by TEI and requires installing the
+            `grpc` optional dependency. When enabled, `api_base_url` is used as the gRPC target.
+        :raises ValueError: If `api_base_url` is not a valid HTTP URL when using HTTP.
         """
-        if not is_valid_http_url(api_base_url):
+        if not use_grpc and not is_valid_http_url(api_base_url):
             msg = f"api_base_url must be a valid HTTP URL, but got {api_base_url}"
             raise ValueError(msg)
+
+        if use_grpc:
+            grpc_import.check()
+            self._channel = grpc.insecure_channel(api_base_url)
+            self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            self._async_channel = grpc.aio.insecure_channel(api_base_url)
+            self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
+
         self.api_base_url = api_base_url
         self.token = token
         self.prefix = prefix
         self.suffix = suffix
         self.timeout = timeout
         self.headers = headers or {}
+        self.use_grpc = use_grpc
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -70,6 +88,7 @@ class HuggingFaceAPISparseTextEmbedder:
             suffix=self.suffix,
             timeout=self.timeout,
             headers=self.headers,
+            use_grpc=self.use_grpc,
         )
 
     @classmethod
@@ -99,8 +118,18 @@ class HuggingFaceAPISparseTextEmbedder:
         :param text: Text to embed.
         :returns: The sparse embedding of the input text.
         """
+        text_to_embed = self._prepare_input(text)
+        if self.use_grpc:
+            response = self._stub.EmbedSparse(tei_pb2.EmbedSparseRequest(inputs=text_to_embed))
+            return {
+                "sparse_embedding": SparseEmbedding(
+                    indices=[item.index for item in response.sparse_embeddings],
+                    values=[item.value for item in response.sparse_embeddings],
+                )
+            }
+
         with httpx.Client(**self._client_kwargs()) as client:
-            embeddings = _embed_sparse(client=client, inputs=self._prepare_input(text))
+            embeddings = _embed_sparse(client=client, inputs=text_to_embed)
         return {"sparse_embedding": embeddings[0]}
 
     @component.output_types(sparse_embedding=SparseEmbedding)
@@ -111,6 +140,16 @@ class HuggingFaceAPISparseTextEmbedder:
         :param text: Text to embed.
         :returns: The sparse embedding of the input text.
         """
+        text_to_embed = self._prepare_input(text)
+        if self.use_grpc:
+            response = await self._async_stub.EmbedSparse(tei_pb2.EmbedSparseRequest(inputs=text_to_embed))
+            return {
+                "sparse_embedding": SparseEmbedding(
+                    indices=[item.index for item in response.sparse_embeddings],
+                    values=[item.value for item in response.sparse_embeddings],
+                )
+            }
+
         async with httpx.AsyncClient(**self._client_kwargs()) as client:
-            embeddings = await _embed_sparse_async(client=client, inputs=self._prepare_input(text))
+            embeddings = await _embed_sparse_async(client=client, inputs=text_to_embed)
         return {"sparse_embedding": embeddings[0]}
