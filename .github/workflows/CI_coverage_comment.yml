@@ -22,6 +22,7 @@ on:
       - "Test / cognee"
       - "Test / cohere"
       - "Test / cometapi"
+      - "Test / context"
       - "Test / datadog"
       - "Test / ddgs"
       - "Test / deepeval"

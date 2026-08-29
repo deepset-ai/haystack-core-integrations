@@ -94,6 +94,11 @@ integration:cometapi:
       - any-glob-to-any-file: "integrations/cometapi/**/*"
       - any-glob-to-any-file: ".github/workflows/cometapi.yml"
 
+integration:context:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/context/**/*"
+      - any-glob-to-any-file: ".github/workflows/context.yml"
+
 integration:datadog:
   - changed-files:
       - any-glob-to-any-file: "integrations/datadog/**/*"
