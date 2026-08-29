@@ -238,17 +238,20 @@ class GoogleGenAIChatGenerator:
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
         :param google_server_tools: A list of Google server-side (built-in) tools passed directly to the API.
-            Each entry must be a dict matching the ``google.genai.types.Tool`` schema. The dict keys correspond
-            to the built-in tool type and the values are their configuration dicts (often empty ``{}``).
-            These are merged with any Haystack ``tools`` at request time.
+            Each entry is a dict whose single key is the built-in tool name and whose value is its configuration
+            dict (empty ``{}`` when the tool takes no parameters). At request time each dict is parsed by
+            ``google.genai.types.Tool.model_validate``, which maps dict keys directly to ``Tool`` fields, so
+            any built-in tool accepted by the API — including ones with nested configuration — can be expressed
+            this way. These built-in tools are merged with any Haystack ``tools`` at request time.
 
             Supported built-in tools:
 
             - ``{"google_search": {}}`` — enables real-time Google Search grounding
             - ``{"code_execution": {}}`` — enables Python code execution in a sandbox
             - ``{"url_context": {}}`` — enables fetching and using URL content in context
+            - ``{"google_search_retrieval": {...}}`` — grounding with configurable dynamic retrieval threshold
 
-            Example::
+            Example (simple, no parameters)::
 
                 from haystack.dataclasses import ChatMessage
                 from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
@@ -257,6 +260,21 @@ class GoogleGenAIChatGenerator:
                     google_server_tools=[{"google_search": {}}, {"code_execution": {}}]
                 )
                 response = chat_generator.run([ChatMessage.from_user("What happened in AI today?")])
+
+            Example (with parameters — dynamic retrieval threshold)::
+
+                chat_generator = GoogleGenAIChatGenerator(
+                    google_server_tools=[
+                        {
+                            "google_search_retrieval": {
+                                "dynamic_retrieval_config": {
+                                    "mode": "MODE_DYNAMIC",
+                                    "dynamic_threshold": 0.7,
+                                }
+                            }
+                        }
+                    ]
+                )
 
             For the full list of built-in tools and their parameters, see:
             https://ai.google.dev/gemini-api/docs/tools#built-in-tools
@@ -477,6 +495,10 @@ class GoogleGenAIChatGenerator:
             # Merge Haystack tools and Google server-side built-in tools
             all_tools = _convert_tools_to_google_genai_format(tools) if tools else []
             if self._google_server_tools:
+                # model_validate maps each dict onto types.Tool fields
+                # (e.g. {"google_search": {}} → Tool(google_search=GoogleSearch())),
+                # letting callers pass any built-in tool, including ones with
+                # nested configuration, without enumerating them explicitly.
                 all_tools = all_tools + [types.Tool.model_validate(t) for t in self._google_server_tools]
             if all_tools:
                 config_params["tools"] = all_tools
@@ -591,6 +613,10 @@ class GoogleGenAIChatGenerator:
             # Merge Haystack tools and Google server-side built-in tools
             all_tools = _convert_tools_to_google_genai_format(tools) if tools else []
             if self._google_server_tools:
+                # model_validate maps each dict onto types.Tool fields
+                # (e.g. {"google_search": {}} → Tool(google_search=GoogleSearch())),
+                # letting callers pass any built-in tool, including ones with
+                # nested configuration, without enumerating them explicitly.
                 all_tools = all_tools + [types.Tool.model_validate(t) for t in self._google_server_tools]
             if all_tools:
                 config_params["tools"] = all_tools

@@ -280,6 +280,22 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         data = component.to_dict()
         assert data["init_parameters"]["google_server_tools"] is None
 
+    def test_init_with_google_search_retrieval_with_params(self, monkeypatch):
+        """google_search_retrieval accepts nested configuration via the same dict syntax."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        server_tool = {
+            "google_search_retrieval": {
+                "dynamic_retrieval_config": {
+                    "mode": "MODE_DYNAMIC",
+                    "dynamic_threshold": 0.7,
+                }
+            }
+        }
+        component = GoogleGenAIChatGenerator(google_server_tools=[server_tool])
+        assert component._google_server_tools == [server_tool]
+        data = component.to_dict()
+        assert data["init_parameters"]["google_server_tools"] == [server_tool]
+
     def test_to_dict_with_response_format_pydantic(self, monkeypatch):
         """Test that to_dict serializes a Pydantic response_format to a JSON schema dict."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
