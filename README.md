@@ -13,12 +13,12 @@
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_image\_embedder.py   |      123 |        4 |       32 |        2 |     96% |266-267, 274-278 |
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/text\_embedder.py              |       68 |        3 |       20 |        3 |     93% |148, 150-\>161, 181-182 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/adapters.py                   |      192 |        6 |       42 |        5 |     95% |35-36, 60, 84-\>86, 154-\>152, 181, 379-\>381, 531-532 |
-| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py       |      189 |       11 |       50 |        2 |     94% |607-608, 689-695, 705-707 |
-| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/utils.py                 |      314 |       19 |      186 |       18 |     91% |88, 228-229, 258-\>256, 350-351, 397-398, 439-\>441, 463-\>535, 465-\>535, 505-\>491, 508-\>491, 511-\>509, 517-\>524, 520-\>524, 562-\>653, 606-\>653, 636-\>646, 650-\>653, 694-\>701, 723-736 |
+| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py       |      189 |       11 |       50 |        2 |     94% |607-608, 689-694, 704-706 |
+| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/utils.py                 |      317 |        7 |      188 |       18 |     95% |89, 229-230, 259-\>257, 351-352, 398-399, 440-\>442, 464-\>536, 466-\>536, 506-\>492, 509-\>492, 512-\>510, 518-\>525, 521-\>525, 563-\>654, 607-\>654, 637-\>647, 651-\>654, 695-\>702 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/generator.py                  |       98 |        0 |       16 |        0 |    100% |           |
 | src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                        |       82 |        0 |       14 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/amazon\_bedrock/knowledge\_base\_retriever.py |       82 |       24 |       24 |        4 |     60% |27-38, 132-137, 152-\>194, 174-188, 190-192 |
-| **TOTAL**                                                                                      | **1445** |   **77** |  **444** |   **39** | **93%** |           |
+| **TOTAL**                                                                                      | **1448** |   **65** |  **446** |   **39** | **94%** |           |
 
 
 ## Setup coverage badge
