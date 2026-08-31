@@ -26,7 +26,7 @@ from rhesis.telemetry.constants import ConversationContext
 from haystack_integrations.tracing.rhesis import rhesis_invocation_context
 
 # Every attribute key the integration promises. A silent rename breaks this list, which is the
-# point: these are the names the Rhesis backend indexes and the README documents.
+# point: these are the names the Rhesis backend indexes and the integration docs document.
 PROMOTED_ATTRIBUTE_KEYS = frozenset(
     {
         AIAttributes.OPERATION_TYPE,
@@ -79,7 +79,7 @@ def _spans_by_name(exporter) -> dict[str, Any]:
 
 class TestEmittedSpanNames:
     def test_rag_pipeline_span_names(self, traced_exporter):
-        """The waterfall a reviewer sees for the README's RAG example."""
+        """The waterfall a reviewer sees for the `example/basic_rag.py` pipeline."""
         exporter, _ = traced_exporter
 
         pipe = Pipeline()
@@ -164,7 +164,7 @@ class TestEmittedAttributes:
         """
         Pins the wire names themselves.
 
-        These are what the Rhesis backend indexes on and what the README's mapping table advertises,
+        These are what the Rhesis backend indexes on and what the mapping table in the docs advertises,
         so renaming one in the SDK has to be a deliberate, visible change here too.
         """
         assert key.startswith(("ai.", "rhesis.")), f"{key} is outside the namespaces Rhesis accepts"

@@ -294,12 +294,12 @@ class TestInvocationContext:
         With content tracing off, the user's message must not reach `rhesis.conversation.*`.
 
         `handle()` promotes that text out of `span.get_data()`, which `set_tag` fills whether the
-        flag is set or not, so the promotion has to check the flag itself. The README tells users
+        flag is set or not, so the promotion has to check the flag itself. The docs tell users
         this flag controls exactly this.
 
         `haystack.pipeline.input_data` is deliberately not asserted absent: Haystack hands pipeline
         I/O over as an ordinary tag rather than a content tag, so it is stamped regardless — the same
-        behaviour as the langfuse integration. README "Limitations" records it.
+        behaviour as the langfuse integration. The integration docs record it.
         """
         monkeypatch.setattr("haystack.tracing.tracer.is_content_tracing_enabled", False)
         secret = "SENSITIVE-USER-QUERY-12345"
@@ -350,7 +350,7 @@ class TestInvocationContext:
 
         A component whose span closed before the connector executed is already exported. The root
         span always gets it — it closes last — which is what conversation grouping needs. Callers
-        who want it on every span use `rhesis_invocation_context` instead, as the README says.
+        who want it on every span use `rhesis_invocation_context` instead, as the docs say.
         """
         pipe, exporter = self._traced_pipeline(_Echo(), "echo")
         pipe.run(

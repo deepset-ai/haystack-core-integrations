@@ -38,7 +38,7 @@ def messages_from_payload(payload: Any) -> list[Any]:
     Return the chat messages carried by a component or pipeline payload.
 
     ``replies`` is checked as well as ``messages``: that is the socket a ChatGenerator publishes its
-    answer on, and a prompt-builder-into-generator pipeline — the shape of the README quickstart —
+    answer on, and a prompt-builder-into-generator pipeline — the shape of the docs quickstart —
     has no ``messages`` anywhere in its output. Without it the turn recorded the user's question and
     left the answer blank.
     """
