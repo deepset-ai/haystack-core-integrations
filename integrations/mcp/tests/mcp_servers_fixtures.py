@@ -1,11 +1,23 @@
 from mcp import types
-from mcp.server.fastmcp import FastMCP
+
+try:  # mcp v2
+    from mcp.server import MCPServer
+
+    class FixtureServer(MCPServer):
+        """Exposes v1's ``_mcp_server`` name for the low-level server, so the tests read the same."""
+
+        @property
+        def _mcp_server(self):
+            return self._lowlevel_server
+
+except ImportError:  # mcp v1
+    from mcp.server.fastmcp import FastMCP as FixtureServer
 
 ################################################
 # Calculator MCP Server
 ################################################
 
-calculator_mcp = FastMCP("Calculator")
+calculator_mcp = FixtureServer("Calculator")
 
 
 @calculator_mcp.tool()
@@ -30,7 +42,7 @@ def divide_by_zero(a: int) -> float:
 # State IO Calculator MCP Server (returns dicts for state propagation)
 ################################################
 
-state_calculator_mcp = FastMCP("StateCalculator")
+state_calculator_mcp = FixtureServer("StateCalculator")
 
 
 @state_calculator_mcp.tool()
@@ -49,7 +61,7 @@ def state_subtract(a: int, b: int) -> dict:
 # Echo MCP Server
 ################################################
 
-echo_mcp = FastMCP("Echo")
+echo_mcp = FixtureServer("Echo")
 
 
 @echo_mcp.tool()
@@ -62,7 +74,7 @@ def echo(text: str) -> str:
 # Image MCP Server
 ################################################
 
-image_mcp = FastMCP("Image")
+image_mcp = FixtureServer("Image")
 
 
 @image_mcp.tool()

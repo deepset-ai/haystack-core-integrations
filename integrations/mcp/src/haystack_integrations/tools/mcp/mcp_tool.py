@@ -15,11 +15,8 @@ from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
-from datetime import timedelta
 from typing import Any, cast
 
-import anyio
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
@@ -32,8 +29,8 @@ from haystack.utils.url_validation import is_valid_http_url
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamablehttp_client
-from mcp.shared.message import SessionMessage
+
+from .compatibility_layer import RECONNECTABLE_ERRORS, is_reconnectable, mcp_field_value, open_streamable_http
 
 logger = logging.getLogger(__name__)
 
@@ -257,8 +254,8 @@ class MCPClient(ABC):
     def __init__(self, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0) -> None:
         self.session: ClientSession | None = None
         self.exit_stack: AsyncExitStack = AsyncExitStack()
-        self.stdio: MemoryObjectReceiveStream[SessionMessage | Exception] | None = None
-        self.write: MemoryObjectSendStream[SessionMessage] | None = None
+        self.stdio: Any | None = None
+        self.write: Any | None = None
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
@@ -291,14 +288,16 @@ class MCPClient(ABC):
         for attempt in range(self.max_retries + 1):  # +1 for initial attempt
             try:
                 result = await self.session.call_tool(tool_name, tool_args)
-                if result.isError:
+                if mcp_field_value(model=result, name="is_error"):
                     message = f"Tool '{tool_name}' returned an error: {result.content!s}"
                     raise MCPInvocationError(message=message, tool_name=tool_name)
-                return result.model_dump_json()
+                return result.model_dump_json(by_alias=True)
             except MCPError:
                 # Re-raise specific MCP errors directly (these are not connection issues)
                 raise
-            except (anyio.ClosedResourceError, ConnectionError, OSError) as e:
+            except RECONNECTABLE_ERRORS as e:
+                if not is_reconnectable(e):
+                    raise
                 error_type = type(e).__name__
                 error_msg = str(e) if str(e) else "Connection closed unexpectedly"
 
@@ -312,9 +311,7 @@ class MCPClient(ABC):
                     raise MCPInvocationError(message, tool_name, tool_args) from e
 
                 # Only attempt reconnection for SSE/HTTP transports (if available)
-                if isinstance(self, SSEClient | StreamableHttpClient) and (
-                    sse_client is not None or streamablehttp_client is not None
-                ):
+                if isinstance(self, SSEClient | StreamableHttpClient):
                     logger.warning(f"Connection lost during tool call '{tool_name}': {error_type}: {error_msg}")
 
                     try:
@@ -377,15 +374,7 @@ class MCPClient(ABC):
 
     async def _initialize_session_with_transport(
         self,
-        transport_tuple: tuple[
-            MemoryObjectReceiveStream[SessionMessage | Exception],
-            MemoryObjectSendStream[SessionMessage],
-        ]
-        | tuple[
-            MemoryObjectReceiveStream[SessionMessage | Exception],
-            MemoryObjectSendStream[SessionMessage],
-            Any,
-        ],
+        transport_tuple: tuple[Any, ...],
         connection_type: str,
     ) -> list[types.Tool]:
         """
@@ -567,13 +556,6 @@ class StreamableHttpClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
-        if streamablehttp_client is None:
-            message = (
-                "Streamable HTTP client is not available. "
-                "This may require a newer version of the mcp package that includes mcp.client.streamable_http"
-            )
-            raise MCPConnectionError(message=message, operation="streamable_http_connect")
-
         # Use custom headers if provided, otherwise fall back to token-based Authorization
         headers = None
         if self.headers:
@@ -582,7 +564,7 @@ class StreamableHttpClient(MCPClient):
             headers = {"Authorization": f"Bearer {self.token}"}
 
         streamablehttp_transport = await self.exit_stack.enter_async_context(
-            streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
+            open_streamable_http(url=self.url, headers=headers, timeout=self.timeout)
         )
         return await self._initialize_session_with_transport(streamablehttp_transport, f"HTTP server at {self.url}")
 
@@ -1012,7 +994,7 @@ class MCPTool(Tool):
             super().__init__(
                 name=name,
                 description=description or tool_info.description or "",
-                parameters=tool_info.inputSchema,
+                parameters=mcp_field_value(model=tool_info, name="input_schema"),
                 function=self._invoke_tool,
                 outputs_to_string=outputs_to_string,
                 inputs_from_state=inputs_from_state,
@@ -1182,7 +1164,7 @@ class MCPTool(Tool):
             if self._client is not None:
                 return
             tool = self._connect_and_initialize(self.name)
-            self.parameters = tool.inputSchema
+            self.parameters = mcp_field_value(model=tool, name="input_schema")
 
             # Validate inputs_from_state now that we have the real schema
             # Note: Duplicates Tool.__post_init__() logic, but needed here for early error detection

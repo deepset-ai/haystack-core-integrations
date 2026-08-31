@@ -7,7 +7,6 @@ from collections.abc import Callable
 from typing import Any, cast
 from urllib.parse import urlparse
 
-import httpx
 from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
@@ -25,6 +24,7 @@ from haystack.tools.tool import (
     _serialize_outputs_to_string as _hs_serialize_outputs_to_string,
 )
 
+from .compatibility_layer import http_lib, mcp_field_value
 from .mcp_tool import (
     AsyncExecutor,
     MCPClient,
@@ -350,7 +350,7 @@ class MCPToolset(Toolset):
                 tool = Tool(
                     name=tool_info.name,
                     description=tool_info.description or "",
-                    parameters=tool_info.inputSchema,
+                    parameters=mcp_field_value(model=tool_info, name="input_schema"),
                     function=create_invoke_tool(
                         self, client, tool_info.name, self.invocation_timeout, tool_outputs_to_state
                     ),
@@ -387,8 +387,9 @@ class MCPToolset(Toolset):
                 ]
 
                 # Add specific connection error details for network issues
-                has_connect_error = isinstance(e, httpx.ConnectError) or (
-                    isinstance(e, ExceptionGroup) and any(isinstance(exc, httpx.ConnectError) for exc in e.exceptions)
+                connect_error = http_lib.ConnectError
+                has_connect_error = isinstance(e, connect_error) or (
+                    isinstance(e, ExceptionGroup) and any(isinstance(exc, connect_error) for exc in e.exceptions)
                 )
 
                 if has_connect_error:
