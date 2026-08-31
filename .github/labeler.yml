@@ -139,6 +139,11 @@ integration:elasticsearch:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
       - any-glob-to-any-file: ".github/workflows/elasticsearch.yml"
 
+integration:everos:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/everos/**/*"
+      - any-glob-to-any-file: ".github/workflows/everos.yml"
+
 integration:faiss:
   - changed-files:
       - any-glob-to-any-file: "integrations/faiss/**/*"

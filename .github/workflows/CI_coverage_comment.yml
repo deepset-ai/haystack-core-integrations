@@ -31,6 +31,7 @@ on:
       - "Test / e2b"
       - "Test / edenai"
       - "Test / elasticsearch"
+      - "Test / everos"
       - "Test / faiss"
       - "Test / falkordb"
       - "Test / fastembed"
