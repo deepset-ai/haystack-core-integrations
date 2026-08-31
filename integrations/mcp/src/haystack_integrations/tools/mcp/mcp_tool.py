@@ -299,7 +299,6 @@ class MCPClient(ABC):
                 raise
             except Exception as e:
                 if not is_reconnectable(e):
-                    # Not a dropped connection: wrap it like any other invocation failure.
                     error_description = str(e) if str(e) else f"Unknown {type(e).__name__} error"
                     message = (
                         f"Failed to invoke tool '{tool_name}' with args: {tool_args}, got error: {error_description}"
@@ -501,13 +500,6 @@ class SSEClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
-        if sse_client is None:
-            message = (
-                "SSE client is not available. "
-                "This may require a newer version of the mcp package that includes mcp.client.sse"
-            )
-            raise MCPConnectionError(message=message, operation="sse_connect")
-
         # Use custom headers if provided, otherwise fall back to token-based Authorization
         headers = None
         if self.headers:

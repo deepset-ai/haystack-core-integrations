@@ -1,16 +1,18 @@
 from mcp import types
 
-try:  # mcp v2
+from haystack_integrations.tools.mcp.compatibility_layer import MCP_V2
+
+if MCP_V2:
     from mcp.server import MCPServer
 
     class FixtureServer(MCPServer):
-        """Exposes v1's ``_mcp_server`` name for the low-level server, so the tests read the same."""
+        """v2 renamed the `_mcp_server` attribute to `_lowlevel_server`; keep the v1 name working too."""
 
         @property
         def _mcp_server(self):
             return self._lowlevel_server
 
-except ImportError:  # mcp v1
+else:
     from mcp.server.fastmcp import FastMCP as FixtureServer
 
 ################################################
