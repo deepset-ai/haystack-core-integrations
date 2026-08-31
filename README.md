@@ -9,7 +9,8 @@
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      292 |       34 |      184 |       23 |     85% |86-\>76, 93, 95, 98-\>76, 186-\>197, 195-196, 267-271, 284-299, 303-304, 308, 316, 336-\>335, 376-\>381, 381-\>384, 407-408, 414-415, 422-\>425, 489, 554-562, 567-\>569, 570, 572, 589-590 |
 | src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       44 |        0 |        6 |        1 |     98% | 196-\>199 |
 | src/haystack\_integrations/components/generators/anthropic/generator.py                     |       97 |       35 |       42 |        4 |     52% |117, 150-\>152, 176, 199-236, 245-\>267 |
-| **TOTAL**                                                                                   |  **710** |   **88** |  **338** |   **55** | **82%** |           |
+| src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       50 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
+| **TOTAL**                                                                                   |  **760** |   **92** |  **354** |   **58** | **82%** |           |
 
 
 ## Setup coverage badge
