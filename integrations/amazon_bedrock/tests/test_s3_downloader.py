@@ -94,6 +94,7 @@ class TestS3Downloader:
                     "env_vars": ["AWS_PROFILE"],
                     "strict": False,
                 },
+                "boto3_config": boto3_config,
                 "file_root_path": str(tmp_path),
                 "file_extensions": None,
                 "max_cache_size": 100,
@@ -104,6 +105,14 @@ class TestS3Downloader:
             },
         }
         assert d.to_dict() == expected
+
+    def test_boto3_config_survives_a_serialization_round_trip(self, mock_boto3_session: Any, tmp_path):
+        """boto3_config builds the botocore Config: timeouts, retries and proxies all live there."""
+        downloader = S3Downloader(file_root_path=str(tmp_path), boto3_config={"read_timeout": 10, "connect_timeout": 5})
+
+        restored = S3Downloader.from_dict(downloader.to_dict())
+
+        assert restored.boto3_config == {"read_timeout": 10, "connect_timeout": 5}
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
     def test_from_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None):
@@ -181,6 +190,7 @@ class TestS3Downloader:
                     "env_vars": ["AWS_PROFILE"],
                     "strict": False,
                 },
+                "boto3_config": None,
                 "file_root_path": str(tmp_path),
                 "file_extensions": [".txt"],
                 "max_cache_size": 400,

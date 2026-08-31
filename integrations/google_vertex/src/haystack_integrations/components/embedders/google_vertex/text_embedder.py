@@ -118,6 +118,9 @@ class VertexAITextEmbedder:
             gcp_project_id=self.gcp_project_id.to_dict() if self.gcp_project_id else None,
             gcp_region_name=self.gcp_region_name.to_dict() if self.gcp_region_name else None,
             model=self.model,
+            task_type=self.task_type,
+            progress_bar=self.progress_bar,
+            truncate_dim=self.truncate_dim,
         )
 
     @classmethod

@@ -295,6 +295,7 @@ class S3Downloader:
             aws_session_token=self.aws_session_token,
             aws_region_name=self.aws_region_name,
             aws_profile_name=self.aws_profile_name,
+            boto3_config=self.boto3_config,
             file_root_path=str(self.file_root_path),
             max_workers=self.max_workers,
             max_cache_size=self.max_cache_size,

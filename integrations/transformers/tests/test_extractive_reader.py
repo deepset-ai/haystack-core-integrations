@@ -126,12 +126,22 @@ def test_to_dict(initialized_token: Secret):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {
                 "torch_dtype": "torch.float16",
                 "device_map": ComponentDevice.resolve_device(None).to_hf(),
             },  # torch_dtype is correctly serialized
         },
     }
+
+
+def test_overlap_threshold_survives_a_serialization_round_trip():
+    """overlap_threshold decides which overlapping answers are deduplicated away in run()."""
+    reader = TransformersExtractiveReader("my-model", token=None, overlap_threshold=0.5)
+
+    restored = TransformersExtractiveReader.from_dict(reader.to_dict())
+
+    assert restored.overlap_threshold == 0.5
 
 
 def test_to_dict_no_token():
@@ -154,6 +164,7 @@ def test_to_dict_no_token():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {
                 "torch_dtype": "torch.float16",
                 "device_map": ComponentDevice.resolve_device(None).to_hf(),
@@ -182,6 +193,7 @@ def test_to_dict_empty_model_kwargs(initialized_token: Secret):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"device_map": ComponentDevice.resolve_device(None).to_hf()},
         },
     }
@@ -215,6 +227,7 @@ def test_to_dict_device_map(device_map, expected):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"device_map": expected},
         },
     }
@@ -237,6 +250,7 @@ def test_from_dict():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"torch_dtype": "torch.float16"},
         },
     }
@@ -301,6 +315,7 @@ def test_from_dict_no_token():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"torch_dtype": "torch.float16"},
         },
     }
