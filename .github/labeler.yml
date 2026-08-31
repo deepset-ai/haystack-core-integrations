@@ -358,6 +358,11 @@ integration:paddleocr:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
       - any-glob-to-any-file: ".github/workflows/paddleocr.yml"
 
+integration:parallel:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/parallel/**/*"
+      - any-glob-to-any-file: ".github/workflows/parallel.yml"
+
 integration:perplexity:
   - changed-files:
       - any-glob-to-any-file: "integrations/perplexity/**/*"
