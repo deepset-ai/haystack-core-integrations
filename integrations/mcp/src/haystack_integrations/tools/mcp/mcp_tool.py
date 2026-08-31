@@ -29,8 +29,10 @@ from haystack.utils.url_validation import is_valid_http_url
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 
-from .compatibility_layer import RECONNECTABLE_ERRORS, is_reconnectable, mcp_field_value, open_streamable_http
+from .compatibility_layer import is_reconnectable, mcp_field_value
 
 logger = logging.getLogger(__name__)
 
@@ -295,9 +297,15 @@ class MCPClient(ABC):
             except MCPError:
                 # Re-raise specific MCP errors directly (these are not connection issues)
                 raise
-            except RECONNECTABLE_ERRORS as e:
+            except Exception as e:
                 if not is_reconnectable(e):
-                    raise
+                    # Not a dropped connection: wrap it like any other invocation failure.
+                    error_description = str(e) if str(e) else f"Unknown {type(e).__name__} error"
+                    message = (
+                        f"Failed to invoke tool '{tool_name}' with args: {tool_args}, got error: {error_description}"
+                    )
+                    raise MCPInvocationError(message, tool_name, tool_args) from e
+
                 error_type = type(e).__name__
                 error_msg = str(e) if str(e) else "Connection closed unexpectedly"
 
@@ -344,11 +352,6 @@ class MCPClient(ABC):
                         f"For STDIO connections, try recreating the MCPTool instance."
                     )
                     raise MCPInvocationError(message, tool_name, tool_args) from e
-            except Exception as e:
-                # Handle other exceptions with meaningful error messages
-                error_description = str(e) if str(e) else f"Unknown {type(e).__name__} error"
-                message = f"Failed to invoke tool '{tool_name}' with args: {tool_args}, got error: {error_description}"
-                raise MCPInvocationError(message, tool_name, tool_args) from e
 
         message = f"Tool '{tool_name}' failed unexpectedly after all retry attempts"
         raise MCPInvocationError(message, tool_name, tool_args)
@@ -563,8 +566,9 @@ class StreamableHttpClient(MCPClient):
         elif self.token:
             headers = {"Authorization": f"Bearer {self.token}"}
 
+        http_client = create_mcp_http_client(headers=headers, timeout=self.timeout)  # type: ignore[arg-type]
         streamablehttp_transport = await self.exit_stack.enter_async_context(
-            open_streamable_http(url=self.url, headers=headers, timeout=self.timeout)
+            streamable_http_client(self.url, http_client=http_client)
         )
         return await self._initialize_session_with_transport(streamablehttp_transport, f"HTTP server at {self.url}")
 
