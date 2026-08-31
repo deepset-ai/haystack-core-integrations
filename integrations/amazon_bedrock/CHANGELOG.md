@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v7.1.0] - 2026-08-31
+
+### 🧹 Chores
+
+- AmazonBedrockChatGenerator - support sync streaming callbacks in async contexts (#3831)
+
+
 ## [integrations/amazon_bedrock-v7.0.0] - 2026-08-26
 
 ### 🌀 Miscellaneous
