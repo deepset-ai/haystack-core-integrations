@@ -1,0 +1,193 @@
+# SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import shutil
+import subprocess
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any, Literal
+
+from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.components.converters.utils import normalize_metadata
+from haystack.dataclasses import ByteStream
+
+import opendataloader_pdf  # type: ignore[import-untyped]
+
+OutputFormat = Literal["markdown", "text", "json", "html"]
+
+
+@component
+class OpenDataLoaderConverter:
+    """
+    OpenDataLoader PDF converter component.
+
+    The component accepts PDF file paths and Haystack ByteStream objects, runs OpenDataLoader PDF extraction, and
+    returns Haystack Document objects.
+
+    Java 11 or newer must be installed and available on PATH.
+
+    ### Usage example
+    ```python
+    from haystack_integrations.components.converters.opendataloader_pdf import OpenDataLoaderConverter
+
+    converter = OpenDataLoaderConverter(output_format="markdown")
+    result = converter.run(sources=["report.pdf"], meta={"source": "annual-report"})
+
+    documents = result["documents"]
+    print(documents[0].content)
+    ```
+    """
+
+    def __init__(
+        self, *, output_format: OutputFormat = "markdown", convert_kwargs: dict[str, Any] | None = None
+    ) -> None:
+        """
+        Initialize the OpenDataLoader converter.
+
+        :param output_format: Format OpenDataLoader should produce.
+        :param convert_kwargs: Additional arguments passed to `opendataloader_pdf.convert`. See the
+            [OpenDataLoader PDF Python options](https://opendataloader.org/docs/quick-start-python#convert-options).
+        """
+        self.output_format = output_format
+        self.convert_kwargs = convert_kwargs or {}
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize the component.
+
+        :returns:
+            Dictionary representation of the converter.
+        """
+        return default_to_dict(self, output_format=self.output_format, convert_kwargs=self.convert_kwargs)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "OpenDataLoaderConverter":
+        """
+        Deserialize the component.
+
+        :param data: Serialized component dictionary.
+        :returns:
+            Reconstructed OpenDataLoaderConverter.
+        """
+        return default_from_dict(cls=cls, data=data)
+
+    def _prepare_sources(
+        self, sources: list[str | Path | ByteStream], metadata: list[dict[str, Any]], input_dir: Path
+    ) -> list[tuple[Path, dict[str, Any]]]:
+        """
+        Stage PDF sources under unique names and preserve their metadata.
+
+        :param sources: PDF file paths or Haystack ByteStream objects.
+        :param metadata: User-provided metadata aligned with `sources`.
+        :param input_dir: Temporary directory where sources are staged.
+        :raises ValueError: If a ByteStream has a non-PDF MIME type, or a file path does not have a `.pdf` extension.
+        :returns:
+            Staged PDF paths paired with their merged metadata.
+        """
+        prepared_sources: list[tuple[Path, dict[str, Any]]] = []
+        for index, (source, user_meta) in enumerate(zip(sources, metadata, strict=True)):
+            staged_path = input_dir / f"document_{index}.pdf"
+            if isinstance(source, ByteStream):
+                if source.mime_type:
+                    mime_type = source.mime_type.split(sep=";", maxsplit=1)[0].strip().lower()
+                    if mime_type != "application/pdf":
+                        message = (
+                            "OpenDataLoaderConverter only supports PDF ByteStreams. "
+                            f"Received MIME type: {source.mime_type}"
+                        )
+                        raise ValueError(message)
+                staged_path.write_bytes(source.data)
+                source_meta = dict(source.meta)
+                if not source_meta.get("file_path"):
+                    source_meta["file_path"] = f"document_{index}.pdf"
+            else:
+                source_path = Path(source)
+                if source_path.suffix.lower() != ".pdf":
+                    message = f"OpenDataLoaderConverter only supports PDFs: {source_path}"
+                    raise ValueError(message)
+                shutil.copyfile(src=source_path, dst=staged_path)
+                source_meta = {"file_path": source_path.name}
+            prepared_sources.append((staged_path, {**source_meta, **user_meta}))
+        return prepared_sources
+
+    @staticmethod
+    def _check_java_available() -> None:
+        """
+        Check whether a usable Java runtime is available.
+
+        :raises RuntimeError: If `java` is not available on PATH or cannot be executed.
+        """
+        message = (
+            "Java 11 or newer is required to use OpenDataLoaderConverter. "
+            "Install Java and ensure `java` is available on PATH."
+        )
+        java = shutil.which("java")
+        if java is None:
+            raise RuntimeError(message)
+
+        try:
+            subprocess.run(  # noqa: S603
+                args=[java, "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise RuntimeError(message) from exc
+
+    def _read_output(self, output_dir: Path, pdf_path: Path) -> str:
+        """
+        Read the OpenDataLoader output file.
+
+        :param output_dir: Directory containing converted files.
+        :param pdf_path: Staged PDF path used to determine the output filename.
+        :raises RuntimeError: If OpenDataLoader did not create the expected output file.
+        :returns:
+            Extracted document content.
+        """
+        extension_map = {"markdown": "md", "text": "txt", "html": "html", "json": "json"}
+        output_file = output_dir / f"{pdf_path.stem}.{extension_map[self.output_format]}"
+        if not output_file.exists():
+            message = f"OpenDataLoader did not create expected file: {output_file}"
+            raise RuntimeError(message)
+        return output_file.read_text(encoding="utf-8")
+
+    @component.output_types(documents=list[Document])
+    def run(
+        self,
+        sources: list[str | Path | ByteStream],
+        meta: dict[str, Any] | list[dict[str, Any]] | None = None,
+    ) -> dict[str, list[Document]]:
+        """
+        Convert PDF sources into Haystack Documents.
+
+        :param sources: PDF file paths or Haystack ByteStream objects.
+        :param meta: Optional metadata attached to the generated Documents. A single dictionary is applied to every
+            source. A list must contain one dictionary per source. ByteStream metadata is also preserved.
+        :returns:
+            Dictionary containing the converted Documents.
+        """
+        if not sources:
+            return {"documents": []}
+
+        self._check_java_available()
+        metadata = normalize_metadata(meta=meta, sources_count=len(sources))
+
+        documents: list[Document] = []
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            input_dir = tmp_path / "input"
+            output_dir = tmp_path / "output"
+            input_dir.mkdir()
+            output_dir.mkdir()
+            prepared_sources = self._prepare_sources(sources=sources, metadata=metadata, input_dir=input_dir)
+
+            conversion_kwargs = {"image_output": "off", **self.convert_kwargs}
+            opendataloader_pdf.convert(
+                input_path=[str(pdf_path) for pdf_path, _ in prepared_sources],
+                output_dir=str(output_dir),
+                format=self.output_format,
+                **conversion_kwargs,
+            )
+            for pdf_path, document_meta in prepared_sources:
+                content = self._read_output(output_dir=output_dir, pdf_path=pdf_path)
+                documents.append(Document(content=content, meta={**document_meta, "output_format": self.output_format}))
+        return {"documents": documents}

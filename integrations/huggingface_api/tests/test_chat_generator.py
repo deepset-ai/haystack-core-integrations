@@ -374,6 +374,19 @@ class TestHuggingFaceAPIChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
+    def test_run_with_generation_kwargs(self, mock_check_valid_model, mock_chat_completion, chat_messages):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        generator.run(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
+
     def test_run_with_string_input(self, mock_check_valid_model, mock_chat_completion):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
@@ -750,8 +763,8 @@ class TestHuggingFaceAPIChatGenerator:
     def test_live_run_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen2.5-7B-Instruct", "provider": "together"},
-            generation_kwargs={"max_tokens": 20},
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
         )
 
         # No need for instruction tokens here since we use the chat_completion endpoint which handles the chat
@@ -772,7 +785,7 @@ class TestHuggingFaceAPIChatGenerator:
         assert meta["usage"]["prompt_tokens"] > 0
         assert "completion_tokens" in meta["usage"]
         assert meta["usage"]["completion_tokens"] > 0
-        assert meta["model"] == "Qwen/Qwen2.5-7B-Instruct"
+        assert meta["model"] == "Qwen/Qwen3.5-9B"
         assert meta["finish_reason"] is not None
 
     @pytest.mark.integration
@@ -783,8 +796,8 @@ class TestHuggingFaceAPIChatGenerator:
     def test_live_run_serverless_streaming(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen2.5-7B-Instruct", "provider": "together"},
-            generation_kwargs={"max_tokens": 20},
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
             streaming_callback=streaming_callback_handler,
         )
 
@@ -809,8 +822,7 @@ class TestHuggingFaceAPIChatGenerator:
         assert response_meta["usage"]["prompt_tokens"] >= 0
         assert "completion_tokens" in response_meta["usage"]
         assert response_meta["usage"]["completion_tokens"] >= 0
-        # internally, Together calls this "Qwen/Qwen2.5-7B-Instruct-Turbo"
-        assert "Qwen/Qwen2.5-7B-Instruct" in response_meta["model"]
+        assert response_meta["model"] == "Qwen/Qwen3.5-9B"
         assert response_meta["finish_reason"] is not None
 
     @pytest.mark.integration
@@ -913,6 +925,22 @@ class TestHuggingFaceAPIChatGenerator:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(
+        self, mock_check_valid_model, mock_chat_completion_async, chat_messages
+    ):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+
+        await generator.run_async(messages=chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_chat_completion_async.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
 
     @pytest.mark.asyncio
     async def test_run_async_with_string_input(self, mock_check_valid_model, mock_chat_completion_async):
@@ -1060,8 +1088,8 @@ class TestHuggingFaceAPIChatGenerator:
     async def test_live_run_async_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen2.5-7B-Instruct", "provider": "together"},
-            generation_kwargs={"max_tokens": 20},
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
         )
 
         messages = [
@@ -1082,7 +1110,7 @@ class TestHuggingFaceAPIChatGenerator:
             assert meta["usage"]["prompt_tokens"] > 0
             assert "completion_tokens" in meta["usage"]
             assert meta["usage"]["completion_tokens"] > 0
-            assert meta["model"] == "Qwen/Qwen2.5-7B-Instruct"
+            assert meta["model"] == "Qwen/Qwen3.5-9B"
             assert meta["finish_reason"] is not None
         finally:
             await generator._async_client.close()

@@ -22,10 +22,12 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _convert_streaming_chunks_to_chat_message,
     _format_messages,
     _format_textual_assistant_message,
+    _format_tool_result_message,
     _format_tools,
     _format_user_message,
     _parse_completion_response,
     _parse_streaming_response,
+    _parse_streaming_response_async,
     _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
@@ -247,6 +249,47 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
+    def test_format_tool_result_message_json_object(self):
+        # a tool result string that parses as a JSON object is sent as a Bedrock "json" content block
+        message = ChatMessage.from_tool(
+            tool_result='{"city": "Paris", "temperature": 25}',
+            origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+        )
+        formatted_message = _format_tool_result_message(message)
+        assert formatted_message == {
+            "role": "user",
+            "content": [
+                {
+                    "toolResult": {
+                        "toolUseId": "123",
+                        "content": [{"json": {"city": "Paris", "temperature": 25}}],
+                    }
+                }
+            ],
+        }
+
+    @pytest.mark.parametrize("tool_result", ["42", "true", "null", "[1, 2, 3]"])
+    def test_format_tool_result_message_non_object_json_falls_back_to_text(self, tool_result):
+        # Bedrock's toolResult.content[].json field requires a JSON object; a string that parses to a
+        # non-object JSON value (number, bool, null, array) must fall back to a "text" content block,
+        # otherwise Bedrock rejects the request with a ValidationException.
+        message = ChatMessage.from_tool(
+            tool_result=tool_result,
+            origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+        )
+        formatted_message = _format_tool_result_message(message)
+        assert formatted_message == {
+            "role": "user",
+            "content": [
+                {
+                    "toolResult": {
+                        "toolUseId": "123",
+                        "content": [{"text": tool_result}],
+                    }
+                }
+            ],
+        }
+
     def test_format_messages_with_cache_point(self):
         meta = {"cachePoint": {"type": "default"}}
 
@@ -417,6 +460,56 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "content": [{"text": "Beautiful landscape with mountains"}],
             },
         ]
+
+    def test_format_tool_result_message_with_file_content(self):
+        file_content = FileContent(
+            base64_data=base64.b64encode(b"This is a test document."),
+            mime_type="application/pdf",
+            filename="test document.pdf",
+            validation=False,
+        )
+        message = ChatMessage.from_tool(
+            tool_result=[TextContent("Here's the retrieved document"), file_content],
+            origin=ToolCall(id="123", tool_name="file_retriever", arguments={"path": "test document.pdf"}),
+        )
+
+        formatted_message = _format_tool_result_message(message)
+
+        assert formatted_message == {
+            "role": "user",
+            "content": [
+                {
+                    "toolResult": {
+                        "toolUseId": "123",
+                        "content": [
+                            {"text": "Here's the retrieved document"},
+                            {
+                                "document": {
+                                    "format": "pdf",
+                                    "source": {"bytes": b"This is a test document."},
+                                    "name": "test document",
+                                }
+                            },
+                        ],
+                    }
+                }
+            ],
+        }
+
+    def test_format_tool_result_message_with_unsupported_list_item_raises(self):
+        message = ChatMessage.from_tool(
+            tool_result=[TextContent("This is supported"), 256],
+            origin=ToolCall(id="123", tool_name="test_tool", arguments={}),
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"Unsupported content type in tool call result list. "
+                "Only TextContent, ImageContent, and FileContent are supported."
+            ),
+        ):
+            _format_tool_result_message(message)
 
     def test_format_message_thinking(self):
         assistant_message = ChatMessage.from_assistant(
@@ -1843,6 +1936,39 @@ class TestAmazonBedrockChatGeneratorUtils:
             )
         ]
         assert replies == expected_messages
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async_callback", [True, False])
+    async def test_parse_streaming_response_async_with_sync_and_async_callback(self, use_async_callback):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        events = [
+            {"contentBlockDelta": {"delta": {"text": "Hello"}, "contentBlockIndex": 0}},
+            {"contentBlockDelta": {"delta": {"text": " world"}, "contentBlockIndex": 0}},
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": "end_turn"}},
+        ]
+
+        async def event_stream():
+            for event in events:
+                yield event
+
+        collected = []
+
+        async def async_callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        def sync_callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        callback = async_callback if use_async_callback else sync_callback
+
+        replies = await _parse_streaming_response_async(event_stream(), callback, model, ComponentInfo(type="test"))
+
+        assert len(collected) == len(events)
+        assert "".join(chunk.content for chunk in collected) == "Hello world"
+        assert len(replies) == 1
+        assert replies[0].text == "Hello world"
+        assert replies[0].meta["finish_reason"] == "stop"
 
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(
         self,

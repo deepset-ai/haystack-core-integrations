@@ -908,6 +908,24 @@ class TestDocumentStore(
         assert values == ["docs", "guides"]
         assert total_count == 2
 
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.status", "operator": "==", "value": "active"}
+        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
+        assert set(values) == {"A", "B"}
+        assert total == 2
+
     def test_query_sql_integration(self, document_store: AzureAISearchDocumentStore):
         with pytest.raises(NotImplementedError, match="does not support SQL queries"):
             document_store.query_sql("SELECT * FROM documents")

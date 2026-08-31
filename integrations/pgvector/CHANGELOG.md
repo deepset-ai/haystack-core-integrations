@@ -1,5 +1,21 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- PGVector adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3735)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `PGVectorDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3783)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/pgvector-v6.5.0] - 2026-08-03
 
 ### 🚀 Features

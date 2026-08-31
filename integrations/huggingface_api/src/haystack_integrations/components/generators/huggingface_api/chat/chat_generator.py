@@ -280,7 +280,7 @@ class HuggingFaceAPIChatGenerator:
     api_type = "serverless_inference_api" # this is equivalent to the above
 
     generator = HuggingFaceAPIChatGenerator(api_type=api_type,
-                                            api_params={"model": "Qwen/Qwen2.5-7B-Instruct",
+                                            api_params={"model": "Qwen/Qwen3.5-9B",
                                                         "provider": "together"},
                                             token=Secret.from_token("<your-api-key>"))
 
@@ -305,8 +305,8 @@ class HuggingFaceAPIChatGenerator:
     generator = HuggingFaceAPIChatGenerator(
         api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
         api_params={
-            "model": "Qwen/Qwen2.5-VL-7B-Instruct",  # Vision Language Model
-            "provider": "hyperbolic"
+            "model": "Qwen/Qwen3.5-9B",  # Vision Language Model
+            "provider": "together"
         },
         token=Secret.from_token("<your-api-key>")
     )
@@ -505,7 +505,9 @@ class HuggingFaceAPIChatGenerator:
             A list of ChatMessage objects representing the input messages. If a string is provided, it is converted
             to a list containing a ChatMessage with user role.
         :param generation_kwargs:
-            Additional keyword arguments for text generation.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. If set, it will override
             the `tools` parameter set during component initialization. This parameter can accept either a
@@ -565,7 +567,9 @@ class HuggingFaceAPIChatGenerator:
             A list of ChatMessage objects representing the input messages. If a string is provided, it is converted
             to a list containing a ChatMessage with user role.
         :param generation_kwargs:
-            Additional keyword arguments for text generation.
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. If set, it will override the `tools`
             parameter set during component initialization. This parameter can accept either a list of `Tool` objects

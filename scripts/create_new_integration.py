@@ -170,8 +170,9 @@ def main():
     print("  2. Export the component classes from the __init__.py in your module")
     print(f"  3. Add integration-specific dependencies to integrations/{name}/pyproject.toml")
     print(f"  4. Add tests in integrations/{name}/tests/")
-    print(f"  5. If your integration tests need API keys, update .github/workflows/{name}.yml accordingly")
-    print("     and ask a maintainer to add the secret to the GitHub repo.")
+    print(f"  5. If your integration tests consume API keys, update .github/workflows/{name}.yml accordingly ")
+    print("     (expose the secrets and uncomment the `if:` on the integration test step) and ask a maintainer to add "
+          "the secret to the GitHub repo.")
     print(f"  6. Add relevant keywords to integrations/{name}/pyproject.toml")
     print(f"  7. Check that the correct module paths are used in integrations/{name}/pydoc/config_docusaurus.yml")
 

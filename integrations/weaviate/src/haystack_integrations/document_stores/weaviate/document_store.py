@@ -649,7 +649,8 @@ class WeaviateDocumentStore:
         :param from_: The starting offset for pagination (0-indexed).
         :param size: The maximum number of unique values to return.
         :returns: A tuple of (paginated list of unique values in their original type, total count of
-            unique values).
+            unique values). See `get_metadata_field_unique_values`'s docstring for a caveat on scalar
+            int fields - `agg_result`'s numeric group keys always decode as `float`.
         """
         all_values = [g.grouped_by.value for g in agg_result.groups] if agg_result.groups else []
         if search_term:
@@ -668,6 +669,7 @@ class WeaviateDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field with pagination support.
@@ -680,23 +682,39 @@ class WeaviateDocumentStore:
             Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
-        :raises ValueError: If the field is not found in the collection schema.
+
+        **Note**: a scalar `int` metadata value comes back as `float`, not `int`. weaviate-client has no
+        wire-protocol field for a scalar int - non-list properties are packed into a
+        `google.protobuf.Struct`, whose `Value` type only has `number_value` (a double), so the int/float
+        distinction is lost before the value reaches Weaviate. `GroupByAggregate` decodes numeric group
+        keys the same way, so this holds even when the field's schema type is explicitly `DataType.INT`.
+        List-valued int fields (e.g. `meta={"tags": [1, 2]}`) are unaffected - those go through a
+        dedicated `IntArrayProperties` wire type instead.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
 
         config = self.collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
         if field_name not in schema_fields:
-            msg = f"Field '{field_name}' not found in collection schema"
-            raise ValueError(msg)
+            # No document has ever written this field, so Weaviate's auto-schema never created a
+            # property for it - there are no values to aggregate.
+            return [], 0
+
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
 
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
         # since the number of unique values cannot exceed the number of documents.
-        doc_count = self.collection.aggregate.over_all(total_count=True).total_count or 0
+        doc_count = self.collection.aggregate.over_all(filters=weaviate_filter, total_count=True).total_count or 0
 
-        agg_result = self.collection.aggregate.over_all(group_by=GroupByAggregate(prop=field_name, limit=doc_count))
+        agg_result = self.collection.aggregate.over_all(
+            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
+        )
 
         return self._compute_field_unique_values(agg_result, search_term, from_, size)
 
@@ -706,6 +724,7 @@ class WeaviateDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a metadata field with pagination support.
@@ -718,8 +737,16 @@ class WeaviateDocumentStore:
             Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
-        :raises ValueError: If the field is not found in the collection schema.
+
+        **Note**: a scalar `int` metadata value comes back as `float`, not `int`. weaviate-client has no
+        wire-protocol field for a scalar int - non-list properties are packed into a
+        `google.protobuf.Struct`, whose `Value` type only has `number_value` (a double), so the int/float
+        distinction is lost before the value reaches Weaviate. `GroupByAggregate` decodes numeric group
+        keys the same way, so this holds even when the field's schema type is explicitly `DataType.INT`.
+        List-valued int fields (e.g. `meta={"tags": [1, 2]}`) are unaffected - those go through a
+        dedicated `IntArrayProperties` wire type instead.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
 
@@ -727,16 +754,24 @@ class WeaviateDocumentStore:
         config = await collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
         if field_name not in schema_fields:
-            msg = f"Field '{field_name}' not found in collection schema"
-            raise ValueError(msg)
+            # No document has ever written this field, so Weaviate's auto-schema never created a
+            # property for it - there are no values to aggregate.
+            return [], 0
+
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
 
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
         # since the number of unique values cannot exceed the number of documents.
-        doc_count_result = await collection.aggregate.over_all(total_count=True)
+        doc_count_result = await collection.aggregate.over_all(filters=weaviate_filter, total_count=True)
         doc_count = doc_count_result.total_count or 0
 
-        agg_result = await collection.aggregate.over_all(group_by=GroupByAggregate(prop=field_name, limit=doc_count))
+        agg_result = await collection.aggregate.over_all(
+            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
+        )
 
         return self._compute_field_unique_values(agg_result, search_term, from_, size)
 

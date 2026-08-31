@@ -609,15 +609,23 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: Cypher's `DISTINCT` treats a whole-number float (e.g. `1.0`) as identical to a
+        numerically equal int (`1`), so those two collapse into a single value. Floats with a fractional
+        part (e.g. `1.5`) are unaffected.
 
         :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
         :param search_term: Optional case-insensitive substring filter applied to the metadata
             field's own value.
         :param from_: The offset for pagination (0-based).
         :param size: Maximum number of values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: Tuple of `(values, total_count)`. Values are returned in their original type.
             `total_count` is the number of distinct values matching the filter, independent of
             pagination.
@@ -627,11 +635,19 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         query_params: dict[str, Any] = {"from_": from_, "size": size}
         where_parts = [f"d.{field} IS NOT NULL"]
+
+        if filters:
+            filters_where_clause, filters_params = _convert_filters(filters)
+            where_parts.append(filters_where_clause)
+            query_params.update(filters_params)
+
         if search_term:
             where_parts.append(f"toLower(toString(d.{field})) CONTAINS toLower($search_term)")
             query_params["search_term"] = search_term
 
         where = " AND ".join(where_parts)
+        # Not fixable here: Cypher's DISTINCT treats a whole-number float (1.0) as identical to a
+        # numerically equal int (1), so it collapses them - see this method's docstring.
         cypher = (
             f"MATCH (d:{self.node_label}) WHERE {where} "
             f"WITH DISTINCT d.{field} AS val "

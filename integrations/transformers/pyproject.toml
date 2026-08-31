@@ -81,8 +81,9 @@ disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = [
-  # these libraries do not ship type stubs
+  # accelerate does not ship type stubs
   "accelerate.*",
+  # tokenizers only ships a py.typed marker from 0.23.1 on; kept for older versions
   "tokenizers.*",
 ]
 ignore_missing_imports = true

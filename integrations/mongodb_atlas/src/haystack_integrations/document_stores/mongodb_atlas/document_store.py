@@ -503,15 +503,31 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _create_unique_values_pipeline(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
+        self,
+        metadata_field: str,
+        search_term: str | None,
+        from_: int,
+        size: int,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         if metadata_field.startswith("meta."):
             mongo_field = f"${metadata_field}"
         else:
             mongo_field = f"$meta.{metadata_field}"
-        pipeline: list[dict[str, Any]] = [
-            {"$group": {"_id": mongo_field}},
-        ]
+        pipeline: list[dict[str, Any]] = []
+
+        if filters:
+            pipeline.append({"$match": _normalize_filters(filters)})
+
+        pipeline.append({"$group": {"_id": mongo_field}})
+        # MongoDB evaluates a missing field as null, so documents that don't have `metadata_field` at all
+        # still produce a `_id: null` group here. Drop it so an absent field yields no unique values,
+        # consistent with the other document stores.
+        #
+        # Separately (nothing to fix here): `$group` compares numeric values across BSON subtypes, so a
+        # whole-number float (1.0) and a numerically equal int (1) collapse into the same group even when
+        # nothing else shares this field - see get_metadata_field_unique_values()'s docstring.
+        pipeline.append({"$match": {"_id": {"$ne": None}}})
 
         if search_term:
             pipeline.append({"$match": {"_id": {"$regex": re.escape(search_term), "$options": "i"}}})
@@ -536,22 +552,35 @@ class MongoDBAtlasDocumentStore:
         return values, total_count
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search_term or all possible values if no search term is given.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: MongoDB's aggregation `$group` compares numeric values across BSON subtypes, so a
+        whole-number float (e.g. `1.0`) is grouped together with a numerically equal int (`1`) and only
+        one of the two survives - regardless of whether they were written to the same metadata field.
+        Floats with a fractional part (e.g. `1.5`) are unaffected and stay distinct from ints.
 
         :param metadata_field: The metadata field to retrieve unique values for.
         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing a list of unique values (in their original type) and the total count
             of unique values matching the search term.
         """
         self._ensure_connection_setup()
         assert self._collection is not None
 
-        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size)
+        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size, filters)
 
         try:
             result = list(self._collection.aggregate(pipeline))
@@ -561,22 +590,36 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
+         Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
+
         Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: MongoDB's aggregation `$group` compares numeric values across BSON subtypes, so a
+        whole-number float (e.g. `1.0`) is grouped together with a numerically equal int (`1`) and only
+        one of the two survives - regardless of whether they were written to the same metadata field.
+        Floats with a fractional part (e.g. `1.5`) are unaffected and stay distinct from ints.
 
         :param metadata_field: The metadata field to retrieve unique values for.
-        :param search_term: The search term to filter values. Matches as a case-insensitive substring.
-        :param from_: The starting index for pagination.
-        :param size: The number of values to return.
-        :returns: A tuple containing a list of unique values (in their original type) and the total count
-            of unique values matching the search term.
+         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
+         :param from_: The starting index for pagination.
+         :param size: The number of values to return.
+         :param filters: Optional filters to restrict the documents considered.
+         :returns: A tuple containing a list of unique values (in their original type) and the total count
+             of unique values matching the search term.
         """
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None
 
-        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size)
+        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size, filters)
 
         try:
             cursor = await self._collection_async.aggregate(pipeline)

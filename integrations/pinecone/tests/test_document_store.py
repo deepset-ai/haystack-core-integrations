@@ -452,6 +452,38 @@ class TestDocumentStore(
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
 
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: PineconeDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. Pinecone stores numeric metadata values as
+        `float` (see `_convert_meta_to_int`), so an int written for an arbitrary field may come back as
+        a numerically equal float instead - collapsing with a genuine float under the same field name
+        regardless of which other values share that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what Pinecone can actually support.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+        # Pinecone may return a whole-number int as a numerically equal float (see docstring note above).
+        assert int_values[0] == 1 and type(int_values[0]) in (int, float)
+
     @pytest.mark.xfail(
         run=True, reason="Pinecone supports overwriting by default, but it takes a while for it to take effect"
     )
@@ -567,42 +599,6 @@ class TestDocumentStore(
 
         # Non-existent field
         assert document_store.get_metadata_field_min_max("nonexistent") == {"min": None, "max": None}
-
-    def test_get_metadata_field_unique_values(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "Alpha"}),
-            Document(content="Doc 2", meta={"category": "Beta"}),
-            Document(content="Doc 3", meta={"category": "Gamma"}),
-            Document(content="Doc 4", meta={"category": "Alpha"}),
-            Document(content="Doc 5", meta={"category": "Delta"}),
-            Document(content="Doc 6", meta={"category": "Beta"}),
-        ]
-        document_store.write_documents(docs)
-
-        # Get all unique values
-        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=10)
-        assert total == 4  # Alpha, Beta, Delta, Gamma
-        assert len(values) == 4
-        assert set(values) == {"Alpha", "Beta", "Delta", "Gamma"}
-
-        # Test pagination
-        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
-        assert total == 4
-        assert len(values) == 2  # First 2 values (alphabetically sorted)
-
-        values, total = document_store.get_metadata_field_unique_values("category", from_=2, size=2)
-        assert total == 4
-        assert len(values) == 2  # Next 2 values
-
-        # Test search term
-        values, total = document_store.get_metadata_field_unique_values("category", search_term="ta", size=10)
-        assert total == 2  # Beta and Delta contain "ta"
-        assert set(values) == {"Beta", "Delta"}
-
-        # Test case-insensitive search
-        values, total = document_store.get_metadata_field_unique_values("category", search_term="ALPHA", size=10)
-        assert total == 1
-        assert values == ["Alpha"]
 
     def test_get_metadata_field_unique_values_with_lists(self, document_store: PineconeDocumentStore):
         docs = [

@@ -22,6 +22,7 @@ class TestTransformersZeroShotTextRouter:
             "type": COMPONENT_TYPE,
             "init_parameters": {
                 "labels": ["query", "passage"],
+                "multi_label": False,
                 "token": {"env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False, "type": "env_var"},
                 "huggingface_pipeline_kwargs": {
                     "model": "MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33",
@@ -30,6 +31,14 @@ class TestTransformersZeroShotTextRouter:
                 },
             },
         }
+
+    def test_multi_label_survives_a_serialization_round_trip(self, del_hf_env_vars_if_empty):
+        """`multi_label` changes how the pipeline normalizes scores, so losing it changes routing decisions."""
+        router = TransformersZeroShotTextRouter(labels=["query", "passage"], multi_label=True)
+
+        restored = TransformersZeroShotTextRouter.from_dict(router.to_dict())
+
+        assert restored.multi_label is True
 
     def test_from_dict(self, del_hf_env_vars_if_empty):
         data = {

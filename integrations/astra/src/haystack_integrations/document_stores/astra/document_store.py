@@ -329,13 +329,26 @@ class AstraDocumentStore:
 
     @staticmethod
     def _normalize_distinct_values(values: list[Any]) -> list[Any]:
-        normalized_values: set[Any] = set()
+        # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain set/sorted()
+        # would silently merge them or crash comparing incomparable types (e.g. str vs bool). Dedupe and sort
+        # by (type, value) instead to keep values of different types distinct.
+        #
+        # This can't recover a whole-number float's distinctness from int though: AstraDB's Data API
+        # canonicalizes any whole-number float (e.g. 1.0) to an int on storage, unconditionally - not
+        # only when it shares a field with an actual int - so `values` here may already contain int
+        # where the caller wrote a whole-number float, before we ever see it.
+        seen: set[tuple[str, Any]] = set()
+        normalized_values: list[Any] = []
         for value in values:
-            if isinstance(value, list):
-                normalized_values.update(item for item in value if item is not None)
-            elif value is not None:
-                normalized_values.add(value)
-        return sorted(normalized_values)
+            items = value if isinstance(value, list) else [value]
+            for item in items:
+                if item is None:
+                    continue
+                dedup_key = (type(item).__name__, item)
+                if dedup_key not in seen:
+                    seen.add(dedup_key)
+                    normalized_values.append(item)
+        return sorted(normalized_values, key=lambda value: (type(value).__name__, str(value)))
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
         return self.index.find_documents({}, projection={"content": 1, "meta": 1})
@@ -612,19 +625,40 @@ class AstraDocumentStore:
         return {"min": min(comparable_values), "max": max(comparable_values)}
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search term or all possible values if no search term is given.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception.
+        AstraDB's Data API canonicalizes any whole-number float (e.g. `1.0`) to an int on storage, unconditionally so a
+        whole-number float is always returned back as an int, never as a float.
+        Example: 1.0 (float) is sent to storage and comes back a 1 (int)
+
+        Exception are floats with a fractional part (e.g. `1.5`) are unaffected and round-trip normally.
 
         :param metadata_field: The metadata field to inspect.
         :param search_term: Optional case-insensitive substring search term.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing the paginated values (in their original type) and the total count.
         """
         field = metadata_field.removeprefix("meta.")
-        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{field}"))
+        converted_filters = None
+        if filters:
+            normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
+            converted_filters = _convert_filters(normalized_filters)
+        values = AstraDocumentStore._normalize_distinct_values(
+            self.index.distinct(f"meta.{field}", filters=converted_filters)
+        )
         if search_term:
             search_term_lower = search_term.lower()
             values = [value for value in values if search_term_lower in str(value).lower()]

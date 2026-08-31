@@ -1025,6 +1025,7 @@ class ValkeyDocumentStore(DocumentStore):
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Return unique values for a metadata field with optional search and pagination.
@@ -1036,13 +1037,12 @@ class ValkeyDocumentStore(DocumentStore):
         :param search_term: Optional case-insensitive substring filter on the value.
         :param from_: Start index for pagination (default 0).
         :param size: Number of values to return (default 10).
+        :param filters: Optional filters to restrict the documents considered.
         :return: Tuple of (list of unique values for the requested page, total count of unique values).
-        :raises ValueError: If the field is not configured for filtering.
         :raises ValkeyDocumentStoreError: If the operation fails.
         """
-        self._validate_metadata_field_names([metadata_field])
         try:
-            docs = self.filter_documents(filters=None)
+            docs = self.filter_documents(filters=filters)
             return ValkeyDocumentStore._get_metadata_field_unique_values_impl(
                 docs, metadata_field, search_term=search_term, from_=from_, size=size
             )
@@ -1056,6 +1056,7 @@ class ValkeyDocumentStore(DocumentStore):
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronously return unique values for a metadata field with optional search and pagination.
@@ -1067,13 +1068,12 @@ class ValkeyDocumentStore(DocumentStore):
         :param search_term: Optional case-insensitive substring filter on the value.
         :param from_: Start index for pagination (default 0).
         :param size: Number of values to return (default 10).
+        :param filters: Optional filters to restrict the documents considered.
         :return: Tuple of (list of unique values for the requested page, total count of unique values).
-        :raises ValueError: If the field is not configured for filtering.
         :raises ValkeyDocumentStoreError: If the operation fails.
         """
-        self._validate_metadata_field_names([metadata_field])
         try:
-            docs = await self.filter_documents_async(filters=None)
+            docs = await self.filter_documents_async(filters=filters)
             return ValkeyDocumentStore._get_metadata_field_unique_values_impl(
                 docs, metadata_field, search_term=search_term, from_=from_, size=size
             )
@@ -1325,8 +1325,10 @@ class ValkeyDocumentStore(DocumentStore):
                     if isinstance(value, bool):
                         value = int(value)
                     elif not isinstance(value, (int, float)):
-                        msg = f"Field '{field_name}' expects numeric value but got {type(value).__name__}"
-                        raise ValueError(msg)
+                        # Not indexable as numeric; omit from the index. The original value is still
+                        # preserved in `payload` above, so type-preserving reads (e.g.
+                        # get_metadata_field_unique_values) remain correct.
+                        value = None
 
             doc_dict[field_name_with_prefix] = value
 
@@ -1487,17 +1489,20 @@ class ValkeyDocumentStore(DocumentStore):
     ) -> tuple[list[Any], int]:
         """Extract unique values for a metadata field with optional search and pagination."""
         unique_vals: list[Any] = []
-        seen: set[str] = set()
+        # Key on (type, str value): values that share a string form (e.g. int 1 and str "1")
+        # must not collapse into a single entry.
+        seen: set[tuple[type, str]] = set()
         for doc in documents:
             val = (doc.meta or {}).get(ValkeyDocumentStore._metadata_field_to_doc_meta_key(metadata_field))
             if val is None:
                 continue
             str_val = str(val)
-            if str_val in seen:
+            dedup_key = (type(val), str_val)
+            if dedup_key in seen:
                 continue
             if search_term is not None and search_term.lower() not in str_val.lower():
                 continue
-            seen.add(str_val)
+            seen.add(dedup_key)
             unique_vals.append(val)
         unique_vals.sort(key=str)
         total = len(unique_vals)

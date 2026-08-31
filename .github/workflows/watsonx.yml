@@ -30,7 +30,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
-  TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
+  TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
 
 jobs:
   compute-test-matrix:
@@ -45,7 +45,7 @@ jobs:
       - id: set
         run: |
           echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
-          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.11"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
 
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -79,7 +79,7 @@ jobs:
           pip install hatch --uploaded-prior-to=P1D
 
       - name: Lint
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Run unit tests
@@ -88,8 +88,8 @@ jobs:
       # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
         id: coverage_comment
-        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/watsonx
@@ -98,13 +98,14 @@ jobs:
           MINIMUM_ORANGE: 60
 
       - name: Upload coverage comment to be posted
-        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-comment-watsonx
           path: python-coverage-comment-action-watsonx.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           WATSONX_API_KEY: ${{ secrets.WATSONX_API_KEY }}
           WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
@@ -112,7 +113,7 @@ jobs:
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/watsonx

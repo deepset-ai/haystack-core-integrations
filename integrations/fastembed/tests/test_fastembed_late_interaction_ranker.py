@@ -54,6 +54,19 @@ class TestFastembedLateInteractionRanker:
         assert ranker.meta_fields_to_embed == ["test_field"]
         assert ranker.meta_data_separator == " | "
 
+    def test_init_with_model_kwargs_parameters(self):
+        """
+        Test initialization of FastembedLateInteractionRanker with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CUDAExecutionProvider"]}
+
+        ranker = FastembedLateInteractionRanker(
+            model_name="colbert-ir/colbertv2.0",
+            model_kwargs=model_kwargs,
+        )
+
+        assert ranker.model_kwargs == model_kwargs
+
     def test_init_with_incorrect_input(self):
         """
         Test for checking incorrect input format on init.
@@ -90,6 +103,7 @@ class TestFastembedLateInteractionRanker:
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
                 "score_threshold": None,
+                "model_kwargs": None,
             },
         }
 
@@ -107,6 +121,7 @@ class TestFastembedLateInteractionRanker:
             local_files_only=True,
             meta_fields_to_embed=["test_field"],
             meta_data_separator=" | ",
+            model_kwargs={"providers": ["CUDAExecutionProvider"]},
         )
         ranker_dict = ranker.to_dict()
         assert ranker_dict == {
@@ -123,6 +138,7 @@ class TestFastembedLateInteractionRanker:
                 "meta_fields_to_embed": ["test_field"],
                 "meta_data_separator": " | ",
                 "score_threshold": None,
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
 
@@ -173,6 +189,7 @@ class TestFastembedLateInteractionRanker:
                 "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "meta_data_separator": " | ",
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
         ranker = default_from_dict(FastembedLateInteractionRanker, ranker_dict)
@@ -185,6 +202,7 @@ class TestFastembedLateInteractionRanker:
         assert ranker.local_files_only
         assert ranker.meta_fields_to_embed == ["test_field"]
         assert ranker.meta_data_separator == " | "
+        assert ranker.model_kwargs == {"providers": ["CUDAExecutionProvider"]}
 
     def test_run_incorrect_input_format(self):
         """
@@ -221,6 +239,25 @@ class TestFastembedLateInteractionRanker:
             match="top_k must be > 0, but got -3",
         ):
             ranker.run(query=query, documents=list_document, top_k=-3)
+
+        with pytest.raises(
+            ValueError,
+            match="top_k must be > 0, but got 0",
+        ):
+            ranker.run(query=query, documents=list_document, top_k=0)
+
+    def test_run_runtime_top_k_zero_does_not_fall_back_to_instance_top_k(self):
+        """
+        A runtime top_k=0 must raise, not silently fall back to the instance top_k.
+        """
+        ranker = FastembedLateInteractionRanker(model_name="colbert-ir/colbertv2.0", top_k=5)
+        ranker._model = "mock_model"
+
+        with pytest.raises(
+            ValueError,
+            match="top_k must be > 0, but got 0",
+        ):
+            ranker.run(query="query", documents=[Document("Document 1")], top_k=0)
 
     def test_run_empty_document_list(self):
         """
@@ -277,6 +314,26 @@ class TestFastembedLateInteractionRanker:
             ranker.warm_up()
             ranker.warm_up()
             mock_cls.assert_called_once()
+
+    def test_warm_up_forwards_model_kwargs(self):
+        """
+        Test that model_kwargs (e.g. GPU providers) are forwarded to the underlying Fastembed model.
+        """
+        ranker = FastembedLateInteractionRanker(
+            model_name="colbert-ir/colbertv2.0",
+            model_kwargs={"providers": ["CUDAExecutionProvider"]},
+        )
+        with patch(
+            "haystack_integrations.components.rankers.fastembed.late_interaction_ranker.LateInteractionTextEmbedding"
+        ) as mock_cls:
+            ranker.warm_up()
+            mock_cls.assert_called_once_with(
+                model_name="colbert-ir/colbertv2.0",
+                cache_dir=None,
+                threads=None,
+                local_files_only=False,
+                providers=["CUDAExecutionProvider"],
+            )
 
     def test_run_calls_warm_up(self):
         """

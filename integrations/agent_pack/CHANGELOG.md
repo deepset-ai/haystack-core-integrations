@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/agent_pack-v0.0.2] - 2026-08-26
+
+### 🚀 Features
+
+- Use `AgentTool` in Deep Research Agent (#3850)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/agent_pack-v0.0.1] - 2026-07-20
 
 ### 🚀 Features

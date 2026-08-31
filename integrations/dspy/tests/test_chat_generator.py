@@ -4,8 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import dspy
 import pytest
+from haystack import Document, Pipeline, component
+from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.core.errors import DeserializationError
 from haystack.dataclasses import ChatMessage
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.components.generators.dspy.chat.chat_generator import (
     VALID_MODULE_TYPES,
@@ -46,6 +49,7 @@ def mock_dspy_module():
 
         mock_module = MagicMock()
         mock_module.return_value = MagicMock(answer="Hello world!")
+        mock_module.lm_class = mock_lm_class
         mock_cot_class.return_value = mock_module
         mock_predict_class.return_value = mock_module
         mock_react_class.return_value = mock_module
@@ -212,6 +216,7 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {},
                 "module_kwargs": {},
                 "input_mapping": None,
+                "pipeline_inputs": None,
             },
         }
 
@@ -237,6 +242,7 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "module_kwargs": {},
                 "input_mapping": {"context": "context", "question": "question"},
+                "pipeline_inputs": None,
             },
         }
 
@@ -350,6 +356,16 @@ class TestDSPySignatureChatGenerator:
         with pytest.raises(ValueError, match="Unknown signature type 'unknown'"):
             DSPySignatureChatGenerator.from_dict(data)
 
+    def test_to_dict_from_dict_roundtrip_restores_pipeline_inputs(self, mock_dspy_module):
+        original = DSPySignatureChatGenerator(
+            signature="question, my_context -> answer",
+            pipeline_inputs=["my_context"],
+        )
+        restored = DSPySignatureChatGenerator.from_dict(original.to_dict())
+
+        assert restored.pipeline_inputs == ["my_context"]
+        assert "my_context" in restored.__haystack_input__
+
     def test_run(self, chat_messages, mock_dspy_module):
         component = DSPySignatureChatGenerator(
             signature="question -> answer",
@@ -380,6 +396,10 @@ class TestDSPySignatureChatGenerator:
             generation_kwargs={"max_tokens": 10, "temperature": 0.5},
         )
         response = component.run(chat_messages, generation_kwargs={"temperature": 0.9})
+
+        lm_kwargs = mock_dspy_module.lm_class.call_args.kwargs
+        assert lm_kwargs["max_tokens"] == 10
+        assert lm_kwargs["temperature"] == 0.5
 
         _, kwargs = mock_dspy_module.call_args
         assert kwargs["config"] == {"temperature": 0.9}
@@ -464,6 +484,51 @@ class TestDSPySignatureChatGenerator:
         call_kwargs = mock_dspy_module.call_args.kwargs
         assert call_kwargs.get("context") == "Machine learning is a subset of AI."
         assert call_kwargs.get("question") == "What is ML?"
+
+    def test_rag_pipeline_question_with_dependent_context(self, mock_dspy_module):
+        """
+        Test case where the context passed to DSPy is dynamic and depends on the question asked by the user.
+        """
+
+        doc_store = InMemoryDocumentStore()
+        doc_store.write_documents(
+            [
+                Document(content="Paris is the capital of France."),
+                Document(content="Tokyo is the capital of Japan."),
+                Document(content="Bananas are yellow fruits."),
+            ]
+        )
+
+        @component
+        class DocsToString:
+            @component.output_types(text=str)
+            def run(self, documents: list[Document]) -> dict:
+                return {"text": "\n".join(d.content for d in documents)}
+
+        generator = DSPySignatureChatGenerator(
+            signature="question, my_context -> answer",
+            pipeline_inputs=["my_context"],
+        )
+
+        pipeline = Pipeline()
+        pipeline.add_component("retriever", InMemoryBM25Retriever(doc_store, top_k=1))
+        pipeline.add_component("docs_to_text", DocsToString())
+        pipeline.add_component("llm", generator)
+        pipeline.connect("retriever.documents", "docs_to_text.documents")
+        pipeline.connect("docs_to_text.text", "llm.my_context")
+
+        question = "What is the capital of Japan?"  # context should be Japan-related
+        pipeline.run(
+            {
+                "retriever": {"query": question},
+                "llm": {"messages": [ChatMessage.from_user(question)]},
+            }
+        )
+
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert call_kwargs["question"] == question
+        assert "Tokyo is the capital of Japan." in call_kwargs["my_context"]
+        assert "Paris" not in call_kwargs["my_context"]
 
     def test_run_with_wrong_model(self, mock_dspy_module):
         mock_dspy_module.side_effect = Exception("Invalid model name")

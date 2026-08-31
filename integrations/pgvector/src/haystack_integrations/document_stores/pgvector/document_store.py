@@ -1756,7 +1756,12 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         return {"min": min_value, "max": max_value}
 
     def _build_unique_values_queries(
-        self, normalized_field: str, search_term: str | None, from_: int, size: int
+        self,
+        normalized_field: str,
+        search_term: str | None,
+        from_: int,
+        size: int,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[Composed, Composed, tuple]:
         """
         Builds SQL queries for getting unique metadata field values.
@@ -1766,6 +1771,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             against the metadata field's own value.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing (count_query, select_query, params).
         """
         field_literal = SQLLiteral(normalized_field)
@@ -1774,6 +1780,9 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         # Use the `->` (jsonb) operator rather than `->>` (text) so DISTINCT/ORDER BY operate on the
         # value's original JSON type (numbers sort numerically, not lexicographically) and psycopg
         # decodes the result to its native Python type instead of a string.
+        #
+        # Not fixable here: JSONB equality treats a whole-number float (1.0) as identical to a
+        # numerically equal int (1), so DISTINCT still collapses them - see this method's docstring.
         sql_select = SQL("SELECT DISTINCT meta->{} AS value").format(field_literal)
         sql_from = SQL(" FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
@@ -1781,10 +1790,16 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         sql_where = SQL(" WHERE meta->>{} IS NOT NULL").format(field_literal)
 
         params: tuple = ()
+        if filters:
+            _validate_filters(filters)
+            filters_where_clause, filters_params = _convert_filters_to_where_clause_and_params(filters, operator="AND")
+            sql_where += filters_where_clause
+            params += filters_params
+
         if search_term:
             # Case-insensitive substring match against the metadata field's own (text) value.
             sql_where += SQL(" AND meta->>{} ILIKE %s").format(field_literal)
-            params = (f"%{search_term}%",)
+            params += (f"%{search_term}%",)
 
         # count query
         sql_count = SQL("SELECT COUNT(DISTINCT meta->{} ) AS total").format(field_literal)
@@ -1814,22 +1829,36 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         return unique_values, total_count
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Returns unique values for a given metadata field, optionally filtered by a search term.
+
+        **Note**: values of different JSON type categories are kept distinct - a string, a number and
+        a boolean never collapse into each other, even when they share a textual form (e.g. the string
+        `"1"` and the number `1`). One exception: the ``meta`` column is JSONB, whose equality treats a
+        whole-number float (`1.0`) as identical to a numerically equal int (`1`), so those two collapse
+        into a single value. Floats with a fractional part (e.g. `1.5`) are unaffected.
 
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
         :param search_term: Optional search term to filter unique values by a case-insensitive substring
             match against the metadata field's own value. If None, all values are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing:
             - A list of unique values in their original type
             - The total count of unique values
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
-        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
+        sql_count, sql_query, params = self._build_unique_values_queries(
+            normalized_field, search_term, from_, size, filters
+        )
 
         self._ensure_db_setup()
         assert self._dict_cursor is not None
@@ -1852,22 +1881,36 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         return PgvectorDocumentStore._process_unique_values_result(count_result, records)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a given metadata field, optionally filtered by a search term.
+
+        **Note**: values of different JSON type categories are kept distinct - a string, a number and
+        a boolean never collapse into each other, even when they share a textual form (e.g. the string
+        `"1"` and the number `1`). One exception: the ``meta`` column is JSONB, whose equality treats a
+        whole-number float (`1.0`) as identical to a numerically equal int (`1`), so those two collapse
+        into a single value. Floats with a fractional part (e.g. `1.5`) are unaffected.
 
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
         :param search_term: Optional search term to filter unique values by a case-insensitive substring
             match against the metadata field's own value. If None, all values are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing:
             - A list of unique values in their original type
             - The total count of unique values
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
-        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
+        sql_count, sql_query, params = self._build_unique_values_queries(
+            normalized_field, search_term, from_, size, filters
+        )
 
         await self._ensure_db_setup_async()
         assert self._async_dict_cursor is not None

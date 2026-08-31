@@ -609,9 +609,14 @@ class IBMDb2DocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
         Get unique values for a given metadata field, optionally filtered by a search term.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        or share a textual form (e.g. the int `1`, the bool `True` and the str `"1"` are returned as
+        three separate values, and a whole-number float like `1.0` stays distinct from the int `1`).
 
         :param metadata_field: The metadata field name (can include or omit the 'meta.' prefix).
         :param search_term: Optional term to filter the returned values by, matching as a case-insensitive
@@ -619,21 +624,35 @@ class IBMDb2DocumentStore:
             are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :return: A tuple containing (list of unique values in their original JSON type, total count of
             unique values matching `search_term`).
         """
         field_name = self._normalize_metadata_field_name(metadata_field)
 
         # Db2 raises SQL0134N ("a LOB column can't be used with DISTINCT/GROUP BY") when DISTINCT is
-        # applied directly to a JSON_VALUE(...) expression derived from the BLOB `meta` column. Wrapping
+        # applied directly to a JSON_QUERY(...) expression derived from the BLOB `meta` column. Wrapping
         # the extraction in a derived table materializes it as a plain VARCHAR column first, so DISTINCT
         # and ORDER BY in the outer query operate on that column instead of the LOB-derived expression.
+        # `filters` is applied inside this subquery (not the outer one) since it references the raw
+        # `meta` column, which only exists at this level — the outer query only sees the extracted `value`.
+        #
+        # JSON_VALUE dequotes strings and stringifies numbers/booleans, so a JSON string "1" and the
+        # number 1 both become the identical SQL text '1' - merging distinct values and, once re-parsed,
+        # corrupting a numeric-looking string into a number. JSON_QUERY preserves the scalar's literal
+        # JSON form instead (quotes for strings, `true`/`false` for booleans), so json.loads() below can
+        # recover the original type, and DISTINCT compares literal text instead of collapsing values.
+        params: list[Any] = []
+        filter_where = ""
+        if filters:
+            filter_expression = FilterTranslator().translate(filters, params)
+            filter_where = f" WHERE {filter_expression}"
+
         value_subquery = (
-            f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS value "
-            f"FROM {self.table_name}"
+            f"SELECT JSON_QUERY(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS value "
+            f"FROM {self.table_name}{filter_where}"
         )
 
-        params: list[Any] = []
         search_clause = ""
         if search_term is not None:
             search_clause = " AND LOCATE(UPPER(?), UPPER(value)) > 0"
