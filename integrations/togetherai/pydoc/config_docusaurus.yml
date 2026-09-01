@@ -1,6 +1,5 @@
 loaders:
   - modules:
-      - haystack_integrations.components.generators.togetherai.generator
       - haystack_integrations.components.generators.togetherai.chat.chat_generator
     search_path: [../src]
 processors:
