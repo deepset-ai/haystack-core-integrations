@@ -1,5 +1,24 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `FalkorDB` `get_metadata_field_unique_values` match metadata value case insensitive (#3676)
+- `FalkorDB` changing pagination to standard method (#3688)
+- `FalkorDBDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3706)
+- FalkorDB adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3743)
+
+### 🧪 Testing
+
+- `FalkorDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests + overriding one (#3788)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/falkordb-v1.3.0] - 2026-07-24
 
 ### 🚀 Features
