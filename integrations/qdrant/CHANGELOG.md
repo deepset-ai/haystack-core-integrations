@@ -1,5 +1,13 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+- `QdrantDocumentStore` removing duplicated tests already covered by haystack Mixin tests + fixing dedup + adding missing Async test (#3785)
+
+
 ## [integrations/qdrant-v10.5.0] - 2026-08-03
 
 ### 🚀 Features
