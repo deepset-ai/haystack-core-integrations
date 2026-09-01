@@ -235,30 +235,6 @@ class TestQdrantDocumentStoreAsync(
         with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
-    @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_pagination_async(self, document_store: QdrantDocumentStore):
-        """
-        Override: the base mixin test asserts that pages come back in a specific sorted order, but
-        get_metadata_field_unique_values_async() only guarantees "ordered by first occurrence during
-        scroll" (see its docstring) - Qdrant's scroll() does not return points in insertion order, so
-        that ordering isn't actually stable across writes.
-
-        This mirrors TestQdrantDocumentStore's sync override: it checks pagination mechanics (page
-        size, total count, no overlap between pages) without depending on a specific value order.
-        """
-        docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
-        await document_store.write_documents_async(docs)
-
-        values_page_1, total_1 = await document_store.get_metadata_field_unique_values_async("value", from_=0, size=2)
-        assert len(values_page_1) == 2
-        assert total_1 == 5
-
-        values_page_2, total_2 = await document_store.get_metadata_field_unique_values_async("value", from_=2, size=2)
-        assert len(values_page_2) == 2
-        assert total_2 == 5
-
-        assert set(values_page_1) != set(values_page_2)
-
     async def test_sparse_configuration_async(self):
         document_store = QdrantDocumentStore(
             ":memory:",

@@ -716,7 +716,7 @@ class QdrantDocumentStore:
 
     @staticmethod
     def _process_records_count_unique(
-        records: list[Any], metadata_fields: list[str], unique_values_by_field: dict[str, set[Any]]
+        records: list[Any], metadata_fields: list[str], unique_values_by_field: dict[str, set[tuple[type, Any]]]
     ) -> None:
         """
         Update unique_values_by_field from a batch of Qdrant records.
@@ -730,10 +730,11 @@ class QdrantDocumentStore:
                     if field in meta:
                         value = meta[field]
                         if value is not None:
-                            if isinstance(value, (list, dict)):
-                                unique_values_by_field[field].add(str(value))
-                            else:
-                                unique_values_by_field[field].add(value)
+                            # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so
+                            # a plain set would silently merge them. Dedupe by (type, value) instead - lists
+                            # and dicts aren't hashable, so they're keyed by their str() form.
+                            hashable_value = str(value) if isinstance(value, (list, dict)) else value
+                            unique_values_by_field[field].add((type(value), hashable_value))
 
     @staticmethod
     def _process_records_unique_values(
@@ -1237,7 +1238,7 @@ class QdrantDocumentStore:
         assert self._client is not None
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
-        unique_values_by_field: dict[str, set[Any]] = {field: set() for field in metadata_fields}
+        unique_values_by_field: dict[str, set[tuple[type, Any]]] = {field: set() for field in metadata_fields}
 
         try:
             next_offset = None
@@ -1278,7 +1279,7 @@ class QdrantDocumentStore:
         assert self._async_client is not None
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
-        unique_values_by_field: dict[str, set[Any]] = {field: set() for field in metadata_fields}
+        unique_values_by_field: dict[str, set[tuple[type, Any]]] = {field: set() for field in metadata_fields}
 
         try:
             next_offset = None
@@ -1311,7 +1312,7 @@ class QdrantDocumentStore:
         """
         Returns unique values for a metadata field, with optional filters, search term and pagination.
 
-        Unique values are ordered by first occurrence during scroll.
+        Unique values are sorted by string representation, then by type name, before pagination is applied.
 
         **Note**: This operation can be expensive for metadata fields with many unique values, since all
         matching documents must be scrolled through to compute the total count.
@@ -1348,6 +1349,7 @@ class QdrantDocumentStore:
                 if self._check_stop_scrolling(next_offset):
                     break
 
+            unique_values.sort(key=lambda v: (str(v), type(v).__name__))
             total_count = len(unique_values)
             return unique_values[from_ : from_ + size], total_count
         except Exception as e:
@@ -1365,7 +1367,7 @@ class QdrantDocumentStore:
         """
         Asynchronously returns unique values for a metadata field, with optional filters, search term and pagination.
 
-        Unique values are ordered by first occurrence during scroll.
+        Unique values are sorted by string representation, then by type name, before pagination is applied.
 
         **Note**: This operation can be expensive for metadata fields with many unique values, since all
         matching documents must be scrolled through to compute the total count.
@@ -1402,6 +1404,7 @@ class QdrantDocumentStore:
                 if self._check_stop_scrolling(next_offset):
                     break
 
+            unique_values.sort(key=lambda v: (str(v), type(v).__name__))
             total_count = len(unique_values)
             return unique_values[from_ : from_ + size], total_count
         except Exception as e:

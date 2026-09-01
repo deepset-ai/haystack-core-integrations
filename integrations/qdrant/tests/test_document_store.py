@@ -267,8 +267,19 @@ class TestQdrantDocumentStoreUnit:
         ]
         unique: dict = {"category": set(), "tags": set()}
         QdrantDocumentStore._process_records_count_unique(records, ["category", "tags"], unique)
-        assert unique["category"] == {"A", "B"}
-        assert unique["tags"] == {"['x']", "['y']"}
+        assert len(unique["category"]) == 2
+        assert len(unique["tags"]) == 2
+
+    def test_process_records_count_unique_does_not_merge_different_types(self):
+        """Values that are `==` across types (`1 == True`, `1 == 1.0`) must still count as distinct."""
+        records = [
+            SimpleNamespace(payload={"meta": {"value": 1}}),
+            SimpleNamespace(payload={"meta": {"value": True}}),
+            SimpleNamespace(payload={"meta": {"value": 1.0}}),
+        ]
+        unique: dict = {"value": set()}
+        QdrantDocumentStore._process_records_count_unique(records, ["value"], unique)
+        assert len(unique["value"]) == 3
 
     def test_process_records_unique_values_collects_all(self):
         records = [SimpleNamespace(payload={"meta": {"v": i}}) for i in range(10)]
@@ -611,21 +622,3 @@ class TestQdrantDocumentStore(
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
-
-    def test_get_metadata_field_unique_values_pagination(self, document_store: QdrantDocumentStore):
-        """Test getting unique metadata field values with pagination, total reflects the full unpaginated count."""
-        docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
-        document_store.write_documents(docs)
-
-        # Get first 2 unique values
-        values_page_1, total_1 = document_store.get_metadata_field_unique_values("value", from_=0, size=2)
-        assert len(values_page_1) == 2
-        assert total_1 == 5
-
-        # Get next 2 unique values
-        values_page_2, total_2 = document_store.get_metadata_field_unique_values("value", from_=2, size=2)
-        assert len(values_page_2) == 2
-        assert total_2 == 5
-
-        # Values should not overlap
-        assert set(values_page_1) != set(values_page_2)
