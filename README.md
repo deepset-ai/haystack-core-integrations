@@ -4,7 +4,7 @@
 
 | Name                                                               |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/tika/converter.py |       56 |        4 |       10 |        2 |     91% |42, 62-\>exit, 142-148 |
+| src/haystack\_integrations/components/converters/tika/converter.py |       56 |        4 |       10 |        2 |     91% |42, 62-\>exit, 143-149 |
 | **TOTAL**                                                          |   **56** |    **4** |   **10** |    **2** | **91%** |           |
 
 
