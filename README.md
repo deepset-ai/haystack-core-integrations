@@ -2,11 +2,12 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-mcp-combined/htmlcov/index.html)
 
-| Name                                                 |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|----------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/tools/mcp/mcp\_tool.py    |      511 |       30 |      122 |       20 |     92% |108-109, 181-186, 274, 300, 334-\>291, 356-357, 366, 513-517, 571-575, 580, 605, 727-728, 739-740, 1027-\>1025, 1040-\>1048, 1041-\>1048, 1050, 1116-1118, 1145, 1151, 1205-\>1203, 1287-\>exit, 1349, 1370-\>1373, 1376-\>1378, 1384-1385 |
-| src/haystack\_integrations/tools/mcp/mcp\_toolset.py |      153 |        5 |       48 |        1 |     95% |   400-405 |
-| **TOTAL**                                            |  **664** |   **35** |  **170** |   **21** | **93%** |           |
+| Name                                                         |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/tools/mcp/compatibility\_layer.py |       32 |        3 |       14 |        3 |     87% |20, 32, 51 |
+| src/haystack\_integrations/tools/mcp/mcp\_tool.py            |      504 |       26 |      120 |       17 |     93% |107-108, 180-185, 273, 299, 338-\>290, 355-356, 365, 557, 583, 705-706, 717-718, 1005-\>1003, 1019-\>1026, 1028, 1094-1096, 1123, 1129, 1183-\>1181, 1265-\>exit, 1327, 1348-\>1351, 1354-\>1356, 1362-1363 |
+| src/haystack\_integrations/tools/mcp/mcp\_toolset.py         |      154 |       12 |       48 |        1 |     91% |   397-413 |
+| **TOTAL**                                                    |  **690** |   **41** |  **182** |   **21** | **92%** |           |
 
 
 ## Setup coverage badge
