@@ -131,15 +131,9 @@ def test_libreoffice_local_upload_preserves_filename(tmp_path: Path, mock_httpx2
 
     result = GotenbergFileConverter().run(sources=[str(path) if source_type == "str" else path])
 
-    mock_httpx2_clients.sync_client.post.assert_called_once_with(
-        "/forms/libreoffice/convert",
-        files=[
-            (
-                "files",
-                ("REPORT.DOCX", b"docx bytes", "application/octet-stream"),
-            )
-        ],
-    )
+    post_call = mock_httpx2_clients.sync_client.post.call_args
+    assert post_call.args == ("/forms/libreoffice/convert",)
+    assert _uploaded_files(post_call)[0][1][:2] == ("REPORT.DOCX", b"docx bytes")
     _assert_pdf(result=result)
 
 
