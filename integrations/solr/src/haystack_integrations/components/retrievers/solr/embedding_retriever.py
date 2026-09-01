@@ -21,12 +21,20 @@ class SolrEmbeddingRetriever:
 
     Usage example:
     ```python
+    from haystack import Pipeline
+    from haystack.components.embedders import SentenceTransformersTextEmbedder
     from haystack_integrations.document_stores.solr import SolrDocumentStore
     from haystack_integrations.components.retrievers.solr import SolrEmbeddingRetriever
 
-    document_store = SolrDocumentStore(core="haystack", embedding_dim=768)
-    retriever = SolrEmbeddingRetriever(document_store=document_store)
-    result = retriever.run(query_embedding=[0.1] * 768)
+    document_store = SolrDocumentStore(core="haystack", embedding_dim=384)
+    embedder = SentenceTransformersTextEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
+
+    pipeline = Pipeline()
+    pipeline.add_component("embedder", embedder)
+    pipeline.add_component("retriever", SolrEmbeddingRetriever(document_store=document_store))
+    pipeline.connect("embedder.embedding", "retriever.query_embedding")
+
+    result = pipeline.run(data={"embedder": {"text": "Apache Solr"}})
     ```
     """
 
@@ -49,11 +57,12 @@ class SolrEmbeddingRetriever:
         :param top_k: maximum number of documents to return.
         :param filter_policy: how runtime filters combine with the filters given here.
         :param raise_on_failure: whether a failing search raises, or logs and returns no documents.
-        :raises ValueError: if `document_store` is not a `SolrDocumentStore`.
+        :raises ValueError: if `document_store` is not a `SolrDocumentStore`, or `top_k` is not positive.
         """
         if not isinstance(document_store, SolrDocumentStore):
             msg = "document_store must be an instance of SolrDocumentStore"
             raise ValueError(msg)
+        self._validate_top_k(top_k)
 
         self._document_store = document_store
         self._filters = filters or {}
@@ -93,6 +102,12 @@ class SolrEmbeddingRetriever:
             init_parameters["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
+    @staticmethod
+    def _validate_top_k(top_k: int | None) -> None:
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
+
     def _search_kwargs(self, filters: dict[str, Any] | None, top_k: int | None) -> dict[str, Any]:
         return {
             "filters": apply_filter_policy(self._filter_policy, self._filters, filters),
@@ -113,7 +128,9 @@ class SolrEmbeddingRetriever:
         :param filters: filters applied to the search.
         :param top_k: maximum number of documents to return.
         :returns: a dictionary with a `documents` key holding the retrieved documents.
+        :raises ValueError: if `top_k` is not positive.
         """
+        self._validate_top_k(top_k)
         try:
             documents = self._document_store._embedding_retrieval(
                 query_embedding, **self._search_kwargs(filters, top_k)
@@ -141,7 +158,9 @@ class SolrEmbeddingRetriever:
         :param filters: filters applied to the search.
         :param top_k: maximum number of documents to return.
         :returns: a dictionary with a `documents` key holding the retrieved documents.
+        :raises ValueError: if `top_k` is not positive.
         """
+        self._validate_top_k(top_k)
         try:
             documents = await self._document_store._embedding_retrieval_async(
                 query_embedding, **self._search_kwargs(filters, top_k)

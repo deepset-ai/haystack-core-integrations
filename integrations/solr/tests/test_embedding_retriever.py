@@ -33,6 +33,14 @@ class TestInit:
     def test_filter_policy_accepts_a_string(self, store):
         assert SolrEmbeddingRetriever(document_store=store, filter_policy="merge")._filter_policy == FilterPolicy.MERGE
 
+    def test_rejects_an_invalid_filter_policy_string(self, store):
+        with pytest.raises(ValueError, match="Unknown FilterPolicy"):
+            SolrEmbeddingRetriever(document_store=store, filter_policy="invalid")
+
+    def test_rejects_a_non_positive_top_k(self, store):
+        with pytest.raises(ValueError, match="top_k must be > 0"):
+            SolrEmbeddingRetriever(document_store=store, top_k=0)
+
 
 class TestSerialization:
     def test_to_dict(self, store):
@@ -76,6 +84,12 @@ class TestRun:
         store._embedding_retrieval = MagicMock(return_value=[])
         SolrEmbeddingRetriever(document_store=store, top_k=4).run(query_embedding=[0.1], top_k=9)
         assert store._embedding_retrieval.call_args.kwargs["top_k"] == 9
+
+    def test_rejects_a_non_positive_runtime_top_k(self, store):
+        store._embedding_retrieval = MagicMock(return_value=[])
+        with pytest.raises(ValueError, match="top_k must be > 0"):
+            SolrEmbeddingRetriever(document_store=store).run(query_embedding=[0.1], top_k=-1)
+        store._embedding_retrieval.assert_not_called()
 
     def test_merge_filter_policy(self, store):
         store._embedding_retrieval = MagicMock(return_value=[])

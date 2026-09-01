@@ -38,6 +38,14 @@ class TestInit:
         retriever = SolrBM25Retriever(document_store=store, filter_policy="merge")
         assert retriever._filter_policy == FilterPolicy.MERGE
 
+    def test_rejects_an_invalid_filter_policy_string(self, store):
+        with pytest.raises(ValueError, match="Unknown FilterPolicy"):
+            SolrBM25Retriever(document_store=store, filter_policy="invalid")
+
+    def test_rejects_a_non_positive_top_k(self, store):
+        with pytest.raises(ValueError, match="top_k must be > 0"):
+            SolrBM25Retriever(document_store=store, top_k=0)
+
 
 class TestSerialization:
     def test_to_dict(self, store):
@@ -97,6 +105,12 @@ class TestRun:
         store._bm25_retrieval = MagicMock(return_value=[])
         SolrBM25Retriever(document_store=store, fuzziness=2).run(query="hello", fuzziness=0)
         assert store._bm25_retrieval.call_args.kwargs["fuzziness"] == 0
+
+    def test_rejects_a_non_positive_runtime_top_k(self, store):
+        store._bm25_retrieval = MagicMock(return_value=[])
+        with pytest.raises(ValueError, match="top_k must be > 0"):
+            SolrBM25Retriever(document_store=store).run(query="hello", top_k=-1)
+        store._bm25_retrieval.assert_not_called()
 
     def test_false_is_not_mistaken_for_unset(self, store):
         store._bm25_retrieval = MagicMock(return_value=[])

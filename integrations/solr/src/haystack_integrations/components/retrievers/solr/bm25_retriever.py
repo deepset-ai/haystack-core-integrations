@@ -54,11 +54,12 @@ class SolrBM25Retriever:
         :param all_terms_must_match: whether every query term must match.
         :param filter_policy: how runtime filters combine with the filters given here.
         :param raise_on_failure: whether a failing search raises, or logs and returns no documents.
-        :raises ValueError: if `document_store` is not a `SolrDocumentStore`.
+        :raises ValueError: if `document_store` is not a `SolrDocumentStore`, or `top_k` is not positive.
         """
         if not isinstance(document_store, SolrDocumentStore):
             msg = "document_store must be an instance of SolrDocumentStore"
             raise ValueError(msg)
+        self._validate_top_k(top_k)
 
         self._document_store = document_store
         self._filters = filters or {}
@@ -104,6 +105,12 @@ class SolrBM25Retriever:
             init_parameters["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
+    @staticmethod
+    def _validate_top_k(top_k: int | None) -> None:
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
+
     def _search_kwargs(
         self,
         filters: dict[str, Any] | None,
@@ -142,7 +149,9 @@ class SolrBM25Retriever:
         :param scale_score: whether to scale scores into the `(0, 1)` range.
         :param all_terms_must_match: whether every query term must match.
         :returns: a dictionary with a `documents` key holding the retrieved documents.
+        :raises ValueError: if `top_k` is not positive.
         """
+        self._validate_top_k(top_k)
         kwargs = self._search_kwargs(filters, top_k, fuzziness, scale_score, all_terms_must_match)
         try:
             documents = self._document_store._bm25_retrieval(query, **kwargs)
@@ -173,7 +182,9 @@ class SolrBM25Retriever:
         :param scale_score: whether to scale scores into the `(0, 1)` range.
         :param all_terms_must_match: whether every query term must match.
         :returns: a dictionary with a `documents` key holding the retrieved documents.
+        :raises ValueError: if `top_k` is not positive.
         """
+        self._validate_top_k(top_k)
         kwargs = self._search_kwargs(filters, top_k, fuzziness, scale_score, all_terms_must_match)
         try:
             documents = await self._document_store._bm25_retrieval_async(query, **kwargs)

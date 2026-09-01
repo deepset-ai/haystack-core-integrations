@@ -616,10 +616,12 @@ class SolrDocumentStore:
 
         :param documents: a list of Documents to write.
         :param policy: the policy to apply when a Document with the same id already exists.
+            The default `DuplicatePolicy.NONE` resolves to `DuplicatePolicy.FAIL`.
         :returns: the number of Documents written.
         :raises ValueError: if `documents` is not a list of Documents, or a metadata key cannot be
             expressed as a Solr field name.
-        :raises DuplicateDocumentError: if `policy` is `FAIL` and a Document already exists.
+        :raises DuplicateDocumentError: if `policy` is `FAIL` (or the default `NONE`) and a Document
+            already exists.
         """
         self._ensure_initialized()
         self._validate_documents(documents)
@@ -651,7 +653,12 @@ class SolrDocumentStore:
 
         :param documents: a list of Documents to write.
         :param policy: the policy to apply when a Document with the same id already exists.
+            The default `DuplicatePolicy.NONE` resolves to `DuplicatePolicy.FAIL`.
         :returns: the number of Documents written.
+        :raises ValueError: if `documents` is not a list of Documents, or a metadata key cannot be
+            expressed as a Solr field name.
+        :raises DuplicateDocumentError: if `policy` is `FAIL` (or the default `NONE`) and a Document
+            already exists.
         """
         await self._ensure_initialized_async()
         self._validate_documents(documents)
@@ -744,7 +751,9 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
-        :returns: the number of documents deleted.
+        :returns: the number of documents deleted. The count is taken with a separate query before
+            the delete is issued, so a concurrent write landing in between can make it differ from
+            the number of documents the delete actually removes.
         """
         self._ensure_initialized()
         deleted = self.count_documents_by_filter(filters)
@@ -763,7 +772,9 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
-        :returns: the number of documents deleted.
+        :returns: the number of documents deleted. The count is taken with a separate query before
+            the delete is issued, so a concurrent write landing in between can make it differ from
+            the number of documents the delete actually removes.
         """
         await self._ensure_initialized_async()
         deleted = await self.count_documents_by_filter_async(filters)
