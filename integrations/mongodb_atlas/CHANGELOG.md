@@ -1,5 +1,20 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `MongoAtlasDocumentStore` get_metadata_field_unique_values setting list of values to return to Any (#3716)
+- MongoDB adding optional para `filters` to `get_metadata_field_unique_values() ` (#3732)
+- Standardize license files (#3771)
+- `MongoDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3781)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/mongodb_atlas-v4.3.0] - 2026-07-23
 
 ### 🚀 Features
