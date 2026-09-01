@@ -1,5 +1,20 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- `Weaviate` match `search_term` against metadata field value, not content + default size value set to 10 (#3643)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `WeaviateDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3708)
+- Weaviate adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3741)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `WeaviateDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3787)
+
+
 ## [integrations/weaviate-v7.7.0] - 2026-07-22
 
 ### 🚜 Refactor
