@@ -18,5 +18,5 @@ Integration tests require a running Tika server. Start one with:
 docker run -d -p 127.0.0.1:9998:9998 apache/tika:3.3.1.0
 ```
 
-Use a 3.x image, not `apache/tika:latest`: this integration pins the `tika` client to 3.x, and a
-4.x server renames the metadata key that client reads (TIKA-4816). `3.3.1.0` is the last 3.x image.
+Use a 3.x image, not `apache/tika:latest`: the `tika` Python client does not yet support Tika Server
+4.x (TIKA-4816). `3.3.1.0` is the last 3.x image.

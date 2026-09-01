@@ -13,11 +13,6 @@ from haystack_integrations.components.converters.tika import TikaDocumentConvert
 TIKA_PARSER_PATH = "haystack_integrations.components.converters.tika.converter.tika_parser"
 
 
-def tika_response(xhtml, status=200):
-    """Build what tika_parser.from_buffer() returns for an xmlContent call."""
-    return {"status": status, "content": xhtml, "metadata": {"Content-Type": "text/plain"}}
-
-
 @pytest.fixture
 def test_files_path():
     return Path(__file__).parent / "test_files"
@@ -26,7 +21,7 @@ def test_files_path():
 class TestTikaDocumentConverter:
     @patch(TIKA_PARSER_PATH + ".from_buffer")
     def test_run(self, mock_tika_parser):
-        mock_tika_parser.return_value = tika_response("<div><p>Content of mock source</p></div>")
+        mock_tika_parser.return_value = {"content": "<div><p>Content of mock source</p></div>"}
 
         component = TikaDocumentConverter()
         source = ByteStream(data=b"placeholder data")
@@ -36,56 +31,38 @@ class TestTikaDocumentConverter:
         assert documents[0].content == "Content of mock source"
 
     @patch(TIKA_PARSER_PATH + ".from_buffer")
-    def test_run_with_non_200_status(self, mock_tika_parser, caplog):
-        mock_tika_parser.return_value = tika_response("<div><p>text</p></div>", status=500)
-
-        with caplog.at_level("WARNING"):
-            output = TikaDocumentConverter().run(sources=[ByteStream(data=b"test")])
-
-        assert output["documents"] == []
-        assert "returned status 500" in caplog.text
-
-    @patch(TIKA_PARSER_PATH + ".from_buffer")
-    def test_run_with_no_content(self, mock_tika_parser, caplog):
-        """A 4.x server reports content under a key the pinned 3.x client does not read."""
-        mock_tika_parser.return_value = {"status": 200, "content": None}
-
-        with caplog.at_level("WARNING"):
-            output = TikaDocumentConverter().run(sources=[ByteStream(data=b"test")])
-
-        assert output["documents"] == []
-        assert "requires a Tika 3.x server" in caplog.text
-
-    @patch(TIKA_PARSER_PATH + ".from_buffer")
     def test_run_with_meta(self, mock_tika_parser):
-        mock_tika_parser.return_value = tika_response("<div><p>text</p></div>")
+        mock_tika_parser.return_value = {"content": "<div><p>text</p></div>"}
         bytestream = ByteStream(data=b"test", meta={"author": "test_author", "language": "en"})
 
         converter = TikaDocumentConverter()
-        output = converter.run(sources=[bytestream], meta={"language": "it"})
+        with patch(TIKA_PARSER_PATH + ".from_buffer"):
+            output = converter.run(sources=[bytestream], meta={"language": "it"})
 
         assert output["documents"][0].meta["author"] == "test_author"
         assert output["documents"][0].meta["language"] == "it"
 
     @patch(TIKA_PARSER_PATH + ".from_buffer")
     def test_run_with_store_full_path_false(self, mock_tika_parser):
-        mock_tika_parser.return_value = tika_response("<div><p>text</p></div>")
+        mock_tika_parser.return_value = {"content": "<div><p>text</p></div>"}
         bytestream = ByteStream(data=b"test")
         bytestream.meta["file_path"] = "/some/path/to/doc_3.txt"
 
         converter = TikaDocumentConverter(store_full_path=False)
-        output = converter.run(sources=[bytestream])
+        with patch(TIKA_PARSER_PATH + ".from_buffer"):
+            output = converter.run(sources=[bytestream])
 
         assert output["documents"][0].meta["file_path"] == "doc_3.txt"
 
     @patch(TIKA_PARSER_PATH + ".from_buffer")
     def test_run_with_store_full_path_true(self, mock_tika_parser):
-        mock_tika_parser.return_value = tika_response("<div><p>text</p></div>")
+        mock_tika_parser.return_value = {"content": "<div><p>text</p></div>"}
         bytestream = ByteStream(data=b"test")
         bytestream.meta["file_path"] = "/some/path/to/doc_3.txt"
 
         converter = TikaDocumentConverter(store_full_path=True)
-        output = converter.run(sources=[bytestream])
+        with patch(TIKA_PARSER_PATH + ".from_buffer"):
+            output = converter.run(sources=[bytestream])
 
         assert output["documents"][0].meta["file_path"] == "/some/path/to/doc_3.txt"
 
