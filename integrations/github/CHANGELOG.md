@@ -47,10 +47,16 @@
 
 ## [integrations/github-v1.2.1] - 2025-10-20
 
+
+### 🌀 Miscellaneous
+
+- Fix: handle empty GitHub tokens in authentication headers (#2400)
+
+## [integrations/github-v1.2.0] - 2025-10-10
+
 ### 🚀 Features
 
 - Add support for GitHubRepoForkerTool (#1968)
-
 
 ### 🧪 Testing
 
@@ -63,7 +69,6 @@
 ### 🌀 Miscellaneous
 
 - Chore: Fix linting github (#2255)
-- Fix: handle empty GitHub tokens in authentication headers (#2400)
 
 ## [integrations/github-v1.1.0] - 2025-07-01
 

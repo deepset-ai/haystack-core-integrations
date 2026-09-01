@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/libreoffice-v1.1.1] - 2026-08-25
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- LibreOffice - serialize output_file_type and increase unit tests coverage (#3793)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+## [integrations/libreoffice-v1.1.0] - 2026-03-30
+
+### 🚀 Features
+
+- Add mime_type to ByteStream in LibreOfficeFileConverter (#3057)
+
+
 ## [integrations/libreoffice-v1.0.0] - 2026-03-25
 
 ### 🚀 Features

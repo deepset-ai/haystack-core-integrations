@@ -13,6 +13,14 @@
 - Fix new issues raised by ruff 0.16.0 (#3670)
 - Serialize missing init params in to_dict (transformers, huggingface_api, ragas) (#3808)
 
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
+## [integrations/huggingface_api-v0.4.0] - 2026-07-09
+
 ### 🧪 Testing
 
 - Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
@@ -21,10 +29,6 @@
 ### 🧹 Chores
 
 - Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
-- Re-standardize READMEs (#3768)
-- Clarify how generation_kwargs passed in run are handled (#3805)
-
-### 🌀 Miscellaneous
 
 
 ## [integrations/huggingface_api-v0.3.0] - 2026-06-26
