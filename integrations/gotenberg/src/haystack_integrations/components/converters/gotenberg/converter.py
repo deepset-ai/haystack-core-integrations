@@ -2,21 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import mimetypes
 import re
-from collections.abc import Sequence
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, Literal, overload
-from urllib.parse import urlparse
+from typing import Any, Literal
 
-import httpx
-from gotenberg_client import AsyncGotenbergClient, SyncGotenbergClient
-from gotenberg_client._base import AsyncBaseRoute, SyncBaseRoute
-from gotenberg_client.responses import SingleFileResponse, ZipFileResponse
+import httpx2
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
+from httpx2._types import FileTypes, RequestFiles
 from typing_extensions import Self
 
 _Route = Literal["libreoffice", "html", "markdown", "url"]
@@ -245,8 +241,8 @@ def _is_url_source(source: str) -> bool:
     if "://" not in source:
         return False
     try:
-        parsed = httpx.URL(url=source)
-    except httpx.InvalidURL as error:
+        parsed = httpx2.URL(url=source)
+    except httpx2.InvalidURL as error:
         msg = f"Malformed HTTP(S) URL source: {source!r}"
         raise ValueError(msg) from error
     if parsed.scheme not in {"http", "https"}:
@@ -282,16 +278,26 @@ class GotenbergFileConverter:
     ```
     """
 
-    def __init__(self, url: str = "http://localhost:3000", timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        url: str = "http://localhost:3000",
+        timeout: float = 30.0,
+        concurrency_limit: int = 5,
+    ) -> None:
         """
         Create a Gotenberg file converter.
 
         :param url: The URL of the Gotenberg service.
         :param timeout: The request timeout in seconds.
-        :raises ValueError: If `url` is not a valid HTTP(S) URL or `timeout` is not greater than zero.
+        :param concurrency_limit: Maximum number of Gotenberg requests in flight during `run_async`. Has no
+            effect on synchronous `run`, which converts one source at a time.
         """
-        parsed_url = urlparse(url=url)
-        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        try:
+            parsed_url = httpx2.URL(url=url)
+        except httpx2.InvalidURL as error:
+            msg = "url must be a valid HTTP(S) Gotenberg service URL"
+            raise ValueError(msg) from error
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.host:
             msg = "url must be a valid HTTP(S) Gotenberg service URL"
             raise ValueError(msg)
         if timeout <= 0:
@@ -299,10 +305,16 @@ class GotenbergFileConverter:
             raise ValueError(msg)
         self.url = url.rstrip("/")
         self.timeout = timeout
+        self.concurrency_limit = concurrency_limit
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
-        return default_to_dict(obj=self, url=self.url, timeout=self.timeout)
+        return default_to_dict(
+            obj=self,
+            url=self.url,
+            timeout=self.timeout,
+            concurrency_limit=self.concurrency_limit,
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -310,9 +322,11 @@ class GotenbergFileConverter:
         return default_from_dict(cls=cls, data=data)
 
     @staticmethod
-    def _pdf(response: SingleFileResponse | ZipFileResponse, meta: dict[str, Any]) -> ByteStream:
-        """Convert a Gotenberg response to a PDF byte stream."""
-        if response.is_zip:
+    def _pdf(response: httpx2.Response, meta: dict[str, Any]) -> ByteStream:
+        """Validate a Gotenberg response and convert it to a PDF byte stream."""
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "").split(";", maxsplit=1)[0].strip().lower()
+        if content_type in {"application/zip", "application/x-zip-compressed"}:
             msg = "Gotenberg unexpectedly returned a ZIP archive instead of one PDF"
             raise RuntimeError(msg)
         return ByteStream(data=bytes(response.content), meta=meta, mime_type="application/pdf")
@@ -360,53 +374,42 @@ class GotenbergFileConverter:
         stem = re.sub(pattern=r"[^A-Za-z0-9_.-]", repl="_", string=Path(filename or "document").stem)
         return "document" if stem in {"", ".", ".."} else stem
 
-    @overload
     def _prepare(
         self,
         sources: list[str | Path | ByteStream],
         resources: list[Path] | None,
-        directory: Path,
-        client: SyncGotenbergClient,
-    ) -> Sequence[SyncBaseRoute]: ...
-
-    @overload
-    def _prepare(
-        self,
-        sources: list[str | Path | ByteStream],
-        resources: list[Path] | None,
-        directory: Path,
-        client: AsyncGotenbergClient,
-    ) -> Sequence[AsyncBaseRoute]: ...
-
-    def _prepare(
-        self,
-        sources: list[str | Path | ByteStream],
-        resources: list[Path] | None,
-        directory: Path,
-        client: SyncGotenbergClient | AsyncGotenbergClient,
-    ) -> Sequence[SyncBaseRoute | AsyncBaseRoute]:
-        """Validate sources and resources, then build SDK routes in input order."""
+    ) -> list[tuple[str, RequestFiles]]:
+        """Validate inputs and build direct multipart requests in input order."""
         if not sources:
             msg = "sources must contain at least one source"
             raise ValueError(msg)
         resource_paths = _resources(resources=resources)
         resource_names = {resource.name for resource in resource_paths}
-        routes: list[SyncBaseRoute | AsyncBaseRoute] = []
+        resource_files: list[tuple[str, FileTypes]] = [
+            (
+                "files",
+                (
+                    resource.name,
+                    resource.read_bytes(),
+                    mimetypes.guess_type(resource.name.lower(), strict=False)[0] or "application/octet-stream",
+                ),
+            )
+            for resource in resource_paths
+        ]
+        requests: list[tuple[str, RequestFiles]] = []
         for index, source in enumerate(sources):
             if isinstance(source, str) and _is_url_source(source=source):
-                routes.append(client.chromium.url_to_pdf().url(url=source))
+                requests.append(("/forms/chromium/convert/url", [("url", (None, source))]))
                 continue
 
             filename: str | None
+            suffix: str | None = None
             if isinstance(source, (Path, str)):
                 source_path = Path(source)
-                kind = self._local_route(source_path)
-                if kind == "libreoffice":
-                    routes.append(client.libre_office.to_pdf().convert(input_file_path=source_path))
-                    continue
+                kind = self._local_route(source=source_path)
                 data, filename = source_path.read_bytes(), source_path.name
             elif isinstance(source, ByteStream):
-                kind, suffix = self._byte_stream_route(source)
+                kind, suffix = self._byte_stream_route(source=source)
                 file_path = source.meta.get("file_path")
                 filename = Path(file_path).name if file_path else None
                 data = source.data
@@ -415,9 +418,13 @@ class GotenbergFileConverter:
                 raise TypeError(msg)
 
             if kind == "libreoffice":
-                path = directory / f"{index}-{self._safe_stem(filename)}{suffix}"
-                path.write_bytes(data=data)
-                routes.append(client.libre_office.to_pdf().convert(input_file_path=path))
+                upload_filename = filename or f"{index}-document{suffix or ''}"
+                if suffix is not None:
+                    upload_filename = f"{index}-{self._safe_stem(filename)}{suffix}"
+                content_type = (
+                    mimetypes.guess_type(upload_filename.lower(), strict=False)[0] or "application/octet-stream"
+                )
+                requests.append(("/forms/libreoffice/convert", [("files", (upload_filename, data, content_type))]))
                 continue
             try:
                 text = data.decode("utf-8")
@@ -425,27 +432,28 @@ class GotenbergFileConverter:
                 msg = f"{kind.upper() if kind == 'html' else kind.title()} sources must contain UTF-8 text"
                 raise ValueError(msg) from error
             if kind == "html":
-                html_route = client.chromium.html_to_pdf().string_index(index=text)
-                if resource_paths:
-                    html_route.resources(resources=resource_paths)
-                routes.append(html_route)
+                requests.append(
+                    ("/forms/chromium/convert/html", [("files", ("index.html", text, "text/html")), *resource_files])
+                )
                 continue
 
-            filename = f"{self._safe_stem(filename=filename)}.md"
-            if filename in resource_names:
-                msg = f"A resource conflicts with the Markdown source filename: {filename!r}"
+            markdown_filename = f"{self._safe_stem(filename=filename)}.md"
+            if markdown_filename in resource_names:
+                msg = f"A resource conflicts with the Markdown source filename: {markdown_filename!r}"
                 raise ValueError(msg)
-            path = directory / str(index) / filename
-            path.parent.mkdir()
-            path.write_text(data=text, encoding="utf-8")
             head = '<!doctype html><html><head><meta charset="utf-8"></head>'
-            template = f'{head}<body>{{{{ toHTML "{filename}" }}}}</body></html>'
-            markdown_route = client.chromium.markdown_to_pdf().string_index(index=template)
-            markdown_route.markdown_file(markdown_file=path)
-            if resource_paths:
-                markdown_route.resources(resources=resource_paths)
-            routes.append(markdown_route)
-        return routes
+            template = f'{head}<body>{{{{ toHTML "{markdown_filename}" }}}}</body></html>'
+            requests.append(
+                (
+                    "/forms/chromium/convert/markdown",
+                    [
+                        ("files", ("index.html", template, "text/html")),
+                        ("files", (markdown_filename, text, "text/markdown")),
+                        *resource_files,
+                    ],
+                )
+            )
+        return requests
 
     @component.output_types(output=list[ByteStream])
     def run(
@@ -490,18 +498,15 @@ class GotenbergFileConverter:
         :raises RuntimeError: If Gotenberg returns a ZIP archive instead of a PDF.
         """
         meta_list = normalize_metadata(meta=meta, sources_count=len(sources))
-        with TemporaryDirectory(prefix="haystack-gotenberg-") as temporary_directory:
-            with SyncGotenbergClient(host=self.url, timeout=self.timeout, backend="httpx") as client:
-                routes = self._prepare(
-                    sources=sources, resources=resources, directory=Path(temporary_directory), client=client
+        requests = self._prepare(sources=sources, resources=resources)
+        with httpx2.Client(base_url=self.url, timeout=self.timeout) as client:
+            output = [
+                self._pdf(
+                    response=client.post(path, files=files),
+                    meta={**(source.meta if isinstance(source, ByteStream) else {}), **source_meta},
                 )
-                output = [
-                    self._pdf(
-                        response=route.run(),
-                        meta={**(source.meta if isinstance(source, ByteStream) else {}), **source_meta},
-                    )
-                    for source, route, source_meta in zip(sources, routes, meta_list, strict=True)
-                ]
+                for source, (path, files), source_meta in zip(sources, requests, meta_list, strict=True)
+            ]
         return {"output": output}
 
     @component.output_types(output=list[ByteStream])
@@ -547,16 +552,20 @@ class GotenbergFileConverter:
         :raises RuntimeError: If Gotenberg returns a ZIP archive instead of a PDF.
         """
         meta_list = normalize_metadata(meta=meta, sources_count=len(sources))
-        with TemporaryDirectory(prefix="haystack-gotenberg-") as temporary_directory:
-            async with AsyncGotenbergClient(host=self.url, timeout=self.timeout, backend="httpx") as client:
-                routes = self._prepare(
-                    sources=sources, resources=resources, directory=Path(temporary_directory), client=client
-                )
-                output = [
-                    self._pdf(
-                        response=await route.run(),
-                        meta={**(source.meta if isinstance(source, ByteStream) else {}), **source_meta},
-                    )
-                    for source, route, source_meta in zip(sources, routes, meta_list, strict=True)
-                ]
+        requests = self._prepare(sources=sources, resources=resources)
+        semaphore = asyncio.Semaphore(max(1, self.concurrency_limit))
+
+        async def _runner(path: str, files: RequestFiles) -> httpx2.Response:
+            async with semaphore:
+                return await client.post(path, files=files)
+
+        async with httpx2.AsyncClient(base_url=self.url, timeout=self.timeout) as client:
+            responses = await asyncio.gather(*(_runner(path, files) for path, files in requests))
+        output = [
+            self._pdf(
+                response=response,
+                meta={**(source.meta if isinstance(source, ByteStream) else {}), **source_meta},
+            )
+            for source, response, source_meta in zip(sources, responses, meta_list, strict=True)
+        ]
         return {"output": output}
