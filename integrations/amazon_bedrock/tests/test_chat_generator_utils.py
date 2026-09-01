@@ -27,6 +27,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_user_message,
     _parse_completion_response,
     _parse_streaming_response,
+    _parse_streaming_response_async,
     _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
@@ -1935,6 +1936,39 @@ class TestAmazonBedrockChatGeneratorUtils:
             )
         ]
         assert replies == expected_messages
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async_callback", [True, False])
+    async def test_parse_streaming_response_async_with_sync_and_async_callback(self, use_async_callback):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        events = [
+            {"contentBlockDelta": {"delta": {"text": "Hello"}, "contentBlockIndex": 0}},
+            {"contentBlockDelta": {"delta": {"text": " world"}, "contentBlockIndex": 0}},
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": "end_turn"}},
+        ]
+
+        async def event_stream():
+            for event in events:
+                yield event
+
+        collected = []
+
+        async def async_callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        def sync_callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        callback = async_callback if use_async_callback else sync_callback
+
+        replies = await _parse_streaming_response_async(event_stream(), callback, model, ComponentInfo(type="test"))
+
+        assert len(collected) == len(events)
+        assert "".join(chunk.content for chunk in collected) == "Hello world"
+        assert len(replies) == 1
+        assert replies[0].text == "Hello world"
+        assert replies[0].meta["finish_reason"] == "stop"
 
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(
         self,

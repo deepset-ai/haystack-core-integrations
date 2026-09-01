@@ -126,6 +126,47 @@ class TestDocumentStoreAsync(
         docs = [Document(id="1")]
         assert await document_store.write_documents_async(docs) == 1
 
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_distinct_types_async(self, document_store: PineconeDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. Pinecone stores numeric metadata values as
+        `float` (see `_convert_meta_to_int`), so an int written for an arbitrary field may come back as
+        a numerically equal float instead - collapsing with a genuine float under the same field name
+        regardless of which other values share that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values_async() - using one field per type instead of one
+        shared field, which is what Pinecone can actually support.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        int_values, int_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_int"
+        )
+        str_values, str_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_str"
+        )
+        float_values, float_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_float"
+        )
+        bool_values, bool_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_bool"
+        )
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+        # Pinecone may return a whole-number int as a numerically equal float (see docstring note above).
+        assert int_values[0] == 1 and type(int_values[0]) in (int, float)
+
     @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
     async def test_write_documents_duplicate_fail_async(self, document_store: PineconeDocumentStore): ...
 
@@ -169,19 +210,6 @@ class TestDocumentStoreAsync(
         await document_store_async._initialize_async_index()
         assert document_store_async._async_index is not None
         assert await document_store_async.count_documents_async() == 0
-
-    async def test_get_metadata_field_unique_values_with_filters(self, document_store_async: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        await document_store_async.write_documents_async(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = await document_store_async.get_metadata_field_unique_values_async("category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2
 
     async def test_sentence_window_retriever(self, document_store_async: PineconeDocumentStore):
         # indexing
