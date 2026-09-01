@@ -10,6 +10,9 @@ is allowed to use, and optimization objectives, a `HarnessOptimizationCampaign` 
 transformations and recommends the cheapest or fastest candidate that still clears the quality gate. Nothing is
 promoted or deployed automatically: a campaign returns a recommendation for a human to approve.
 
+Traces come from `haystack_integrations.agent_pack.tracing`, which is a standalone module: import the collector and
+the store from there.
+
 Compliance is enforced once, at configuration time: `ApprovedAssetCatalog` validates every model and tool a
 candidate is built with, including those of delegated agents, and a candidate that uses anything outside the catalog
 never runs.
@@ -46,16 +49,6 @@ from haystack_integrations.agent_pack.optimization.recipes import (
     PromptAndGenerationRecipe,
     ToolSelectionRecipe,
 )
-from haystack_integrations.agent_pack.optimization.tracing import (
-    LocalTraceCollector,
-    LocalTraceStore,
-    TraceArtifact,
-    TraceCaptureLimits,
-    TraceCapturingAgentRunner,
-    TraceSelection,
-    TraceSource,
-    span_tag,
-)
 
 __all__ = [
     "ApprovedAssetCatalog",
@@ -70,8 +63,6 @@ __all__ = [
     "HarnessEvaluator",
     "HarnessOptimizationCampaign",
     "HarnessOptimizerAgentProposer",
-    "LocalTraceCollector",
-    "LocalTraceStore",
     "ModelAsset",
     "ModelSubstitutionRecipe",
     "OptimizationObjectives",
@@ -79,12 +70,6 @@ __all__ = [
     "RecipeProposer",
     "ToolAsset",
     "ToolSelectionRecipe",
-    "TraceArtifact",
-    "TraceCaptureLimits",
-    "TraceCapturingAgentRunner",
-    "TraceSelection",
-    "TraceSource",
     "create_harness_optimizer_agent",
     "create_haystack_docs_toolset",
-    "span_tag",
 ]

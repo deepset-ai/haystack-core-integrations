@@ -6,13 +6,13 @@
 
 from typing import Any
 
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import (
+from haystack_integrations.agent_pack.tracing.dataclasses import (
     AGENT_INPUT_TAG,
     AGENT_OUTPUT_TAG,
     AGENT_RUN_OPERATION,
     TraceArtifact,
 )
-from haystack_integrations.agent_pack.optimization.tracing.serialization import span_tag
+from haystack_integrations.agent_pack.tracing.serialization import span_tag
 
 
 def _root_agent_span(artifact: TraceArtifact) -> dict[str, Any] | None:

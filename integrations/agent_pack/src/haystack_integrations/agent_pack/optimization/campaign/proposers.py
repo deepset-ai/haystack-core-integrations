@@ -18,8 +18,8 @@ from haystack_integrations.agent_pack.optimization.campaign.dataclasses import O
 from haystack_integrations.agent_pack.optimization.recipes.dataclasses import ModelSubstitutionRecipe
 from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_from_dict
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact
-from haystack_integrations.agent_pack.optimization.tracing.extraction import extract_agent_replay_inputs
+from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact
+from haystack_integrations.agent_pack.tracing.extraction import extract_agent_replay_inputs
 
 logger = logging.getLogger(__name__)
 

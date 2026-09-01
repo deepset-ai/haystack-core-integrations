@@ -57,16 +57,18 @@ from haystack_integrations.agent_pack.optimization import (
     CampaignResult,
     HarnessOptimizationCampaign,
     HarnessOptimizerAgentProposer,
-    LocalTraceCollector,
-    LocalTraceStore,
     ModelAsset,
     OptimizationObjectives,
     ToolAsset,
-    TraceCapturingAgentRunner,
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
 )
 from haystack_integrations.agent_pack.optimization.recipes import RECIPE_PROPOSAL_JSON_SCHEMA
+from haystack_integrations.agent_pack.tracing import (
+    LocalTraceCollector,
+    LocalTraceStore,
+    TraceCapturingAgentRunner,
+)
 
 WORKSPACE = Path(".agent-pack-poc")
 

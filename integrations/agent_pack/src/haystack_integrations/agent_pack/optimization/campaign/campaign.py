@@ -27,9 +27,9 @@ from haystack_integrations.agent_pack.optimization.campaign.proposers import App
 from haystack_integrations.agent_pack.optimization.campaign.types.protocol import HarnessEvaluator, RecipeProposer
 from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_fingerprint
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact, TraceSelection
-from haystack_integrations.agent_pack.optimization.tracing.extraction import is_replayable
-from haystack_integrations.agent_pack.optimization.tracing.types.protocol import TraceSource
+from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact, TraceSelection
+from haystack_integrations.agent_pack.tracing.extraction import is_replayable
+from haystack_integrations.agent_pack.tracing.types.protocol import TraceSource
 
 logger = logging.getLogger(__name__)
 

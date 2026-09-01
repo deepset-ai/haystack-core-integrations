@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from threading import RLock
 
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact, TraceSelection
+from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact, TraceSelection
 
 
 class LocalTraceStore:

@@ -16,12 +16,12 @@ from uuid import uuid4
 
 from haystack.tracing import Span, Tracer
 
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import (
+from haystack_integrations.agent_pack.tracing.dataclasses import (
     DEFAULT_TRACE_CAPTURE_LIMITS,
     TraceArtifact,
     TraceCaptureLimits,
 )
-from haystack_integrations.agent_pack.optimization.tracing.serialization import _serialize_trace_value
+from haystack_integrations.agent_pack.tracing.serialization import _serialize_trace_value
 
 
 def _utc_now() -> str:
@@ -81,6 +81,14 @@ class _CapturedSpan(Span):
         payload = self.tags.get(key)
         return payload.get("serialized_data") if isinstance(payload, dict) else payload
 
+    def get_correlation_data_for_logs(self) -> dict[str, Any]:
+        """
+        Return identifiers for correlating log records with this span.
+
+        :returns: This span's identifier and its parent's.
+        """
+        return {"span_id": self.span_id, "parent_span_id": self.parent_span_id}
+
     def to_record(self) -> dict[str, Any]:
         """
         Convert the span into the record shape stored in a trace artifact.
@@ -103,53 +111,6 @@ class _CapturedSpan(Span):
             "duration_ms": self.duration_ms,
             "tags": self.tags,
         }
-
-
-@dataclass
-class _CombinedSpan(Span):
-    """A span that records locally and forwards to the tracer that was already installed."""
-
-    captured: _CapturedSpan
-    delegated: Span
-
-    def set_tag(self, key: str, value: Any) -> None:
-        """
-        Forward a tag to both tracers.
-
-        :param key: The tag name.
-        :param value: The tag value.
-        """
-        self.captured.set_tag(key=key, value=value)
-        self.delegated.set_tag(key, value)
-
-    def set_content_tag(self, key: str, value: Any) -> None:
-        """
-        Capture content locally, and forward it to the delegate only if the delegate would have taken it anyway.
-
-        `Span.set_content_tag` on the delegate self-gates on the global content tracing setting, so a user running
-        Langfuse or OpenTelemetry does not start exporting prompts and documents just because capture is installed.
-
-        :param key: The tag name.
-        :param value: The content to record.
-        """
-        self.captured.set_content_tag(key=key, value=value)
-        self.delegated.set_content_tag(key, value)
-
-    def raw_span(self) -> Any:
-        """
-        Return the delegate's underlying span so tracer-specific integrations keep working during capture.
-
-        :returns: The delegated tracer's raw span object.
-        """
-        return self.delegated.raw_span()
-
-    def get_correlation_data_for_logs(self) -> dict[str, Any]:
-        """
-        Return the delegate's correlation identifiers, which is what application logs are correlated against.
-
-        :returns: The delegated tracer's correlation data.
-        """
-        return self.delegated.get_correlation_data_for_logs()
 
 
 @dataclass
@@ -214,32 +175,29 @@ class CapturedRun:
 
 
 _current_run: ContextVar[CapturedRun | None] = ContextVar("agent_pack_trace_capture", default=None)
-_active_spans: ContextVar[tuple[_CombinedSpan, ...]] = ContextVar("agent_pack_active_spans", default=())
+_active_spans: ContextVar[tuple[_CapturedSpan, ...]] = ContextVar("agent_pack_active_spans", default=())
 
 
 class RunCaptureTracer(Tracer):
     """
-    Tracer that captures spans for the current run and delegates every span to an existing tracer.
+    Tracer that records the spans of the run currently being captured.
 
-    Only runs started through `LocalTraceCollector.capture_run` are captured; every other span is passed straight
-    through, so installing this tracer never changes what an unrelated part of the application records.
+    Only runs started through `LocalTraceCollector.capture_run` are recorded. Spans opened outside one are dropped
+    rather than accumulated, so installing this tracer does not grow without bound.
+
+    Haystack has a single tracer slot, so while this tracer is installed any exporter the application had configured
+    receives nothing. `LocalTraceCollector` restores it as soon as the capture ends.
     """
 
     def __init__(
-        self,
-        delegate: Tracer,
-        *,
-        capture_content: bool = True,
-        limits: TraceCaptureLimits = DEFAULT_TRACE_CAPTURE_LIMITS,
+        self, *, capture_content: bool = True, limits: TraceCaptureLimits = DEFAULT_TRACE_CAPTURE_LIMITS
     ) -> None:
         """
         Create a capturing tracer.
 
-        :param delegate: The tracer that was installed before capture, which keeps receiving every span.
-        :param capture_content: Whether content tags are recorded locally.
+        :param capture_content: Whether content tags are recorded.
         :param limits: Bounds applied to captured values.
         """
-        self.delegate = delegate
         self.capture_content = capture_content
         self.limits = limits
 
@@ -248,7 +206,7 @@ class RunCaptureTracer(Tracer):
         self, operation_name: str, tags: dict[str, Any] | None = None, parent_span: Span | None = None
     ) -> Iterator[Span]:
         """
-        Capture and delegate a span.
+        Open a span, recording it when a run is being captured.
 
         :param operation_name: Name of the traced operation.
         :param tags: Tags to set when the span opens.
@@ -257,42 +215,40 @@ class RunCaptureTracer(Tracer):
         """
         capture = _current_run.get()
         if capture is None:
-            with self.delegate.trace(operation_name, tags=tags, parent_span=parent_span) as delegated:
-                yield delegated
+            yield _CapturedSpan(operation_name=operation_name, tags={}, parent_span_id=None)
             return
 
-        local_parent = parent_span.captured if isinstance(parent_span, _CombinedSpan) else None
-        if local_parent is None and _active_spans.get():
-            local_parent = _active_spans.get()[-1].captured
-        delegated_parent = parent_span.delegated if isinstance(parent_span, _CombinedSpan) else parent_span
+        parent = parent_span if isinstance(parent_span, _CapturedSpan) else None
+        if parent is None and _active_spans.get():
+            # Haystack threads `parent_span` explicitly in most places, but not everywhere; fall back to the
+            # innermost span still open in this context.
+            parent = _active_spans.get()[-1]
         captured = _CapturedSpan(
             operation_name=operation_name,
             tags={key: _serialize_trace_value(value=value, limits=self.limits) for key, value in (tags or {}).items()},
-            parent_span_id=local_parent.span_id if local_parent is not None else None,
+            parent_span_id=parent.span_id if parent is not None else None,
             capture_content=self.capture_content,
             limits=self.limits,
         )
         capture.add_span(span=captured)
-        with self.delegate.trace(operation_name, tags=tags, parent_span=delegated_parent) as delegated:
-            combined = _CombinedSpan(captured=captured, delegated=delegated)
-            previous = _active_spans.get()
-            _active_spans.set((*previous, combined))
-            try:
-                yield combined
-            except Exception as error:
-                captured.set_tag(key="error", value=True)
-                captured.set_tag(key="error.type", value=type(error).__name__)
-                captured.set_tag(key="error.message", value=str(error))
-                raise
-            finally:
-                captured.finish()
-                _active_spans.set(previous)
+        previous = _active_spans.get()
+        _active_spans.set((*previous, captured))
+        try:
+            yield captured
+        except Exception as error:
+            captured.set_tag(key="error", value=True)
+            captured.set_tag(key="error.type", value=type(error).__name__)
+            captured.set_tag(key="error.message", value=str(error))
+            raise
+        finally:
+            captured.finish()
+            _active_spans.set(previous)
 
     def current_span(self) -> Span | None:
         """
         Return the active span.
 
-        :returns: The innermost combined span, or the delegated tracer's current span when none is open.
+        :returns: The innermost span still open in this context, or None when none is.
         """
         active = _active_spans.get()
-        return active[-1] if active else self.delegate.current_span()
+        return active[-1] if active else None

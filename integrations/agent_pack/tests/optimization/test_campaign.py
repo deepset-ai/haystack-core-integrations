@@ -11,9 +11,11 @@ from haystack_integrations.agent_pack.optimization import (
     CampaignJournal,
     EvaluationMetrics,
     HarnessOptimizationCampaign,
-    LocalTraceStore,
     ModelAsset,
     OptimizationObjectives,
+)
+from haystack_integrations.agent_pack.tracing import (
+    LocalTraceStore,
     TraceArtifact,
 )
 

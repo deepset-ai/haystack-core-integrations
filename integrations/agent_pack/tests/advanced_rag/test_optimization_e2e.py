@@ -12,10 +12,12 @@ from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
     CampaignJournal,
     HarnessOptimizationCampaign,
-    LocalTraceStore,
     ModelAsset,
     OptimizationObjectives,
     ToolAsset,
+)
+from haystack_integrations.agent_pack.tracing import (
+    LocalTraceStore,
     TraceCapturingAgentRunner,
 )
 

@@ -14,7 +14,7 @@ from haystack_integrations.agent_pack.optimization.campaign.dataclasses import (
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact
+from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact
 
 
 class HarnessEvaluator(Protocol):

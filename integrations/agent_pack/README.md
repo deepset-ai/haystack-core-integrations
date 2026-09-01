@@ -22,6 +22,9 @@ the models and tools it is allowed to use, applies the quality gate, and returns
 approve. Nothing is promoted or deployed automatically, and the optimizer never executes generated Python or
 arbitrary serialized components.
 
+Runs are captured by `haystack_integrations.agent_pack.tracing`, a standalone module that records Haystack spans as
+data. It depends only on Haystack, and is a candidate for moving upstream once its shape settles.
+
 ```python
 from haystack_integrations.agent_pack.optimization import HarnessOptimizationCampaign
 

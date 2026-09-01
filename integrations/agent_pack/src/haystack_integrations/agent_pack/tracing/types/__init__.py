@@ -4,6 +4,6 @@
 
 """Protocols implemented by trace sources."""
 
-from haystack_integrations.agent_pack.optimization.tracing.types.protocol import TraceSource
+from haystack_integrations.agent_pack.tracing.types.protocol import TraceSource
 
 __all__ = ["TraceSource"]

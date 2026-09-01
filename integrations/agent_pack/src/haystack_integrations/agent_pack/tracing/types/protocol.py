@@ -6,7 +6,7 @@
 
 from typing import Protocol
 
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact, TraceSelection
+from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact, TraceSelection
 
 
 class TraceSource(Protocol):

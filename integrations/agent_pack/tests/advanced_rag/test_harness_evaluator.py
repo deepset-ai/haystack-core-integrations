@@ -10,7 +10,8 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
     case_from_reference_trace,
 )
-from haystack_integrations.agent_pack.optimization import ApprovedAssetCatalog, ModelAsset, TraceArtifact
+from haystack_integrations.agent_pack.optimization import ApprovedAssetCatalog, ModelAsset
+from haystack_integrations.agent_pack.tracing import TraceArtifact
 
 QUESTION = "What is CRISPR used for?"
 

@@ -10,19 +10,17 @@ from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.tools import Tool
 from haystack.tracing import Span, Tracer
 
-from haystack_integrations.agent_pack.optimization import (
+from haystack_integrations.agent_pack.tracing import (
     LocalTraceCollector,
     LocalTraceStore,
     TraceArtifact,
     TraceCaptureLimits,
     TraceCapturingAgentRunner,
     TraceSelection,
-    span_tag,
-)
-from haystack_integrations.agent_pack.optimization.tracing import (
     extract_agent_reference_output,
     extract_agent_replay_inputs,
     is_replayable,
+    span_tag,
 )
 
 
@@ -82,9 +80,7 @@ def _tool(name):
     )
 
 
-def test_capture_run_emits_expected_shape_hierarchy_and_delegates():
-    delegate = RecordingTracer()
-    tracing.enable_tracing(delegate)
+def test_capture_run_emits_expected_shape_and_hierarchy():
     collector = LocalTraceCollector()
 
     with collector.capture_run() as capture:
@@ -110,14 +106,11 @@ def test_capture_run_emits_expected_shape_hierarchy_and_delegates():
     assert span_tag(span=artifact.traces[0], key="structured") == {"items": [1, 2]}
     assert span_tag(span=artifact.traces[0], key="content") == {"question": "hello"}
     assert artifact.traces[1]["parent_span_id"] == artifact.traces[0]["span_id"]
-    assert [span.operation_name for span in delegate.spans] == ["root", "child"]
-    assert tracing.tracer.actual_tracer is delegate
+    assert artifact.traces[0]["parent_span_id"] is None
 
 
-def test_capture_does_not_leak_content_to_the_delegate_tracer():
-    """Capturing content locally must not start exporting prompts and documents to an installed tracer."""
-    delegate = RecordingTracer()
-    tracing.enable_tracing(delegate)
+def test_capture_does_not_change_the_process_content_setting():
+    """Recording content must be a local decision: flipping the global would affect everything else in the process."""
     tracing.tracer.is_content_tracing_enabled = False
 
     with LocalTraceCollector().capture_run() as capture:
@@ -126,21 +119,8 @@ def test_capture_does_not_leak_content_to_the_delegate_tracer():
             root.set_tag("public", 1)
 
     assert span_tag(span=capture.to_artifact().traces[0], key="secret") == {"question": "hello"}
-    assert "secret" not in delegate.spans[0].tags
-    assert delegate.spans[0].tags["public"] == 1
+    assert span_tag(span=capture.to_artifact().traces[0], key="public") == 1
     assert tracing.tracer.is_content_tracing_enabled is False
-
-
-def test_content_still_reaches_the_delegate_when_the_process_enabled_it():
-    delegate = RecordingTracer()
-    tracing.enable_tracing(delegate)
-    tracing.tracer.is_content_tracing_enabled = True
-
-    with LocalTraceCollector().capture_run():
-        with tracing.tracer.trace("root") as root:
-            root.set_content_tag("shared", "value")
-
-    assert delegate.spans[0].tags["shared"] == "value"
 
 
 def test_capture_content_can_be_disabled_locally():
@@ -154,14 +134,17 @@ def test_capture_content_can_be_disabled_locally():
     assert span_tag(span=span, key="public") == "value"
 
 
-def test_combined_span_exposes_the_delegate_raw_span():
-    delegate = RecordingTracer()
-    tracing.enable_tracing(delegate)
+def test_capture_replaces_the_installed_tracer_and_restores_it():
+    """Haystack has one tracer slot, so an installed exporter is silent for the duration of a capture."""
+    previously_installed = RecordingTracer()
+    tracing.enable_tracing(previously_installed)
 
     with LocalTraceCollector().capture_run():
         with tracing.tracer.trace("root") as root:
-            assert root.raw_span() is delegate.spans[0].underlying
             assert tracing.tracer.current_span() is root
+
+    assert previously_installed.spans == []
+    assert tracing.tracer.actual_tracer is previously_installed
 
 
 def test_capture_limits_drop_embeddings_and_truncate_oversized_values():

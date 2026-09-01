@@ -26,8 +26,8 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
 from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 from haystack_integrations.agent_pack.optimization.campaign.dataclasses import EvaluationMetrics
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import TraceArtifact
-from haystack_integrations.agent_pack.optimization.tracing.extraction import (
+from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact
+from haystack_integrations.agent_pack.tracing.extraction import (
     extract_agent_reference_output,
     extract_agent_replay_inputs,
 )

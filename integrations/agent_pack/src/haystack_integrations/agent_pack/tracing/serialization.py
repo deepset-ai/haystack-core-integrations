@@ -9,7 +9,7 @@ from typing import Any
 from haystack.utils import _deserialize_value_with_schema
 from haystack.utils.base_serialization import _serialize_with_field_fallback
 
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import (
+from haystack_integrations.agent_pack.tracing.dataclasses import (
     DEFAULT_TRACE_CAPTURE_LIMITS,
     TraceCaptureLimits,
 )

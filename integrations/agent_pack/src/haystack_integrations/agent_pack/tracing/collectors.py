@@ -15,13 +15,13 @@ from haystack import tracing
 from haystack.components.agents import Agent
 from haystack.tracing import Tracer
 
-from haystack_integrations.agent_pack.optimization.tracing.dataclasses import (
+from haystack_integrations.agent_pack.tracing.dataclasses import (
     DEFAULT_TRACE_CAPTURE_LIMITS,
     CapturedAgentRun,
     TraceCaptureLimits,
 )
-from haystack_integrations.agent_pack.optimization.tracing.stores import LocalTraceStore
-from haystack_integrations.agent_pack.optimization.tracing.tracers import CapturedRun, RunCaptureTracer, _current_run
+from haystack_integrations.agent_pack.tracing.stores import LocalTraceStore
+from haystack_integrations.agent_pack.tracing.tracers import CapturedRun, RunCaptureTracer, _current_run
 
 _installation_lock = RLock()
 
@@ -40,6 +40,9 @@ class LocalTraceCollector:
     """
     Install a run-scoped tracer and collect completed runs into a local store.
 
+    Haystack has a single tracer slot, so installing the capturing tracer replaces whatever was there. Any exporter
+    the application had configured therefore receives nothing while a capture is installed; the previous tracer is
+    restored when the outermost `install` exits.
     """
 
     def __init__(
@@ -53,9 +56,9 @@ class LocalTraceCollector:
         Create a collector.
 
         :param store: Where finished artifacts are written. A fresh in-memory store is used when omitted.
-        :param capture_content: Whether prompts, documents, and tool payloads are recorded locally. Required to
-            derive replay inputs and reference outputs. This does not change the process-wide content tracing
-            setting, so an already-installed tracer keeps exporting exactly what it exported before.
+        :param capture_content: Whether prompts, documents, and tool payloads are recorded. Required to derive
+            replay inputs and reference outputs. The process-wide content tracing setting is left untouched, so
+            nothing else in the process starts recording content as a side effect of capturing.
         :param limits: Bounds applied to captured values.
         """
         self.store = store or LocalTraceStore()
@@ -79,9 +82,7 @@ class LocalTraceCollector:
                 raise RuntimeError(msg)
             if self._installation_depth == 0:
                 self._previous_tracer = tracing.tracer.actual_tracer
-                self._capture_tracer = RunCaptureTracer(
-                    delegate=self._previous_tracer, capture_content=self.capture_content, limits=self.limits
-                )
+                self._capture_tracer = RunCaptureTracer(capture_content=self.capture_content, limits=self.limits)
                 tracing.enable_tracing(self._capture_tracer)
                 _installation_state.collector = self
             self._installation_depth += 1

@@ -10,13 +10,15 @@ from haystack_integrations.agent_pack.optimization import (
     ModelAsset,
     ModelSubstitutionRecipe,
     OptimizationObjectives,
-    TraceArtifact,
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
 )
 from haystack_integrations.agent_pack.optimization.optimizer_agent import bundled_agent_building_skills_path
 from haystack_integrations.agent_pack.optimization.recipes import RECIPE_KINDS, RECIPE_PROPOSAL_JSON_SCHEMA
 from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_from_dict
+from haystack_integrations.agent_pack.tracing import (
+    TraceArtifact,
+)
 
 SKILL_NAME = "haystack-agent-building"
 
