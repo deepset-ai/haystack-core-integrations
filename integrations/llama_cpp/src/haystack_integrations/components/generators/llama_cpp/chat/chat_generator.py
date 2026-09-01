@@ -168,7 +168,7 @@ class LlamaCppChatGenerator:
     ```python
     from haystack_integrations.components.generators.llama_cpp import LlamaCppChatGenerator
     user_message = [ChatMessage.from_user("Who is the best American actor?")]
-    generator = LlamaCppGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
+    generator = LlamaCppChatGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
 
     print(generator.run(user_message, generation_kwargs={"max_tokens": 128}))
     # {"replies": [ChatMessage(content="John Cusack", role=<ChatRole.ASSISTANT: "assistant">, name=None, meta={...})}
