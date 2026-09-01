@@ -1,0 +1,18 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.solr.bm25_retriever
+      - haystack_integrations.components.retrievers.solr.embedding_retriever
+      - haystack_integrations.components.retrievers.solr.solr_hybrid_retriever
+      - haystack_integrations.document_stores.solr.document_store
+      - haystack_integrations.document_stores.solr.filters
+      - haystack_integrations.document_stores.solr.schema
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Solr integration for Haystack
+  id: integrations-solr
+  filename: solr.md
+  title: Solr
