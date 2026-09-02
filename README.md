@@ -162,8 +162,3 @@ GitHub. The GitHub Actions workflow will take care of the rest.
 3. Wait for the CI to do its magic
 
    If the release is successful, the HaystackBot will push a commit on main to update the changelog.
-
-> [!IMPORTANT]
-> To ensure the changelog is accurate, it's recommended to tag a commit that includes the actual changes for the
-> integration (usually the PR merge commit). Tagging a commit that doesn't contain those changes can lead to an
-> incorrect changelog.
