@@ -17,6 +17,7 @@ _NESTED_MODEL_KEYS = ("model", "repo_id")
 
 
 def _model_id_path(init_parameters: Mapping[str, Any]) -> tuple[str, ...] | None:
+    """Locate a recognized model identifier in serialized generator parameters."""
     for key in _MODEL_KEYS:
         if isinstance(init_parameters.get(key), str):
             return (key,)
@@ -32,7 +33,7 @@ def _model_id_path(init_parameters: Mapping[str, Any]) -> tuple[str, ...] | None
 def serialized_model_id(serialized_component: Mapping[str, Any]) -> str | None:
     """Return the model identifier in a serialized chat generator, if recognizable."""
     parameters = serialized_component.get("init_parameters") or serialized_component.get("data") or {}
-    if not isinstance(parameters, Mapping) or (path := _model_id_path(parameters)) is None:
+    if not isinstance(parameters, Mapping) or (path := _model_id_path(init_parameters=parameters)) is None:
         return None
     value: Any = parameters
     for key in path:
@@ -52,7 +53,7 @@ def generator_model_id(generator: Any) -> str | None:
                 if isinstance(value := nested.get(key), str):
                     return value
     try:
-        return serialized_model_id(component_to_dict(obj=generator, name="chat_generator"))
+        return serialized_model_id(serialized_component=component_to_dict(obj=generator, name="chat_generator"))
     except Exception:
         return None
 
@@ -73,7 +74,7 @@ class ModelAsset:
             if "type" not in specification:
                 msg = f"Model asset {self.model_id!r} declares a generator without a 'type'."
                 raise ValueError(msg)
-            declared = serialized_model_id(specification)
+            declared = serialized_model_id(serialized_component=specification)
             if declared != self.model_id:
                 msg = (
                     f"Model asset {self.model_id!r} must declare a generator whose serialized model identifier "
@@ -83,7 +84,7 @@ class ModelAsset:
             return {"chat_generator": specification}
 
         parameters = serialized_generator.get("init_parameters")
-        path = _model_id_path(parameters) if isinstance(parameters, Mapping) else None
+        path = _model_id_path(init_parameters=parameters) if isinstance(parameters, Mapping) else None
         if path is None:
             msg = (
                 f"Model asset {self.model_id!r} needs an explicit generator because the reference generator does "
@@ -114,6 +115,7 @@ class ApprovedAssetCatalog:
     """Models and named configuration changes the optimizer may select."""
 
     def __init__(self, *, models: list[ModelAsset], patches: list[HarnessPatch] | None = None) -> None:
+        """Create a catalog from unique model IDs and patch names."""
         self.models = {asset.model_id: asset for asset in models}
         self.patches = {declared.name: declared for declared in patches or []}
         if len(self.models) != len(models):
@@ -170,7 +172,7 @@ class EvaluationMetrics:
             return self
         total = 0.0
         for model_id, usage in self.model_usage.items():
-            asset = assets.model(model_id)
+            asset = assets.model(model_id=model_id)
             total += (
                 usage.input_tokens * asset.input_cost_per_million + usage.output_tokens * asset.output_cost_per_million
             ) / 1_000_000

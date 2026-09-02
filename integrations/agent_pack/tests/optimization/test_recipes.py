@@ -14,7 +14,6 @@ from haystack_integrations.agent_pack.optimization import (
     HarnessPatch,
     ModelAsset,
     ModelSubstitutionRecipe,
-    SystemPromptRecipe,
 )
 from haystack_integrations.agent_pack.optimization.recipes import parse_proposal, recipe_fingerprint
 
@@ -42,6 +41,7 @@ def assets(patches=None):
         or [
             HarnessPatch(name="retrieval-top-3", patch={TOP_K_PATH: 3}, description="Retrieve more documents."),
             HarnessPatch(name="reasoning-high", patch={REASONING_PATH: "high"}, description="Think harder."),
+            HarnessPatch(name="candidate-prompt", patch={"system_prompt": "candidate prompt"}),
         ],
     )
 
@@ -55,11 +55,11 @@ def reference_agent(**kwargs):
     return Agent(**{**defaults, **kwargs})
 
 
-def test_model_and_prompt_recipes_clone_without_mutating_the_reference():
+def test_model_and_prompt_patch_clone_without_mutating_the_reference():
     reference = reference_agent()
 
     substituted = ModelSubstitutionRecipe(model_id="cheaper").materialize(reference=reference, assets=assets())
-    prompted = SystemPromptRecipe(system_prompt="candidate prompt").materialize(reference=reference, assets=assets())
+    prompted = ApplyPatchRecipe(patch="candidate-prompt").materialize(reference=reference, assets=assets())
 
     assert substituted.chat_generator.model == "cheaper"
     assert substituted.chat_generator is not reference.chat_generator
@@ -132,21 +132,15 @@ def test_a_harness_that_does_not_serialize_cannot_be_changed():
     reference = Agent(chat_generator=Unserializable())
     for recipe in (
         ApplyPatchRecipe(patch="reasoning-high"),
-        SystemPromptRecipe(system_prompt="try this"),
         ModelSubstitutionRecipe(model_id="cheaper"),
     ):
         with pytest.raises(ValueError, match="cannot be serialized and optimized"):
             recipe.materialize(reference=reference, assets=assets())
 
 
-def test_an_empty_prompt_is_rejected():
-    with pytest.raises(ValueError, match="replacement system prompt cannot be empty"):
-        SystemPromptRecipe(system_prompt="   ")
-
-
 def test_fingerprints_are_stable_for_equivalent_recipes():
-    first = SystemPromptRecipe(system_prompt="candidate prompt")
-    second = SystemPromptRecipe(system_prompt="candidate prompt")
+    first = ApplyPatchRecipe(patch="candidate-prompt")
+    second = ApplyPatchRecipe(patch="candidate-prompt")
     assert recipe_fingerprint(recipe=first, assets=assets()) == recipe_fingerprint(recipe=second, assets=assets())
     assert recipe_fingerprint(recipe=ApplyPatchRecipe(patch="reasoning-high"), assets=assets()) != recipe_fingerprint(
         recipe=ApplyPatchRecipe(patch="retrieval-top-3"), assets=assets()
@@ -168,7 +162,11 @@ def test_proposals_are_validated_against_the_catalog():
             {"recipe": {"kind": "model_substitution", "model_id": "unapproved"}}, ValueError, id="unapproved-model"
         ),
         pytest.param({"recipe": {"kind": "apply_patch", "patch": "unapproved"}}, ValueError, id="unapproved-patch"),
-        pytest.param({"recipe": {"kind": "system_prompt", "system_prompt": ""}}, ValidationError, id="empty-prompt"),
+        pytest.param(
+            {"recipe": {"kind": "system_prompt", "system_prompt": "replacement"}},
+            ValidationError,
+            id="removed-system-prompt",
+        ),
         pytest.param(
             {"recipe": {"kind": "model_substitution", "model_id": "cheaper", "extra": 1}},
             ValidationError,
@@ -196,11 +194,11 @@ def test_fingerprint_changes_when_a_named_patch_definition_changes():
     recipe = ApplyPatchRecipe(patch="same")
     first = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 2})])
     second = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 3})])
-    assert recipe_fingerprint(recipe, first) != recipe_fingerprint(recipe, second)
+    assert recipe_fingerprint(recipe=recipe, assets=first) != recipe_fingerprint(recipe=recipe, assets=second)
 
 
 def test_patch_description_does_not_invalidate_a_measurement():
     recipe = ApplyPatchRecipe(patch="same")
     first = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 2}, description="first wording")])
     second = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 2}, description="clearer wording")])
-    assert recipe_fingerprint(recipe, first) == recipe_fingerprint(recipe, second)
+    assert recipe_fingerprint(recipe=recipe, assets=first) == recipe_fingerprint(recipe=recipe, assets=second)

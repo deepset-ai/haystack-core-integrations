@@ -38,15 +38,15 @@ class AgentRunRecord:
         """Return a JSON-compatible representation of the record."""
         return {
             "run_id": self.run_id,
-            "inputs": _serialize_value_with_schema(self.inputs),
-            "outputs": _serialize_value_with_schema(self.outputs),
+            "inputs": _serialize_value_with_schema(payload=self.inputs),
+            "outputs": _serialize_value_with_schema(payload=self.outputs),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AgentRunRecord":
         """Restore a record created by :meth:`to_dict`."""
-        inputs = _deserialize_value_with_schema(data["inputs"])
-        outputs = _deserialize_value_with_schema(data["outputs"])
+        inputs = _deserialize_value_with_schema(serialized=data["inputs"])
+        outputs = _deserialize_value_with_schema(serialized=data["outputs"])
         if not isinstance(inputs, dict) or not isinstance(outputs, dict):
             msg = "Agent run records must deserialize to input and output dictionaries."
             raise ValueError(msg)
@@ -81,13 +81,14 @@ class LocalRunStore:
     """In-memory run source with optional one-JSON-file-per-run persistence."""
 
     def __init__(self, directory: str | Path | None = None) -> None:
+        """Load an optional directory of persisted run records."""
         self.directory = Path(directory) if directory is not None else None
         self._records: dict[str, AgentRunRecord] = {}
         self._lock = RLock()
         if self.directory is not None:
             self.directory.mkdir(parents=True, exist_ok=True)
             for path in sorted(self.directory.glob("*.json")):
-                record = AgentRunRecord.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                record = AgentRunRecord.from_dict(data=json.loads(path.read_text(encoding="utf-8")))
                 self._records[record.run_id] = record
 
     def add(self, record: AgentRunRecord) -> None:
@@ -123,20 +124,21 @@ class AgentRunRecorder:
     """Run an Agent and retain exactly the inputs and outputs optimization consumes."""
 
     def __init__(self, store: LocalRunStore | None = None) -> None:
+        """Create a recorder backed by the supplied store or a new in-memory store."""
         self.store = store or LocalRunStore()
 
     def run(self, agent: Agent, **run_kwargs: Any) -> RecordedAgentRun:
         """Run synchronously and persist the successful input/output pair."""
         result = agent.run(**run_kwargs)
         record = AgentRunRecord(run_id=str(uuid4()), inputs=run_kwargs, outputs=result)
-        self.store.add(record)
+        self.store.add(record=record)
         return RecordedAgentRun(result=result, record=record)
 
     async def run_async(self, agent: Agent, **run_kwargs: Any) -> RecordedAgentRun:
         """Run asynchronously and persist the successful input/output pair."""
         result = await agent.run_async(**run_kwargs)
         record = AgentRunRecord(run_id=str(uuid4()), inputs=run_kwargs, outputs=result)
-        self.store.add(record)
+        self.store.add(record=record)
         return RecordedAgentRun(result=result, record=record)
 
 

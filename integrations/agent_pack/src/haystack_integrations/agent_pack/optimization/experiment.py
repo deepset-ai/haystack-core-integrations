@@ -59,7 +59,7 @@ class CandidateEvaluation:
 
     def price(self, assets: ApprovedAssetCatalog) -> "CandidateEvaluation":
         """Apply current prices without changing the journaled raw measurement."""
-        return replace(self, metrics=self.metrics.price(assets) if self.metrics is not None else None)
+        return replace(self, metrics=self.metrics.price(assets=assets) if self.metrics is not None else None)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible journal record."""
@@ -79,7 +79,7 @@ class CandidateEvaluation:
             measurement_context=data["measurement_context"],
             candidate_id=data["candidate_id"],
             recipe=data["recipe"],
-            metrics=EvaluationMetrics.from_dict(metrics) if metrics is not None else None,
+            metrics=EvaluationMetrics.from_dict(data=metrics) if metrics is not None else None,
             failure=data.get("failure"),
         )
 
@@ -88,6 +88,7 @@ class ExperimentJournal:
     """Append-only JSON-lines persistence for raw experiment measurements."""
 
     def __init__(self, path: str | Path) -> None:
+        """Load existing measurements from an append-only JSON-lines journal."""
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
@@ -95,7 +96,7 @@ class ExperimentJournal:
         if self.path.exists():
             for line in self.path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
-                    record = CandidateEvaluation.from_dict(json.loads(line))
+                    record = CandidateEvaluation.from_dict(data=json.loads(line))
                     self._records[record.candidate_id] = record
 
     def get(self, candidate_id: str) -> CandidateEvaluation | None:
@@ -136,7 +137,7 @@ class ExperimentRecommendation:
 
     def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:
         """Rebuild the recommendation for inspection or approval."""
-        return self.recipe.materialize(reference, assets)
+        return self.recipe.materialize(reference=reference, assets=assets)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -158,10 +159,10 @@ class ExperimentResult:
 def _stable_serialization(value: Any) -> Any:
     """Remove only the process-local identity of an InMemoryDocumentStore from serialized Agent data."""
     if isinstance(value, list):
-        return [_stable_serialization(item) for item in value]
+        return [_stable_serialization(value=item) for item in value]
     if not isinstance(value, dict):
         return value
-    normalized = {key: _stable_serialization(item) for key, item in value.items()}
+    normalized = {key: _stable_serialization(value=item) for key, item in value.items()}
     type_name = normalized.get("type")
     if isinstance(type_name, str) and type_name.endswith("InMemoryDocumentStore"):
         parameters = normalized.get("init_parameters")
@@ -187,6 +188,7 @@ class HarnessOptimizationExperiment:
         configuration_key: str | None = None,
         max_iterations: int = 8,
     ) -> None:
+        """Configure an iterative, journaled harness optimization run."""
         self.reference = reference
         self.run_source = run_source
         self.evaluator = evaluator
@@ -200,34 +202,34 @@ class HarnessOptimizationExperiment:
 
     def run(self) -> ExperimentResult:
         """Measure the baseline, then iteratively evaluate recipes selected from observed outcomes."""
-        reference_runs = self.run_source.list(self.run_selection)
+        reference_runs = self.run_source.list(selection=self.run_selection)
         if not reference_runs:
             msg = "The selected run source contains no successful reference runs."
             raise ValueError(msg)
 
-        context = self._measurement_context(reference_runs)
-        baseline = self._baseline(context, reference_runs).price(self.assets)
+        context = self._measurement_context(reference_runs=reference_runs)
+        baseline = self._baseline(context=context, reference_runs=reference_runs).price(assets=self.assets)
         outcomes: list[CandidateEvaluation] = []
         recipe_by_id: dict[str, CandidateRecipe] = {}
         history: list[dict[str, Any]] = []
         seen: set[str] = set()
 
-        for prior in self.journal.completed(context):
+        for prior in self.journal.completed(measurement_context=context):
             try:
-                recipe = parse_proposal({"recipe": prior.recipe}, self.assets)
+                recipe = parse_proposal(payload={"recipe": prior.recipe}, assets=self.assets)
             except (ValueError, ValidationError):
                 continue
             if recipe is None:
                 continue
-            fingerprint = recipe_fingerprint(recipe, self.assets)
+            fingerprint = recipe_fingerprint(recipe=recipe, assets=self.assets)
             expected_id = hashlib.sha256(f"{context}:{fingerprint}".encode()).hexdigest()
             if prior.candidate_id != expected_id:
                 continue
             seen.add(fingerprint)
-            priced = prior.price(self.assets)
+            priced = prior.price(assets=self.assets)
             outcomes.append(priced)
             recipe_by_id[priced.candidate_id] = recipe
-            history.append(self._history_entry(priced, baseline))
+            history.append(self._history_entry(candidate=priced, baseline=baseline))
 
         stalled = 0
         while len(outcomes) < self.max_iterations and stalled < _MAX_STALLED_PROPOSALS:
@@ -242,29 +244,36 @@ class HarnessOptimizationExperiment:
             if recipe is None:
                 break
 
-            fingerprint = recipe_fingerprint(recipe, self.assets)
-            if fingerprint in seen or is_obvious_noop(recipe, self.reference):
+            fingerprint = recipe_fingerprint(recipe=recipe, assets=self.assets)
+            if fingerprint in seen or is_obvious_noop(recipe=recipe, reference=self.reference):
                 stalled += 1
                 history.append({"recipe": recipe.model_dump(), "status": "rejected", "reason": "duplicate_or_no_op"})
                 continue
             stalled = 0
             seen.add(fingerprint)
             candidate_id = hashlib.sha256(f"{context}:{fingerprint}".encode()).hexdigest()
-            raw = self.journal.get(candidate_id)
+            raw = self.journal.get(candidate_id=candidate_id)
             if raw is None:
-                raw = self._evaluate_candidate(recipe, candidate_id, context, reference_runs)
-                self.journal.append(raw)
-            priced = raw.price(self.assets)
+                raw = self._evaluate_candidate(
+                    recipe=recipe,
+                    candidate_id=candidate_id,
+                    context=context,
+                    reference_runs=reference_runs,
+                )
+                self.journal.append(evaluation=raw)
+            priced = raw.price(assets=self.assets)
             outcomes.append(priced)
             recipe_by_id[candidate_id] = recipe
-            history.append(self._history_entry(priced, baseline))
+            history.append(self._history_entry(candidate=priced, baseline=baseline))
 
-        gate_failures = {outcome.candidate_id: self._gate_failures(outcome, baseline) for outcome in outcomes}
+        gate_failures = {
+            outcome.candidate_id: self._gate_failures(candidate=outcome, baseline=baseline) for outcome in outcomes
+        }
         eligible = [outcome for outcome in outcomes if not gate_failures[outcome.candidate_id]]
         eligible.sort(key=self._candidate_rank)
         recommendation = None
         for candidate in eligible:
-            if (reasons := self._recommendation_reasons(candidate, baseline)) is not None:
+            if (reasons := self._recommendation_reasons(candidate=candidate, baseline=baseline)) is not None:
                 recommendation = ExperimentRecommendation(
                     recipe=recipe_by_id[candidate.candidate_id], evaluation=candidate, reasons=reasons
                 )
@@ -278,8 +287,9 @@ class HarnessOptimizationExperiment:
         )
 
     def _measurement_context(self, reference_runs: list[AgentRunRecord]) -> str:
+        """Fingerprint every input that changes a raw harness measurement."""
         try:
-            reference = _stable_serialization(self.reference.to_dict())
+            reference = _stable_serialization(value=self.reference.to_dict())
         except Exception:
             reference = {"type": f"{type(self.reference).__module__}.{type(self.reference).__qualname__}"}
         evaluator: dict[str, Any] = {"type": f"{type(self.evaluator).__module__}.{type(self.evaluator).__qualname__}"}
@@ -294,12 +304,13 @@ class HarnessOptimizationExperiment:
         return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
     def _baseline(self, context: str, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
+        """Load or measure the reference harness for the current context."""
         candidate_id = f"baseline:{context}"
-        if (prior := self.journal.get(candidate_id)) is not None and prior.metrics is not None:
+        if (prior := self.journal.get(candidate_id=candidate_id)) is not None and prior.metrics is not None:
             return prior.metrics
-        metrics = self.evaluator.evaluate(self.reference, reference_runs)
+        metrics = self.evaluator.evaluate(agent=self.reference, reference_runs=reference_runs)
         self.journal.append(
-            CandidateEvaluation(
+            evaluation=CandidateEvaluation(
                 measurement_context=context,
                 candidate_id=candidate_id,
                 recipe={"kind": "reference"},
@@ -315,9 +326,10 @@ class HarnessOptimizationExperiment:
         context: str,
         reference_runs: list[AgentRunRecord],
     ) -> CandidateEvaluation:
+        """Materialize and measure one recipe, converting failures into journal records."""
         try:
-            candidate = recipe.materialize(self.reference, self.assets)
-            metrics = self.evaluator.evaluate(candidate, reference_runs)
+            candidate = recipe.materialize(reference=self.reference, assets=self.assets)
+            metrics = self.evaluator.evaluate(agent=candidate, reference_runs=reference_runs)
             return CandidateEvaluation(
                 measurement_context=context,
                 candidate_id=candidate_id,
@@ -335,21 +347,24 @@ class HarnessOptimizationExperiment:
             )
 
     def _history_entry(self, candidate: CandidateEvaluation, baseline: EvaluationMetrics) -> dict[str, Any]:
+        """Describe one measured outcome for the optimizer Agent's next decision."""
         return {
             "recipe": candidate.recipe,
             "status": "measured" if candidate.metrics is not None else "failed",
             "metrics": candidate.metrics.to_dict() if candidate.metrics is not None else None,
             "failure": candidate.failure,
-            "gate_failures": self._gate_failures(candidate, baseline),
+            "gate_failures": self._gate_failures(candidate=candidate, baseline=baseline),
         }
 
     def _gate_failures(self, candidate: CandidateEvaluation, baseline: EvaluationMetrics) -> tuple[str, ...]:
+        """Return the hard quality gates a candidate failed."""
         if candidate.metrics is None:
             return ("evaluation_failed",)
         floor = max(self.objectives.min_quality, baseline.gating_quality - self.objectives.max_quality_loss)
         return (f"quality_below_floor:{floor:.4f}",) if candidate.metrics.gating_quality < floor else ()
 
     def _rank(self, metrics: EvaluationMetrics) -> tuple[float, float]:
+        """Return the objective-dependent ordering key for priced metrics."""
         if metrics.cost is None:
             msg = "Metrics must be priced before ranking."
             raise ValueError(msg)
@@ -363,12 +378,14 @@ class HarnessOptimizationExperiment:
         )
 
     def _candidate_rank(self, candidate: CandidateEvaluation) -> tuple[float, float]:
-        return self._rank(candidate.metrics) if candidate.metrics is not None else (float("inf"), float("inf"))
+        """Return a sortable rank that places failed candidates last."""
+        return self._rank(metrics=candidate.metrics) if candidate.metrics is not None else (float("inf"), float("inf"))
 
     def _recommendation_reasons(
         self, candidate: CandidateEvaluation, baseline: EvaluationMetrics
     ) -> tuple[str, ...] | None:
-        if candidate.metrics is None or self._rank(candidate.metrics) >= self._rank(baseline):
+        """Explain an improvement or return ``None`` when the candidate does not beat the baseline."""
+        if candidate.metrics is None or self._rank(metrics=candidate.metrics) >= self._rank(metrics=baseline):
             return None
         reasons: list[str] = []
         if candidate.metrics.details.get("validated") is False:

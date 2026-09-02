@@ -39,7 +39,6 @@ from haystack_integrations.agent_pack.optimization.recipes import (
     ApplyPatchRecipe,
     CandidateRecipe,
     ModelSubstitutionRecipe,
-    SystemPromptRecipe,
 )
 
 __all__ = [
@@ -60,7 +59,6 @@ __all__ = [
     "ModelTokenUsage",
     "OptimizationObjectives",
     "RecipeProposer",
-    "SystemPromptRecipe",
     "create_harness_optimizer_agent",
     "create_haystack_documentation_mcp_toolset",
 ]

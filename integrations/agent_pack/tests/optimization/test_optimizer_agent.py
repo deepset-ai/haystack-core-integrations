@@ -86,7 +86,7 @@ def test_haystack_documentation_mcp_server_is_read_only_and_lazy():
 
 
 def test_proposal_schema_closes_over_catalog_choices():
-    schema = proposal_json_schema(catalog())
+    schema = proposal_json_schema(assets=catalog())
     definitions = schema["$defs"]
     assert definitions["ModelSubstitutionRecipe"]["properties"]["model_id"]["enum"] == ["cheap", "reference"]
     assert definitions["ApplyPatchRecipe"]["properties"]["patch"]["enum"] == ["reasoning-high"]

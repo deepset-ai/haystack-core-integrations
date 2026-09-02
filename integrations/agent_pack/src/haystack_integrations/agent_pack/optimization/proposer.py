@@ -46,7 +46,7 @@ observed outcomes. Return null when the evidence says no remaining change is wor
 Rules:
 1. Use only model IDs in `approved_models` and patch names in `approved_patches`.
 2. Propose exactly one change at a time so its effect is attributable. Multi-change candidates are not supported.
-3. Never repeat a recipe in `history` or propose the reference model or current system prompt.
+3. Never repeat a recipe in `history` or propose the reference model.
 4. Quality is a hard gate. Optimize the requested primary measurement only among candidates likely to preserve it.
 5. Never emit Python, component dictionaries, import paths, credentials, or deployment operations.
 6. Reply with one JSON object: `{"recipe": <recipe>}` or `{"recipe": null}`. No prose or code fences.
@@ -54,7 +54,6 @@ Rules:
 Supported recipes:
 - `{"kind": "model_substitution", "model_id": "approved-model-id"}`
 - `{"kind": "apply_patch", "patch": "approved-patch-name"}`
-- `{"kind": "system_prompt", "system_prompt": "replacement prompt"}`
 """.strip()
 
 
@@ -63,13 +62,13 @@ def _json_compatible(value: Any) -> Any:
     if isinstance(value, ChatMessage):
         return {"role": value.role.value, "text": value.text, "meta": value.meta}
     if isinstance(value, dict):
-        return {str(key): _json_compatible(item) for key, item in value.items()}
+        return {str(key): _json_compatible(value=item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
-        return [_json_compatible(item) for item in value]
+        return [_json_compatible(value=item) for item in value]
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if hasattr(value, "to_dict"):
-        return _json_compatible(value.to_dict())
+        return _json_compatible(value=value.to_dict())
     return str(value)
 
 
@@ -119,6 +118,7 @@ def create_harness_optimizer_agent(
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
+    """Extract and parse the outermost JSON object from an optimizer reply."""
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end <= start:
@@ -141,6 +141,7 @@ class HarnessOptimizerAgentProposer:
         max_attempts: int = 2,
         structured_output_key: str | None = None,
     ) -> None:
+        """Configure the Agent-backed proposer and its response validation retries."""
         self.optimizer_agent = optimizer_agent
         self.max_attempts = max_attempts
         self.structured_output_key = structured_output_key
@@ -158,11 +159,11 @@ class HarnessOptimizerAgentProposer:
         """Build the complete state the optimizer needs for its next decision."""
         return {
             "reference": {
-                "model": generator_model_id(reference.chat_generator),
+                "model": generator_model_id(generator=reference.chat_generator),
                 "system_prompt": reference.system_prompt,
                 "tools": [
                     {"name": tool.name, "description": tool.description}
-                    for tool in flatten_tools_or_toolsets(reference.tools)
+                    for tool in flatten_tools_or_toolsets(tools=reference.tools)
                 ],
             },
             "approved_models": [
@@ -177,23 +178,24 @@ class HarnessOptimizerAgentProposer:
                 {
                     "name": patch.name,
                     "description": patch.description,
-                    "changes": _json_compatible(patch.patch),
+                    "changes": _json_compatible(value=patch.patch),
                 }
                 for patch in assets.patches.values()
             ],
             "objectives": objectives.to_dict(),
             "baseline": baseline.to_dict(),
             "history": history,
-            "successful_run_inputs": [_json_compatible(record.inputs) for record in reference_runs[:3]],
+            "successful_run_inputs": [_json_compatible(value=record.inputs) for record in reference_runs[:3]],
         }
 
     def _structured_output(self, assets: ApprovedAssetCatalog) -> dict[str, Any] | None:
+        """Build provider-specific structured-output arguments when configured."""
         if self.structured_output_key is None:
             return None
         schema = {
             "type": "json_schema",
             "name": "harness_optimizer_decision",
-            "schema": proposal_json_schema(assets),
+            "schema": proposal_json_schema(assets=assets),
             "strict": False,
         }
         if self.structured_output_key == "text":
@@ -219,7 +221,7 @@ class HarnessOptimizerAgentProposer:
             baseline=baseline,
             history=history,
         )
-        messages = [ChatMessage.from_user(json.dumps(request, default=str))]
+        messages = [ChatMessage.from_user(text=json.dumps(request, default=str))]
         last_error = ""
         for attempt in range(self.max_attempts):
             result = self.optimizer_agent.run(
@@ -228,7 +230,7 @@ class HarnessOptimizerAgentProposer:
             )
             text = result["last_message"].text or ""
             try:
-                return parse_proposal(_extract_json_object(text), assets)
+                return parse_proposal(payload=_extract_json_object(text=text), assets=assets)
             except (ValidationError, ValueError, json.JSONDecodeError) as error:
                 last_error = f"{type(error).__name__}: {error}"
                 logger.warning(
@@ -238,10 +240,12 @@ class HarnessOptimizerAgentProposer:
                 )
                 messages.extend(
                     [
-                        ChatMessage.from_assistant(text),
+                        ChatMessage.from_assistant(text=text),
                         ChatMessage.from_user(
-                            f"That decision was rejected: {last_error}. Reply only with "
-                            '{"recipe": <supported recipe or null>}.'
+                            text=(
+                                f"That decision was rejected: {last_error}. Reply only with "
+                                '{"recipe": <supported recipe or null>}.'
+                            )
                         ),
                     ]
                 )

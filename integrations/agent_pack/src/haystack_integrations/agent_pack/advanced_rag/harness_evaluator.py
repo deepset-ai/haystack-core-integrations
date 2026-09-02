@@ -43,7 +43,7 @@ def messages_from_run(record: AgentRunRecord) -> list[ChatMessage]:
     if not isinstance(serialized, list):
         msg = f"Run {record.run_id} does not contain replayable Agent messages."
         raise ValueError(msg)
-    return [item if isinstance(item, ChatMessage) else ChatMessage.from_dict(item) for item in serialized]
+    return [item if isinstance(item, ChatMessage) else ChatMessage.from_dict(data=item) for item in serialized]
 
 
 def question_from_messages(messages: list[ChatMessage]) -> str:
@@ -74,14 +74,14 @@ def case_from_reference_run(record: AgentRunRecord) -> AdvancedRAGEvaluationCase
     :returns: A case requiring the candidate to retrieve every document the reference retrieved.
     :raises ValueError: If the run records no retrieved documents.
     """
-    messages = messages_from_run(record)
+    messages = messages_from_run(record=record)
     serialized_documents = record.outputs.get("documents") or []
-    documents = [item if isinstance(item, Document) else Document.from_dict(item) for item in serialized_documents]
+    documents = [item if isinstance(item, Document) else Document.from_dict(data=item) for item in serialized_documents]
     if not documents:
         msg = f"Run {record.run_id} contains no reference documents; supply an explicit evaluation case."
         raise ValueError(msg)
     return AdvancedRAGEvaluationCase(
-        question=question_from_messages(messages),
+        question=question_from_messages(messages=messages),
         expected_document_ids=frozenset(document.id for document in documents),
         min_recall=1.0,
         min_precision=0.0,
@@ -134,11 +134,11 @@ class AdvancedRAGHarnessEvaluator:
         resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]] = []
         derived: list[str] = []
         for record in reference_runs:
-            messages = messages_from_run(record)
-            question = question_from_messages(messages)
+            messages = messages_from_run(record=record)
+            question = question_from_messages(messages=messages)
             case = self.cases.get(question)
             if case is None:
-                case = case_from_reference_run(record)
+                case = case_from_reference_run(record=record)
                 derived.append(question)
             resolved.append((case, messages))
         return resolved, derived
@@ -152,7 +152,7 @@ class AdvancedRAGHarnessEvaluator:
         :returns: Quality, cost, and latency for the candidate, with per-case detail.
         :raises ValueError: If no reference runs were supplied.
         """
-        resolved, derived = self._resolve(reference_runs)
+        resolved, derived = self._resolve(reference_runs=reference_runs)
         if not resolved:
             msg = "No reference runs were supplied to the Advanced RAG evaluator."
             raise ValueError(msg)
@@ -184,7 +184,7 @@ class AdvancedRAGHarnessEvaluator:
         flattened = [metric for attempt in run_metrics for metric in attempt]
         input_tokens = sum(metric.input_tokens for metric in flattened)
         output_tokens = sum(metric.output_tokens for metric in flattened)
-        model_id = generator_model_id(agent.chat_generator)
+        model_id = generator_model_id(generator=agent.chat_generator)
         if model_id is None:
             msg = "The evaluator cannot attribute token usage because the Agent's model identifier is unknown."
             raise ValueError(msg)

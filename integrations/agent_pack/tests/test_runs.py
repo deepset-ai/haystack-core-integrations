@@ -7,12 +7,12 @@ from haystack_integrations.agent_pack.runs import AgentRunRecord, AgentRunRecord
 
 
 def test_recorder_persists_replayable_inputs_and_outputs(tmp_path):
-    store = LocalRunStore(tmp_path)
+    store = LocalRunStore(directory=tmp_path)
     agent = Agent(chat_generator=MockChatGenerator([ChatMessage.from_assistant("answer")]))
 
-    recorded = AgentRunRecorder(store).run(agent, messages=[ChatMessage.from_user("question")])
+    recorded = AgentRunRecorder(store=store).run(agent=agent, messages=[ChatMessage.from_user(text="question")])
 
-    restored = LocalRunStore(tmp_path).list()[0]
+    restored = LocalRunStore(directory=tmp_path).list()[0]
     assert recorded.record == restored
     assert restored.inputs["messages"][0].text == "question"
     assert restored.outputs["last_message"].text == "answer"
@@ -40,5 +40,5 @@ def test_run_fingerprint_depends_on_content_not_storage_identity():
 @pytest.mark.asyncio
 async def test_recorder_supports_async_runs():
     agent = Agent(chat_generator=MockChatGenerator([ChatMessage.from_assistant("answer")]))
-    recorded = await AgentRunRecorder().run_async(agent, messages=[ChatMessage.from_user("question")])
+    recorded = await AgentRunRecorder().run_async(agent=agent, messages=[ChatMessage.from_user(text="question")])
     assert recorded.result["last_message"].text == "answer"

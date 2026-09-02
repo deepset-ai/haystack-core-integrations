@@ -58,7 +58,7 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
 
     reference = scripted_agent(store, document, "reference")
     run_store = LocalRunStore()
-    AgentRunRecorder(run_store).run(reference, messages=[ChatMessage.from_user(QUESTION)])
+    AgentRunRecorder(store=run_store).run(agent=reference, messages=[ChatMessage.from_user(text=QUESTION)])
 
     assets = ApprovedAssetCatalog(
         models=[
@@ -117,7 +117,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     reference = scripted_agent(store, document, "reference")
 
     run_store = LocalRunStore()
-    AgentRunRecorder(run_store).run(reference, messages=[ChatMessage.from_user(QUESTION)])
+    AgentRunRecorder(store=run_store).run(agent=reference, messages=[ChatMessage.from_user(text=QUESTION)])
 
     assets = ApprovedAssetCatalog(
         models=[

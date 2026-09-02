@@ -90,7 +90,9 @@ def test_evaluator_prices_the_run_from_the_approved_asset_catalog(document):
     )
     evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
 
-    metrics = evaluator.evaluate(FakeAgent(document), [reference_run(document)]).price(catalog())
+    metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)]).price(
+        assets=catalog()
+    )
 
     assert metrics.quality == 1.0
     assert metrics.cost == (100 * 2.0 + 20 * 4.0) / 1_000_000
@@ -109,7 +111,9 @@ def test_evaluator_includes_secondary_model_usage(document):
     evaluator = AdvancedRAGHarnessEvaluator(
         cases=[AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))]
     )
-    metrics = evaluator.evaluate(BackupAgent(document), [reference_run(document)]).price(catalog())
+    metrics = evaluator.evaluate(agent=BackupAgent(document), reference_runs=[reference_run(document=document)]).price(
+        assets=catalog()
+    )
 
     assert metrics.model_usage["backup"].input_tokens == 7
     assert metrics.cost == pytest.approx((100 * 2.0 + 20 * 4.0 + 7 * 3.0 + 2 * 5.0) / 1_000_000)
@@ -117,15 +121,17 @@ def test_evaluator_includes_secondary_model_usage(document):
 
 def test_unpriced_models_fail_when_results_are_priced(document):
     evaluator = AdvancedRAGHarnessEvaluator(cases=[AdvancedRAGEvaluationCase(question=QUESTION, expect_absent=True)])
-    metrics = evaluator.evaluate(FakeAgent(document, model="unknown"), [reference_run(document)])
+    metrics = evaluator.evaluate(
+        agent=FakeAgent(document, model="unknown"), reference_runs=[reference_run(document=document)]
+    )
     with pytest.raises(ValueError, match="not in the approved asset catalog"):
-        metrics.price(catalog())
+        metrics.price(assets=catalog())
 
 
 def test_derived_cases_are_reported_as_unvalidated(document):
     """Grounding parity with the incumbent is not a correctness measurement, and must be flagged as such."""
     evaluator = AdvancedRAGHarnessEvaluator()
-    metrics = evaluator.evaluate(FakeAgent(document), [reference_run(document)])
+    metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
     assert metrics.details["validated"] is False
     assert metrics.details["derived_cases"] == [QUESTION]
 
@@ -135,7 +141,9 @@ def test_repetitions_produce_a_quality_lower_bound(document):
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("CRISPR",)
     )
     agent = FakeAgent(document)
-    metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=3).evaluate(agent, [reference_run(document)])
+    metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=3).evaluate(
+        agent=agent, reference_runs=[reference_run(document=document)]
+    )
 
     assert agent.runs == 3
     assert agent.warmups == 1
@@ -160,7 +168,7 @@ def test_a_flaky_candidate_reports_a_lower_bound_below_its_mean(document):
 
     case = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
     metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=2).evaluate(
-        FlakyAgent(document), [reference_run(document)]
+        agent=FlakyAgent(document), reference_runs=[reference_run(document=document)]
     )
 
     assert metrics.quality == 0.5

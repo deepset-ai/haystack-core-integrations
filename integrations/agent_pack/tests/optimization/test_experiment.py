@@ -85,7 +85,7 @@ def experiment(tmp_path, evaluator, proposer, *, assets=None, objectives=None, s
         evaluator=evaluator,
         assets=assets or catalog(),
         objectives=objectives or OptimizationObjectives(min_quality=0.8),
-        journal=journal or ExperimentJournal(tmp_path / "experiment.jsonl"),
+        journal=journal or ExperimentJournal(path=tmp_path / "experiment.jsonl"),
         proposer=proposer,
     )
 
@@ -105,7 +105,7 @@ def test_optimizer_observes_each_outcome_before_choosing_the_next(tmp_path):
 
 
 def test_completed_measurements_seed_history_on_resume(tmp_path):
-    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     first_evaluator = ModelEvaluator(fixed_metrics())
     first = experiment(
         tmp_path,
@@ -135,7 +135,7 @@ def test_patch_definition_is_part_of_candidate_identity(tmp_path):
         def fingerprint(self):
             return {"kind": "steps"}
 
-    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     first_assets = catalog(patches=[HarnessPatch(name="steps", patch={"max_agent_steps": 2})])
     first = StepsEvaluator()
     experiment(
@@ -159,7 +159,7 @@ def test_patch_definition_is_part_of_candidate_identity(tmp_path):
 
 
 def test_objective_changes_rerank_without_remeasuring(tmp_path):
-    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     experiment(
         tmp_path,
         ModelEvaluator(fixed_metrics()),
@@ -181,7 +181,7 @@ def test_objective_changes_rerank_without_remeasuring(tmp_path):
 
 
 def test_run_content_changes_invalidate_measurements(tmp_path):
-    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     first_store = LocalRunStore()
     first_store.add(reference_run("first"))
     experiment(
@@ -209,7 +209,7 @@ def test_current_prices_apply_to_raw_journaled_usage(tmp_path):
         ),
         "bad": fixed_metrics()["bad"],
     }
-    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     experiment(
         tmp_path,
         ModelEvaluator(metrics),
@@ -231,7 +231,7 @@ def test_current_prices_apply_to_raw_journaled_usage(tmp_path):
 
 
 def test_failed_candidates_retry_and_duplicate_or_noop_recipes_do_not_run(tmp_path):
-    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     failing = ModelEvaluator(fixed_metrics(), failing={"cheap"})
     first_proposer = SequenceProposer(
         [

@@ -132,6 +132,7 @@ def build_cases(store: InMemoryDocumentStore) -> list[AdvancedRAGEvaluationCase]
     documents = store.filter_documents()
 
     def ids_where(**constraints: Any) -> frozenset[str]:
+        """Return IDs of corpus documents whose metadata matches every constraint."""
         return frozenset(
             document.id
             for document in documents
@@ -202,7 +203,7 @@ def capture_reference_runs(
     :returns: A selection containing exactly one run for each requested question.
     """
     records_by_question = {
-        question_from_messages(record.inputs.get("messages") or []): record for record in run_store.list()
+        question_from_messages(messages=record.inputs.get("messages") or []): record for record in run_store.list()
     }
     recorder = AgentRunRecorder(store=run_store)
     selected_ids: set[str] = set()
@@ -212,7 +213,7 @@ def capture_reference_runs(
             selected_ids.add(existing.run_id)
             continue
         print(f"  capturing: {case.question}")
-        recorded = recorder.run(agent, messages=[ChatMessage.from_user(case.question)])
+        recorded = recorder.run(agent=agent, messages=[ChatMessage.from_user(text=case.question)])
         selected_ids.add(recorded.record.run_id)
         answer = recorded.result["last_message"].text or ""
         print(f"    run={recorded.record.run_id[:8]} answer={answer[:90]!r}")
@@ -223,6 +224,16 @@ def capture_reference_runs(
 #: tool by name, so one mechanism covers reasoning effort and a retriever's result count alike. The values are
 #: declared here rather than proposed, which is what stops an optimizer asking for a parameter a component rejects.
 HARNESS_PATCHES = [
+    HarnessPatch(
+        name="concise-system-prompt",
+        patch={
+            "system_prompt": (
+                "Answer from retrieved evidence only. Inspect metadata when it helps narrow retrieval, cite each "
+                "claim as [doc <8-char-id>], and say when the evidence is insufficient."
+            )
+        },
+        description="Use a shorter system prompt while preserving retrieval, grounding, and citation requirements.",
+    ),
     HarnessPatch(
         name="reasoning-medium",
         patch={"chat_generator.init_parameters.generation_kwargs.reasoning.effort": "medium"},
@@ -309,7 +320,7 @@ def report(*, result: ExperimentResult, reference: Agent, assets: ApprovedAssetC
     if "quality_unvalidated" in recommendation.reasons:
         print("  NOTE: quality was scored against cases derived from reference runs, not labelled ones.")
 
-    candidate = recommendation.materialize(reference, assets)
+    candidate = recommendation.materialize(reference=reference, assets=assets)
     print(f"  materialized candidate model: {candidate.chat_generator.model}")
     print(f"  reference model, unchanged:   {reference.chat_generator.model}")
     print("  Nothing was deployed. Approving this recommendation is a separate, human decision.")
@@ -376,7 +387,7 @@ def main() -> None:
 
     print("=== 1. reference harness ===")
     store = build_corpus()
-    cases = build_cases(store)[: arguments.max_cases]
+    cases = build_cases(store=store)[: arguments.max_cases]
     reference = build_reference_agent(store=store, model=arguments.reference_model)
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference.tools))
     print(f"  model={arguments.reference_model} tools={tool_names}")

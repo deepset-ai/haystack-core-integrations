@@ -127,6 +127,7 @@ class AdvancedRAGEvaluationCase:
     max_steps: int | None = None
 
     def __post_init__(self) -> None:
+        """Require retrieval labels unless the case expects no matching documents."""
         if not self.expect_absent and not self.expected_document_ids:
             msg = f"Case {self.question!r} needs expected_document_ids unless expect_absent is set."
             raise ValueError(msg)
