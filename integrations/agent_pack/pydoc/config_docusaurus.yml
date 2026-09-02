@@ -8,7 +8,7 @@ loaders:
       - haystack_integrations.agent_pack.advanced_rag.evaluation
       - haystack_integrations.agent_pack.advanced_rag.harness_evaluator
       - haystack_integrations.agent_pack.optimization.models
-      - haystack_integrations.agent_pack.optimization.recipes
+      - haystack_integrations.agent_pack.optimization.mutations
       - haystack_integrations.agent_pack.optimization.proposer
       - haystack_integrations.agent_pack.optimization.experiment
     search_path: [../src]

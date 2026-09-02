@@ -9,7 +9,7 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
     case_from_reference_run,
 )
-from haystack_integrations.agent_pack.optimization import ApprovedAssetCatalog, ModelAsset
+from haystack_integrations.agent_pack.optimization import ModelPrice, ModelPriceCatalog
 from haystack_integrations.agent_pack.runs import AgentRunRecord
 
 QUESTION = "What is CRISPR used for?"
@@ -64,15 +64,16 @@ def document():
 
 
 def catalog():
-    return ApprovedAssetCatalog(
-        models=[
-            ModelAsset(
+    """Create prices for all models attributed by the evaluator."""
+    return ModelPriceCatalog(
+        prices=[
+            ModelPrice(
                 model_id="cheap",
                 input_cost_per_million=2.0,
                 output_cost_per_million=4.0,
             ),
-            ModelAsset(model_id="reference", input_cost_per_million=10.0),
-            ModelAsset(model_id="backup", input_cost_per_million=3.0, output_cost_per_million=5.0),
+            ModelPrice(model_id="reference", input_cost_per_million=10.0),
+            ModelPrice(model_id="backup", input_cost_per_million=3.0, output_cost_per_million=5.0),
         ],
     )
 
@@ -83,15 +84,15 @@ def test_derives_grounding_parity_case_from_reference_run(document):
     assert case.expected_document_ids == frozenset({document.id})
 
 
-def test_evaluator_prices_the_run_from_the_approved_asset_catalog(document):
-    """Cost must come from the catalog the experiment gates against, not a second price table."""
+def test_evaluator_prices_the_run_from_the_price_catalog(document):
+    """Cost must come from the catalog the experiment ranks against, not a second price table."""
     case = AdvancedRAGEvaluationCase(
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("CRISPR",)
     )
     evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
 
     metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)]).price(
-        assets=catalog()
+        pricing=catalog()
     )
 
     assert metrics.quality == 1.0
@@ -112,20 +113,22 @@ def test_evaluator_includes_secondary_model_usage(document):
         cases=[AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))]
     )
     metrics = evaluator.evaluate(agent=BackupAgent(document), reference_runs=[reference_run(document=document)]).price(
-        assets=catalog()
+        pricing=catalog()
     )
 
     assert metrics.model_usage["backup"].input_tokens == 7
     assert metrics.cost == pytest.approx((100 * 2.0 + 20 * 4.0 + 7 * 3.0 + 2 * 5.0) / 1_000_000)
 
 
-def test_unpriced_models_fail_when_results_are_priced(document):
+def test_unpriced_models_are_reported_without_restricting_evaluation(document):
+    """Unknown model usage remains a valid measurement with unavailable cost."""
     evaluator = AdvancedRAGHarnessEvaluator(cases=[AdvancedRAGEvaluationCase(question=QUESTION, expect_absent=True)])
     metrics = evaluator.evaluate(
         agent=FakeAgent(document, model="unknown"), reference_runs=[reference_run(document=document)]
     )
-    with pytest.raises(ValueError, match="not in the approved asset catalog"):
-        metrics.price(assets=catalog())
+    priced = metrics.price(pricing=catalog())
+    assert priced.cost is None
+    assert priced.details["unpriced_models"] == ["unknown"]
 
 
 def test_derived_cases_are_reported_as_unvalidated(document):

@@ -10,8 +10,7 @@ The script:
 1. Builds an Advanced RAG agent over a small in-memory corpus. This is the agent being optimized: every candidate
    is a variant of it, and it is never modified.
 2. Records one successful input/output pair per evaluation question, writing compact run records to disk.
-3. Declares the asset catalog: which models a candidate may use, what they cost, and which configuration changes
-   are allowed. A proposal naming anything outside it fails validation.
+3. Declares known model prices. They help rank measured candidates but do not restrict what the optimizer may edit.
 4. Runs a `HarnessOptimizationExperiment`, whose optimizer Agent chooses one candidate, observes its measurement,
    and uses that evidence to choose the next until it stops or reaches the iteration budget.
 5. Prints the baseline, each candidate's measurements, the gates it missed, and the recommendation. Nothing is
@@ -50,13 +49,12 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     question_from_messages,
 )
 from haystack_integrations.agent_pack.optimization import (
-    ApprovedAssetCatalog,
     ExperimentJournal,
     ExperimentResult,
     HarnessOptimizationExperiment,
     HarnessOptimizerAgentProposer,
-    HarnessPatch,
-    ModelAsset,
+    ModelPrice,
+    ModelPriceCatalog,
     OptimizationObjectives,
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
@@ -171,7 +169,7 @@ def build_cases(store: InMemoryDocumentStore) -> list[AdvancedRAGEvaluationCase]
     ]
 
 
-def build_reference_agent(*, store: InMemoryDocumentStore, model: str) -> Agent:
+def build_reference_agent(store: InMemoryDocumentStore, model: str) -> Agent:
     """
     Build the agent to be optimized.
 
@@ -185,14 +183,14 @@ def build_reference_agent(*, store: InMemoryDocumentStore, model: str) -> Agent:
         llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
         # Passed explicitly so the whole harness runs the model this script chose. Left to its default, the agent
         # builds its backup-answer hook on a second model, which would then be priced as an unknown model. Note
-        # that a model substitution changes the coordinator generator only, so a candidate keeps this backup model;
-        # it costs nothing unless a run is cut off by `max_agent_steps`.
+        # that changing the coordinator's model path alone keeps this backup model; it costs nothing unless a run is
+        # cut off by `max_agent_steps`.
         backup_answer_llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
     )
 
 
 def capture_reference_runs(
-    *, agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore
+    agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore
 ) -> RunSelection:
     """
     Run the reference harness once per question and persist its inputs and outputs.
@@ -220,73 +218,48 @@ def capture_reference_runs(
     return RunSelection(run_ids=frozenset(selected_ids))
 
 
-#: Approved configuration changes. A patch reaches any init parameter of any component in the harness, addressing a
-#: tool by name, so one mechanism covers reasoning effort and a retriever's result count alike. The values are
-#: declared here rather than proposed, which is what stops an optimizer asking for a parameter a component rejects.
-HARNESS_PATCHES = [
-    HarnessPatch(
-        name="concise-system-prompt",
-        patch={
-            "system_prompt": (
-                "Answer from retrieved evidence only. Inspect metadata when it helps narrow retrieval, cite each "
-                "claim as [doc <8-char-id>], and say when the evidence is insufficient."
-            )
-        },
-        description="Use a shorter system prompt while preserving retrieval, grounding, and citation requirements.",
-    ),
-    HarnessPatch(
-        name="reasoning-medium",
-        patch={"chat_generator.init_parameters.generation_kwargs.reasoning.effort": "medium"},
-        description="Raise the coordinator's reasoning effort from low to medium.",
-    ),
-    HarnessPatch(
-        name="retrieval-top-10",
-        patch={"tools.search_documents.component.init_parameters.top_k": 10},
-        description="Retrieve ten documents per search instead of five.",
-    ),
-    HarnessPatch(
-        name="fewer-steps",
-        patch={"max_agent_steps": 6},
-        description="Cap the agent loop at six steps to bound cost and latency.",
-    ),
-]
-
-
-def build_catalog(*, models: tuple[str, ...]) -> ApprovedAssetCatalog:
+def build_pricing(models: tuple[str, ...]) -> ModelPriceCatalog:
     """
-    Declare which models and tools a candidate may use.
+    Declare currently known model prices without limiting optimizer choices.
 
-    The catalog is the only compliance control: a candidate configured with anything outside it is rejected while it
-    is being materialized and never executes.
-
-    :param models: Every model the catalog offers, the reference included.
-    :returns: The asset catalog.
+    :param models: Models whose measured token usage can currently be priced.
+    :returns: Informational pricing for the experiment.
     """
-    return ApprovedAssetCatalog(
-        models=[
-            ModelAsset(
+    return ModelPriceCatalog(
+        prices=[
+            ModelPrice(
                 model_id=model,
                 input_cost_per_million=MODEL_PRICES.get(model, (0.0, 0.0))[0],
                 output_cost_per_million=MODEL_PRICES.get(model, (0.0, 0.0))[1],
             )
             for model in models
+            if model in MODEL_PRICES
         ],
-        patches=HARNESS_PATCHES,
     )
 
 
-def report(*, result: ExperimentResult, reference: Agent, assets: ApprovedAssetCatalog) -> None:
+def format_cost(cost: float | None) -> str:
+    """
+    Format a measured cost that may be unavailable for an optimizer-selected model.
+
+    :param cost: The priced cost, or ``None`` when model pricing is unknown.
+    :returns: A display-safe cost.
+    """
+    return "unpriced" if cost is None else f"${cost:.6f}"
+
+
+def report(result: ExperimentResult, reference: Agent) -> None:
     """
     Print the experiment outcome.
 
     :param result: What the experiment measured.
     :param reference: The Agent being optimized, printed to show it was left unchanged.
-    :param assets: The asset catalog the recommendation is materialized against.
     """
     baseline = result.baseline
     print("\n--- baseline (reference harness) ---")
     print(
-        f"  quality={baseline.quality:.2f} cost=${baseline.cost:.6f} latency={baseline.latency_ms:.0f}ms "
+        f"  quality={baseline.quality:.2f} cost={format_cost(cost=baseline.cost)} "
+        f"latency={baseline.latency_ms:.0f}ms "
         f"model={baseline.details.get('model')}"
     )
     for case_metrics in baseline.details.get("cases", []):
@@ -297,11 +270,11 @@ def report(*, result: ExperimentResult, reference: Agent, assets: ApprovedAssetC
     for candidate in result.candidates:
         gates = result.gate_failures.get(candidate.candidate_id, ())
         if candidate.metrics is None:
-            print(f"  {candidate.recipe} -> failed: {candidate.failure}")
+            print(f"  {candidate.mutation} -> failed: {candidate.failure}")
             continue
         print(
-            f"  {candidate.recipe} -> quality={candidate.metrics.quality:.2f} "
-            f"cost=${candidate.metrics.cost:.6f} latency={candidate.metrics.latency_ms:.0f}ms"
+            f"  {candidate.mutation} -> quality={candidate.metrics.quality:.2f} "
+            f"cost={format_cost(cost=candidate.metrics.cost)} latency={candidate.metrics.latency_ms:.0f}ms"
         )
         print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
         for case_metrics in candidate.metrics.details.get("cases", []):
@@ -313,14 +286,16 @@ def report(*, result: ExperimentResult, reference: Agent, assets: ApprovedAssetC
         print("  none: no candidate cleared every gate and improved on the reference")
         return
     recommendation = result.recommendation
-    print(f"  recipe: {recommendation.evaluation.recipe}")
+    print(f"  mutation: {recommendation.evaluation.mutation}")
     print(f"  reasons: {', '.join(recommendation.reasons)}")
-    saving = baseline.cost - (recommendation.evaluation.metrics.cost if recommendation.evaluation.metrics else 0.0)
-    print(f"  cost saving on this evaluation set: ${saving:.6f}")
+    recommendation_metrics = recommendation.evaluation.metrics
+    if baseline.cost is not None and recommendation_metrics is not None and recommendation_metrics.cost is not None:
+        saving = baseline.cost - recommendation_metrics.cost
+        print(f"  cost saving on this evaluation set: ${saving:.6f}")
     if "quality_unvalidated" in recommendation.reasons:
         print("  NOTE: quality was scored against cases derived from reference runs, not labelled ones.")
 
-    candidate = recommendation.materialize(reference=reference, assets=assets)
+    candidate = recommendation.materialize(reference=reference)
     print(f"  materialized candidate model: {candidate.chat_generator.model}")
     print(f"  reference model, unchanged:   {reference.chat_generator.model}")
     print("  Nothing was deployed. Approving this recommendation is a separate, human decision.")
@@ -338,7 +313,7 @@ def parse_args() -> argparse.Namespace:
         "--candidate-model",
         action="append",
         dest="candidate_models",
-        help=f"Approved alternative model. Repeatable. Defaults to {', '.join(CANDIDATE_MODELS)}.",
+        help=f"Alternative model with known pricing. Repeatable. Defaults to {', '.join(CANDIDATE_MODELS)}.",
     )
     parser.add_argument(
         "--max-cases",
@@ -396,12 +371,10 @@ def main() -> None:
     run_store = LocalRunStore(directory=WORKSPACE / "runs")
     run_selection = capture_reference_runs(agent=reference, cases=cases, run_store=run_store)
 
-    print("\n=== 3. asset catalog ===")
-    assets = build_catalog(models=(arguments.reference_model, *candidate_models))
-    for asset in assets.models.values():
-        print(f"  model {asset.model_id}: in=${asset.input_cost_per_million}/M out=${asset.output_cost_per_million}/M")
-    for declared in assets.patches.values():
-        print(f"  patch {declared.name}: {declared.description}")
+    print("\n=== 3. known model prices (informational) ===")
+    pricing = build_pricing(models=(arguments.reference_model, *candidate_models))
+    for price in pricing.prices.values():
+        print(f"  model {price.model_id}: in=${price.input_cost_per_million}/M out=${price.output_cost_per_million}/M")
 
     print("\n=== 4. experiment ===")
     docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
@@ -409,7 +382,6 @@ def main() -> None:
         # The generator defaults to the pack's own choice, so the model being measured and the model doing the
         # proposing stay independent.
         optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
-        structured_output_key="text",
     )
     print("  proposer: iterative optimizer Agent with baseline and prior measurements")
 
@@ -417,7 +389,7 @@ def main() -> None:
         reference=reference,
         run_source=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(cases=cases, repetitions=arguments.repetitions),
-        assets=assets,
+        pricing=pricing,
         objectives=OptimizationObjectives(
             min_quality=arguments.min_quality,
             max_quality_loss=arguments.max_quality_loss,
@@ -435,7 +407,7 @@ def main() -> None:
     print(f"  configuration hash: {result.configuration_hash[:16]}")
 
     print("\n=== 5. outcome ===")
-    report(result=result, reference=reference, assets=assets)
+    report(result=result, reference=reference)
     print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (re-running resumes measured candidates)")
 
 

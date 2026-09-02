@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Assets, objectives, and raw measurements used by harness optimization."""
+"""Objectives, pricing context, and raw measurements used by harness optimization."""
 
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Literal
 
@@ -59,87 +58,31 @@ def generator_model_id(generator: Any) -> str | None:
 
 
 @dataclass(frozen=True, kw_only=True)
-class ModelAsset:
-    """An approved model deployment and the prices used when experiment results are ranked."""
+class ModelPrice:
+    """Informational token prices for one model deployment."""
 
     model_id: str
     input_cost_per_million: float = 0.0
     output_cost_per_million: float = 0.0
-    generator: dict[str, Any] | None = None
-
-    def substitution_patch(self, *, serialized_generator: dict[str, Any]) -> dict[str, Any]:
-        """Return the serialized Agent patch that selects this model."""
-        if self.generator is not None:
-            specification = deepcopy(self.generator)
-            if "type" not in specification:
-                msg = f"Model asset {self.model_id!r} declares a generator without a 'type'."
-                raise ValueError(msg)
-            declared = serialized_model_id(serialized_component=specification)
-            if declared != self.model_id:
-                msg = (
-                    f"Model asset {self.model_id!r} must declare a generator whose serialized model identifier "
-                    "matches the catalog identifier."
-                )
-                raise ValueError(msg)
-            return {"chat_generator": specification}
-
-        parameters = serialized_generator.get("init_parameters")
-        path = _model_id_path(init_parameters=parameters) if isinstance(parameters, Mapping) else None
-        if path is None:
-            msg = (
-                f"Model asset {self.model_id!r} needs an explicit generator because the reference generator does "
-                "not serialize a model identifier."
-            )
-            raise ValueError(msg)
-        return {".".join(("chat_generator", "init_parameters", *path)): self.model_id}
-
-    def identity(self) -> dict[str, Any]:
-        """Return everything that changes the candidate this asset materializes."""
-        return {"model_id": self.model_id, "generator": self.generator}
 
 
-@dataclass(frozen=True, kw_only=True)
-class HarnessPatch:
-    """A named, approved patch over an Agent's serialized initialization parameters."""
+class ModelPriceCatalog:
+    """Known prices used to explain choices and rank measured candidates."""
 
-    name: str
-    patch: dict[str, Any]
-    description: str | None = None
-
-    def identity(self) -> dict[str, Any]:
-        """Return everything that changes the candidate this patch materializes."""
-        return {"name": self.name, "patch": self.patch}
-
-
-class ApprovedAssetCatalog:
-    """Models and named configuration changes the optimizer may select."""
-
-    def __init__(self, *, models: list[ModelAsset], patches: list[HarnessPatch] | None = None) -> None:
-        """Create a catalog from unique model IDs and patch names."""
-        self.models = {asset.model_id: asset for asset in models}
-        self.patches = {declared.name: declared for declared in patches or []}
-        if len(self.models) != len(models):
-            msg = "Model asset IDs must be unique."
-            raise ValueError(msg)
-        if len(self.patches) != len(patches or []):
-            msg = "Patch names must be unique."
+    def __init__(self, prices: list[ModelPrice]) -> None:
+        """Create a catalog from unique model identifiers."""
+        self.prices = {price.model_id: price for price in prices}
+        if len(self.prices) != len(prices):
+            msg = "Model price identifiers must be unique."
             raise ValueError(msg)
 
-    def model(self, model_id: str) -> ModelAsset:
-        """Return an approved model or fail closed."""
-        try:
-            return self.models[model_id]
-        except KeyError as error:
-            msg = f"Model {model_id!r} is not in the approved asset catalog."
-            raise ValueError(msg) from error
+    def get(self, model_id: str) -> ModelPrice | None:
+        """Return known pricing for a model without restricting model selection."""
+        return self.prices.get(model_id)
 
-    def patch(self, name: str) -> HarnessPatch:
-        """Return an approved patch or fail closed."""
-        try:
-            return self.patches[name]
-        except KeyError as error:
-            msg = f"Patch {name!r} is not in the approved asset catalog."
-            raise ValueError(msg) from error
+    def to_dict(self) -> list[dict[str, Any]]:
+        """Return a JSON-compatible representation for the optimizer Agent."""
+        return [asdict(price) for price in self.prices.values()]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -152,7 +95,7 @@ class ModelTokenUsage:
 
 @dataclass(frozen=True, kw_only=True)
 class EvaluationMetrics:
-    """Quality, latency, and raw cost inputs measured for one harness."""
+    """Quality, latency, and raw cost inputs measured for one Agent configuration."""
 
     quality: float
     latency_ms: float
@@ -166,15 +109,20 @@ class EvaluationMetrics:
         """Return the pessimistic quality value used by hard gates."""
         return self.quality if self.quality_lower_bound is None else self.quality_lower_bound
 
-    def price(self, assets: ApprovedAssetCatalog) -> "EvaluationMetrics":
-        """Return metrics with current catalog prices applied to raw model usage."""
+    def price(self, pricing: ModelPriceCatalog) -> "EvaluationMetrics":
+        """Apply known prices to raw usage, leaving unknown model usage explicitly unpriced."""
         if self.cost is not None:
             return self
+        unknown = sorted(model_id for model_id in self.model_usage if pricing.get(model_id=model_id) is None)
+        if unknown:
+            return replace(self, cost=None, details={**self.details, "unpriced_models": unknown})
         total = 0.0
         for model_id, usage in self.model_usage.items():
-            asset = assets.model(model_id=model_id)
+            price = pricing.get(model_id=model_id)
+            if price is None:
+                continue
             total += (
-                usage.input_tokens * asset.input_cost_per_million + usage.output_tokens * asset.output_cost_per_million
+                usage.input_tokens * price.input_cost_per_million + usage.output_tokens * price.output_cost_per_million
             ) / 1_000_000
         return replace(self, cost=total)
 
@@ -218,11 +166,11 @@ class OptimizationObjectives:
 
 
 __all__ = [
-    "ApprovedAssetCatalog",
     "EvaluationMetrics",
-    "HarnessPatch",
-    "ModelAsset",
+    "ModelPrice",
+    "ModelPriceCatalog",
     "ModelTokenUsage",
     "OptimizationObjectives",
     "generator_model_id",
+    "serialized_model_id",
 ]

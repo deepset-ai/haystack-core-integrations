@@ -8,11 +8,12 @@ from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_ag
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.optimization import (
-    ApprovedAssetCatalog,
+    AgentMutation,
     ExperimentJournal,
     HarnessOptimizationExperiment,
-    ModelAsset,
-    ModelSubstitutionRecipe,
+    ModelPrice,
+    ModelPriceCatalog,
+    MutationOperation,
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.runs import AgentRunRecorder, LocalRunStore
@@ -20,15 +21,20 @@ from haystack_integrations.agent_pack.runs import AgentRunRecorder, LocalRunStor
 QUESTION = "What is CRISPR used for?"
 
 
-class TryCheapModel:
-    def __init__(self):
+class ProposeOnce:
+    """Return one arbitrary configuration mutation and then stop."""
+
+    def __init__(self, mutation):
+        """Store the sole mutation."""
+        self.mutation = mutation
         self.proposed = False
 
     def propose(self, **kwargs):  # noqa: ARG002
+        """Return the stored mutation at most once."""
         if self.proposed:
             return None
         self.proposed = True
-        return ModelSubstitutionRecipe(model_id="cheap")
+        return self.mutation
 
 
 def scripted_agent(store, document, model):
@@ -60,14 +66,14 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     run_store = LocalRunStore()
     AgentRunRecorder(store=run_store).run(agent=reference, messages=[ChatMessage.from_user(text=QUESTION)])
 
-    assets = ApprovedAssetCatalog(
-        models=[
-            ModelAsset(
+    pricing = ModelPriceCatalog(
+        prices=[
+            ModelPrice(
                 model_id="reference",
                 input_cost_per_million=10,
                 output_cost_per_million=20,
             ),
-            ModelAsset(
+            ModelPrice(
                 model_id="cheap",
                 input_cost_per_million=1,
                 output_cost_per_million=2,
@@ -87,24 +93,34 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
         reference=reference,
         run_source=run_store,
         evaluator=evaluator,
-        assets=assets,
+        pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(path=tmp_path / "advanced-rag-experiment.jsonl"),
-        proposer=TryCheapModel(),
+        proposer=ProposeOnce(
+            mutation=AgentMutation(
+                operations=(
+                    MutationOperation(
+                        op="set",
+                        path="/init_parameters/chat_generator/init_parameters/model",
+                        value="cheap",
+                    ),
+                )
+            )
+        ),
     )
 
     result = experiment.run()
 
     assert result.baseline.quality == 1.0
     assert result.recommendation is not None
-    assert result.recommendation.evaluation.recipe == {"kind": "model_substitution", "model_id": "cheap"}
+    assert result.recommendation.evaluation.mutation["operations"][0]["value"] == "cheap"
     # Scored once per case, so the recommendation says so.
     assert result.recommendation.reasons == ("single_sample", "cost_improvement")
     assert result.recommendation.evaluation.metrics.quality == 1.0
     assert result.recommendation.evaluation.metrics.cost < result.baseline.cost
     assert result.recommendation.evaluation.metrics.details["validated"] is True
 
-    approved = result.recommendation.materialize(reference, assets)
+    approved = result.recommendation.materialize(reference=reference)
     assert approved.chat_generator.model == "cheap"
     assert reference.chat_generator.model == "reference"
 
@@ -119,23 +135,10 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     run_store = LocalRunStore()
     AgentRunRecorder(store=run_store).run(agent=reference, messages=[ChatMessage.from_user(text=QUESTION)])
 
-    assets = ApprovedAssetCatalog(
-        models=[
-            ModelAsset(model_id="reference", input_cost_per_million=10),
-            ModelAsset(
-                model_id="cheap",
-                input_cost_per_million=1,
-                # The cheap deployment answers without retrieving or citing anything.
-                generator={
-                    "type": "haystack.components.generators.chat.mock.MockChatGenerator",
-                    "init_parameters": {
-                        "model": "cheap",
-                        "responses": [ChatMessage.from_assistant("CRISPR treats blindness.").to_dict()],
-                        "meta": {"usage": {"input_tokens": 10, "output_tokens": 5}},
-                    },
-                },
-            ),
-        ],
+    pricing = ModelPriceCatalog(
+        prices=[
+            ModelPrice(model_id="reference", input_cost_per_million=10),
+        ]
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
@@ -149,10 +152,14 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
                 )
             ]
         ),
-        assets=assets,
+        pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
-        proposer=TryCheapModel(),
+        proposer=ProposeOnce(
+            mutation=AgentMutation(
+                operations=(MutationOperation(op="set", path="/init_parameters/max_agent_steps", value=1),)
+            )
+        ),
     )
 
     result = experiment.run()
@@ -162,4 +169,4 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     candidate = result.candidates[0]
     assert candidate.metrics.quality == 0.0
     assert result.gate_failures[candidate.candidate_id] == ("quality_below_floor:1.0000",)
-    assert "metadata_not_inspected_first" in candidate.metrics.details["cases"][0]["failures"]
+    assert "recall_below_1" in candidate.metrics.details["cases"][0]["failures"]

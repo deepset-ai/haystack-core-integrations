@@ -81,7 +81,7 @@ class BackupAnswerHook:
         :param state: The agent run's state.
         """
         messages = state.data.get("messages") or []
-        if not self._needs_backup(messages):
+        if not self._needs_backup(messages=messages):
             return
         logger.info("run ended without a final answer (likely max_agent_steps); writing a backup answer")
         transcript = [m for m in messages if not m.is_from(ChatRole.SYSTEM)]

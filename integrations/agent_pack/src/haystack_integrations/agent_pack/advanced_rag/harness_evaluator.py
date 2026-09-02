@@ -166,7 +166,7 @@ class AdvancedRAGHarnessEvaluator:
                 started = time.perf_counter()
                 result = agent.run(messages=messages)
                 latency_ms = (time.perf_counter() - started) * 1000
-                attempt.append(score_advanced_rag_result(result, case, latency_ms=latency_ms))
+                attempt.append(score_advanced_rag_result(result=result, case=case, latency_ms=latency_ms))
                 for model, usage in (result.get("additional_model_usage") or {}).items():
                     current = additional_usage.get(model, ModelTokenUsage())
                     additional_usage[model] = ModelTokenUsage(

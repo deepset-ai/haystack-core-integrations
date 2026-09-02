@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Experimental harness-optimization APIs for Agent Pack.
+Experimental Agent-configuration optimization APIs for Agent Pack.
 
-Given a reference `Agent`, recorded inputs and outputs of successful runs, approved models and configuration changes,
-and optimization objectives, a `HarnessOptimizationExperiment` lets an optimizer Agent choose a candidate, observe
-its measurements, and refine its next choice. It recommends the cheapest or fastest candidate that clears the gate.
-Nothing is promoted or deployed automatically: an experiment returns a recommendation for a human to approve.
+Given a reference `Agent`, successful run inputs and outputs, informational model prices, and optimization objectives,
+a `HarnessOptimizationExperiment` lets an optimizer Agent edit the full serialized configuration, observe each
+measurement, and refine its next choice. Nothing is promoted or deployed automatically.
 
 This API is experimental and may change without a deprecation period.
 """
@@ -22,30 +21,29 @@ from haystack_integrations.agent_pack.optimization.experiment import (
     HarnessOptimizationExperiment,
 )
 from haystack_integrations.agent_pack.optimization.models import (
-    ApprovedAssetCatalog,
     EvaluationMetrics,
-    HarnessPatch,
-    ModelAsset,
+    ModelPrice,
+    ModelPriceCatalog,
     ModelTokenUsage,
     OptimizationObjectives,
 )
+from haystack_integrations.agent_pack.optimization.mutations import (
+    AgentMutation,
+    MutationOperation,
+    OptimizerDecision,
+    apply_mutation,
+    materialize_mutation,
+)
 from haystack_integrations.agent_pack.optimization.proposer import (
     HarnessOptimizerAgentProposer,
-    RecipeProposer,
+    MutationProposer,
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
-from haystack_integrations.agent_pack.optimization.recipes import (
-    ApplyPatchRecipe,
-    CandidateRecipe,
-    ModelSubstitutionRecipe,
-)
 
 __all__ = [
-    "ApplyPatchRecipe",
-    "ApprovedAssetCatalog",
+    "AgentMutation",
     "CandidateEvaluation",
-    "CandidateRecipe",
     "EvaluationMetrics",
     "ExperimentJournal",
     "ExperimentRecommendation",
@@ -53,12 +51,15 @@ __all__ = [
     "HarnessEvaluator",
     "HarnessOptimizationExperiment",
     "HarnessOptimizerAgentProposer",
-    "HarnessPatch",
-    "ModelAsset",
-    "ModelSubstitutionRecipe",
+    "ModelPrice",
+    "ModelPriceCatalog",
     "ModelTokenUsage",
+    "MutationOperation",
+    "MutationProposer",
     "OptimizationObjectives",
-    "RecipeProposer",
+    "OptimizerDecision",
+    "apply_mutation",
     "create_harness_optimizer_agent",
     "create_haystack_documentation_mcp_toolset",
+    "materialize_mutation",
 ]
