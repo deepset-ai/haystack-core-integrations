@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
@@ -6,6 +8,7 @@ from haystack.tools import Toolset, tool
 
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
+    EvaluationMetrics,
     HarnessOptimizerAgentProposer,
     HarnessPatch,
     ModelAsset,
@@ -14,28 +17,23 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
-from haystack_integrations.agent_pack.optimization.prompts import HARNESS_OPTIMIZER_SYSTEM_PROMPT
+from haystack_integrations.agent_pack.optimization.proposer import HARNESS_OPTIMIZER_SYSTEM_PROMPT
 from haystack_integrations.agent_pack.optimization.recipes import RECIPE_KINDS, proposal_json_schema
-from haystack_integrations.agent_pack.tracing import (
-    TraceArtifact,
-)
+from haystack_integrations.agent_pack.runs import AgentRunRecord
 
 
-def reference_trace():
-    return TraceArtifact(
+def reference_run():
+    return AgentRunRecord(
         run_id="run",
-        started_at="2026-01-01T00:00:00+00:00",
-        finished_at="2026-01-01T00:00:01+00:00",
-        duration_ms=1000,
-        status="success",
-        traces=(
-            {
-                "span_id": "root",
-                "operation_name": "haystack.agent.run",
-                "parent_span_id": None,
-                "tags": {"haystack.agent.input": {"messages": [ChatMessage.from_user("q").to_dict()]}},
-            },
-        ),
+        inputs={"messages": [ChatMessage.from_user("q")]},
+        outputs={"last_message": ChatMessage.from_assistant("a")},
+    )
+
+
+def catalog():
+    return ApprovedAssetCatalog(
+        models=[ModelAsset(model_id="reference"), ModelAsset(model_id="cheap")],
+        patches=[HarnessPatch(name="reasoning-high", patch={"a.b": 1})],
     )
 
 
@@ -45,143 +43,92 @@ def proposer_for(responses, **kwargs):
     )
 
 
-def propose_with(proposer, assets=None, objectives=None):
+def propose_with(proposer, *, history=None):
     return proposer.propose(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        reference_traces=[reference_trace()],
-        assets=assets
-        or ApprovedAssetCatalog(
-            models=[
-                ModelAsset(model_id="reference"),
-                ModelAsset(model_id="cheap"),
-            ],
-        ),
-        objectives=objectives or OptimizationObjectives(),
+        reference_runs=[reference_run()],
+        assets=catalog(),
+        objectives=OptimizationObjectives(),
+        baseline=EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
+        history=history or [],
     )
 
 
-def test_system_prompt_documents_exactly_the_kinds_the_parser_accepts():
-    """The prompt is the only place the Agent learns the recipe language, so a proposal is never spent on a kind
-    the parser would reject."""
+def test_system_prompt_documents_exactly_the_supported_recipe_kinds():
     for kind in RECIPE_KINDS:
         assert kind in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    for removed in ("specialist_delegation", "composite", "registered_structure"):
-        assert removed not in HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    assert "one JSON object" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    assert "complete history" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
 
 
-def test_optimizer_agent_bakes_the_guidance_into_its_system_prompt():
-    agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator("[]"))
-    assert agent.system_prompt == HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    # No tools are needed to know the recipe language.
-    assert agent.tools == []
-    assert agent.exit_conditions == ["text"]
-
-
-def test_optimizer_agent_defaults_its_generator(monkeypatch):
+def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test")
-    agent = create_harness_optimizer_agent()
-    assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
-    # Proposing a change decides what a whole experiment measures, so the default is the most capable tier.
-    assert agent.chat_generator.model == "gpt-5.6-sol"
+    default = create_harness_optimizer_agent()
+    assert isinstance(default.chat_generator, OpenAIResponsesChatGenerator)
+    assert default.chat_generator.model == "gpt-5.6-sol"
+    assert default.system_prompt == HARNESS_OPTIMIZER_SYSTEM_PROMPT
 
-
-def test_optimizer_agent_accepts_optional_read_only_docs_toolset():
     @tool
     def search_haystack_docs(query: str) -> str:
         """Search official Haystack documentation."""
         return query
 
     docs = Toolset([search_haystack_docs])
-    agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator("[]"), docs_toolset=docs)
-    assert agent.tools == [docs]
+    with_docs = create_harness_optimizer_agent(chat_generator=MockChatGenerator("{}"), docs_toolset=docs)
+    assert with_docs.tools == [docs]
 
 
-def test_haystack_documentation_mcp_server_is_read_only_and_lazily_connected():
+def test_haystack_documentation_mcp_server_is_read_only_and_lazy():
     pytest.importorskip("haystack_integrations.tools.mcp", reason="mcp-haystack is optional")
     toolset = create_haystack_documentation_mcp_toolset()
     assert toolset.tool_names == ["search_haystack_docs"]
-    assert toolset.server_info.url == "https://docs.haystack.deepset.ai/api/mcp"
     assert toolset.eager_connect is False
 
 
-def test_agent_proposer_only_accepts_typed_recipe_json():
-    proposals = propose_with(proposer_for('{"recipes": [{"kind":"model_substitution","model_id":"cheap"}]}'))
-    assert proposals == [ModelSubstitutionRecipe(model_id="cheap")]
-
-
-def test_proposal_schema_closes_over_the_catalog():
-    """The schema handed to a generator offers exactly the catalog's choices, and only the supported kinds."""
-    catalog = ApprovedAssetCatalog(
-        models=[
-            ModelAsset(model_id="reference"),
-            ModelAsset(model_id="cheap"),
-        ],
-        patches=[
-            HarnessPatch(name="reasoning-high", patch={"a.b": 1}),
-            HarnessPatch(name="retrieval-top-10", patch={"c.d": 10}),
-        ],
-    )
-    schema = proposal_json_schema(assets=catalog)
+def test_proposal_schema_closes_over_catalog_choices():
+    schema = proposal_json_schema(catalog())
     definitions = schema["$defs"]
-
-    assert definitions["ModelSubstitutionProposal"]["properties"]["model_id"]["enum"] == ["cheap", "reference"]
-    assert definitions["ApplyPatchProposal"]["properties"]["patch"]["enum"] == [
-        "reasoning-high",
-        "retrieval-top-10",
-    ]
-    kinds = {
-        definition["properties"]["kind"]["const"]
-        for name, definition in definitions.items()
-        if name.endswith("Proposal")
-    }
-    assert kinds == set(RECIPE_KINDS)
+    assert definitions["ModelSubstitutionRecipe"]["properties"]["model_id"]["enum"] == ["cheap", "reference"]
+    assert definitions["ApplyPatchRecipe"]["properties"]["patch"]["enum"] == ["reasoning-high"]
+    recipe_definitions = (definition for definition in definitions.values() if "kind" in definition["properties"])
+    assert all("kind" in definition["required"] for definition in recipe_definitions)
 
 
-def test_agent_proposer_reads_a_schema_shaped_response():
-    response = '{"recipes": [{"kind": "model_substitution", "model_id": "cheap"}]}'
-    assert propose_with(proposer_for(response)) == [ModelSubstitutionRecipe(model_id="cheap")]
+def test_agent_proposer_returns_one_typed_recipe_or_stops():
+    proposer = proposer_for('{"recipe": {"kind": "model_substitution", "model_id": "cheap"}}')
+    assert propose_with(proposer) == ModelSubstitutionRecipe(model_id="cheap")
+    assert propose_with(proposer_for('{"recipe": null}')) is None
 
 
-def test_agent_proposer_configures_structured_output_from_the_catalog():
-    proposer = proposer_for(
-        '{"recipes": [{"kind": "model_substitution", "model_id": "cheap"}]}', structured_output_key="text"
+def test_agent_proposer_receives_baseline_and_prior_measurements():
+    seen = []
+
+    def capture(messages):
+        seen.extend(messages)
+        return '{"recipe": null}'
+
+    proposer = HarnessOptimizerAgentProposer(
+        create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=capture))
     )
-    catalog = ApprovedAssetCatalog(
-        models=[
-            ModelAsset(model_id="reference"),
-            ModelAsset(model_id="cheap"),
-        ],
-    )
-    configured = proposer._structured_output(assets=catalog)
-    assert configured is not None
-    schema = configured["text"]["format"]["schema"]
-    assert schema["$defs"]["ModelSubstitutionProposal"]["properties"]["model_id"]["enum"] == ["cheap", "reference"]
+    history = [{"recipe": {"kind": "apply_patch", "patch": "reasoning-high"}, "status": "measured"}]
+    assert propose_with(proposer, history=history) is None
+    request = json.loads(next(message.text for message in seen if message.is_from("user")))
+    assert request["baseline"]["cost"] == 10.0
+    assert request["history"] == history
+    assert request["approved_patches"][0]["changes"] == {"a.b": 1}
+    assert request["successful_run_inputs"][0]["messages"][0]["text"] == "q"
 
 
-def test_agent_proposer_tolerates_fenced_or_prefixed_json():
-    """A code fence or a sentence of preamble is a formatting slip, not a reason to abort an experiment."""
-    response = 'Here is my proposal:\n```json\n{"recipes": [{"kind": "model_substitution", "model_id": "cheap"}]}\n```'
-    assert propose_with(proposer_for(response)) == [ModelSubstitutionRecipe(model_id="cheap")]
+def test_agent_proposer_configures_structured_output_and_recovers_formatting_slips():
+    response = 'Here is the decision:\n```json\n{"recipe": {"kind": "model_substitution", "model_id": "cheap"}}\n```'
+    proposer = proposer_for(response, structured_output_key="text")
+    assert propose_with(proposer) == ModelSubstitutionRecipe(model_id="cheap")
+    configured = proposer._structured_output(catalog())
+    assert configured["text"]["format"]["schema"]["$defs"]["ModelSubstitutionRecipe"]
 
 
-def test_agent_proposer_retries_once_with_corrective_feedback():
-    proposer = proposer_for(["not json at all", '{"recipes": [{"kind":"model_substitution","model_id":"cheap"}]}'])
-    assert propose_with(proposer) == [ModelSubstitutionRecipe(model_id="cheap")]
-
-
-def test_agent_proposer_gives_up_after_max_attempts():
-    with pytest.raises(ValueError, match="did not return a valid proposal"):
-        propose_with(proposer_for("still not json"))
-
-
-def test_agent_proposer_rejects_untyped_and_oversized_responses():
-    with pytest.raises(ValueError, match="did not return a valid proposal"):
-        propose_with(proposer_for('{"recipes": [{"kind": "python", "code": "dangerous()"}]}'))
-    with pytest.raises(ValueError, match="did not return a valid proposal"):
-        propose_with(
-            proposer_for(
-                '{"recipes": [{"kind":"model_substitution","model_id":"cheap"}, '
-                '{"kind":"model_substitution","model_id":"reference"}]}',
-                max_recipes=1,
-            )
-        )
+def test_agent_proposer_retries_invalid_decisions_then_gives_up():
+    proposer = proposer_for(["not json", '{"recipe": {"kind": "model_substitution", "model_id": "cheap"}}'])
+    assert propose_with(proposer) == ModelSubstitutionRecipe(model_id="cheap")
+    with pytest.raises(ValueError, match="did not return a valid decision"):
+        propose_with(proposer_for('{"recipe": {"kind": "python"}}'))

@@ -135,68 +135,72 @@ def test_a_harness_that_does_not_serialize_cannot_be_changed():
         SystemPromptRecipe(system_prompt="try this"),
         ModelSubstitutionRecipe(model_id="cheaper"),
     ):
-        with pytest.raises(ValueError, match="does not serialize, so it cannot be changed"):
+        with pytest.raises(ValueError, match="cannot be serialized and optimized"):
             recipe.materialize(reference=reference, assets=assets())
 
 
 def test_an_empty_prompt_is_rejected():
-    with pytest.raises(ValueError, match="non-empty prompt"):
+    with pytest.raises(ValueError, match="replacement system prompt cannot be empty"):
         SystemPromptRecipe(system_prompt="   ")
 
 
 def test_fingerprints_are_stable_for_equivalent_recipes():
     first = SystemPromptRecipe(system_prompt="candidate prompt")
     second = SystemPromptRecipe(system_prompt="candidate prompt")
-    assert recipe_fingerprint(recipe=first) == recipe_fingerprint(recipe=second)
-    assert recipe_fingerprint(recipe=ApplyPatchRecipe(patch="reasoning-high")) != recipe_fingerprint(
-        recipe=ApplyPatchRecipe(patch="retrieval-top-3")
+    assert recipe_fingerprint(recipe=first, assets=assets()) == recipe_fingerprint(recipe=second, assets=assets())
+    assert recipe_fingerprint(recipe=ApplyPatchRecipe(patch="reasoning-high"), assets=assets()) != recipe_fingerprint(
+        recipe=ApplyPatchRecipe(patch="retrieval-top-3"), assets=assets()
     )
 
 
 def test_proposals_are_validated_against_the_catalog():
     """The catalog is the compliance boundary: an unapproved choice cannot survive validation."""
-    recipes = parse_proposal(
-        payload={
-            "recipes": [
-                {"kind": "model_substitution", "model_id": "cheaper"},
-                {"kind": "apply_patch", "patch": "reasoning-high"},
-                {"kind": "system_prompt", "system_prompt": "try this"},
-            ]
-        },
-        assets=assets(),
-    )
-    assert recipes == [
-        ModelSubstitutionRecipe(model_id="cheaper"),
-        ApplyPatchRecipe(patch="reasoning-high"),
-        SystemPromptRecipe(system_prompt="try this"),
-    ]
+    assert parse_proposal(
+        payload={"recipe": {"kind": "model_substitution", "model_id": "cheaper"}}, assets=assets()
+    ) == ModelSubstitutionRecipe(model_id="cheaper")
 
 
 @pytest.mark.parametrize(
-    "payload",
+    "payload,error",
     [
-        pytest.param({"recipes": [{"kind": "python", "code": "dangerous()"}]}, id="unknown-kind"),
-        pytest.param({"recipes": [{"kind": "model_substitution", "model_id": "unapproved"}]}, id="unapproved-model"),
-        pytest.param({"recipes": [{"kind": "apply_patch", "patch": "unapproved"}]}, id="unapproved-patch"),
-        pytest.param({"recipes": [{"kind": "system_prompt", "system_prompt": ""}]}, id="empty-prompt"),
+        pytest.param({"recipe": {"kind": "python", "code": "dangerous()"}}, ValidationError, id="unknown-kind"),
         pytest.param(
-            {"recipes": [{"kind": "model_substitution", "model_id": "cheaper", "extra": 1}]}, id="unexpected-field"
+            {"recipe": {"kind": "model_substitution", "model_id": "unapproved"}}, ValueError, id="unapproved-model"
         ),
-        pytest.param({"recipes": [{"kind": "tool_selection", "tool_names": ["x"]}]}, id="removed-kind"),
-        pytest.param({"recipes": [{"kind": "apply_patch", "patch": {"some.path": 1}}]}, id="optimizer-authored-patch"),
+        pytest.param({"recipe": {"kind": "apply_patch", "patch": "unapproved"}}, ValueError, id="unapproved-patch"),
+        pytest.param({"recipe": {"kind": "system_prompt", "system_prompt": ""}}, ValidationError, id="empty-prompt"),
+        pytest.param(
+            {"recipe": {"kind": "model_substitution", "model_id": "cheaper", "extra": 1}},
+            ValidationError,
+            id="unexpected-field",
+        ),
+        pytest.param({"recipe": {"kind": "tool_selection", "tool_names": ["x"]}}, ValidationError, id="removed-kind"),
+        pytest.param(
+            {"recipe": {"kind": "apply_patch", "patch": {"some.path": 1}}},
+            ValidationError,
+            id="optimizer-authored-patch",
+        ),
     ],
 )
-def test_invalid_proposals_are_rejected(payload):
-    with pytest.raises(ValidationError):
+def test_invalid_proposals_are_rejected(payload, error):
+    with pytest.raises(error):
         parse_proposal(payload=payload, assets=assets())
-
-
-def test_too_many_proposals_are_rejected():
-    payload = {"recipes": [{"kind": "model_substitution", "model_id": "cheaper"}] * 3}
-    with pytest.raises(ValidationError):
-        parse_proposal(payload=payload, assets=assets(), max_recipes=2)
 
 
 def test_an_empty_proposal_is_valid():
     """Having nothing worth trying is a legitimate answer, not a malformed one."""
-    assert parse_proposal(payload={"recipes": []}, assets=assets()) == []
+    assert parse_proposal(payload={"recipe": None}, assets=assets()) is None
+
+
+def test_fingerprint_changes_when_a_named_patch_definition_changes():
+    recipe = ApplyPatchRecipe(patch="same")
+    first = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 2})])
+    second = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 3})])
+    assert recipe_fingerprint(recipe, first) != recipe_fingerprint(recipe, second)
+
+
+def test_patch_description_does_not_invalidate_a_measurement():
+    recipe = ApplyPatchRecipe(patch="same")
+    first = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 2}, description="first wording")])
+    second = assets(patches=[HarnessPatch(name="same", patch={"max_agent_steps": 2}, description="clearer wording")])
+    assert recipe_fingerprint(recipe, first) == recipe_fingerprint(recipe, second)

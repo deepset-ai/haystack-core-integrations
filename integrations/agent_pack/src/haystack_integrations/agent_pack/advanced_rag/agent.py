@@ -106,8 +106,8 @@ def create_advanced_rag_agent(
         is bounded by the `top_k` configured on your retrieval components.
     :param extra_tools: Additional tools (or toolsets) for the agent, appended after the built-in document-store
         toolset and the retrieval tool.
-    :param state_schema: Additional entries merged into the agent's state schema. The built-in `documents` entry
-        (the accumulated retrieved documents) always takes precedence.
+    :param state_schema: Additional entries merged into the agent's state schema. The built-in `documents` and
+        `additional_model_usage` entries always take precedence.
     :param hooks: Additional hooks per hook point, merged with the built-in hooks. For `after_run`, the built-in
         backup-answer hook runs first, so custom hooks see the final answer.
     :param raise_on_tool_invocation_failure: If True, a failing tool call raises instead of being returned to the LLM
@@ -117,7 +117,8 @@ def create_advanced_rag_agent(
         `agent.run(messages=[ChatMessage.from_user(question)])`; the answer is in `last_message` (a `ChatMessage`) and
         `documents` carries every document the agent retrieved during the run (deduplicated by id, in first-retrieved
         order) — the answer cites them by the first 8 characters of their id, e.g. `[doc a1b2c3d4]`. The standard Agent
-        outputs `messages`, `step_count`, `token_usage` and `tool_call_counts` are also returned.
+        outputs `messages`, `step_count`, `token_usage` and `tool_call_counts` are also returned. If the backup-answer
+        LLM runs, its token usage is returned separately in `additional_model_usage`.
     """
     if system_prompt is None:
         # Only the default system prompt requires the `{% now %}` Jinja tag (and thus `arrow`).
@@ -163,7 +164,11 @@ def create_advanced_rag_agent(
         tools=tools,
         exit_conditions=["text"],
         max_agent_steps=max_agent_steps,
-        state_schema={**(state_schema or {}), "documents": {"type": list[Document]}},
+        state_schema={
+            **(state_schema or {}),
+            "documents": {"type": list[Document]},
+            "additional_model_usage": {"type": dict[str, dict[str, int]]},
+        },
         hooks=merged_hooks,
         raise_on_tool_invocation_failure=raise_on_tool_invocation_failure,
         tool_concurrency_limit=tool_concurrency_limit,

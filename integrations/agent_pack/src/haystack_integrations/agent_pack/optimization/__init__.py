@@ -5,29 +5,33 @@
 """
 Experimental harness-optimization APIs for Agent Pack.
 
-Given a reference `Agent`, locally captured traces of successful runs, a catalog of the models and configuration
-changes a candidate is allowed to use, and optimization objectives, a `HarnessOptimizationExperiment` evaluates a
-closed set of typed transformations and recommends the cheapest or fastest candidate that clears the quality gate.
+Given a reference `Agent`, recorded inputs and outputs of successful runs, approved models and configuration changes,
+and optimization objectives, a `HarnessOptimizationExperiment` lets an optimizer Agent choose a candidate, observe
+its measurements, and refine its next choice. It recommends the cheapest or fastest candidate that clears the gate.
 Nothing is promoted or deployed automatically: an experiment returns a recommendation for a human to approve.
 
 This API is experimental and may change without a deprecation period.
 """
 
-from haystack_integrations.agent_pack.optimization.assets import ApprovedAssetCatalog, HarnessPatch, ModelAsset
 from haystack_integrations.agent_pack.optimization.experiment import (
-    ApprovedModelRecipeProposer,
     CandidateEvaluation,
-    EvaluationMetrics,
     ExperimentJournal,
     ExperimentRecommendation,
     ExperimentResult,
     HarnessEvaluator,
     HarnessOptimizationExperiment,
-    HarnessOptimizerAgentProposer,
-    OptimizationObjectives,
-    RecipeProposer,
 )
-from haystack_integrations.agent_pack.optimization.optimizer_agent import (
+from haystack_integrations.agent_pack.optimization.models import (
+    ApprovedAssetCatalog,
+    EvaluationMetrics,
+    HarnessPatch,
+    ModelAsset,
+    ModelTokenUsage,
+    OptimizationObjectives,
+)
+from haystack_integrations.agent_pack.optimization.proposer import (
+    HarnessOptimizerAgentProposer,
+    RecipeProposer,
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
@@ -41,7 +45,6 @@ from haystack_integrations.agent_pack.optimization.recipes import (
 __all__ = [
     "ApplyPatchRecipe",
     "ApprovedAssetCatalog",
-    "ApprovedModelRecipeProposer",
     "CandidateEvaluation",
     "CandidateRecipe",
     "EvaluationMetrics",
@@ -54,6 +57,7 @@ __all__ = [
     "HarnessPatch",
     "ModelAsset",
     "ModelSubstitutionRecipe",
+    "ModelTokenUsage",
     "OptimizationObjectives",
     "RecipeProposer",
     "SystemPromptRecipe",

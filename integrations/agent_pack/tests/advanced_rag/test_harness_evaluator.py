@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -8,10 +7,10 @@ from haystack.dataclasses import ChatMessage, ToolCall
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
-    case_from_reference_trace,
+    case_from_reference_run,
 )
 from haystack_integrations.agent_pack.optimization import ApprovedAssetCatalog, ModelAsset
-from haystack_integrations.agent_pack.tracing import TraceArtifact
+from haystack_integrations.agent_pack.runs import AgentRunRecord
 
 QUESTION = "What is CRISPR used for?"
 
@@ -35,32 +34,11 @@ def successful_result(document):
     }
 
 
-def reference_trace(document):
-    now = datetime.now(tz=timezone.utc).isoformat()
-    return TraceArtifact(
+def reference_run(document):
+    return AgentRunRecord(
         run_id="rag-reference",
-        started_at=now,
-        finished_at=now,
-        duration_ms=10,
-        status="success",
-        traces=(
-            {
-                "span_id": "root",
-                "parent_span_id": None,
-                "operation_name": "haystack.agent.run",
-                "component": None,
-                "start_time": now,
-                "end_time": now,
-                "duration_ms": 10,
-                "tags": {
-                    "haystack.agent.input": {"messages": [ChatMessage.from_user(QUESTION).to_dict()]},
-                    "haystack.agent.output": {
-                        "last_message": ChatMessage.from_assistant("reference").to_dict(),
-                        "documents": [document.to_dict()],
-                    },
-                },
-            },
-        ),
+        inputs={"messages": [ChatMessage.from_user(QUESTION)]},
+        outputs={"last_message": ChatMessage.from_assistant("reference"), "documents": [document]},
     )
 
 
@@ -69,11 +47,15 @@ class FakeAgent:
         self.document = document
         self.chat_generator = SimpleNamespace(model=model)
         self.runs = 0
+        self.warmups = 0
 
     def run(self, **kwargs):
         assert kwargs["messages"][0].text == QUESTION
         self.runs += 1
         return successful_result(self.document)
+
+    def warm_up(self):
+        self.warmups += 1
 
 
 @pytest.fixture
@@ -90,12 +72,13 @@ def catalog():
                 output_cost_per_million=4.0,
             ),
             ModelAsset(model_id="reference", input_cost_per_million=10.0),
+            ModelAsset(model_id="backup", input_cost_per_million=3.0, output_cost_per_million=5.0),
         ],
     )
 
 
-def test_derives_grounding_parity_case_from_reference_trace(document):
-    case = case_from_reference_trace(artifact=reference_trace(document))
+def test_derives_grounding_parity_case_from_reference_run(document):
+    case = case_from_reference_run(record=reference_run(document))
     assert case.question == QUESTION
     assert case.expected_document_ids == frozenset({document.id})
 
@@ -107,7 +90,7 @@ def test_evaluator_prices_the_run_from_the_approved_asset_catalog(document):
     )
     evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
 
-    metrics = evaluator.evaluate(FakeAgent(document), [reference_trace(document)], catalog())
+    metrics = evaluator.evaluate(FakeAgent(document), [reference_run(document)]).price(catalog())
 
     assert metrics.quality == 1.0
     assert metrics.cost == (100 * 2.0 + 20 * 4.0) / 1_000_000
@@ -116,16 +99,33 @@ def test_evaluator_prices_the_run_from_the_approved_asset_catalog(document):
     assert metrics.details["cases"][0]["passed"] is True
 
 
-def test_unpriced_models_report_zero_cost_rather_than_failing(document):
+def test_evaluator_includes_secondary_model_usage(document):
+    class BackupAgent(FakeAgent):
+        def run(self, **kwargs):
+            result = super().run(**kwargs)
+            result["additional_model_usage"] = {"backup": {"input_tokens": 7, "output_tokens": 2}}
+            return result
+
+    evaluator = AdvancedRAGHarnessEvaluator(
+        cases=[AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))]
+    )
+    metrics = evaluator.evaluate(BackupAgent(document), [reference_run(document)]).price(catalog())
+
+    assert metrics.model_usage["backup"].input_tokens == 7
+    assert metrics.cost == pytest.approx((100 * 2.0 + 20 * 4.0 + 7 * 3.0 + 2 * 5.0) / 1_000_000)
+
+
+def test_unpriced_models_fail_when_results_are_priced(document):
     evaluator = AdvancedRAGHarnessEvaluator(cases=[AdvancedRAGEvaluationCase(question=QUESTION, expect_absent=True)])
-    metrics = evaluator.evaluate(FakeAgent(document, model="unknown"), [reference_trace(document)], catalog())
-    assert metrics.cost == 0.0
+    metrics = evaluator.evaluate(FakeAgent(document, model="unknown"), [reference_run(document)])
+    with pytest.raises(ValueError, match="not in the approved asset catalog"):
+        metrics.price(catalog())
 
 
 def test_derived_cases_are_reported_as_unvalidated(document):
     """Grounding parity with the incumbent is not a correctness measurement, and must be flagged as such."""
     evaluator = AdvancedRAGHarnessEvaluator()
-    metrics = evaluator.evaluate(FakeAgent(document), [reference_trace(document)], catalog())
+    metrics = evaluator.evaluate(FakeAgent(document), [reference_run(document)])
     assert metrics.details["validated"] is False
     assert metrics.details["derived_cases"] == [QUESTION]
 
@@ -135,11 +135,10 @@ def test_repetitions_produce_a_quality_lower_bound(document):
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("CRISPR",)
     )
     agent = FakeAgent(document)
-    metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=3).evaluate(
-        agent, [reference_trace(document)], catalog()
-    )
+    metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=3).evaluate(agent, [reference_run(document)])
 
     assert agent.runs == 3
+    assert agent.warmups == 1
     assert metrics.details["repetitions"] == 3
     assert metrics.quality == 1.0
     assert metrics.quality_lower_bound == 1.0
@@ -161,7 +160,7 @@ def test_a_flaky_candidate_reports_a_lower_bound_below_its_mean(document):
 
     case = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
     metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=2).evaluate(
-        FlakyAgent(document), [reference_trace(document)], catalog()
+        FlakyAgent(document), [reference_run(document)]
     )
 
     assert metrics.quality == 0.5

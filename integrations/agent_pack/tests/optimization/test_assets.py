@@ -6,7 +6,7 @@ from haystack_integrations.agent_pack.optimization import (
     HarnessPatch,
     ModelAsset,
 )
-from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
+from haystack_integrations.agent_pack.optimization.models import generator_model_id
 
 MOCK_GENERATOR_TYPE = "haystack.components.generators.chat.mock.MockChatGenerator"
 
@@ -110,11 +110,11 @@ def test_declared_generator_must_agree_with_the_catalog_identifier():
         model_id="declared",
         generator={"type": MOCK_GENERATOR_TYPE, "init_parameters": {"model": "something-else"}},
     )
-    with pytest.raises(ValueError, match="must match the generator"):
+    with pytest.raises(ValueError, match="matches the catalog identifier"):
         asset.substitution_patch(serialized_generator={"type": "X", "init_parameters": {"model": "reference"}})
 
 
 def test_substitution_requires_a_declared_generator_when_the_reference_hides_its_model():
     asset = ModelAsset(model_id="cheaper")
-    with pytest.raises(ValueError, match="needs an explicit 'generator' configuration"):
+    with pytest.raises(ValueError, match="needs an explicit generator"):
         asset.substitution_patch(serialized_generator={"type": "X", "init_parameters": {}})

@@ -12,14 +12,23 @@ from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
     ModelAsset,
+    ModelSubstitutionRecipe,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.tracing import (
-    LocalTraceStore,
-    TraceCapturingAgentRunner,
-)
+from haystack_integrations.agent_pack.runs import AgentRunRecorder, LocalRunStore
 
 QUESTION = "What is CRISPR used for?"
+
+
+class TryCheapModel:
+    def __init__(self):
+        self.proposed = False
+
+    def propose(self, **kwargs):  # noqa: ARG002
+        if self.proposed:
+            return None
+        self.proposed = True
+        return ModelSubstitutionRecipe(model_id="cheap")
 
 
 def scripted_agent(store, document, model):
@@ -48,9 +57,8 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     store.write_documents([document])
 
     reference = scripted_agent(store, document, "reference")
-    trace_store = LocalTraceStore()
-    captured = TraceCapturingAgentRunner().run(reference, messages=[ChatMessage.from_user(QUESTION)])
-    trace_store.add(captured.trace)
+    run_store = LocalRunStore()
+    AgentRunRecorder(run_store).run(reference, messages=[ChatMessage.from_user(QUESTION)])
 
     assets = ApprovedAssetCatalog(
         models=[
@@ -77,11 +85,12 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        trace_source=trace_store,
+        run_source=run_store,
         evaluator=evaluator,
         assets=assets,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(path=tmp_path / "advanced-rag-experiment.jsonl"),
+        proposer=TryCheapModel(),
     )
 
     result = experiment.run()
@@ -107,8 +116,8 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     store.write_documents([document])
     reference = scripted_agent(store, document, "reference")
 
-    trace_store = LocalTraceStore()
-    trace_store.add(TraceCapturingAgentRunner().run(reference, messages=[ChatMessage.from_user(QUESTION)]).trace)
+    run_store = LocalRunStore()
+    AgentRunRecorder(run_store).run(reference, messages=[ChatMessage.from_user(QUESTION)])
 
     assets = ApprovedAssetCatalog(
         models=[
@@ -130,7 +139,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        trace_source=trace_store,
+        run_source=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(
             cases=[
                 AdvancedRAGEvaluationCase(
@@ -143,6 +152,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
         assets=assets,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
+        proposer=TryCheapModel(),
     )
 
     result = experiment.run()

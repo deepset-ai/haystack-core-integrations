@@ -9,12 +9,11 @@ The script:
 
 1. Builds an Advanced RAG agent over a small in-memory corpus. This is the agent being optimized: every candidate
    is a variant of it, and it is never modified.
-2. Captures one successful run per evaluation question with `TraceCapturingAgentRunner`, writing the trace
-   artifacts to disk.
+2. Records one successful input/output pair per evaluation question, writing compact run records to disk.
 3. Declares the asset catalog: which models a candidate may use, what they cost, and which configuration changes
    are allowed. A proposal naming anything outside it fails validation.
-4. Runs a `HarnessOptimizationExperiment`, which measures the reference, rebuilds one candidate per alternative
-   model, replays the captured questions, and ranks whatever clears the quality gate.
+4. Runs a `HarnessOptimizationExperiment`, whose optimizer Agent chooses one candidate, observes its measurement,
+   and uses that evidence to choose the next until it stops or reaches the iteration budget.
 5. Prints the baseline, each candidate's measurements, the gates it missed, and the recommendation. Nothing is
    promoted; the recommendation is materialized only so you can inspect it.
 
@@ -23,11 +22,11 @@ Run it from the integration directory (`integrations/agent_pack`) with `OPENAI_A
     hatch run test:python examples/harness_optimization_poc.py
     hatch run test:python examples/harness_optimization_poc.py --max-cases 1
     hatch run test:python examples/harness_optimization_poc.py --repetitions 3
-    hatch run test:python examples/harness_optimization_poc.py --proposer agent --docs-mcp
+    hatch run test:python examples/harness_optimization_poc.py --docs-mcp
 
-Cost: one reference measurement plus one per candidate model, each replaying every question `--repetitions` times.
-With the defaults that is 3 questions x 3 models = 9 agent runs. Results are journaled, so a re-run skips
-candidates that already completed.
+Cost: one reference measurement plus up to `--max-iterations` candidate measurements, each replaying every question
+`--repetitions` times. The optimizer may stop earlier. Results are journaled, so a re-run skips completed work until
+the harness, recorded runs, evaluator, or experiment configuration changes.
 """
 
 import argparse
@@ -46,7 +45,10 @@ from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
-from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
+from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
+    AdvancedRAGHarnessEvaluator,
+    question_from_messages,
+)
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
     ExperimentJournal,
@@ -59,11 +61,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
-from haystack_integrations.agent_pack.tracing import (
-    LocalTraceCollector,
-    LocalTraceStore,
-    TraceCapturingAgentRunner,
-)
+from haystack_integrations.agent_pack.runs import AgentRunRecorder, LocalRunStore, RunSelection
 
 WORKSPACE = Path(".agent-pack-poc")
 
@@ -193,21 +191,32 @@ def build_reference_agent(*, store: InMemoryDocumentStore, model: str) -> Agent:
 
 
 def capture_reference_runs(
-    *, agent: Agent, cases: list[AdvancedRAGEvaluationCase], trace_store: LocalTraceStore
-) -> None:
+    *, agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore
+) -> RunSelection:
     """
-    Run the reference harness once per question and persist the captured traces.
+    Run the reference harness once per question and persist its inputs and outputs.
 
     :param agent: The reference Agent.
     :param cases: The questions to capture.
-    :param trace_store: Where the artifacts are written.
+    :param run_store: Where input/output records are written.
+    :returns: A selection containing exactly one run for each requested question.
     """
-    runner = TraceCapturingAgentRunner(collector=LocalTraceCollector(store=trace_store, capture_content=True))
+    records_by_question = {
+        question_from_messages(record.inputs.get("messages") or []): record for record in run_store.list()
+    }
+    recorder = AgentRunRecorder(store=run_store)
+    selected_ids: set[str] = set()
     for case in cases:
+        if existing := records_by_question.get(case.question):
+            print(f"  reusing: {case.question}")
+            selected_ids.add(existing.run_id)
+            continue
         print(f"  capturing: {case.question}")
-        captured = runner.run(agent, messages=[ChatMessage.from_user(case.question)])
-        answer = captured.result["last_message"].text or ""
-        print(f"    status={captured.trace.status} spans={len(captured.trace.traces)} answer={answer[:90]!r}")
+        recorded = recorder.run(agent, messages=[ChatMessage.from_user(case.question)])
+        selected_ids.add(recorded.record.run_id)
+        answer = recorded.result["last_message"].text or ""
+        print(f"    run={recorded.record.run_id[:8]} answer={answer[:90]!r}")
+    return RunSelection(run_ids=frozenset(selected_ids))
 
 
 #: Approved configuration changes. A patch reaches any init parameter of any component in the harness, addressing a
@@ -298,7 +307,7 @@ def report(*, result: ExperimentResult, reference: Agent, assets: ApprovedAssetC
     saving = baseline.cost - (recommendation.evaluation.metrics.cost if recommendation.evaluation.metrics else 0.0)
     print(f"  cost saving on this evaluation set: ${saving:.6f}")
     if "quality_unvalidated" in recommendation.reasons:
-        print("  NOTE: quality was scored against cases derived from the reference traces, not labelled ones.")
+        print("  NOTE: quality was scored against cases derived from reference runs, not labelled ones.")
 
     candidate = recommendation.materialize(reference, assets)
     print(f"  materialized candidate model: {candidate.chat_generator.model}")
@@ -343,20 +352,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--primary", choices=("cost", "latency"), default="cost", help="What candidates are ranked on first."
     )
-    parser.add_argument(
-        "--proposer",
-        choices=("models", "agent"),
-        default="models",
-        help="'models' enumerates every alternative model in the catalog. 'agent' asks an optimizer Agent for "
-        "typed recipes, which are still rejected unless they parse as supported transformations.",
-    )
+    parser.add_argument("--max-iterations", type=int, default=6, help="Maximum candidates the optimizer may measure.")
     parser.add_argument(
         "--docs-mcp",
         action="store_true",
         help="Give the optimizer Agent read-only access to the Haystack documentation MCP server. Requires "
         "mcp-haystack.",
     )
-    parser.add_argument("--fresh", action="store_true", help="Delete captured traces and the journal first.")
+    parser.add_argument("--fresh", action="store_true", help="Delete recorded runs and the journal first.")
     return parser.parse_args()
 
 
@@ -379,11 +382,8 @@ def main() -> None:
     print(f"  model={arguments.reference_model} tools={tool_names}")
 
     print("\n=== 2. capture successful reference runs ===")
-    trace_store = LocalTraceStore(directory=WORKSPACE / "traces")
-    if len(trace_store.list()) < len(cases):
-        capture_reference_runs(agent=reference, cases=cases, trace_store=trace_store)
-    else:
-        print(f"  reusing {len(trace_store.list())} captured traces from {WORKSPACE / 'traces'}")
+    run_store = LocalRunStore(directory=WORKSPACE / "runs")
+    run_selection = capture_reference_runs(agent=reference, cases=cases, run_store=run_store)
 
     print("\n=== 3. asset catalog ===")
     assets = build_catalog(models=(arguments.reference_model, *candidate_models))
@@ -393,24 +393,18 @@ def main() -> None:
         print(f"  patch {declared.name}: {declared.description}")
 
     print("\n=== 4. experiment ===")
-    proposer = None
-    if arguments.proposer == "agent":
-        docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
-        proposer = HarnessOptimizerAgentProposer(
-            # The generator defaults to the pack's own choice, so the model being measured and the model doing the
-            # proposing stay independent.
-            optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
-            max_recipes=4,
-            # The response schema is generated from the catalog, so the proposer configures it per request.
-            structured_output_key="text",
-        )
-        print("  proposer: optimizer Agent, answering the schema generated from the catalog")
-    else:
-        print("  proposer: deterministic enumeration of the catalog's models")
+    docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
+    proposer = HarnessOptimizerAgentProposer(
+        # The generator defaults to the pack's own choice, so the model being measured and the model doing the
+        # proposing stay independent.
+        optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
+        structured_output_key="text",
+    )
+    print("  proposer: iterative optimizer Agent with baseline and prior measurements")
 
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        trace_source=trace_store,
+        run_source=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(cases=cases, repetitions=arguments.repetitions),
         assets=assets,
         objectives=OptimizationObjectives(
@@ -420,6 +414,8 @@ def main() -> None:
         ),
         journal=ExperimentJournal(path=WORKSPACE / "experiment.jsonl"),
         proposer=proposer,
+        run_selection=run_selection,
+        max_iterations=arguments.max_iterations,
         # The corpus is not visible in the harness configuration, so it is named explicitly: change the corpus and
         # journaled measurements are invalidated instead of silently reused.
         configuration_key="poc-corpus-v1",
@@ -429,7 +425,7 @@ def main() -> None:
 
     print("\n=== 5. outcome ===")
     report(result=result, reference=reference, assets=assets)
-    print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (re-running resumes completed candidates)")
+    print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (re-running resumes measured candidates)")
 
 
 if __name__ == "__main__":

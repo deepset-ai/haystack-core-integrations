@@ -14,7 +14,7 @@ import statistics
 import time
 from typing import Any
 
-from haystack import Document, logging
+from haystack import Document
 from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 
@@ -23,30 +23,25 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
     AdvancedRAGEvaluationCase,
     score_advanced_rag_result,
 )
-from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
-from haystack_integrations.agent_pack.optimization.experiment.dataclasses import EvaluationMetrics
-from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact
-from haystack_integrations.agent_pack.tracing.extraction import (
-    extract_agent_reference_output,
-    extract_agent_replay_inputs,
+from haystack_integrations.agent_pack.optimization.models import (
+    EvaluationMetrics,
+    ModelTokenUsage,
+    generator_model_id,
 )
+from haystack_integrations.agent_pack.runs import AgentRunRecord
 
-logger = logging.getLogger(__name__)
 
-
-def messages_from_trace(artifact: TraceArtifact) -> list[ChatMessage]:
+def messages_from_run(record: AgentRunRecord) -> list[ChatMessage]:
     """
-    Reconstruct the Agent input messages recorded in a reference trace.
+    Reconstruct the Agent input messages recorded in a reference run.
 
-    :param artifact: The captured reference trace.
+    :param record: The recorded reference run.
     :returns: The messages the reference Agent was run with.
-    :raises ValueError: If the trace holds no replayable message list.
+    :raises ValueError: If the run holds no replayable message list.
     """
-    inputs = extract_agent_replay_inputs(artifact=artifact)
-    serialized = inputs.get("messages")
+    serialized = record.inputs.get("messages")
     if not isinstance(serialized, list):
-        msg = f"Trace {artifact.run_id} does not contain replayable Agent messages."
+        msg = f"Run {record.run_id} does not contain replayable Agent messages."
         raise ValueError(msg)
     return [item if isinstance(item, ChatMessage) else ChatMessage.from_dict(item) for item in serialized]
 
@@ -62,29 +57,28 @@ def question_from_messages(messages: list[ChatMessage]) -> str:
     for message in reversed(messages):
         if message.is_from("user") and message.text:
             return message.text
-    msg = "Reference trace contains no textual user question."
+    msg = "Reference run contains no textual user question."
     raise ValueError(msg)
 
 
-def case_from_reference_trace(artifact: TraceArtifact) -> AdvancedRAGEvaluationCase:
+def case_from_reference_run(record: AgentRunRecord) -> AdvancedRAGEvaluationCase:
     """
-    Create a grounding-parity case from a reference trace.
+    Create a grounding-parity case from a reference run.
 
     The resulting case asserts that a candidate retrieves the same documents the reference retrieved. That measures
     agreement with the incumbent harness, not correctness: a candidate that retrieves *better* evidence scores as a
     regression. Use it to detect drift when no labelled evaluation set exists, and treat any recommendation it
     produces as unvalidated. Supply explicit `AdvancedRAGEvaluationCase` objects for a decision you intend to act on.
 
-    :param artifact: The captured reference trace.
+    :param record: The recorded reference run.
     :returns: A case requiring the candidate to retrieve every document the reference retrieved.
-    :raises ValueError: If the trace records no retrieved documents.
+    :raises ValueError: If the run records no retrieved documents.
     """
-    messages = messages_from_trace(artifact)
-    output = extract_agent_reference_output(artifact=artifact)
-    serialized_documents = output.get("documents") or []
+    messages = messages_from_run(record)
+    serialized_documents = record.outputs.get("documents") or []
     documents = [item if isinstance(item, Document) else Document.from_dict(item) for item in serialized_documents]
     if not documents:
-        msg = f"Trace {artifact.run_id} contains no reference documents; supply an explicit evaluation case."
+        msg = f"Run {record.run_id} contains no reference documents; supply an explicit evaluation case."
         raise ValueError(msg)
     return AdvancedRAGEvaluationCase(
         question=question_from_messages(messages),
@@ -96,7 +90,7 @@ def case_from_reference_trace(artifact: TraceArtifact) -> AdvancedRAGEvaluationC
 
 class AdvancedRAGHarnessEvaluator:
     """
-    Replay trace-selected questions and score Advanced RAG candidates.
+    Replay recorded questions and score Advanced RAG candidates.
 
     """
 
@@ -104,8 +98,8 @@ class AdvancedRAGHarnessEvaluator:
         """
         Create an evaluator.
 
-        :param cases: Labelled expectations, keyed internally by question. A trace whose question has no labelled
-            case falls back to a grounding-parity case derived from the trace itself, and the run is reported as
+        :param cases: Labelled expectations, keyed internally by question. A run whose question has no labelled
+            case falls back to a grounding-parity case derived from the run itself, and the evaluation is reported as
             unvalidated.
         :param repetitions: How many times each case is run. Agent runs are not deterministic, so a single sample
             makes a pass rate an unreliable basis for switching models. With more than one repetition, `quality` is
@@ -134,39 +128,38 @@ class AdvancedRAGHarnessEvaluator:
         }
 
     def _resolve(
-        self, reference_traces: list[TraceArtifact]
+        self, reference_runs: list[AgentRunRecord]
     ) -> tuple[list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]], list[str]]:
-        """Pair each reference trace with the case that scores it, reporting which cases had to be derived."""
+        """Pair each reference run with the case that scores it, reporting which cases had to be derived."""
         resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]] = []
         derived: list[str] = []
-        for artifact in reference_traces:
-            messages = messages_from_trace(artifact)
+        for record in reference_runs:
+            messages = messages_from_run(record)
             question = question_from_messages(messages)
             case = self.cases.get(question)
             if case is None:
-                case = case_from_reference_trace(artifact)
+                case = case_from_reference_run(record)
                 derived.append(question)
             resolved.append((case, messages))
         return resolved, derived
 
-    def evaluate(
-        self, agent: Agent, reference_traces: list[TraceArtifact], assets: ApprovedAssetCatalog
-    ) -> EvaluationMetrics:
+    def evaluate(self, agent: Agent, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
         """
-        Replay every selected trace and return experiment metrics priced from the approved asset catalog.
+        Replay every selected run and return raw experiment metrics.
 
         :param agent: The materialized candidate to score.
-        :param reference_traces: The reference traces supplying the questions to replay.
-        :param assets: The approved asset catalog, used to price the candidate's token usage.
+        :param reference_runs: The successful runs supplying the questions to replay.
         :returns: Quality, cost, and latency for the candidate, with per-case detail.
-        :raises ValueError: If no reference traces were supplied.
+        :raises ValueError: If no reference runs were supplied.
         """
-        resolved, derived = self._resolve(reference_traces)
+        resolved, derived = self._resolve(reference_runs)
         if not resolved:
-            msg = "No reference traces were supplied to the Advanced RAG evaluator."
+            msg = "No reference runs were supplied to the Advanced RAG evaluator."
             raise ValueError(msg)
 
+        agent.warm_up()
         run_metrics: list[list[AdvancedRAGCaseMetrics]] = []
+        additional_usage: dict[str, ModelTokenUsage] = {}
         for _ in range(self.repetitions):
             attempt: list[AdvancedRAGCaseMetrics] = []
             for case, messages in resolved:
@@ -174,6 +167,12 @@ class AdvancedRAGHarnessEvaluator:
                 result = agent.run(messages=messages)
                 latency_ms = (time.perf_counter() - started) * 1000
                 attempt.append(score_advanced_rag_result(result, case, latency_ms=latency_ms))
+                for model, usage in (result.get("additional_model_usage") or {}).items():
+                    current = additional_usage.get(model, ModelTokenUsage())
+                    additional_usage[model] = ModelTokenUsage(
+                        input_tokens=current.input_tokens + int(usage.get("input_tokens", 0)),
+                        output_tokens=current.output_tokens + int(usage.get("output_tokens", 0)),
+                    )
             run_metrics.append(attempt)
 
         pass_rates = [sum(metric.passed for metric in attempt) / len(attempt) for attempt in run_metrics]
@@ -186,12 +185,21 @@ class AdvancedRAGHarnessEvaluator:
         input_tokens = sum(metric.input_tokens for metric in flattened)
         output_tokens = sum(metric.output_tokens for metric in flattened)
         model_id = generator_model_id(agent.chat_generator)
-        cost = self._cost(assets, model_id, input_tokens, output_tokens)
+        if model_id is None:
+            msg = "The evaluator cannot attribute token usage because the Agent's model identifier is unknown."
+            raise ValueError(msg)
+
+        model_usage = dict(additional_usage)
+        coordinator = model_usage.get(model_id, ModelTokenUsage())
+        model_usage[model_id] = ModelTokenUsage(
+            input_tokens=coordinator.input_tokens + input_tokens,
+            output_tokens=coordinator.output_tokens + output_tokens,
+        )
 
         return EvaluationMetrics(
             quality=quality,
-            cost=cost,
             latency_ms=sum(metric.latency_ms for metric in flattened) / self.repetitions,
+            model_usage=model_usage,
             quality_lower_bound=lower_bound,
             details={
                 "model": model_id,
@@ -205,23 +213,3 @@ class AdvancedRAGHarnessEvaluator:
                 "output_tokens": output_tokens,
             },
         )
-
-    @staticmethod
-    def _cost(assets: ApprovedAssetCatalog, model_id: str | None, input_tokens: int, output_tokens: int) -> float:
-        """
-        Price a run from the approved asset catalog, which is the experiment's single source of model prices.
-
-        :param assets: The approved asset catalog.
-        :param model_id: The candidate's model identifier.
-        :param input_tokens: Total input tokens across every replayed case.
-        :param output_tokens: Total output tokens across every replayed case.
-        :returns: The priced cost, or zero when the catalog does not price this model.
-        """
-        asset = assets.models.get(model_id) if isinstance(model_id, str) else None
-        if asset is None:
-            logger.warning(
-                "Candidate model {model} is not priced in the approved asset catalog; reporting zero cost.",
-                model=model_id,
-            )
-            return 0.0
-        return (input_tokens * asset.input_cost_per_million + output_tokens * asset.output_cost_per_million) / 1_000_000

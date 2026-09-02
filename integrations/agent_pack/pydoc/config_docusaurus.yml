@@ -1,31 +1,16 @@
 loaders:
   - modules:
       - haystack_integrations.agent_pack.deep_research.agent
-      - haystack_integrations.agent_pack.tracing.types.protocol
-      - haystack_integrations.agent_pack.tracing.dataclasses
-      - haystack_integrations.agent_pack.tracing.serialization
-      - haystack_integrations.agent_pack.tracing.tracers
-      - haystack_integrations.agent_pack.tracing.stores
-      - haystack_integrations.agent_pack.tracing.collectors
-      - haystack_integrations.agent_pack.tracing.extraction
+      - haystack_integrations.agent_pack.runs
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
       - haystack_integrations.agent_pack.advanced_rag.evaluation
       - haystack_integrations.agent_pack.advanced_rag.harness_evaluator
-      - haystack_integrations.agent_pack.optimization.assets.dataclasses
-      - haystack_integrations.agent_pack.optimization.assets.catalog
-      - haystack_integrations.agent_pack.optimization.recipes.dataclasses
-      - haystack_integrations.agent_pack.optimization.recipes.proposals
-      - haystack_integrations.agent_pack.optimization.recipes.serialization
-      - haystack_integrations.agent_pack.optimization.recipes.types.protocol
-      - haystack_integrations.agent_pack.optimization.experiment.dataclasses
-      - haystack_integrations.agent_pack.optimization.experiment.journal
-      - haystack_integrations.agent_pack.optimization.experiment.proposers
-      - haystack_integrations.agent_pack.optimization.experiment.experiment
-      - haystack_integrations.agent_pack.optimization.experiment.types.protocol
-      - haystack_integrations.agent_pack.optimization.optimizer_agent
-      - haystack_integrations.agent_pack.optimization.prompts
+      - haystack_integrations.agent_pack.optimization.models
+      - haystack_integrations.agent_pack.optimization.recipes
+      - haystack_integrations.agent_pack.optimization.proposer
+      - haystack_integrations.agent_pack.optimization.experiment
     search_path: [../src]
 processors:
   - type: filter

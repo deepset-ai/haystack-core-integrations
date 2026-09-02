@@ -1,102 +1,62 @@
-from datetime import datetime, timezone
+from collections import deque
 
-import pytest
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
-from haystack.tools import tool
 
 from haystack_integrations.agent_pack.optimization import (
+    ApplyPatchRecipe,
     ApprovedAssetCatalog,
     EvaluationMetrics,
     ExperimentJournal,
     HarnessOptimizationExperiment,
+    HarnessPatch,
     ModelAsset,
+    ModelSubstitutionRecipe,
+    ModelTokenUsage,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.tracing import (
-    LocalTraceStore,
-    TraceArtifact,
-)
+from haystack_integrations.agent_pack.runs import AgentRunRecord, LocalRunStore
 
 
-@tool
-def remote_tool(query: str) -> str:
-    """A tool the reference harness exposes."""
-    return query
-
-
-def reference_trace(run_id="reference-run"):
-    now = datetime.now(tz=timezone.utc).isoformat()
-    return TraceArtifact(
-        run_id=run_id,
-        started_at=now,
-        finished_at=now,
-        duration_ms=1.0,
-        status="success",
-        traces=(
-            {
-                "span_id": "root",
-                "parent_span_id": None,
-                "operation_name": "haystack.agent.run",
-                "component": None,
-                "start_time": now,
-                "end_time": now,
-                "duration_ms": 1.0,
-                "tags": {
-                    "haystack.agent.input": {"messages": [ChatMessage.from_user("question").to_dict()]},
-                    "haystack.agent.output": {
-                        "last_message": ChatMessage.from_assistant("answer").to_dict(),
-                        "documents": [],
-                    },
-                },
-            },
-        ),
+def reference_run(question="question"):
+    return AgentRunRecord(
+        run_id="reference-run",
+        inputs={"messages": [ChatMessage.from_user(question)]},
+        outputs={"last_message": ChatMessage.from_assistant("answer")},
     )
+
+
+class SequenceProposer:
+    def __init__(self, recipes):
+        self.recipes = deque(recipes)
+        self.histories = []
+
+    def propose(self, **kwargs):
+        self.histories.append(list(kwargs["history"]))
+        return self.recipes.popleft() if self.recipes else None
 
 
 class ModelEvaluator:
-    """Scores a candidate purely from its configured model, so experiment logic can be tested deterministically."""
-
-    def __init__(self, metrics_by_model, *, failing_models=()):
+    def __init__(self, metrics_by_model, *, failing=()):
         self.metrics_by_model = metrics_by_model
-        self.failing_models = set(failing_models)
+        self.failing = set(failing)
         self.calls = []
 
-    def evaluate(self, agent, reference_traces, assets):
-        assert reference_traces[0].run_id.startswith("reference-run")
-        assert isinstance(assets, ApprovedAssetCatalog)
+    def evaluate(self, agent, reference_runs):
+        assert reference_runs[0].run_id == "reference-run"
         model = agent.chat_generator.model
         self.calls.append(model)
-        if model in self.failing_models:
-            message = f"provider unavailable for {model}"
-            raise RuntimeError(message)
+        if model in self.failing:
+            msg = f"provider unavailable for {model}"
+            raise RuntimeError(msg)
         return self.metrics_by_model[model]
 
-
-def build_experiment(tmp_path, evaluator, *, objectives=None, tools=None, journal=None):
-    store = LocalTraceStore()
-    store.add(reference_trace())
-    reference = Agent(chat_generator=MockChatGenerator(model="reference"), tools=tools)
-    assets = ApprovedAssetCatalog(
-        models=[
-            ModelAsset(model_id="reference", input_cost_per_million=10),
-            ModelAsset(model_id="cheap", input_cost_per_million=2),
-            ModelAsset(model_id="bad", input_cost_per_million=1),
-        ],
-    )
-    experiment = HarnessOptimizationExperiment(
-        reference=reference,
-        trace_source=store,
-        evaluator=evaluator,
-        assets=assets,
-        objectives=objectives or OptimizationObjectives(min_quality=0.8),
-        journal=journal or ExperimentJournal(path=tmp_path / "experiment.jsonl"),
-    )
-    return experiment, assets, reference
+    def fingerprint(self):
+        return {"kind": "model-evaluator"}
 
 
-def default_metrics():
+def fixed_metrics():
     return {
         "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
         "cheap": EvaluationMetrics(quality=1.0, cost=2.0, latency_ms=90),
@@ -104,190 +64,193 @@ def default_metrics():
     }
 
 
-def test_experiment_applies_gates_then_recommends_cheaper_candidate(tmp_path):
-    evaluator = ModelEvaluator(default_metrics())
-    experiment, assets, reference = build_experiment(tmp_path, evaluator)
+def catalog(*, cheap_price=2.0, patches=None):
+    return ApprovedAssetCatalog(
+        models=[
+            ModelAsset(model_id="reference", input_cost_per_million=10.0),
+            ModelAsset(model_id="cheap", input_cost_per_million=cheap_price),
+            ModelAsset(model_id="bad", input_cost_per_million=1.0),
+        ],
+        patches=patches,
+    )
 
-    result = experiment.run()
 
+def experiment(tmp_path, evaluator, proposer, *, assets=None, objectives=None, store=None, journal=None):
+    store = store or LocalRunStore()
+    if not store.list():
+        store.add(reference_run())
+    return HarnessOptimizationExperiment(
+        reference=Agent(chat_generator=MockChatGenerator(model="reference")),
+        run_source=store,
+        evaluator=evaluator,
+        assets=assets or catalog(),
+        objectives=objectives or OptimizationObjectives(min_quality=0.8),
+        journal=journal or ExperimentJournal(tmp_path / "experiment.jsonl"),
+        proposer=proposer,
+    )
+
+
+def test_optimizer_observes_each_outcome_before_choosing_the_next(tmp_path):
+    proposer = SequenceProposer(
+        [ModelSubstitutionRecipe(model_id="bad"), ModelSubstitutionRecipe(model_id="cheap"), None]
+    )
+    result = experiment(tmp_path, ModelEvaluator(fixed_metrics()), proposer).run()
+
+    assert proposer.histories[0] == []
+    assert proposer.histories[1][0]["recipe"]["model_id"] == "bad"
+    assert proposer.histories[1][0]["gate_failures"] == ("quality_below_floor:1.0000",)
+    assert proposer.histories[2][1]["metrics"]["cost"] == 2.0
     assert result.recommendation is not None
-    assert result.recommendation.evaluation.metrics.cost == 2.0
-    assert result.recommendation.reasons == ("single_sample", "cost_improvement")
-    approved = result.recommendation.materialize(reference, assets)
-    assert approved.chat_generator.model == "cheap"
-    assert reference.chat_generator.model == "reference"
-
-    failures = {
-        candidate.recipe["model_id"]: result.gate_failures[candidate.candidate_id] for candidate in result.candidates
-    }
-    assert failures["cheap"] == ()
-    assert failures["bad"] == ("quality_below_floor:1.0000",)
+    assert result.recommendation.recipe == ModelSubstitutionRecipe(model_id="cheap")
 
 
-def test_gates_are_recomputed_rather_than_replayed_from_the_journal(tmp_path):
-    """Tightening the quality floor must re-rank journaled measurements instead of reusing a stale verdict."""
-    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
-    metrics = {
-        "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
-        "cheap": EvaluationMetrics(quality=0.9, cost=2.0, latency_ms=90),
-        "bad": EvaluationMetrics(quality=0.5, cost=1.0, latency_ms=50),
-    }
-    lenient, _, _ = build_experiment(
+def test_completed_measurements_seed_history_on_resume(tmp_path):
+    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    first_evaluator = ModelEvaluator(fixed_metrics())
+    first = experiment(
         tmp_path,
-        ModelEvaluator(metrics),
-        objectives=OptimizationObjectives(min_quality=0.8, max_quality_loss=0.2),
+        first_evaluator,
+        SequenceProposer([ModelSubstitutionRecipe(model_id="cheap"), None]),
         journal=journal,
     )
-    assert lenient.run().recommendation is not None
-
-    strict_evaluator = ModelEvaluator(metrics)
-    strict, _, _ = build_experiment(
-        tmp_path,
-        strict_evaluator,
-        objectives=OptimizationObjectives(min_quality=1.0),
-        journal=journal,
-    )
-    result = strict.run()
-    assert result.recommendation is None
-    # Objectives are part of the candidate identity, so the candidates are measured again under the new gates.
-    assert sorted(strict_evaluator.calls) == ["bad", "cheap", "reference"]
-
-
-def test_experiment_resumes_journaled_candidates(tmp_path):
-    """A resumed experiment with nothing left to measure costs nothing, baseline included."""
-    evaluator = ModelEvaluator(default_metrics())
-    experiment, _, _ = build_experiment(tmp_path, evaluator)
-    first = experiment.run()
-    second = experiment.run()
-
-    # Approved models are proposed in sorted order, and nothing is measured twice.
-    assert evaluator.calls == ["reference", "bad", "cheap"]
-    assert first.configuration_hash == second.configuration_hash
-    assert first.baseline == second.baseline
-    assert first.recommendation is not None
-    assert second.recommendation is not None
-
-
-def test_a_changed_evaluation_set_invalidates_journaled_candidates(tmp_path):
-    class FingerprintedEvaluator(ModelEvaluator):
-        def __init__(self, metrics, version):
-            super().__init__(metrics)
-            self.version = version
-
-        def fingerprint(self):
-            return {"version": self.version}
-
-    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
-    first, _, _ = build_experiment(tmp_path, FingerprintedEvaluator(default_metrics(), "v1"), journal=journal)
     first.run()
 
-    second_evaluator = FingerprintedEvaluator(default_metrics(), "v2")
-    second, _, _ = build_experiment(tmp_path, second_evaluator, journal=journal)
-    second.run()
-    assert sorted(second_evaluator.calls) == ["bad", "cheap", "reference"]
-
-
-def test_failed_candidates_are_retried_on_resume(tmp_path):
-    """A transient provider failure must not be journaled as a permanent property of the candidate."""
-    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
-    failing = ModelEvaluator(default_metrics(), failing_models=["cheap"])
-    experiment, _, _ = build_experiment(tmp_path, failing, journal=journal)
-    result = experiment.run()
-
-    failure = next(c for c in result.candidates if c.recipe["model_id"] == "cheap")
-    assert failure.failure is not None
-    assert "provider unavailable for cheap" in failure.failure
-    assert result.gate_failures[failure.candidate_id] == ("evaluation_failed",)
-    assert result.recommendation is None
-
-    recovered = ModelEvaluator(default_metrics())
-    retry, _, _ = build_experiment(tmp_path, recovered, journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"))
-    retried = retry.run()
-    assert "cheap" in recovered.calls
-    assert retried.recommendation is not None
-
-
-def test_quality_lower_bound_is_what_gates_compare(tmp_path):
-    """A noisy candidate whose mean clears the floor but whose lower bound does not is not recommended."""
-    evaluator = ModelEvaluator(
-        {
-            "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100, quality_lower_bound=1.0),
-            "cheap": EvaluationMetrics(quality=1.0, cost=2.0, latency_ms=90, quality_lower_bound=0.5),
-            "bad": EvaluationMetrics(quality=1.0, cost=1.0, latency_ms=50, quality_lower_bound=1.0),
-        }
-    )
-    experiment, _, _ = build_experiment(tmp_path, evaluator, objectives=OptimizationObjectives(min_quality=0.9))
-
-    result = experiment.run()
-
+    resumed_evaluator = ModelEvaluator(fixed_metrics())
+    resumed_proposer = SequenceProposer([None])
+    result = experiment(tmp_path, resumed_evaluator, resumed_proposer, journal=journal).run()
+    assert resumed_evaluator.calls == []
+    assert resumed_proposer.histories[0][0]["recipe"]["model_id"] == "cheap"
     assert result.recommendation is not None
-    assert result.recommendation.evaluation.recipe["model_id"] == "bad"
-    cheap = next(c for c in result.candidates if c.recipe["model_id"] == "cheap")
-    # The floor is the reference's own lower bound, so pessimistic estimates are compared with each other.
-    assert result.gate_failures[cheap.candidate_id] == ("quality_below_floor:1.0000",)
 
 
-def test_unvalidated_quality_is_reported_on_the_recommendation(tmp_path):
-    evaluator = ModelEvaluator(
-        {
-            "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
-            "cheap": EvaluationMetrics(quality=1.0, cost=2.0, latency_ms=90, details={"validated": False}),
-            "bad": EvaluationMetrics(quality=0.5, cost=1.0, latency_ms=50),
-        }
-    )
-    experiment, _, _ = build_experiment(tmp_path, evaluator)
-    recommendation = experiment.run().recommendation
-    assert recommendation is not None
-    assert recommendation.reasons == ("quality_unvalidated", "single_sample", "cost_improvement")
+def test_patch_definition_is_part_of_candidate_identity(tmp_path):
+    class StepsEvaluator:
+        def __init__(self):
+            self.calls = []
+
+        def evaluate(self, agent, reference_runs):  # noqa: ARG002
+            self.calls.append(agent.max_agent_steps)
+            return EvaluationMetrics(quality=1.0, cost=float(agent.max_agent_steps), latency_ms=10)
+
+        def fingerprint(self):
+            return {"kind": "steps"}
+
+    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    first_assets = catalog(patches=[HarnessPatch(name="steps", patch={"max_agent_steps": 2})])
+    first = StepsEvaluator()
+    experiment(
+        tmp_path,
+        first,
+        SequenceProposer([ApplyPatchRecipe(patch="steps"), None]),
+        assets=first_assets,
+        journal=journal,
+    ).run()
+
+    second_assets = catalog(patches=[HarnessPatch(name="steps", patch={"max_agent_steps": 3})])
+    second = StepsEvaluator()
+    experiment(
+        tmp_path,
+        second,
+        SequenceProposer([ApplyPatchRecipe(patch="steps"), None]),
+        assets=second_assets,
+        journal=journal,
+    ).run()
+    assert second.calls == [3]
 
 
-def test_experiment_requires_replayable_successful_traces(tmp_path):
-    store = LocalTraceStore()
-    evaluator = ModelEvaluator({})
-    experiment = HarnessOptimizationExperiment(
-        reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        trace_source=store,
-        evaluator=evaluator,
-        assets=ApprovedAssetCatalog(models=[ModelAsset(model_id="reference")]),
-        objectives=OptimizationObjectives(),
-        journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
-    )
-    with pytest.raises(ValueError, match="no successful reference traces"):
-        experiment.run()
+def test_objective_changes_rerank_without_remeasuring(tmp_path):
+    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    experiment(
+        tmp_path,
+        ModelEvaluator(fixed_metrics()),
+        SequenceProposer([ModelSubstitutionRecipe(model_id="cheap"), None]),
+        objectives=OptimizationObjectives(min_quality=0.8),
+        journal=journal,
+    ).run()
 
-    unreplayable = reference_trace()
-    store.add(TraceArtifact(**{**unreplayable.__dict__, "traces": ({"operation_name": "other", "tags": {}},)}))
-    with pytest.raises(ValueError, match="cannot be replayed"):
-        experiment.run()
+    second = ModelEvaluator(fixed_metrics())
+    result = experiment(
+        tmp_path,
+        second,
+        SequenceProposer([None]),
+        objectives=OptimizationObjectives(min_quality=1.0),
+        journal=journal,
+    ).run()
+    assert second.calls == []
+    assert result.recommendation is not None
 
 
-def test_configuration_key_invalidates_results_the_experiment_cannot_see(tmp_path):
-    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
-    store = LocalTraceStore()
-    store.add(reference_trace())
-    assets = ApprovedAssetCatalog(
-        models=[
-            ModelAsset(model_id="reference"),
-            ModelAsset(model_id="cheap", input_cost_per_million=1),
-        ],
-    )
+def test_run_content_changes_invalidate_measurements(tmp_path):
+    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    first_store = LocalRunStore()
+    first_store.add(reference_run("first"))
+    experiment(
+        tmp_path,
+        ModelEvaluator(fixed_metrics()),
+        SequenceProposer([None]),
+        store=first_store,
+        journal=journal,
+    ).run()
 
-    def experiment_for(key, evaluator):
-        return HarnessOptimizationExperiment(
-            reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-            trace_source=store,
-            evaluator=evaluator,
-            assets=assets,
-            objectives=OptimizationObjectives(),
-            journal=journal,
-            configuration_key=key,
-        )
+    second_store = LocalRunStore()
+    second_store.add(reference_run("second"))
+    second = ModelEvaluator(fixed_metrics())
+    experiment(tmp_path, second, SequenceProposer([None]), store=second_store, journal=journal).run()
+    assert second.calls == ["reference"]
 
+
+def test_current_prices_apply_to_raw_journaled_usage(tmp_path):
     metrics = {
-        "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=10),
-        "cheap": EvaluationMetrics(quality=1.0, cost=1.0, latency_ms=10),
+        "reference": EvaluationMetrics(
+            quality=1.0, latency_ms=100, model_usage={"reference": ModelTokenUsage(input_tokens=1_000_000)}
+        ),
+        "cheap": EvaluationMetrics(
+            quality=1.0, latency_ms=90, model_usage={"cheap": ModelTokenUsage(input_tokens=1_000_000)}
+        ),
+        "bad": fixed_metrics()["bad"],
     }
-    experiment_for("corpus-v1", ModelEvaluator(metrics)).run()
-    second = ModelEvaluator(metrics)
-    experiment_for("corpus-v2", second).run()
-    assert "cheap" in second.calls
+    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    experiment(
+        tmp_path,
+        ModelEvaluator(metrics),
+        SequenceProposer([ModelSubstitutionRecipe(model_id="cheap"), None]),
+        assets=catalog(cheap_price=2.0),
+        journal=journal,
+    ).run()
+
+    resumed = ModelEvaluator(metrics)
+    result = experiment(
+        tmp_path,
+        resumed,
+        SequenceProposer([None]),
+        assets=catalog(cheap_price=1.0),
+        journal=journal,
+    ).run()
+    assert resumed.calls == []
+    assert result.recommendation.evaluation.metrics.cost == 1.0
+
+
+def test_failed_candidates_retry_and_duplicate_or_noop_recipes_do_not_run(tmp_path):
+    journal = ExperimentJournal(tmp_path / "experiment.jsonl")
+    failing = ModelEvaluator(fixed_metrics(), failing={"cheap"})
+    first_proposer = SequenceProposer(
+        [
+            ModelSubstitutionRecipe(model_id="reference"),
+            ModelSubstitutionRecipe(model_id="cheap"),
+            ModelSubstitutionRecipe(model_id="cheap"),
+            None,
+        ]
+    )
+    first = experiment(tmp_path, failing, first_proposer, journal=journal).run()
+    assert failing.calls == ["reference", "cheap"]
+    assert first.candidates[0].failure is not None
+
+    recovered = ModelEvaluator(fixed_metrics())
+    result = experiment(
+        tmp_path,
+        recovered,
+        SequenceProposer([ModelSubstitutionRecipe(model_id="cheap"), None]),
+        journal=journal,
+    ).run()
+    assert recovered.calls == ["cheap"]
+    assert result.recommendation is not None

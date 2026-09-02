@@ -106,7 +106,7 @@ class TestCreateAdvancedRagAgent:
         assert agent.tools[0].max_fetched_docs == 4
         assert agent.exit_conditions == ["text"]
         assert agent.max_agent_steps == 7
-        assert "documents" in agent.state_schema
+        assert set(agent.state_schema) >= {"documents", "additional_model_usage"}
         assert [type(h) for h in agent.hooks["after_run"]] == [BackupAnswerHook]
         assert "list_metadata_fields" in agent.system_prompt
 
@@ -148,7 +148,7 @@ class TestCreateAdvancedRagAgent:
         )
 
         assert _flat_tool_names(agent.tools) == [*EXPECTED_TOOL_NAMES, "extra_tool"]
-        assert set(agent.state_schema) >= {"notes", "documents"}
+        assert set(agent.state_schema) >= {"notes", "documents", "additional_model_usage"}
         # The built-in backup-answer hook runs first, custom after_run hooks after it.
         assert [type(h) for h in agent.hooks["after_run"]] == [BackupAnswerHook, type(custom_after_run)]
         assert agent.hooks["before_llm"] == [custom_before_llm]
@@ -204,7 +204,7 @@ class TestCreateAdvancedRagAgent:
         assert _flat_tool_names(restored.tools) == EXPECTED_TOOL_NAMES
         assert isinstance(restored.tools[0], DocumentStoreToolset)
         assert [type(h) for h in restored.hooks["after_run"]] == [BackupAnswerHook]
-        assert "documents" in restored.state_schema
+        assert set(restored.state_schema) >= {"documents", "additional_model_usage"}
 
 
 class TestAdvancedRagAgentRun:
