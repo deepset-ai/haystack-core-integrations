@@ -548,6 +548,29 @@ def _assert_documents_are_equal(received: list[Document], expected: list[Documen
         assert received_doc.meta == expected_doc.meta
 
 
+# In Azure AI Search, metadata fields must be declared in the index schema before writing or reading.
+# Here we define a schema that covers the fields used by the shared test suite in `haystack.testing.document_store`.
+# It is only applied to test classes that opt in with `default_metadata_fields`.
+SHARED_TEST_SUITE_METADATA_FIELDS = {
+    "age": int,
+    "category": str,
+    "chapter": str,
+    "date": str,
+    "extra_field": str,
+    "featured": bool,
+    "missing_field": str,
+    "name": str,
+    "no_embedding": bool,
+    "number": int,
+    "page": str,
+    "priority": int,
+    "rating": float,
+    "status": str,
+    "updated": bool,
+    "year": int,
+}
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
@@ -567,6 +590,8 @@ class TestDocumentStore(
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldUniqueValuesTest,
 ):
+    default_metadata_fields = SHARED_TEST_SUITE_METADATA_FIELDS
+
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
 
@@ -609,81 +634,6 @@ class TestDocumentStore(
 
     @pytest.mark.parametrize(
         "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_delete_by_filter(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with category metadata field."""
-        DeleteByFilterTest.test_delete_by_filter(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_delete_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with category metadata field."""
-        DeleteByFilterTest.test_delete_by_filter_no_matches(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "year": int, "status": str}}],
-        indirect=True,
-    )
-    def test_delete_by_filter_advanced_filters(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with category, year, status metadata fields."""
-        DeleteByFilterTest.test_delete_by_filter_advanced_filters(document_store)
-
-    # Metadata fields required by haystack UpdateByFilterTest filterable_docs (chapter, name, page, number, date, etc.)
-    _FILTERABLE_DOCS_METADATA = {  # noqa: RUF012
-        "name": str,
-        "page": str,
-        "chapter": str,
-        "number": int,
-        "date": str,
-        "no_embedding": bool,
-        "updated": bool,
-        "extra_field": str,
-    }
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": _FILTERABLE_DOCS_METADATA}],
-        indirect=True,
-    )
-    def test_update_by_filter(self, document_store: AzureAISearchDocumentStore, filterable_docs):
-        """Override to use a document_store with metadata fields for filterable_docs."""
-        UpdateByFilterTest.test_update_by_filter(document_store, filterable_docs)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": _FILTERABLE_DOCS_METADATA}],
-        indirect=True,
-    )
-    def test_update_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore, filterable_docs):
-        """Override to use a document_store with metadata fields for filterable_docs."""
-        UpdateByFilterTest.test_update_by_filter_no_matches(document_store, filterable_docs)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": _FILTERABLE_DOCS_METADATA}],
-        indirect=True,
-    )
-    def test_update_by_filter_multiple_fields(self, document_store: AzureAISearchDocumentStore, filterable_docs):
-        """Override to use a document_store with metadata fields for filterable_docs."""
-        UpdateByFilterTest.test_update_by_filter_multiple_fields(document_store, filterable_docs)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "year": int, "status": str, "featured": bool}}],
-        indirect=True,
-    )
-    def test_update_by_filter_advanced_filters(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with category, year, status, featured metadata fields."""
-        UpdateByFilterTest.test_update_by_filter_advanced_filters(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
         [{"metadata_fields": {"category": str, "status": str}}],
         indirect=True,
     )
@@ -702,179 +652,8 @@ class TestDocumentStore(
         assert "nonexistent_field" in str(exc_info.value)
         assert "not defined in index schema" in str(exc_info.value)
 
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "status": str}}],
-        indirect=True,
-    )
-    def test_count_documents_by_filter_simple(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        CountDocumentsByFilterTest.test_count_documents_by_filter_simple(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "status": str}}],
-        indirect=True,
-    )
-    def test_count_documents_by_filter_compound(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        CountDocumentsByFilterTest.test_count_documents_by_filter_compound(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_count_documents_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        CountDocumentsByFilterTest.test_count_documents_by_filter_no_matches(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_count_documents_by_filter_empty_collection(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        CountDocumentsByFilterTest.test_count_documents_by_filter_empty_collection(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
-        indirect=True,
-    )
-    def test_count_unique_metadata_by_filter_all_documents(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        CountUniqueMetadataByFilterTest.test_count_unique_metadata_by_filter_all_documents(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
-        indirect=True,
-    )
-    def test_count_unique_metadata_by_filter_with_filter(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        CountUniqueMetadataByFilterTest.test_count_unique_metadata_by_filter_with_filter(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "year": int, "status": str}}],
-        indirect=True,
-    )
-    def test_count_unique_metadata_by_filter_with_multiple_filters(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        CountUniqueMetadataByFilterTest.test_count_unique_metadata_by_filter_with_multiple_filters(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "status": str, "priority": int, "rating": float}}],
-        indirect=True,
-    )
-    def test_get_metadata_fields_info(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldsInfoTest.test_get_metadata_fields_info(document_store)
-
     @pytest.mark.skip(reason="Azure AI Search returns index schema fields even on empty collections.")
     def test_get_metadata_fields_info_empty_collection(self, document_store: AzureAISearchDocumentStore): ...
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"priority": int}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_min_max_numeric(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldMinMaxTest.test_get_metadata_field_min_max_numeric(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"rating": float}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_min_max_float(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldMinMaxTest.test_get_metadata_field_min_max_float(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"priority": int}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_min_max_single_value(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldMinMaxTest.test_get_metadata_field_min_max_single_value(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"priority": int}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_min_max_empty_collection(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldMinMaxTest.test_get_metadata_field_min_max_empty_collection(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"priority": int, "age": int, "rating": float}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_min_max_meta_prefix(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldMinMaxTest.test_get_metadata_field_min_max_meta_prefix(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_basic(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_basic(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_meta_prefix(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_meta_prefix(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_search_term(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_search_term(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_pagination(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_pagination(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_empty_store(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_empty_store(document_store)
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"priority": int}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_preserves_type(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_preserves_type(document_store)
 
     @pytest.mark.parametrize(
         "document_store",
@@ -989,15 +768,6 @@ class TestDocumentStore(
         result = document_store.get_metadata_field_min_max("meta.priority")
 
         assert result == {"min": 1, "max": 8}
-
-    @pytest.mark.parametrize(
-        "document_store",
-        [{"metadata_fields": {"category": str, "status": str}}],
-        indirect=True,
-    )
-    def test_get_metadata_field_unique_values_with_filters(self, document_store: AzureAISearchDocumentStore):
-        """Override to use a document_store with required metadata fields."""
-        GetMetadataFieldUniqueValuesTest.test_get_metadata_field_unique_values_with_filters(document_store)
 
     def test_query_sql_integration(self, document_store: AzureAISearchDocumentStore):
         with pytest.raises(NotImplementedError, match="does not support SQL queries"):
