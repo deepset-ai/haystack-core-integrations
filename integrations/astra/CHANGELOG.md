@@ -1,5 +1,27 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `AstraDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3714)
+- Astra adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3738)
+- Standardize license files (#3771)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- `AstraDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3775)
+
+### 🧹 Chores
+
+- Astra - migrate generator example to chat generator (#3389)
+
+
 ## [integrations/astra-v4.3.0] - 2026-04-27
 
 ### 🚀 Features

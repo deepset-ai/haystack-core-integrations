@@ -1,5 +1,20 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `ChromDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3707)
+- Chroma adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3742)
+- Standardize license files (#3771)
+- `ChromaDocumentStore` removing duplicated tests already covered by haystack Mixin tests + fixing dedup values (#3777)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/chroma-v4.4.0] - 2026-07-24
 
 ### 🚀 Features

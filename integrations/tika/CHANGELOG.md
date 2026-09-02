@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/tika-v1.1.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- *(tika)* Update tests to use Tika 3 server and pin sdk to v3 (#3848)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/tika-v1.0.0] - 2026-06-18
 
 ### 🚀 Features

@@ -91,6 +91,87 @@ class TestElasticsearchDocumentStoreAsync(
             await document_store.write_documents_async(docs, policy=DuplicatePolicy.FAIL)
 
     @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_distinct_types_async(self, document_store):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. Elasticsearch's dynamic field mapping fixes
+        a field's type from the first document written to it, so that scenario raises a
+        document_parsing_exception here instead.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values_async() - using one field per type instead of one
+        shared field, which is what Elasticsearch can actually support.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        int_values, int_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_int"
+        )
+        str_values, str_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_str"
+        )
+        float_values, float_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_float"
+        )
+        bool_values, bool_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority_bool"
+        )
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_pagination_beyond_total_async(self, document_store):
+        """
+        Edge case not covered by the shared GetMetadataFieldUniqueValuesAsyncTest mixin's pagination
+        test: a `from_` beyond the total bucket count must hit `_skip_unique_values_async`'s
+        early-return branch (a page comes back with fewer buckets than requested) and still report
+        the correct total_count.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "C"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="category", from_=10, size=10
+        )
+        assert values == []
+        assert total_count == 3
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_search_term_numeric_field_async(self, document_store):
+        """
+        Edge case not covered by the shared mixin's search_term test (string fields only): the
+        substring-match script converts the field's doc-value via `.toString()`, a distinct code
+        path for a numeric field.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="priority", search_term="1"
+        )
+        assert values == [1] and type(values[0]) is int
+        assert total_count == 1
+
+    @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):
         """Test write_documents with invalid document type"""
         invalid_docs = [{"id": "1", "content": "test"}]  # Dictionary instead of Document object
@@ -364,82 +445,3 @@ class TestElasticsearchDocumentStoreAsync(
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             await document_store._query_sql_async(invalid_query)
-
-    @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_async_search_term_matches_field_value_not_content(
-        self, document_store: ElasticsearchDocumentStore
-    ):
-        """
-        `search_term` must filter by substring match on the metadata field's own value, not by matching
-        against the document's `content`.
-        """
-        docs = [
-            # "Python" appears in the content but NOT in the category value -> must be EXCLUDED
-            Document(content="Python programming guide", meta={"category": "Backend"}),
-            # "Python" appears in the category value but NOT in the content -> must be INCLUDED
-            Document(content="General purpose scripting language", meta={"category": "Python-based"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        unique_values, _ = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="meta.category", search_term="Python", from_=0, size=10
-        )
-
-        assert unique_values == ["Python-based"]
-        assert "Backend" not in unique_values
-
-    @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_async(self, document_store: ElasticsearchDocumentStore):
-        docs = [
-            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
-            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
-            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
-        ]
-        document_store.write_documents(docs)
-
-        unique_values, total_count = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="category", search_term=None, from_=0, size=10
-        )
-        assert set(unique_values) == {"A", "B"}
-        assert total_count == 2
-
-        # Test field name normalization - the "meta." prefix is optional and must give identical results
-        unique_values_prefixed, total_count_prefixed = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="meta.category", search_term=None, from_=0, size=10
-        )
-        assert set(unique_values_prefixed) == set(unique_values)
-        assert total_count_prefixed == total_count
-
-        unique_values_page1, total_count_page1 = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="meta.category", search_term=None, from_=0, size=1
-        )
-        unique_values_page2, total_count_page2 = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="meta.category", search_term=None, from_=1, size=1
-        )
-        assert len(unique_values_page1) == 1
-        assert len(unique_values_page2) == 1
-        assert set(unique_values_page1) | set(unique_values_page2) == {"A", "B"}
-        assert total_count_page1 == 2
-        assert total_count_page2 == 2
-
-        unique_values_filtered, total_filtered = await document_store.get_metadata_field_unique_values_async(
-            metadata_field="meta.language", search_term="Python", from_=0, size=10
-        )
-        assert set(unique_values_filtered) == {"Python"}
-        assert total_filtered == 1
-
-    @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_with_filters_async(
-        self, document_store: ElasticsearchDocumentStore
-    ):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "C", "status": "inactive"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        filters = {"field": "meta.status", "operator": "==", "value": "active"}
-        values, total = await document_store.get_metadata_field_unique_values_async("meta.category", filters=filters)
-        assert set(values) == {"A", "B"}
-        assert total == 2

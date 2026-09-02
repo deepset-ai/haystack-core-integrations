@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v5.17.0] - 2026-08-31
+
+### 🚀 Features
+
+- *(anthropic)* Add AnthropicTokenCounter (#3864)
+
+
 ## [integrations/anthropic-v5.16.0] - 2026-08-24
 
 ### 🚀 Features

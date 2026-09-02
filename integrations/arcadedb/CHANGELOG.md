@@ -1,5 +1,20 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `ArcadeDBDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3715)
+- ArcadeDB adding optional parameter `filters` to `get_metadata_field_unique_values() ` (#3733)
+- Standardize license files (#3771)
+- `ArcadeDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests + fix dedup (#3774)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/arcadedb-v1.5.0] - 2026-07-23
 
 ### 🚀 Features

@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/mcp-v1.5.1] - 2026-09-01
+
+### 🚀 Features
+
+- Support MCP Python SDK v2 - compatibility mode (#3878)
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- MCP - refactor test_toolset_combination for Toolset.__add__ removal (#3877)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/mcp-v1.4.1] - 2026-07-29
 
 ### 🐛 Bug Fixes

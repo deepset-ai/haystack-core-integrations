@@ -1,5 +1,22 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- `ElasticsearchDocumentStore` with offset pagination (#3691)
+
+### 🐛 Bug Fixes
+
+- `ElasticSearch` match `search_term` against metadata field value, not content (#3646)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `ElasticSearchDocumentStore` removing duplicated tests already covered by haystack Mixin tests + overriding (#3772)
+
+
 ## [integrations/elasticsearch-v6.3.0] - 2026-07-22
 
 ### 🚀 Features

@@ -1,5 +1,22 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- `OracleDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3710)
+- Oracle adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3734)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `OracleDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3782)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/oracle-v0.4.0] - 2026-07-27
 
 ### 🚀 Features
