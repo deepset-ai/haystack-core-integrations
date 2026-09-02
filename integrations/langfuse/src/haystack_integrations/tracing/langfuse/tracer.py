@@ -52,6 +52,71 @@ tracing_context_var: ContextVar[dict[Any, Any]] = ContextVar("tracing_context")
 span_stack_var: ContextVar[list["LangfuseSpan"] | None] = ContextVar("span_stack", default=None)
 
 
+class LangfuseContextToken:
+    """
+    Opaque token returned by :func:`set_langfuse_context`.
+
+    Pass it to :func:`reset_langfuse_context` to restore the previous tracing context.
+    """
+
+    def __init__(self, token: Any) -> None:
+        self._token = token
+
+
+def set_langfuse_context(
+    trace_id: Any | None = None,
+    user_id: Any | None = None,
+    session_id: Any | None = None,
+    tags: list[str] | None = None,
+    version: Any | None = None,
+) -> LangfuseContextToken:
+    """
+    Set Langfuse trace-level context for the current execution context.
+
+    The values are picked up by :class:`LangfuseTracer` when the next root trace is created
+    and propagated to all child spans in that trace. Use :func:`reset_langfuse_context` with
+    the returned token to restore the previous context.
+
+    :param trace_id: Custom trace ID to use for the next root trace.
+    :param user_id: User ID to attach to the trace.
+    :param session_id: Session ID to attach to the trace.
+    :param tags: Tags to attach to the trace.
+    :param version: Version to attach to the trace.
+    :returns: A token that can be passed to :func:`reset_langfuse_context` to undo this change.
+
+    Example:
+        >>> from haystack_integrations.tracing.langfuse import set_langfuse_context, reset_langfuse_context
+        >>> token = set_langfuse_context(user_id="user-456", tags=["production"])
+        >>> response = pipe.run(...)
+        >>> reset_langfuse_context(token)
+    """
+    new_ctx = tracing_context_var.get({}).copy()
+    if trace_id is not None:
+        new_ctx["trace_id"] = trace_id
+    if user_id is not None:
+        new_ctx["user_id"] = user_id
+    if session_id is not None:
+        new_ctx["session_id"] = session_id
+    if tags is not None:
+        new_ctx["tags"] = tags
+    if version is not None:
+        new_ctx["version"] = version
+    return LangfuseContextToken(tracing_context_var.set(new_ctx))
+
+
+def reset_langfuse_context(token: LangfuseContextToken | None = None) -> None:
+    """
+    Reset the Langfuse trace-level context for the current execution context.
+
+    :param token: The token returned by :func:`set_langfuse_context`. If omitted, the context is
+        cleared entirely.
+    """
+    if token is not None:
+        tracing_context_var.reset(token._token)
+    else:
+        tracing_context_var.set({})
+
+
 class LangfuseSpan(Span):
     """
     Internal class representing a bridge between the Haystack span tracing API and Langfuse.
