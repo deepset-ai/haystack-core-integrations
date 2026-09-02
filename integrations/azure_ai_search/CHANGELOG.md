@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/azure_ai_search-v4.2.0] - 2026-09-02
+
+### 🚀 Features
+
+- *(azure_ai_search)* Improve handling of unknown metadata fields (#3862)
+
+
 ## [integrations/azure_ai_search-v4.1.1] - 2026-09-02
 
 ### 🐛 Bug Fixes
