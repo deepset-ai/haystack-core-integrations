@@ -398,6 +398,11 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:rhesis:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/rhesis/**/*"
+      - any-glob-to-any-file: ".github/workflows/rhesis.yml"
+
 integration:searchapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/searchapi/**/*"
