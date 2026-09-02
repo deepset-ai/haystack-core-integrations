@@ -249,8 +249,8 @@ def evaluate_case(agent: Agent, documents_by_id: dict[str, Any], case: EvalCase)
         correct = _acknowledges_absence(answer)
         passed = stats.inspected_first and within_budget and correct
     elif case.check_recall:
-        # The expected set is enumerable, so score with the same primitive an optimization campaign uses. That keeps
-        # this example and a campaign agreeing on what "passing" means for the small corpus.
+        # The expected set is enumerable, so score with the same primitive an optimization experiment uses. That keeps
+        # this example and an experiment agreeing on what "passing" means for the small corpus.
         scored = score_advanced_rag_result(
             result=result,
             case=AdvancedRAGEvaluationCase(

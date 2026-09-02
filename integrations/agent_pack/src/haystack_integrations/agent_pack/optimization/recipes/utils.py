@@ -8,20 +8,8 @@ from copy import deepcopy
 from typing import Any
 
 from haystack.components.agents import Agent
-from haystack.core.serialization import component_from_dict, component_to_dict
-from haystack.tools import Tool, flatten_tools_or_toolsets
 
-_TEXT_EXIT_CONDITION = "text"
-
-
-def _normalized_names(names: tuple[str, ...]) -> tuple[str, ...]:
-    """
-    Sort and de-duplicate tool names so equivalent selections share one fingerprint.
-
-    :param names: The names to normalize.
-    :returns: The sorted, de-duplicated names.
-    """
-    return tuple(sorted(set(names)))
+_LIST_NAME_KEYS = ("data", "init_parameters")
 
 
 def _clone_agent(reference: Agent, **overrides: Any) -> Agent:
@@ -48,75 +36,101 @@ def _clone_agent(reference: Agent, **overrides: Any) -> Agent:
     return reference.clone(**overrides)
 
 
-def _tools_by_name(agent: Agent) -> dict[str, Tool]:
+def _named_element(elements: list[Any], name: str) -> dict[str, Any] | None:
     """
-    Return an Agent's tools keyed by name, flattening any toolsets.
+    Find the element of a serialized list that carries this name, such as one tool among an Agent's tools.
 
-    :param agent: The Agent to inspect.
-    :returns: The configured tools, by name.
+    Returns the container the name was found in rather than the element wrapping it, so a path reads
+    `tools.search_documents.component...` and does not have to name the `data` key serialization puts fields under.
     """
-    return {configured.name: configured for configured in flatten_tools_or_toolsets(tools=agent.tools)}
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+        for key in _LIST_NAME_KEYS:
+            container = element.get(key)
+            if isinstance(container, dict) and container.get("name") == name:
+                return container
+    return None
 
 
-def _select_tools(agent: Agent, names: tuple[str, ...]) -> list[Tool]:
+def _resolve_patch_target(data: dict[str, Any], path: str) -> tuple[dict[str, Any], str]:
     """
-    Return the named subset of an Agent's tools.
+    Walk a dotted path through a serialized harness and return the container to write into, plus the final key.
 
-    :param agent: The Agent to select from.
-    :param names: The tool names to keep.
-    :returns: The selected tools, in the order the names were given.
-    :raises ValueError: If a name is not configured on the Agent.
+    A segment addressing a list selects the element carrying that name, which is how a tool is reached by name
+    rather than by position. Missing intermediate dictionaries are created, so a nested generation parameter can be
+    set on a component that declares none.
+
+    :param data: The serialized structure to walk, an Agent's init parameters.
+    :param path: The dotted path to resolve.
+    :returns: The container holding the final key, and the final key.
+    :raises ValueError: If a segment names a list element that does not exist, or a path runs into a non-container.
     """
-    available = _tools_by_name(agent=agent)
-    missing = sorted(set(names) - available.keys())
-    if missing:
-        msg = f"Recipe references tools not configured on the Agent: {', '.join(missing)}."
+    segments = path.split(".")
+    current: Any = data
+    for index, segment in enumerate(segments[:-1]):
+        if isinstance(current, list):
+            element = _named_element(elements=current, name=segment)
+            if element is None:
+                msg = f"Patch path {path!r} names {segment!r}, which is not in the harness."
+                raise ValueError(msg)
+            current = element
+            continue
+        if not isinstance(current, dict):
+            reached = ".".join(segments[:index])
+            msg = f"Patch path {path!r} runs into a value at {reached!r} that cannot be traversed."
+            raise ValueError(msg)
+        current = current.setdefault(segment, {})
+    if isinstance(current, list):
+        msg = f"Patch path {path!r} ends at a list, which cannot be assigned to by name."
         raise ValueError(msg)
-    return [available[name] for name in names]
-
-
-def _satisfiable_exit_conditions(reference: Agent, tools: list[Tool]) -> list[str]:
-    """
-    Drop exit conditions naming tools the candidate no longer exposes.
-
-    Keeping them would make the candidate raise at construction for a reason unrelated to the transformation under
-    test. The text exit condition always survives, and is the fallback when nothing else does.
-
-    :param reference: The Agent whose exit conditions are being carried over.
-    :param tools: The tools the candidate will expose.
-    :returns: The exit conditions the candidate can satisfy.
-    """
-    tool_names = {configured.name for configured in tools}
-    kept = [
-        condition
-        for condition in (reference.exit_conditions or [_TEXT_EXIT_CONDITION])
-        if condition == _TEXT_EXIT_CONDITION or condition in tool_names
-    ]
-    return kept or [_TEXT_EXIT_CONDITION]
-
-
-def _clone_generator_with_generation_kwargs(reference_generator: Any, overrides: dict[str, Any]) -> Any:
-    """
-    Build a copy of a chat generator with merged generation parameters.
-
-    :param reference_generator: The generator to copy.
-    :param overrides: Generation parameters to merge over the generator's own.
-    :returns: A new generator, leaving the reference generator untouched.
-    :raises ValueError: If the generator does not accept a generation parameter mapping.
-    """
-    serialized = deepcopy(component_to_dict(obj=reference_generator, name="chat_generator"))
-    init_parameters = serialized.get("init_parameters")
-    if not isinstance(init_parameters, dict):
-        msg = f"{type(reference_generator).__name__} has no serializable init_parameters."
-        raise ValueError(msg)
-    if "generation_kwargs" not in init_parameters:
-        # Checked up front so an unsupported change is reported as such, rather than as a deserialization TypeError
-        # from deep inside the generator's constructor.
-        msg = f"{type(reference_generator).__name__} does not accept generation_kwargs."
-        raise ValueError(msg)
-    current = init_parameters.get("generation_kwargs") or {}
     if not isinstance(current, dict):
-        msg = f"{type(reference_generator).__name__}.generation_kwargs is not a mapping."
+        msg = f"Patch path {path!r} runs into a value that cannot be traversed."
         raise ValueError(msg)
-    init_parameters["generation_kwargs"] = {**current, **overrides}
-    return component_from_dict(cls=type(reference_generator), data=serialized, name="chat_generator")
+    return current, segments[-1]
+
+
+def _patched_agent(reference: Agent, patch: dict[str, Any]) -> Agent:
+    """
+    Rebuild an Agent from its serialized form with the patch applied.
+
+    Going through `to_dict`/`from_dict` is what lets one mechanism reach every init parameter of every component,
+    and it gives a candidate that shares nothing mutable with the reference. Two things follow from that. A harness
+    holding locally defined function tools or closures does not serialize, so it cannot be patched. And rebuilding
+    imports every component by name, which Haystack gates behind a module allowlist covering its own packages, so a
+    harness containing components from another package needs that package allowed first, through
+    `haystack.core.serialization_security.allow_deserialization_module` or the
+    `HAYSTACK_DESERIALIZATION_ALLOWLIST` environment variable.
+
+    :param reference: The harness to patch, left untouched.
+    :param patch: Dotted paths mapped to the values to set, relative to the Agent's init parameters.
+    :returns: The patched Agent.
+    :raises ValueError: If the harness does not serialize, or a path cannot be resolved.
+    """
+    try:
+        data = reference.to_dict()
+    except Exception as error:
+        msg = (
+            f"{type(reference).__name__} does not serialize, so it cannot be patched: {error}. Harnesses holding "
+            "locally defined function tools or closures have to be changed through a recipe that works on the live "
+            "objects instead."
+        )
+        raise ValueError(msg) from error
+
+    data = deepcopy(data)
+    init_parameters = data.get("init_parameters")
+    if not isinstance(init_parameters, dict):
+        msg = f"{type(reference).__name__} serialized without init parameters, so it cannot be patched."
+        raise ValueError(msg)
+    for path, value in patch.items():
+        container, key = _resolve_patch_target(data=init_parameters, path=path)
+        container[key] = value
+    try:
+        return type(reference).from_dict(data)
+    except Exception as error:
+        msg = (
+            f"The patched harness could not be rebuilt: {error}. Rebuilding imports every component by name, which "
+            "Haystack gates behind a module allowlist; allow the package holding your components with "
+            "`allow_deserialization_module` or the HAYSTACK_DESERIALIZATION_ALLOWLIST environment variable."
+        )
+        raise ValueError(msg) from error

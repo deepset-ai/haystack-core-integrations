@@ -26,9 +26,9 @@ Runs are captured by `haystack_integrations.agent_pack.tracing`, a standalone mo
 data. It depends only on Haystack, and is a candidate for moving upstream once its shape settles.
 
 ```python
-from haystack_integrations.agent_pack.optimization import HarnessOptimizationCampaign
+from haystack_integrations.agent_pack.optimization import HarnessOptimizationExperiment
 
-result = HarnessOptimizationCampaign(
+result = HarnessOptimizationExperiment(
     reference=reference_agent,
     trace_source=trace_store,
     evaluator=evaluator,

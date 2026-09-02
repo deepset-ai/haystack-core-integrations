@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Protocols for the pluggable parts of a campaign."""
+"""Protocols for the pluggable parts of an experiment."""
 
 from typing import Any, Protocol
 
 from haystack.components.agents import Agent
 
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.campaign.dataclasses import (
+from haystack_integrations.agent_pack.optimization.experiment.dataclasses import (
     EvaluationMetrics,
     OptimizationObjectives,
 )
@@ -24,11 +24,11 @@ class HarnessEvaluator(Protocol):
         self, agent: Agent, reference_traces: list[TraceArtifact], assets: ApprovedAssetCatalog
     ) -> EvaluationMetrics:
         """
-        Return comparable campaign metrics.
+        Return comparable experiment metrics.
 
         :param agent: The materialized candidate to score.
         :param reference_traces: The reference traces to evaluate against.
-        :param assets: The approved asset catalog, supplied so cost is priced from the same catalog the campaign
+        :param assets: The approved asset catalog, supplied so cost is priced from the same catalog the experiment
             gates against instead of a second price table that can drift out of step with it.
         :returns: Quality, cost, and latency for the candidate.
         """
@@ -38,7 +38,7 @@ class HarnessEvaluator(Protocol):
         """
         Return a JSON-compatible description of everything that affects this evaluator's scores.
 
-        Folded into the campaign's configuration hash so a change to the evaluation set, the repetition count, or
+        Folded into the experiment's configuration hash so a change to the evaluation set, the repetition count, or
         the price table invalidates journaled results instead of silently reusing them. Optional.
 
         :returns: The evaluator's identifying configuration.
@@ -63,7 +63,7 @@ class RecipeProposer(Protocol):
         :param reference: The champion harness.
         :param reference_traces: The selected reference traces.
         :param assets: The approved model and tool allowlist.
-        :param objectives: The campaign's gates and ranking preference.
+        :param objectives: The experiment's gates and ranking preference.
         :returns: The proposed candidate transformations.
         """
         ...

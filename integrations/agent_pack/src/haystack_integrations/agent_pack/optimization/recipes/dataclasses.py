@@ -10,19 +10,17 @@ from typing import Any, ClassVar
 from haystack.components.agents import Agent
 
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.recipes.utils import (
-    _clone_agent,
-    _clone_generator_with_generation_kwargs,
-    _normalized_names,
-    _satisfiable_exit_conditions,
-    _select_tools,
-)
+from haystack_integrations.agent_pack.optimization.recipes.utils import _clone_agent, _patched_agent
 
 
 @dataclass(frozen=True, kw_only=True)
 class ModelSubstitutionRecipe:
     """
     Replace the coordinator model with an approved model deployment.
+
+    Kept distinct from a patch because a model asset can carry a whole generator configuration, which is what makes
+    substituting a model served by a different provider possible, and because it is the axis the deterministic
+    proposer enumerates.
 
     :param model_id: The approved model to switch to.
     """
@@ -51,86 +49,74 @@ class ModelSubstitutionRecipe:
 
 
 @dataclass(frozen=True, kw_only=True)
-class PromptAndGenerationRecipe:
+class SystemPromptRecipe:
     """
-    Change the system prompt and/or generator parameters.
+    Replace the harness's system prompt.
 
-    :param system_prompt: Replacement system prompt.
-    :param generation_kwargs: Generation parameters merged over the reference generator's own.
+    The only transformation whose value an optimizer authors rather than picks, because a prompt cannot be
+    enumerated in advance.
+
+    :param system_prompt: The replacement prompt.
     """
 
-    system_prompt: str | None = None
-    generation_kwargs: dict[str, Any] | None = None
-    kind: ClassVar[str] = "prompt_and_generation"
+    system_prompt: str
+    kind: ClassVar[str] = "system_prompt"
 
     def __post_init__(self) -> None:
-        if self.system_prompt is None and not self.generation_kwargs:
-            msg = "PromptAndGenerationRecipe requires at least one change."
+        if not self.system_prompt.strip():
+            msg = "SystemPromptRecipe requires a non-empty prompt."
             raise ValueError(msg)
 
     def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:  # noqa: ARG002
         """
-        Clone the Agent with the requested prompt and generation settings.
+        Clone the Agent with the replacement prompt.
 
         :param reference: The champion harness to transform.
-        :param assets: The approved model and tool allowlist. Unused: neither change introduces a new asset.
+        :param assets: The approved model and tool allowlist. Unused: a prompt introduces no new asset.
         :returns: The new candidate Agent.
         """
-        overrides: dict[str, Any] = {}
-        if self.system_prompt is not None:
-            overrides["system_prompt"] = self.system_prompt
-        if self.generation_kwargs:
-            overrides["chat_generator"] = _clone_generator_with_generation_kwargs(
-                reference_generator=reference.chat_generator, overrides=self.generation_kwargs
-            )
-        return _clone_agent(reference=reference, **overrides)
+        return _clone_agent(reference=reference, system_prompt=self.system_prompt)
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert the PromptAndGenerationRecipe into a dictionary.
+        Convert the SystemPromptRecipe into a dictionary.
 
-        :returns: A dictionary with keys 'kind', 'system_prompt', and 'generation_kwargs'.
+        :returns: A dictionary with keys 'kind' and 'system_prompt'.
         """
         return {"kind": self.kind, **asdict(self)}
 
 
 @dataclass(frozen=True, kw_only=True)
-class ToolSelectionRecipe:
+class ApplyPatchRecipe:
     """
-    Restrict an Agent to a named subset of its configured tools.
+    Apply one approved configuration change from the catalog.
 
-    :param tool_names: The tools to keep. Sorted and de-duplicated, so two orderings of the same set describe one
-        candidate rather than two.
+    This is the general axis: because a patch is applied to the harness's serialized form, it reaches any init
+    parameter of any component, so reasoning effort, a retriever's `top_k` and a hook's settings all need no recipe
+    of their own. The values come from the catalog, so a proposal names a patch and cannot author one.
+
+    :param patch: The name of the approved patch to apply.
     """
 
-    tool_names: tuple[str, ...]
-    kind: ClassVar[str] = "tool_selection"
+    patch: str
+    kind: ClassVar[str] = "apply_patch"
 
-    def __post_init__(self) -> None:
-        if not self.tool_names:
-            msg = "ToolSelectionRecipe requires at least one tool name."
-            raise ValueError(msg)
-        object.__setattr__(self, "tool_names", _normalized_names(names=self.tool_names))
-
-    def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:  # noqa: ARG002
+    def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:
         """
-        Clone the Agent with only the selected tools.
+        Rebuild the Agent from its serialized form with the approved patch applied.
 
         :param reference: The champion harness to transform.
-        :param assets: The approved model and tool allowlist. Unused: a subset introduces no new asset.
+        :param assets: The catalog holding the approved patch.
         :returns: The new candidate Agent.
+        :raises ValueError: If the patch is not approved, the harness does not serialize, or a path does not resolve.
         """
-        tools = _select_tools(agent=reference, names=self.tool_names)
-        return _clone_agent(
-            reference=reference,
-            tools=tools,
-            exit_conditions=_satisfiable_exit_conditions(reference=reference, tools=tools),
-        )
+        approved = assets.patch(name=self.patch)
+        return _patched_agent(reference=reference, patch=approved.patch)
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert the ToolSelectionRecipe into a dictionary.
+        Convert the ApplyPatchRecipe into a dictionary.
 
-        :returns: A dictionary with keys 'kind' and 'tool_names'.
+        :returns: A dictionary with keys 'kind' and 'patch'.
         """
-        return {"kind": self.kind, "tool_names": list(self.tool_names)}
+        return {"kind": self.kind, **asdict(self)}

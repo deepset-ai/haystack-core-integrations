@@ -10,8 +10,8 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAG
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
-    CampaignJournal,
-    HarnessOptimizationCampaign,
+    ExperimentJournal,
+    HarnessOptimizationExperiment,
     ModelAsset,
     OptimizationObjectives,
     ToolAsset,
@@ -41,7 +41,7 @@ def scripted_agent(store, document, model):
     )
 
 
-def test_advanced_rag_campaign_recommends_cheaper_model_at_quality_parity(tmp_path):
+def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_path):
     document = Document(
         content="CRISPR gene editing can correct hereditary blindness mutations.",
         meta={"category": "science", "year": 2021},
@@ -82,16 +82,16 @@ def test_advanced_rag_campaign_recommends_cheaper_model_at_quality_parity(tmp_pa
             )
         ]
     )
-    campaign = HarnessOptimizationCampaign(
+    experiment = HarnessOptimizationExperiment(
         reference=reference,
         trace_source=trace_store,
         evaluator=evaluator,
         assets=assets,
         objectives=OptimizationObjectives(min_quality=1.0),
-        journal=CampaignJournal(path=tmp_path / "advanced-rag-campaign.jsonl"),
+        journal=ExperimentJournal(path=tmp_path / "advanced-rag-experiment.jsonl"),
     )
 
-    result = campaign.run()
+    result = experiment.run()
 
     assert result.baseline.quality == 1.0
     assert result.recommendation is not None
@@ -107,7 +107,7 @@ def test_advanced_rag_campaign_recommends_cheaper_model_at_quality_parity(tmp_pa
     assert reference.chat_generator.model == "reference"
 
 
-def test_campaign_withholds_a_recommendation_when_quality_regresses(tmp_path):
+def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     """The cheaper model is only recommended while it still answers the labelled case."""
     document = Document(content="CRISPR gene editing can correct hereditary blindness mutations.")
     store = InMemoryDocumentStore()
@@ -138,7 +138,7 @@ def test_campaign_withholds_a_recommendation_when_quality_regresses(tmp_path):
         ],
         tools=[ToolAsset(name=tool.name) for tool in flatten_tools_or_toolsets(reference.tools)],
     )
-    campaign = HarnessOptimizationCampaign(
+    experiment = HarnessOptimizationExperiment(
         reference=reference,
         trace_source=trace_store,
         evaluator=AdvancedRAGHarnessEvaluator(
@@ -152,10 +152,10 @@ def test_campaign_withholds_a_recommendation_when_quality_regresses(tmp_path):
         ),
         assets=assets,
         objectives=OptimizationObjectives(min_quality=1.0),
-        journal=CampaignJournal(path=tmp_path / "campaign.jsonl"),
+        journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
     )
 
-    result = campaign.run()
+    result = experiment.run()
 
     assert result.baseline.quality == 1.0
     assert result.recommendation is None

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Measurements, objectives, and outcomes of a harness optimization campaign."""
+"""Measurements, objectives, and outcomes of a harness optimization experiment."""
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
@@ -10,7 +10,6 @@ from typing import Any, Literal
 from haystack.components.agents import Agent
 
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.assets.dataclasses import AssetValidation
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 
 
@@ -25,7 +24,7 @@ class EvaluationMetrics:
     :param quality_lower_bound: Optional pessimistic quality estimate. Quality gates use this when it is present, so
         an evaluator that repeats each case can require the *lower* end of the observed range to clear the floor
         rather than the mean of a single noisy sample.
-    :param details: Free-form evaluator output recorded in the campaign journal.
+    :param details: Free-form evaluator output recorded in the experiment journal.
     """
 
     quality: float
@@ -72,7 +71,7 @@ class EvaluationMetrics:
 @dataclass(frozen=True, kw_only=True)
 class OptimizationObjectives:
     """
-    Campaign gates and ranking preferences.
+    Experiment gates and ranking preferences.
 
     :param min_quality: Absolute quality floor every candidate must clear.
     :param max_quality_loss: How far below the reference's quality a candidate may fall.
@@ -115,14 +114,13 @@ class CandidateEvaluation:
     """
     Journaled outcome for one recipe.
 
-    Only measurements are recorded. Whether a candidate passes the campaign's gates is recomputed on every run, so
+    Only measurements are recorded. Whether a candidate passes the experiment's gates is recomputed on every run, so
     changing the objectives re-ranks journaled results instead of replaying a stale verdict.
 
     :param candidate_id: Identifier covering both the recipe and the configuration it was measured under.
-    :param configuration_hash: Hash of the campaign configuration the measurement belongs to.
+    :param configuration_hash: Hash of the experiment configuration the measurement belongs to.
     :param recipe: The serialized transformation that produced the candidate.
     :param metrics: What the evaluator measured, or None if the evaluation failed.
-    :param asset_validation: Every model and tool the candidate was found to use.
     :param failure: The error that ended the evaluation, if it failed.
     """
 
@@ -130,7 +128,6 @@ class CandidateEvaluation:
     configuration_hash: str
     recipe: dict[str, Any]
     metrics: EvaluationMetrics | None
-    asset_validation: AssetValidation | None = None
     failure: str | None = None
 
     @property
@@ -153,7 +150,6 @@ class CandidateEvaluation:
             "configuration_hash": self.configuration_hash,
             "recipe": self.recipe,
             "metrics": self.metrics.to_dict() if self.metrics is not None else None,
-            "asset_validation": self.asset_validation.to_dict() if self.asset_validation is not None else None,
             "failure": self.failure,
         }
 
@@ -166,19 +162,17 @@ class CandidateEvaluation:
         :returns: The created object.
         """
         metrics = data.get("metrics")
-        validation = data.get("asset_validation")
         return cls(
             candidate_id=data["candidate_id"],
             configuration_hash=data.get("configuration_hash", ""),
             recipe=data["recipe"],
             metrics=EvaluationMetrics.from_dict(data=metrics) if metrics is not None else None,
-            asset_validation=AssetValidation.from_dict(data=validation) if validation is not None else None,
             failure=data.get("failure"),
         )
 
 
 @dataclass(frozen=True, kw_only=True)
-class CampaignRecommendation:
+class ExperimentRecommendation:
     """
     A candidate that met the hard gates and outranked the reference harness.
 
@@ -201,15 +195,12 @@ class CampaignRecommendation:
         :param reference: The champion harness the recipe applies to.
         :param assets: The approved model and tool allowlist, re-checked before the Agent is handed back.
         :returns: The recommended candidate Agent.
-        :raises ValueError: If the candidate uses an asset outside the catalog.
         """
-        candidate = self.recipe.materialize(reference=reference, assets=assets)
-        assets.require_valid_agent(agent=candidate)
-        return candidate
+        return self.recipe.materialize(reference=reference, assets=assets)
 
 
 @dataclass(frozen=True, kw_only=True)
-class CampaignResult:
+class ExperimentResult:
     """
     Baseline, candidate outcomes, and optional recommendation.
 
@@ -218,14 +209,10 @@ class CampaignResult:
     :param recommendation: The candidate worth approving, if any.
     :param configuration_hash: Hash of the configuration these measurements belong to.
     :param gate_failures: Per candidate ID, the hard gates it missed. An empty tuple means it was eligible.
-    :param reference_validation: Which models and tools the reference harness itself uses, and whether they are all
-        in the catalog. Reported rather than enforced: replacing a harness whose model is no longer approved is a
-        reason to run a campaign, not a reason to refuse to measure one.
     """
 
     baseline: EvaluationMetrics
     candidates: tuple[CandidateEvaluation, ...]
-    recommendation: CampaignRecommendation | None
+    recommendation: ExperimentRecommendation | None
     configuration_hash: str = ""
     gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
-    reference_validation: AssetValidation | None = None

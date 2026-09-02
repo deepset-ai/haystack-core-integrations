@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Constrained champion/challenger optimization campaigns for Haystack Agents."""
+"""Constrained champion/challenger optimization experiments for Haystack Agents."""
 
 import hashlib
 import json
@@ -15,16 +15,17 @@ from haystack.core.serialization import component_to_dict
 from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.campaign.dataclasses import (
-    CampaignRecommendation,
-    CampaignResult,
+from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
+from haystack_integrations.agent_pack.optimization.experiment.dataclasses import (
     CandidateEvaluation,
     EvaluationMetrics,
+    ExperimentRecommendation,
+    ExperimentResult,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.campaign.journal import CampaignJournal
-from haystack_integrations.agent_pack.optimization.campaign.proposers import ApprovedModelRecipeProposer
-from haystack_integrations.agent_pack.optimization.campaign.types.protocol import HarnessEvaluator, RecipeProposer
+from haystack_integrations.agent_pack.optimization.experiment.journal import ExperimentJournal
+from haystack_integrations.agent_pack.optimization.experiment.proposers import ApprovedModelRecipeProposer
+from haystack_integrations.agent_pack.optimization.experiment.types.protocol import HarnessEvaluator, RecipeProposer
 from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_fingerprint
 from haystack_integrations.agent_pack.optimization.recipes.types.protocol import CandidateRecipe
 from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact, TraceSelection
@@ -34,7 +35,7 @@ from haystack_integrations.agent_pack.tracing.types.protocol import TraceSource
 logger = logging.getLogger(__name__)
 
 
-class HarnessOptimizationCampaign:
+class HarnessOptimizationExperiment:
     """
     Evaluate typed recipes and recommend the best candidate that satisfies every hard gate.
 
@@ -52,13 +53,13 @@ class HarnessOptimizationCampaign:
         evaluator: HarnessEvaluator,
         assets: ApprovedAssetCatalog,
         objectives: OptimizationObjectives,
-        journal: CampaignJournal,
+        journal: ExperimentJournal,
         proposer: RecipeProposer | None = None,
         trace_selection: TraceSelection | None = None,
         configuration_key: str | None = None,
     ) -> None:
         """
-        Create a campaign.
+        Create an experiment.
 
         :param reference: The champion harness, never mutated.
         :param trace_source: Where reference traces come from.
@@ -69,7 +70,7 @@ class HarnessOptimizationCampaign:
         :param proposer: Generates candidate recipes. Defaults to enumerating approved models.
         :param trace_selection: Which reference traces to use.
         :param configuration_key: Optional discriminator folded into the configuration hash. Use it to invalidate
-            journaled results after changing something the campaign cannot see, such as the contents of the document
+            journaled results after changing something the experiment cannot see, such as the contents of the document
             store the harness retrieves from.
         """
         self.reference = reference
@@ -82,7 +83,7 @@ class HarnessOptimizationCampaign:
         self.trace_selection = trace_selection or TraceSelection()
         self.configuration_key = configuration_key
 
-    def run(self) -> CampaignResult:
+    def run(self) -> ExperimentResult:
         """
         Evaluate the reference and every proposed candidate, resuming completed work from the journal.
 
@@ -139,17 +140,16 @@ class HarnessOptimizationCampaign:
         for candidate in eligible:
             reasons = self._recommendation_reasons(candidate=candidate, baseline=baseline)
             if reasons is not None:
-                recommendation = CampaignRecommendation(
+                recommendation = ExperimentRecommendation(
                     recipe=recipe_by_id[candidate.candidate_id], evaluation=candidate, reasons=reasons
                 )
                 break
-        return CampaignResult(
+        return ExperimentResult(
             baseline=baseline,
             candidates=tuple(outcomes),
             recommendation=recommendation,
             configuration_hash=configuration_hash,
             gate_failures=gate_failures,
-            reference_validation=self.assets.validate_agent(agent=self.reference),
         )
 
     def _configuration_hash(self, reference_traces: list[TraceArtifact]) -> str:
@@ -173,7 +173,6 @@ class HarnessOptimizationCampaign:
                 for asset in self.assets.models.values()
             ),
             "tools": sorted([asset.name, asset.provider] for asset in self.assets.tools.values()),
-            "strict_identification": self.assets.strict_identification,
             "objectives": self.objectives.to_dict(),
             "evaluator": self._evaluator_fingerprint(),
             "traces": sorted(artifact.run_id for artifact in reference_traces),
@@ -186,7 +185,7 @@ class HarnessOptimizationCampaign:
         """
         Measure the reference harness, reusing a journaled measurement of the same configuration.
 
-        The baseline is journaled like a candidate so resuming a campaign costs nothing when everything is already
+        The baseline is journaled like a candidate so resuming an experiment costs nothing when everything is already
         measured. Without it, every resume pays for a full evaluation pass over the reference.
         """
         baseline_id = f"baseline:{configuration_hash}"
@@ -209,10 +208,10 @@ class HarnessOptimizationCampaign:
         """
         Identify a candidate by both its recipe and the configuration it was measured under.
 
-        A recipe-only identity would let a resumed campaign replay metrics recorded against a different reference
+        A recipe-only identity would let a resumed experiment replay metrics recorded against a different reference
         harness, evaluation set, price table, or set of reference traces.
 
-        :param configuration_hash: The campaign configuration hash.
+        :param configuration_hash: The experiment configuration hash.
         :param recipe: The transformation being measured.
         :returns: A hex SHA-256 digest identifying this measurement.
         """
@@ -224,8 +223,8 @@ class HarnessOptimizationCampaign:
 
         Deliberately not `Agent.to_dict()`: a full serialization pulls in the configuration of everything the harness
         holds, and some of that is regenerated per process. `InMemoryDocumentStore`, for one, serializes a random
-        `index` UUID, so hashing the full form would change the campaign's identity on every run and make resume
-        impossible. What is described here is stable across processes; anything the campaign cannot see belongs in
+        `index` UUID, so hashing the full form would change the experiment's identity on every run and make resume
+        impossible. What is described here is stable across processes; anything the experiment cannot see belongs in
         `configuration_key`.
         """
         try:
@@ -234,8 +233,9 @@ class HarnessOptimizationCampaign:
             generator = {"type": type(self.reference.chat_generator).__name__}
         return {
             "generator": generator,
-            # Every model in the harness, hooks and delegated agents included.
-            "models": list(self.assets.validate_agent(agent=self.reference).model_ids),
+            "model": generator_model_id(generator=self.reference.chat_generator),
+            # Hooks can run their own models, so a change to them changes what a measurement means.
+            "hooks": sorted(type(hook).__name__ for hooks in (self.reference.hooks or {}).values() for hook in hooks),
             "tools": sorted(
                 [configured.name, configured.description]
                 for configured in flatten_tools_or_toolsets(tools=self.reference.tools)
@@ -263,17 +263,15 @@ class HarnessOptimizationCampaign:
         configuration_hash: str,
         reference_traces: list[TraceArtifact],
     ) -> CandidateEvaluation:
-        """Materialize, validate, and score one candidate, recording a failure rather than aborting the campaign."""
+        """Materialize, validate, and score one candidate, recording a failure rather than aborting the experiment."""
         try:
             candidate = recipe.materialize(reference=self.reference, assets=self.assets)
-            validation = self.assets.require_valid_agent(agent=candidate)
             metrics = self.evaluator.evaluate(agent=candidate, reference_traces=reference_traces, assets=self.assets)
             return CandidateEvaluation(
                 candidate_id=candidate_id,
                 configuration_hash=configuration_hash,
                 recipe=recipe.to_dict(),
                 metrics=metrics,
-                asset_validation=validation,
             )
         except Exception as error:
             logger.warning(
@@ -293,8 +291,6 @@ class HarnessOptimizationCampaign:
         """Return every hard gate this candidate misses. An empty tuple means it is eligible for ranking."""
         if candidate.failure is not None or candidate.metrics is None:
             return ("evaluation_failed",)
-        # An asset violation is not gated here: `require_valid_agent` raises while the candidate is being
-        # materialized, so a candidate that reaches this point has already cleared the catalog.
         failures: list[str] = []
         quality_floor = max(self.objectives.min_quality, baseline.gating_quality - self.objectives.max_quality_loss)
         if candidate.metrics.gating_quality < quality_floor:

@@ -1,66 +1,16 @@
 import pytest
-from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
-from haystack.tools import AgentTool, tool
 
-from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
-from haystack_integrations.agent_pack.optimization import ApprovedAssetCatalog, ModelAsset, ToolAsset
+from haystack_integrations.agent_pack.optimization import (
+    ApprovedAssetCatalog,
+    HarnessPatch,
+    ModelAsset,
+    ToolAsset,
+)
 from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 
 MOCK_GENERATOR_TYPE = "haystack.components.generators.chat.mock.MockChatGenerator"
-
-
-def modelled_generator(model, responses=None):
-    return MockChatGenerator(responses or [ChatMessage.from_assistant("done")], model=model)
-
-
-@tool
-def nested_search_documents(query: str) -> str:
-    """Search documents from a delegated Agent."""
-    return query
-
-
-def test_asset_catalog_validates_nested_agent_tools():
-    specialist = Agent(chat_generator=modelled_generator("specialist"), tools=[nested_search_documents])
-    coordinator = Agent(
-        chat_generator=modelled_generator("reference"),
-        tools=[AgentTool(agent=specialist, name="retrieval_specialist", description="Retrieve evidence")],
-    )
-    catalog = ApprovedAssetCatalog(
-        models=[
-            ModelAsset(model_id="reference", provider="provider", deployment="remote"),
-            ModelAsset(model_id="specialist", provider="provider", deployment="local"),
-        ],
-        tools=[ToolAsset(name="retrieval_specialist"), ToolAsset(name="nested_search_documents")],
-    )
-
-    validation = catalog.require_valid_agent(agent=coordinator)
-    assert validation.model_ids == ("reference", "specialist")
-    assert validation.tool_names == ("nested_search_documents", "retrieval_specialist")
-
-    invalid = ApprovedAssetCatalog(
-        models=[ModelAsset(model_id="reference", provider="provider", deployment="remote")],
-        tools=[ToolAsset(name="retrieval_specialist")],
-    ).validate_agent(agent=coordinator)
-    assert invalid.allowed is False
-    assert "model_not_approved:specialist" in invalid.violations
-    assert "tool_not_approved:nested_search_documents" in invalid.violations
-
-
-def test_asset_catalog_validates_models_configured_on_hooks():
-    agent = Agent(
-        chat_generator=modelled_generator("reference"),
-        hooks={"after_run": [BackupAnswerHook(chat_generator=modelled_generator("backup"))]},
-    )
-
-    validation = ApprovedAssetCatalog(
-        models=[ModelAsset(model_id="reference", provider="provider", deployment="remote")], tools=[]
-    ).validate_agent(agent=agent)
-
-    assert validation.allowed is False
-    assert validation.model_ids == ("backup", "reference")
-    assert "model_not_approved:backup" in validation.violations
 
 
 class UnnamedGenerator:
@@ -73,22 +23,6 @@ class UnnamedGenerator:
         return {"type": "tests.UnnamedGenerator", "init_parameters": {}}
 
 
-def test_unidentifiable_assets_fail_closed_but_can_be_downgraded_to_warnings():
-    agent = Agent(chat_generator=UnnamedGenerator())
-    catalog_arguments = {
-        "models": [ModelAsset(model_id="reference", provider="provider", deployment="remote")],
-        "tools": [],
-    }
-
-    strict = ApprovedAssetCatalog(**catalog_arguments).validate_agent(agent=agent)
-    assert strict.allowed is False
-    assert strict.violations == ("model_not_identifiable",)
-
-    lenient = ApprovedAssetCatalog(**catalog_arguments, strict_identification=False).validate_agent(agent=agent)
-    assert lenient.allowed is True
-    assert lenient.warnings == ("model_not_identifiable",)
-
-
 class AzureStyleGenerator:
     def __init__(self):
         self.azure_deployment = "eu-gpt-deployment"
@@ -97,6 +31,51 @@ class AzureStyleGenerator:
 class HuggingFaceStyleGenerator:
     def __init__(self):
         self.api_params = {"model": "local/llama"}
+
+
+def test_catalog_looks_assets_up_and_fails_closed():
+    catalog = ApprovedAssetCatalog(
+        models=[ModelAsset(model_id="approved", provider="p", deployment="d")],
+        tools=[ToolAsset(name="search_documents")],
+    )
+
+    assert catalog.model(model_id="approved").provider == "p"
+    assert catalog.tool(tool_name="search_documents").name == "search_documents"
+    with pytest.raises(ValueError, match="not in the approved asset catalog"):
+        catalog.model(model_id="unapproved")
+    with pytest.raises(ValueError, match="not in the approved asset catalog"):
+        catalog.tool(tool_name="unapproved")
+
+
+def test_catalog_looks_patches_up_and_fails_closed():
+    catalog = ApprovedAssetCatalog(
+        models=[],
+        tools=[],
+        patches=[HarnessPatch(name="reasoning-low", patch={"chat_generator.init_parameters.x": 1})],
+    )
+
+    assert catalog.patch(name="reasoning-low").patch == {"chat_generator.init_parameters.x": 1}
+    with pytest.raises(ValueError, match="not in the approved asset catalog"):
+        catalog.patch(name="unapproved")
+
+
+def test_duplicate_assets_are_rejected():
+    with pytest.raises(ValueError, match="Model asset IDs must be unique"):
+        ApprovedAssetCatalog(
+            models=[
+                ModelAsset(model_id="same", provider="p", deployment="d"),
+                ModelAsset(model_id="same", provider="q", deployment="e"),
+            ],
+            tools=[],
+        )
+    with pytest.raises(ValueError, match="Tool asset names must be unique"):
+        ApprovedAssetCatalog(models=[], tools=[ToolAsset(name="same"), ToolAsset(name="same", provider="other")])
+    with pytest.raises(ValueError, match="Patch names must be unique"):
+        ApprovedAssetCatalog(
+            models=[],
+            tools=[],
+            patches=[HarnessPatch(name="same", patch={"a": 1}), HarnessPatch(name="same", patch={"b": 2})],
+        )
 
 
 @pytest.mark.parametrize(
@@ -109,7 +88,7 @@ class HuggingFaceStyleGenerator:
     ],
 )
 def test_model_identity_is_resolved_across_generator_conventions(generator, expected):
-    """Azure deployments and Hugging Face API generators must not be rejected as unidentifiable."""
+    """Cost is priced per model, so an Azure deployment or a Hugging Face API generator must still be identifiable."""
     assert generator_model_id(generator=generator) == expected
 
 

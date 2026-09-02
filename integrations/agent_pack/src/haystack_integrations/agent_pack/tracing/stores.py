@@ -27,6 +27,8 @@ class LocalTraceStore:
         self.directory = Path(directory) if directory is not None else None
         self._artifacts: dict[str, TraceArtifact] = {}
         self._lock = RLock()
+
+        # Load existing artifacts from the directory if specified
         if self.directory is not None:
             self.directory.mkdir(parents=True, exist_ok=True)
             for path in sorted(self.directory.glob("*.json")):
@@ -39,10 +41,15 @@ class LocalTraceStore:
 
         :param artifact: The artifact to store.
         """
+        # We use a lock to ensure thread safety when adding artifacts and writing to disk
         with self._lock:
             self._artifacts[artifact.run_id] = artifact
+
+            # If no directory is specified, we only keep the artifact in memory
             if self.directory is None:
                 return
+
+            # We use a temporary file to avoid leaving a partially written file if the process is interrupted
             target = self.directory / f"{artifact.run_id}.json"
             temporary = target.with_suffix(".json.tmp")
             temporary.write_text(json.dumps(artifact.to_dict(), indent=2, sort_keys=True), encoding="utf-8")

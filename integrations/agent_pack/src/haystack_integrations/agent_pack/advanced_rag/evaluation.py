@@ -6,7 +6,7 @@
 Reusable evaluation primitives for Advanced RAG agents.
 
 This module deliberately depends only on Haystack: it is imported by `haystack_integrations.agent_pack.advanced_rag`
-and must stay usable without pulling in the optimization subpackage. The campaign-facing evaluator that bridges the
+and must stay usable without pulling in the optimization subpackage. The experiment-facing evaluator that bridges the
 two lives alongside it in `advanced_rag.harness_evaluator`, which is not re-exported for that reason.
 """
 

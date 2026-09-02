@@ -26,7 +26,7 @@ classifiers = [
 # `Agent.clone`, `AgentTool`, `SkillToolset` and the HITL strategy trace tags all landed in 3.1.0rc1.
 # The pre-release is named explicitly because a bare `>=3.1.0` excludes every shipped 3.1 release candidate;
 # tighten this to `>=3.1.0` once the final release is out.
-dependencies = ["haystack-ai>=3.1.0rc1"]
+dependencies = ["haystack-ai>=3.1.0rc1", "pydantic"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/agent_pack#readme"

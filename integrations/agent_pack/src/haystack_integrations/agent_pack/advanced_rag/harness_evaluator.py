@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Campaign evaluator for Advanced RAG harnesses.
+Experiment evaluator for Advanced RAG harnesses.
 
 This module bridges the Advanced RAG agent to the generic optimization API, so unlike the rest of `advanced_rag` it
 does depend on `optimization`. It is deliberately not re-exported from `haystack_integrations.agent_pack.advanced_rag`:
@@ -25,7 +25,7 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
 )
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
 from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
-from haystack_integrations.agent_pack.optimization.campaign.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.optimization.experiment.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.tracing.dataclasses import TraceArtifact
 from haystack_integrations.agent_pack.tracing.extraction import (
     extract_agent_reference_output,
@@ -109,7 +109,7 @@ class AdvancedRAGHarnessEvaluator:
             unvalidated.
         :param repetitions: How many times each case is run. Agent runs are not deterministic, so a single sample
             makes a pass rate an unreliable basis for switching models. With more than one repetition, `quality` is
-            the mean pass rate and `quality_lower_bound` is one standard deviation below it, which is what campaign
+            the mean pass rate and `quality_lower_bound` is one standard deviation below it, which is what experiment
             gates compare against.
         :raises ValueError: If `repetitions` is below one.
         """
@@ -121,7 +121,7 @@ class AdvancedRAGHarnessEvaluator:
 
     def fingerprint(self) -> dict[str, Any]:
         """
-        Describe the evaluation set so a campaign journal is invalidated when it changes.
+        Describe the evaluation set so an experiment journal is invalidated when it changes.
 
         :returns: The repetition count and every configured case, ordered by question.
         """
@@ -153,7 +153,7 @@ class AdvancedRAGHarnessEvaluator:
         self, agent: Agent, reference_traces: list[TraceArtifact], assets: ApprovedAssetCatalog
     ) -> EvaluationMetrics:
         """
-        Replay every selected trace and return campaign metrics priced from the approved asset catalog.
+        Replay every selected trace and return experiment metrics priced from the approved asset catalog.
 
         :param agent: The materialized candidate to score.
         :param reference_traces: The reference traces supplying the questions to replay.
@@ -209,7 +209,7 @@ class AdvancedRAGHarnessEvaluator:
     @staticmethod
     def _cost(assets: ApprovedAssetCatalog, model_id: str | None, input_tokens: int, output_tokens: int) -> float:
         """
-        Price a run from the approved asset catalog, which is the campaign's single source of model prices.
+        Price a run from the approved asset catalog, which is the experiment's single source of model prices.
 
         :param assets: The approved asset catalog.
         :param model_id: The candidate's model identifier.

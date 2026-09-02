@@ -158,9 +158,12 @@ class CapturedRun:
         :returns: The captured run as a `haystack-trace/v1` artifact.
         :raises RuntimeError: If the run has not finished yet.
         """
+        # The run must be finished before it can be converted into an artifact.
         if self.finished_at is None or self.duration_ms is None:
             msg = "The run capture has not finished yet."
             raise RuntimeError(msg)
+        # The spans are copied under the lock so that the artifact is consistent even if other threads are still closing
+        # spans and adding them to the run.
         with self._lock:
             records = tuple(span.to_record() for span in self.spans)
         return TraceArtifact(
@@ -214,6 +217,8 @@ class RunCaptureTracer(Tracer):
         :returns: A context manager yielding the span to instrument.
         """
         capture = _current_run.get()
+        # If no run is being captured, yield a dummy span that does not record anything. This allows code to be
+        # instrumented without having to check whether a run is being captured.
         if capture is None:
             yield _CapturedSpan(operation_name=operation_name, tags={}, parent_span_id=None)
             return
@@ -223,6 +228,9 @@ class RunCaptureTracer(Tracer):
             # Haystack threads `parent_span` explicitly in most places, but not everywhere; fall back to the
             # innermost span still open in this context.
             parent = _active_spans.get()[-1]
+
+        # Create a new span and add it to the run. The tags are serialized and bounded immediately so that they are not
+        # accidentally mutated after the span is closed.
         captured = _CapturedSpan(
             operation_name=operation_name,
             tags={key: _serialize_trace_value(value=value, limits=self.limits) for key, value in (tags or {}).items()},
@@ -230,9 +238,16 @@ class RunCaptureTracer(Tracer):
             capture_content=self.capture_content,
             limits=self.limits,
         )
+
+        # Add the span to the run so that it is recorded even if the context manager is exited without yielding. This
+        # allows the span to be closed in a different thread than it was opened in.
         capture.add_span(span=captured)
+
+        # Track the active spans in this context so that nested spans can find their parent if it is not passed
+        # explicitly.
         previous = _active_spans.get()
         _active_spans.set((*previous, captured))
+
         try:
             yield captured
         except Exception as error:

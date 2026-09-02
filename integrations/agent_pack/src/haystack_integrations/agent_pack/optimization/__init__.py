@@ -6,35 +6,35 @@
 Experimental harness-optimization APIs for Agent Pack.
 
 Given a reference `Agent`, locally captured traces of successful runs, a catalog of the models and tools a candidate
-is allowed to use, and optimization objectives, a `HarnessOptimizationCampaign` evaluates a closed set of typed
+is allowed to use, and optimization objectives, a `HarnessOptimizationExperiment` evaluates a closed set of typed
 transformations and recommends the cheapest or fastest candidate that still clears the quality gate. Nothing is
-promoted or deployed automatically: a campaign returns a recommendation for a human to approve.
+promoted or deployed automatically: an experiment returns a recommendation for a human to approve.
 
 Traces come from `haystack_integrations.agent_pack.tracing`, which is a standalone module: import the collector and
 the store from there.
 
-Compliance is enforced once, at configuration time: `ApprovedAssetCatalog` validates every model and tool a
-candidate is built with, including those of delegated agents, and a candidate that uses anything outside the catalog
-never runs.
+Compliance is enforced at the proposal boundary: the schema an optimizer answers against is generated from
+`ApprovedAssetCatalog`, so a proposal naming a model, or a configuration change, outside the catalog fails
+validation and never reaches a harness.
 
 This API is experimental and may change without a deprecation period.
 """
 
 from haystack_integrations.agent_pack.optimization.assets import (
     ApprovedAssetCatalog,
-    AssetValidation,
+    HarnessPatch,
     ModelAsset,
     ToolAsset,
 )
-from haystack_integrations.agent_pack.optimization.campaign import (
+from haystack_integrations.agent_pack.optimization.experiment import (
     ApprovedModelRecipeProposer,
-    CampaignJournal,
-    CampaignRecommendation,
-    CampaignResult,
     CandidateEvaluation,
     EvaluationMetrics,
+    ExperimentJournal,
+    ExperimentRecommendation,
+    ExperimentResult,
     HarnessEvaluator,
-    HarnessOptimizationCampaign,
+    HarnessOptimizationExperiment,
     HarnessOptimizerAgentProposer,
     OptimizationObjectives,
     RecipeProposer,
@@ -44,32 +44,32 @@ from haystack_integrations.agent_pack.optimization.optimizer_agent import (
     create_haystack_docs_toolset,
 )
 from haystack_integrations.agent_pack.optimization.recipes import (
+    ApplyPatchRecipe,
     CandidateRecipe,
     ModelSubstitutionRecipe,
-    PromptAndGenerationRecipe,
-    ToolSelectionRecipe,
+    SystemPromptRecipe,
 )
 
 __all__ = [
+    "ApplyPatchRecipe",
     "ApprovedAssetCatalog",
     "ApprovedModelRecipeProposer",
-    "AssetValidation",
-    "CampaignJournal",
-    "CampaignRecommendation",
-    "CampaignResult",
     "CandidateEvaluation",
     "CandidateRecipe",
     "EvaluationMetrics",
+    "ExperimentJournal",
+    "ExperimentRecommendation",
+    "ExperimentResult",
     "HarnessEvaluator",
-    "HarnessOptimizationCampaign",
+    "HarnessOptimizationExperiment",
     "HarnessOptimizerAgentProposer",
+    "HarnessPatch",
     "ModelAsset",
     "ModelSubstitutionRecipe",
     "OptimizationObjectives",
-    "PromptAndGenerationRecipe",
     "RecipeProposer",
+    "SystemPromptRecipe",
     "ToolAsset",
-    "ToolSelectionRecipe",
     "create_harness_optimizer_agent",
     "create_haystack_docs_toolset",
 ]

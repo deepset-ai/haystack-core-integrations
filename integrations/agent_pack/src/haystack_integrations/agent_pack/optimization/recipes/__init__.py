@@ -5,25 +5,25 @@
 """Typed, allowlisted transformations for candidate Agent harnesses."""
 
 from haystack_integrations.agent_pack.optimization.recipes.dataclasses import (
+    ApplyPatchRecipe,
     ModelSubstitutionRecipe,
-    PromptAndGenerationRecipe,
-    ToolSelectionRecipe,
+    SystemPromptRecipe,
 )
-from haystack_integrations.agent_pack.optimization.recipes.serialization import (
+from haystack_integrations.agent_pack.optimization.recipes.proposals import (
     RECIPE_KINDS,
-    RECIPE_PROPOSAL_JSON_SCHEMA,
-    recipe_fingerprint,
-    recipe_from_dict,
+    parse_proposal,
+    proposal_json_schema,
 )
+from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_fingerprint
 from haystack_integrations.agent_pack.optimization.recipes.types import CandidateRecipe
 
 __all__ = [
     "RECIPE_KINDS",
-    "RECIPE_PROPOSAL_JSON_SCHEMA",
+    "ApplyPatchRecipe",
     "CandidateRecipe",
     "ModelSubstitutionRecipe",
-    "PromptAndGenerationRecipe",
-    "ToolSelectionRecipe",
+    "SystemPromptRecipe",
+    "parse_proposal",
+    "proposal_json_schema",
     "recipe_fingerprint",
-    "recipe_from_dict",
 ]

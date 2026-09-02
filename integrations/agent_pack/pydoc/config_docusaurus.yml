@@ -16,14 +16,16 @@ loaders:
       - haystack_integrations.agent_pack.optimization.assets.dataclasses
       - haystack_integrations.agent_pack.optimization.assets.catalog
       - haystack_integrations.agent_pack.optimization.recipes.dataclasses
+      - haystack_integrations.agent_pack.optimization.recipes.proposals
       - haystack_integrations.agent_pack.optimization.recipes.serialization
       - haystack_integrations.agent_pack.optimization.recipes.types.protocol
-      - haystack_integrations.agent_pack.optimization.campaign.dataclasses
-      - haystack_integrations.agent_pack.optimization.campaign.journal
-      - haystack_integrations.agent_pack.optimization.campaign.proposers
-      - haystack_integrations.agent_pack.optimization.campaign.campaign
-      - haystack_integrations.agent_pack.optimization.campaign.types.protocol
+      - haystack_integrations.agent_pack.optimization.experiment.dataclasses
+      - haystack_integrations.agent_pack.optimization.experiment.journal
+      - haystack_integrations.agent_pack.optimization.experiment.proposers
+      - haystack_integrations.agent_pack.optimization.experiment.experiment
+      - haystack_integrations.agent_pack.optimization.experiment.types.protocol
       - haystack_integrations.agent_pack.optimization.optimizer_agent
+      - haystack_integrations.agent_pack.optimization.prompts
     search_path: [../src]
 processors:
   - type: filter

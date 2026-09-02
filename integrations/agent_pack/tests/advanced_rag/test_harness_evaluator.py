@@ -104,7 +104,7 @@ def test_derives_grounding_parity_case_from_reference_trace(document):
 
 
 def test_evaluator_prices_the_run_from_the_approved_asset_catalog(document):
-    """Cost must come from the catalog the campaign gates against, not a second price table."""
+    """Cost must come from the catalog the experiment gates against, not a second price table."""
     case = AdvancedRAGEvaluationCase(
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("CRISPR",)
     )

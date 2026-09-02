@@ -137,16 +137,6 @@ def _serialize_trace_value(value: Any, limits: TraceCaptureLimits = DEFAULT_TRAC
     return {"serialization_schema": schema, "serialized_data": data}
 
 
-def deserialize_trace_value(payload: dict[str, Any]) -> Any:
-    """
-    Restore a captured tag value to the objects it was recorded from.
-
-    :param payload: A payload produced by `_serialize_trace_value`.
-    :returns: The deserialized value.
-    """
-    return _deserialize_value_with_schema(payload)
-
-
 def span_tag(span: dict[str, Any], key: str, default: Any = None) -> Any:
     """
     Read one tag off a captured span record, deserializing it.
@@ -154,9 +144,9 @@ def span_tag(span: dict[str, Any], key: str, default: Any = None) -> Any:
     :param span: A span record from `TraceArtifact.traces`.
     :param key: The tag name.
     :param default: Returned when the span carries no such tag.
-    :returns: The deserialized tag value.
+    :returns: The tag value, restored to the objects it was recorded from.
     """
     payload = (span.get("tags") or {}).get(key)
     if not isinstance(payload, dict) or "serialization_schema" not in payload:
         return default if payload is None else payload
-    return deserialize_trace_value(payload=payload)
+    return _deserialize_value_with_schema(payload)

@@ -12,14 +12,14 @@ The script does, against real models, everything the feature claims:
 2. Captures a successful run per evaluation question with `TraceCapturingAgentRunner`, writing `haystack-trace/v1`
    artifacts to disk. Content capture stays local: an already-installed tracer keeps exporting exactly what it did
    before.
-3. Declares an approved asset catalog — which models and tools a candidate may use, and what they cost. The catalog
-   is the control: only what you list here can end up in a candidate.
-4. Runs a `HarnessOptimizationCampaign`: it measures the reference, materializes one candidate per approved
-   alternative model through `Agent.clone`, validates each candidate's assets before it executes, replays the
-   captured questions, and ranks whatever clears the quality gate.
-5. Prints whether the champion itself is catalog-compliant, the baseline, every candidate's measurements, the gates
-   each one missed, and the recommendation with the reasons behind it. Nothing is promoted: the recommendation is
-   materialized only so you can inspect it.
+3. Declares an approved asset catalog — which models a candidate may use, what they cost, and which configuration
+   changes are approved. The catalog is the control: the schema an optimizer answers against is generated from it,
+   so a proposal naming anything else fails validation and never reaches a harness.
+4. Runs a `HarnessOptimizationExperiment`: it measures the reference, materializes one candidate per approved
+   alternative model through `Agent.clone`, replays the captured questions, and ranks whatever clears the quality
+   gate.
+5. Prints the baseline, every candidate's measurements, the gates each one missed, and the recommendation with the
+   reasons behind it. Nothing is promoted: the recommendation is materialized only so you can inspect it.
 
 Run it from the integration directory (`integrations/agent_pack`) with `OPENAI_API_KEY` set:
 
@@ -30,7 +30,7 @@ Run it from the integration directory (`integrations/agent_pack`) with `OPENAI_A
     hatch run test:python examples/harness_optimization_poc.py --drop-approved-tool get_metadata_field_range
 
 Cost: one reference measurement plus one per candidate model, each replaying every question `--repetitions` times.
-With the defaults that is 3 questions x 2 models = 6 agent runs. The campaign journal makes a re-run resume, so an
+With the defaults that is 3 questions x 2 models = 6 agent runs. The experiment journal makes a re-run resume, so an
 interrupted run does not pay for completed candidates twice.
 """
 
@@ -53,17 +53,17 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAG
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
-    CampaignJournal,
-    CampaignResult,
-    HarnessOptimizationCampaign,
+    ExperimentJournal,
+    ExperimentResult,
+    HarnessOptimizationExperiment,
     HarnessOptimizerAgentProposer,
+    HarnessPatch,
     ModelAsset,
     OptimizationObjectives,
     ToolAsset,
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
 )
-from haystack_integrations.agent_pack.optimization.recipes import RECIPE_PROPOSAL_JSON_SCHEMA
 from haystack_integrations.agent_pack.tracing import (
     LocalTraceCollector,
     LocalTraceStore,
@@ -72,7 +72,7 @@ from haystack_integrations.agent_pack.tracing import (
 
 WORKSPACE = Path(".agent-pack-poc")
 
-#: The reference harness runs the stronger model; every other entry is a candidate the campaign will try.
+#: The reference harness runs the stronger model; every other entry is a candidate the experiment will try.
 REFERENCE_MODEL = "gpt-5"
 CANDIDATE_MODELS = ("gpt-5-mini",)
 
@@ -126,7 +126,7 @@ def build_cases(store: InMemoryDocumentStore) -> list[AdvancedRAGEvaluationCase]
     Label the evaluation set against the corpus.
 
     Expected documents are resolved from metadata here rather than hand-copied, so the labels stay correct if the
-    corpus changes. Labelled cases are what make a recommendation trustworthy: without them the campaign can only
+    corpus changes. Labelled cases are what make a recommendation trustworthy: without them the experiment can only
     check that a candidate retrieves the same documents the incumbent did, which measures imitation, not quality.
 
     :param store: The populated corpus.
@@ -211,6 +211,28 @@ def capture_reference_runs(
         print(f"    status={captured.trace.status} spans={len(captured.trace.traces)} answer={answer[:90]!r}")
 
 
+#: Approved configuration changes. A patch reaches any init parameter of any component in the harness, addressing a
+#: tool by name, so one mechanism covers reasoning effort and a retriever's result count alike. The values are
+#: declared here rather than proposed, which is what stops an optimizer asking for a parameter a component rejects.
+HARNESS_PATCHES = [
+    HarnessPatch(
+        name="reasoning-medium",
+        patch={"chat_generator.init_parameters.generation_kwargs.reasoning.effort": "medium"},
+        description="Raise the coordinator's reasoning effort from low to medium.",
+    ),
+    HarnessPatch(
+        name="retrieval-top-10",
+        patch={"tools.search_documents.component.init_parameters.top_k": 10},
+        description="Retrieve ten documents per search instead of five.",
+    ),
+    HarnessPatch(
+        name="fewer-steps",
+        patch={"max_agent_steps": 6},
+        description="Cap the agent loop at six steps to bound cost and latency.",
+    ),
+]
+
+
 def build_catalog(
     *, agent: Agent, models: tuple[str, ...], dropped_tools: tuple[str, ...] = ()
 ) -> ApprovedAssetCatalog:
@@ -241,23 +263,18 @@ def build_catalog(
             for configured in flatten_tools_or_toolsets(tools=agent.tools)
             if configured.name not in dropped_tools
         ],
+        patches=HARNESS_PATCHES,
     )
 
 
-def report(*, result: CampaignResult, reference: Agent, assets: ApprovedAssetCatalog) -> None:
+def report(*, result: ExperimentResult, reference: Agent, assets: ApprovedAssetCatalog) -> None:
     """
-    Print the campaign outcome.
+    Print the experiment outcome.
 
-    :param result: What the campaign measured.
+    :param result: What the experiment measured.
     :param reference: The champion harness, shown to be unchanged.
     :param assets: The approved asset catalog, used to re-validate the recommendation.
     """
-    validation = result.reference_validation
-    if validation is not None and not validation.allowed:
-        print("\n--- reference harness is NOT catalog-compliant ---")
-        print(f"  {', '.join(validation.violations)}")
-        print("  It is still measured, so you can see what replacing it would save.")
-
     baseline = result.baseline
     print("\n--- baseline (reference harness) ---")
     print(
@@ -278,7 +295,6 @@ def report(*, result: CampaignResult, reference: Agent, assets: ApprovedAssetCat
             f"  {candidate.recipe} -> quality={candidate.metrics.quality:.2f} "
             f"cost=${candidate.metrics.cost:.6f} latency={candidate.metrics.latency_ms:.0f}ms"
         )
-        print(f"    assets: models={candidate.asset_validation.model_ids if candidate.asset_validation else ()}")
         print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
         for case_metrics in candidate.metrics.details.get("cases", []):
             if not case_metrics["passed"]:
@@ -400,36 +416,27 @@ def main() -> None:
             f"  model {asset.model_id} ({asset.provider}/{asset.deployment}): "
             f"in=${asset.input_cost_per_million}/M out=${asset.output_cost_per_million}/M"
         )
+    for declared in assets.patches.values():
+        print(f"  patch {declared.name}: {declared.description}")
 
-    print("\n=== 4. campaign ===")
+    print("\n=== 4. experiment ===")
     proposer = None
     if arguments.proposer == "agent":
         docs_toolset = create_haystack_docs_toolset() if arguments.docs_mcp else None
         proposer = HarnessOptimizerAgentProposer(
             optimizer_agent=create_harness_optimizer_agent(
-                # Structured output keeps the proposal well-formed; every recipe is still validated on the way in.
-                chat_generator=OpenAIResponsesChatGenerator(
-                    model=arguments.reference_model,
-                    generation_kwargs={
-                        "text": {
-                            "format": {
-                                "type": "json_schema",
-                                "name": "harness_optimizer_proposal",
-                                "schema": RECIPE_PROPOSAL_JSON_SCHEMA,
-                                "strict": False,
-                            }
-                        }
-                    },
-                ),
+                chat_generator=OpenAIResponsesChatGenerator(model=arguments.reference_model),
                 docs_toolset=docs_toolset,
             ),
             max_recipes=4,
+            # The response schema is generated from the catalog, so the proposer configures it per request.
+            structured_output_key="text",
         )
-        print("  proposer: skill-guided optimizer Agent (proposals are parsed, never executed as code)")
+        print("  proposer: optimizer Agent, answering the schema generated from the catalog")
     else:
         print("  proposer: deterministic enumeration of approved models")
 
-    campaign = HarnessOptimizationCampaign(
+    experiment = HarnessOptimizationExperiment(
         reference=reference,
         trace_source=trace_store,
         evaluator=AdvancedRAGHarnessEvaluator(cases=cases, repetitions=arguments.repetitions),
@@ -439,18 +446,18 @@ def main() -> None:
             max_quality_loss=arguments.max_quality_loss,
             primary=arguments.primary,
         ),
-        journal=CampaignJournal(path=WORKSPACE / "campaign.jsonl"),
+        journal=ExperimentJournal(path=WORKSPACE / "experiment.jsonl"),
         proposer=proposer,
         # The corpus is not visible in the harness configuration, so it is named explicitly: change the corpus and
         # journaled measurements are invalidated instead of silently reused.
         configuration_key="poc-corpus-v1",
     )
-    result = campaign.run()
+    result = experiment.run()
     print(f"  configuration hash: {result.configuration_hash[:16]}")
 
     print("\n=== 5. outcome ===")
     report(result=result, reference=reference, assets=assets)
-    print(f"\nJournal: {WORKSPACE / 'campaign.jsonl'} (re-running resumes completed candidates)")
+    print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (re-running resumes completed candidates)")
 
 
 if __name__ == "__main__":

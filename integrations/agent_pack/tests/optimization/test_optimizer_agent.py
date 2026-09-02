@@ -2,25 +2,24 @@ import pytest
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
-from haystack.tools import SkillToolset, Toolset, tool
+from haystack.tools import Toolset, tool
 
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
     HarnessOptimizerAgentProposer,
+    HarnessPatch,
     ModelAsset,
     ModelSubstitutionRecipe,
     OptimizationObjectives,
+    ToolAsset,
     create_harness_optimizer_agent,
     create_haystack_docs_toolset,
 )
-from haystack_integrations.agent_pack.optimization.optimizer_agent import bundled_agent_building_skills_path
-from haystack_integrations.agent_pack.optimization.recipes import RECIPE_KINDS, RECIPE_PROPOSAL_JSON_SCHEMA
-from haystack_integrations.agent_pack.optimization.recipes.serialization import recipe_from_dict
+from haystack_integrations.agent_pack.optimization.prompts import HARNESS_OPTIMIZER_SYSTEM_PROMPT
+from haystack_integrations.agent_pack.optimization.recipes import RECIPE_KINDS, proposal_json_schema
 from haystack_integrations.agent_pack.tracing import (
     TraceArtifact,
 )
-
-SKILL_NAME = "haystack-agent-building"
 
 
 def reference_trace():
@@ -63,22 +62,20 @@ def propose_with(proposer, assets=None, objectives=None):
     )
 
 
-def test_bundled_skill_ships_with_the_package():
-    """The skill is a data file inside the wheel, so a packaging change must not silently drop it."""
-    skill = bundled_agent_building_skills_path() / SKILL_NAME / "SKILL.md"
-    assert skill.is_file()
-    body = skill.read_text(encoding="utf-8")
-    assert f"name: {SKILL_NAME}" in body
-    assert "Agent.clone" in body
-    # The skill must document exactly the kinds the parser accepts, so a proposal is not wasted on a rejected one.
+def test_system_prompt_documents_exactly_the_kinds_the_parser_accepts():
+    """The prompt is the only place the Agent learns the recipe language, so a proposal is never spent on a kind
+    the parser would reject."""
     for kind in RECIPE_KINDS:
-        assert kind in body
+        assert kind in HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    for removed in ("specialist_delegation", "composite", "registered_structure"):
+        assert removed not in HARNESS_OPTIMIZER_SYSTEM_PROMPT
 
 
-def test_optimizer_agent_exposes_bundled_agent_building_skill():
+def test_optimizer_agent_bakes_the_guidance_into_its_system_prompt():
     agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator("[]"))
-    assert isinstance(agent.tools[0], SkillToolset)
-    assert set(agent.tools[0].skills) == {SKILL_NAME}
+    assert agent.system_prompt == HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    # No tools are needed to know the recipe language.
+    assert agent.tools == []
     assert agent.exit_conditions == ["text"]
 
 
@@ -90,7 +87,7 @@ def test_optimizer_agent_accepts_optional_read_only_docs_toolset():
 
     docs = Toolset([search_haystack_docs])
     agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator("[]"), docs_toolset=docs)
-    assert agent.tools == [agent.tools[0], docs]
+    assert agent.tools == [docs]
 
 
 def test_haystack_docs_toolset_is_read_only_and_lazily_connected():
@@ -102,51 +99,85 @@ def test_haystack_docs_toolset_is_read_only_and_lazily_connected():
 
 
 def test_agent_proposer_only_accepts_typed_recipe_json():
-    proposals = propose_with(proposer_for('[{"kind":"model_substitution","model_id":"cheap"}]'))
+    proposals = propose_with(proposer_for('{"recipes": [{"kind":"model_substitution","model_id":"cheap"}]}'))
     assert proposals == [ModelSubstitutionRecipe(model_id="cheap")]
 
 
-def test_proposal_schema_covers_exactly_the_kinds_the_parser_accepts():
-    """The schema handed to a generator must not drift from what `recipe_from_dict` will accept back."""
-    declared = RECIPE_PROPOSAL_JSON_SCHEMA["properties"]["recipes"]["items"]["properties"]["kind"]["enum"]
-    assert declared == list(RECIPE_KINDS)
-    for kind in declared:
-        with pytest.raises((ValueError, KeyError)) as failure:
-            recipe_from_dict(data={"kind": kind})
-        # Every declared kind is recognised: it fails on a missing field, never as an unsupported kind.
-        assert "Unsupported candidate recipe kind" not in str(failure.value)
+def test_proposal_schema_closes_over_the_catalog():
+    """The schema handed to a generator offers exactly the catalog's choices, and only the supported kinds."""
+    catalog = ApprovedAssetCatalog(
+        models=[
+            ModelAsset(model_id="reference", provider="p", deployment="d"),
+            ModelAsset(model_id="cheap", provider="p", deployment="d"),
+        ],
+        tools=[ToolAsset(name="search_documents")],
+        patches=[
+            HarnessPatch(name="reasoning-high", patch={"a.b": 1}),
+            HarnessPatch(name="retrieval-top-10", patch={"c.d": 10}),
+        ],
+    )
+    schema = proposal_json_schema(assets=catalog)
+    definitions = schema["$defs"]
+
+    assert definitions["ModelSubstitutionProposal"]["properties"]["model_id"]["enum"] == ["cheap", "reference"]
+    assert definitions["ApplyPatchProposal"]["properties"]["patch"]["enum"] == [
+        "reasoning-high",
+        "retrieval-top-10",
+    ]
+    kinds = {
+        definition["properties"]["kind"]["const"]
+        for name, definition in definitions.items()
+        if name.endswith("Proposal")
+    }
+    assert kinds == set(RECIPE_KINDS)
 
 
-def test_agent_proposer_reads_the_array_out_of_a_schema_shaped_response():
-    """A JSON schema requires an object at the root, so the array arrives wrapped."""
+def test_agent_proposer_reads_a_schema_shaped_response():
     response = '{"recipes": [{"kind": "model_substitution", "model_id": "cheap"}]}'
     assert propose_with(proposer_for(response)) == [ModelSubstitutionRecipe(model_id="cheap")]
 
 
+def test_agent_proposer_configures_structured_output_from_the_catalog():
+    proposer = proposer_for(
+        '{"recipes": [{"kind": "model_substitution", "model_id": "cheap"}]}', structured_output_key="text"
+    )
+    catalog = ApprovedAssetCatalog(
+        models=[
+            ModelAsset(model_id="reference", provider="p", deployment="d"),
+            ModelAsset(model_id="cheap", provider="p", deployment="d"),
+        ],
+        tools=[],
+    )
+    configured = proposer._structured_output(assets=catalog)
+    assert configured is not None
+    schema = configured["text"]["format"]["schema"]
+    assert schema["$defs"]["ModelSubstitutionProposal"]["properties"]["model_id"]["enum"] == ["cheap", "reference"]
+
+
 def test_agent_proposer_tolerates_fenced_or_prefixed_json():
-    """A code fence or a sentence of preamble is a formatting slip, not a reason to abort a campaign."""
-    response = 'Here is my proposal:\n```json\n[{"kind": "model_substitution", "model_id": "cheap"}]\n```'
+    """A code fence or a sentence of preamble is a formatting slip, not a reason to abort an experiment."""
+    response = 'Here is my proposal:\n```json\n{"recipes": [{"kind": "model_substitution", "model_id": "cheap"}]}\n```'
     assert propose_with(proposer_for(response)) == [ModelSubstitutionRecipe(model_id="cheap")]
 
 
 def test_agent_proposer_retries_once_with_corrective_feedback():
-    proposer = proposer_for(["not json at all", '[{"kind":"model_substitution","model_id":"cheap"}]'])
+    proposer = proposer_for(["not json at all", '{"recipes": [{"kind":"model_substitution","model_id":"cheap"}]}'])
     assert propose_with(proposer) == [ModelSubstitutionRecipe(model_id="cheap")]
 
 
 def test_agent_proposer_gives_up_after_max_attempts():
-    with pytest.raises(ValueError, match="did not return a valid typed recipe array"):
+    with pytest.raises(ValueError, match="did not return a valid proposal"):
         propose_with(proposer_for("still not json"))
 
 
 def test_agent_proposer_rejects_untyped_and_oversized_responses():
-    with pytest.raises(ValueError, match="did not return a valid typed recipe array"):
-        propose_with(proposer_for('[{"kind": "python", "code": "dangerous()"}]'))
-    with pytest.raises(ValueError, match="did not return a valid typed recipe array"):
+    with pytest.raises(ValueError, match="did not return a valid proposal"):
+        propose_with(proposer_for('{"recipes": [{"kind": "python", "code": "dangerous()"}]}'))
+    with pytest.raises(ValueError, match="did not return a valid proposal"):
         propose_with(
             proposer_for(
-                '[{"kind":"model_substitution","model_id":"cheap"}, '
-                '{"kind":"model_substitution","model_id":"reference"}]',
+                '{"recipes": [{"kind":"model_substitution","model_id":"cheap"}, '
+                '{"kind":"model_substitution","model_id":"reference"}]}',
                 max_recipes=1,
             )
         )

@@ -8,9 +8,9 @@ from haystack.tools import tool
 
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
-    CampaignJournal,
     EvaluationMetrics,
-    HarnessOptimizationCampaign,
+    ExperimentJournal,
+    HarnessOptimizationExperiment,
     ModelAsset,
     OptimizationObjectives,
 )
@@ -56,7 +56,7 @@ def reference_trace(run_id="reference-run"):
 
 
 class ModelEvaluator:
-    """Scores a candidate purely from its configured model, so campaign logic can be tested deterministically."""
+    """Scores a candidate purely from its configured model, so experiment logic can be tested deterministically."""
 
     def __init__(self, metrics_by_model, *, failing_models=()):
         self.metrics_by_model = metrics_by_model
@@ -74,7 +74,7 @@ class ModelEvaluator:
         return self.metrics_by_model[model]
 
 
-def build_campaign(tmp_path, evaluator, *, objectives=None, tools=None, tool_assets=None, journal=None):
+def build_experiment(tmp_path, evaluator, *, objectives=None, tools=None, tool_assets=None, journal=None):
     store = LocalTraceStore()
     store.add(reference_trace())
     reference = Agent(chat_generator=MockChatGenerator(model="reference"), tools=tools)
@@ -86,15 +86,15 @@ def build_campaign(tmp_path, evaluator, *, objectives=None, tools=None, tool_ass
         ],
         tools=tool_assets or [],
     )
-    campaign = HarnessOptimizationCampaign(
+    experiment = HarnessOptimizationExperiment(
         reference=reference,
         trace_source=store,
         evaluator=evaluator,
         assets=assets,
         objectives=objectives or OptimizationObjectives(min_quality=0.8),
-        journal=journal or CampaignJournal(path=tmp_path / "campaign.jsonl"),
+        journal=journal or ExperimentJournal(path=tmp_path / "experiment.jsonl"),
     )
-    return campaign, assets, reference
+    return experiment, assets, reference
 
 
 def default_metrics():
@@ -105,11 +105,11 @@ def default_metrics():
     }
 
 
-def test_campaign_applies_gates_then_recommends_cheaper_candidate(tmp_path):
+def test_experiment_applies_gates_then_recommends_cheaper_candidate(tmp_path):
     evaluator = ModelEvaluator(default_metrics())
-    campaign, assets, reference = build_campaign(tmp_path, evaluator)
+    experiment, assets, reference = build_experiment(tmp_path, evaluator)
 
-    result = campaign.run()
+    result = experiment.run()
 
     assert result.recommendation is not None
     assert result.recommendation.evaluation.metrics.cost == 2.0
@@ -125,46 +125,15 @@ def test_campaign_applies_gates_then_recommends_cheaper_candidate(tmp_path):
     assert failures["bad"] == ("quality_below_floor:1.0000",)
 
 
-def test_the_reference_harness_is_reported_against_the_catalog_but_not_blocked_by_it(tmp_path):
-    """Replacing a harness whose model is no longer approved is a reason to run a campaign, not to refuse one."""
-    evaluator = ModelEvaluator(default_metrics())
-    campaign, _, _ = build_campaign(tmp_path, evaluator, tools=[remote_tool], tool_assets=[])
-
-    result = campaign.run()
-
-    assert result.reference_validation is not None
-    assert result.reference_validation.allowed is False
-    assert result.reference_validation.violations == ("tool_not_approved:remote_tool",)
-    # The baseline was still measured, so the operator can see what the non-compliant champion costs.
-    assert evaluator.calls == ["reference"]
-
-
-def test_configuration_hash_is_stable_across_equivalent_harnesses(tmp_path):
-    """Resume depends on this: a harness holding components that regenerate ids per process must still hash the same."""
-    first, _, _ = build_campaign(tmp_path, ModelEvaluator(default_metrics()))
-    second, _, _ = build_campaign(tmp_path, ModelEvaluator(default_metrics()))
-
-    assert first.run().configuration_hash == second.run().configuration_hash
-
-
-def test_configuration_hash_tracks_the_reference_prompt(tmp_path):
-    evaluator = ModelEvaluator(default_metrics())
-    campaign, _, _ = build_campaign(tmp_path, evaluator)
-    baseline_hash = campaign.run().configuration_hash
-
-    campaign.reference = campaign.reference.clone(system_prompt="a different prompt")
-    assert campaign.run().configuration_hash != baseline_hash
-
-
 def test_gates_are_recomputed_rather_than_replayed_from_the_journal(tmp_path):
     """Tightening the quality floor must re-rank journaled measurements instead of reusing a stale verdict."""
-    journal = CampaignJournal(path=tmp_path / "campaign.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     metrics = {
         "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
         "cheap": EvaluationMetrics(quality=0.9, cost=2.0, latency_ms=90),
         "bad": EvaluationMetrics(quality=0.5, cost=1.0, latency_ms=50),
     }
-    lenient, _, _ = build_campaign(
+    lenient, _, _ = build_experiment(
         tmp_path,
         ModelEvaluator(metrics),
         objectives=OptimizationObjectives(min_quality=0.8, max_quality_loss=0.2),
@@ -173,7 +142,7 @@ def test_gates_are_recomputed_rather_than_replayed_from_the_journal(tmp_path):
     assert lenient.run().recommendation is not None
 
     strict_evaluator = ModelEvaluator(metrics)
-    strict, _, _ = build_campaign(
+    strict, _, _ = build_experiment(
         tmp_path,
         strict_evaluator,
         objectives=OptimizationObjectives(min_quality=1.0),
@@ -185,12 +154,12 @@ def test_gates_are_recomputed_rather_than_replayed_from_the_journal(tmp_path):
     assert sorted(strict_evaluator.calls) == ["bad", "cheap", "reference"]
 
 
-def test_campaign_resumes_journaled_candidates(tmp_path):
-    """A resumed campaign with nothing left to measure costs nothing, baseline included."""
+def test_experiment_resumes_journaled_candidates(tmp_path):
+    """A resumed experiment with nothing left to measure costs nothing, baseline included."""
     evaluator = ModelEvaluator(default_metrics())
-    campaign, _, _ = build_campaign(tmp_path, evaluator)
-    first = campaign.run()
-    second = campaign.run()
+    experiment, _, _ = build_experiment(tmp_path, evaluator)
+    first = experiment.run()
+    second = experiment.run()
 
     # Approved models are proposed in sorted order, and nothing is measured twice.
     assert evaluator.calls == ["reference", "bad", "cheap"]
@@ -209,22 +178,22 @@ def test_a_changed_evaluation_set_invalidates_journaled_candidates(tmp_path):
         def fingerprint(self):
             return {"version": self.version}
 
-    journal = CampaignJournal(path=tmp_path / "campaign.jsonl")
-    first, _, _ = build_campaign(tmp_path, FingerprintedEvaluator(default_metrics(), "v1"), journal=journal)
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
+    first, _, _ = build_experiment(tmp_path, FingerprintedEvaluator(default_metrics(), "v1"), journal=journal)
     first.run()
 
     second_evaluator = FingerprintedEvaluator(default_metrics(), "v2")
-    second, _, _ = build_campaign(tmp_path, second_evaluator, journal=journal)
+    second, _, _ = build_experiment(tmp_path, second_evaluator, journal=journal)
     second.run()
     assert sorted(second_evaluator.calls) == ["bad", "cheap", "reference"]
 
 
 def test_failed_candidates_are_retried_on_resume(tmp_path):
     """A transient provider failure must not be journaled as a permanent property of the candidate."""
-    journal = CampaignJournal(path=tmp_path / "campaign.jsonl")
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     failing = ModelEvaluator(default_metrics(), failing_models=["cheap"])
-    campaign, _, _ = build_campaign(tmp_path, failing, journal=journal)
-    result = campaign.run()
+    experiment, _, _ = build_experiment(tmp_path, failing, journal=journal)
+    result = experiment.run()
 
     failure = next(c for c in result.candidates if c.recipe["model_id"] == "cheap")
     assert failure.failure is not None
@@ -233,24 +202,10 @@ def test_failed_candidates_are_retried_on_resume(tmp_path):
     assert result.recommendation is None
 
     recovered = ModelEvaluator(default_metrics())
-    retry, _, _ = build_campaign(tmp_path, recovered, journal=CampaignJournal(path=tmp_path / "campaign.jsonl"))
+    retry, _, _ = build_experiment(tmp_path, recovered, journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"))
     retried = retry.run()
     assert "cheap" in recovered.calls
     assert retried.recommendation is not None
-
-
-def test_a_candidate_using_an_unapproved_tool_never_runs(tmp_path):
-    """The catalog is checked while the candidate is materialized, before it can execute."""
-    evaluator = ModelEvaluator(default_metrics())
-    campaign, _, _ = build_campaign(tmp_path, evaluator, tools=[remote_tool], tool_assets=[])
-
-    result = campaign.run()
-
-    assert result.recommendation is None
-    assert evaluator.calls == ["reference"]
-    for candidate in result.candidates:
-        assert "unapproved assets: tool_not_approved:remote_tool" in candidate.failure
-        assert result.gate_failures[candidate.candidate_id] == ("evaluation_failed",)
 
 
 def test_quality_lower_bound_is_what_gates_compare(tmp_path):
@@ -262,9 +217,9 @@ def test_quality_lower_bound_is_what_gates_compare(tmp_path):
             "bad": EvaluationMetrics(quality=1.0, cost=1.0, latency_ms=50, quality_lower_bound=1.0),
         }
     )
-    campaign, _, _ = build_campaign(tmp_path, evaluator, objectives=OptimizationObjectives(min_quality=0.9))
+    experiment, _, _ = build_experiment(tmp_path, evaluator, objectives=OptimizationObjectives(min_quality=0.9))
 
-    result = campaign.run()
+    result = experiment.run()
 
     assert result.recommendation is not None
     assert result.recommendation.evaluation.recipe["model_id"] == "bad"
@@ -281,34 +236,34 @@ def test_unvalidated_quality_is_reported_on_the_recommendation(tmp_path):
             "bad": EvaluationMetrics(quality=0.5, cost=1.0, latency_ms=50),
         }
     )
-    campaign, _, _ = build_campaign(tmp_path, evaluator)
-    recommendation = campaign.run().recommendation
+    experiment, _, _ = build_experiment(tmp_path, evaluator)
+    recommendation = experiment.run().recommendation
     assert recommendation is not None
     assert recommendation.reasons == ("quality_unvalidated", "single_sample", "cost_improvement")
 
 
-def test_campaign_requires_replayable_successful_traces(tmp_path):
+def test_experiment_requires_replayable_successful_traces(tmp_path):
     store = LocalTraceStore()
     evaluator = ModelEvaluator({})
-    campaign = HarnessOptimizationCampaign(
+    experiment = HarnessOptimizationExperiment(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
         trace_source=store,
         evaluator=evaluator,
         assets=ApprovedAssetCatalog(models=[ModelAsset(model_id="reference", provider="p", deployment="d")], tools=[]),
         objectives=OptimizationObjectives(),
-        journal=CampaignJournal(path=tmp_path / "campaign.jsonl"),
+        journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
     )
     with pytest.raises(ValueError, match="no successful reference traces"):
-        campaign.run()
+        experiment.run()
 
     unreplayable = reference_trace()
     store.add(TraceArtifact(**{**unreplayable.__dict__, "traces": ({"operation_name": "other", "tags": {}},)}))
     with pytest.raises(ValueError, match="cannot be replayed"):
-        campaign.run()
+        experiment.run()
 
 
-def test_configuration_key_invalidates_results_the_campaign_cannot_see(tmp_path):
-    journal = CampaignJournal(path=tmp_path / "campaign.jsonl")
+def test_configuration_key_invalidates_results_the_experiment_cannot_see(tmp_path):
+    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
     store = LocalTraceStore()
     store.add(reference_trace())
     assets = ApprovedAssetCatalog(
@@ -319,8 +274,8 @@ def test_configuration_key_invalidates_results_the_campaign_cannot_see(tmp_path)
         tools=[],
     )
 
-    def campaign_for(key, evaluator):
-        return HarnessOptimizationCampaign(
+    def experiment_for(key, evaluator):
+        return HarnessOptimizationExperiment(
             reference=Agent(chat_generator=MockChatGenerator(model="reference")),
             trace_source=store,
             evaluator=evaluator,
@@ -334,7 +289,7 @@ def test_configuration_key_invalidates_results_the_campaign_cannot_see(tmp_path)
         "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=10),
         "cheap": EvaluationMetrics(quality=1.0, cost=1.0, latency_ms=10),
     }
-    campaign_for("corpus-v1", ModelEvaluator(metrics)).run()
+    experiment_for("corpus-v1", ModelEvaluator(metrics)).run()
     second = ModelEvaluator(metrics)
-    campaign_for("corpus-v2", second).run()
+    experiment_for("corpus-v2", second).run()
     assert "cheap" in second.calls

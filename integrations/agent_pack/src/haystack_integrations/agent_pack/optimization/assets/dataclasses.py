@@ -5,7 +5,7 @@
 """Approved assets and sanitized policy results."""
 
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 from haystack.core.serialization import component_from_dict, component_to_dict, import_class_by_name
@@ -93,6 +93,31 @@ class ModelAsset:
 
 
 @dataclass(frozen=True, kw_only=True)
+class HarnessPatch:
+    """
+    An approved change to a harness's configuration, declared as a patch over its serialized form.
+
+    A patch reaches any init parameter of any component in the harness, which is what makes one mechanism enough for
+    reasoning effort, a retriever's `top_k`, a hook's settings, and anything else. The values are declared here
+    rather than proposed, so an optimizer picks a name and cannot ask for a parameter the component would reject or
+    a value outside what was approved.
+
+    Paths are dotted and relative to the Agent's init parameters. A path segment addressing a list of tools selects
+    the tool by name, so `tools.search_documents.component.init_parameters.top_k` reaches the retriever behind the
+    `search_documents` tool. Missing intermediate dictionaries are created, so a nested generation parameter can be
+    set on a generator that has none.
+
+    :param name: The name a proposal refers to this patch by.
+    :param patch: Dotted paths mapped to the values to set.
+    :param description: What the patch is for, passed to the optimizer so it can choose between patches.
+    """
+
+    name: str
+    patch: dict[str, Any] = field(compare=False)
+    description: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class ToolAsset:
     """
     An approved tool exposed to candidate agents.
@@ -103,55 +128,3 @@ class ToolAsset:
 
     name: str
     provider: str = "local"
-
-
-@dataclass(frozen=True, kw_only=True)
-class AssetValidation:
-    """
-    Configuration-time validation result recorded in campaign journals.
-
-    :param allowed: Whether the candidate may execute. False whenever any violation was recorded.
-    :param model_ids: Every model identifier found on the candidate, including delegated agents.
-    :param tool_names: Every tool name found on the candidate, including delegated agents.
-    :param violations: Reasons that block execution.
-    :param warnings: Reasons worth recording that do not block execution.
-    """
-
-    allowed: bool
-    model_ids: tuple[str, ...]
-    tool_names: tuple[str, ...]
-    violations: tuple[str, ...] = ()
-    warnings: tuple[str, ...] = ()
-
-    @property
-    def reason_codes(self) -> tuple[str, ...]:
-        """
-        Return every recorded reason, blocking or not.
-
-        :returns: The violations followed by the warnings.
-        """
-        return (*self.violations, *self.warnings)
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the AssetValidation into a dictionary.
-
-        :returns: A dictionary with keys 'allowed', 'model_ids', 'tool_names', 'violations', and 'warnings'.
-        """
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AssetValidation":
-        """
-        Create a new AssetValidation object from a dictionary.
-
-        :param data: The dictionary to build the AssetValidation object from.
-        :returns: The created object.
-        """
-        return cls(
-            allowed=data["allowed"],
-            model_ids=tuple(data["model_ids"]),
-            tool_names=tuple(data["tool_names"]),
-            violations=tuple(data.get("violations") or ()),
-            warnings=tuple(data.get("warnings") or ()),
-        )

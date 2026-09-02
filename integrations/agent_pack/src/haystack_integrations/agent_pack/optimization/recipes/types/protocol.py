@@ -28,7 +28,7 @@ class CandidateRecipe(Protocol):
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert the recipe into a dictionary for hashing and campaign journaling.
+        Convert the recipe into a dictionary for hashing and experiment journaling.
 
         :returns: A dictionary whose `kind` key identifies the transformation.
         """

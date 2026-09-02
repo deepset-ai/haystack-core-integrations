@@ -2,16 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Persistence that lets a campaign resume where it stopped."""
+"""Persistence that lets an experiment resume where it stopped."""
 
 import json
 from pathlib import Path
 from threading import RLock
 
-from haystack_integrations.agent_pack.optimization.campaign.dataclasses import CandidateEvaluation
+from haystack_integrations.agent_pack.optimization.experiment.dataclasses import CandidateEvaluation
 
 
-class CampaignJournal:
+class ExperimentJournal:
     """
     Append-only JSON-lines journal used to resume candidate evaluation.
 
