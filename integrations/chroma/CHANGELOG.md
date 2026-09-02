@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/chroma-v4.5.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
 
@@ -124,10 +124,6 @@
 - Adding `delete_by_filter()` and `update_by_filter()` to `ChromaDocumentStore` (#2649)
 
 
-### ⚙️ CI
-
-- Change pytest command (#2475)
-
 ### 🧹 Chores
 
 - Remove Readme API CI workflow and configs (#2573)
@@ -135,6 +131,13 @@
 ### 🌀 Miscellaneous
 
 - Adopt PEP 585 type hinting (part 1) (#2509)
+
+## [integrations/chroma-v3.4.1] - 2025-11-11
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
 
 ## [integrations/chroma-v3.4.0] - 2025-10-27
 
@@ -174,6 +177,8 @@
 ### 🧹 Chores
 
 - Align core-integrations Hatch scripts (#1898)
+
+## [integrations/chroma-v3.1.0] - 2025-04-14
 
 
 ## [integrations/chroma-v2.0.3] - 2025-04-04
@@ -294,15 +299,29 @@
 
 ## [integrations/chroma-v0.20.1] - 2024-07-15
 
+### 🐛 Bug Fixes
+
+- `Chroma` - Fallback to default filter policy when deserializing retrievers without the init parameter (#897)
+
+## [integrations/chroma-v0.20.0] - 2024-07-15
+
 ### 🚀 Features
 
-- Added distance_function property to ChromadocumentStore (#817)
 - Add filter_policy to chroma integration (#826)
 
 ### 🐛 Bug Fixes
 
 - Allow search in ChromaDocumentStore without metadata (#863)
-- `Chroma` - Fallback to default filter policy when deserializing retrievers without the init parameter (#897)
+
+### 🌀 Miscellaneous
+
+- Chore: Minor retriever pydoc fix (#884)
+
+## [integrations/chroma-v0.19.0] - 2024-07-01
+
+### 🚀 Features
+
+- Added distance_function property to ChromadocumentStore (#817)
 
 ### ⚙️ CI
 
@@ -315,7 +334,6 @@
 ### 🌀 Miscellaneous
 
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
-- Chore: Minor retriever pydoc fix (#884)
 
 ## [integrations/chroma-v0.18.0] - 2024-05-31
 
@@ -389,14 +407,16 @@
 
 ## [integrations/chroma-v0.11.0] - 2024-01-18
 
-### 🐛 Bug Fixes
-
-- Chroma DocumentStore creation for pre-existing collection name (#157)
-
 ### 🌀 Miscellaneous
 
 - Mount chroma integration under `haystack_integrations.*` (#193)
 - Remove ChromaSingleQueryRetriever (#240)
+
+## [integrations/chroma-v0.10.0] - 2024-01-17
+
+### 🐛 Bug Fixes
+
+- Chroma DocumentStore creation for pre-existing collection name (#157)
 
 ## [integrations/chroma-v0.9.0] - 2023-12-20
 

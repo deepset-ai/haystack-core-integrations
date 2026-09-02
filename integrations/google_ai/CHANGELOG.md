@@ -2,20 +2,47 @@
 
 ## [integrations/google_ai-v5.4.0.post1] - 2025-11-18
 
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
 ### 🧹 Chores
 
-- archive google-ai and google-vertex integrations, migrate to google-genai (#2521)
+- Standardize readmes - part 2 (#2205)
+- Fix linting google_ai (#2256)
+
+### 🌀 Miscellaneous
+
+- Fix: Update default model to `gemini-2.0-flash` in `GoogleAIGeminiChatGenerator` (#2324)
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+- Chore: archive google-ai and google-vertex integrations, migrate to google-genai (#2521)
 
 ## [integrations/google_ai-v5.4.0] - 2025-07-28
+
+### 🧹 Chores
+
+- Remove black (#1985)
+- Google AI - suggest users to switch to Google GenAI (#2106)
+
+## [integrations/google_ai-v5.3.0] - 2025-06-24
 
 
 ### 🧹 Chores
 
 - Align core-integrations Hatch scripts (#1898)
-- Remove black (#1985)
-- Google AI - suggest users to switch to Google GenAI (#2106)
 
 ## [integrations/google_ai-v5.2.1] - 2025-05-28
+
+
+### 🌀 Miscellaneous
+
+- Add pins for Google AI (#1828)
+
+## [integrations/google_ai-v5.2.0] - 2025-05-26
 
 ### 🚀 Features
 
@@ -24,7 +51,6 @@
 ### 🐛 Bug Fixes
 
 - Update serialization/deserialization tests to add new parameter `connection_type_validation` (#1464)
-
 
 ### 🧪 Testing
 
@@ -46,7 +72,6 @@
 - Chore: remove `jsonschema` dependency from `default` environment (#1368)
 - Test: Update tests to check for `outputs_to_string` in Tool when running haystack-ai>=2.12 (#1585)
 - Ci: Update to `GoogleAIGeminiGenerator` tests (#1648)
-- Add pins for Google AI (#1828)
 
 ## [integrations/google_ai-v5.1.0] - 2025-01-30
 
@@ -103,6 +128,8 @@
 
 - Fix missing usage metadata in GoogleAIGeminiChatGenerator (#1195)
 
+## [integrations/google_ai-v3.0.1] - 2024-11-19
+
 
 ## [integrations/google_ai-v3.0.0] - 2024-11-12
 
@@ -123,13 +150,31 @@
 
 ### 🐛 Bug Fixes
 
-- Remove the use of deprecated gemini models (#1032)
 - Chat roles for model responses in chat generators (#1030)
 - Make sure that streaming works with function calls - (drop python3.8) (#1137)
+
+### 🧹 Chores
+
+- Update ruff linting scripts and settings (#1105)
+
+
+## [integrations/google_ai-v2.0.0] - 2024-08-29
+
+### 🐛 Bug Fixes
+
+- Remove the use of deprecated gemini models (#1032)
 
 ### 🧪 Testing
 
 - Do not retry tests in `hatch run test` command (#954)
+
+### 🌀 Miscellaneous
+
+- Update GeminiGenerator docstrings (#964)
+- Update GoogleChatGenerator docstrings (#962)
+- Feat: enable streaming in GoogleAIGemini (#1016)
+
+## [integrations/google_ai-v1.1.1] - 2024-07-17
 
 ### ⚙️ CI
 
@@ -138,15 +183,11 @@
 ### 🧹 Chores
 
 - Update ruff invocation to include check parameter (#853)
-- Update ruff linting scripts and settings (#1105)
 
 ### 🌀 Miscellaneous
 
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Fix Google AI tests failing (#885)
-- Update GeminiGenerator docstrings (#964)
-- Update GoogleChatGenerator docstrings (#962)
-- Feat: enable streaming in GoogleAIGemini (#1016)
 
 ## [integrations/google_ai-v1.1.0] - 2024-06-05
 
