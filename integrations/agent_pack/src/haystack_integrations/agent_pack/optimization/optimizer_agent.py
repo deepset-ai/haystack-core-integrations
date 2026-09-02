@@ -30,7 +30,8 @@ def _default_llm(model: str) -> OpenAIResponsesChatGenerator:
 
     Reasoning effort is left unset, so it takes the provider's default rather than the "low" the Advanced RAG agent
     asks for. Proposing a change is one call that decides what a whole experiment spends its budget measuring, so
-    the quality of the judgement is worth more here than the latency of a single reply.
+    the quality of the judgement is worth more here than the latency or price of a single reply. That is also why
+    the default is the most capable tier rather than the mid or economy one.
 
     :param model: The OpenAI model name.
     :returns: The generator.
@@ -81,7 +82,8 @@ def create_harness_optimizer_agent(
     proposer validates every reply against that same schema regardless.
 
     :param chat_generator: The generator this Agent reasons with. Defaults to `OpenAIResponsesChatGenerator` on
-        `gpt-5.4`. Structured output is configured per request by the proposer, so it does not need to be set here.
+        `gpt-5.6-sol`. Structured output is configured per request by the proposer, so it does not need to be set
+        here.
     :param docs_toolset: Optional read-only documentation toolset, for example the Haystack documentation MCP
         server from `create_haystack_documentation_mcp_toolset`.
     :param system_prompt: Replacement system prompt. `HARNESS_OPTIMIZER_SYSTEM_PROMPT` is used when omitted.
@@ -89,7 +91,7 @@ def create_harness_optimizer_agent(
     :returns: The optimizer Agent.
     """
     return Agent(
-        chat_generator=chat_generator or _default_llm("gpt-5.4"),
+        chat_generator=chat_generator or _default_llm("gpt-5.6-sol"),
         tools=[docs_toolset] if docs_toolset is not None else None,
         system_prompt=system_prompt or HARNESS_OPTIMIZER_SYSTEM_PROMPT,
         exit_conditions=["text"],

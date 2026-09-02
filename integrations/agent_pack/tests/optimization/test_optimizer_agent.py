@@ -81,7 +81,8 @@ def test_optimizer_agent_defaults_its_generator(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     agent = create_harness_optimizer_agent()
     assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
-    assert agent.chat_generator.model == "gpt-5.4"
+    # Proposing a change decides what a whole experiment measures, so the default is the most capable tier.
+    assert agent.chat_generator.model == "gpt-5.6-sol"
 
 
 def test_optimizer_agent_accepts_optional_read_only_docs_toolset():
