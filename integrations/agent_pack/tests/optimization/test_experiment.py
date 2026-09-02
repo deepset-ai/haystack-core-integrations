@@ -74,17 +74,16 @@ class ModelEvaluator:
         return self.metrics_by_model[model]
 
 
-def build_experiment(tmp_path, evaluator, *, objectives=None, tools=None, tool_assets=None, journal=None):
+def build_experiment(tmp_path, evaluator, *, objectives=None, tools=None, journal=None):
     store = LocalTraceStore()
     store.add(reference_trace())
     reference = Agent(chat_generator=MockChatGenerator(model="reference"), tools=tools)
     assets = ApprovedAssetCatalog(
         models=[
-            ModelAsset(model_id="reference", provider="closed", deployment="remote", input_cost_per_million=10),
-            ModelAsset(model_id="cheap", provider="local", deployment="eu", input_cost_per_million=2),
-            ModelAsset(model_id="bad", provider="local", deployment="eu", input_cost_per_million=1),
+            ModelAsset(model_id="reference", input_cost_per_million=10),
+            ModelAsset(model_id="cheap", input_cost_per_million=2),
+            ModelAsset(model_id="bad", input_cost_per_million=1),
         ],
-        tools=tool_assets or [],
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
@@ -249,7 +248,7 @@ def test_experiment_requires_replayable_successful_traces(tmp_path):
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
         trace_source=store,
         evaluator=evaluator,
-        assets=ApprovedAssetCatalog(models=[ModelAsset(model_id="reference", provider="p", deployment="d")], tools=[]),
+        assets=ApprovedAssetCatalog(models=[ModelAsset(model_id="reference")]),
         objectives=OptimizationObjectives(),
         journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
     )
@@ -268,10 +267,9 @@ def test_configuration_key_invalidates_results_the_experiment_cannot_see(tmp_pat
     store.add(reference_trace())
     assets = ApprovedAssetCatalog(
         models=[
-            ModelAsset(model_id="reference", provider="p", deployment="d"),
-            ModelAsset(model_id="cheap", provider="p", deployment="d", input_cost_per_million=1),
+            ModelAsset(model_id="reference"),
+            ModelAsset(model_id="cheap", input_cost_per_million=1),
         ],
-        tools=[],
     )
 
     def experiment_for(key, evaluator):

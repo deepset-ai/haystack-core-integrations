@@ -3,23 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-End-to-end walkthrough of Agent Pack's experimental harness optimization API.
+Runs an optimization experiment end to end against real models.
 
-The script does, against real models, everything the feature claims:
+The script:
 
-1. Builds an Advanced RAG agent over a small in-memory corpus. This is the champion harness every candidate is
-   measured against, and it is never mutated.
-2. Captures a successful run per evaluation question with `TraceCapturingAgentRunner`, writing `haystack-trace/v1`
-   artifacts to disk. Content capture stays local: an already-installed tracer keeps exporting exactly what it did
-   before.
-3. Declares an approved asset catalog — which models a candidate may use, what they cost, and which configuration
-   changes are approved. The catalog is the control: the schema an optimizer answers against is generated from it,
-   so a proposal naming anything else fails validation and never reaches a harness.
-4. Runs a `HarnessOptimizationExperiment`: it measures the reference, materializes one candidate per approved
-   alternative model through `Agent.clone`, replays the captured questions, and ranks whatever clears the quality
-   gate.
-5. Prints the baseline, every candidate's measurements, the gates each one missed, and the recommendation with the
-   reasons behind it. Nothing is promoted: the recommendation is materialized only so you can inspect it.
+1. Builds an Advanced RAG agent over a small in-memory corpus. This is the agent being optimized: every candidate
+   is a variant of it, and it is never modified.
+2. Captures one successful run per evaluation question with `TraceCapturingAgentRunner`, writing the trace
+   artifacts to disk.
+3. Declares the asset catalog: which models a candidate may use, what they cost, and which configuration changes
+   are allowed. A proposal naming anything outside it fails validation.
+4. Runs a `HarnessOptimizationExperiment`, which measures the reference, rebuilds one candidate per alternative
+   model, replays the captured questions, and ranks whatever clears the quality gate.
+5. Prints the baseline, each candidate's measurements, the gates it missed, and the recommendation. Nothing is
+   promoted; the recommendation is materialized only so you can inspect it.
 
 Run it from the integration directory (`integrations/agent_pack`) with `OPENAI_API_KEY` set:
 
@@ -27,11 +24,10 @@ Run it from the integration directory (`integrations/agent_pack`) with `OPENAI_A
     hatch run test:python examples/harness_optimization_poc.py --max-cases 1
     hatch run test:python examples/harness_optimization_poc.py --repetitions 3
     hatch run test:python examples/harness_optimization_poc.py --proposer agent --docs-mcp
-    hatch run test:python examples/harness_optimization_poc.py --drop-approved-tool get_metadata_field_range
 
 Cost: one reference measurement plus one per candidate model, each replaying every question `--repetitions` times.
-With the defaults that is 3 questions x 2 models = 6 agent runs. The experiment journal makes a re-run resume, so an
-interrupted run does not pay for completed candidates twice.
+With the defaults that is 3 questions x 3 models = 9 agent runs. Results are journaled, so a re-run skips
+candidates that already completed.
 """
 
 import argparse
@@ -60,9 +56,8 @@ from haystack_integrations.agent_pack.optimization import (
     HarnessPatch,
     ModelAsset,
     OptimizationObjectives,
-    ToolAsset,
     create_harness_optimizer_agent,
-    create_haystack_docs_toolset,
+    create_haystack_documentation_mcp_toolset,
 )
 from haystack_integrations.agent_pack.tracing import (
     LocalTraceCollector,
@@ -72,15 +67,19 @@ from haystack_integrations.agent_pack.tracing import (
 
 WORKSPACE = Path(".agent-pack-poc")
 
-#: The reference harness runs the stronger model; every other entry is a candidate the experiment will try.
-REFERENCE_MODEL = "gpt-5"
-CANDIDATE_MODELS = ("gpt-5-mini",)
+#: The agent being optimized runs the most capable tier; the others are candidates the experiment will try. The
+#: GPT-5.6 family is named rather than numbered: Sol is the most capable, Terra sits in the middle, and Luna is the
+#: cheapest and fastest. Two candidates are offered so the ranking has something to choose between. Pass
+#: `--reference-model` and `--candidate-model` to try others.
+REFERENCE_MODEL = "gpt-5.6-sol"
+CANDIDATE_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna")
 
-#: Illustrative USD prices per million tokens, only used to rank candidates against each other. Replace them with
-#: your own contracted rates before reading anything into the absolute numbers.
+#: USD prices per million tokens, used only to rank candidates against each other. These are OpenAI's published
+#: list prices; replace them with your own contracted rates before reading anything into the absolute numbers.
 MODEL_PRICES: dict[str, tuple[float, float]] = {
-    "gpt-5": (1.25, 10.00),
-    "gpt-5-mini": (0.25, 2.00),
+    "gpt-5.6-sol": (4.00, 20.00),
+    "gpt-5.6-terra": (2.00, 12.00),
+    "gpt-5.6-luna": (0.20, 1.20),
 }
 
 
@@ -175,7 +174,7 @@ def build_cases(store: InMemoryDocumentStore) -> list[AdvancedRAGEvaluationCase]
 
 def build_reference_agent(*, store: InMemoryDocumentStore, model: str) -> Agent:
     """
-    Build the champion harness.
+    Build the agent to be optimized.
 
     :param store: The corpus to retrieve from.
     :param model: The reference model.
@@ -186,9 +185,9 @@ def build_reference_agent(*, store: InMemoryDocumentStore, model: str) -> Agent:
         retriever=InMemoryBM25Retriever(document_store=store, top_k=5),
         llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
         # Passed explicitly so the whole harness runs the model this script chose. Left to its default, the agent
-        # builds its backup-answer hook on a second model, which the asset catalog then rightly rejects as
-        # undeclared. Note that a model substitution replaces the coordinator generator only, so a candidate keeps
-        # this backup model; it costs nothing unless a run is cut off by `max_agent_steps`.
+        # builds its backup-answer hook on a second model, which would then be priced as an unknown model. Note
+        # that a model substitution changes the coordinator generator only, so a candidate keeps this backup model;
+        # it costs nothing unless a run is cut off by `max_agent_steps`.
         backup_answer_llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
     )
 
@@ -233,35 +232,24 @@ HARNESS_PATCHES = [
 ]
 
 
-def build_catalog(
-    *, agent: Agent, models: tuple[str, ...], dropped_tools: tuple[str, ...] = ()
-) -> ApprovedAssetCatalog:
+def build_catalog(*, models: tuple[str, ...]) -> ApprovedAssetCatalog:
     """
     Declare which models and tools a candidate may use.
 
     The catalog is the only compliance control: a candidate configured with anything outside it is rejected while it
     is being materialized and never executes.
 
-    :param agent: The reference Agent, read for the tools it already exposes.
-    :param models: Every approved model, reference included.
-    :param dropped_tools: Tools to leave out of the catalog, to show a candidate being rejected before it runs.
-    :returns: The approved asset catalog.
+    :param models: Every model the catalog offers, the reference included.
+    :returns: The asset catalog.
     """
     return ApprovedAssetCatalog(
         models=[
             ModelAsset(
                 model_id=model,
-                provider="openai",
-                deployment="hosted",
                 input_cost_per_million=MODEL_PRICES.get(model, (0.0, 0.0))[0],
                 output_cost_per_million=MODEL_PRICES.get(model, (0.0, 0.0))[1],
             )
             for model in models
-        ],
-        tools=[
-            ToolAsset(name=configured.name)
-            for configured in flatten_tools_or_toolsets(tools=agent.tools)
-            if configured.name not in dropped_tools
         ],
         patches=HARNESS_PATCHES,
     )
@@ -272,8 +260,8 @@ def report(*, result: ExperimentResult, reference: Agent, assets: ApprovedAssetC
     Print the experiment outcome.
 
     :param result: What the experiment measured.
-    :param reference: The champion harness, shown to be unchanged.
-    :param assets: The approved asset catalog, used to re-validate the recommendation.
+    :param reference: The Agent being optimized, printed to show it was left unchanged.
+    :param assets: The asset catalog the recommendation is materialized against.
     """
     baseline = result.baseline
     print("\n--- baseline (reference harness) ---")
@@ -325,7 +313,7 @@ def parse_args() -> argparse.Namespace:
     :returns: The parsed arguments.
     """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--reference-model", default=REFERENCE_MODEL, help="Model the champion harness runs.")
+    parser.add_argument("--reference-model", default=REFERENCE_MODEL, help="Model the agent being optimized runs.")
     parser.add_argument(
         "--candidate-model",
         action="append",
@@ -359,21 +347,14 @@ def parse_args() -> argparse.Namespace:
         "--proposer",
         choices=("models", "agent"),
         default="models",
-        help="'models' enumerates every approved alternative model. 'agent' asks a skill-guided optimizer Agent for "
+        help="'models' enumerates every alternative model in the catalog. 'agent' asks an optimizer Agent for "
         "typed recipes, which are still rejected unless they parse as supported transformations.",
     )
     parser.add_argument(
         "--docs-mcp",
         action="store_true",
-        help="Give the optimizer Agent read-only access to the public Haystack documentation MCP server. Requires "
+        help="Give the optimizer Agent read-only access to the Haystack documentation MCP server. Requires "
         "mcp-haystack.",
-    )
-    parser.add_argument(
-        "--drop-approved-tool",
-        action="append",
-        dest="dropped_tools",
-        default=[],
-        help="Tool to leave out of the approved catalog, so every candidate is rejected before it runs. Repeatable.",
     )
     parser.add_argument("--fresh", action="store_true", help="Delete captured traces and the journal first.")
     return parser.parse_args()
@@ -389,7 +370,6 @@ def main() -> None:
     if arguments.fresh and WORKSPACE.exists():
         shutil.rmtree(WORKSPACE)
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
-    dropped_tools = tuple(arguments.dropped_tools)
 
     print("=== 1. reference harness ===")
     store = build_corpus()
@@ -405,36 +385,28 @@ def main() -> None:
     else:
         print(f"  reusing {len(trace_store.list())} captured traces from {WORKSPACE / 'traces'}")
 
-    print("\n=== 3. approved assets ===")
-    assets = build_catalog(
-        agent=reference, models=(arguments.reference_model, *candidate_models), dropped_tools=dropped_tools
-    )
-    if dropped_tools:
-        print(f"  deliberately left out of the catalog: {list(dropped_tools)}")
+    print("\n=== 3. asset catalog ===")
+    assets = build_catalog(models=(arguments.reference_model, *candidate_models))
     for asset in assets.models.values():
-        print(
-            f"  model {asset.model_id} ({asset.provider}/{asset.deployment}): "
-            f"in=${asset.input_cost_per_million}/M out=${asset.output_cost_per_million}/M"
-        )
+        print(f"  model {asset.model_id}: in=${asset.input_cost_per_million}/M out=${asset.output_cost_per_million}/M")
     for declared in assets.patches.values():
         print(f"  patch {declared.name}: {declared.description}")
 
     print("\n=== 4. experiment ===")
     proposer = None
     if arguments.proposer == "agent":
-        docs_toolset = create_haystack_docs_toolset() if arguments.docs_mcp else None
+        docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
         proposer = HarnessOptimizerAgentProposer(
-            optimizer_agent=create_harness_optimizer_agent(
-                chat_generator=OpenAIResponsesChatGenerator(model=arguments.reference_model),
-                docs_toolset=docs_toolset,
-            ),
+            # The generator defaults to the pack's own choice, so the model being measured and the model doing the
+            # proposing stay independent.
+            optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
             max_recipes=4,
             # The response schema is generated from the catalog, so the proposer configures it per request.
             structured_output_key="text",
         )
         print("  proposer: optimizer Agent, answering the schema generated from the catalog")
     else:
-        print("  proposer: deterministic enumeration of approved models")
+        print("  proposer: deterministic enumeration of the catalog's models")
 
     experiment = HarnessOptimizationExperiment(
         reference=reference,

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Champion/challenger optimization experiments."""
+"""Measuring an Agent against candidate variants of itself."""
 
 from haystack_integrations.agent_pack.optimization.experiment.dataclasses import (
     CandidateEvaluation,

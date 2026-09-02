@@ -3,7 +3,6 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
@@ -14,7 +13,6 @@ from haystack_integrations.agent_pack.optimization import (
     HarnessOptimizationExperiment,
     ModelAsset,
     OptimizationObjectives,
-    ToolAsset,
 )
 from haystack_integrations.agent_pack.tracing import (
     LocalTraceStore,
@@ -58,20 +56,15 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
         models=[
             ModelAsset(
                 model_id="reference",
-                provider="closed",
-                deployment="remote",
                 input_cost_per_million=10,
                 output_cost_per_million=20,
             ),
             ModelAsset(
                 model_id="cheap",
-                provider="local",
-                deployment="eu",
                 input_cost_per_million=1,
                 output_cost_per_million=2,
             ),
         ],
-        tools=[ToolAsset(name=tool.name) for tool in flatten_tools_or_toolsets(reference.tools)],
     )
     evaluator = AdvancedRAGHarnessEvaluator(
         cases=[
@@ -119,11 +112,9 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
 
     assets = ApprovedAssetCatalog(
         models=[
-            ModelAsset(model_id="reference", provider="closed", deployment="remote", input_cost_per_million=10),
+            ModelAsset(model_id="reference", input_cost_per_million=10),
             ModelAsset(
                 model_id="cheap",
-                provider="local",
-                deployment="eu",
                 input_cost_per_million=1,
                 # The cheap deployment answers without retrieving or citing anything.
                 generator={
@@ -136,7 +127,6 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
                 },
             ),
         ],
-        tools=[ToolAsset(name=tool.name) for tool in flatten_tools_or_toolsets(reference.tools)],
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,

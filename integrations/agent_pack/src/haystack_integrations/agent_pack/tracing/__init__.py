@@ -8,9 +8,6 @@ Local, machine-readable trace capture for Haystack runs.
 Haystack ships no way to get a run's spans back as data: `LoggingTracer` writes for humans, and the capturing
 tracers in Haystack's own test suite are not packaged. This module fills that gap for anything that needs runs as
 structured data — evaluation, replay, regression checks, harness optimization.
-
-It depends only on Haystack, deliberately: it is generic infrastructure kept here while its shape is proved out,
-and a candidate for moving into Haystack once we are happy with it.
 """
 
 from haystack_integrations.agent_pack.tracing.collectors import (

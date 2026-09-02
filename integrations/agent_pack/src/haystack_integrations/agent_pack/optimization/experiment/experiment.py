@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Constrained champion/challenger optimization experiments for Haystack Agents."""
+"""Measuring a Haystack Agent against a closed set of candidate variants of itself."""
 
 import hashlib
 import json
@@ -37,12 +37,13 @@ logger = logging.getLogger(__name__)
 
 class HarnessOptimizationExperiment:
     """
-    Evaluate typed recipes and recommend the best candidate that satisfies every hard gate.
+    Evaluate candidate variants of an Agent and recommend the best one that clears every gate.
 
     Candidates are evaluated in this process. Evaluating them in a spawned subprocess is deliberately not offered:
-    the only way to move a materialized Agent across a process boundary is `to_dict`/`from_dict`, which rebuilds
-    document stores and other live resources empty, so an isolated candidate would be scored against a different
-    world than the reference.
+    the only way to move a candidate across a process boundary is its serialized form, and a document store rebuilt
+    in another process starts empty, because the registry that lets an in-process rebuild reconnect to the same
+    documents is per-process. An isolated candidate would therefore be scored against an empty corpus while the
+    Agent being optimized was scored against a full one.
     """
 
     def __init__(
@@ -61,7 +62,7 @@ class HarnessOptimizationExperiment:
         """
         Create an experiment.
 
-        :param reference: The champion harness, never mutated.
+        :param reference: The Agent being optimized. Never modified.
         :param trace_source: Where reference traces come from.
         :param evaluator: Scores a materialized candidate.
         :param assets: The approved model and tool allowlist.
@@ -114,21 +115,29 @@ class HarnessOptimizationExperiment:
 
         outcomes: list[CandidateEvaluation] = []
         recipe_by_id: dict[str, CandidateRecipe] = {}
+        resumed = 0
         for recipe in recipes:
             candidate_id = self._candidate_id(configuration_hash=configuration_hash, recipe=recipe)
             recipe_by_id[candidate_id] = recipe
             prior = self.journal.get(candidate_id=candidate_id)
             if prior is not None:
+                resumed += 1
                 outcomes.append(prior)
                 continue
             outcome = self._evaluate_candidate(
-                recipe=recipe,
-                candidate_id=candidate_id,
-                configuration_hash=configuration_hash,
-                reference_traces=reference_traces,
+                recipe=recipe, candidate_id=candidate_id, reference_traces=reference_traces
             )
             self.journal.append(evaluation=outcome)
             outcomes.append(outcome)
+
+        # A candidate's identity covers the configuration it was measured under, so a changed configuration silently
+        # measures everything again. Reporting what was reused makes that visible instead of surprising.
+        logger.info(
+            "Experiment {configuration_hash}: {resumed} of {total} candidates resumed from the journal.",
+            configuration_hash=configuration_hash[:16],
+            resumed=resumed,
+            total=len(recipes),
+        )
 
         gate_failures = {
             outcome.candidate_id: self._gate_failures(candidate=outcome, baseline=baseline) for outcome in outcomes
@@ -163,16 +172,9 @@ class HarnessOptimizationExperiment:
         payload = {
             "reference": self._reference_fingerprint(),
             "models": sorted(
-                [
-                    asset.model_id,
-                    asset.provider,
-                    asset.deployment,
-                    asset.input_cost_per_million,
-                    asset.output_cost_per_million,
-                ]
+                [asset.model_id, asset.input_cost_per_million, asset.output_cost_per_million]
                 for asset in self.assets.models.values()
             ),
-            "tools": sorted([asset.name, asset.provider] for asset in self.assets.tools.values()),
             "objectives": self.objectives.to_dict(),
             "evaluator": self._evaluator_fingerprint(),
             "traces": sorted(artifact.run_id for artifact in reference_traces),
@@ -194,12 +196,7 @@ class HarnessOptimizationExperiment:
             return prior.metrics
         metrics = self.evaluator.evaluate(agent=self.reference, reference_traces=reference_traces, assets=self.assets)
         self.journal.append(
-            evaluation=CandidateEvaluation(
-                candidate_id=baseline_id,
-                configuration_hash=configuration_hash,
-                recipe={"kind": "reference"},
-                metrics=metrics,
-            )
+            evaluation=CandidateEvaluation(candidate_id=baseline_id, recipe={"kind": "reference"}, metrics=metrics)
         )
         return metrics
 
@@ -260,19 +257,13 @@ class HarnessOptimizationExperiment:
         *,
         recipe: CandidateRecipe,
         candidate_id: str,
-        configuration_hash: str,
         reference_traces: list[TraceArtifact],
     ) -> CandidateEvaluation:
         """Materialize, validate, and score one candidate, recording a failure rather than aborting the experiment."""
         try:
             candidate = recipe.materialize(reference=self.reference, assets=self.assets)
             metrics = self.evaluator.evaluate(agent=candidate, reference_traces=reference_traces, assets=self.assets)
-            return CandidateEvaluation(
-                candidate_id=candidate_id,
-                configuration_hash=configuration_hash,
-                recipe=recipe.to_dict(),
-                metrics=metrics,
-            )
+            return CandidateEvaluation(candidate_id=candidate_id, recipe=recipe.to_dict(), metrics=metrics)
         except Exception as error:
             logger.warning(
                 "Candidate evaluation failed for recipe {recipe}: {error}",
@@ -281,7 +272,6 @@ class HarnessOptimizationExperiment:
             )
             return CandidateEvaluation(
                 candidate_id=candidate_id,
-                configuration_hash=configuration_hash,
                 recipe=recipe.to_dict(),
                 metrics=None,
                 failure="".join(traceback.format_exception_only(type(error), error)).strip(),

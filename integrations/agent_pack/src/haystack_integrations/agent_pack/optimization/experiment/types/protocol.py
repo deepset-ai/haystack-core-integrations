@@ -60,7 +60,7 @@ class RecipeProposer(Protocol):
         """
         Return a finite list of constrained recipes.
 
-        :param reference: The champion harness.
+        :param reference: The Agent being optimized.
         :param reference_traces: The selected reference traces.
         :param assets: The approved model and tool allowlist.
         :param objectives: The experiment's gates and ranking preference.

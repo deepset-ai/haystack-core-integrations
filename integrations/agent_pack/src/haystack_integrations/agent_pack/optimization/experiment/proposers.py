@@ -42,7 +42,7 @@ class ApprovedModelRecipeProposer:
         """
         Return one substitution recipe per approved non-reference model.
 
-        :param reference: The champion harness, read for the model it already uses.
+        :param reference: The Agent being optimized, read for the model it already uses.
         :param reference_traces: The selected reference traces. Unused: this proposer does not read run content.
         :param assets: The approved model and tool allowlist.
         :param objectives: The experiment's gates. Unused: every approved model is offered and gated afterwards.
@@ -129,7 +129,7 @@ class HarnessOptimizerAgentProposer:
         """
         Describe the optimization task for the optimizer Agent.
 
-        :param reference: The champion harness.
+        :param reference: The Agent being optimized.
         :param reference_traces: The selected reference traces, sampled for representative inputs.
         :param assets: The approved model and tool allowlist.
         :param objectives: The experiment's gates and ranking preference.
@@ -144,14 +144,11 @@ class HarnessOptimizerAgentProposer:
             "approved_models": [
                 {
                     "model_id": asset.model_id,
-                    "provider": asset.provider,
-                    "deployment": asset.deployment,
                     "input_cost_per_million": asset.input_cost_per_million,
                     "output_cost_per_million": asset.output_cost_per_million,
                 }
                 for asset in assets.models.values()
             ],
-            "approved_tools": sorted(assets.tools),
             "approved_patches": [
                 {"name": declared.name, "description": declared.description, "changes": sorted(declared.patch)}
                 for declared in assets.patches.values()
@@ -190,7 +187,7 @@ class HarnessOptimizerAgentProposer:
         """
         Request proposals and reject any response outside the typed recipe language.
 
-        :param reference: The champion harness.
+        :param reference: The Agent being optimized.
         :param reference_traces: The selected reference traces.
         :param assets: The approved model and tool allowlist.
         :param objectives: The experiment's gates and ranking preference.

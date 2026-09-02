@@ -1,12 +1,10 @@
 import pytest
 from haystack.components.generators.chat import MockChatGenerator
-from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.agent_pack.optimization import (
     ApprovedAssetCatalog,
     HarnessPatch,
     ModelAsset,
-    ToolAsset,
 )
 from haystack_integrations.agent_pack.optimization.assets.model_identity import generator_model_id
 
@@ -33,24 +31,17 @@ class HuggingFaceStyleGenerator:
         self.api_params = {"model": "local/llama"}
 
 
-def test_catalog_looks_assets_up_and_fails_closed():
-    catalog = ApprovedAssetCatalog(
-        models=[ModelAsset(model_id="approved", provider="p", deployment="d")],
-        tools=[ToolAsset(name="search_documents")],
-    )
+def test_catalog_looks_models_up_and_fails_closed():
+    catalog = ApprovedAssetCatalog(models=[ModelAsset(model_id="approved", input_cost_per_million=2.0)])
 
-    assert catalog.model(model_id="approved").provider == "p"
-    assert catalog.tool(tool_name="search_documents").name == "search_documents"
+    assert catalog.model(model_id="approved").input_cost_per_million == 2.0
     with pytest.raises(ValueError, match="not in the approved asset catalog"):
         catalog.model(model_id="unapproved")
-    with pytest.raises(ValueError, match="not in the approved asset catalog"):
-        catalog.tool(tool_name="unapproved")
 
 
 def test_catalog_looks_patches_up_and_fails_closed():
     catalog = ApprovedAssetCatalog(
         models=[],
-        tools=[],
         patches=[HarnessPatch(name="reasoning-low", patch={"chat_generator.init_parameters.x": 1})],
     )
 
@@ -63,17 +54,13 @@ def test_duplicate_assets_are_rejected():
     with pytest.raises(ValueError, match="Model asset IDs must be unique"):
         ApprovedAssetCatalog(
             models=[
-                ModelAsset(model_id="same", provider="p", deployment="d"),
-                ModelAsset(model_id="same", provider="q", deployment="e"),
+                ModelAsset(model_id="same"),
+                ModelAsset(model_id="same"),
             ],
-            tools=[],
         )
-    with pytest.raises(ValueError, match="Tool asset names must be unique"):
-        ApprovedAssetCatalog(models=[], tools=[ToolAsset(name="same"), ToolAsset(name="same", provider="other")])
     with pytest.raises(ValueError, match="Patch names must be unique"):
         ApprovedAssetCatalog(
             models=[],
-            tools=[],
             patches=[HarnessPatch(name="same", patch={"a": 1}), HarnessPatch(name="same", patch={"b": 2})],
         )
 
@@ -92,40 +79,42 @@ def test_model_identity_is_resolved_across_generator_conventions(generator, expe
     assert generator_model_id(generator=generator) == expected
 
 
-def test_model_asset_substitutes_the_model_on_the_reference_generator_class():
-    asset = ModelAsset(model_id="cheaper", provider="provider", deployment="local")
-    built = asset.build_generator(
-        reference_generator=MockChatGenerator([ChatMessage.from_assistant("hi")], model="reference")
+def test_model_asset_patches_the_model_identifier_where_the_generator_keeps_it():
+    """The key differs by provider, so it is read from the reference generator rather than assumed."""
+    asset = ModelAsset(model_id="cheaper")
+
+    plain = asset.substitution_patch(serialized_generator={"type": "X", "init_parameters": {"model": "reference"}})
+    azure = asset.substitution_patch(
+        serialized_generator={"type": "X", "init_parameters": {"azure_deployment": "reference"}}
     )
-    assert built.model == "cheaper"
-    assert isinstance(built, MockChatGenerator)
+    hugging_face = asset.substitution_patch(
+        serialized_generator={"type": "X", "init_parameters": {"api_params": {"model": "reference"}}}
+    )
+
+    assert plain == {"chat_generator.init_parameters.model": "cheaper"}
+    assert azure == {"chat_generator.init_parameters.azure_deployment": "cheaper"}
+    assert hugging_face == {"chat_generator.init_parameters.api_params.model": "cheaper"}
 
 
-def test_model_asset_can_declare_its_own_generator_for_cross_provider_substitution():
-    asset = ModelAsset(
-        model_id="declared",
-        provider="other-provider",
-        deployment="eu",
-        generator={"type": MOCK_GENERATOR_TYPE, "init_parameters": {"model": "declared"}},
-    )
-    built = asset.build_generator(reference_generator=UnnamedGenerator())
-    assert isinstance(built, MockChatGenerator)
-    assert built.model == "declared"
+def test_model_asset_can_declare_a_whole_generator_for_cross_provider_substitution():
+    declared = {"type": MOCK_GENERATOR_TYPE, "init_parameters": {"model": "declared"}}
+    asset = ModelAsset(model_id="declared", generator=declared)
+
+    patch = asset.substitution_patch(serialized_generator={"type": "X", "init_parameters": {}})
+
+    assert patch == {"chat_generator": declared}
 
 
 def test_declared_generator_must_agree_with_the_catalog_identifier():
     asset = ModelAsset(
         model_id="declared",
-        provider="other-provider",
-        deployment="eu",
         generator={"type": MOCK_GENERATOR_TYPE, "init_parameters": {"model": "something-else"}},
     )
     with pytest.raises(ValueError, match="must match the generator"):
-        asset.build_generator(reference_generator=MockChatGenerator(model="reference"))
+        asset.substitution_patch(serialized_generator={"type": "X", "init_parameters": {"model": "reference"}})
 
 
 def test_substitution_requires_a_declared_generator_when_the_reference_hides_its_model():
+    asset = ModelAsset(model_id="cheaper")
     with pytest.raises(ValueError, match="needs an explicit 'generator' configuration"):
-        ModelAsset(model_id="cheaper", provider="provider", deployment="local").build_generator(
-            reference_generator=UnnamedGenerator()
-        )
+        asset.substitution_patch(serialized_generator={"type": "X", "init_parameters": {}})

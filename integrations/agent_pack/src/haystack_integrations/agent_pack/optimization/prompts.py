@@ -11,7 +11,7 @@ documentation tool when current API details are uncertain and it is available.
 
 ## Required approach
 
-1. Preserve the supplied reference harness. Every candidate is created from it with `Agent.clone`.
+1. Preserve the supplied reference harness. Every candidate is rebuilt from its configuration, never edited.
 2. Use only the model IDs listed in `approved_models` and the patch names listed in `approved_patches`. A recipe
    naming anything else fails validation, which wastes an evaluation slot.
 3. Prefer a model substitution or an approved configuration change before rewriting the prompt.
@@ -30,8 +30,8 @@ Model substitution, which swaps the coordinator model for one listed in `approve
 
 A configuration change, chosen by name from `approved_patches`. Each entry there says what it changes and carries a
 description; this is how reasoning effort, a retriever's result count, and any other component parameter are varied.
-You pick a name and cannot author the values, which is deliberate: it means a change can never ask a component for a
-parameter it would reject:
+You pick a name and cannot author the values, so a change can never ask a component for a parameter it would
+reject:
 
     {"kind": "apply_patch", "patch": "approved-patch-name"}
 
@@ -46,7 +46,7 @@ harness's instructions are what is holding quality back:
 - Cost is the primary optimization objective after the gate; latency is secondary. Check the `objectives` field:
   when `primary` is `latency`, rank on latency instead.
 - Every model in `approved_models` is already cleared for use, so choose between them on cost, latency, and how
-  likely they are to hold quality, not on provider or deployment.
+  likely they are to hold quality.
 - Read `successful_trace_inputs` before proposing anything: it shows which tools the reference actually used to
   reach an answer, and what the harness is being asked to do.
 - For enterprise RAG, preserve retrieval grounding, citation behavior, metadata inspection, and absence handling.

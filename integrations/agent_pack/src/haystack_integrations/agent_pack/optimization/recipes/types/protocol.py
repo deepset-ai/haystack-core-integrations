@@ -20,7 +20,7 @@ class CandidateRecipe(Protocol):
         """
         Create a candidate without mutating the reference Agent.
 
-        :param reference: The champion harness to transform.
+        :param reference: The Agent being optimized. Never modified; a candidate is rebuilt from its configuration.
         :param assets: The approved model and tool allowlist.
         :returns: The new candidate Agent.
         """

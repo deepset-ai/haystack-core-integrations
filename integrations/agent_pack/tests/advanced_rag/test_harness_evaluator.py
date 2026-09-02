@@ -86,14 +86,11 @@ def catalog():
         models=[
             ModelAsset(
                 model_id="cheap",
-                provider="local",
-                deployment="eu",
                 input_cost_per_million=2.0,
                 output_cost_per_million=4.0,
             ),
-            ModelAsset(model_id="reference", provider="closed", deployment="remote", input_cost_per_million=10.0),
+            ModelAsset(model_id="reference", input_cost_per_million=10.0),
         ],
-        tools=[],
     )
 
 

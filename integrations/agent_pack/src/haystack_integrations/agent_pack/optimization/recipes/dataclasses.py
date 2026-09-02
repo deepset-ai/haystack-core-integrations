@@ -10,7 +10,11 @@ from typing import Any, ClassVar
 from haystack.components.agents import Agent
 
 from haystack_integrations.agent_pack.optimization.assets.catalog import ApprovedAssetCatalog
-from haystack_integrations.agent_pack.optimization.recipes.utils import _clone_agent, _patched_agent
+from haystack_integrations.agent_pack.optimization.recipes.utils import (
+    _patched_agent,
+    _rebuild_harness,
+    _serialized_harness,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -18,9 +22,8 @@ class ModelSubstitutionRecipe:
     """
     Replace the coordinator model with an approved model deployment.
 
-    Kept distinct from a patch because a model asset can carry a whole generator configuration, which is what makes
-    substituting a model served by a different provider possible, and because it is the axis the deterministic
-    proposer enumerates.
+    Expressed as a patch like every other change; the asset supplies it, so the operator declares a model once with
+    its prices rather than writing a patch per model.
 
     :param model_id: The approved model to switch to.
     """
@@ -30,14 +33,18 @@ class ModelSubstitutionRecipe:
 
     def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:
         """
-        Clone the Agent with a generator built by the selected model asset.
+        Rebuild the Agent with the selected model asset's generator configuration.
 
-        :param reference: The champion harness to transform.
-        :param assets: The approved model and tool allowlist.
+        :param reference: The Agent being optimized. Never modified; a candidate is rebuilt from its configuration.
+        :param assets: The approved model allowlist.
         :returns: The new candidate Agent.
+        :raises ValueError: If the model is not approved, or the harness cannot be serialized or rebuilt.
         """
-        generator = assets.model(model_id=self.model_id).build_generator(reference_generator=reference.chat_generator)
-        return _clone_agent(reference=reference, chat_generator=generator)
+        data = _serialized_harness(reference=reference)
+        patch = assets.model(model_id=self.model_id).substitution_patch(
+            serialized_generator=data["init_parameters"].get("chat_generator") or {}
+        )
+        return _rebuild_harness(reference=reference, data=data, patch=patch)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -69,13 +76,14 @@ class SystemPromptRecipe:
 
     def materialize(self, reference: Agent, assets: ApprovedAssetCatalog) -> Agent:  # noqa: ARG002
         """
-        Clone the Agent with the replacement prompt.
+        Rebuild the Agent with the replacement prompt.
 
-        :param reference: The champion harness to transform.
-        :param assets: The approved model and tool allowlist. Unused: a prompt introduces no new asset.
+        :param reference: The Agent being optimized. Never modified; a candidate is rebuilt from its configuration.
+        :param assets: The approved asset catalog. Unused: a prompt introduces no new asset.
         :returns: The new candidate Agent.
+        :raises ValueError: If the harness cannot be serialized or rebuilt.
         """
-        return _clone_agent(reference=reference, system_prompt=self.system_prompt)
+        return _patched_agent(reference=reference, patch={"system_prompt": self.system_prompt})
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -105,7 +113,7 @@ class ApplyPatchRecipe:
         """
         Rebuild the Agent from its serialized form with the approved patch applied.
 
-        :param reference: The champion harness to transform.
+        :param reference: The Agent being optimized. Never modified; a candidate is rebuilt from its configuration.
         :param assets: The catalog holding the approved patch.
         :returns: The new candidate Agent.
         :raises ValueError: If the patch is not approved, the harness does not serialize, or a path does not resolve.

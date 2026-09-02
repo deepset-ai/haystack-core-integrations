@@ -26,9 +26,9 @@ def _build_proposal_model(*, assets: ApprovedAssetCatalog, max_recipes: int) -> 
     """
     Build the Pydantic model an optimizer's reply is validated against.
 
-    The model is generated per catalog rather than written out once, because the approved model IDs and tool names
-    become closed choices inside it. That is what makes the catalog the compliance boundary: a proposal naming
-    anything outside it cannot be validated, so it never reaches a harness and nothing needs re-checking afterwards.
+    The model is generated per catalog rather than written out once, because the approved model IDs become closed
+    choices inside it. A proposal naming anything outside the catalog therefore fails validation here, before a
+    harness is built from it.
 
     :param assets: The catalog whose model IDs and tool names become the allowed choices.
     :param max_recipes: How many proposals one reply may contain.
@@ -101,8 +101,8 @@ def parse_proposal(
     """
     Validate one optimizer reply and convert it into recipes.
 
-    This is the boundary that keeps a generated proposal from becoming arbitrary change: an unknown transformation,
-    an unapproved model or tool, an unexpected field, or too many proposals all fail here.
+    An unknown transformation, an unapproved model or patch, an unexpected field, or too many proposals all fail
+    here rather than reaching a harness.
 
     :param payload: The reply to validate.
     :param assets: The catalog whose model IDs and tool names became the allowed choices.

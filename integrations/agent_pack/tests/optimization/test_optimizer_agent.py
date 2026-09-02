@@ -1,6 +1,6 @@
 import pytest
 from haystack.components.agents import Agent
-from haystack.components.generators.chat import MockChatGenerator
+from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Toolset, tool
 
@@ -11,9 +11,8 @@ from haystack_integrations.agent_pack.optimization import (
     ModelAsset,
     ModelSubstitutionRecipe,
     OptimizationObjectives,
-    ToolAsset,
     create_harness_optimizer_agent,
-    create_haystack_docs_toolset,
+    create_haystack_documentation_mcp_toolset,
 )
 from haystack_integrations.agent_pack.optimization.prompts import HARNESS_OPTIMIZER_SYSTEM_PROMPT
 from haystack_integrations.agent_pack.optimization.recipes import RECIPE_KINDS, proposal_json_schema
@@ -53,10 +52,9 @@ def propose_with(proposer, assets=None, objectives=None):
         assets=assets
         or ApprovedAssetCatalog(
             models=[
-                ModelAsset(model_id="reference", provider="p", deployment="d"),
-                ModelAsset(model_id="cheap", provider="p", deployment="d"),
+                ModelAsset(model_id="reference"),
+                ModelAsset(model_id="cheap"),
             ],
-            tools=[],
         ),
         objectives=objectives or OptimizationObjectives(),
     )
@@ -79,6 +77,13 @@ def test_optimizer_agent_bakes_the_guidance_into_its_system_prompt():
     assert agent.exit_conditions == ["text"]
 
 
+def test_optimizer_agent_defaults_its_generator(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    agent = create_harness_optimizer_agent()
+    assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
+    assert agent.chat_generator.model == "gpt-5.4"
+
+
 def test_optimizer_agent_accepts_optional_read_only_docs_toolset():
     @tool
     def search_haystack_docs(query: str) -> str:
@@ -90,9 +95,9 @@ def test_optimizer_agent_accepts_optional_read_only_docs_toolset():
     assert agent.tools == [docs]
 
 
-def test_haystack_docs_toolset_is_read_only_and_lazily_connected():
+def test_haystack_documentation_mcp_server_is_read_only_and_lazily_connected():
     pytest.importorskip("haystack_integrations.tools.mcp", reason="mcp-haystack is optional")
-    toolset = create_haystack_docs_toolset()
+    toolset = create_haystack_documentation_mcp_toolset()
     assert toolset.tool_names == ["search_haystack_docs"]
     assert toolset.server_info.url == "https://docs.haystack.deepset.ai/api/mcp"
     assert toolset.eager_connect is False
@@ -107,10 +112,9 @@ def test_proposal_schema_closes_over_the_catalog():
     """The schema handed to a generator offers exactly the catalog's choices, and only the supported kinds."""
     catalog = ApprovedAssetCatalog(
         models=[
-            ModelAsset(model_id="reference", provider="p", deployment="d"),
-            ModelAsset(model_id="cheap", provider="p", deployment="d"),
+            ModelAsset(model_id="reference"),
+            ModelAsset(model_id="cheap"),
         ],
-        tools=[ToolAsset(name="search_documents")],
         patches=[
             HarnessPatch(name="reasoning-high", patch={"a.b": 1}),
             HarnessPatch(name="retrieval-top-10", patch={"c.d": 10}),
@@ -143,10 +147,9 @@ def test_agent_proposer_configures_structured_output_from_the_catalog():
     )
     catalog = ApprovedAssetCatalog(
         models=[
-            ModelAsset(model_id="reference", provider="p", deployment="d"),
-            ModelAsset(model_id="cheap", provider="p", deployment="d"),
+            ModelAsset(model_id="reference"),
+            ModelAsset(model_id="cheap"),
         ],
-        tools=[],
     )
     configured = proposer._structured_output(assets=catalog)
     assert configured is not None

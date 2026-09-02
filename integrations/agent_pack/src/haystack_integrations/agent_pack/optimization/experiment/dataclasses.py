@@ -118,14 +118,12 @@ class CandidateEvaluation:
     changing the objectives re-ranks journaled results instead of replaying a stale verdict.
 
     :param candidate_id: Identifier covering both the recipe and the configuration it was measured under.
-    :param configuration_hash: Hash of the experiment configuration the measurement belongs to.
     :param recipe: The serialized transformation that produced the candidate.
     :param metrics: What the evaluator measured, or None if the evaluation failed.
     :param failure: The error that ended the evaluation, if it failed.
     """
 
     candidate_id: str
-    configuration_hash: str
     recipe: dict[str, Any]
     metrics: EvaluationMetrics | None
     failure: str | None = None
@@ -147,7 +145,6 @@ class CandidateEvaluation:
         """
         return {
             "candidate_id": self.candidate_id,
-            "configuration_hash": self.configuration_hash,
             "recipe": self.recipe,
             "metrics": self.metrics.to_dict() if self.metrics is not None else None,
             "failure": self.failure,
@@ -164,7 +161,6 @@ class CandidateEvaluation:
         metrics = data.get("metrics")
         return cls(
             candidate_id=data["candidate_id"],
-            configuration_hash=data.get("configuration_hash", ""),
             recipe=data["recipe"],
             metrics=EvaluationMetrics.from_dict(data=metrics) if metrics is not None else None,
             failure=data.get("failure"),
@@ -192,7 +188,7 @@ class ExperimentRecommendation:
         """
         Explicitly materialize the recommended candidate for human inspection or approval.
 
-        :param reference: The champion harness the recipe applies to.
+        :param reference: The Agent being optimized, which the recipe applies to.
         :param assets: The approved model and tool allowlist, re-checked before the Agent is handed back.
         :returns: The recommended candidate Agent.
         """

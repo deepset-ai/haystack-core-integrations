@@ -15,7 +15,6 @@ from haystack_integrations.agent_pack.optimization import (
     ModelAsset,
     ModelSubstitutionRecipe,
     SystemPromptRecipe,
-    ToolAsset,
 )
 from haystack_integrations.agent_pack.optimization.recipes import parse_proposal, recipe_fingerprint
 
@@ -36,10 +35,9 @@ def retrieval_tool(top_k=1):
 def assets(patches=None):
     return ApprovedAssetCatalog(
         models=[
-            ModelAsset(model_id="reference", provider="provider", deployment="remote"),
-            ModelAsset(model_id="cheaper", provider="provider", deployment="local"),
+            ModelAsset(model_id="reference"),
+            ModelAsset(model_id="cheaper"),
         ],
-        tools=[ToolAsset(name="search_documents")],
         patches=patches
         or [
             HarnessPatch(name="retrieval-top-3", patch={TOP_K_PATH: 3}, description="Retrieve more documents."),
@@ -70,8 +68,8 @@ def test_model_and_prompt_recipes_clone_without_mutating_the_reference():
     assert reference.system_prompt == "reference prompt"
 
 
-def test_candidates_do_not_share_mutable_containers_with_the_reference():
-    """A candidate that registers a hook or appends a tool must not change the reference harness."""
+def test_candidates_share_nothing_with_the_reference():
+    """Rebuilding from the serialized form means no candidate can reach back into the harness it is compared against."""
     reference = reference_agent(hooks={"after_run": [BackupAnswerHook(chat_generator=MockChatGenerator("backup"))]})
 
     candidate = ModelSubstitutionRecipe(model_id="cheaper").materialize(reference=reference, assets=assets())
@@ -81,6 +79,7 @@ def test_candidates_do_not_share_mutable_containers_with_the_reference():
     candidate.state_schema["injected"] = {"type": str}
 
     assert candidate.hooks is not reference.hooks
+    assert candidate.tools[0] is not reference.tools[0]
     assert len(reference.hooks["after_run"]) == 1
     assert "before_tool" not in reference.hooks
     assert len(reference.tools) == 1
@@ -121,7 +120,7 @@ def test_a_patch_path_that_does_not_resolve_is_reported():
         ApplyPatchRecipe(patch="missing-tool").materialize(reference=reference_agent(), assets=assets(patches=patches))
 
 
-def test_a_harness_that_does_not_serialize_cannot_be_patched():
+def test_a_harness_that_does_not_serialize_cannot_be_changed():
     class Unserializable:
         def run(self, messages, tools=None, **kwargs):  # noqa: ARG002 - signature only
             return {"replies": []}
@@ -131,8 +130,13 @@ def test_a_harness_that_does_not_serialize_cannot_be_patched():
             raise TypeError(msg)
 
     reference = Agent(chat_generator=Unserializable())
-    with pytest.raises(ValueError, match="does not serialize, so it cannot be patched"):
-        ApplyPatchRecipe(patch="reasoning-high").materialize(reference=reference, assets=assets())
+    for recipe in (
+        ApplyPatchRecipe(patch="reasoning-high"),
+        SystemPromptRecipe(system_prompt="try this"),
+        ModelSubstitutionRecipe(model_id="cheaper"),
+    ):
+        with pytest.raises(ValueError, match="does not serialize, so it cannot be changed"):
+            recipe.materialize(reference=reference, assets=assets())
 
 
 def test_an_empty_prompt_is_rejected():
