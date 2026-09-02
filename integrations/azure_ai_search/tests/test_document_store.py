@@ -558,7 +558,6 @@ SHARED_TEST_SUITE_METADATA_FIELDS = {
     "date": str,
     "extra_field": str,
     "featured": bool,
-    "missing_field": str,
     "name": str,
     "no_embedding": bool,
     "number": int,
