@@ -170,6 +170,11 @@ integration:github:
       - any-glob-to-any-file: "integrations/github/**/*"
       - any-glob-to-any-file: ".github/workflows/github.yml"
 
+integration:gladia:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/gladia/**/*"
+      - any-glob-to-any-file: ".github/workflows/gladia.yml"
+
 integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
