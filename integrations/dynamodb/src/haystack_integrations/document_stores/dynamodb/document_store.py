@@ -44,6 +44,7 @@ class DynamoDBDocumentStore:
     )
     ```
     """
+
     def __init__(
         self,
         *,
