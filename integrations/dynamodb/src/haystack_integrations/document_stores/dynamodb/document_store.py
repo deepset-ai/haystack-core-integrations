@@ -4,7 +4,7 @@
 
 import dataclasses
 import json
-from typing import Any, cast
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -202,18 +202,20 @@ class DynamoDBDocumentStore:
         """
         Returns the number of documents in the store.
 
-        Uses DynamoDB's `describe_table` item-count estimate, which is only updated
-        periodically (roughly every six hours) by DynamoDB, so this can lag behind
-        very recent writes. There is no strongly-consistent count operation for a
-        DynamoDB table; a `Scan` with counting would be exact but is a full-table
-        read and is deliberately avoided here.
+        Uses a consistent `Scan` with `Select="COUNT"` rather than `describe_table`'s
+        `ItemCount`, which is only updated roughly every six hours by DynamoDB and would
+        fail the base test contract's expectation that a count reflects a just-completed
+        write immediately.
 
-        :returns: Approximate document count.
+        :returns: Exact document count.
         """
         self._ensure_table()
         client = self._get_client()
-        response = client.describe_table(TableName=self.table_name)
-        return cast(int, response["Table"].get("ItemCount", 0))
+        total = 0
+        paginator = client.get_paginator("scan")
+        for page in paginator.paginate(TableName=self.table_name, Select="COUNT", ConsistentRead=True):
+            total += page.get("Count", 0)
+        return total
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -225,6 +227,10 @@ class DynamoDBDocumentStore:
         Since Haystack's metadata filters are arbitrary and not known at index-creation time,
         filtering here is applied client-side after a full table scan.
 
+        Uses `ConsistentRead=True`: a `Scan` is eventually consistent by default, which
+        surfaced as real test failures immediately after `write_documents` in real-AWS
+        validation — a plain-read-after-write race, not a filter-logic bug.
+
         :param filters: Haystack metadata filters. If `None`, all documents are returned.
         :returns: List of matching `Document` objects.
         """
@@ -232,7 +238,7 @@ class DynamoDBDocumentStore:
         client = self._get_client()
         docs: list[Document] = []
         paginator = client.get_paginator("scan")
-        for page in paginator.paginate(TableName=self.table_name):
+        for page in paginator.paginate(TableName=self.table_name, ConsistentRead=True):
             for raw_item in page.get("Items", []):
                 item = _from_dynamodb_item(raw_item)
                 doc = self._item_to_doc(item)
@@ -265,7 +271,9 @@ class DynamoDBDocumentStore:
         existing_ids: set[str] = set()
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
             for doc in documents:
-                response = client.get_item(TableName=self.table_name, Key={"id": {"S": doc.id}})
+                response = client.get_item(
+                    TableName=self.table_name, Key={"id": {"S": doc.id}}, ConsistentRead=True
+                )
                 if "Item" in response:
                     existing_ids.add(doc.id)
 
