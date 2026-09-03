@@ -146,6 +146,7 @@ class TestMCPServerInfo:
             "type": "haystack_integrations.tools.mcp.mcp_tool.StreamableHttpServerInfo",
             "url": "http://example.com/mcp",
             "token": {"type": "env_var", "env_vars": ["TEST_TOKEN"], "strict": True},
+            "token_provider": None,
             "headers": None,
             "timeout": 45,
             "max_retries": 3,

@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from .mcp_client_credentials import ClientCredentialsTokenProvider, MCPTokenRequestError
+from .mcp_token_provider import MCPTokenProvider, TokenProviderAuth
 from .mcp_tool import (
     MCPClient,
     MCPConnectionError,
@@ -20,11 +22,14 @@ from .mcp_tool import (
 from .mcp_toolset import MCPToolset
 
 __all__ = [
+    "ClientCredentialsTokenProvider",
     "MCPClient",
     "MCPConnectionError",
     "MCPError",
     "MCPInvocationError",
     "MCPServerInfo",
+    "MCPTokenProvider",
+    "MCPTokenRequestError",
     "MCPTool",
     "MCPToolNotFoundError",
     "MCPToolset",
@@ -34,4 +39,5 @@ __all__ = [
     "StdioServerInfo",
     "StreamableHttpClient",
     "StreamableHttpServerInfo",
+    "TokenProviderAuth",
 ]

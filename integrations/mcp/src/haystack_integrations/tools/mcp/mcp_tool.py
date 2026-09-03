@@ -26,6 +26,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.auth import SecretType
 from haystack.utils.url_validation import is_valid_http_url
 
+from haystack_integrations.tools.mcp.mcp_token_provider import MCPTokenProvider, TokenProviderAuth
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
@@ -272,6 +273,17 @@ class MCPClient(ABC):
         """
         pass
 
+    def _auth(self) -> TokenProviderAuth | None:
+        """
+        The per-request credential, when this client was given a token provider.
+
+        An ``httpx.Auth`` rather than a header: the token is then read at request time, and a
+        rejected one is refreshed and retried inside the request that failed, so the MCP session
+        survives a token expiring mid-run.
+        """
+        provider = getattr(self, "token_provider", None)
+        return TokenProviderAuth(provider) if provider else None
+
     async def call_tool(self, tool_name: str, tool_args: dict[str, Any]) -> str:
         """
         Call a tool on the connected MCP server.
@@ -489,6 +501,8 @@ class SSEClient(MCPClient):
         )
         # Resolve Secret values in headers dictionary
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
+        # Deliberately not resolved here: a provider is consulted per request, which is its point.
+        self.token_provider: MCPTokenProvider | None = server_info.token_provider
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
@@ -508,7 +522,7 @@ class SSEClient(MCPClient):
             headers = {"Authorization": f"Bearer {self.token}"}
 
         sse_transport = await self.exit_stack.enter_async_context(
-            sse_client(self.url, headers=headers, timeout=self.timeout)
+            sse_client(self.url, headers=headers, timeout=self.timeout, auth=self._auth())
         )
         return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.url}")
 
@@ -540,6 +554,8 @@ class StreamableHttpClient(MCPClient):
         )
         # Resolve Secret values in headers dictionary
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
+        # Deliberately not resolved here: a provider is consulted per request, which is its point.
+        self.token_provider: MCPTokenProvider | None = server_info.token_provider
         self.timeout: int = server_info.timeout
 
     async def connect(self) -> list[types.Tool]:
@@ -558,7 +574,7 @@ class StreamableHttpClient(MCPClient):
         elif self.token:
             headers = {"Authorization": f"Bearer {self.token}"}
 
-        http_client = create_mcp_http_client(headers=headers, timeout=self.timeout)  # type: ignore[arg-type]
+        http_client = create_mcp_http_client(headers=headers, timeout=self.timeout, auth=self._auth())  # type: ignore[arg-type]
         streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamable_http_client(self.url, http_client=http_client)
         )
@@ -619,6 +635,13 @@ class MCPServerInfo(ABC):
 
         secret_types = {e.value for e in SecretType}
         field_names = {f.name for f in fields(cls)}
+
+        # A token provider is a class descriptor, not a Secret, so the generic secret walk below
+        # would leave it a plain dict and the client would try to call `.token()` on it.
+        provider = data_copy.get("token_provider")
+        if isinstance(provider, dict) and provider.get("type"):
+            provider_class = import_class_by_name(provider["type"])
+            data_copy["token_provider"] = provider_class.from_dict(provider)
 
         # Iterate over a static list of items to avoid mutation issues
         for name, value in list(data_copy.items()):
@@ -685,6 +708,7 @@ class SSEServerInfo(MCPServerInfo):
     url: str | None = None
     base_url: str | None = None  # deprecated
     token: str | Secret | None = None
+    token_provider: MCPTokenProvider | None = None
     headers: dict[str, str | Secret] | None = None
     timeout: int = 30
     max_retries: int = 3
@@ -771,6 +795,7 @@ class StreamableHttpServerInfo(MCPServerInfo):
 
     url: str
     token: str | Secret | None = None
+    token_provider: MCPTokenProvider | None = None
     headers: dict[str, str | Secret] | None = None
     timeout: int = 30
     max_retries: int = 3
