@@ -43,6 +43,7 @@ class TestAzureDocumentIntelligenceConverter:
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
         assert converter.model_id == "prebuilt-layout"
         assert converter.store_full_path is False
+        assert converter.client is None
 
     def test_init_custom_params(self):
         """Test initialization with custom parameters"""
@@ -56,6 +57,7 @@ class TestAzureDocumentIntelligenceConverter:
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
         assert converter.model_id == "prebuilt-read"
         assert converter.store_full_path is True
+        assert converter.client is None
 
     def test_to_dict(self):
         """Test serialization with Secret handling"""
@@ -116,23 +118,64 @@ class TestAzureDocumentIntelligenceConverter:
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
         assert converter.model_id == "prebuilt-read"
         assert converter.store_full_path is False
+        assert converter.client is None
 
-    def test_warm_up_initializes_client_only_once(self):
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AZURE_DI_API_KEY", raising=False)
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_env_var("MISSING_AZURE_DI_API_KEY"),
+        )
+
+        assert converter.client is None
+        with pytest.raises(ValueError, match="MISSING_AZURE_DI_API_KEY"):
+            converter.warm_up()
+
+    def test_sync_lifecycle(self):
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_token("test_api_key"),
         )
-        assert converter.client is None
+        with patch(
+            "haystack_integrations.components.converters.azure_doc_intelligence.converter.DocumentIntelligenceClient"
+        ) as mock_client_cls:
+            client = mock_client_cls.return_value
+            converter.warm_up()
+            assert converter.client is client
+            converter.close()
+            client.close.assert_called_once_with()
+            assert converter.client is None
+            converter.warm_up()
+            assert mock_client_cls.call_count == 2
+
+    def test_warm_up_is_idempotent(self):
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_token("test_api_key"),
+        )
         with patch(
             "haystack_integrations.components.converters.azure_doc_intelligence.converter.DocumentIntelligenceClient"
         ) as mock_client_cls:
             converter.warm_up()
-            assert converter.client is mock_client_cls.return_value
-            mock_client_cls.assert_called_once()
             converter.warm_up()
-            mock_client_cls.assert_called_once()
 
-    def test_run_calls_warm_up_when_client_is_none(self):
+        mock_client_cls.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_token("test_api_key"),
+        )
+
+        converter.close()
+
+        assert converter.client is None
+
+
+class TestAzureDocumentIntelligenceConverterRun:
+    def test_run_calls_warm_up(self):
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_token("test_api_key"),
@@ -147,6 +190,7 @@ class TestAzureDocumentIntelligenceConverter:
 
         assert converter.client is mock_client_cls.return_value
         assert len(result["documents"]) == 1
+
 
     def test_run_returns_document_with_markdown_content_and_meta(self, warmed_converter):
         warmed_converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result(
