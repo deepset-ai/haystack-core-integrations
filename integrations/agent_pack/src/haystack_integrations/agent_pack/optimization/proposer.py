@@ -110,7 +110,12 @@ class HarnessOptimizerAgentProposer:
     """Ask an Agent for one structured mutation after every measured outcome."""
 
     def __init__(self, optimizer_agent: Agent) -> None:
-        """Configure the Agent-backed proposer."""
+        """
+        Configure the Agent-backed proposer.
+
+        :param optimizer_agent: Agent that receives the reference configuration and experiment history and returns
+            the next structured mutation.
+        """
         self.optimizer_agent = optimizer_agent
 
     def build_request(

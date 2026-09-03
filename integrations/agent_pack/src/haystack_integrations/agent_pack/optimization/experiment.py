@@ -87,7 +87,12 @@ class ExperimentJournal:
     """Append-only JSON-lines persistence for raw experiment measurements."""
 
     def __init__(self, path: str | Path) -> None:
-        """Load existing measurements from an append-only JSON-lines journal."""
+        """
+        Load existing measurements from an append-only JSON-lines journal.
+
+        :param path: Path to the journal file. Parent directories are created automatically, and an existing journal
+            is loaded so completed measurements can be reused.
+        """
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
@@ -193,7 +198,25 @@ class HarnessOptimizationExperiment:
         configuration_key: str | None = None,
         max_iterations: int = 8,
     ) -> None:
-        """Configure an iterative, journaled harness optimization run."""
+        """
+        Configure an iterative, journaled harness optimization run.
+
+        :param reference: The unchanged Agent used as the baseline and as the source configuration for every
+            candidate mutation.
+        :param run_source: Source of successful Agent runs whose inputs are replayed during evaluation.
+        :param evaluator: Evaluator that measures the reference and each materialized candidate against the selected
+            runs.
+        :param pricing: Model prices used to calculate candidate costs and rank cost optimizations. Prices do not
+            restrict which models the optimizer may choose.
+        :param objectives: Quality gates and primary measurement used to rank eligible candidates.
+        :param journal: Persistent measurement journal used to resume compatible experiments without repeating work.
+        :param proposer: Strategy that chooses each next mutation after observing prior outcomes.
+        :param run_selection: Optional subset or limit applied when loading runs from `run_source`.
+        :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
+            corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
+        :param max_iterations: Maximum number of candidate outcomes included in the experiment, counting compatible
+            completed measurements loaded from the journal.
+        """
         self.reference = reference
         self.run_source = run_source
         self.evaluator = evaluator

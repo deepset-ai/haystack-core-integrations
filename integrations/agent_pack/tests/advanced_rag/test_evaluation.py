@@ -129,8 +129,57 @@ def test_metadata_inspection_order_is_checked(document):
 
 
 def test_a_case_needs_expected_documents_unless_absence_is_expected():
-    with pytest.raises(ValueError, match="needs expected_document_ids"):
+    with pytest.raises(ValueError, match="needs expected document IDs or a metadata filter"):
         AdvancedRAGEvaluationCase(question="q")
+
+
+def test_metadata_filter_ground_truth_scores_large_corpus_constraints():
+    """A large-corpus case scores relevant retrieved documents without enumerating every expected ID."""
+    matching = [
+        Document(content="good", meta={"category": "beauty", "rating": 1}),
+        Document(content="also good", meta={"category": "beauty", "rating": 2}),
+    ]
+    unrelated = Document(content="other", meta={"category": "music", "rating": 1})
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.category", "operator": "==", "value": "beauty"},
+            {"field": "meta.rating", "operator": "<=", "value": 2},
+        ],
+    }
+    case = AdvancedRAGEvaluationCase(
+        question="q",
+        expected_metadata_filter=filters,
+        min_matching_documents=2,
+        min_precision=0.5,
+    )
+
+    passed = score_advanced_rag_result(
+        result=result_for(f"summary [doc {matching[0].id[:8]}]", [*matching, unrelated]),
+        case=case,
+        latency_ms=1,
+    )
+    failed = score_advanced_rag_result(
+        result=result_for(f"summary [doc {matching[0].id[:8]}]", [matching[0], unrelated]),
+        case=case,
+        latency_ms=1,
+    )
+
+    assert passed.passed is True
+    assert passed.recall == 1.0
+    assert passed.precision == pytest.approx(2 / 3)
+    assert failed.failures == ("matching_documents_below_2",)
+
+
+def test_metadata_filter_case_roundtrips():
+    """Serializable filter ground truth remains stable in experiment fingerprints."""
+    original = AdvancedRAGEvaluationCase(
+        question="q",
+        expected_metadata_filter={"field": "meta.year", "operator": ">=", "value": 2020},
+        min_matching_documents=3,
+        min_precision=0.5,
+    )
+    assert AdvancedRAGEvaluationCase.from_dict(data=original.to_dict()) == original
 
 
 def test_run_stats_count_filtered_retrieval_calls():

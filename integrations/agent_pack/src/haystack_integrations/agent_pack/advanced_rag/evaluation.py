@@ -14,13 +14,15 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from haystack import Document
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 from haystack.dataclasses import ChatMessage
+from haystack.utils.filters import document_matches_filter
 
 RETRIEVAL_TOOLS = frozenset({"search_documents", "fetch_documents_by_filter"})
 METADATA_TOOLS = frozenset({"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"})
 
-#: Citation format produced by the Advanced RAG toolset: the first eight characters of a document ID.
+# Citation format produced by the Advanced RAG toolset: the first eight characters of a document ID.
 CITATION_PATTERN = re.compile(r"\[doc ([0-9a-fA-F]{8})\]")
 
 
@@ -94,6 +96,9 @@ class AdvancedRAGEvaluationCase:
 
     :param question: The user question to ask.
     :param expected_document_ids: Documents the answer must be grounded in.
+    :param expected_metadata_filter: A Haystack metadata filter describing relevant documents when the complete
+        expected ID set is too large to enumerate.
+    :param min_matching_documents: Minimum number of retrieved documents that must match `expected_metadata_filter`.
     :param answer_must_mention: Case-insensitive substrings the answer must contain.
     :param answer_must_not_mention: Case-insensitive substrings the answer must not contain, for checking that a
         known wrong or out-of-scope claim is absent.
@@ -113,6 +118,8 @@ class AdvancedRAGEvaluationCase:
 
     question: str
     expected_document_ids: frozenset[str] = frozenset()
+    expected_metadata_filter: dict[str, Any] | None = None
+    min_matching_documents: int = 1
     answer_must_mention: tuple[str, ...] = ()
     answer_must_not_mention: tuple[str, ...] = ()
     min_recall: float = 1.0
@@ -127,9 +134,17 @@ class AdvancedRAGEvaluationCase:
     max_steps: int | None = None
 
     def __post_init__(self) -> None:
-        """Require retrieval labels unless the case expects no matching documents."""
-        if not self.expect_absent and not self.expected_document_ids:
-            msg = f"Case {self.question!r} needs expected_document_ids unless expect_absent is set."
+        """Require exactly one applicable form of retrieval ground truth."""
+        if not self.expect_absent and not (self.expected_document_ids or self.expected_metadata_filter):
+            msg = (
+                f"Case {self.question!r} needs expected document IDs or a metadata filter unless expect_absent is set."
+            )
+            raise ValueError(msg)
+        if self.expected_document_ids and self.expected_metadata_filter:
+            msg = f"Case {self.question!r} cannot combine expected document IDs with a metadata filter."
+            raise ValueError(msg)
+        if self.min_matching_documents < 1:
+            msg = "min_matching_documents must be at least 1."
             raise ValueError(msg)
 
     def to_dict(self) -> dict[str, Any]:
@@ -233,8 +248,22 @@ def score_advanced_rag_result(
     retrieved_documents = result.get("documents") or []
     retrieved_ids = {document.id for document in retrieved_documents}
     matched_ids = retrieved_ids & case.expected_document_ids
-    recall = len(matched_ids) / len(case.expected_document_ids) if case.expected_document_ids else 0.0
-    precision = len(matched_ids) / len(retrieved_ids) if retrieved_ids else 0.0
+    matching_documents: list[Document] = []
+    if case.expected_metadata_filter is not None:
+        matching_documents = [
+            document
+            for document in retrieved_documents
+            if document_matches_filter(filters=case.expected_metadata_filter, document=document)
+        ]
+    matched_count = len(matching_documents) if case.expected_metadata_filter is not None else len(matched_ids)
+    recall = (
+        min(matched_count / case.min_matching_documents, 1.0)
+        if case.expected_metadata_filter is not None
+        else len(matched_ids) / len(case.expected_document_ids)
+        if case.expected_document_ids
+        else 0.0
+    )
+    precision = matched_count / len(retrieved_ids) if retrieved_ids else 0.0
 
     cited_refs = tuple(CITATION_PATTERN.findall(answer))
     citations_resolved = all(
@@ -249,7 +278,9 @@ def score_advanced_rag_result(
         if not any(phrase in lowered for phrase in case.absence_phrases):
             failures.append("answer_does_not_state_absence")
     else:
-        if recall < case.min_recall:
+        if case.expected_metadata_filter is not None and matched_count < case.min_matching_documents:
+            failures.append(f"matching_documents_below_{case.min_matching_documents}")
+        elif case.expected_metadata_filter is None and recall < case.min_recall:
             failures.append(f"recall_below_{case.min_recall:g}")
         if precision < case.min_precision:
             failures.append(f"precision_below_{case.min_precision:g}")

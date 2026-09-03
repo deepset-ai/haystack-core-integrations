@@ -70,7 +70,12 @@ class ModelPriceCatalog:
     """Known prices used to explain choices and rank measured candidates."""
 
     def __init__(self, prices: list[ModelPrice]) -> None:
-        """Create a catalog from unique model identifiers."""
+        """
+        Create a catalog from unique model identifiers.
+
+        :param prices: Informational token prices keyed by each entry's model identifier.
+        :raises ValueError: If multiple entries use the same model identifier.
+        """
         self.prices = {price.model_id: price for price in prices}
         if len(self.prices) != len(prices):
             msg = "Model price identifiers must be unique."

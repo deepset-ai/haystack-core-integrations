@@ -81,7 +81,12 @@ class LocalRunStore:
     """In-memory run source with optional one-JSON-file-per-run persistence."""
 
     def __init__(self, directory: str | Path | None = None) -> None:
-        """Load an optional directory of persisted run records."""
+        """
+        Load an optional directory of persisted run records.
+
+        :param directory: Directory containing one JSON file per run. When omitted, records exist only in memory.
+            The directory is created when it does not exist.
+        """
         self.directory = Path(directory) if directory is not None else None
         self._records: dict[str, AgentRunRecord] = {}
         self._lock = RLock()
@@ -124,7 +129,12 @@ class AgentRunRecorder:
     """Run an Agent and retain exactly the inputs and outputs optimization consumes."""
 
     def __init__(self, store: LocalRunStore | None = None) -> None:
-        """Create a recorder backed by the supplied store or a new in-memory store."""
+        """
+        Create a recorder backed by the supplied store or a new in-memory store.
+
+        :param store: Run store that receives successful input/output records. When omitted, a new in-memory store is
+            created.
+        """
         self.store = store or LocalRunStore()
 
     def run(self, agent: Agent, **run_kwargs: Any) -> RecordedAgentRun:
