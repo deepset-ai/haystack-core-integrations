@@ -1,9 +1,11 @@
 import os
+from unittest.mock import AsyncMock, patch
 
 import anthropic
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole
+from haystack.utils import Secret
 
 from haystack_integrations.components.generators.anthropic import AnthropicFoundryChatGenerator
 
@@ -62,15 +64,6 @@ class TestUnit:
         monkeypatch.delenv("ANTHROPIC_FOUNDRY_RESOURCE", raising=False)
         with pytest.raises(ValueError, match="Either 'resource' or 'endpoint' must be provided"):
             AnthropicFoundryChatGenerator()
-
-    def test_warm_up(self, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
-        component = AnthropicFoundryChatGenerator(resource="my-resource")
-        assert component.client is None
-        assert component.async_client is None
-        component.warm_up()
-        assert component.client is not None
-        assert component.async_client is not None
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
@@ -186,9 +179,10 @@ class TestUnit:
     def test_run_triggers_warm_up(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
         component = AnthropicFoundryChatGenerator(resource="my-resource")
-        assert not component._is_warmed_up
+        assert component.client is None
         response = component.run(chat_messages)
-        assert component._is_warmed_up
+        assert component.client is not None
+        assert component.async_client is None
         assert isinstance(response, dict)
         assert "replies" in response
         assert isinstance(response["replies"], list)
@@ -214,10 +208,65 @@ class TestUnit:
     async def test_run_async_triggers_warm_up(self, mock_anthropic_completion_async, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
         component = AnthropicFoundryChatGenerator(resource="my-resource")
-        assert not component._is_warmed_up
+        assert component.async_client is None
         response = await component.run_async([ChatMessage.from_user("hi")])
-        assert component._is_warmed_up
+        assert component.async_client is not None
+        assert component.client is None
         assert "replies" in response
+
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_ANTHROPIC_FOUNDRY_API_KEY", raising=False)
+        component = AnthropicFoundryChatGenerator(
+            api_key=Secret.from_env_var("MISSING_ANTHROPIC_FOUNDRY_API_KEY"), resource="my-resource"
+        )
+
+        with pytest.raises(ValueError, match="MISSING_ANTHROPIC_FOUNDRY_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.foundry_chat_generator.AnthropicFoundry")
+    def test_sync_lifecycle(self, mock_client_cls):
+        component = AnthropicFoundryChatGenerator(api_key=Secret.from_token("test-key"), resource="my-resource")
+        client = mock_client_cls.return_value
+
+        component.warm_up()
+        assert component.client is client
+        assert component.async_client is None
+        component.close()
+        client.close.assert_called_once_with()
+        assert component.client is None
+        component.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.foundry_chat_generator.AsyncAnthropicFoundry")
+    async def test_async_lifecycle(self, mock_client_cls):
+        component = AnthropicFoundryChatGenerator(api_key=Secret.from_token("test-key"), resource="my-resource")
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await component.warm_up_async()
+        assert component.async_client is client
+        assert component.client is None
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component.async_client is None
+        await component.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.foundry_chat_generator.AnthropicFoundry")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = AnthropicFoundryChatGenerator(api_key=Secret.from_token("test-key"), resource="my-resource")
+        component.warm_up()
+        component.warm_up()
+        mock_client_cls.assert_called_once_with(api_key="test-key", resource="my-resource")
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.foundry_chat_generator.AsyncAnthropicFoundry")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = AnthropicFoundryChatGenerator(api_key=Secret.from_token("test-key"), resource="my-resource")
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_client_cls.assert_called_once_with(api_key="test-key", resource="my-resource")
 
 
 @pytest.mark.integration

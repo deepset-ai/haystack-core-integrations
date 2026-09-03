@@ -1,4 +1,5 @@
 import os
+from unittest.mock import AsyncMock, patch
 
 import anthropic
 import pytest
@@ -23,6 +24,8 @@ class TestUnit:
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.ignore_tools_thinking_messages
+        assert component.client is None
+        assert component.async_client is None
 
     def test_init_with_parameters(self):
         component = AnthropicVertexChatGenerator(
@@ -151,6 +154,51 @@ class TestUnit:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AnthropicVertex")
+    def test_sync_lifecycle(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        client = mock_client_cls.return_value
+
+        component.warm_up()
+        assert component.client is client
+        assert component.async_client is None
+        component.close()
+        client.close.assert_called_once_with()
+        assert component.client is None
+        component.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AsyncAnthropicVertex")
+    async def test_async_lifecycle(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await component.warm_up_async()
+        assert component.async_client is client
+        assert component.client is None
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component.async_client is None
+        await component.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AnthropicVertex")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        component.warm_up()
+        component.warm_up()
+        mock_client_cls.assert_called_once_with(region="us-central1", project_id="test-project-id")
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AsyncAnthropicVertex")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_client_cls.assert_called_once_with(region="us-central1", project_id="test-project-id")
 
 
 @pytest.mark.integration
