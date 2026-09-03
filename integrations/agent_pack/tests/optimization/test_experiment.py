@@ -16,7 +16,9 @@ from haystack_integrations.agent_pack.optimization import (
     ModelPriceCatalog,
     MutationOperation,
     OptimizationObjectives,
+    apply_mutation,
     create_harness_optimizer_agent,
+    rebuild_agent,
 )
 
 MODEL_PATH = "/init_parameters/chat_generator/init_parameters/model"
@@ -259,8 +261,8 @@ def test_current_prices_rerank_journaled_raw_usage_without_remeasurement(tmp_pat
     assert result.recommendation is None
 
 
-def test_recommendation_materializes_without_a_catalog(tmp_path):
-    """A recommendation needs only its complete mutation and the unchanged reference."""
+def test_recommendation_can_be_rebuilt_from_its_mutation_and_the_reference(tmp_path):
+    """A recommendation needs only its complete mutation and the unchanged reference, without a patch catalog."""
     optimizer_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="cheap"), None])
     configured = experiment(
         tmp_path=tmp_path,
@@ -269,9 +271,12 @@ def test_recommendation_materializes_without_a_catalog(tmp_path):
     )
     result = configured.run()
     assert result.recommendation is not None
-    candidate = result.recommendation.materialize(reference=configured.reference)
+    reference = configured.reference
+    candidate = rebuild_agent(
+        serialized_agent=apply_mutation(serialized_agent=reference.to_dict(), mutation=result.recommendation.mutation)
+    )
     assert candidate.chat_generator.model == "cheap"
-    assert configured.reference.chat_generator.model == "reference"
+    assert reference.chat_generator.model == "reference"
 
 
 def test_empty_run_store_is_rejected(tmp_path):

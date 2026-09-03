@@ -26,8 +26,8 @@ from haystack_integrations.agent_pack.optimization.models import (
 )
 from haystack_integrations.agent_pack.optimization.mutations import (
     AgentMutation,
-    materialize_mutation,
-    mutation_fingerprint,
+    apply_mutation,
+    rebuild_agent,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,11 +83,6 @@ class ExperimentRecommendation:
     mutation: AgentMutation
     evaluation: CandidateEvaluation
     reasons: tuple[str, ...] = ()
-
-    def materialize(self, reference: Agent) -> Agent:
-        """Rebuild the recommendation for inspection or approval."""
-        candidate, _ = materialize_mutation(reference=reference, mutation=self.mutation)
-        return candidate
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -227,8 +222,13 @@ class HarnessOptimizationExperiment:
         if not reference_runs:
             msg = "The selected run store contains no successful reference runs."
             raise ValueError(msg)
+        try:
+            serialized_reference = self.reference.to_dict()
+        except Exception as error:
+            msg = f"{type(self.reference).__name__} cannot be serialized and optimized: {error}"
+            raise ValueError(msg) from error
 
-        context = self._measurement_context(reference_runs=reference_runs)
+        context = self._measurement_context(serialized_reference=serialized_reference, reference_runs=reference_runs)
         baseline = self.pricing.price(metrics=self._baseline(context=context, reference_runs=reference_runs))
         if self.objectives.primary == "cost" and baseline.cost is None:
             msg = "The reference Agent uses an unpriced model, so cost cannot be the primary objective."
@@ -241,7 +241,7 @@ class HarnessOptimizationExperiment:
         for prior in self.journal.completed(measurement_context=context):
             try:
                 mutation = AgentMutation.model_validate(prior.mutation)
-                _, serialized = materialize_mutation(reference=self.reference, mutation=mutation)
+                serialized = apply_mutation(serialized_agent=serialized_reference, mutation=mutation)
             except (ValueError, ValidationError):
                 continue
             fingerprint = _configuration_fingerprint(serialized_agent=serialized)
@@ -254,7 +254,7 @@ class HarnessOptimizationExperiment:
             mutation_by_id[priced.candidate_id] = mutation
             history.append(self._history_entry(candidate=priced, baseline=baseline))
 
-        reference_fingerprint = _configuration_fingerprint(serialized_agent=self.reference.to_dict())
+        reference_fingerprint = _configuration_fingerprint(serialized_agent=serialized_reference)
         stalled = 0
         while len(outcomes) < self.max_iterations and stalled < _MAX_STALLED_PROPOSALS:
             proposed = propose_mutation(
@@ -270,12 +270,11 @@ class HarnessOptimizationExperiment:
                 break
 
             try:
-                candidate_agent, serialized = materialize_mutation(reference=self.reference, mutation=proposed)
+                serialized = apply_mutation(serialized_agent=serialized_reference, mutation=proposed)
                 fingerprint = _configuration_fingerprint(serialized_agent=serialized)
             except Exception as error:
                 stalled = 0
-                invalid_fingerprint = mutation_fingerprint(mutation=proposed)
-                candidate_id = hashlib.sha256(f"{context}:invalid:{invalid_fingerprint}".encode()).hexdigest()
+                candidate_id = hashlib.sha256(f"{context}:invalid:{proposed.fingerprint()}".encode()).hexdigest()
                 failure = "".join(traceback.format_exception_only(type(error), error)).strip()
                 outcome = CandidateEvaluation(
                     measurement_context=context,
@@ -287,7 +286,9 @@ class HarnessOptimizationExperiment:
                 outcomes.append(outcome)
                 history.append(self._history_entry(candidate=outcome, baseline=baseline))
                 logger.warning(
-                    "Candidate materialization failed for {mutation}: {error}", mutation=proposed, error=error
+                    "Candidate configuration could not be mutated for {mutation}: {error}",
+                    mutation=proposed,
+                    error=error,
                 )
                 continue
 
@@ -303,7 +304,7 @@ class HarnessOptimizationExperiment:
             raw = self.journal.get(candidate_id=candidate_id)
             if raw is None:
                 raw = self._evaluate_candidate(
-                    candidate=candidate_agent,
+                    serialized_candidate=serialized,
                     mutation=proposed,
                     candidate_id=candidate_id,
                     context=context,
@@ -337,17 +338,13 @@ class HarnessOptimizationExperiment:
             gate_failures=gate_failures,
         )
 
-    def _measurement_context(self, reference_runs: list[AgentRunRecord]) -> str:
+    def _measurement_context(self, serialized_reference: dict[str, Any], reference_runs: list[AgentRunRecord]) -> str:
         """Fingerprint every input that changes a raw Agent measurement."""
-        try:
-            reference = _stable_serialization(value=self.reference.to_dict())
-        except Exception:
-            reference = {"type": f"{type(self.reference).__module__}.{type(self.reference).__qualname__}"}
         evaluator: dict[str, Any] = {"type": f"{type(self.evaluator).__module__}.{type(self.evaluator).__qualname__}"}
         if callable(fingerprint := getattr(self.evaluator, "fingerprint", None)):
             evaluator["configuration"] = fingerprint()
         payload = {
-            "reference": reference,
+            "reference": _stable_serialization(value=serialized_reference),
             "evaluator": evaluator,
             "runs": sorted(record.fingerprint() for record in reference_runs),
             "configuration_key": self.configuration_key,
@@ -372,14 +369,15 @@ class HarnessOptimizationExperiment:
 
     def _evaluate_candidate(
         self,
-        candidate: Agent,
+        serialized_candidate: dict[str, Any],
         mutation: AgentMutation,
         candidate_id: str,
         context: str,
         reference_runs: list[AgentRunRecord],
     ) -> CandidateEvaluation:
-        """Measure one materialized candidate, converting failures into journal records."""
+        """Rebuild and measure one candidate configuration, converting failures into journal records."""
         try:
+            candidate = rebuild_agent(serialized_agent=serialized_candidate)
             metrics = self.evaluator.evaluate(agent=candidate, reference_runs=reference_runs)
             return CandidateEvaluation(
                 measurement_context=context,

@@ -9,6 +9,7 @@ from copy import deepcopy
 from typing import Any, Literal, Self, TypeAlias
 
 from haystack.components.agents import Agent
+from haystack.core.serialization import component_from_dict, import_class_by_name
 from pydantic import BaseModel, ConfigDict, model_validator
 
 ScalarValue: TypeAlias = str | int | float | bool | None
@@ -43,6 +44,10 @@ class AgentMutation(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     operations: tuple[MutationOperation, ...]
+
+    def fingerprint(self) -> str:
+        """Return a content fingerprint identifying candidates that have no resulting configuration."""
+        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
 
 
 class OptimizerDecision(BaseModel):
@@ -175,23 +180,15 @@ def apply_mutation(serialized_agent: dict[str, Any], mutation: AgentMutation) ->
     return changed
 
 
-def materialize_mutation(reference: Agent, mutation: AgentMutation) -> tuple[Agent, dict[str, Any]]:
-    """Apply a mutation and deserialize the resulting candidate Agent."""
+def rebuild_agent(serialized_agent: dict[str, Any]) -> Agent:
+    """Deserialize a mutated configuration into the candidate Agent it describes."""
     try:
-        serialized_reference = reference.to_dict()
-    except Exception as error:
-        msg = f"{type(reference).__name__} cannot be serialized and optimized: {error}"
-        raise ValueError(msg) from error
-    serialized_candidate = apply_mutation(serialized_agent=serialized_reference, mutation=mutation)
-    try:
-        candidate = type(reference).from_dict(data=deepcopy(serialized_candidate))
+        agent_class = import_class_by_name(serialized_agent["type"])
+        candidate = component_from_dict(cls=agent_class, data=deepcopy(serialized_agent), name="candidate")
     except Exception as error:
         msg = f"The mutated Agent configuration could not be rebuilt: {error}"
         raise ValueError(msg) from error
-    return candidate, serialized_candidate
-
-
-def mutation_fingerprint(mutation: AgentMutation) -> str:
-    """Fingerprint an invalid mutation that has no resulting Agent configuration."""
-    payload = mutation.model_dump_json()
-    return hashlib.sha256(payload.encode()).hexdigest()
+    if not isinstance(candidate, Agent):
+        msg = f"The mutated configuration describes {type(candidate).__name__}, which is not an Agent."
+        raise ValueError(msg)
+    return candidate

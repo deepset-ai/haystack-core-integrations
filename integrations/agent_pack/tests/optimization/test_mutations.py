@@ -9,9 +9,8 @@ from haystack_integrations.agent_pack.optimization import (
     AgentMutation,
     MutationOperation,
     apply_mutation,
-    materialize_mutation,
+    rebuild_agent,
 )
-from haystack_integrations.agent_pack.optimization.mutations import mutation_fingerprint
 
 
 def reference_agent():
@@ -38,7 +37,8 @@ def test_multi_operation_mutation_can_edit_any_agent_configuration_area():
         )
     )
 
-    candidate, serialized = materialize_mutation(reference=reference, mutation=mutation)
+    serialized = apply_mutation(serialized_agent=reference.to_dict(), mutation=mutation)
+    candidate = rebuild_agent(serialized_agent=serialized)
 
     assert candidate.chat_generator.model == "candidate"
     assert candidate.system_prompt == "short prompt"
@@ -73,13 +73,15 @@ def test_invalid_path_and_invalid_deserialized_agent_are_explained():
             serialized_agent={"value": 1},
             mutation=AgentMutation(operations=(MutationOperation(op="set", path="value", value=2),)),
         )
+    reference = reference_agent()
+    unsupported = AgentMutation(
+        operations=(MutationOperation(op="set", path="/init_parameters/unsupported_parameter", value=True),)
+    )
     with pytest.raises(ValueError, match="could not be rebuilt"):
-        materialize_mutation(
-            reference=reference_agent(),
-            mutation=AgentMutation(
-                operations=(MutationOperation(op="set", path="/init_parameters/unsupported_parameter", value=True),)
-            ),
-        )
+        rebuild_agent(serialized_agent=apply_mutation(serialized_agent=reference.to_dict(), mutation=unsupported))
+    mutated_class = AgentMutation(operations=(MutationOperation(op="set", path="/type", value="haystack.NoSuchAgent"),))
+    with pytest.raises(ValueError, match="could not be rebuilt"):
+        rebuild_agent(serialized_agent=apply_mutation(serialized_agent=reference.to_dict(), mutation=mutated_class))
 
 
 def test_structured_models_forbid_unrecognized_operations_and_fields():
@@ -95,5 +97,5 @@ def test_mutation_fingerprint_is_stable_and_value_sensitive():
     first = AgentMutation(operations=(MutationOperation(op="set", path="/x", value=1),))
     same = AgentMutation.model_validate(deepcopy(first.model_dump()))
     other = AgentMutation(operations=(MutationOperation(op="set", path="/x", value=2),))
-    assert mutation_fingerprint(mutation=first) == mutation_fingerprint(mutation=same)
-    assert mutation_fingerprint(mutation=first) != mutation_fingerprint(mutation=other)
+    assert first.fingerprint() == same.fingerprint()
+    assert first.fingerprint() != other.fingerprint()

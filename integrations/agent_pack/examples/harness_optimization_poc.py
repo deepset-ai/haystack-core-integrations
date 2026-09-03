@@ -129,7 +129,7 @@ def format_cost(cost: float | None) -> str:
     return "unpriced" if cost is None else f"${cost:.6f}"
 
 
-def report(result: ExperimentResult, reference: Agent) -> None:
+def report(result: ExperimentResult) -> None:
     """Print baseline, candidate, gate, and recommendation details."""
     baseline = result.baseline
     print("\n--- baseline (reference Agent) ---")
@@ -166,9 +166,6 @@ def report(result: ExperimentResult, reference: Agent) -> None:
     recommendation_metrics = recommendation.evaluation.metrics
     if baseline.cost is not None and recommendation_metrics is not None and recommendation_metrics.cost is not None:
         print(f"  cost saving on this evaluation set: ${baseline.cost - recommendation_metrics.cost:.6f}")
-    candidate = recommendation.materialize(reference=reference)
-    print(f"  materialized candidate model: {candidate.chat_generator.model}")
-    print(f"  reference model, unchanged:   {reference.chat_generator.model}")
     print("  Nothing was deployed. Approving this recommendation is a separate, human decision.")
 
 
@@ -299,7 +296,7 @@ def main() -> None:
     print(f"  configuration hash: {result.configuration_hash[:16]}")
 
     print("\n=== 5. outcome ===")
-    report(result=result, reference=reference_agent)
+    report(result=result)
     print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (re-running resumes measured candidates)")
 
 

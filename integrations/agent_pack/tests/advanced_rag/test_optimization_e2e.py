@@ -19,7 +19,9 @@ from haystack_integrations.agent_pack.optimization import (
     ModelPriceCatalog,
     MutationOperation,
     OptimizationObjectives,
+    apply_mutation,
     create_harness_optimizer_agent,
+    rebuild_agent,
 )
 
 QUESTION = "What is CRISPR used for?"
@@ -127,7 +129,9 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     assert result.recommendation.evaluation.metrics.cost < result.baseline.cost
     assert result.recommendation.evaluation.metrics.details["validated"] is True
 
-    approved = result.recommendation.materialize(reference=reference)
+    approved = rebuild_agent(
+        serialized_agent=apply_mutation(serialized_agent=reference.to_dict(), mutation=result.recommendation.mutation)
+    )
     assert approved.chat_generator.model == "cheap"
     assert reference.chat_generator.model == "reference"
 
