@@ -133,6 +133,24 @@ LARGE_CASES = [
         min_docs=3,
     ),
     EvalCase(
+        question=(
+            "List every 1-star health product review with 10 or more helpful votes, and say what each one "
+            "complains about."
+        ),
+        filters=_and(
+            _comparison("category", "==", "Health_and_Personal_Care"),
+            _comparison("rating", "==", 1.0),
+            _comparison("helpful_vote", ">=", 10),
+        ),
+        # Recall-checked on purpose. The answer has to account for the complete filtered set, so a configuration
+        # that can only surface a document or two per retrieval fails here even when it passes the summary cases
+        # above, which any single adequate retrieval satisfies. The retrieval budget is deliberately too small to
+        # page a starved fetch limit around the requirement: a configuration sized for this set reaches it in one
+        # or two calls, while one capped at a couple of documents per fetch needs far more than three.
+        check_recall=True,
+        max_retrieval_calls=3,
+    ),
+    EvalCase(
         question="Summarize what the most helpful health product reviews (10 or more helpful votes) say.",
         filters=_and(
             _comparison("category", "==", "Health_and_Personal_Care"),
@@ -224,13 +242,13 @@ def build_document_store(backend: str, corpus: str) -> DocumentStore:
     return InMemoryDocumentStore()
 
 
-def build_retriever(store: DocumentStore):  # noqa: ANN201
+def build_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
     """Build the matching BM25 retriever for a document store."""
     if isinstance(store, InMemoryDocumentStore):
-        return InMemoryBM25Retriever(document_store=store, top_k=5)
+        return InMemoryBM25Retriever(document_store=store, top_k=top_k)
     from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever  # noqa: PLC0415
 
-    return OpenSearchBM25Retriever(document_store=store, top_k=5)
+    return OpenSearchBM25Retriever(document_store=store, top_k=top_k)
 
 
 def populate_small_corpus(store: DocumentStore) -> None:

@@ -10,6 +10,9 @@ The PoC uses the same roughly 150,000-document Amazon Reviews 2023 corpus and me
 candidate configuration, evaluates each choice, and feeds the measured outcome into the next choice. Nothing is
 deployed automatically.
 
+The reference Agent is deliberately badly configured, so the run shows whether the optimizer can build a better one
+from measured evidence. See `POOR_RETRIEVER_TOP_K` and the constants next to it for what is wrong with it and why.
+
 Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 
     hatch run test:python examples/harness_optimization_poc.py
@@ -25,6 +28,7 @@ evaluator configuration changes.
 import argparse
 import os
 import shutil
+import warnings
 from pathlib import Path
 from uuid import uuid4
 
@@ -37,6 +41,7 @@ from util import (
     LARGE_CASES,
     LARGE_CORPUS_CATEGORIES,
     LARGE_CORPUS_DOCS_PER_CATEGORY,
+    EvalCase,
     build_document_store,
     build_retriever,
     populate_corpus,
@@ -61,9 +66,28 @@ from haystack_integrations.agent_pack.optimization import (
     create_haystack_documentation_mcp_toolset,
 )
 
+# The OpenAI SDK serializes its parsed structured-output response through Pydantic unions that do not describe the
+# `OptimizerDecision` text format, so every optimizer turn prints a wall of serializer warnings that say nothing
+# about this run. They come from the SDK, not from the experiment, so keep them out of the report.
+warnings.filterwarnings(action="ignore", message="Pydantic serializer warnings", category=UserWarning)
+
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-sol"
 CANDIDATE_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna")
+
+# The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the
+# optimizer to gain. Quality: retrieval is starved from both sides, because `search_documents` returns a single
+# document and a filter fetch shows two, while every case demands at least three matching documents; the loop is then
+# cut off after a few steps, so a run that does retrieve is liable to be summarized by the backup-answer hook without
+# citations. Cost: the most expensive model reasons at high effort over a task that does not need it.
+#
+# The reference deliberately starts on the *expensive* model rather than a weak one. Quality is a hard gate here and
+# cost is the primary objective, so a recommendation has to be cheaper than the reference: starting at the bottom of
+# the price list would make every quality repair unrecommendable by construction, no matter how much better it is.
+POOR_RETRIEVER_TOP_K = 1
+POOR_MAX_FETCHED_DOCS = 2
+POOR_MAX_AGENT_STEPS = 6
+POOR_REASONING_EFFORT = "high"
 
 # USD prices per million tokens, used only to rank candidates against each other.
 MODEL_PRICES: dict[str, tuple[float, float]] = {
@@ -74,15 +98,36 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
 
 
 def build_reference_agent(store: DocumentStore, model: str) -> Agent:
-    """Build the Advanced RAG Agent whose complete configuration will be optimized."""
+    """Build the badly configured Advanced RAG Agent whose complete configuration will be optimized."""
+    generation_kwargs = {"reasoning": {"effort": POOR_REASONING_EFFORT}}
     return create_advanced_rag_agent(
         document_store=store,
-        retriever=build_retriever(store=store),
-        llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
+        retriever=build_retriever(store=store, top_k=POOR_RETRIEVER_TOP_K),
+        llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs=generation_kwargs),
         # Keep backup-answer usage attributable to the selected reference model. Changing only the coordinator's
         # model path leaves this fallback unchanged unless the optimizer explicitly edits it too.
-        backup_answer_llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs={"reasoning": {"effort": "low"}}),
+        backup_answer_llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs=generation_kwargs),
+        max_agent_steps=POOR_MAX_AGENT_STEPS,
+        max_fetched_docs=POOR_MAX_FETCHED_DOCS,
     )
+
+
+def build_cases(store: DocumentStore, definitions: list[EvalCase]) -> list[AdvancedRAGEvaluationCase]:
+    """Convert case definitions, labelling recall-checked cases from the documents currently in the store."""
+    cases = []
+    for definition in definitions:
+        labelled = None
+        if definition.check_recall:
+            labelled = store.filter_documents(filters=definition.filters)
+            if not labelled:
+                message = (
+                    f"Recall case {definition.question!r} matches no document in this corpus, so nothing can be "
+                    "scored against it. Raise --documents-per-category or select fewer cases."
+                )
+                raise SystemExit(message)
+            print(f"  recall case labelled with {len(labelled)} documents: {definition.question}")
+        cases.append(definition.to_optimization_case(documents=labelled))
+    return cases
 
 
 def capture_reference_runs(
@@ -175,7 +220,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
     parser.add_argument("--reference-model", default=REFERENCE_MODEL)
     parser.add_argument("--candidate-model", action="append", dest="candidate_models")
-    parser.add_argument("--max-cases", type=int, default=2)
+    parser.add_argument("--max-cases", type=int, default=3)
     parser.add_argument(
         "--documents-per-category",
         type=int,
@@ -259,7 +304,7 @@ def main() -> None:
     print(f"  amazon-reviews-2023 on {arguments.store}: {document_count} documents")
 
     selected_definitions = LARGE_CASES[: arguments.max_cases]
-    cases = [definition.to_optimization_case() for definition in selected_definitions]
+    cases = build_cases(store=store, definitions=selected_definitions)
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
     reference_agent = build_reference_agent(store=store, model=arguments.reference_model)
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference_agent.tools))

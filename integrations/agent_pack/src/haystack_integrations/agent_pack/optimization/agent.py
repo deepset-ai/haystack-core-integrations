@@ -67,6 +67,7 @@ def create_harness_optimizer_agent(
     chat_generator: ChatGenerator | None = None,
     docs_toolset: Toolset | None = None,
     system_prompt: str | None = None,
+    additional_instructions: str | None = None,
     max_agent_steps: int = 12,
 ) -> Agent:
     """
@@ -75,14 +76,20 @@ def create_harness_optimizer_agent(
     :param chat_generator: Generator used to reason about experiment results and propose configuration changes.
     :param docs_toolset: Optional Haystack documentation tools available to the Agent.
     :param system_prompt: Optional replacement for the default optimizer instructions.
+    :param additional_instructions: Guidance appended to the instructions, for what a good configuration looks like
+        in one specific harness. The instructions themselves stay free of any assumption about what the reference
+        Agent does, so domain knowledge belongs here rather than in a rewritten replacement.
     :param max_agent_steps: Maximum number of Agent steps used to produce one proposal.
     :returns: The configured optimizer Agent.
     """
+    instructions = system_prompt or HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    if additional_instructions is not None:
+        instructions = f"{instructions}\n\n{additional_instructions.strip()}"
     generator = chat_generator or OpenAIResponsesChatGenerator(model="gpt-5.6-sol", timeout=180.0, max_retries=5)
     return Agent(
         chat_generator=generator,
         tools=[docs_toolset] if docs_toolset is not None else None,
-        system_prompt=system_prompt or HARNESS_OPTIMIZER_SYSTEM_PROMPT,
+        system_prompt=instructions,
         exit_conditions=["text"],
         max_agent_steps=max_agent_steps,
     )

@@ -82,6 +82,23 @@ def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):
     assert with_docs.tools == [docs]
 
 
+def test_domain_guidance_extends_rather_than_replaces_the_optimizer_instructions():
+    """A harness can teach the optimizer about its own Agent without rewriting the mutation instructions."""
+    guided = create_harness_optimizer_agent(
+        chat_generator=MockChatGenerator("{}"), additional_instructions="  Keep top_k above the case minimum.  "
+    )
+    assert guided.system_prompt is not None
+    assert guided.system_prompt.startswith(HARNESS_OPTIMIZER_SYSTEM_PROMPT)
+    assert guided.system_prompt.endswith("\n\nKeep top_k above the case minimum.")
+
+    replaced = create_harness_optimizer_agent(
+        chat_generator=MockChatGenerator("{}"),
+        system_prompt="Only these rules apply.",
+        additional_instructions="Keep top_k above the case minimum.",
+    )
+    assert replaced.system_prompt == "Only these rules apply.\n\nKeep top_k above the case minimum."
+
+
 def test_haystack_documentation_mcp_server_is_read_only_and_lazy():
     """The exposed public MCP integration contains only documentation search."""
     pytest.importorskip("haystack_integrations.tools.mcp", reason="mcp-haystack is optional")
