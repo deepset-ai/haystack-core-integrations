@@ -8,7 +8,7 @@ from haystack.tools import Toolset, tool
 from openai.lib._pydantic import to_strict_json_schema
 from pydantic import ValidationError
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import (
     AgentMutation,
     HarnessOptimizerAgentProposer,
@@ -21,7 +21,6 @@ from haystack_integrations.agent_pack.optimization import (
     create_haystack_documentation_mcp_toolset,
 )
 from haystack_integrations.agent_pack.optimization.proposer import HARNESS_OPTIMIZER_SYSTEM_PROMPT
-from haystack_integrations.agent_pack.runs import AgentRunRecord
 
 
 def reference_run():

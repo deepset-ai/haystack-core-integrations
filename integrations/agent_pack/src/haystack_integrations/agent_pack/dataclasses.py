@@ -4,8 +4,58 @@
 
 """Shared data structures for Agent Pack harnesses."""
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+from haystack.utils import _deserialize_value_with_schema, _serialize_value_with_schema
+
+
+@dataclass(frozen=True, kw_only=True)
+class AgentRunRecord:
+    """
+    Inputs and outputs of one successful Agent run.
+
+    This is deliberately not a tracing abstraction. Optimization needs examples it can replay and compare, not the
+    span hierarchy produced while an example ran.
+
+    :param run_id: Stable identifier for the run.
+    :param inputs: Keyword arguments passed to ``Agent.run``.
+    :param outputs: Dictionary returned by ``Agent.run``.
+    """
+
+    run_id: str
+    inputs: dict[str, Any]
+    outputs: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-compatible representation of the record."""
+        return {
+            "run_id": self.run_id,
+            "inputs": _serialize_value_with_schema(payload=self.inputs),
+            "outputs": _serialize_value_with_schema(payload=self.outputs),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AgentRunRecord":
+        """
+        Restore a serialized run record.
+
+        :param data: Serialized run record created by :meth:`to_dict`.
+        :returns: The restored run record.
+        """
+        inputs = _deserialize_value_with_schema(serialized=data["inputs"])
+        outputs = _deserialize_value_with_schema(serialized=data["outputs"])
+        return cls(run_id=data["run_id"], inputs=inputs, outputs=outputs)
+
+    def fingerprint(self) -> str:
+        """Return a content fingerprint used to invalidate stale experiment measurements."""
+        serialized = self.to_dict()
+        payload = json.dumps(
+            {"inputs": serialized["inputs"], "outputs": serialized["outputs"]}, sort_keys=True, default=str
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -83,4 +133,4 @@ class EvaluationMetrics:
         )
 
 
-__all__ = ["EvaluationMetrics", "ModelTokenUsage"]
+__all__ = ["AgentRunRecord", "EvaluationMetrics", "ModelTokenUsage"]

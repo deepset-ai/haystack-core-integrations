@@ -5,7 +5,7 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.optimization import (
     AgentMutation,
     ExperimentJournal,
@@ -15,7 +15,7 @@ from haystack_integrations.agent_pack.optimization import (
     MutationOperation,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.runs import AgentRunRecord, LocalRunStore
+from haystack_integrations.agent_pack.runs import LocalRunStore
 
 MODEL_PATH = "/init_parameters/chat_generator/init_parameters/model"
 STEPS_PATH = "/init_parameters/max_agent_steps"
@@ -105,7 +105,7 @@ def experiment(tmp_path, evaluator, proposer, pricing_context=None, objectives=N
         store.add(record=reference_run())
     return HarnessOptimizationExperiment(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        run_source=store,
+        run_store=store,
         evaluator=evaluator,
         pricing=pricing_context or pricing(),
         objectives=objectives or OptimizationObjectives(min_quality=0.8),
@@ -240,11 +240,11 @@ def test_recommendation_materializes_without_a_catalog(tmp_path):
     assert configured.reference.chat_generator.model == "reference"
 
 
-def test_empty_run_source_is_rejected(tmp_path):
+def test_empty_run_store_is_rejected(tmp_path):
     """Optimization requires at least one successful input/output example."""
     configured = HarnessOptimizationExperiment(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        run_source=LocalRunStore(),
+        run_store=LocalRunStore(),
         evaluator=ModelEvaluator(fixed_metrics()),
         pricing=pricing(),
         objectives=OptimizationObjectives(),

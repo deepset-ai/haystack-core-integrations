@@ -26,6 +26,7 @@ import argparse
 import os
 import shutil
 from pathlib import Path
+from uuid import uuid4
 
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
@@ -47,6 +48,7 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
     question_from_messages,
 )
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -58,7 +60,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
-from haystack_integrations.agent_pack.runs import AgentRunRecorder, LocalRunStore, RunSelection
+from haystack_integrations.agent_pack.runs import LocalRunStore
 
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-sol"
@@ -86,12 +88,11 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
 
 def capture_reference_runs(
     agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore
-) -> RunSelection:
+) -> frozenset[str]:
     """Run and persist one successful reference input/output pair for every selected case."""
     records_by_question = {
         question_from_messages(messages=record.inputs.get("messages") or []): record for record in run_store.list()
     }
-    recorder = AgentRunRecorder(store=run_store)
     selected_ids: set[str] = set()
     for case in cases:
         if existing := records_by_question.get(case.question):
@@ -99,11 +100,14 @@ def capture_reference_runs(
             selected_ids.add(existing.run_id)
             continue
         print(f"  capturing: {case.question}")
-        recorded = recorder.run(agent=agent, messages=[ChatMessage.from_user(text=case.question)])
-        selected_ids.add(recorded.record.run_id)
-        answer = recorded.result["last_message"].text or ""
-        print(f"    run={recorded.record.run_id[:8]} answer={answer[:90]!r}")
-    return RunSelection(run_ids=frozenset(selected_ids))
+        messages = [ChatMessage.from_user(text=case.question)]
+        result = agent.run(messages=messages)
+        record = AgentRunRecord(run_id=str(uuid4()), inputs={"messages": messages}, outputs=result)
+        run_store.add(record=record)
+        selected_ids.add(record.run_id)
+        answer = result["last_message"].text or ""
+        print(f"    run={record.run_id[:8]} answer={answer[:90]!r}")
+    return frozenset(selected_ids)
 
 
 def build_pricing(models: tuple[str, ...]) -> ModelPriceCatalog:
@@ -261,13 +265,13 @@ def main() -> None:
     selected_definitions = LARGE_CASES[: arguments.max_cases]
     cases = [definition.to_optimization_case() for definition in selected_definitions]
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
-    reference = build_reference_agent(store=store, model=arguments.reference_model)
-    tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference.tools))
+    reference_agent = build_reference_agent(store=store, model=arguments.reference_model)
+    tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference_agent.tools))
     print(f"  model={arguments.reference_model} tools={tool_names}")
 
     print("\n=== 2. capture successful reference runs ===")
     run_store = LocalRunStore(directory=WORKSPACE / "runs")
-    run_selection = capture_reference_runs(agent=reference, cases=cases, run_store=run_store)
+    selected_run_ids = capture_reference_runs(agent=reference_agent, cases=cases, run_store=run_store)
 
     print("\n=== 3. known model prices (informational) ===")
     pricing = build_pricing(models=(arguments.reference_model, *candidate_models))
@@ -280,8 +284,8 @@ def main() -> None:
         optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
     )
     experiment = HarnessOptimizationExperiment(
-        reference=reference,
-        run_source=run_store,
+        reference=reference_agent,
+        run_store=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(cases=cases, repetitions=arguments.repetitions),
         pricing=pricing,
         objectives=OptimizationObjectives(
@@ -291,7 +295,7 @@ def main() -> None:
         ),
         journal=ExperimentJournal(path=WORKSPACE / "experiment.jsonl"),
         proposer=proposer,
-        run_selection=run_selection,
+        run_ids=selected_run_ids,
         max_iterations=arguments.max_iterations,
         configuration_key=(
             f"amazon-reviews-2023:{','.join(LARGE_CORPUS_CATEGORIES)}:"
@@ -302,7 +306,7 @@ def main() -> None:
     print(f"  configuration hash: {result.configuration_hash[:16]}")
 
     print("\n=== 5. outcome ===")
-    report(result=result, reference=reference)
+    report(result=result, reference=reference_agent)
     print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (re-running resumes measured candidates)")
 
 

@@ -8,8 +8,7 @@ from typing import Protocol
 
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
-from haystack_integrations.agent_pack.runs import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 
 
 class HarnessEvaluator(Protocol):

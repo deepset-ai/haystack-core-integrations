@@ -7,6 +7,7 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
 from haystack_integrations.agent_pack.optimization import (
     AgentMutation,
     ExperimentJournal,
@@ -16,7 +17,7 @@ from haystack_integrations.agent_pack.optimization import (
     MutationOperation,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.runs import AgentRunRecorder, LocalRunStore
+from haystack_integrations.agent_pack.runs import LocalRunStore
 
 QUESTION = "What is CRISPR used for?"
 
@@ -64,7 +65,14 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
 
     reference = scripted_agent(store, document, "reference")
     run_store = LocalRunStore()
-    AgentRunRecorder(store=run_store).run(agent=reference, messages=[ChatMessage.from_user(text=QUESTION)])
+    messages = [ChatMessage.from_user(text=QUESTION)]
+    run_store.add(
+        record=AgentRunRecord(
+            run_id="reference",
+            inputs={"messages": messages},
+            outputs=reference.run(messages=messages),
+        )
+    )
 
     pricing = ModelPriceCatalog(
         prices=[
@@ -91,7 +99,7 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        run_source=run_store,
+        run_store=run_store,
         evaluator=evaluator,
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
@@ -133,7 +141,14 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     reference = scripted_agent(store, document, "reference")
 
     run_store = LocalRunStore()
-    AgentRunRecorder(store=run_store).run(agent=reference, messages=[ChatMessage.from_user(text=QUESTION)])
+    messages = [ChatMessage.from_user(text=QUESTION)]
+    run_store.add(
+        record=AgentRunRecord(
+            run_id="reference",
+            inputs={"messages": messages},
+            outputs=reference.run(messages=messages),
+        )
+    )
 
     pricing = ModelPriceCatalog(
         prices=[
@@ -142,7 +157,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        run_source=run_store,
+        run_store=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(
             cases=[
                 AdvancedRAGEvaluationCase(

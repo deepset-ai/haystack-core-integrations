@@ -14,13 +14,12 @@ from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import Toolset
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.optimization.mutations import AgentMutation, OptimizerDecision
-from haystack_integrations.agent_pack.runs import AgentRunRecord
 
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset

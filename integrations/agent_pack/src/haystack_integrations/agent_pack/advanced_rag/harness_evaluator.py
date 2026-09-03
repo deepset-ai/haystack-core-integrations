@@ -24,8 +24,7 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
     AdvancedRAGEvaluationCase,
     score_advanced_rag_result,
 )
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
-from haystack_integrations.agent_pack.runs import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
 
 _MODEL_KEYS = ("model", "azure_deployment", "model_name")
 _NESTED_MODEL_CONTAINERS = ("api_params",)

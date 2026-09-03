@@ -9,8 +9,8 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
     case_from_reference_run,
 )
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
 from haystack_integrations.agent_pack.optimization import ModelPrice, ModelPriceCatalog
-from haystack_integrations.agent_pack.runs import AgentRunRecord
 
 QUESTION = "What is CRISPR used for?"
 

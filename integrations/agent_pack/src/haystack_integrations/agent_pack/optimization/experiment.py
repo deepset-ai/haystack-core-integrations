@@ -16,7 +16,7 @@ from haystack import logging
 from haystack.components.agents import Agent
 from pydantic import ValidationError
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.harness import HarnessEvaluator
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
@@ -28,7 +28,7 @@ from haystack_integrations.agent_pack.optimization.mutations import (
     mutation_fingerprint,
 )
 from haystack_integrations.agent_pack.optimization.proposer import MutationProposer
-from haystack_integrations.agent_pack.runs import AgentRunRecord, RunSelection, RunSource
+from haystack_integrations.agent_pack.runs import LocalRunStore
 
 logger = logging.getLogger(__name__)
 _MAX_STALLED_PROPOSALS = 3
@@ -181,13 +181,13 @@ class HarnessOptimizationExperiment:
     def __init__(
         self,
         reference: Agent,
-        run_source: RunSource,
+        run_store: LocalRunStore,
         evaluator: HarnessEvaluator,
         pricing: ModelPriceCatalog,
         objectives: OptimizationObjectives,
         journal: ExperimentJournal,
         proposer: MutationProposer,
-        run_selection: RunSelection | None = None,
+        run_ids: frozenset[str] | None = None,
         configuration_key: str | None = None,
         max_iterations: int = 8,
     ) -> None:
@@ -196,7 +196,7 @@ class HarnessOptimizationExperiment:
 
         :param reference: The unchanged Agent used as the baseline and as the source configuration for every
             candidate mutation.
-        :param run_source: Source of successful Agent runs whose inputs are replayed during evaluation.
+        :param run_store: Local store of successful Agent runs whose inputs are replayed during evaluation.
         :param evaluator: Evaluator that measures the reference and each materialized candidate against the selected
             runs.
         :param pricing: Model prices used to calculate candidate costs and rank cost optimizations. Prices do not
@@ -204,28 +204,28 @@ class HarnessOptimizationExperiment:
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
         :param journal: Persistent measurement journal used to resume compatible experiments without repeating work.
         :param proposer: Strategy that chooses each next mutation after observing prior outcomes.
-        :param run_selection: Optional subset or limit applied when loading runs from `run_source`.
+        :param run_ids: Optional identifiers selecting which records to load from `run_store`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment, counting compatible
             completed measurements loaded from the journal.
         """
         self.reference = reference
-        self.run_source = run_source
+        self.run_store = run_store
         self.evaluator = evaluator
         self.pricing = pricing
         self.objectives = objectives
         self.journal = journal
         self.proposer = proposer
-        self.run_selection = run_selection
+        self.run_ids = run_ids
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
 
     def run(self) -> ExperimentResult:
         """Measure the baseline, then iteratively evaluate structured configuration mutations."""
-        reference_runs = self.run_source.list(selection=self.run_selection)
+        reference_runs = self.run_store.list(run_ids=self.run_ids)
         if not reference_runs:
-            msg = "The selected run source contains no successful reference runs."
+            msg = "The selected run store contains no successful reference runs."
             raise ValueError(msg)
 
         context = self._measurement_context(reference_runs=reference_runs)
