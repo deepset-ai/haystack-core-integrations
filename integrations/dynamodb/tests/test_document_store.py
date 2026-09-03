@@ -187,7 +187,12 @@ class TestDynamoDBDocumentStore:
             assert [d.id for d in docs] == ["2"]
 
     def test_to_dict_and_from_dict_roundtrip(self) -> None:
-        store = _make_store()
+        store = DynamoDBDocumentStore(
+            table_name="test_docs",
+            index_name="test_index",
+            embedding_dimension=3,
+            region_name="us-east-1",
+        )
         data = store.to_dict()
         rebuilt = DynamoDBDocumentStore.from_dict(data)
         assert rebuilt.table_name == store.table_name
