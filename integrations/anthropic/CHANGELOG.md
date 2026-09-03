@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/anthropic-v6.0.0] - 2026-09-03
+
+### 🚀 Features
+
+- [**breaking**] Anthropic - lifecycle handling (#3906)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- [**breaking**] Remove deprecated `AnthropicGenerator` (use `AnthropicChatGenerator` instead) (#3884)
+
+
 ## [integrations/anthropic-v5.17.0] - 2026-08-31
 
 ### 🚀 Features

@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v8.0.0] - 2026-09-03
+
+### 🚀 Features
+
+- [**breaking**] Amazon Bedrock - lifecycle handling (#3900)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- [**breaking**] Remove deprecated `AmazonBedrockGenerator` (use `AmazonBedrockChatGenerator` instead) (#3890)
+
+
 ## [integrations/amazon_bedrock-v7.1.0] - 2026-08-31
 
 ### 🧹 Chores
