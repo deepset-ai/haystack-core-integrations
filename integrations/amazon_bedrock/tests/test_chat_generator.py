@@ -325,6 +325,7 @@ class TestAmazonBedrockChatGenerator:
         """
         layer = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         assert layer.model == "global.anthropic.claude-sonnet-4-6"
+        assert layer.client is None
 
     def test_constructor_with_generation_kwargs(self):
         """
@@ -950,6 +951,56 @@ class TestAmazonBedrockChatGenerator:
         assert isinstance(result["replies"], list)
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
+
+
+class TestComponentLifecycle:
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        generator = AmazonBedrockChatGenerator(
+            model="anthropic.claude-v2",
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(AmazonBedrockConfigurationError):
+            generator.warm_up()
+
+    def test_warm_up_connection_error(self, mock_boto3_session):
+        mock_boto3_session.side_effect = Exception("connection refused")
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        with pytest.raises(AmazonBedrockConfigurationError):
+            generator.warm_up()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        client = mock_boto3_session.return_value.client.return_value
+        generator.warm_up()
+        assert generator.client is client
+        generator.close()
+        client.close.assert_called_once_with()
+        assert generator.client is None
+        generator.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.warm_up()
+        generator.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.close()
+        assert generator.client is None
 
 
 # In the CI, those tests are skipped if AWS Authentication fails
@@ -1719,57 +1770,3 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
         assert isinstance(parsed.get("name"), str)
         assert isinstance(parsed.get("age"), int)
-
-
-class TestComponentLifecycle:
-    def test_client_is_none_after_init(self):
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-        assert generator.client is None
-
-    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-        generator.warm_up()
-        mock_boto3_session.assert_called_once_with(
-            aws_access_key_id="some_fake_id",
-            aws_secret_access_key="some_fake_key",
-            aws_session_token="some_fake_token",
-            region_name="fake_region",
-            profile_name="some_fake_profile",
-        )
-
-    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
-        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
-        generator = AmazonBedrockChatGenerator(
-            model="anthropic.claude-v2",
-            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
-        )
-        with pytest.raises(AmazonBedrockConfigurationError):
-            generator.warm_up()
-
-    def test_warm_up_connection_error(self, mock_boto3_session):
-        mock_boto3_session.side_effect = Exception("connection refused")
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-        with pytest.raises(AmazonBedrockConfigurationError):
-            generator.warm_up()
-
-    def test_sync_lifecycle(self, mock_boto3_session):
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-        client = mock_boto3_session.return_value.client.return_value
-        generator.warm_up()
-        assert generator.client is client
-        generator.close()
-        client.close.assert_called_once_with()
-        assert generator.client is None
-        generator.warm_up()
-        assert mock_boto3_session.call_count == 2
-
-    def test_warm_up_is_idempotent(self, mock_boto3_session):
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-        generator.warm_up()
-        generator.warm_up()
-        mock_boto3_session.assert_called_once()
-
-    def test_close_is_safe_without_warm_up(self):
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
-        generator.close()
-        assert generator.client is None

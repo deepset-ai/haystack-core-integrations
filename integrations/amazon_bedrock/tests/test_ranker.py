@@ -30,6 +30,7 @@ def test_amazon_bedrock_ranker_initialization():
     )
     assert ranker.model_name == "cohere.rerank-v3-5:0"
     assert ranker.top_k == 2
+    assert ranker._bedrock_client is None
 
 
 def test_bedrock_ranker_run(mock_aws_session):
@@ -56,21 +57,6 @@ def test_bedrock_ranker_run(mock_aws_session):
     assert len(result["documents"]) == 2
     assert result["documents"][0].score == 0.9
     assert result["documents"][1].score == 0.7
-
-
-# In the CI, those tests are skipped if AWS Authentication fails
-@pytest.mark.integration
-def test_amazon_bedrock_ranker_live_run():
-    ranker = AmazonBedrockRanker(
-        model="cohere.rerank-v3-5:0",
-        top_k=2,
-        aws_region_name=Secret.from_token("eu-central-1"),
-    )
-
-    docs = [Document(content="Test document 1"), Document(content="Test document 2")]
-    result = ranker.run(query="test query", documents=docs)
-    assert len(result["documents"]) == 2
-    assert isinstance(result["documents"][0].score, float)
 
 
 def test_amazon_bedrock_ranker_run_inference_error(mock_aws_session):
@@ -206,10 +192,6 @@ def test_amazon_bedrock_ranker_meta_fields_to_embed(mock_aws_session):
 
 
 class TestComponentLifecycle:
-    def test_client_is_none_after_init(self):
-        ranker = AmazonBedrockRanker()
-        assert ranker._bedrock_client is None
-
     def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
         ranker = AmazonBedrockRanker()
         ranker.warm_up()
@@ -256,3 +238,18 @@ class TestComponentLifecycle:
         ranker = AmazonBedrockRanker()
         ranker.close()
         assert ranker._bedrock_client is None
+
+
+# In the CI, this test is skipped if AWS authentication fails
+@pytest.mark.integration
+def test_amazon_bedrock_ranker_live_run():
+    ranker = AmazonBedrockRanker(
+        model="cohere.rerank-v3-5:0",
+        top_k=2,
+        aws_region_name=Secret.from_token("eu-central-1"),
+    )
+
+    docs = [Document(content="Test document 1"), Document(content="Test document 2")]
+    result = ranker.run(query="test query", documents=docs)
+    assert len(result["documents"]) == 2
+    assert isinstance(result["documents"][0].score, float)

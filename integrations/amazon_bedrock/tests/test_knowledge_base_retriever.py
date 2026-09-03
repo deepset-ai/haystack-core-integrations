@@ -34,6 +34,7 @@ class TestAmazonBedrockKnowledgeBaseRetriever:
         assert retriever.knowledge_base_id == "TEST123456"
         assert retriever.number_of_results == 5
         assert retriever.knowledge_base_type == "MANAGED"
+        assert retriever._client is None
 
     @patch.dict("os.environ", {"AWS_KNOWLEDGE_BASE_ID": "ENV_KB", "AWS_DEFAULT_REGION": "eu-west-1"})
     def test_init_from_env(self):
@@ -151,6 +152,50 @@ class TestAmazonBedrockKnowledgeBaseRetriever:
         assert retriever.use_agentic_retrieval is False
 
 
+class TestComponentLifecycle:
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        retriever = AmazonBedrockKnowledgeBaseRetriever(
+            knowledge_base_id="kb",
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(AmazonBedrockConfigurationError):
+            retriever.warm_up()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        client = mock_boto3_session.return_value.client.return_value
+        retriever.warm_up()
+        assert retriever._client is client
+        retriever.close()
+        client.close.assert_called_once_with()
+        assert retriever._client is None
+        retriever.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.warm_up()
+        retriever.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.close()
+        assert retriever._client is None
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     not os.environ.get("AWS_KNOWLEDGE_BASE_ID"),
@@ -200,51 +245,3 @@ class TestAmazonBedrockKnowledgeBaseRetrieverIntegration:
 
         ua = retriever._client._client_config.user_agent_extra
         assert "x-client-framework:haystack" in ua
-
-
-class TestComponentLifecycle:
-    def test_client_is_none_after_init(self):
-        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
-        assert retriever._client is None
-
-    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
-        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
-        retriever.warm_up()
-        mock_boto3_session.assert_called_once_with(
-            aws_access_key_id="some_fake_id",
-            aws_secret_access_key="some_fake_key",
-            aws_session_token="some_fake_token",
-            region_name="fake_region",
-            profile_name="some_fake_profile",
-        )
-
-    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
-        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
-        retriever = AmazonBedrockKnowledgeBaseRetriever(
-            knowledge_base_id="kb",
-            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
-        )
-        with pytest.raises(AmazonBedrockConfigurationError):
-            retriever.warm_up()
-
-    def test_sync_lifecycle(self, mock_boto3_session):
-        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
-        client = mock_boto3_session.return_value.client.return_value
-        retriever.warm_up()
-        assert retriever._client is client
-        retriever.close()
-        client.close.assert_called_once_with()
-        assert retriever._client is None
-        retriever.warm_up()
-        assert mock_boto3_session.call_count == 2
-
-    def test_warm_up_is_idempotent(self, mock_boto3_session):
-        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
-        retriever.warm_up()
-        retriever.warm_up()
-        mock_boto3_session.assert_called_once()
-
-    def test_close_is_safe_without_warm_up(self):
-        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
-        retriever.close()
-        assert retriever._client is None

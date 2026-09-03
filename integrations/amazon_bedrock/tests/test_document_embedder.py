@@ -29,6 +29,7 @@ class TestAmazonBedrockDocumentEmbedder:
         assert embedder.progress_bar
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
+        assert embedder._client is None
 
     def test_init_custom_parameters(self):
         embedder = AmazonBedrockDocumentEmbedder(
@@ -449,40 +450,8 @@ class TestAmazonBedrockDocumentEmbedder:
         assert result["documents"][0].content == "test 1"
         assert result["documents"][1].content == "test 2"
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("AWS_ACCESS_KEY_ID")
-        or not os.getenv("AWS_SECRET_ACCESS_KEY")
-        or not os.getenv("AWS_DEFAULT_REGION"),
-        reason="AWS credentials are not set",
-    )
-    @pytest.mark.parametrize(
-        "model",
-        ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"],
-    )
-    def test_live_run(self, model):
-        embedder = AmazonBedrockDocumentEmbedder(model=model)
-
-        documents = [
-            Document(content="this is a test document"),
-            Document(content="I love pizza"),
-        ]
-
-        docs_with_embeddings = embedder.run(documents=documents)["documents"]
-
-        assert docs_with_embeddings[0].content == "this is a test document"
-        assert docs_with_embeddings[1].content == "I love pizza"
-        for doc in docs_with_embeddings:
-            assert isinstance(doc.embedding, list)
-            assert all(isinstance(embedding, float) for embedding in doc.embedding)
-            assert len(doc.embedding) > 1000
-
 
 class TestComponentLifecycle:
-    def test_client_is_none_after_init(self):
-        embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")
-        assert embedder._client is None
-
     def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
         embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")
         embedder.warm_up()
@@ -530,3 +499,31 @@ class TestComponentLifecycle:
         embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")
         embedder.close()
         assert embedder._client is None
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.getenv("AWS_ACCESS_KEY_ID") or not os.getenv("AWS_SECRET_ACCESS_KEY") or not os.getenv("AWS_DEFAULT_REGION"),
+    reason="AWS credentials are not set",
+)
+class TestAmazonBedrockDocumentEmbedderIntegration:
+    @pytest.mark.parametrize(
+        "model",
+        ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"],
+    )
+    def test_live_run(self, model):
+        embedder = AmazonBedrockDocumentEmbedder(model=model)
+
+        documents = [
+            Document(content="this is a test document"),
+            Document(content="I love pizza"),
+        ]
+
+        docs_with_embeddings = embedder.run(documents=documents)["documents"]
+
+        assert docs_with_embeddings[0].content == "this is a test document"
+        assert docs_with_embeddings[1].content == "I love pizza"
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert all(isinstance(embedding, float) for embedding in doc.embedding)
+            assert len(doc.embedding) > 1000

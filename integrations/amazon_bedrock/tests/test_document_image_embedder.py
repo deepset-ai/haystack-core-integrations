@@ -39,6 +39,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.model == "cohere.embed-english-v3"
         assert embedder.kwargs == {"input_type": "fake_input_type"}
         assert embedder.progress_bar
+        assert embedder._client is None
 
     def test_init_custom_parameters(self):
         embedder = AmazonBedrockDocumentImageEmbedder(
@@ -340,77 +341,8 @@ class TestAmazonBedrockDocumentImageEmbedder:
             with pytest.raises(AmazonBedrockInferenceError):
                 embedder._embed_titan(images=["fake_base64"])
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("AWS_ACCESS_KEY_ID")
-        or not os.getenv("AWS_SECRET_ACCESS_KEY")
-        or not os.getenv("AWS_DEFAULT_REGION"),
-        reason="AWS credentials are not set",
-    )
-    @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3"])
-    def test_live_run_with_cohere(self, image_paths, model):
-        embedder = AmazonBedrockDocumentImageEmbedder(model=model, embedding_types=["int8"])
-
-        documents = []
-        for i, path in enumerate(image_paths):
-            document = Document(content=f"document number {i}", meta={"file_path": path})
-            if str(path).endswith(".pdf"):
-                document.meta["page_number"] = 1
-            documents.append(document)
-
-        result = embedder.run(documents=documents)
-
-        assert isinstance(result["documents"], list)
-        assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"], strict=True):
-            assert doc.embedding is None
-            assert new_doc is not doc
-            assert isinstance(new_doc, Document)
-            assert isinstance(new_doc.embedding, list)
-            assert isinstance(new_doc.embedding[0], int)
-            assert "embedding_source" not in doc.meta
-            assert "embedding_source" in new_doc.meta
-            assert new_doc.meta["embedding_source"]["type"] == "image"
-            assert "file_path_meta_field" in new_doc.meta["embedding_source"]
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("AWS_ACCESS_KEY_ID")
-        or not os.getenv("AWS_SECRET_ACCESS_KEY")
-        or not os.getenv("AWS_DEFAULT_REGION"),
-        reason="AWS credentials are not set",
-    )
-    def test_live_run_with_titan(self, image_paths):
-        embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1", image_size=(100, 100))
-
-        documents = []
-        for i, path in enumerate(image_paths):
-            document = Document(content=f"document number {i}", meta={"file_path": path})
-            if str(path).endswith(".pdf"):
-                document.meta["page_number"] = 1
-            documents.append(document)
-
-        result = embedder.run(documents=documents)
-
-        assert isinstance(result["documents"], list)
-        assert len(result["documents"]) == len(documents)
-        for doc, new_doc in zip(documents, result["documents"], strict=True):
-            assert doc.embedding is None
-            assert new_doc is not doc
-            assert isinstance(new_doc, Document)
-            assert isinstance(new_doc.embedding, list)
-            assert isinstance(new_doc.embedding[0], float)
-            assert "embedding_source" not in doc.meta
-            assert "embedding_source" in new_doc.meta
-            assert new_doc.meta["embedding_source"]["type"] == "image"
-            assert "file_path_meta_field" in new_doc.meta["embedding_source"]
-
 
 class TestComponentLifecycle:
-    def test_client_is_none_after_init(self):
-        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
-        assert embedder._client is None
-
     def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
         embedder.warm_up()
@@ -458,3 +390,61 @@ class TestComponentLifecycle:
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
         embedder.close()
         assert embedder._client is None
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.getenv("AWS_ACCESS_KEY_ID") or not os.getenv("AWS_SECRET_ACCESS_KEY") or not os.getenv("AWS_DEFAULT_REGION"),
+    reason="AWS credentials are not set",
+)
+class TestAmazonBedrockDocumentImageEmbedderIntegration:
+    @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3"])
+    def test_live_run_with_cohere(self, image_paths, model):
+        embedder = AmazonBedrockDocumentImageEmbedder(model=model, embedding_types=["int8"])
+
+        documents = []
+        for i, path in enumerate(image_paths):
+            document = Document(content=f"document number {i}", meta={"file_path": path})
+            if str(path).endswith(".pdf"):
+                document.meta["page_number"] = 1
+            documents.append(document)
+
+        result = embedder.run(documents=documents)
+
+        assert isinstance(result["documents"], list)
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert isinstance(new_doc, Document)
+            assert isinstance(new_doc.embedding, list)
+            assert isinstance(new_doc.embedding[0], int)
+            assert "embedding_source" not in doc.meta
+            assert "embedding_source" in new_doc.meta
+            assert new_doc.meta["embedding_source"]["type"] == "image"
+            assert "file_path_meta_field" in new_doc.meta["embedding_source"]
+
+    def test_live_run_with_titan(self, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1", image_size=(100, 100))
+
+        documents = []
+        for i, path in enumerate(image_paths):
+            document = Document(content=f"document number {i}", meta={"file_path": path})
+            if str(path).endswith(".pdf"):
+                document.meta["page_number"] = 1
+            documents.append(document)
+
+        result = embedder.run(documents=documents)
+
+        assert isinstance(result["documents"], list)
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert isinstance(new_doc, Document)
+            assert isinstance(new_doc.embedding, list)
+            assert isinstance(new_doc.embedding[0], float)
+            assert "embedding_source" not in doc.meta
+            assert "embedding_source" in new_doc.meta
+            assert new_doc.meta["embedding_source"]["type"] == "image"
+            assert "file_path_meta_field" in new_doc.meta["embedding_source"]

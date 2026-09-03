@@ -24,6 +24,7 @@ class TestAmazonBedrockTextEmbedder:
 
         assert embedder.model == "cohere.embed-english-v3"
         assert embedder.kwargs == {"input_type": "fake_input_type"}
+        assert embedder._client is None
 
     def test_to_dict(self):
         embedder = AmazonBedrockTextEmbedder(
@@ -280,32 +281,8 @@ class TestAmazonBedrockTextEmbedder:
             with pytest.raises(AmazonBedrockInferenceError):
                 embedder.run(text="some text")
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("AWS_ACCESS_KEY_ID")
-        or not os.getenv("AWS_SECRET_ACCESS_KEY")
-        or not os.getenv("AWS_DEFAULT_REGION"),
-        reason="AWS credentials are not set",
-    )
-    @pytest.mark.parametrize(
-        "model",
-        ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"],
-    )
-    def test_live_run(self, model):
-        embedder = AmazonBedrockTextEmbedder(model=model)
-
-        embedding = embedder.run(text="some text")["embedding"]
-
-        assert isinstance(embedding, list)
-        assert len(embedding) > 1000
-        assert all(isinstance(embedding, float) for embedding in embedding)
-
 
 class TestComponentLifecycle:
-    def test_client_is_none_after_init(self):
-        embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
-        assert embedder._client is None
-
     def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
         embedder.warm_up()
@@ -353,3 +330,23 @@ class TestComponentLifecycle:
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
         embedder.close()
         assert embedder._client is None
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.getenv("AWS_ACCESS_KEY_ID") or not os.getenv("AWS_SECRET_ACCESS_KEY") or not os.getenv("AWS_DEFAULT_REGION"),
+    reason="AWS credentials are not set",
+)
+class TestAmazonBedrockTextEmbedderIntegration:
+    @pytest.mark.parametrize(
+        "model",
+        ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"],
+    )
+    def test_live_run(self, model):
+        embedder = AmazonBedrockTextEmbedder(model=model)
+
+        embedding = embedder.run(text="some text")["embedding"]
+
+        assert isinstance(embedding, list)
+        assert len(embedding) > 1000
+        assert all(isinstance(embedding, float) for embedding in embedding)

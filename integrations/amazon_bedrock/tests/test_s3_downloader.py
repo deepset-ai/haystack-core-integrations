@@ -50,6 +50,7 @@ class TestS3Downloader:
             s3_bucket_name_env="b",
         )
         assert d.file_extensions == [".pdf", ".txt"]
+        assert d._storage is None
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
     def test_to_dict(self, tmp_path, boto3_config: dict[str, Any] | None):
@@ -389,96 +390,12 @@ class TestS3Downloader:
         d = S3Downloader.from_dict(data)
         assert d.s3_key_generation_function is s3_key_generation_function
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
-        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
-    )
-    def test_live_run(self, tmp_path, monkeypatch):
-        d = S3Downloader(file_root_path=str(tmp_path))
-        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
-        docs = [
-            Document(meta={"file_id": str(uuid4()), "file_name": "text-sample.txt"}),
-            Document(meta={"file_id": str(uuid4()), "file_name": "document-sample.pdf"}),
-        ]
-
-        out = d.run(documents=docs)
-        assert len(out["documents"]) == 2
-        assert out["documents"][0].meta["file_name"] == "text-sample.txt"
-        assert out["documents"][1].meta["file_name"] == "document-sample.pdf"
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
-        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
-    )
-    def test_live_run_with_no_documents(self, tmp_path):
-        d = S3Downloader(file_root_path=str(tmp_path))
-        out = d.run(documents=[])
-        assert len(out["documents"]) == 0
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
-        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
-        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
-    )
-    def test_live_run_with_custom_meta_key(self, tmp_path, monkeypatch):
-        d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_name")
-        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
-        d.warm_up()
-        docs = [Document(meta={"custom_name": "text-sample.txt"})]
-        out = d.run(documents=docs)
-        assert len(out["documents"]) == 1
-        assert out["documents"][0].meta["custom_name"] == "text-sample.txt"
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
-        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
-    )
-    def test_live_run_with_prefix(self, tmp_path, monkeypatch):
-        d = S3Downloader(file_root_path=str(tmp_path))
-        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "subfolder/")
-        d.warm_up()
-        docs = [Document(meta={"file_name": "employees.json"})]
-        out = d.run(documents=docs)
-        assert len(out["documents"]) == 1
-        assert out["documents"][0].meta["file_name"] == "employees.json"
-
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("S3_DOWNLOADER_BUCKET", None),
-        reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
-    )
-    def test_live_run_with_s3_key_generation_function_and_file_extensions(self, tmp_path):
-        # the file in the s3 bucket has this key: "dog.jpg_suffix"
-
-        d = S3Downloader(
-            file_root_path=str(tmp_path),
-            file_extensions=[".jpg"],
-            file_name_meta_key="file_name",
-            s3_key_generation_function=s3_key_generation_function,
-        )
-        d.warm_up()
-        docs = [Document(meta={"file_name": "dog.jpg"})]
-        out = d.run(documents=docs)
-        assert len(out["documents"]) == 1
-        assert out["documents"][0].meta["file_name"] == "dog.jpg"
-
 
 class TestComponentLifecycle:
     @pytest.fixture
     def downloader(self, tmp_path, monkeypatch):
         monkeypatch.setenv("S3_DOWNLOADER_BUCKET", "bucket")
         return S3Downloader(file_root_path=str(tmp_path / "nested"))
-
-    def test_storage_is_none_after_init(self, downloader):
-        assert downloader._storage is None
 
     def test_warm_up_uses_resolved_credentials(self, downloader, mock_boto3_session, set_env_variables):
         downloader.warm_up()
@@ -524,3 +441,58 @@ class TestComponentLifecycle:
     def test_close_is_safe_without_warm_up(self, downloader):
         downloader.close()
         assert downloader._storage is None
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("S3_DOWNLOADER_BUCKET", None),
+    reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
+)
+class TestS3DownloaderIntegration:
+    def test_live_run(self, tmp_path, monkeypatch):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
+        docs = [
+            Document(meta={"file_id": str(uuid4()), "file_name": "text-sample.txt"}),
+            Document(meta={"file_id": str(uuid4()), "file_name": "document-sample.pdf"}),
+        ]
+
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 2
+        assert out["documents"][0].meta["file_name"] == "text-sample.txt"
+        assert out["documents"][1].meta["file_name"] == "document-sample.pdf"
+
+    def test_live_run_with_no_documents(self, tmp_path):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        out = d.run(documents=[])
+        assert len(out["documents"]) == 0
+
+    def test_live_run_with_custom_meta_key(self, tmp_path, monkeypatch):
+        d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_name")
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
+        docs = [Document(meta={"custom_name": "text-sample.txt"})]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["custom_name"] == "text-sample.txt"
+
+    def test_live_run_with_prefix(self, tmp_path, monkeypatch):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "subfolder/")
+        docs = [Document(meta={"file_name": "employees.json"})]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "employees.json"
+
+    def test_live_run_with_s3_key_generation_function_and_file_extensions(self, tmp_path):
+        # the file in the s3 bucket has this key: "dog.jpg_suffix"
+
+        d = S3Downloader(
+            file_root_path=str(tmp_path),
+            file_extensions=[".jpg"],
+            file_name_meta_key="file_name",
+            s3_key_generation_function=s3_key_generation_function,
+        )
+        docs = [Document(meta={"file_name": "dog.jpg"})]
+        out = d.run(documents=docs)
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].meta["file_name"] == "dog.jpg"
