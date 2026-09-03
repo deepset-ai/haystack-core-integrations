@@ -32,7 +32,7 @@ def warmed_converter():
     return converter
 
 
-class TestAzureDocumentIntelligenceConverter:
+class TestAzureDocumentIntelligenceConverterInitSerde:
     def test_init_default(self):
         """Test basic initialization with defaults"""
         converter = AzureDocumentIntelligenceConverter(
