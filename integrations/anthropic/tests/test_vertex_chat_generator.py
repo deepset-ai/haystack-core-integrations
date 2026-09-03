@@ -188,10 +188,14 @@ class TestComponentLifecycle:
 
     @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AnthropicVertex")
     def test_warm_up_is_idempotent(self, mock_client_cls):
-        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        component = AnthropicVertexChatGenerator(
+            region="us-central1", project_id="test-project-id", timeout=10.0, max_retries=1
+        )
         component.warm_up()
         component.warm_up()
-        mock_client_cls.assert_called_once_with(region="us-central1", project_id="test-project-id")
+        mock_client_cls.assert_called_once_with(
+            region="us-central1", project_id="test-project-id", timeout=10.0, max_retries=1
+        )
 
     @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AsyncAnthropicVertex")
     async def test_warm_up_async_is_idempotent(self, mock_client_cls):

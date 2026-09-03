@@ -746,10 +746,10 @@ class TestComponentLifecycle:
 
     @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
     def test_warm_up_is_idempotent(self, mock_client_cls):
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"), timeout=10.0, max_retries=1)
         component.warm_up()
         component.warm_up()
-        mock_client_cls.assert_called_once_with(api_key="test-api-key")
+        mock_client_cls.assert_called_once_with(api_key="test-api-key", timeout=10.0, max_retries=1)
 
     @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
     async def test_warm_up_async_is_idempotent(self, mock_client_cls):
