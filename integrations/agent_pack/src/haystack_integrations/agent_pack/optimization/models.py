@@ -35,7 +35,7 @@ class ModelPriceCatalog:
             raise ValueError(msg)
 
     def get(self, model_id: str) -> ModelPrice | None:
-        """Return known pricing for a model without restricting model selection."""
+        """Return known pricing for a model."""
         return self.prices.get(model_id)
 
     def price(self, metrics: EvaluationMetrics) -> EvaluationMetrics:

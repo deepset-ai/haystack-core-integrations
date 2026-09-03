@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.local_run_store import LocalRunStore
+from haystack_integrations.agent_pack.optimization.agent import propose_mutation
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
@@ -28,7 +29,6 @@ from haystack_integrations.agent_pack.optimization.mutations import (
     materialize_mutation,
     mutation_fingerprint,
 )
-from haystack_integrations.agent_pack.optimization.proposer import propose_mutation
 
 logger = logging.getLogger(__name__)
 _MAX_STALLED_PROPOSALS = 3
@@ -74,6 +74,36 @@ class CandidateEvaluation:
             metrics=EvaluationMetrics.from_dict(data=metrics) if metrics is not None else None,
             failure=data.get("failure"),
         )
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExperimentRecommendation:
+    """The measured configuration that passed its gates and outranked the reference."""
+
+    mutation: AgentMutation
+    evaluation: CandidateEvaluation
+    reasons: tuple[str, ...] = ()
+
+    def materialize(self, reference: Agent) -> Agent:
+        """Rebuild the recommendation for inspection or approval."""
+        candidate, _ = materialize_mutation(reference=reference, mutation=self.mutation)
+        return candidate
+
+
+@dataclass(frozen=True, kw_only=True)
+class ExperimentResult:
+    """Priced baseline, candidate outcomes, and the optional best recommendation."""
+
+    baseline: EvaluationMetrics
+    candidates: tuple[CandidateEvaluation, ...]
+    recommendation: ExperimentRecommendation | None
+    measurement_context: str
+    gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+    @property
+    def configuration_hash(self) -> str:
+        """Compatibility alias for the measurement context identifier."""
+        return self.measurement_context
 
 
 class ExperimentJournal:
@@ -122,36 +152,6 @@ class ExperimentJournal:
             with self.path.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(evaluation.to_dict(), sort_keys=True) + "\n")
             self._records[evaluation.candidate_id] = evaluation
-
-
-@dataclass(frozen=True, kw_only=True)
-class ExperimentRecommendation:
-    """The measured configuration that passed its gates and outranked the reference."""
-
-    mutation: AgentMutation
-    evaluation: CandidateEvaluation
-    reasons: tuple[str, ...] = ()
-
-    def materialize(self, reference: Agent) -> Agent:
-        """Rebuild the recommendation for inspection or approval."""
-        candidate, _ = materialize_mutation(reference=reference, mutation=self.mutation)
-        return candidate
-
-
-@dataclass(frozen=True, kw_only=True)
-class ExperimentResult:
-    """Priced baseline, candidate outcomes, and the optional best recommendation."""
-
-    baseline: EvaluationMetrics
-    candidates: tuple[CandidateEvaluation, ...]
-    recommendation: ExperimentRecommendation | None
-    measurement_context: str
-    gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
-
-    @property
-    def configuration_hash(self) -> str:
-        """Compatibility alias for the measurement context identifier."""
-        return self.measurement_context
 
 
 def _stable_serialization(value: Any) -> Any:
@@ -448,12 +448,3 @@ class HarnessOptimizationExperiment:
             reasons.append("single_sample")
         reasons.append("cost_improvement" if self.objectives.primary == "cost" else "latency_improvement")
         return tuple(reasons)
-
-
-__all__ = [
-    "CandidateEvaluation",
-    "ExperimentJournal",
-    "ExperimentRecommendation",
-    "ExperimentResult",
-    "HarnessOptimizationExperiment",
-]

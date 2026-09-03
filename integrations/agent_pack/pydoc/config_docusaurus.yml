@@ -12,7 +12,6 @@ loaders:
       - haystack_integrations.agent_pack.optimization.models
       - haystack_integrations.agent_pack.optimization.mutations
       - haystack_integrations.agent_pack.optimization.agent
-      - haystack_integrations.agent_pack.optimization.proposer
       - haystack_integrations.agent_pack.optimization.experiment
     search_path: [../src]
 processors:

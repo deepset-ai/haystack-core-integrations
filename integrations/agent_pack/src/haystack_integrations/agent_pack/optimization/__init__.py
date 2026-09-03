@@ -15,6 +15,7 @@ This API is experimental and may change without a deprecation period.
 from haystack_integrations.agent_pack.optimization.agent import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
+    propose_mutation,
 )
 from haystack_integrations.agent_pack.optimization.experiment import (
     CandidateEvaluation,
@@ -35,10 +36,6 @@ from haystack_integrations.agent_pack.optimization.mutations import (
     apply_mutation,
     materialize_mutation,
 )
-from haystack_integrations.agent_pack.optimization.proposer import (
-    build_optimizer_request,
-    propose_mutation,
-)
 
 __all__ = [
     "AgentMutation",
@@ -53,7 +50,6 @@ __all__ = [
     "OptimizationObjectives",
     "OptimizerDecision",
     "apply_mutation",
-    "build_optimizer_request",
     "create_harness_optimizer_agent",
     "create_haystack_documentation_mcp_toolset",
     "materialize_mutation",
