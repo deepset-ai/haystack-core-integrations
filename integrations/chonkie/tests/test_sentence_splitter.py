@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
@@ -8,7 +10,7 @@ from haystack import Document
 from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceDocumentSplitter
 
 
-class TestChonkieSentenceDocumentSplitter:
+class TestInitializationAndSerialization:
     def test_init_default(self):
         chunker = ChonkieSentenceDocumentSplitter()
         assert chunker.chunk_size == 2048
@@ -19,6 +21,7 @@ class TestChonkieSentenceDocumentSplitter:
         assert chunker.approximate is False
         assert chunker.delim is None
         assert chunker.include_delim == "prev"
+        assert chunker._chunker is None
 
     def test_to_dict(self):
         chunker = ChonkieSentenceDocumentSplitter(
@@ -71,7 +74,28 @@ class TestChonkieSentenceDocumentSplitter:
         assert chunker.approximate is True
         assert chunker.delim == [". ", "? "]
         assert chunker.include_delim == "next"
+        assert chunker._chunker is None
 
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.preprocessors.chonkie.sentence_splitter.chonkie.SentenceChunker")
+    def test_warm_up_is_idempotent(self, mock_chunker):
+        splitter = ChonkieSentenceDocumentSplitter()
+        splitter.warm_up()
+        assert splitter._chunker is mock_chunker.return_value
+        splitter.warm_up()
+        mock_chunker.assert_called_once_with(
+            tokenizer="character",
+            chunk_size=2048,
+            chunk_overlap=0,
+            min_sentences_per_chunk=1,
+            min_characters_per_sentence=12,
+            approximate=False,
+            include_delim="prev",
+        )
+
+
+class TestChonkieSentenceDocumentSplitterRun:
     def test_run(self):
         chunker = ChonkieSentenceDocumentSplitter(chunk_size=15, chunk_overlap=2)
         doc = Document(content="Hello world! This is a test string for chunking. Here is a new sentence.")

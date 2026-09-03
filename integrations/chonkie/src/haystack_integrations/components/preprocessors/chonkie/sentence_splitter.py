@@ -69,17 +69,24 @@ class ChonkieSentenceDocumentSplitter:
         self.skip_empty_documents = skip_empty_documents
         self.page_break_character = page_break_character
 
+        self._chunker: chonkie.SentenceChunker | None = None
+
+    def warm_up(self) -> None:
+        """Initialize the Chonkie sentence chunker."""
+        if self._chunker is not None:
+            return
+
         kwargs: dict[str, Any] = {
-            "tokenizer": tokenizer,
-            "chunk_size": chunk_size,
-            "chunk_overlap": chunk_overlap,
-            "min_sentences_per_chunk": min_sentences_per_chunk,
-            "min_characters_per_sentence": min_characters_per_sentence,
-            "approximate": approximate,
-            "include_delim": include_delim,
+            "tokenizer": self.tokenizer,
+            "chunk_size": self.chunk_size,
+            "chunk_overlap": self.chunk_overlap,
+            "min_sentences_per_chunk": self.min_sentences_per_chunk,
+            "min_characters_per_sentence": self.min_characters_per_sentence,
+            "approximate": self.approximate,
+            "include_delim": self.include_delim,
         }
-        if delim is not None:
-            kwargs["delim"] = delim
+        if self.delim is not None:
+            kwargs["delim"] = self.delim
 
         self._chunker = chonkie.SentenceChunker(**kwargs)
 
@@ -91,6 +98,12 @@ class ChonkieSentenceDocumentSplitter:
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
+        self.warm_up()
+        chunker = self._chunker
+        if chunker is None:
+            msg = "The Chonkie sentence chunker was not initialized."
+            raise RuntimeError(msg)
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieSentenceDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
@@ -108,7 +121,7 @@ class ChonkieSentenceDocumentSplitter:
                 )
                 continue
 
-            chunks = self._chunker.chunk(doc.content)
+            chunks = chunker.chunk(doc.content)
             base_page = doc.meta.get("page_number", 1) if doc.meta else 1
             for split_id, chunk in enumerate(chunks):
                 current_page = base_page + doc.content[: chunk.start_index].count(self.page_break_character)

@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
@@ -8,12 +10,13 @@ from haystack import Document
 from haystack_integrations.components.preprocessors.chonkie import ChonkieTokenDocumentSplitter
 
 
-class TestChonkieTokenDocumentSplitter:
+class TestInitializationAndSerialization:
     def test_init_default(self):
         chunker = ChonkieTokenDocumentSplitter()
         assert chunker.chunk_size == 2048
         assert chunker.tokenizer == "character"
         assert chunker.chunk_overlap == 0
+        assert chunker._chunker is None
 
     def test_to_dict(self):
         chunker = ChonkieTokenDocumentSplitter(chunk_size=1024, tokenizer="word", chunk_overlap=50)
@@ -42,7 +45,20 @@ class TestChonkieTokenDocumentSplitter:
         assert chunker.chunk_size == 1024
         assert chunker.tokenizer == "word"
         assert chunker.chunk_overlap == 50
+        assert chunker._chunker is None
 
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.preprocessors.chonkie.token_splitter.chonkie.TokenChunker")
+    def test_warm_up_is_idempotent(self, mock_chunker):
+        splitter = ChonkieTokenDocumentSplitter()
+        splitter.warm_up()
+        assert splitter._chunker is mock_chunker.return_value
+        splitter.warm_up()
+        mock_chunker.assert_called_once_with(tokenizer="character", chunk_size=2048, chunk_overlap=0)
+
+
+class TestChonkieTokenDocumentSplitterRun:
     def test_run(self):
         chunker = ChonkieTokenDocumentSplitter(chunk_size=10, chunk_overlap=2)
         doc = Document(content="Hello world! This is a test string for chunking.")

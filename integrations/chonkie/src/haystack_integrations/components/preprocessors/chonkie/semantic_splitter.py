@@ -115,13 +115,15 @@ class ChonkieSemanticDocumentSplitter:
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
+        self.warm_up()
+        chunker = self._chunker
+        if chunker is None:
+            msg = "The Chonkie semantic chunker was not initialized."
+            raise RuntimeError(msg)
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieSemanticDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
-
-        if self._chunker is None:
-            self.warm_up()
-            assert self._chunker is not None  # noqa: S101
 
         chunked_documents = []
         for doc in documents:
@@ -136,7 +138,7 @@ class ChonkieSemanticDocumentSplitter:
                 )
                 continue
 
-            chunks = self._chunker.chunk(doc.content)
+            chunks = chunker.chunk(doc.content)
             base_page = doc.meta.get("page_number", 1) if doc.meta else 1
             for split_id, chunk in enumerate(chunks):
                 current_page = base_page + doc.content[: chunk.start_index].count(self.page_break_character)

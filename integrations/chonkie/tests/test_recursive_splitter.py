@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from unittest.mock import patch
+
 import pytest
 from chonkie.types.recursive import RecursiveLevel, RecursiveRules
 from haystack import Document
@@ -8,12 +10,13 @@ from haystack import Document
 from haystack_integrations.components.preprocessors.chonkie import ChonkieRecursiveDocumentSplitter
 
 
-class TestChonkieRecursiveDocumentSplitter:
+class TestInitializationAndSerialization:
     def test_init_default(self):
         chunker = ChonkieRecursiveDocumentSplitter()
         assert chunker.chunk_size == 2048
         assert chunker.tokenizer == "character"
         assert chunker.min_characters_per_chunk == 24
+        assert chunker._chunker is None
 
     def test_to_dict(self):
         chunker = ChonkieRecursiveDocumentSplitter(chunk_size=1024, tokenizer="word", min_characters_per_chunk=10)
@@ -98,7 +101,20 @@ class TestChonkieRecursiveDocumentSplitter:
         assert chunker.min_characters_per_chunk == 10
         assert isinstance(chunker.rules, RecursiveRules)
         assert chunker.rules.levels[0].delimiters == ["\n\n"]
+        assert chunker._chunker is None
 
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.preprocessors.chonkie.recursive_splitter.chonkie.RecursiveChunker")
+    def test_warm_up_is_idempotent(self, mock_chunker):
+        splitter = ChonkieRecursiveDocumentSplitter()
+        splitter.warm_up()
+        assert splitter._chunker is mock_chunker.return_value
+        splitter.warm_up()
+        mock_chunker.assert_called_once_with(tokenizer="character", chunk_size=2048, min_characters_per_chunk=24)
+
+
+class TestChonkieRecursiveDocumentSplitterRun:
     def test_run(self):
         chunker = ChonkieRecursiveDocumentSplitter(chunk_size=10, min_characters_per_chunk=2)
         doc = Document(content="Hello world! This is a test string for chunking.")

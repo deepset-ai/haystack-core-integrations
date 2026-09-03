@@ -65,10 +65,17 @@ class ChonkieRecursiveDocumentSplitter:
         else:
             self.rules = rules
 
+        self._chunker: chonkie.RecursiveChunker | None = None
+
+    def warm_up(self) -> None:
+        """Initialize the Chonkie recursive chunker."""
+        if self._chunker is not None:
+            return
+
         kwargs: dict[str, Any] = {
-            "tokenizer": tokenizer,
-            "chunk_size": chunk_size,
-            "min_characters_per_chunk": min_characters_per_chunk,
+            "tokenizer": self.tokenizer,
+            "chunk_size": self.chunk_size,
+            "min_characters_per_chunk": self.min_characters_per_chunk,
         }
         if self.rules is not None:
             kwargs["rules"] = self.rules
@@ -83,6 +90,12 @@ class ChonkieRecursiveDocumentSplitter:
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
+        self.warm_up()
+        chunker = self._chunker
+        if chunker is None:
+            msg = "The Chonkie recursive chunker was not initialized."
+            raise RuntimeError(msg)
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieRecursiveDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
@@ -100,7 +113,7 @@ class ChonkieRecursiveDocumentSplitter:
                 )
                 continue
 
-            chunks = self._chunker.chunk(doc.content)
+            chunks = chunker.chunk(doc.content)
             base_page = doc.meta.get("page_number", 1) if doc.meta else 1
             for split_id, chunk in enumerate(chunks):
                 current_page = base_page + doc.content[: chunk.start_index].count(self.page_break_character)
