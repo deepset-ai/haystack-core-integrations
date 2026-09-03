@@ -114,16 +114,23 @@ class AmazonBedrockKnowledgeBaseRetriever:
             else os.environ.get("USE_AGENTIC_RETRIEVAL", "true").lower() != "false"
         )
 
+        self._client: Any = None
+
+    def warm_up(self) -> None:
+        """Create the Amazon Bedrock client."""
+        if self._client is not None:
+            return
+
         def resolve_secret(secret: Secret | str | None) -> str | None:
             return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_region_name=resolve_secret(self.aws_region_name),
+                aws_profile_name=resolve_secret(self.aws_profile_name),
             )
             self._client = session.client(
                 "bedrock-agent-runtime",
@@ -136,6 +143,12 @@ class AmazonBedrockKnowledgeBaseRetriever:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
+    def close(self) -> None:
+        """Close the Amazon Bedrock client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     @component.output_types(documents=list[Document])
     def run(self, query: str, top_k: int | None = None) -> dict[str, list[Document]]:
         """
@@ -146,6 +159,7 @@ class AmazonBedrockKnowledgeBaseRetriever:
         :returns: A dictionary with a "documents" key containing the retrieved Documents.
         :raises AmazonBedrockInferenceError: If the retrieval call fails.
         """
+        self.warm_up()
         k = top_k or self.number_of_results
 
         # Try agentic retrieval first

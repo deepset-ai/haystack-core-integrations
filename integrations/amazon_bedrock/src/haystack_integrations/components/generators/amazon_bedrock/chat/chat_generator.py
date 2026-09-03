@@ -309,6 +309,15 @@ class AmazonBedrockChatGenerator:
             _validate_and_format_cache_point(system_cachepoint_config) if system_cachepoint_config else None
         )
 
+        self.client: Any = None
+        self.generation_kwargs = generation_kwargs or {}
+        self.async_session: aiobotocore.session.AioSession | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Amazon Bedrock client."""
+        if self.client is not None:
+            return
+
         def resolve_secret(secret: Secret | str | None) -> str | None:
             return secret.resolve_value() if isinstance(secret, Secret) else secret
 
@@ -320,11 +329,11 @@ class AmazonBedrockChatGenerator:
         try:
             # sync session
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_region_name=resolve_secret(self.aws_region_name),
+                aws_profile_name=resolve_secret(self.aws_profile_name),
             )
 
             self.client = session.client("bedrock-runtime", config=config)
@@ -336,8 +345,11 @@ class AmazonBedrockChatGenerator:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
-        self.generation_kwargs = generation_kwargs or {}
-        self.async_session: aiobotocore.session.AioSession | None = None
+    def close(self) -> None:
+        """Close the synchronous Amazon Bedrock client."""
+        if self.client is not None:
+            self.client.close()
+            self.client = None
 
     def _get_async_session(self) -> aiobotocore.session.AioSession:
         """
@@ -588,6 +600,7 @@ class AmazonBedrockChatGenerator:
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails.
         """
+        self.warm_up()
         messages = _normalize_messages(messages)
         component_info = ComponentInfo.from_component(self)
 
