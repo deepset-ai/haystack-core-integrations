@@ -2,59 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Objectives, pricing context, and raw measurements used by harness optimization."""
+"""Objectives and pricing context used by harness optimization."""
 
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
-from haystack.core.serialization import component_to_dict
-
-_MODEL_KEYS = ("model", "azure_deployment", "model_name")
-_NESTED_MODEL_CONTAINERS = ("api_params",)
-_NESTED_MODEL_KEYS = ("model", "repo_id")
-
-
-def _model_id_path(init_parameters: Mapping[str, Any]) -> tuple[str, ...] | None:
-    """Locate a recognized model identifier in serialized generator parameters."""
-    for key in _MODEL_KEYS:
-        if isinstance(init_parameters.get(key), str):
-            return (key,)
-    for container in _NESTED_MODEL_CONTAINERS:
-        nested = init_parameters.get(container)
-        if isinstance(nested, Mapping):
-            for key in _NESTED_MODEL_KEYS:
-                if isinstance(nested.get(key), str):
-                    return (container, key)
-    return None
-
-
-def serialized_model_id(serialized_component: Mapping[str, Any]) -> str | None:
-    """Return the model identifier in a serialized chat generator, if recognizable."""
-    parameters = serialized_component.get("init_parameters") or serialized_component.get("data") or {}
-    if not isinstance(parameters, Mapping) or (path := _model_id_path(init_parameters=parameters)) is None:
-        return None
-    value: Any = parameters
-    for key in path:
-        value = value[key]
-    return value if isinstance(value, str) else None
-
-
-def generator_model_id(generator: Any) -> str | None:
-    """Return the configured model identifier of a live chat generator."""
-    for key in _MODEL_KEYS:
-        if isinstance(value := getattr(generator, key, None), str):
-            return value
-    for container in _NESTED_MODEL_CONTAINERS:
-        nested = getattr(generator, container, None)
-        if isinstance(nested, Mapping):
-            for key in _NESTED_MODEL_KEYS:
-                if isinstance(value := nested.get(key), str):
-                    return value
-    try:
-        return serialized_model_id(serialized_component=component_to_dict(obj=generator, name="chat_generator"))
-    except Exception:
-        return None
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -85,97 +38,63 @@ class ModelPriceCatalog:
         """Return known pricing for a model without restricting model selection."""
         return self.prices.get(model_id)
 
-    def to_dict(self) -> list[dict[str, Any]]:
-        """Return a JSON-compatible representation for the optimizer Agent."""
-        return [asdict(price) for price in self.prices.values()]
+    def price(self, metrics: EvaluationMetrics) -> EvaluationMetrics:
+        """
+        Apply known prices to raw model usage.
 
-
-@dataclass(frozen=True, kw_only=True)
-class ModelTokenUsage:
-    """Raw token usage attributable to one model deployment."""
-
-    input_tokens: int = 0
-    output_tokens: int = 0
-
-
-@dataclass(frozen=True, kw_only=True)
-class EvaluationMetrics:
-    """Quality, latency, and raw cost inputs measured for one Agent configuration."""
-
-    quality: float
-    latency_ms: float
-    model_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
-    cost: float | None = None
-    quality_lower_bound: float | None = None
-    details: dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def gating_quality(self) -> float:
-        """Return the pessimistic quality value used by hard gates."""
-        return self.quality if self.quality_lower_bound is None else self.quality_lower_bound
-
-    def price(self, pricing: ModelPriceCatalog) -> "EvaluationMetrics":
-        """Apply known prices to raw usage, leaving unknown model usage explicitly unpriced."""
-        if self.cost is not None:
-            return self
-        unknown = sorted(model_id for model_id in self.model_usage if pricing.get(model_id=model_id) is None)
+        :param metrics: Raw harness evaluation metrics to price.
+        :returns: A copy with calculated cost, or unavailable cost and the unknown model identifiers in its details.
+        """
+        if metrics.cost is not None:
+            return metrics
+        unknown = sorted(model_id for model_id in metrics.model_usage if self.get(model_id=model_id) is None)
         if unknown:
-            return replace(self, cost=None, details={**self.details, "unpriced_models": unknown})
+            return replace(metrics, cost=None, details={**metrics.details, "unpriced_models": unknown})
         total = 0.0
-        for model_id, usage in self.model_usage.items():
-            price = pricing.get(model_id=model_id)
+        for model_id, usage in metrics.model_usage.items():
+            price = self.get(model_id=model_id)
             if price is None:
                 continue
             total += (
                 usage.input_tokens * price.input_cost_per_million + usage.output_tokens * price.output_cost_per_million
             ) / 1_000_000
-        return replace(self, cost=total)
+        return replace(metrics, cost=total)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-compatible representation."""
-        return {
-            "quality": self.quality,
-            "latency_ms": self.latency_ms,
-            "model_usage": {model: asdict(usage) for model, usage in self.model_usage.items()},
-            "cost": self.cost,
-            "quality_lower_bound": self.quality_lower_bound,
-            "details": self.details,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EvaluationMetrics":
-        """Restore metrics written by :meth:`to_dict`."""
-        lower_bound = data.get("quality_lower_bound")
-        cost = data.get("cost")
-        return cls(
-            quality=float(data["quality"]),
-            latency_ms=float(data["latency_ms"]),
-            model_usage={model: ModelTokenUsage(**usage) for model, usage in (data.get("model_usage") or {}).items()},
-            cost=None if cost is None else float(cost),
-            quality_lower_bound=None if lower_bound is None else float(lower_bound),
-            details=data.get("details") or {},
-        )
+    def to_dict(self) -> list[dict[str, Any]]:
+        """Return a JSON-compatible representation for the optimizer Agent."""
+        return [asdict(obj=price) for price in self.prices.values()]
 
 
 @dataclass(frozen=True, kw_only=True)
 class OptimizationObjectives:
-    """Hard quality gates and the primary ranking measurement."""
+    """
+    Hard quality gates and the primary ranking measurement.
+
+    :param min_quality: Absolute minimum normalized quality in `[0.0, 1.0]` required of a candidate.
+    :param max_quality_loss: Maximum absolute quality-point decrease from the reference, in `[0.0, 1.0]`.
+    :param primary: Measurement minimized after candidates pass the quality gates.
+    """
 
     min_quality: float = 0.0
     max_quality_loss: float = 0.0
     primary: Literal["cost", "latency"] = "cost"
 
+    def __post_init__(self) -> None:
+        """Validate normalized quality thresholds."""
+        if not 0.0 <= self.min_quality <= 1.0:
+            msg = "min_quality must be between 0.0 and 1.0."
+            raise ValueError(msg)
+        if not 0.0 <= self.max_quality_loss <= 1.0:
+            msg = "max_quality_loss must be between 0.0 and 1.0."
+            raise ValueError(msg)
+
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible representation."""
-        return asdict(self)
+        return asdict(obj=self)
 
 
 __all__ = [
-    "EvaluationMetrics",
     "ModelPrice",
     "ModelPriceCatalog",
-    "ModelTokenUsage",
     "OptimizationObjectives",
-    "generator_model_id",
-    "serialized_model_id",
 ]

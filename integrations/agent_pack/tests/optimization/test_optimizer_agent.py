@@ -8,9 +8,9 @@ from haystack.tools import Toolset, tool
 from openai.lib._pydantic import to_strict_json_schema
 from pydantic import ValidationError
 
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import (
     AgentMutation,
-    EvaluationMetrics,
     HarnessOptimizerAgentProposer,
     ModelPrice,
     ModelPriceCatalog,

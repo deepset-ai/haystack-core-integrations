@@ -14,8 +14,8 @@ from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import Toolset
 
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.optimization.models import (
-    EvaluationMetrics,
     ModelPriceCatalog,
     OptimizationObjectives,
 )

@@ -17,14 +17,11 @@ from haystack_integrations.agent_pack.optimization.experiment import (
     ExperimentJournal,
     ExperimentRecommendation,
     ExperimentResult,
-    HarnessEvaluator,
     HarnessOptimizationExperiment,
 )
 from haystack_integrations.agent_pack.optimization.models import (
-    EvaluationMetrics,
     ModelPrice,
     ModelPriceCatalog,
-    ModelTokenUsage,
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.optimization.mutations import (
@@ -44,16 +41,13 @@ from haystack_integrations.agent_pack.optimization.proposer import (
 __all__ = [
     "AgentMutation",
     "CandidateEvaluation",
-    "EvaluationMetrics",
     "ExperimentJournal",
     "ExperimentRecommendation",
     "ExperimentResult",
-    "HarnessEvaluator",
     "HarnessOptimizationExperiment",
     "HarnessOptimizerAgentProposer",
     "ModelPrice",
     "ModelPriceCatalog",
-    "ModelTokenUsage",
     "MutationOperation",
     "MutationProposer",
     "OptimizationObjectives",

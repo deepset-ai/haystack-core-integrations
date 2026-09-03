@@ -192,13 +192,13 @@ def parse_args() -> argparse.Namespace:
         "--min-quality",
         type=float,
         default=1.0,
-        help="Minimum candidate quality required to pass the quality gate.",
+        help="Minimum candidate case pass rate in the inclusive range 0.0 to 1.0.",
     )
     parser.add_argument(
         "--max-quality-loss",
         type=float,
         default=0.0,
-        help="Maximum candidate quality loss permitted relative to the reference Agent.",
+        help="Maximum absolute pass-rate loss from the reference, between 0.0 and 1.0.",
     )
     parser.add_argument(
         "--primary",

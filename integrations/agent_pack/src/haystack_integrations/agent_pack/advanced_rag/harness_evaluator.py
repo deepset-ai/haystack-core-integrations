@@ -5,17 +5,18 @@
 """
 Experiment evaluator for Advanced RAG harnesses.
 
-This module bridges the Advanced RAG agent to the generic optimization API, so unlike the rest of `advanced_rag` it
-does depend on `optimization`. It is deliberately not re-exported from `haystack_integrations.agent_pack.advanced_rag`:
-importing the agent must not drag the optimization package in with it. Import it by module path instead.
+The evaluator depends only on the shared Agent Pack harness contracts. Optimization packages can consume its raw
+measurements without the Advanced RAG package depending on optimizer implementation details.
 """
 
 import statistics
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from haystack import Document
 from haystack.components.agents import Agent
+from haystack.core.serialization import component_to_dict
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import (
@@ -23,12 +24,40 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
     AdvancedRAGEvaluationCase,
     score_advanced_rag_result,
 )
-from haystack_integrations.agent_pack.optimization.models import (
-    EvaluationMetrics,
-    ModelTokenUsage,
-    generator_model_id,
-)
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.runs import AgentRunRecord
+
+_MODEL_KEYS = ("model", "azure_deployment", "model_name")
+_NESTED_MODEL_CONTAINERS = ("api_params",)
+_NESTED_MODEL_KEYS = ("model", "repo_id")
+
+
+def _model_id_from_parameters(parameters: Mapping[str, Any]) -> str | None:
+    """Return a model identifier from recognized generator parameter locations."""
+    for key in _MODEL_KEYS:
+        if isinstance(value := parameters.get(key), str):
+            return value
+    for container in _NESTED_MODEL_CONTAINERS:
+        nested = parameters.get(container)
+        if isinstance(nested, Mapping):
+            for key in _NESTED_MODEL_KEYS:
+                if isinstance(value := nested.get(key), str):
+                    return value
+    return None
+
+
+def _generator_model_id(generator: Any) -> str | None:
+    """Return a live generator's model identifier from attributes or its serialized parameters."""
+    direct = {key: getattr(generator, key, None) for key in _MODEL_KEYS}
+    direct.update({container: getattr(generator, container, None) for container in _NESTED_MODEL_CONTAINERS})
+    if model_id := _model_id_from_parameters(parameters=direct):
+        return model_id
+    try:
+        serialized = component_to_dict(obj=generator, name="chat_generator")
+    except Exception:
+        return None
+    parameters = serialized.get("init_parameters") or serialized.get("data") or {}
+    return _model_id_from_parameters(parameters=parameters) if isinstance(parameters, Mapping) else None
 
 
 def messages_from_run(record: AgentRunRecord) -> list[ChatMessage]:
@@ -92,6 +121,8 @@ class AdvancedRAGHarnessEvaluator:
     """
     Replay recorded questions and score Advanced RAG candidates.
 
+    Quality is the mean fraction of cases that pass per repetition and is therefore normalized to `[0.0, 1.0]`.
+    A case passes only when its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass.
     """
 
     def __init__(self, *, cases: list[AdvancedRAGEvaluationCase] | None = None, repetitions: int = 1) -> None:
@@ -149,7 +180,7 @@ class AdvancedRAGHarnessEvaluator:
 
         :param agent: The materialized candidate to score.
         :param reference_runs: The successful runs supplying the questions to replay.
-        :returns: Quality, cost, and latency for the candidate, with per-case detail.
+        :returns: Normalized case pass rate, raw model usage, and latency for the candidate, with per-case detail.
         :raises ValueError: If no reference runs were supplied.
         """
         resolved, derived = self._resolve(reference_runs=reference_runs)
@@ -184,7 +215,7 @@ class AdvancedRAGHarnessEvaluator:
         flattened = [metric for attempt in run_metrics for metric in attempt]
         input_tokens = sum(metric.input_tokens for metric in flattened)
         output_tokens = sum(metric.output_tokens for metric in flattened)
-        model_id = generator_model_id(generator=agent.chat_generator)
+        model_id = _generator_model_id(generator=agent.chat_generator)
         if model_id is None:
             msg = "The evaluator cannot attribute token usage because the Agent's model identifier is unknown."
             raise ValueError(msg)

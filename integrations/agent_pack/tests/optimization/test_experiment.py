@@ -5,14 +5,13 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
 
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.optimization import (
     AgentMutation,
-    EvaluationMetrics,
     ExperimentJournal,
     HarnessOptimizationExperiment,
     ModelPrice,
     ModelPriceCatalog,
-    ModelTokenUsage,
     MutationOperation,
     OptimizationObjectives,
 )

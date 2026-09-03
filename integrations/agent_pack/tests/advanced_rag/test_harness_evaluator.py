@@ -91,8 +91,8 @@ def test_evaluator_prices_the_run_from_the_price_catalog(document):
     )
     evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
 
-    metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)]).price(
-        pricing=catalog()
+    metrics = catalog().price(
+        metrics=evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
     )
 
     assert metrics.quality == 1.0
@@ -112,8 +112,8 @@ def test_evaluator_includes_secondary_model_usage(document):
     evaluator = AdvancedRAGHarnessEvaluator(
         cases=[AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))]
     )
-    metrics = evaluator.evaluate(agent=BackupAgent(document), reference_runs=[reference_run(document=document)]).price(
-        pricing=catalog()
+    metrics = catalog().price(
+        metrics=evaluator.evaluate(agent=BackupAgent(document), reference_runs=[reference_run(document=document)])
     )
 
     assert metrics.model_usage["backup"].input_tokens == 7
@@ -126,7 +126,7 @@ def test_unpriced_models_are_reported_without_restricting_evaluation(document):
     metrics = evaluator.evaluate(
         agent=FakeAgent(document, model="unknown"), reference_runs=[reference_run(document=document)]
     )
-    priced = metrics.price(pricing=catalog())
+    priced = catalog().price(metrics=metrics)
     assert priced.cost is None
     assert priced.details["unpriced_models"] == ["unknown"]
 

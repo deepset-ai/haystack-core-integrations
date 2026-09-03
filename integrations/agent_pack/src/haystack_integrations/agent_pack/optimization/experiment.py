@@ -10,14 +10,15 @@ import traceback
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from threading import RLock
-from typing import Any, Protocol
+from typing import Any
 
 from haystack import logging
 from haystack.components.agents import Agent
 from pydantic import ValidationError
 
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.harness import HarnessEvaluator
 from haystack_integrations.agent_pack.optimization.models import (
-    EvaluationMetrics,
     ModelPriceCatalog,
     OptimizationObjectives,
 )
@@ -31,14 +32,6 @@ from haystack_integrations.agent_pack.runs import AgentRunRecord, RunSelection, 
 
 logger = logging.getLogger(__name__)
 _MAX_STALLED_PROPOSALS = 3
-
-
-class HarnessEvaluator(Protocol):
-    """Measure one materialized Agent over a fixed set of reference runs."""
-
-    def evaluate(self, agent: Agent, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
-        """Return raw quality, latency, and model-usage measurements."""
-        ...
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -58,7 +51,7 @@ class CandidateEvaluation:
 
     def price(self, pricing: ModelPriceCatalog) -> "CandidateEvaluation":
         """Apply current prices without changing the journaled raw measurement."""
-        return replace(self, metrics=self.metrics.price(pricing=pricing) if self.metrics is not None else None)
+        return replace(self, metrics=pricing.price(metrics=self.metrics) if self.metrics is not None else None)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible journal record."""
@@ -236,7 +229,7 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg)
 
         context = self._measurement_context(reference_runs=reference_runs)
-        baseline = self._baseline(context=context, reference_runs=reference_runs).price(pricing=self.pricing)
+        baseline = self.pricing.price(metrics=self._baseline(context=context, reference_runs=reference_runs))
         if self.objectives.primary == "cost" and baseline.cost is None:
             msg = "The reference Agent uses an unpriced model, so cost cannot be the primary objective."
             raise ValueError(msg)
@@ -418,8 +411,10 @@ class HarnessOptimizationExperiment:
         if candidate.metrics is None:
             return ("evaluation_failed",)
         failures: list[str] = []
-        floor = max(self.objectives.min_quality, baseline.gating_quality - self.objectives.max_quality_loss)
-        if candidate.metrics.gating_quality < floor:
+        baseline_quality = self._gating_quality(metrics=baseline)
+        candidate_quality = self._gating_quality(metrics=candidate.metrics)
+        floor = max(self.objectives.min_quality, baseline_quality - self.objectives.max_quality_loss)
+        if candidate_quality < floor:
             failures.append(f"quality_below_floor:{floor:.4f}")
         if self.objectives.primary == "cost" and candidate.metrics.cost is None:
             failures.append("cost_unavailable")
@@ -429,6 +424,11 @@ class HarnessOptimizationExperiment:
         """Return the objective-dependent ordering key for priced metrics."""
         cost = metrics.cost if metrics.cost is not None else float("inf")
         return (metrics.latency_ms, cost) if self.objectives.primary == "latency" else (cost, metrics.latency_ms)
+
+    @staticmethod
+    def _gating_quality(metrics: EvaluationMetrics) -> float:
+        """Return the conservative quality value used by optimization gates."""
+        return metrics.quality if metrics.quality_lower_bound is None else metrics.quality_lower_bound
 
     def _candidate_rank(self, candidate: CandidateEvaluation) -> tuple[float, float]:
         """Return a sortable rank that places failed candidates last."""
@@ -454,6 +454,5 @@ __all__ = [
     "ExperimentJournal",
     "ExperimentRecommendation",
     "ExperimentResult",
-    "HarnessEvaluator",
     "HarnessOptimizationExperiment",
 ]
