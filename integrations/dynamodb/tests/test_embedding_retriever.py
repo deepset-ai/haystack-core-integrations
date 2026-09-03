@@ -35,9 +35,7 @@ class TestDynamoDBEmbeddingRetriever:
 
         result = retriever.run(query_embedding=[0.1, 0.2, 0.3])
 
-        store._embedding_retrieval.assert_called_once_with(
-            query_embedding=[0.1, 0.2, 0.3], top_k=5, filters=None
-        )
+        store._embedding_retrieval.assert_called_once_with(query_embedding=[0.1, 0.2, 0.3], top_k=5, filters=None)
         assert result["documents"][0].id == "1"
 
     def test_run_call_time_overrides_take_precedence(self) -> None:
@@ -47,9 +45,7 @@ class TestDynamoDBEmbeddingRetriever:
 
         retriever.run(query_embedding=[0.1, 0.2, 0.3], top_k=2, filters={"c": "d"})
 
-        store._embedding_retrieval.assert_called_once_with(
-            query_embedding=[0.1, 0.2, 0.3], top_k=2, filters={"c": "d"}
-        )
+        store._embedding_retrieval.assert_called_once_with(query_embedding=[0.1, 0.2, 0.3], top_k=2, filters={"c": "d"})
 
     def test_to_dict_and_from_dict_roundtrip(self) -> None:
         store = DynamoDBDocumentStore(
