@@ -56,7 +56,6 @@ dependencies = [
     "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
-    "moto[dynamodb]",
     "mypy",
     "pip",
 ]
