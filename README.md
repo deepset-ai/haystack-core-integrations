@@ -4,13 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      195 |        8 |       84 |       12 |     93% |215, 281, 323-324, 382-\>385, 405-\>411, 407, 467-\>470, 472, 483-\>457, 493-\>499, 495, 501-\>503, 504 |
-| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       82 |        6 |       22 |        9 |     86% |194, 199, 204, 209, 212, 242-\>244, 272-\>274, 318-\>320, 321 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      215 |        8 |       92 |       12 |     93% |240, 306, 348-349, 407-\>410, 430-\>436, 432, 492-\>495, 497, 508-\>482, 518-\>524, 520, 526-\>528, 529 |
+| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       69 |        3 |       20 |        4 |     92% |189, 194, 255-\>257, 258 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      292 |       27 |      184 |       24 |     88% |86-\>76, 93, 95, 98-\>76, 186-\>197, 195-196, 267-271, 284-\>277, 288-292, 293-\>286, 303-304, 308, 316, 336-\>335, 376-\>381, 381-\>384, 407-408, 414-415, 489, 554-562, 567-\>569, 570, 572, 589-590 |
-| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       44 |        0 |        6 |        1 |     98% | 196-\>199 |
-| src/haystack\_integrations/components/generators/anthropic/generator.py                     |       97 |        2 |       42 |        7 |     94% |117, 150-\>152, 176, 208-\>210, 219-\>221, 225-\>227, 232-\>201, 245-\>267 |
+| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       52 |        0 |       10 |        1 |     98% | 209-\>212 |
 | src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       50 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
-| **TOTAL**                                                                                   |  **760** |   **47** |  **354** |   **56** | **90%** |           |
+| **TOTAL**                                                                                   |  **678** |   **42** |  **322** |   **44** | **91%** |           |
 
 
 ## Setup coverage badge
