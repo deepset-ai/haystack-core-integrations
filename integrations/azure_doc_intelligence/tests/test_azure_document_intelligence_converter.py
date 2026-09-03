@@ -191,7 +191,6 @@ class TestAzureDocumentIntelligenceConverterRun:
         assert converter.client is mock_client_cls.return_value
         assert len(result["documents"]) == 1
 
-
     def test_run_returns_document_with_markdown_content_and_meta(self, warmed_converter):
         warmed_converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result(
             content="# Heading\n\nHello", pages=("p1", "p2", "p3")
