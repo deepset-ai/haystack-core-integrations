@@ -52,7 +52,12 @@ class TestDynamoDBEmbeddingRetriever:
         )
 
     def test_to_dict_and_from_dict_roundtrip(self) -> None:
-        store = _make_store()
+        store = DynamoDBDocumentStore(
+            table_name="test_docs",
+            index_name="test_index",
+            embedding_dimension=3,
+            region_name="us-east-1",
+        )
         retriever = DynamoDBEmbeddingRetriever(document_store=store, top_k=7)
 
         data = retriever.to_dict()
