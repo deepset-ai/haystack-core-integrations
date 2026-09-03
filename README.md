@@ -12,13 +12,11 @@
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_embedder.py          |      116 |        6 |       30 |        2 |     95% |186, 240-242, 277-278 |
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_image\_embedder.py   |      132 |        4 |       36 |        2 |     96% |280-281, 288-292 |
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/text\_embedder.py              |       77 |        3 |       24 |        3 |     94% |162, 164-\>175, 195-196 |
-| src/haystack\_integrations/components/generators/amazon\_bedrock/adapters.py                   |      192 |        6 |       42 |        5 |     95% |35-36, 60, 84-\>86, 154-\>152, 181, 379-\>381, 531-532 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py       |      198 |       11 |       54 |        2 |     94% |620-621, 702-707, 717-719 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/utils.py                 |      317 |        7 |      188 |       18 |     95% |89, 229-230, 259-\>257, 351-352, 398-399, 440-\>442, 464-\>536, 466-\>536, 506-\>492, 509-\>492, 512-\>510, 518-\>525, 521-\>525, 563-\>654, 607-\>654, 637-\>647, 651-\>654, 695-\>702 |
-| src/haystack\_integrations/components/generators/amazon\_bedrock/generator.py                  |       98 |        0 |       16 |        0 |    100% |           |
 | src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                        |       91 |        0 |       18 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/amazon\_bedrock/knowledge\_base\_retriever.py |       91 |       21 |       28 |        4 |     67% |27-38, 166-\>208, 188-202, 204-206 |
-| **TOTAL**                                                                                      | **1508** |   **61** |  **470** |   **37** | **94%** |           |
+| **TOTAL**                                                                                      | **1218** |   **55** |  **412** |   **32** | **94%** |           |
 
 
 ## Setup coverage badge
