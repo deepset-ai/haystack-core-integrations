@@ -62,6 +62,8 @@ def test_system_prompt_grants_full_configuration_control_and_explains_mutations(
     assert "RFC 6901" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
     assert "rather than an allowlist" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
     assert "documentation tools" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    assert "outcome is attributable" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    assert "vary one thing at a time" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
 
 
 def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):

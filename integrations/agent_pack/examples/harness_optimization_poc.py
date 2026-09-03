@@ -75,6 +75,20 @@ WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-sol"
 CANDIDATE_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna")
 
+# What only this harness knows about its own reference Agent. It describes the Agent and how its retrieval is
+# measured, so the optimizer does not have to infer all of that from serialized class names, and deliberately
+# prescribes no fix: which limit to change, and to what, is what the experiment is for. General experiment
+# discipline is not repeated here — it belongs to every harness and lives in the optimizer instructions.
+ADVANCED_RAG_OPTIMIZER_GUIDANCE = """
+The reference Agent is an Advanced RAG coordinator. It inspects document-store metadata, builds a Haystack metadata
+filter from what it finds, retrieves with that filter, and cites the documents it used.
+
+Retrieval has two independent paths with separate limits. `search_documents` ranks by relevance and returns at most
+the retriever's own `top_k`. `fetch_documents_by_filter` returns an exact filtered set and refuses outright when the
+filter matches more documents than its own per-fetch limit allows. Evaluation cases state how many matching documents
+an answer needs, some require the complete filtered set, and each case budgets its metadata and retrieval calls.
+""".strip()
+
 # The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the
 # optimizer to gain. Quality: retrieval is starved from both sides, because `search_documents` returns a single
 # document and a filter fetch shows two, while every case demands at least three matching documents; the loop is then
@@ -329,7 +343,9 @@ def main() -> None:
             primary=arguments.primary,
         ),
         journal=ExperimentJournal(path=WORKSPACE / "experiment.jsonl"),
-        optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
+        optimizer_agent=create_harness_optimizer_agent(
+            docs_toolset=docs_toolset, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
+        ),
         run_ids=selected_run_ids,
         max_iterations=arguments.max_iterations,
         configuration_key=(
