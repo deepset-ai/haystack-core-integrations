@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/faiss-v2.1.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
 

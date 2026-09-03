@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/agent_pack-v0.1.0] - 2026-09-02
+
+### 🚜 Refactor
+
+- [**breaking**] Agent Pack - align/standardize Agents configuration (#3894)
+
+
 ## [integrations/agent_pack-v0.0.2] - 2026-08-26
 
 ### 🚀 Features

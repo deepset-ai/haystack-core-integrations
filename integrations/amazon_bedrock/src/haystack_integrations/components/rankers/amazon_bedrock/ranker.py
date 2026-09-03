@@ -111,16 +111,23 @@ class AmazonBedrockRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
 
+        self._bedrock_client: Any = None
+
+    def warm_up(self) -> None:
+        """Create the Amazon Bedrock client."""
+        if self._bedrock_client is not None:
+            return
+
         def resolve_secret(secret: Secret | str | None) -> str | None:
             return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_region_name=resolve_secret(self.aws_region_name),
+                aws_profile_name=resolve_secret(self.aws_profile_name),
             )
             self._bedrock_client = session.client("bedrock-agent-runtime")
         except Exception as exception:
@@ -129,6 +136,12 @@ class AmazonBedrockRanker:
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AmazonBedrockConfigurationError(msg) from exception
+
+    def close(self) -> None:
+        """Close the Amazon Bedrock client."""
+        if self._bedrock_client is not None:
+            self._bedrock_client.close()
+            self._bedrock_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -198,6 +211,7 @@ class AmazonBedrockRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
+        self.warm_up()
         if top_k is not None and top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)

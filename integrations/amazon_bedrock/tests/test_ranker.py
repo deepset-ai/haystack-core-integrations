@@ -20,7 +20,7 @@ def mock_aws_session():
         yield mock_client
 
 
-def test_amazon_bedrock_ranker_initialization(mock_aws_session):
+def test_amazon_bedrock_ranker_initialization():
     ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
@@ -30,6 +30,7 @@ def test_amazon_bedrock_ranker_initialization(mock_aws_session):
     )
     assert ranker.model_name == "cohere.rerank-v3-5:0"
     assert ranker.top_k == 2
+    assert ranker._bedrock_client is None
 
 
 def test_bedrock_ranker_run(mock_aws_session):
@@ -58,21 +59,6 @@ def test_bedrock_ranker_run(mock_aws_session):
     assert result["documents"][1].score == 0.7
 
 
-# In the CI, those tests are skipped if AWS Authentication fails
-@pytest.mark.integration
-def test_amazon_bedrock_ranker_live_run():
-    ranker = AmazonBedrockRanker(
-        model="cohere.rerank-v3-5:0",
-        top_k=2,
-        aws_region_name=Secret.from_token("eu-central-1"),
-    )
-
-    docs = [Document(content="Test document 1"), Document(content="Test document 2")]
-    result = ranker.run(query="test query", documents=docs)
-    assert len(result["documents"]) == 2
-    assert isinstance(result["documents"][0].score, float)
-
-
 def test_amazon_bedrock_ranker_run_inference_error(mock_aws_session):
     ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
@@ -89,7 +75,7 @@ def test_amazon_bedrock_ranker_run_inference_error(mock_aws_session):
         ranker.run(query="test query", documents=docs)
 
 
-def test_amazon_bedrock_ranker_serialization(mock_aws_session):
+def test_amazon_bedrock_ranker_serialization():
     ranker = AmazonBedrockRanker(model="cohere.rerank-v3-5:0", top_k=2)
 
     serialized = ranker.to_dict()
@@ -102,7 +88,7 @@ def test_amazon_bedrock_ranker_serialization(mock_aws_session):
     assert deserialized.top_k == 2
 
 
-def test_from_dict_aws_region_name(mock_aws_session):
+def test_from_dict_aws_region_name():
     """
     Test that aws_region_name as str value is correctly parsed
     """
@@ -143,15 +129,6 @@ def test_amazon_bedrock_ranker_empty_model():
         AmazonBedrockRanker(model="")
 
 
-def test_amazon_bedrock_ranker_connection_error():
-    with patch(
-        "haystack_integrations.components.rankers.amazon_bedrock.ranker.get_aws_session",
-        side_effect=Exception("boom"),
-    ):
-        with pytest.raises(AmazonBedrockConfigurationError):
-            AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"))
-
-
 def test_amazon_bedrock_ranker_invalid_top_k(mock_aws_session):
     ranker = AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"))
     with pytest.raises(ValueError, match="top_k must be > 0"):
@@ -159,7 +136,7 @@ def test_amazon_bedrock_ranker_invalid_top_k(mock_aws_session):
 
 
 @pytest.mark.parametrize("top_k", [0, -1])
-def test_amazon_bedrock_ranker_init_invalid_top_k(mock_aws_session, top_k):
+def test_amazon_bedrock_ranker_init_invalid_top_k(top_k):
     with pytest.raises(ValueError, match=rf"top_k must be > 0, but got {top_k}"):
         AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"), top_k=top_k)
 
@@ -212,3 +189,67 @@ def test_amazon_bedrock_ranker_meta_fields_to_embed(mock_aws_session):
 
     sent_text = mock_aws_session.rerank.call_args.kwargs["sources"][0]["inlineDocumentSource"]["textDocument"]["text"]
     assert sent_text == "T | body"
+
+
+class TestComponentLifecycle:
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        ranker = AmazonBedrockRanker()
+        ranker.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        ranker = AmazonBedrockRanker(
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(AmazonBedrockConfigurationError):
+            ranker.warm_up()
+
+    def test_warm_up_connection_error(self, mock_boto3_session):
+        mock_boto3_session.side_effect = Exception("connection error")
+        ranker = AmazonBedrockRanker()
+        with pytest.raises(AmazonBedrockConfigurationError):
+            ranker.warm_up()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        ranker = AmazonBedrockRanker()
+        client = mock_boto3_session.return_value.client.return_value
+        ranker.warm_up()
+        assert ranker._bedrock_client is client
+        ranker.close()
+        client.close.assert_called_once_with()
+        assert ranker._bedrock_client is None
+        ranker.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        ranker = AmazonBedrockRanker()
+        ranker.warm_up()
+        ranker.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        ranker = AmazonBedrockRanker()
+        ranker.close()
+        assert ranker._bedrock_client is None
+
+
+# In the CI, this test is skipped if AWS authentication fails
+@pytest.mark.integration
+def test_amazon_bedrock_ranker_live_run():
+    ranker = AmazonBedrockRanker(
+        model="cohere.rerank-v3-5:0",
+        top_k=2,
+        aws_region_name=Secret.from_token("eu-central-1"),
+    )
+
+    docs = [Document(content="Test document 1"), Document(content="Test document 2")]
+    result = ranker.run(query="test query", documents=docs)
+    assert len(result["documents"]) == 2
+    assert isinstance(result["documents"][0].score, float)

@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/alloydb-v0.3.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
 

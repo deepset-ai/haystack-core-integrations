@@ -122,7 +122,7 @@
 
 - Add MCPTool/MCPToolset warm_up (#2384)
 
-## [integrations/mcp-v0.8.0] - 2025-10-14
+## [integrations/mcp-v0.0.8] - 2025-10-14
 
 ### 🐛 Bug Fixes
 
@@ -178,6 +178,8 @@
 ### 🧹 Chores
 
 - Align core-integrations Hatch scripts (#1898)
+
+## [integrations/mcp-v0.3.1] - 2025-05-28
 
 ### 🌀 Miscellaneous
 
