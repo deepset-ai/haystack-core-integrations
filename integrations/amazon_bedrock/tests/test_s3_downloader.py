@@ -35,12 +35,7 @@ def s3_key_generation_function(document: Document) -> str:
 
 
 class TestS3Downloader:
-    def test_init(self, mock_boto3_session, set_env_variables, tmp_path):
-        downloader = S3Downloader(file_root_path=str(tmp_path))
-        assert downloader._storage is None
-        mock_boto3_session.assert_not_called()
-
-    def test_init_custom_parameters(self, mock_boto3_session, tmp_path):
+    def test_init_custom_parameters(self, tmp_path):
         d = S3Downloader(
             aws_access_key_id=Secret.from_token("k"),
             aws_secret_access_key=Secret.from_token("s"),
@@ -57,7 +52,7 @@ class TestS3Downloader:
         assert d.file_extensions == [".pdf", ".txt"]
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
-    def test_to_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None):
+    def test_to_dict(self, tmp_path, boto3_config: dict[str, Any] | None):
         d = S3Downloader(file_root_path=str(tmp_path), boto3_config=boto3_config)
         expected = {
             "type": TYPE,
@@ -99,7 +94,7 @@ class TestS3Downloader:
         assert d.to_dict() == expected
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
-    def test_from_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None):
+    def test_from_dict(self, tmp_path, boto3_config: dict[str, Any] | None):
         data = {
             "type": TYPE,
             "init_parameters": {
@@ -185,7 +180,7 @@ class TestS3Downloader:
         }
         assert d.to_dict() == expected
 
-    def test_run(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run(self, tmp_path, mock_s3_storage):
         d = S3Downloader(file_root_path=str(tmp_path))
         d._storage = mock_s3_storage
 
@@ -196,7 +191,7 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 2
 
-    def test_run_with_extensions(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_with_extensions(self, tmp_path, mock_s3_storage):
         d = S3Downloader(file_root_path=str(tmp_path), file_extensions=[".txt"])
         d._storage = mock_s3_storage
 
@@ -209,7 +204,7 @@ class TestS3Downloader:
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "a.txt"
 
-    def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage):
         d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_file_key")
         d._storage = mock_s3_storage
 
@@ -219,7 +214,7 @@ class TestS3Downloader:
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["custom_file_key"] == "a.txt"
 
-    def test_run_with_s3_key_generation_function(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_with_s3_key_generation_function(self, tmp_path, mock_s3_storage):
         d = S3Downloader(
             file_root_path=str(tmp_path),
             s3_key_generation_function=s3_key_generation_function,
@@ -234,9 +229,7 @@ class TestS3Downloader:
         mock_s3_storage.download.assert_called_once()
         assert mock_s3_storage.download.call_args.kwargs["key"] == "a.txt_suffix"
 
-    def test_run_with_s3_key_generation_function_and_file_extensions(
-        self, tmp_path, mock_s3_storage, mock_boto3_session
-    ):
+    def test_run_with_s3_key_generation_function_and_file_extensions(self, tmp_path, mock_s3_storage):
         d = S3Downloader(
             file_root_path=str(tmp_path),
             s3_key_generation_function=s3_key_generation_function,
@@ -254,26 +247,17 @@ class TestS3Downloader:
         mock_s3_storage.download.assert_called_once()
         assert mock_s3_storage.download.call_args.kwargs["key"] == "a.txt_suffix"
 
-    def test_init_missing_file_root_path(self, mock_boto3_session, monkeypatch):
+    def test_init_missing_file_root_path(self, monkeypatch):
         monkeypatch.delenv("FILE_ROOT_PATH", raising=False)
         with pytest.raises(ValueError, match="file_root_path"):
             S3Downloader()
 
-    def test_init_file_root_path_from_env(self, mock_boto3_session, tmp_path, monkeypatch):
+    def test_init_file_root_path_from_env(self, tmp_path, monkeypatch):
         monkeypatch.setenv("FILE_ROOT_PATH", str(tmp_path))
         d = S3Downloader()
         assert Path(d.file_root_path) == tmp_path
 
-    def test_warm_up_initializes_storage(self, mock_boto3_session, tmp_path):
-        d = S3Downloader(file_root_path=str(tmp_path / "nested"))
-        with patch("haystack_integrations.components.downloaders.s3.s3_downloader.S3Storage.from_env") as mock_from_env:
-            mock_from_env.return_value = MagicMock(spec=S3Storage)
-            d.warm_up()
-            assert d._storage is not None
-            assert (tmp_path / "nested").is_dir()
-            mock_from_env.assert_called_once()
-
-    def test_run_skips_document_missing_file_name_meta(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_skips_document_missing_file_name_meta(self, tmp_path, mock_s3_storage):
         d = S3Downloader(file_root_path=str(tmp_path))
         d._storage = mock_s3_storage
 
@@ -282,7 +266,7 @@ class TestS3Downloader:
         assert out["documents"] == []
         mock_s3_storage.download.assert_not_called()
 
-    def test_run_file_already_cached(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_file_already_cached(self, tmp_path, mock_s3_storage):
         existing_file = tmp_path / "cached.txt"
         existing_file.write_bytes(b"cached")
 
@@ -293,7 +277,7 @@ class TestS3Downloader:
         assert out["documents"][0].meta["file_path"] == str(existing_file)
         mock_s3_storage.download.assert_not_called()
 
-    def test_run_returns_empty_when_all_filtered(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_returns_empty_when_all_filtered(self, tmp_path, mock_s3_storage):
         d = S3Downloader(file_root_path=str(tmp_path), file_extensions=[".txt"])
         d._storage = mock_s3_storage
 
@@ -301,7 +285,7 @@ class TestS3Downloader:
         assert out["documents"] == []
         mock_s3_storage.download.assert_not_called()
 
-    def test_download_writes_to_temp_path_then_renames(self, tmp_path, mock_boto3_session):
+    def test_download_writes_to_temp_path_then_renames(self, tmp_path):
         d = S3Downloader(file_root_path=str(tmp_path))
 
         final_path = tmp_path / "test.pdf"
@@ -333,9 +317,7 @@ class TestS3Downloader:
         ],
         ids=["traversal", "absolute", "root_itself"],
     )
-    def test_run_skips_file_name_escaping_root(
-        self, tmp_path, mock_s3_storage, mock_boto3_session, caplog, file_name, expected_warning
-    ):
+    def test_run_skips_file_name_escaping_root(self, tmp_path, mock_s3_storage, caplog, file_name, expected_warning):
         # Attacker-controlled document metadata must not be able to write outside of file_root_path.
         root = tmp_path / "root"
         root.mkdir()
@@ -349,7 +331,7 @@ class TestS3Downloader:
         mock_s3_storage.download.assert_not_called()
         assert expected_warning in caplog.text
 
-    def test_run_skips_only_the_escaping_document(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_run_skips_only_the_escaping_document(self, tmp_path, mock_s3_storage):
         # One malicious document must not stop the batch, and nested names inside the root keep working.
         root = tmp_path / "root"
         root.mkdir()
@@ -366,7 +348,7 @@ class TestS3Downloader:
         assert [doc.meta["file_path"] for doc in out["documents"]] == [str(root / "nested" / "dir" / "file.txt")]
         assert not (tmp_path / "escaped.txt").exists()
 
-    def test_cleanup_cache_evicts_old_files(self, tmp_path, mock_s3_storage, mock_boto3_session):
+    def test_cleanup_cache_evicts_old_files(self, tmp_path, mock_s3_storage):
         d = S3Downloader(file_root_path=str(tmp_path), max_cache_size=1)
         d._storage = mock_s3_storage
 
@@ -378,7 +360,7 @@ class TestS3Downloader:
 
         assert not stale.exists()
 
-    def test_from_dict_aws_region_name(self, mock_boto3_session, tmp_path):
+    def test_from_dict_aws_region_name(self, tmp_path):
         """
         Test that aws_region_name as str value is correctly parsed
         """
@@ -396,7 +378,7 @@ class TestS3Downloader:
         serialized = d.to_dict()
         assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
 
-    def test_from_dict_with_serialized_callable(self, mock_boto3_session, tmp_path):
+    def test_from_dict_with_serialized_callable(self, tmp_path):
         data = {
             "type": TYPE,
             "init_parameters": {
@@ -493,11 +475,10 @@ class TestComponentLifecycle:
     @pytest.fixture
     def downloader(self, tmp_path, monkeypatch):
         monkeypatch.setenv("S3_DOWNLOADER_BUCKET", "bucket")
-        return S3Downloader(file_root_path=str(tmp_path))
+        return S3Downloader(file_root_path=str(tmp_path / "nested"))
 
-    def test_storage_is_none_after_init(self, downloader, mock_boto3_session):
+    def test_storage_is_none_after_init(self, downloader):
         assert downloader._storage is None
-        mock_boto3_session.assert_not_called()
 
     def test_warm_up_uses_resolved_credentials(self, downloader, mock_boto3_session, set_env_variables):
         downloader.warm_up()
@@ -509,6 +490,15 @@ class TestComponentLifecycle:
             profile_name="some_fake_profile",
         )
 
+    def test_key_resolved_at_warm_up_not_init(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        downloader = S3Downloader(
+            file_root_path=str(tmp_path),
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(ValueError, match="MISSING_AWS_ACCESS_KEY"):
+            downloader.warm_up()
+
     def test_sync_lifecycle(self, downloader):
         with patch(
             "haystack_integrations.components.downloaders.s3.s3_downloader.S3Storage.from_env"
@@ -516,6 +506,7 @@ class TestComponentLifecycle:
             storage = storage_factory.return_value
             downloader.warm_up()
             assert downloader._storage is storage
+            assert downloader.file_root_path.is_dir()
             downloader.close()
             storage.close.assert_called_once_with()
             assert downloader._storage is None

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
+from haystack.utils import Secret
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -15,7 +16,7 @@ from haystack_integrations.components.embedders.amazon_bedrock import (
 
 
 class TestAmazonBedrockTextEmbedder:
-    def test_init(self, mock_boto3_session, set_env_variables):
+    def test_init(self):
         embedder = AmazonBedrockTextEmbedder(
             model="cohere.embed-english-v3",
             input_type="fake_input_type",
@@ -24,20 +25,7 @@ class TestAmazonBedrockTextEmbedder:
         assert embedder.model == "cohere.embed-english-v3"
         assert embedder.kwargs == {"input_type": "fake_input_type"}
 
-        assert embedder._client is None
-        mock_boto3_session.assert_not_called()
-
-    def test_connection_error(self, mock_boto3_session):
-        mock_boto3_session.side_effect = Exception("some connection error")
-
-        embedder = AmazonBedrockTextEmbedder(
-            model="cohere.embed-english-v3",
-            input_type="fake_input_type",
-        )
-        with pytest.raises(AmazonBedrockConfigurationError):
-            embedder.warm_up()
-
-    def test_to_dict(self, mock_boto3_session):
+    def test_to_dict(self):
         embedder = AmazonBedrockTextEmbedder(
             model="cohere.embed-english-v3",
             input_type="search_query",
@@ -79,7 +67,7 @@ class TestAmazonBedrockTextEmbedder:
 
         assert embedder.to_dict() == expected_dict
 
-    def test_from_dict(self, mock_boto3_session):
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.components.embedders.amazon_bedrock.text_embedder.AmazonBedrockTextEmbedder",
             "init_parameters": {
@@ -122,7 +110,7 @@ class TestAmazonBedrockTextEmbedder:
         assert embedder.kwargs == {"input_type": "search_query"}
         assert embedder.boto3_config == {"read_timeout": 1000}
 
-    def test_from_dict_aws_region_name(self, mock_boto3_session):
+    def test_from_dict_aws_region_name(self):
         """
         Test that aws_region_name as str value is correctly parsed
         """
@@ -162,9 +150,9 @@ class TestAmazonBedrockTextEmbedder:
     )
     def test_cohere_invocation(self, mock_boto3_session, response_body):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
-        embedder.warm_up()
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.return_value = {
                 "body": io.StringIO(response_body),
             }
@@ -181,9 +169,9 @@ class TestAmazonBedrockTextEmbedder:
 
     def test_titan_invocation(self, mock_boto3_session):
         embedder = AmazonBedrockTextEmbedder(model="amazon.titan-embed-text-v1")
-        embedder.warm_up()
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.return_value = {
                 "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
             }
@@ -204,9 +192,9 @@ class TestAmazonBedrockTextEmbedder:
             dimensions=512,
             normalize=False,
         )
-        embedder.warm_up()
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.return_value = {
                 "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
             }
@@ -221,9 +209,9 @@ class TestAmazonBedrockTextEmbedder:
 
     def test_titan_v2_invocation_without_extra_params(self, mock_boto3_session):
         embedder = AmazonBedrockTextEmbedder(model="amazon.titan-embed-text-v2:0")
-        embedder.warm_up()
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.return_value = {
                 "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
             }
@@ -243,9 +231,9 @@ class TestAmazonBedrockTextEmbedder:
             dimensions=512,
             normalize=False,
         )
-        embedder.warm_up()
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.return_value = {
                 "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
             }
@@ -264,9 +252,9 @@ class TestAmazonBedrockTextEmbedder:
             dimensions=512,
             normalize=False,
         )
-        embedder.warm_up()
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.return_value = {
                 "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
             }
@@ -281,9 +269,9 @@ class TestAmazonBedrockTextEmbedder:
 
     def test_run_invocation_error(self, mock_boto3_session):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
-        embedder.warm_up()
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.side_effect = ClientError(
                 error_response={"Error": {"Code": "some_code", "Message": "some_message"}},
                 operation_name="some_operation",
@@ -314,10 +302,9 @@ class TestAmazonBedrockTextEmbedder:
 
 
 class TestComponentLifecycle:
-    def test_client_is_none_after_init(self, mock_boto3_session):
+    def test_client_is_none_after_init(self):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
         assert embedder._client is None
-        mock_boto3_session.assert_not_called()
 
     def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
@@ -329,6 +316,21 @@ class TestComponentLifecycle:
             region_name="fake_region",
             profile_name="some_fake_profile",
         )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        embedder = AmazonBedrockTextEmbedder(
+            model="cohere.embed-english-v3",
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(AmazonBedrockConfigurationError):
+            embedder.warm_up()
+
+    def test_warm_up_connection_error(self, mock_boto3_session):
+        mock_boto3_session.side_effect = Exception("some connection error")
+        embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
+        with pytest.raises(AmazonBedrockConfigurationError):
+            embedder.warm_up()
 
     def test_sync_lifecycle(self, mock_boto3_session):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
@@ -347,7 +349,7 @@ class TestComponentLifecycle:
         embedder.warm_up()
         mock_boto3_session.assert_called_once()
 
-    def test_close_is_safe_without_warm_up(self, mock_boto3_session):
+    def test_close_is_safe_without_warm_up(self):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
         embedder.close()
         assert embedder._client is None
