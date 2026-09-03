@@ -129,6 +129,11 @@ integration:dspy:
       - any-glob-to-any-file: "integrations/dspy/**/*"
       - any-glob-to-any-file: ".github/workflows/dspy.yml"
 
+integration:dynamodb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dynamodb/**/*"
+      - any-glob-to-any-file: ".github/workflows/dynamodb.yml"
+
 integration:e2b:
   - changed-files:
       - any-glob-to-any-file: "integrations/e2b/**/*"

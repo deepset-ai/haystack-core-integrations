@@ -29,6 +29,7 @@ on:
       - "Test / docling"
       - "Test / docling_serve"
       - "Test / dspy"
+      - "Test / dynamodb"
       - "Test / e2b"
       - "Test / edenai"
       - "Test / elasticsearch"
