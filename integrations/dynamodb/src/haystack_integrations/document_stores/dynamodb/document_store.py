@@ -26,11 +26,10 @@ _DEFAULT_TOP_K_CAP = 10000
 
 class DynamoDBDocumentStore:
     """
-    A Haystack DocumentStore backed by [Amazon DynamoDB](https://aws.amazon.com/dynamodb/)
-    native vector search (`SearchVectors` API, GA 2026-08-05).
+    A Haystack DocumentStore backed by Amazon DynamoDB native vector search.
 
-    Documents are stored as items in a DynamoDB table with a vector index, and retrieved
-    via cosine similarity search.
+    Uses the `SearchVectors` API (GA 2026-08-05). Documents are stored as items in a
+    DynamoDB table with a vector index, and retrieved via cosine similarity search.
 
     Example usage:
 
@@ -45,7 +44,6 @@ class DynamoDBDocumentStore:
     )
     ```
     """
-
     def __init__(
         self,
         *,
@@ -304,16 +302,14 @@ class DynamoDBDocumentStore:
         filters: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
-        Retrieves documents most similar to the query embedding using DynamoDB's native
-        `SearchVectors` cosine similarity search.
+        Retrieves documents most similar to the query embedding using cosine similarity.
 
-        This method is used internally by `DynamoDBEmbeddingRetriever`.
-
-        Metadata filters are applied client-side after the vector search returns, for the
-        same `SearchSchema` constraint documented on `filter_documents`. To avoid dropping
-        matches that fall outside `top_k` post-filter, results are over-fetched
-        (capped at DynamoDB's documented `SearchVectors` limit of 10,000, not the 100-item
-        per-page result limit which is a separate, unrelated cap).
+        Uses DynamoDB's native `SearchVectors` API. This method is used internally by
+        `DynamoDBEmbeddingRetriever`. Metadata filters are applied client-side after the
+        vector search returns, for the same `SearchSchema` constraint documented on
+        `filter_documents`. To avoid dropping matches that fall outside `top_k` post-filter,
+        results are over-fetched (capped at DynamoDB's documented `SearchVectors` limit of
+        10,000, not the 100-item per-page result limit which is a separate, unrelated cap).
 
         :param query_embedding: The query vector.
         :param top_k: Number of top results to return.
