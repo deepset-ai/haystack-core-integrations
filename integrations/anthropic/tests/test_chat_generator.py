@@ -285,6 +285,89 @@ class TestSerialization:
         assert new_pipeline == pipeline
 
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_ANTHROPIC_API_KEY", raising=False)
+        component = AnthropicChatGenerator(api_key=Secret.from_env_var("MISSING_ANTHROPIC_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_ANTHROPIC_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
+    def test_sync_lifecycle(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_client_cls.return_value
+
+        component.warm_up()
+        assert component.client is client
+        assert component.async_client is None
+
+        component.close()
+        client.close.assert_called_once_with()
+        assert component.client is None
+
+        component.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
+    async def test_async_lifecycle(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await component.warm_up_async()
+        assert component.async_client is client
+        assert component.client is None
+
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component.async_client is None
+
+        await component.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"), timeout=10.0, max_retries=1)
+        component.warm_up()
+        component.warm_up()
+        mock_client_cls.assert_called_once_with(api_key="test-api-key", timeout=10.0, max_retries=1)
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_client_cls.assert_called_once_with(api_key="test-api-key")
+
+    async def test_close_is_safe_without_warm_up(self):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.close()
+        await component.close_async()
+        assert component.client is None
+        assert component.async_client is None
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
+    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
+        sync_client = MagicMock()
+        async_client = MagicMock(close=AsyncMock())
+        mock_sync_cls.return_value = sync_client
+        mock_async_cls.return_value = async_client
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        await component.warm_up_async()
+
+        component.close()
+        assert component.client is None
+        assert component.async_client is async_client
+        async_client.close.assert_not_awaited()
+
+        await component.close_async()
+        assert component.async_client is None
+        sync_client.close.assert_called_once_with()
+
+
 class TestRun:
     @pytest.mark.parametrize(
         "messages",
@@ -701,89 +784,6 @@ class TestPromptCaching:
 
         assert sys_blocks[0]["cache_control"] == {"type": "ephemeral", "example_key": "example_val"}
         assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
-
-
-class TestComponentLifecycle:
-    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
-        monkeypatch.delenv("MISSING_ANTHROPIC_API_KEY", raising=False)
-        component = AnthropicChatGenerator(api_key=Secret.from_env_var("MISSING_ANTHROPIC_API_KEY"))
-
-        with pytest.raises(ValueError, match="MISSING_ANTHROPIC_API_KEY"):
-            component.warm_up()
-
-    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
-    def test_sync_lifecycle(self, mock_client_cls):
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        client = mock_client_cls.return_value
-
-        component.warm_up()
-        assert component.client is client
-        assert component.async_client is None
-
-        component.close()
-        client.close.assert_called_once_with()
-        assert component.client is None
-
-        component.warm_up()
-        assert mock_client_cls.call_count == 2
-
-    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
-    async def test_async_lifecycle(self, mock_client_cls):
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        client = mock_client_cls.return_value
-        client.close = AsyncMock()
-
-        await component.warm_up_async()
-        assert component.async_client is client
-        assert component.client is None
-
-        await component.close_async()
-        client.close.assert_awaited_once_with()
-        assert component.async_client is None
-
-        await component.warm_up_async()
-        assert mock_client_cls.call_count == 2
-
-    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
-    def test_warm_up_is_idempotent(self, mock_client_cls):
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"), timeout=10.0, max_retries=1)
-        component.warm_up()
-        component.warm_up()
-        mock_client_cls.assert_called_once_with(api_key="test-api-key", timeout=10.0, max_retries=1)
-
-    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
-    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        await component.warm_up_async()
-        await component.warm_up_async()
-        mock_client_cls.assert_called_once_with(api_key="test-api-key")
-
-    async def test_close_is_safe_without_warm_up(self):
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        component.close()
-        await component.close_async()
-        assert component.client is None
-        assert component.async_client is None
-
-    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
-    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
-    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
-        sync_client = MagicMock()
-        async_client = MagicMock(close=AsyncMock())
-        mock_sync_cls.return_value = sync_client
-        mock_async_cls.return_value = async_client
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        component.warm_up()
-        await component.warm_up_async()
-
-        component.close()
-        assert component.client is None
-        assert component.async_client is async_client
-        async_client.close.assert_not_awaited()
-
-        await component.close_async()
-        assert component.async_client is None
-        sync_client.close.assert_called_once_with()
 
 
 @pytest.mark.integration
