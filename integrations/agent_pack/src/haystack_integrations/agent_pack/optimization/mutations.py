@@ -46,7 +46,7 @@ class AgentMutation(BaseModel):
 
 
 class OptimizerDecision(BaseModel):
-    """The optimizer's next candidate mutation, or ``null`` when experimentation should stop."""
+    """The optimizer's next candidate mutation, or `null` when experimentation should stop."""
 
     model_config = ConfigDict(extra="forbid")
     mutation: AgentMutation | None

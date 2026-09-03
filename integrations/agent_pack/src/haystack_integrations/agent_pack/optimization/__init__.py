@@ -12,6 +12,10 @@ measurement, and refine its next choice. Nothing is promoted or deployed automat
 This API is experimental and may change without a deprecation period.
 """
 
+from haystack_integrations.agent_pack.optimization.agent import (
+    create_harness_optimizer_agent,
+    create_haystack_documentation_mcp_toolset,
+)
 from haystack_integrations.agent_pack.optimization.experiment import (
     CandidateEvaluation,
     ExperimentJournal,
@@ -32,10 +36,8 @@ from haystack_integrations.agent_pack.optimization.mutations import (
     materialize_mutation,
 )
 from haystack_integrations.agent_pack.optimization.proposer import (
-    HarnessOptimizerAgentProposer,
-    MutationProposer,
-    create_harness_optimizer_agent,
-    create_haystack_documentation_mcp_toolset,
+    build_optimizer_request,
+    propose_mutation,
 )
 
 __all__ = [
@@ -45,15 +47,15 @@ __all__ = [
     "ExperimentRecommendation",
     "ExperimentResult",
     "HarnessOptimizationExperiment",
-    "HarnessOptimizerAgentProposer",
     "ModelPrice",
     "ModelPriceCatalog",
     "MutationOperation",
-    "MutationProposer",
     "OptimizationObjectives",
     "OptimizerDecision",
     "apply_mutation",
+    "build_optimizer_request",
     "create_harness_optimizer_agent",
     "create_haystack_documentation_mcp_toolset",
     "materialize_mutation",
+    "propose_mutation",
 ]

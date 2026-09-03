@@ -54,7 +54,6 @@ from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
     HarnessOptimizationExperiment,
-    HarnessOptimizerAgentProposer,
     ModelPrice,
     ModelPriceCatalog,
     OptimizationObjectives,
@@ -277,9 +276,6 @@ def main() -> None:
 
     print("\n=== 3. optimization experiment ===")
     docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
-    proposer = HarnessOptimizerAgentProposer(
-        optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
-    )
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         run_store=run_store,
@@ -291,7 +287,7 @@ def main() -> None:
             primary=arguments.primary,
         ),
         journal=ExperimentJournal(path=WORKSPACE / "experiment.jsonl"),
-        proposer=proposer,
+        optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
         run_ids=selected_run_ids,
         max_iterations=arguments.max_iterations,
         configuration_key=(

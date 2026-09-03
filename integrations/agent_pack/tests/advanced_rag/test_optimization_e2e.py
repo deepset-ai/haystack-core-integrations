@@ -1,3 +1,5 @@
+import json
+
 from haystack import Document
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
@@ -17,28 +19,25 @@ from haystack_integrations.agent_pack.optimization import (
     ModelPriceCatalog,
     MutationOperation,
     OptimizationObjectives,
+    create_harness_optimizer_agent,
 )
 
 QUESTION = "What is CRISPR used for?"
 
 
-class ProposeOnce:
-    """Return one arbitrary configuration mutation and then stop."""
+def optimizer_agent_for(mutation):
+    """Build an optimizer Agent that returns one mutation and then stops."""
+    responses = iter([json.dumps({"mutation": mutation.model_dump()}), '{"mutation": null}'])
 
-    def __init__(self, mutation):
-        """Store the sole mutation."""
-        self.mutation = mutation
-        self.proposed = False
+    def respond(messages):  # noqa: ARG001
+        """Return the next structured optimizer decision."""
+        return next(responses)
 
-    def propose(self, **kwargs):  # noqa: ARG002
-        """Return the stored mutation at most once."""
-        if self.proposed:
-            return None
-        self.proposed = True
-        return self.mutation
+    return create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond))
 
 
 def scripted_agent(store, document, model):
+    """Build a deterministic Advanced RAG Agent for end-to-end optimization tests."""
     responses = [
         ChatMessage.from_assistant(tool_calls=[ToolCall("list_metadata_fields", {}, id="metadata")]),
         ChatMessage.from_assistant(
@@ -104,7 +103,7 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(path=tmp_path / "advanced-rag-experiment.jsonl"),
-        proposer=ProposeOnce(
+        optimizer_agent=optimizer_agent_for(
             mutation=AgentMutation(
                 operations=(
                     MutationOperation(
@@ -170,7 +169,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
-        proposer=ProposeOnce(
+        optimizer_agent=optimizer_agent_for(
             mutation=AgentMutation(
                 operations=(MutationOperation(op="set", path="/init_parameters/max_agent_steps", value=1),)
             )

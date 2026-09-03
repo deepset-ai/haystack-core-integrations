@@ -21,8 +21,8 @@ class AgentRunRecord:
     span hierarchy produced while an example ran.
 
     :param run_id: Stable identifier for the run.
-    :param inputs: Keyword arguments passed to ``Agent.run``.
-    :param outputs: Dictionary returned by ``Agent.run``.
+    :param inputs: Keyword arguments passed to `Agent.run`.
+    :param outputs: Dictionary returned by `Agent.run`.
     """
 
     run_id: str

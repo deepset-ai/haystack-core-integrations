@@ -28,7 +28,7 @@ from haystack_integrations.agent_pack.optimization.mutations import (
     materialize_mutation,
     mutation_fingerprint,
 )
-from haystack_integrations.agent_pack.optimization.proposer import MutationProposer
+from haystack_integrations.agent_pack.optimization.proposer import propose_mutation
 
 logger = logging.getLogger(__name__)
 _MAX_STALLED_PROPOSALS = 3
@@ -186,7 +186,7 @@ class HarnessOptimizationExperiment:
         pricing: ModelPriceCatalog,
         objectives: OptimizationObjectives,
         journal: ExperimentJournal,
-        proposer: MutationProposer,
+        optimizer_agent: Agent,
         run_ids: frozenset[str] | None = None,
         configuration_key: str | None = None,
         max_iterations: int = 8,
@@ -203,7 +203,7 @@ class HarnessOptimizationExperiment:
             restrict which models the optimizer may choose.
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
         :param journal: Persistent measurement journal used to resume compatible experiments without repeating work.
-        :param proposer: Strategy that chooses each next mutation after observing prior outcomes.
+        :param optimizer_agent: Agent that chooses each next mutation after observing prior outcomes.
         :param run_ids: Optional identifiers selecting which records to load from `run_store`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
@@ -216,7 +216,7 @@ class HarnessOptimizationExperiment:
         self.pricing = pricing
         self.objectives = objectives
         self.journal = journal
-        self.proposer = proposer
+        self.optimizer_agent = optimizer_agent
         self.run_ids = run_ids
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
@@ -257,7 +257,8 @@ class HarnessOptimizationExperiment:
         reference_fingerprint = _configuration_fingerprint(serialized_agent=self.reference.to_dict())
         stalled = 0
         while len(outcomes) < self.max_iterations and stalled < _MAX_STALLED_PROPOSALS:
-            proposed = self.proposer.propose(
+            proposed = propose_mutation(
+                optimizer_agent=self.optimizer_agent,
                 reference=self.reference,
                 reference_runs=reference_runs,
                 pricing=self.pricing,
@@ -437,7 +438,7 @@ class HarnessOptimizationExperiment:
     def _recommendation_reasons(
         self, candidate: CandidateEvaluation, baseline: EvaluationMetrics
     ) -> tuple[str, ...] | None:
-        """Explain an improvement or return ``None`` when the candidate does not beat the baseline."""
+        """Explain an improvement or return `None` when the candidate does not beat the baseline."""
         if candidate.metrics is None or self._rank(metrics=candidate.metrics) >= self._rank(metrics=baseline):
             return None
         reasons: list[str] = []
