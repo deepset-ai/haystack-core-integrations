@@ -134,28 +134,27 @@ class DynamoDBDocumentStore:
             BillingMode="PAY_PER_REQUEST",
         )
         client.get_waiter("table_exists").wait(TableName=self.table_name)
+
+        # Vector indexes are a distinct index type from GSIs/LSIs, created via the
+        # `VectorIndexUpdates` parameter on `UpdateTable` (or `VectorIndexes` on
+        # `CreateTable`) — NOT via `GlobalSecondaryIndexUpdates`. Verified against the
+        # real API reference (CreateVectorIndexAction/VectorAttributeDefinition) after
+        # a naive GSI-shaped attempt failed real-AWS validation with a ParamValidationError.
         client.update_table(
             TableName=self.table_name,
-            GlobalSecondaryIndexUpdates=[
+            VectorIndexUpdates=[
                 {
                     "Create": {
                         "IndexName": self.index_name,
-                        "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+                        "VectorAttribute": {"AttributeName": "embedding"},
+                        "Dimensions": self.embedding_dimension,
+                        "DistanceFunction": "COSINE",
                         "Projection": {"ProjectionType": "ALL"},
-                        "SearchSchema": {
-                            "VectorField": "embedding",
-                            "DistanceMetric": "COSINE",
-                            "Dimensions": self.embedding_dimension,
-                        },
                     }
                 }
             ],
         )
-        client.get_waiter("index_exists").wait(
-            TableName=self.table_name,
-            IndexName=self.index_name,
-            WaiterConfig={"Delay": 5, "MaxAttempts": 60},
-        )
+        client.get_waiter("table_exists").wait(TableName=self.table_name)
         self._table_ready = True
 
     @staticmethod
