@@ -244,7 +244,7 @@ def main() -> None:
     if arguments.fresh and WORKSPACE.exists():
         shutil.rmtree(path=WORKSPACE)
 
-    print("=== 1. shared large corpus ===")
+    print("=== 1. set up large corpus ===")
     corpus_key = (
         "large"
         if arguments.documents_per_category == LARGE_CORPUS_DOCS_PER_CATEGORY
@@ -269,16 +269,13 @@ def main() -> None:
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference_agent.tools))
     print(f"  model={arguments.reference_model} tools={tool_names}")
 
-    print("\n=== 2. capture successful reference runs ===")
+    print("\n=== 2. execute and store reference runs ===")
     run_store = LocalRunStore(directory=WORKSPACE / "runs")
     selected_run_ids = capture_reference_runs(agent=reference_agent, cases=cases, run_store=run_store)
 
-    print("\n=== 3. known model prices (informational) ===")
     pricing = build_pricing(models=(arguments.reference_model, *candidate_models))
-    for price in pricing.prices.values():
-        print(f"  model {price.model_id}: in=${price.input_cost_per_million}/M out=${price.output_cost_per_million}/M")
 
-    print("\n=== 4. experiment ===")
+    print("\n=== 3. optimization experiment ===")
     docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
     proposer = HarnessOptimizerAgentProposer(
         optimizer_agent=create_harness_optimizer_agent(docs_toolset=docs_toolset),
