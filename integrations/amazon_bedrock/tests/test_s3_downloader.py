@@ -36,16 +36,9 @@ def s3_key_generation_function(document: Document) -> str:
 
 class TestS3Downloader:
     def test_init(self, mock_boto3_session, set_env_variables, tmp_path):
-        S3Downloader(file_root_path=str(tmp_path))
-        mock_boto3_session.assert_called_once()
-        # assert mocked boto3 client was called with the correct parameters
-        mock_boto3_session.assert_called_with(
-            aws_access_key_id="some_fake_id",
-            aws_secret_access_key="some_fake_key",
-            aws_session_token="some_fake_token",
-            profile_name="some_fake_profile",
-            region_name="fake_region",
-        )
+        downloader = S3Downloader(file_root_path=str(tmp_path))
+        assert downloader._storage is None
+        mock_boto3_session.assert_not_called()
 
     def test_init_custom_parameters(self, mock_boto3_session, tmp_path):
         d = S3Downloader(
@@ -494,3 +487,49 @@ class TestS3Downloader:
         out = d.run(documents=docs)
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "dog.jpg"
+
+
+class TestComponentLifecycle:
+    @pytest.fixture
+    def downloader(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("S3_DOWNLOADER_BUCKET", "bucket")
+        return S3Downloader(file_root_path=str(tmp_path))
+
+    def test_storage_is_none_after_init(self, downloader, mock_boto3_session):
+        assert downloader._storage is None
+        mock_boto3_session.assert_not_called()
+
+    def test_warm_up_uses_resolved_credentials(self, downloader, mock_boto3_session, set_env_variables):
+        downloader.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_sync_lifecycle(self, downloader):
+        with patch(
+            "haystack_integrations.components.downloaders.s3.s3_downloader.S3Storage.from_env"
+        ) as storage_factory:
+            storage = storage_factory.return_value
+            downloader.warm_up()
+            assert downloader._storage is storage
+            downloader.close()
+            storage.close.assert_called_once_with()
+            assert downloader._storage is None
+            downloader.warm_up()
+            assert storage_factory.call_count == 2
+
+    def test_warm_up_is_idempotent(self, downloader):
+        with patch(
+            "haystack_integrations.components.downloaders.s3.s3_downloader.S3Storage.from_env"
+        ) as storage_factory:
+            downloader.warm_up()
+            downloader.warm_up()
+            storage_factory.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self, downloader):
+        downloader.close()
+        assert downloader._storage is None

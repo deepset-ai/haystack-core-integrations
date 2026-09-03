@@ -158,7 +158,6 @@ def test_default_constructor(mock_boto3_session, set_env_variables):
 
     assert layer.max_length == 99
     assert layer.model == "anthropic.claude-v2"
-
     # assert mocked boto3 client called exactly once
     mock_boto3_session.assert_called_once()
 

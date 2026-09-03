@@ -192,6 +192,36 @@ class TestAmazonBedrockKnowledgeBaseRetrieverIntegration:
             knowledge_base_id=os.environ["AWS_KNOWLEDGE_BASE_ID"],
             aws_region_name=os.environ["AWS_REGION"],
         )
+        retriever.warm_up()
 
         ua = retriever._client._client_config.user_agent_extra
         assert "x-client-framework:haystack" in ua
+
+
+class TestComponentLifecycle:
+    def test_client_is_none_after_init(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        assert retriever._client is None
+        mock_boto3_session.assert_not_called()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        client = mock_boto3_session.return_value.client.return_value
+        retriever.warm_up()
+        assert retriever._client is client
+        retriever.close()
+        client.close.assert_called_once_with()
+        assert retriever._client is None
+        retriever.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.warm_up()
+        retriever.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.close()
+        assert retriever._client is None

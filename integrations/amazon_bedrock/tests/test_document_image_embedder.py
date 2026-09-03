@@ -39,17 +39,8 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.kwargs == {"input_type": "fake_input_type"}
         assert embedder.progress_bar
 
-        # assert mocked boto3 client called exactly once
-        mock_boto3_session.assert_called_once()
-
-        # assert mocked boto3 client was called with the correct parameters
-        mock_boto3_session.assert_called_with(
-            aws_access_key_id="some_fake_id",
-            aws_secret_access_key="some_fake_key",
-            aws_session_token="some_fake_token",
-            profile_name="some_fake_profile",
-            region_name="fake_region",
-        )
+        assert embedder._client is None
+        mock_boto3_session.assert_not_called()
 
     def test_init_custom_parameters(self, mock_boto3_session, set_env_variables):
         embedder = AmazonBedrockDocumentImageEmbedder(
@@ -65,11 +56,12 @@ class TestAmazonBedrockDocumentImageEmbedder:
     def test_connection_error(self, mock_boto3_session):
         mock_boto3_session.side_effect = Exception("some connection error")
 
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-english-v3",
+            embedding_types=["float"],
+        )
         with pytest.raises(AmazonBedrockConfigurationError):
-            AmazonBedrockDocumentImageEmbedder(
-                model="cohere.embed-english-v3",
-                embedding_types=["float"],
-            )
+            embedder.warm_up()
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
     def test_to_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
@@ -198,6 +190,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
     def test_run_invocation_error(self, mock_boto3_session, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder.warm_up()
 
         with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.side_effect = ClientError(
@@ -423,3 +416,43 @@ class TestAmazonBedrockDocumentImageEmbedder:
             assert "embedding_source" in new_doc.meta
             assert new_doc.meta["embedding_source"]["type"] == "image"
             assert "file_path_meta_field" in new_doc.meta["embedding_source"]
+
+
+class TestComponentLifecycle:
+    def test_client_is_none_after_init(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        assert embedder._client is None
+        mock_boto3_session.assert_not_called()
+
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        client = mock_boto3_session.return_value.client.return_value
+        embedder.warm_up()
+        assert embedder._client is client
+        embedder.close()
+        client.close.assert_called_once_with()
+        assert embedder._client is None
+        embedder.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder.close()
+        assert embedder._client is None

@@ -321,18 +321,8 @@ class TestAmazonBedrockChatGenerator:
         """
         layer = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         assert layer.model == "global.anthropic.claude-sonnet-4-6"
-
-        # assert mocked boto3 client called exactly once
-        mock_boto3_session.assert_called_once()
-
-        # assert mocked boto3 client was called with the correct parameters
-        mock_boto3_session.assert_called_with(
-            aws_access_key_id="some_fake_id",
-            aws_secret_access_key="some_fake_key",
-            aws_session_token="some_fake_token",
-            region_name="fake_region",
-            profile_name="some_fake_profile",
-        )
+        assert layer.client is None
+        mock_boto3_session.assert_not_called()
 
     def test_constructor_with_generation_kwargs(self, mock_boto3_session):
         """
@@ -714,8 +704,9 @@ class TestAmazonBedrockChatGenerator:
 
     def test_init_connection_error(self):
         with patch("boto3.Session", side_effect=Exception("connection refused")):
+            generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
             with pytest.raises(Exception, match="Could not connect to Amazon Bedrock"):
-                AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+                generator.warm_up()
 
     def test_get_async_session_creates_and_caches(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -1734,3 +1725,43 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
         assert isinstance(parsed.get("name"), str)
         assert isinstance(parsed.get("age"), int)
+
+
+class TestComponentLifecycle:
+    def test_client_is_none_after_init(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        assert generator.client is None
+        mock_boto3_session.assert_not_called()
+
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        client = mock_boto3_session.return_value.client.return_value
+        generator.warm_up()
+        assert generator.client is client
+        generator.close()
+        client.close.assert_called_once_with()
+        assert generator.client is None
+        generator.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.warm_up()
+        generator.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.close()
+        assert generator.client is None

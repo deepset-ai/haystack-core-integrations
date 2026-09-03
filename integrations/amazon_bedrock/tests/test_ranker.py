@@ -148,8 +148,9 @@ def test_amazon_bedrock_ranker_connection_error():
         "haystack_integrations.components.rankers.amazon_bedrock.ranker.get_aws_session",
         side_effect=Exception("boom"),
     ):
+        ranker = AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"))
         with pytest.raises(AmazonBedrockConfigurationError):
-            AmazonBedrockRanker(aws_region_name=Secret.from_token("us-west-2"))
+            ranker.warm_up()
 
 
 def test_amazon_bedrock_ranker_invalid_top_k(mock_aws_session):
@@ -212,3 +213,32 @@ def test_amazon_bedrock_ranker_meta_fields_to_embed(mock_aws_session):
 
     sent_text = mock_aws_session.rerank.call_args.kwargs["sources"][0]["inlineDocumentSource"]["textDocument"]["text"]
     assert sent_text == "T | body"
+
+
+class TestComponentLifecycle:
+    def test_client_is_none_after_init(self, mock_boto3_session):
+        ranker = AmazonBedrockRanker()
+        assert ranker._bedrock_client is None
+        mock_boto3_session.assert_not_called()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        ranker = AmazonBedrockRanker()
+        client = mock_boto3_session.return_value.client.return_value
+        ranker.warm_up()
+        assert ranker._bedrock_client is client
+        ranker.close()
+        client.close.assert_called_once_with()
+        assert ranker._bedrock_client is None
+        ranker.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        ranker = AmazonBedrockRanker()
+        ranker.warm_up()
+        ranker.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self, mock_boto3_session):
+        ranker = AmazonBedrockRanker()
+        ranker.close()
+        assert ranker._bedrock_client is None
