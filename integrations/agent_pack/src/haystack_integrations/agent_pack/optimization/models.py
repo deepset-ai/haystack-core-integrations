@@ -91,10 +91,3 @@ class OptimizationObjectives:
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible representation."""
         return asdict(obj=self)
-
-
-__all__ = [
-    "ModelPrice",
-    "ModelPriceCatalog",
-    "OptimizationObjectives",
-]

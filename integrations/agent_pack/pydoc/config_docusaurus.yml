@@ -2,8 +2,8 @@ loaders:
   - modules:
       - haystack_integrations.agent_pack.deep_research.agent
       - haystack_integrations.agent_pack.dataclasses
-      - haystack_integrations.agent_pack.runs
-      - haystack_integrations.agent_pack.harness
+      - haystack_integrations.agent_pack.local_run_store
+      - haystack_integrations.agent_pack.harness_evaluator
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks

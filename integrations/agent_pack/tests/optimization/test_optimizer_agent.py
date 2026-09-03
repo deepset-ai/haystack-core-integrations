@@ -149,8 +149,8 @@ def test_agent_proposer_sends_full_configuration_runs_and_history():
     assert request["reference_agent_configuration"]["init_parameters"]["system_prompt"] == "reference prompt"
     assert request["baseline"]["cost"] == 10.0
     assert request["history"] == history
-    assert request["successful_reference_runs"][0]["inputs"]["messages"][0]["text"] == "q"
-    assert request["successful_reference_runs"][0]["outputs"]["last_message"]["text"] == "a"
+    assert request["successful_reference_runs"][0]["inputs"]["messages"][0]["content"] == [{"text": "q"}]
+    assert request["successful_reference_runs"][0]["outputs"]["last_message"]["content"] == [{"text": "a"}]
 
 
 def test_agent_proposer_always_passes_the_pydantic_text_format(monkeypatch):

@@ -13,6 +13,7 @@ from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import Toolset
+from haystack.utils import _serialize_value_with_schema
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization.models import (
@@ -45,21 +46,6 @@ Known prices are informational rather than an allowlist: you may select other mo
 ranked until pricing is supplied. Use documentation tools before changing an unfamiliar component path or provider
 generation argument. Learn from failed mutations and measurements, and do not repeat a resulting configuration.
 """.strip()
-
-
-def _json_compatible(value: Any) -> Any:
-    """Convert useful run data to JSON without reducing every rich value to a string."""
-    if isinstance(value, ChatMessage):
-        return {"role": value.role.value, "text": value.text, "meta": value.meta}
-    if isinstance(value, dict):
-        return {str(key): _json_compatible(value=item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_compatible(value=item) for item in value]
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if hasattr(value, "to_dict"):
-        return _json_compatible(value=value.to_dict())
-    return str(value)
 
 
 class MutationProposer(Protocol):
@@ -128,15 +114,15 @@ class HarnessOptimizerAgentProposer:
     ) -> dict[str, Any]:
         """Build the complete state the optimizer needs for its next decision."""
         return {
-            "reference_agent_configuration": _json_compatible(value=reference.to_dict()),
+            "reference_agent_configuration": reference.to_dict(),
             "known_model_prices": pricing.to_dict(),
             "objectives": objectives.to_dict(),
             "baseline": baseline.to_dict(),
             "history": history,
             "successful_reference_runs": [
                 {
-                    "inputs": _json_compatible(value=record.inputs),
-                    "outputs": _json_compatible(value=record.outputs),
+                    "inputs": _serialize_value_with_schema(payload=record.inputs)["serialized_data"],
+                    "outputs": _serialize_value_with_schema(payload=record.outputs)["serialized_data"],
                 }
                 for record in reference_runs[:3]
             ],

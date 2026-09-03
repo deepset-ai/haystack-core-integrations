@@ -23,6 +23,3 @@ class HarnessEvaluator(Protocol):
         :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
         """
         ...
-
-
-__all__ = ["HarnessEvaluator"]

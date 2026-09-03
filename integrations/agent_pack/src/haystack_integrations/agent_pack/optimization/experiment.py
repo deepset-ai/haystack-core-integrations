@@ -17,7 +17,8 @@ from haystack.components.agents import Agent
 from pydantic import ValidationError
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
-from haystack_integrations.agent_pack.harness import HarnessEvaluator
+from haystack_integrations.agent_pack.harness_evaluator import HarnessEvaluator
+from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
@@ -28,7 +29,6 @@ from haystack_integrations.agent_pack.optimization.mutations import (
     mutation_fingerprint,
 )
 from haystack_integrations.agent_pack.optimization.proposer import MutationProposer
-from haystack_integrations.agent_pack.runs import LocalRunStore
 
 logger = logging.getLogger(__name__)
 _MAX_STALLED_PROPOSALS = 3

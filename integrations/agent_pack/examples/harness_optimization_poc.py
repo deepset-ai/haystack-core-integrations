@@ -49,6 +49,7 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     question_from_messages,
 )
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -60,7 +61,6 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
-from haystack_integrations.agent_pack.runs import LocalRunStore
 
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-sol"

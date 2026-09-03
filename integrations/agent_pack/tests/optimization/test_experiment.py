@@ -6,6 +6,7 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
     AgentMutation,
     ExperimentJournal,
@@ -15,7 +16,6 @@ from haystack_integrations.agent_pack.optimization import (
     MutationOperation,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.runs import LocalRunStore
 
 MODEL_PATH = "/init_parameters/chat_generator/init_parameters/model"
 STEPS_PATH = "/init_parameters/max_agent_steps"
