@@ -383,7 +383,7 @@ D,$54.35,$6345.,
         assert out["raw_azure_response"] == []
 
 
-class TestAzureOCRDocumentConverterIntegration:
+class TestIntegration:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("CORE_AZURE_CS_ENDPOINT", None), reason="Azure endpoint not available")
     @pytest.mark.skipif(not os.environ.get("CORE_AZURE_CS_API_KEY", None), reason="Azure credentials not available")
