@@ -4,6 +4,7 @@
 
 import contextlib
 import os
+import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,7 +53,9 @@ class TestDynamoDBDocumentStore:
     def test_count_documents(self) -> None:
         store = _make_store()
         mock_client = MagicMock()
-        mock_client.describe_table.return_value = {"Table": {"ItemCount": 5}}
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [{"Count": 5}]
+        mock_client.get_paginator.return_value = mock_paginator
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
             assert store.count_documents() == 5
@@ -215,8 +218,14 @@ class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseTests):
     @pytest.fixture
     def document_store(self, request: pytest.FixtureRequest) -> DynamoDBDocumentStore:
         _require_live_aws()
+        # A random suffix (not just the deterministic test name) prevents this run's
+        # table from colliding with an orphaned table of the same name left behind by
+        # an earlier failed/interrupted run — which surfaced as spurious
+        # DuplicateDocumentError failures against pre-existing leftover items during
+        # real-AWS validation.
+        unique_suffix = uuid.uuid4().hex[:8]
         store = DynamoDBDocumentStore(
-            table_name=f"haystack_test_{request.node.name}",
+            table_name=f"haystack_test_{request.node.name}_{unique_suffix}",
             index_name="test_index",
             embedding_dimension=768,
         )
