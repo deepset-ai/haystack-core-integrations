@@ -4,13 +4,14 @@
 
 """Structured operations that can change any serialized Agent configuration."""
 
-import hashlib
 from copy import deepcopy
 from typing import Any, Literal, Self, TypeAlias
 
 from haystack.components.agents import Agent
 from haystack.core.serialization import component_from_dict, import_class_by_name
 from pydantic import BaseModel, ConfigDict, model_validator
+
+from haystack_integrations.agent_pack.dataclasses import content_digest
 
 ScalarValue: TypeAlias = str | int | float | bool | None
 
@@ -47,7 +48,7 @@ class AgentMutation(BaseModel):
 
     def fingerprint(self) -> str:
         """Return a content fingerprint identifying candidates that have no resulting configuration."""
-        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
+        return content_digest(payload=self.model_dump_json())
 
 
 class OptimizerDecision(BaseModel):

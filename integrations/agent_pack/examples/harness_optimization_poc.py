@@ -425,7 +425,7 @@ def main() -> None:
             max_quality_loss=arguments.max_quality_loss,
             primary=arguments.primary,
         ),
-        journal=ExperimentJournal(path=WORKSPACE / "experiment.jsonl"),
+        journal=ExperimentJournal(directory=WORKSPACE / "journals"),
         digest_policy=DIGEST_POLICY,
         optimizer_agent=create_harness_optimizer_agent(
             docs_toolset=docs_toolset, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
@@ -435,7 +435,7 @@ def main() -> None:
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()
-    print(f"  configuration hash: {result.configuration_hash[:16]}")
+    print(f"  configuration hash: {result.configuration_hash}")
 
     print("\n=== 5. outcome ===")
     report(result=result)

@@ -12,6 +12,20 @@ from typing import Any
 from haystack.utils import _deserialize_value_with_schema, _serialize_value_with_schema
 
 
+def content_digest(payload: str) -> str:
+    """
+    Return a short, stable digest of serialized content.
+
+    Digests identify configurations, measurements and runs, and they are read by people: in journal records, in
+    reports and in logs. Twelve hexadecimal characters separate the few dozen things one experiment distinguishes
+    with room to spare, and a full hash only makes those files harder to read.
+
+    :param payload: The serialized content to identify.
+    :returns: A twelve-character hexadecimal digest.
+    """
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
 @dataclass(frozen=True, kw_only=True)
 class AgentRunRecord:
     """
@@ -55,7 +69,7 @@ class AgentRunRecord:
         payload = json.dumps(
             {"inputs": serialized["inputs"], "outputs": serialized["outputs"]}, sort_keys=True, default=str
         )
-        return hashlib.sha256(payload.encode()).hexdigest()
+        return content_digest(payload=payload)
 
 
 @dataclass(frozen=True, kw_only=True)

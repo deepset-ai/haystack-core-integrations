@@ -104,7 +104,7 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
         evaluator=evaluator,
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
-        journal=ExperimentJournal(path=tmp_path / "advanced-rag-experiment.jsonl"),
+        journal=ExperimentJournal(directory=tmp_path / "journals"),
         optimizer_agent=optimizer_agent_for(
             mutation=AgentMutation(
                 operations=(
@@ -171,7 +171,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
         ),
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
-        journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
+        journal=ExperimentJournal(directory=tmp_path / "journals"),
         optimizer_agent=optimizer_agent_for(
             mutation=AgentMutation(
                 operations=(MutationOperation(op="set", path="/init_parameters/max_agent_steps", value=1),)

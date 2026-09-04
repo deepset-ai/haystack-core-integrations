@@ -4,7 +4,6 @@
 
 """The Agent that chooses optimization experiments and the requests made to it."""
 
-import hashlib
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -17,7 +16,7 @@ from haystack.lazy_imports import LazyImport
 from haystack.tools import Toolset, flatten_tools_or_toolsets, warm_up_tools
 from haystack.utils import _serialize_value_with_schema
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, content_digest
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
@@ -277,9 +276,7 @@ def propose_mutation(
         ],
         generation_kwargs={"text_format": OptimizerDecision},
     )
-    _log_optimizer_usage(
-        message=result["last_message"], prefix_digest=hashlib.sha256(context_text.encode()).hexdigest()[:12]
-    )
+    _log_optimizer_usage(message=result["last_message"], prefix_digest=content_digest(payload=context_text))
     text = result["last_message"].text
     if text is None:
         msg = "The harness optimizer Agent returned no structured decision text."

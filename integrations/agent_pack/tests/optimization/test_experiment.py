@@ -115,7 +115,7 @@ def experiment(tmp_path, evaluator, optimizer_agent, pricing_context=None, objec
         evaluator=evaluator,
         pricing=pricing_context or pricing(),
         objectives=objectives or OptimizationObjectives(min_quality=0.8),
-        journal=journal or ExperimentJournal(path=tmp_path / "experiment.jsonl"),
+        journal=journal or ExperimentJournal(directory=tmp_path / "journals"),
         optimizer_agent=optimizer_agent,
     )
 
@@ -211,20 +211,24 @@ def test_the_journal_records_raw_usage_while_the_report_prices_it(tmp_path):
             quality=1.0, latency_ms=90, model_usage={"cheap": ModelTokenUsage(input_tokens=1_000_000)}
         ),
     }
-    journal_path = tmp_path / "experiment.jsonl"
+    journal = ExperimentJournal(directory=tmp_path / "journals")
     optimizer_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="cheap"), None])
     result = experiment(
         tmp_path=tmp_path,
         evaluator=ModelEvaluator(metrics_by_model=raw),
         optimizer_agent=optimizer_agent,
         pricing_context=pricing(cheap_price=2.0),
-        journal=ExperimentJournal(path=journal_path),
+        journal=journal,
     ).run()
 
     assert result.recommendation is not None
     assert result.candidates[0].metrics.cost == pytest.approx(2.0)
 
+    # One file per experiment, named after the context, with the context leading every line.
+    journal_path = journal.path_for(measurement_context=result.measurement_context)
     recorded = [json.loads(line) for line in journal_path.read_text().splitlines() if line.strip()]
+    assert next(iter(recorded[0])) == "measurement_context"
+    assert [path.name for path in (tmp_path / "journals").glob("*.jsonl")] == [f"{result.measurement_context}.jsonl"]
     candidate = next(row for row in recorded if row["mutation"] is not None)
     assert candidate["metrics"]["cost"] is None
     assert candidate["metrics"]["model_usage"]["cheap"]["input_tokens"] == 1_000_000
@@ -257,7 +261,7 @@ def test_empty_run_store_is_rejected(tmp_path):
         evaluator=ModelEvaluator(metrics_by_model=fixed_metrics()),
         pricing=pricing(),
         objectives=OptimizationObjectives(),
-        journal=ExperimentJournal(path=tmp_path / "experiment.jsonl"),
+        journal=ExperimentJournal(directory=tmp_path / "journals"),
         optimizer_agent=optimizer_agent,
     )
     with pytest.raises(ValueError, match="no successful reference runs"):

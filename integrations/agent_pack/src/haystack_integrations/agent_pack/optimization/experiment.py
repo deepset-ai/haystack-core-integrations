@@ -4,7 +4,6 @@
 
 """Iterative measurement and recommendation of Agent configuration candidates."""
 
-import hashlib
 import json
 import traceback
 from dataclasses import dataclass, field, replace
@@ -15,7 +14,7 @@ from typing import Any
 from haystack import logging
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, content_digest
 from haystack_integrations.agent_pack.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization.agent import propose_mutation
@@ -97,30 +96,47 @@ class ExperimentResult:
 
 
 class ExperimentJournal:
-    """Append-only JSON-lines record of raw experiment measurements."""
+    """Append-only JSON-lines record of raw experiment measurements, one file per experiment."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, directory: str | Path) -> None:
         """
-        Open an append-only JSON-lines journal.
+        Open a directory of experiment journals.
 
         The journal records what was measured; it is not read back to measure less. Every experiment measures its
-        own reference and its own candidates, so a run's result never depends on what an earlier one happened to
-        write, and the file stays a plain log that can be read after the fact.
+        own reference and its own candidates, so a run's result never depends on what an earlier one wrote.
 
-        :param path: Path to the journal file. Parent directories are created automatically.
+        Each outcome is filed under the measurement context that produced it, which gives one file per experiment
+        rather than one file accumulating every experiment ever run. Runs stay separable without anyone having to
+        group lines by hand, and the file name says which conditions its measurements belong to.
+
+        :param directory: Directory to write journals into. Created automatically.
         """
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.directory = Path(directory)
+        self.directory.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
+
+    def path_for(self, measurement_context: str) -> Path:
+        """
+        Return the journal file holding one experiment's measurements.
+
+        :param measurement_context: The context identifying the experiment.
+        :returns: Path to that experiment's journal.
+        """
+        return self.directory / f"{measurement_context}.jsonl"
 
     def append(self, evaluation: CandidateEvaluation) -> None:
         """
-        Record one outcome.
+        Record one outcome, in the journal of the experiment it belongs to.
 
         :param evaluation: The raw measurement or failure to record.
         """
-        with self._lock, self.path.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(evaluation.to_dict(), sort_keys=True) + "\n")
+        # Keys are written in the order `to_dict` builds them rather than sorted, so each line opens with the
+        # context and the candidate it describes.
+        with (
+            self._lock,
+            self.path_for(measurement_context=evaluation.measurement_context).open("a", encoding="utf-8") as stream,
+        ):
+            stream.write(json.dumps(evaluation.to_dict()) + "\n")
 
 
 def _stable_serialization(value: Any) -> Any:
@@ -141,7 +157,7 @@ def _stable_serialization(value: Any) -> Any:
 def _configuration_fingerprint(serialized_agent: dict[str, Any]) -> str:
     """Fingerprint the stable form of a complete resulting Agent configuration."""
     payload = json.dumps(_stable_serialization(value=serialized_agent), sort_keys=True, default=str)
-    return hashlib.sha256(payload.encode()).hexdigest()
+    return content_digest(payload=payload)
 
 
 class HarnessOptimizationExperiment:
@@ -173,7 +189,7 @@ class HarnessOptimizationExperiment:
         :param pricing: Model prices used to calculate candidate costs and rank cost optimizations. Prices do not
             restrict which models the optimizer may choose.
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
-        :param journal: Record of every raw measurement the experiment takes.
+        :param journal: Where every raw measurement the experiment takes is recorded.
         :param optimizer_agent: Agent that chooses each next mutation after observing prior outcomes.
         :param run_ids: Optional identifiers selecting which records to load from `run_store`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
@@ -245,7 +261,7 @@ class HarnessOptimizationExperiment:
                 fingerprint = _configuration_fingerprint(serialized_agent=serialized)
             except Exception as error:
                 stalled = 0
-                candidate_id = hashlib.sha256(f"{context}:invalid:{proposed.fingerprint()}".encode()).hexdigest()
+                candidate_id = content_digest(payload=f"{context}:invalid:{proposed.fingerprint()}")
                 failure = "".join(traceback.format_exception_only(type(error), error)).strip()
                 outcome = CandidateEvaluation(
                     measurement_context=context,
@@ -276,7 +292,7 @@ class HarnessOptimizationExperiment:
                 continue
             stalled = 0
             seen.add(fingerprint)
-            candidate_id = hashlib.sha256(f"{context}:{fingerprint}".encode()).hexdigest()
+            candidate_id = content_digest(payload=f"{context}:{fingerprint}")
             raw = self._evaluate_candidate(
                 serialized_candidate=serialized,
                 mutation=proposed,
@@ -331,7 +347,7 @@ class HarnessOptimizationExperiment:
             "runs": sorted(record.fingerprint() for record in reference_runs),
             "configuration_key": self.configuration_key,
         }
-        return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+        return content_digest(payload=json.dumps(payload, sort_keys=True, default=str))
 
     def _baseline(self, context: str, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
         """Load or measure the reference Agent for the current context."""
