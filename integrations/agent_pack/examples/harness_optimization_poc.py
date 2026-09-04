@@ -35,9 +35,11 @@ from uuid import uuid4
 
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
+from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
-from haystack.tools import flatten_tools_or_toolsets
+from haystack.tools import ComponentTool, flatten_tools_or_toolsets
 from util import (
     LARGE_CASES,
     LARGE_CORPUS_CATEGORIES,
@@ -101,7 +103,8 @@ an answer needs, some require the complete filtered set, and each case budgets i
 # optimizer to gain. Quality: retrieval is starved from both sides, because `search_documents` returns a single
 # document and a filter fetch shows two, while every case demands at least three matching documents; the loop is then
 # cut off after a few steps, so a run that does retrieve is liable to be summarized by the backup-answer hook without
-# citations. Cost: the most expensive model reasons at high effort over a task that does not need it.
+# citations. Cost: it reasons at high effort over a task that does not need it, and carries a leftover retrieval tool
+# whose schema is sent to the model on every step and which can never return anything (see `build_leftover_tool`).
 #
 # The reference starts on the cheapest model, so the optimizer cannot buy its improvement by downgrading. A broken
 # configuration wastes money flailing — measured: a starved reference spent 19 retrieval calls and 37,011 input
@@ -109,6 +112,7 @@ an answer needs, some require the complete filtered set, and each case budgets i
 # quality repair still clears the cost objective here, and it has to come from the configuration rather than the
 # price list.
 POOR_RETRIEVER_TOP_K = 1
+POOR_LEFTOVER_TOOL_NAME = "search_product_manuals"
 POOR_MAX_FETCHED_DOCS = 2
 POOR_MAX_AGENT_STEPS = 6
 POOR_REASONING_EFFORT = "high"
@@ -119,6 +123,27 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
     "gpt-5.6-terra": (2.00, 12.00),
     "gpt-5.6-luna": (0.20, 1.20),
 }
+
+
+def build_leftover_tool() -> ComponentTool:
+    """
+    Build a retrieval tool left over from another corpus, pointing at a store that holds nothing.
+
+    Nothing any evaluation case asks for is in there, so the tool can only ever return nothing — but its name,
+    description and argument schema are sent to the model on every step regardless. It is the kind of tool that
+    accumulates in a configuration nobody prunes, and removing it costs no quality.
+
+    :returns: The useless tool.
+    """
+    return ComponentTool(
+        component=InMemoryBM25Retriever(document_store=InMemoryDocumentStore()),
+        name=POOR_LEFTOVER_TOOL_NAME,
+        description=(
+            "Search the product manual corpus for troubleshooting steps, specifications and warranty terms. "
+            "Use it when a question concerns how a product is meant to be used or serviced rather than what "
+            "reviewers said about it."
+        ),
+    )
 
 
 def build_reference_agent(store: DocumentStore, model: str) -> Agent:
@@ -133,6 +158,7 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
         backup_answer_llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs=generation_kwargs),
         max_agent_steps=POOR_MAX_AGENT_STEPS,
         max_fetched_docs=POOR_MAX_FETCHED_DOCS,
+        extra_tools=[build_leftover_tool()],
     )
 
 
