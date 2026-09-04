@@ -55,6 +55,22 @@ def test_get_client_gemini_api_key(monkeypatch):
     assert client is not None
 
 
+def test_get_async_client(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-api-key")
+    api_key = Secret.from_env_var("GEMINI_API_KEY", strict=False)
+
+    with patch("haystack_integrations.common.google_genai.utils.Client") as mock_client:
+        client = _get_client(
+            api_key=api_key,
+            api="gemini",
+            vertex_ai_project=None,
+            vertex_ai_location=None,
+            async_client=True,
+        )
+
+    assert client is mock_client.return_value.aio
+
+
 def test_get_client_gemini_api_key_no_env_var_raises(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     api_key = Secret.from_env_var("GEMINI_API_KEY", strict=False)

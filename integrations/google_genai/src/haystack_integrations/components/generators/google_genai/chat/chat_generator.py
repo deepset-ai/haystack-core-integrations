@@ -6,7 +6,8 @@ import inspect
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, ClassVar, Literal
 
-from google.genai import types
+from google.genai import Client, types
+from google.genai.client import AsyncClient
 from haystack import logging
 from haystack.components.generators.utils import _normalize_messages
 from haystack.core.component import component
@@ -250,15 +251,6 @@ class GoogleGenAIChatGenerator:
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
-        self._client = _get_client(
-            api_key=api_key,
-            api=api,
-            vertex_ai_project=vertex_ai_project,
-            vertex_ai_location=vertex_ai_location,
-            timeout=timeout,
-            max_retries=max_retries,
-        )
-
         self._api_key = api_key
         self._api = api
         self._vertex_ai_project = vertex_ai_project
@@ -270,6 +262,45 @@ class GoogleGenAIChatGenerator:
         self._tools = tools
         self._timeout = timeout
         self._max_retries = max_retries
+        self._client: Client | None = None
+        self._async_client: AsyncClient | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Google Gen AI client."""
+        if self._client is None:
+            self._client = _get_client(
+                api_key=self._api_key,
+                api=self._api,
+                vertex_ai_project=self._vertex_ai_project,
+                vertex_ai_location=self._vertex_ai_location,
+                timeout=self._timeout,
+                max_retries=self._max_retries,
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Google Gen AI client."""
+        if self._async_client is None:
+            self._async_client = _get_client(
+                api_key=self._api_key,
+                api=self._api,
+                vertex_ai_project=self._vertex_ai_project,
+                vertex_ai_location=self._vertex_ai_location,
+                timeout=self._timeout,
+                max_retries=self._max_retries,
+                async_client=True,
+            )
+
+    def close(self) -> None:
+        """Close the synchronous Google Gen AI client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Google Gen AI client."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -428,6 +459,9 @@ class GoogleGenAIChatGenerator:
         :raises ValueError: If a ChatMessage does not contain at least one of TextContent, ToolCall, or
         ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
@@ -543,6 +577,9 @@ class GoogleGenAIChatGenerator:
         :raises ValueError: If a ChatMessage does not contain at least one of TextContent, ToolCall, or
         ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
@@ -594,7 +631,7 @@ class GoogleGenAIChatGenerator:
 
             if streaming_callback:
                 # Use streaming
-                response_stream = await self._client.aio.models.generate_content_stream(
+                response_stream = await self._async_client.models.generate_content_stream(
                     model=self._model,
                     contents=contents,
                     config=config,
@@ -602,7 +639,7 @@ class GoogleGenAIChatGenerator:
                 return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
                 # Use non-streaming
-                response = await self._client.aio.models.generate_content(
+                response = await self._async_client.models.generate_content(
                     model=self._model,
                     contents=contents,
                     config=config,
