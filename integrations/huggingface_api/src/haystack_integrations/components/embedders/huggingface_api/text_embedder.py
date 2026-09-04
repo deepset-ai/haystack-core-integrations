@@ -13,6 +13,7 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
     _check_valid_model,
+    _check_valid_model_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,6 @@ class HuggingFaceAPITextEmbedder:
             if model is None:
                 msg = "To use the Serverless Inference API, you need to specify the `model` parameter in `api_params`."
                 raise ValueError(msg)
-            _check_valid_model(model, HFModelType.EMBEDDING, token)
             model_or_url = model
         elif api_type in [HFEmbeddingAPIType.INFERENCE_ENDPOINTS, HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE]:
             url = api_params.get("url")
@@ -150,8 +150,46 @@ class HuggingFaceAPITextEmbedder:
         self.suffix = suffix
         self.truncate = truncate
         self.normalize = normalize
-        self._client = InferenceClient(model_or_url, token=token.resolve_value() if token else None)
-        self._async_client = AsyncInferenceClient(model_or_url, token=token.resolve_value() if token else None)
+        self._model_or_url = model_or_url
+        self._client: InferenceClient | None = None
+        self._async_client: AsyncInferenceClient | None = None
+
+    def _validate_model(self) -> None:
+        """Validate the configured serverless model."""
+        if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            _check_valid_model(self._model_or_url, HFModelType.EMBEDDING, self.token)
+
+    async def _validate_model_async(self) -> None:
+        if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            await _check_valid_model_async(self._model_or_url, HFModelType.EMBEDDING, self.token)
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Hugging Face clients."""
+        return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
+
+    def warm_up(self) -> None:
+        """Create the synchronous Hugging Face client."""
+        if self._client is None:
+            self._validate_model()
+            self._client = InferenceClient(**self._client_kwargs())
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Hugging Face client."""
+        if self._async_client is None:
+            await self._validate_model_async()
+            self._async_client = AsyncInferenceClient(**self._client_kwargs())
+
+    def close(self) -> None:
+        """Close the synchronous Hugging Face client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Hugging Face client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def _prepare_input(self, text: str) -> tuple[str, bool | None, bool | None]:
         if not isinstance(text, str):
@@ -224,6 +262,9 @@ class HuggingFaceAPITextEmbedder:
             A dictionary with the following keys:
             - `embedding`: The embedding of the input text.
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         text_to_embed, truncate_val, normalize_val = self._prepare_input(text)
 
         np_embedding = self._client.feature_extraction(
@@ -256,6 +297,9 @@ class HuggingFaceAPITextEmbedder:
             A dictionary with the following keys:
             - `embedding`: The embedding of the input text.
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         text_to_embed, truncate_val, normalize_val = self._prepare_input(text)
 
         np_embedding = await self._async_client.feature_extraction(

@@ -7,6 +7,7 @@ from enum import Enum
 from haystack.utils import Secret
 from huggingface_hub import HfApi
 from huggingface_hub.errors import RepositoryNotFoundError
+from huggingface_hub.utils import build_hf_headers, get_async_session, hf_raise_for_status
 
 
 class HFGenerationAPIType(Enum):
@@ -98,11 +99,32 @@ def _check_valid_model(model_id: str, model_type: HFModelType, token: Secret | N
         msg = f"Model {model_id} not found on HuggingFace Hub. Please provide a valid HuggingFace model_id."
         raise ValueError(msg) from e
 
+    _validate_model_type(model_id, model_type, model_info.pipeline_tag)
+
+
+async def _check_valid_model_async(model_id: str, model_type: HFModelType, token: Secret | None) -> None:
+    """Check asynchronously if the provided model ID corresponds to a valid model on Hugging Face Hub."""
+    api = HfApi()
+    try:
+        async with get_async_session() as client:
+            response = await client.get(
+                f"{api.endpoint}/api/models/{model_id}",
+                headers=build_hf_headers(token=token.resolve_value() if token else None),
+            )
+            hf_raise_for_status(response)
+    except RepositoryNotFoundError as e:
+        msg = f"Model {model_id} not found on HuggingFace Hub. Please provide a valid HuggingFace model_id."
+        raise ValueError(msg) from e
+
+    _validate_model_type(model_id, model_type, response.json().get("pipeline_tag"))
+
+
+def _validate_model_type(model_id: str, model_type: HFModelType, pipeline_tag: str | None) -> None:
     if model_type == HFModelType.EMBEDDING:
-        allowed_model = model_info.pipeline_tag in ["sentence-similarity", "feature-extraction"]
+        allowed_model = pipeline_tag in ["sentence-similarity", "feature-extraction"]
         error_msg = f"Model {model_id} is not a embedding model. Please provide a embedding model."
     elif model_type == HFModelType.GENERATION:
-        allowed_model = model_info.pipeline_tag in ["text-generation", "text2text-generation", "image-text-to-text"]
+        allowed_model = pipeline_tag in ["text-generation", "text2text-generation", "image-text-to-text"]
         error_msg = f"Model {model_id} is not a text generation model. Please provide a text generation model."
     else:
         allowed_model = False

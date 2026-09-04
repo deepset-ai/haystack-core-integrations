@@ -18,6 +18,7 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
     _check_valid_model,
+    _check_valid_model_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,6 @@ class HuggingFaceAPIDocumentEmbedder:
             if model is None:
                 msg = "To use the Serverless Inference API, you need to specify the `model` parameter in `api_params`."
                 raise ValueError(msg)
-            _check_valid_model(model, HFModelType.EMBEDDING, token)
             model_or_url = model
         elif api_type in [HFEmbeddingAPIType.INFERENCE_ENDPOINTS, HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE]:
             url = api_params.get("url")
@@ -179,8 +179,6 @@ class HuggingFaceAPIDocumentEmbedder:
             msg = f"Unknown api_type {api_type}"
             raise ValueError(msg)
 
-        client_args: dict[str, Any] = {"model": model_or_url, "token": token.resolve_value() if token else None}
-
         self.api_type = api_type
         self.api_params = api_params
         self.token = token
@@ -193,8 +191,46 @@ class HuggingFaceAPIDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         self.concurrency_limit = concurrency_limit
-        self._client = InferenceClient(**client_args)
-        self._async_client = AsyncInferenceClient(**client_args)
+        self._model_or_url = model_or_url
+        self._client: InferenceClient | None = None
+        self._async_client: AsyncInferenceClient | None = None
+
+    def _validate_model(self) -> None:
+        """Validate the configured serverless model."""
+        if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            _check_valid_model(self._model_or_url, HFModelType.EMBEDDING, self.token)
+
+    async def _validate_model_async(self) -> None:
+        if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            await _check_valid_model_async(self._model_or_url, HFModelType.EMBEDDING, self.token)
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Hugging Face clients."""
+        return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
+
+    def warm_up(self) -> None:
+        """Create the synchronous Hugging Face client."""
+        if self._client is None:
+            self._validate_model()
+            self._client = InferenceClient(**self._client_kwargs())
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Hugging Face client."""
+        if self._async_client is None:
+            await self._validate_model_async()
+            self._async_client = AsyncInferenceClient(**self._client_kwargs())
+
+    def close(self) -> None:
+        """Close the synchronous Hugging Face client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Hugging Face client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -270,6 +306,7 @@ class HuggingFaceAPIDocumentEmbedder:
         """
         Embed a list of texts in batches.
         """
+        assert self._client is not None  # noqa: S101
         truncate, normalize = self._adjust_api_parameters(self.truncate, self.normalize, self.api_type)
 
         all_embeddings: list = []
@@ -278,7 +315,12 @@ class HuggingFaceAPIDocumentEmbedder:
         ):
             batch = texts_to_embed[i : i + batch_size]
 
-            np_embeddings = self._client.feature_extraction(text=batch, truncate=truncate, normalize=normalize)
+            # huggingface_hub 1.0 types this parameter as str even though the API accepts batched inputs.
+            np_embeddings = self._client.feature_extraction(
+                text=batch,  # type: ignore[arg-type]
+                truncate=truncate,
+                normalize=normalize,
+            )
 
             if np_embeddings.ndim != _EXPECTED_EMBEDDING_NDIM or np_embeddings.shape[0] != len(batch):
                 msg = f"Expected embedding shape ({batch_size}, embedding_dim), got {np_embeddings.shape}"
@@ -292,6 +334,8 @@ class HuggingFaceAPIDocumentEmbedder:
         """
         Embed a list of texts in batches asynchronously.
         """
+        assert self._async_client is not None  # noqa: S101
+        async_client = self._async_client
         truncate, normalize = self._adjust_api_parameters(self.truncate, self.normalize, self.api_type)
         sem = Semaphore(max(1, self.concurrency_limit))
         num_batches = (len(texts_to_embed) + batch_size - 1) // batch_size
@@ -299,8 +343,11 @@ class HuggingFaceAPIDocumentEmbedder:
 
         async def _runner(batch: list[str]) -> list[list[float]]:
             async with sem:
-                np_embeddings = await self._async_client.feature_extraction(
-                    text=batch, truncate=truncate, normalize=normalize
+                # huggingface_hub 1.0 types this parameter as str even though the API accepts batched inputs.
+                np_embeddings = await async_client.feature_extraction(
+                    text=batch,  # type: ignore[arg-type]
+                    truncate=truncate,
+                    normalize=normalize,
                 )
 
                 if np_embeddings.ndim != _EXPECTED_EMBEDDING_NDIM or np_embeddings.shape[0] != len(batch):
@@ -342,6 +389,9 @@ class HuggingFaceAPIDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "HuggingFaceAPIDocumentEmbedder expects a list of Documents as input."
@@ -375,6 +425,9 @@ class HuggingFaceAPIDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "HuggingFaceAPIDocumentEmbedder expects a list of Documents as input."
