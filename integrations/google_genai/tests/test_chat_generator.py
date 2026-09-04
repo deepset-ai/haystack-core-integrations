@@ -5,7 +5,7 @@
 import asyncio
 import json
 import os
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from google.genai import types
@@ -117,21 +117,16 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert component._api_key.resolve_value() == "test-api-key"
         assert component._timeout is None
         assert component._max_retries is None
+        assert component._client is None
+        assert component._async_client is None
 
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        with pytest.raises(ValueError):
-            GoogleGenAIChatGenerator()
-
-    def test_init_fail_with_duplicate_tool_names(self, monkeypatch, tools):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_init_fail_with_duplicate_tool_names(self, tools):
         duplicate_tools = [tools[0], tools[0]]
         with pytest.raises(ValueError):
             GoogleGenAIChatGenerator(tools=duplicate_tools)
 
-    def test_init_with_parameters(self, monkeypatch):
+    def test_init_with_parameters(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=weather)
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key-from-env")
         component = GoogleGenAIChatGenerator(
             api_key=Secret.from_token("test-api-key-from-env"),
             model="gemini-2.5-flash",
@@ -152,16 +147,13 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert component._timeout == 30.0
         assert component._max_retries == 5
 
-    def test_init_with_toolset(self, tools, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_init_with_toolset(self, tools):
         toolset = Toolset(tools)
         generator = GoogleGenAIChatGenerator(tools=toolset)
         assert generator._tools == toolset
 
-    def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
+    def test_init_with_mixed_tools_and_toolsets(self):
         """Test initialization with a mixed list of Tools and Toolsets."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-
         tool1 = Tool(
             name="tool1",
             description="First tool",
@@ -193,8 +185,7 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert isinstance(generator._tools[1], Toolset)
         assert isinstance(generator._tools[2], Tool)
 
-    def test_to_dict_with_toolset(self, tools, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_to_dict_with_toolset(self, tools):
         toolset = Toolset(tools)
         generator = GoogleGenAIChatGenerator(tools=toolset)
         data = generator.to_dict()
@@ -205,8 +196,7 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert data["init_parameters"]["timeout"] is None
         assert data["init_parameters"]["max_retries"] is None
 
-    def test_from_dict_with_toolset(self, tools, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_from_dict_with_toolset(self, tools):
         toolset = Toolset(tools)
         component = GoogleGenAIChatGenerator(tools=toolset)
         data = component.to_dict()
@@ -217,10 +207,8 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert len(deserialized_component._tools) == len(tools)
         assert all(isinstance(tool, Tool) for tool in deserialized_component._tools)
 
-    def test_serde_with_mixed_tools_and_toolsets(self, monkeypatch):
+    def test_serde_with_mixed_tools_and_toolsets(self):
         """Test serialization/deserialization with mixed Tools and Toolsets."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-
         tool1 = Tool(
             name="tool1",
             description="First tool",
@@ -254,9 +242,8 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert restored._tools[0].name == "tool1"
         assert len(restored._tools[1]) == 1
 
-    def test_to_dict_with_response_format_pydantic(self, monkeypatch):
+    def test_to_dict_with_response_format_pydantic(self):
         """Test that to_dict serializes a Pydantic response_format to a JSON schema dict."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
 
         class City(BaseModel):
             name: str
@@ -278,20 +265,16 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
             "type": "object",
         }
 
-    def test_to_dict_with_response_format_dict(self, monkeypatch):
+    def test_to_dict_with_response_format_dict(self):
         """Test that to_dict preserves a dict response_format as is."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
         generator = GoogleGenAIChatGenerator(generation_kwargs={"response_format": schema})
         data = generator.to_dict()
 
         assert data["init_parameters"]["generation_kwargs"]["response_format"] == schema
 
-    def test_serde_with_response_format(self, monkeypatch):
+    def test_serde_with_response_format(self):
         """Test serialization/deserialization round-trip with response_format."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
         generator = GoogleGenAIChatGenerator(generation_kwargs={"response_format": schema, "temperature": 0.5})
         data = generator.to_dict()
@@ -301,10 +284,99 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert restored._generation_kwargs["temperature"] == 0.5
 
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_GOOGLE_API_KEY", raising=False)
+        component = GoogleGenAIChatGenerator(api_key=Secret.from_env_var("MISSING_GOOGLE_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_GOOGLE_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.generators.google_genai.chat.chat_generator._get_client")
+    def test_sync_lifecycle(self, mock_get_client):
+        component = GoogleGenAIChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_get_client.return_value
+
+        component.warm_up()
+        assert component._client is client
+        assert component._async_client is None
+
+        component.close()
+        client.close.assert_called_once_with()
+        assert component._client is None
+
+        component.warm_up()
+        assert mock_get_client.call_count == 2
+
+    @patch("haystack_integrations.components.generators.google_genai.chat.chat_generator._get_client")
+    async def test_async_lifecycle(self, mock_get_client):
+        component = GoogleGenAIChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_get_client.return_value
+        client.aclose = AsyncMock()
+
+        await component.warm_up_async()
+        assert component._async_client is client
+        assert component._client is None
+
+        await component.close_async()
+        client.aclose.assert_awaited_once_with()
+        assert component._async_client is None
+
+        await component.warm_up_async()
+        assert mock_get_client.call_count == 2
+
+    @patch("haystack_integrations.components.generators.google_genai.chat.chat_generator._get_client")
+    def test_warm_up_is_idempotent(self, mock_get_client):
+        component = GoogleGenAIChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        component.warm_up()
+        mock_get_client.assert_called_once_with(
+            api_key=component._api_key,
+            api="gemini",
+            vertex_ai_project=None,
+            vertex_ai_location=None,
+            timeout=None,
+            max_retries=None,
+        )
+
+    @patch("haystack_integrations.components.generators.google_genai.chat.chat_generator._get_client")
+    async def test_warm_up_async_is_idempotent(self, mock_get_client):
+        component = GoogleGenAIChatGenerator(api_key=Secret.from_token("test-api-key"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_get_client.assert_called_once()
+
+    async def test_close_is_safe_without_warm_up(self):
+        component = GoogleGenAIChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.close()
+        await component.close_async()
+        assert component._client is None
+        assert component._async_client is None
+
+    @patch("haystack_integrations.components.generators.google_genai.chat.chat_generator._get_client")
+    async def test_close_and_close_async_are_independent(self, mock_get_client):
+        sync_client = MagicMock()
+        async_client = MagicMock()
+        async_client.aclose = AsyncMock()
+        mock_get_client.side_effect = [sync_client, async_client]
+        component = GoogleGenAIChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        await component.warm_up_async()
+
+        component.close()
+        assert component._client is None
+        assert component._async_client is async_client
+        async_client.aclose.assert_not_awaited()
+
+        await component.close_async()
+        assert component._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
 class TestGoogleGenAIChatGeneratorRun:
-    def test_run_non_streaming(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_non_streaming(self, mock_response):
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(return_value=mock_response)
 
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
@@ -315,9 +387,9 @@ class TestGoogleGenAIChatGeneratorRun:
         assert results["replies"][0].meta["finish_reason"] == "stop"
         component._client.models.generate_content.assert_called_once()
 
-    def test_run_streaming(self, monkeypatch, mock_streaming_chunk):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_streaming(self, mock_streaming_chunk):
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
 
         chunks = [mock_streaming_chunk(text="Hello"), mock_streaming_chunk(text=" world", finish_reason="STOP")]
         component._client.models.generate_content_stream = Mock(return_value=iter(chunks))
@@ -337,13 +409,13 @@ class TestGoogleGenAIChatGeneratorRun:
         assert " world" in results["replies"][0].text
         assert len(callback_chunks) == 2
 
-    def test_run_streaming_gemini_3_tool_call_finish_reason(self, monkeypatch):
+    def test_run_streaming_gemini_3_tool_call_finish_reason(self):
         """
         Gemini 3 models send the terminal "STOP" in its own chunk, after the one holding the function call.
         Both the streamed chunk and the aggregated reply must report "tool_calls".
         """
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator(model="gemini-3.7-flash")
+        component._client = MagicMock()
 
         def google_chunk(parts, finish_reason=None):
             return types.GenerateContentResponse(
@@ -370,9 +442,9 @@ class TestGoogleGenAIChatGeneratorRun:
         assert results["replies"][0].meta["finish_reason"] == "tool_calls"
         assert results["replies"][0].tool_calls[0].tool_name == "weather"
 
-    def test_run_extracts_system_message(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_extracts_system_message(self, mock_response):
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(return_value=mock_response)
 
         messages = [
@@ -388,9 +460,9 @@ class TestGoogleGenAIChatGeneratorRun:
         contents = call_kwargs.kwargs.get("contents") or call_kwargs[1].get("contents")
         assert len(contents) == 1
 
-    def test_run_with_tools_passes_tools_to_config(self, monkeypatch, mock_response, tools):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_with_tools_passes_tools_to_config(self, mock_response, tools):
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(return_value=mock_response)
 
         component.run([ChatMessage.from_user("Weather in Paris?")], tools=tools)
@@ -399,10 +471,10 @@ class TestGoogleGenAIChatGeneratorRun:
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.tools is not None
 
-    def test_run_with_safety_settings(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_with_safety_settings(self, mock_response):
         safety = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}]
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(return_value=mock_response)
 
         component.run([ChatMessage.from_user("Hello")], safety_settings=safety)
@@ -412,9 +484,9 @@ class TestGoogleGenAIChatGeneratorRun:
         assert len(config.safety_settings) == 1
         assert config.safety_settings[0].category == "HARM_CATEGORY_HARASSMENT"
 
-    def test_run_with_generation_kwargs(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_with_generation_kwargs(self, mock_response):
         component = GoogleGenAIChatGenerator(generation_kwargs={"temperature": 0.5, "max_output_tokens": 100})
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(return_value=mock_response)
 
         component.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
@@ -424,25 +496,25 @@ class TestGoogleGenAIChatGeneratorRun:
         assert config.temperature == 0.9
         assert config.max_output_tokens == 100
 
-    def test_run_thinking_error_raises_helpful_message(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_thinking_error_raises_helpful_message(self):
         component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(side_effect=Exception("thinking_config is not supported"))
 
         with pytest.raises(RuntimeError, match="Thinking configuration error"):
             component.run([ChatMessage.from_user("Hello")])
 
-    def test_run_generic_error_raises_runtime_error(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_generic_error_raises_runtime_error(self):
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(side_effect=Exception("Connection timeout"))
 
         with pytest.raises(RuntimeError, match="Error in Google Gen AI chat generation"):
             component.run([ChatMessage.from_user("Hello")])
 
-    def test_run_streaming_error_raises_runtime_error(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_streaming_error_raises_runtime_error(self):
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
 
         def failing_stream():
             msg = "Stream interrupted"
@@ -457,9 +529,9 @@ class TestGoogleGenAIChatGeneratorRun:
                 streaming_callback=lambda chunk: None,
             )
 
-    def test_run_with_string_input(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_run_with_string_input(self, mock_response):
         component = GoogleGenAIChatGenerator()
+        component._client = MagicMock()
         component._client.models.generate_content = Mock(return_value=mock_response)
 
         result = component.run("What's the capital of France?")
@@ -473,8 +545,7 @@ class TestGoogleGenAIChatGeneratorRun:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
-    def test_from_dict_with_streaming_callback(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    def test_from_dict_with_streaming_callback(self):
         component = GoogleGenAIChatGenerator(streaming_callback=print_streaming_chunk)
         data = component.to_dict()
 
@@ -482,10 +553,10 @@ class TestGoogleGenAIChatGeneratorRun:
         assert restored._streaming_callback is print_streaming_chunk
 
     @pytest.mark.asyncio
-    async def test_run_async_non_streaming(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_non_streaming(self, mock_response):
         component = GoogleGenAIChatGenerator()
-        component._client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
 
         results = await component.run_async([ChatMessage.from_user("Capital of France?")])
 
@@ -494,14 +565,14 @@ class TestGoogleGenAIChatGeneratorRun:
         assert results["replies"][0].meta["finish_reason"] == "stop"
 
     @pytest.mark.asyncio
-    async def test_run_async_with_string_input(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_with_string_input(self, mock_response):
         component = GoogleGenAIChatGenerator()
-        component._client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
 
         result = await component.run_async("What's the capital of France?")
 
-        call_kwargs = component._client.aio.models.generate_content.call_args
+        call_kwargs = component._async_client.models.generate_content.call_args
         contents = call_kwargs.kwargs.get("contents") or call_kwargs[1].get("contents")
         assert len(contents) == 1
         assert contents[0].role == "user"
@@ -511,29 +582,29 @@ class TestGoogleGenAIChatGeneratorRun:
         assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
-    async def test_run_async_with_generation_kwargs(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_with_generation_kwargs(self, mock_response):
         component = GoogleGenAIChatGenerator(generation_kwargs={"temperature": 0.5, "max_output_tokens": 100})
-        component._client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
 
         await component.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
 
-        call_kwargs = component._client.aio.models.generate_content.call_args
+        call_kwargs = component._async_client.models.generate_content.call_args
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.temperature == 0.9
         assert config.max_output_tokens == 100
 
     @pytest.mark.asyncio
-    async def test_run_async_streaming(self, monkeypatch, mock_streaming_chunk):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_streaming(self, mock_streaming_chunk):
         component = GoogleGenAIChatGenerator()
+        component._async_client = MagicMock()
 
         chunk = mock_streaming_chunk(text="Hello async", finish_reason="STOP")
 
         async def mock_stream():
             yield chunk
 
-        component._client.aio.models.generate_content_stream = AsyncMock(return_value=mock_stream())
+        component._async_client.models.generate_content_stream = AsyncMock(return_value=mock_stream())
 
         callback_chunks = []
 
@@ -550,9 +621,9 @@ class TestGoogleGenAIChatGeneratorRun:
         assert len(callback_chunks) == 1
 
     @pytest.mark.asyncio
-    async def test_run_async_streaming_chunk_indices_start_at_zero(self, monkeypatch, mock_streaming_chunk):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_streaming_chunk_indices_start_at_zero(self, mock_streaming_chunk):
         component = GoogleGenAIChatGenerator()
+        component._async_client = MagicMock()
 
         chunks = [mock_streaming_chunk(text="Hello "), mock_streaming_chunk(text="world", finish_reason="STOP")]
 
@@ -560,7 +631,7 @@ class TestGoogleGenAIChatGeneratorRun:
             for chunk in chunks:
                 yield chunk
 
-        component._client.aio.models.generate_content_stream = AsyncMock(return_value=mock_stream())
+        component._async_client.models.generate_content_stream = AsyncMock(return_value=mock_stream())
 
         callback_chunks = []
 
@@ -574,10 +645,10 @@ class TestGoogleGenAIChatGeneratorRun:
         assert callback_chunks[0].start is True
 
     @pytest.mark.asyncio
-    async def test_run_async_extracts_system_message(self, monkeypatch, mock_response):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_extracts_system_message(self, mock_response):
         component = GoogleGenAIChatGenerator()
-        component._client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
 
         messages = [
             ChatMessage.from_system("Be helpful"),
@@ -585,17 +656,17 @@ class TestGoogleGenAIChatGeneratorRun:
         ]
         await component.run_async(messages)
 
-        call_kwargs = component._client.aio.models.generate_content.call_args
+        call_kwargs = component._async_client.models.generate_content.call_args
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.system_instruction == "Be helpful"
         contents = call_kwargs.kwargs.get("contents") or call_kwargs[1].get("contents")
         assert len(contents) == 1
 
     @pytest.mark.asyncio
-    async def test_run_async_thinking_error_raises_helpful_message(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_thinking_error_raises_helpful_message(self):
         component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
-        component._client.aio.models.generate_content = AsyncMock(
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(
             side_effect=Exception("thinking_config is not supported")
         )
 
@@ -603,25 +674,25 @@ class TestGoogleGenAIChatGeneratorRun:
             await component.run_async([ChatMessage.from_user("Hello")])
 
     @pytest.mark.asyncio
-    async def test_run_async_generic_error_raises_runtime_error(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_generic_error_raises_runtime_error(self):
         component = GoogleGenAIChatGenerator()
-        component._client.aio.models.generate_content = AsyncMock(side_effect=Exception("Connection timeout"))
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(side_effect=Exception("Connection timeout"))
 
         with pytest.raises(RuntimeError, match="Error in async Google Gen AI chat generation"):
             await component.run_async([ChatMessage.from_user("Hello")])
 
     @pytest.mark.asyncio
-    async def test_run_async_streaming_error_raises_runtime_error(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+    async def test_run_async_streaming_error_raises_runtime_error(self):
         component = GoogleGenAIChatGenerator()
+        component._async_client = MagicMock()
 
         async def failing_stream():
             msg = "Async stream interrupted"
             raise Exception(msg)
             yield  # unreachable, but makes this an async generator
 
-        component._client.aio.models.generate_content_stream = AsyncMock(return_value=failing_stream())
+        component._async_client.models.generate_content_stream = AsyncMock(return_value=failing_stream())
 
         with pytest.raises(RuntimeError, match="Error in async streaming response"):
             await component.run_async(
