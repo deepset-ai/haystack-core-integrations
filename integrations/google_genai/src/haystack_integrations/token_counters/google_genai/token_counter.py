@@ -30,8 +30,9 @@ class GoogleGenAITokenCounter:
     ### Backend support for system instructions and tools
 
     The Google Gen AI SDK only accepts a system instruction and tool schemas on `countTokens` when the client
-    targets Vertex AI. On the Gemini Developer API it rejects both, so this counter raises a `ValueError` instead
-    of silently returning a count that omits them. Counting plain messages works on either backend.
+    targets Vertex AI. On the Gemini Developer API, a leading system message is therefore measured as a user turn,
+    which gives a close approximation rather than the exact count, and tools raise a `ValueError` instead of
+    silently returning a count that omits their schemas. Counting plain messages works on either backend.
 
     ## Usage Example:
     ```python
@@ -101,14 +102,24 @@ class GoogleGenAITokenCounter:
         """
         Return the number of input tokens Gemini will use for the given messages and tools.
 
-        :param messages: The messages to measure. A leading system message is measured as the system instruction.
+        :param messages: The messages to measure. A leading system message is measured as the system instruction on
+            Vertex AI and as a user turn on the Gemini Developer API, which cannot measure system instructions.
         :param tools: Tools whose schemas are sent alongside the messages, and so consume tokens too.
         :returns: The token count, or `0` when there is nothing to measure.
-        :raises ValueError: If a system message or tools are passed while targeting the Gemini Developer API,
-            which cannot measure either.
+        :raises ValueError: If tools are passed while targeting the Gemini Developer API, which cannot measure them.
         """
         if not messages and not tools:
             return 0
+
+        # Rejected before the client is built, so an unsupported request fails the same way with or without
+        # credentials.
+        if tools and self.api != "vertex":
+            msg = (
+                "Counting tokens for tools is only supported when targeting Vertex AI, because the Google Gen AI SDK "
+                'rejects them on the Gemini Developer API. Initialize this counter with api="vertex", or count only '
+                "the messages."
+            )
+            raise ValueError(msg)
 
         # Mirror how GoogleGenAIChatGenerator splits the request: a leading system message is sent separately.
         chat_messages = messages
@@ -117,24 +128,17 @@ class GoogleGenAITokenCounter:
             system_instruction = messages[0].text or ""
             chat_messages = messages[1:]
 
+        contents: list[types.ContentUnion] = [_convert_message_to_google_genai_format(m) for m in chat_messages]
         config_params: dict[str, Any] = {}
         if system_instruction:
-            config_params["system_instruction"] = system_instruction
+            if self.api == "vertex":
+                config_params["system_instruction"] = system_instruction
+            else:
+                # The Gemini Developer API rejects a system instruction on countTokens, so measure its text as a
+                # user turn. This is a close approximation, not the exact count.
+                contents.insert(0, types.Content(role="user", parts=[types.Part.from_text(text=system_instruction)]))
         if tools:
             config_params["tools"] = _convert_tools_to_google_genai_format(tools)
-
-        # Rejected before the client is built, so an unsupported request fails the same way with or without
-        # credentials.
-        if config_params and self.api != "vertex":
-            unsupported = " and ".join(
-                name for name, present in (("a system message", system_instruction), ("tools", tools)) if present
-            )
-            msg = (
-                f"Counting tokens for {unsupported} is only supported when targeting Vertex AI, because the "
-                "Google Gen AI SDK rejects them on the Gemini Developer API. Initialize this counter with "
-                'api="vertex", or count only the non-system messages.'
-            )
-            raise ValueError(msg)
 
         self.warm_up()
         client = self.client
@@ -142,7 +146,6 @@ class GoogleGenAITokenCounter:
             msg = "The Google Gen AI client was not initialized."
             raise RuntimeError(msg)
 
-        contents: list[types.ContentUnion] = [_convert_message_to_google_genai_format(msg) for msg in chat_messages]
         config = types.CountTokensConfig(**config_params) if config_params else None
 
         response = client.models.count_tokens(model=self.model, contents=contents, config=config)

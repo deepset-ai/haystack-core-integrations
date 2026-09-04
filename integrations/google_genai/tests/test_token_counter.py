@@ -111,25 +111,29 @@ class TestGoogleGenAITokenCounterCount:
 
         assert counter.count([ChatMessage.from_user("Hello")]) == 0
 
-    @pytest.mark.parametrize(
-        ("messages", "expected_in_error"),
-        [
-            ([ChatMessage.from_system("You are helpful."), ChatMessage.from_user("Hi")], "a system message"),
-            ([ChatMessage.from_user("Hi")], "tools"),
-        ],
-        ids=["system_message", "tools"],
-    )
-    def test_count_rejects_what_the_gemini_developer_api_cannot_measure(self, messages, expected_in_error, tools):
+    def test_count_rejects_tools_on_the_gemini_developer_api(self, tools):
         counter = GoogleGenAITokenCounter("gemini-3.7-flash")
-        passed_tools = tools if expected_in_error == "tools" else None
 
-        with pytest.raises(ValueError, match=expected_in_error) as exc_info:
-            counter.count(messages, tools=passed_tools)
+        with pytest.raises(ValueError, match="tools") as exc_info:
+            counter.count([ChatMessage.from_user("Hi")], tools=tools)
 
         # The error has to point at the way out, not just at the failure.
         assert 'api="vertex"' in str(exc_info.value)
         # Rejected before any client is built, so it fails the same way without credentials.
         assert counter.client is None
+
+    def test_count_on_the_gemini_developer_api_measures_the_system_message_as_a_user_turn(self):
+        counter = _counter_with_mock_client(7)
+        messages = [ChatMessage.from_system("You are helpful."), ChatMessage.from_user("Hi")]
+
+        assert counter.count(messages) == 7
+
+        _, kwargs = counter.client.models.count_tokens.call_args
+        # The Developer API cannot take a system instruction, so the text is folded into the contents instead.
+        assert kwargs["config"] is None
+        assert len(kwargs["contents"]) == 2
+        assert kwargs["contents"][0].role == "user"
+        assert kwargs["contents"][0].parts[0].text == "You are helpful."
 
     def test_count_on_vertex_sends_the_system_instruction_and_tools(self, tools):
         counter = _counter_with_mock_client(99, api="vertex", vertex_ai_project="p", vertex_ai_location="l")
@@ -165,13 +169,14 @@ class TestGoogleGenAITokenCounterCount:
 class TestGoogleGenAITokenCounterInference:
     def test_live_count(self, tools):
         """
-        Counts a conversation that carries a user turn, an assistant tool call and a tool result.
+        Counts a conversation that carries a system message, a user turn, an assistant tool call and a tool result.
 
-        A system message and tools are left out on purpose: the Google Gen AI SDK rejects both on the Gemini
-        Developer API, which is the backend these tests authenticate against.
+        Tools are left out on purpose: the Google Gen AI SDK rejects them on the Gemini Developer API, which is the
+        backend these tests authenticate against.
         """
         tool_call = ToolCall(tool_name="weather", arguments={"city": "Paris"})
         messages = [
+            ChatMessage.from_system("You are a helpful weather assistant."),
             ChatMessage.from_user("What is the weather in Paris?"),
             ChatMessage.from_assistant(tool_calls=[tool_call]),
             ChatMessage.from_tool(tool_result="22°C, sunny", origin=tool_call),
