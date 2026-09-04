@@ -43,7 +43,6 @@ class EvalCase:
     min_docs: int = 1
     answer_must_mention: tuple[str, ...] = ()
     min_precision: float = 0.5
-    expect_absent: bool = False
     max_metadata_calls: int = 5
     max_retrieval_calls: int = 5
 
@@ -59,8 +58,6 @@ class EvalCase:
             "max_metadata_calls": self.max_metadata_calls,
             "max_retrieval_calls": self.max_retrieval_calls,
         }
-        if self.expect_absent:
-            return AdvancedRAGEvaluationCase(expect_absent=True, **common)
         if self.check_recall:
             expected_ids = frozenset(document.id for document in documents or [] if self.matches(document=document))
             return AdvancedRAGEvaluationCase(expected_document_ids=expected_ids, **common)
@@ -103,12 +100,6 @@ SMALL_CASES = [
         filters=_and(_comparison("category", "==", "science"), _comparison("year", "==", 2021)),
         answer_must_mention=("blindness",),
     ),
-    EvalCase(
-        question="What do the documents in the 'food' category say about cooking?",
-        filters=None,
-        expect_absent=True,
-    ),
-    EvalCase(question="Which of the documents are written in French?", filters=None, expect_absent=True),
 ]
 
 LARGE_CASES = [
@@ -168,18 +159,6 @@ LARGE_CASES = [
         ),
         check_recall=False,
         min_docs=3,
-    ),
-    EvalCase(
-        question="What do reviews in the Electronics category say about laptop battery life?",
-        filters=None,
-        check_recall=False,
-        expect_absent=True,
-    ),
-    EvalCase(
-        question="What do beauty product reviews from 2030 or later say?",
-        filters=None,
-        check_recall=False,
-        expect_absent=True,
     ),
 ]
 

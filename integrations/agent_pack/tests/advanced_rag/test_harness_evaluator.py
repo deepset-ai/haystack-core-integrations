@@ -122,7 +122,9 @@ def test_evaluator_includes_secondary_model_usage(document):
 
 def test_unpriced_models_are_reported_without_restricting_evaluation(document):
     """Unknown model usage remains a valid measurement with unavailable cost."""
-    evaluator = AdvancedRAGHarnessEvaluator(cases=[AdvancedRAGEvaluationCase(question=QUESTION, expect_absent=True)])
+    evaluator = AdvancedRAGHarnessEvaluator(
+        cases=[AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))]
+    )
     metrics = evaluator.evaluate(
         agent=FakeAgent(document, model="unknown"), reference_runs=[reference_run(document=document)]
     )

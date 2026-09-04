@@ -121,9 +121,6 @@ class AdvancedRAGEvaluationCase:
     :param min_recall: Minimum share of `expected_document_ids` that must be retrieved.
     :param min_precision: Minimum share of retrieved documents that must be expected. Left at 0 by default because
         an agent legitimately retrieves context beyond the labelled evidence; raise it to penalise over-retrieval.
-    :param expect_absent: Whether the corpus holds no answer, so the agent must attempt retrieval, retrieve nothing,
-        and say so.
-    :param absence_phrases: Phrases accepted as that statement.
     :param require_metadata_inspection: Whether metadata must be inspected before the first retrieval.
     :param require_citations: Whether an answer grounded in retrieved documents must cite at least one of them. An
         answer with no citations at all otherwise passes a citation check trivially.
@@ -141,8 +138,6 @@ class AdvancedRAGEvaluationCase:
     answer_must_not_mention: tuple[str, ...] = ()
     min_recall: float = 1.0
     min_precision: float = 0.0
-    expect_absent: bool = False
-    absence_phrases: tuple[str, ...] = ("no matching information", "not found", "no information")
     require_metadata_inspection: bool = True
     require_citations: bool = True
     max_metadata_calls: int = 5
@@ -152,10 +147,8 @@ class AdvancedRAGEvaluationCase:
 
     def __post_init__(self) -> None:
         """Require exactly one applicable form of retrieval ground truth."""
-        if not self.expect_absent and not (self.expected_document_ids or self.expected_metadata_filter):
-            msg = (
-                f"Case {self.question!r} needs expected document IDs or a metadata filter unless expect_absent is set."
-            )
+        if not (self.expected_document_ids or self.expected_metadata_filter):
+            msg = f"Case {self.question!r} needs expected document IDs or a metadata filter."
             raise ValueError(msg)
         if self.expected_document_ids and self.expected_metadata_filter:
             msg = f"Case {self.question!r} cannot combine expected document IDs with a metadata filter."
@@ -187,7 +180,7 @@ class AdvancedRAGEvaluationCase:
         """
         arguments = dict(data)
         arguments["expected_document_ids"] = frozenset(arguments.get("expected_document_ids") or ())
-        for key in ("answer_must_mention", "answer_must_not_mention", "absence_phrases"):
+        for key in ("answer_must_mention", "answer_must_not_mention"):
             if key in arguments:
                 arguments[key] = tuple(arguments[key])
         return cls(**arguments)
@@ -300,28 +293,16 @@ def score_advanced_rag_result(
 
     failures: list[str] = []
 
-    if case.expect_absent:
-        if retrieved_documents:
-            failures.append("expected_no_retrieved_documents")
-        if not any(phrase in lowered for phrase in case.absence_phrases):
-            failures.append("answer_does_not_state_absence")
-        # Retrieving nothing is the expected outcome here, which a configuration too starved to retrieve at all
-        # satisfies for the wrong reason. Requiring one retrieval attempt separates "looked and found nothing"
-        # from "never looked".
-        if stats.retrieval_calls == 0:
-            failures.append("no_retrieval_attempted")
-    else:
-        if case.expected_metadata_filter is not None and matched_count < case.min_matching_documents:
-            failures.append(f"matching_documents_below_{case.min_matching_documents}")
-        elif case.expected_metadata_filter is None and recall < case.min_recall:
-            failures.append(f"recall_below_{case.min_recall:g}")
-        if precision < case.min_precision:
-            failures.append(f"precision_below_{case.min_precision:g}")
-        if not citations_resolved:
-            failures.append("unresolvable_citation")
-        if case.require_citations and retrieved_documents and not cited_refs:
-            failures.append("answer_cites_nothing")
-
+    if case.expected_metadata_filter is not None and matched_count < case.min_matching_documents:
+        failures.append(f"matching_documents_below_{case.min_matching_documents}")
+    elif case.expected_metadata_filter is None and recall < case.min_recall:
+        failures.append(f"recall_below_{case.min_recall:g}")
+    if precision < case.min_precision:
+        failures.append(f"precision_below_{case.min_precision:g}")
+    if not citations_resolved:
+        failures.append("unresolvable_citation")
+    if case.require_citations and retrieved_documents and not cited_refs:
+        failures.append("answer_cites_nothing")
     missing_terms = [term for term in case.answer_must_mention if term.lower() not in lowered]
     if missing_terms:
         failures.append(f"answer_missing:{','.join(missing_terms)}")

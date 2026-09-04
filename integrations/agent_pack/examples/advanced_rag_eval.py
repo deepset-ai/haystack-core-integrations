@@ -79,19 +79,15 @@ def evaluate_case(agent: Agent, documents_by_id: dict[str, Document], case: Eval
         f"  budget: metadata {stats.metadata_calls}/{case.max_metadata_calls}, "
         f"retrieval {stats.retrieval_calls}/{case.max_retrieval_calls} -> {'ok' if within_budget else 'EXCEEDED'}"
     )
-    if case.expect_absent:
-        acknowledged = "answer_does_not_state_absence" not in scored.failures
-        print(f"  expect-absent: acknowledged={acknowledged}")
-    else:
-        print(
-            f"  retrieved={len(retrieved_docs)}  constraint-precision={scored.precision:.2f}"
-            + (f"  recall={len(expected_ids & retrieved_ids)}/{len(expected_ids)}" if case.check_recall else "")
-            + (f"  answer-mentions-ok={scored.answer_requirements_met}" if case.answer_must_mention else "")
-            + f"  citations={len(resolved)}/{len(cited_refs)} resolve"
-        )
-        for document in retrieved_docs:
-            marker = "+" if case.matches(document=document) else "-"
-            print(f"    {marker} [doc {document.id[:8]}] {document.meta}")
+    print(
+        f"  retrieved={len(retrieved_docs)}  constraint-precision={scored.precision:.2f}"
+        + (f"  recall={len(expected_ids & retrieved_ids)}/{len(expected_ids)}" if case.check_recall else "")
+        + (f"  answer-mentions-ok={scored.answer_requirements_met}" if case.answer_must_mention else "")
+        + f"  citations={len(resolved)}/{len(cited_refs)} resolve"
+    )
+    for document in retrieved_docs:
+        marker = "+" if case.matches(document=document) else "-"
+        print(f"    {marker} [doc {document.id[:8]}] {document.meta}")
     if scored.failures:
         print(f"  failures: {', '.join(scored.failures)}")
     if usage:

@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Run an Agent-configuration optimization experiment against a realistic large RAG corpus.
+Run an Agent-configuration optimization experiment against a labelled RAG evaluation set.
 
-The PoC uses the same roughly 150,000-document Amazon Reviews 2023 corpus and metadata-constrained cases as
-`advanced_rag_eval.py`. It records successful reference runs, lets an optimizer Agent edit the complete serialized
-candidate configuration, evaluates each choice, and feeds the measured outcome into the next choice. Nothing is
-deployed automatically.
+The corpus and cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives each case's
+expected documents from where its labelled evidence landed. The PoC records successful reference runs, lets an
+optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against those cases,
+and feeds the measured outcome into the next choice. Nothing is deployed automatically.
 
 The reference Agent is deliberately badly configured, so the run shows whether the optimizer can build a better one
 from measured evidence. See `POOR_RETRIEVER_TOP_K` and the constants next to it for what is wrong with it and why.
@@ -40,15 +40,8 @@ from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
 from haystack.tools import ComponentTool, flatten_tools_or_toolsets
-from util import (
-    LARGE_CASES,
-    LARGE_CORPUS_CATEGORIES,
-    LARGE_CORPUS_DOCS_PER_CATEGORY,
-    EvalCase,
-    build_document_store,
-    build_retriever,
-    populate_corpus,
-)
+from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_cases, prepare_corpus
+from util import build_retriever
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
@@ -162,24 +155,6 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
     return agent.clone(tools=[*agent.tools, build_leftover_tool()])
 
 
-def build_cases(store: DocumentStore, definitions: list[EvalCase]) -> list[AdvancedRAGEvaluationCase]:
-    """Convert case definitions, labelling recall-checked cases from the documents currently in the store."""
-    cases = []
-    for definition in definitions:
-        labelled = None
-        if definition.check_recall:
-            labelled = store.filter_documents(filters=definition.filters)
-            if not labelled:
-                message = (
-                    f"Recall case {definition.question!r} matches no document in this corpus, so nothing can be "
-                    "scored against it. Raise --documents-per-category or select fewer cases."
-                )
-                raise SystemExit(message)
-            print(f"  recall case labelled with {len(labelled)} documents: {definition.question}")
-        cases.append(definition.to_optimization_case(documents=labelled))
-    return cases
-
-
 def capture_reference_runs(
     agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore
 ) -> frozenset[str]:
@@ -275,14 +250,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-cases",
         type=int,
-        default=len(LARGE_CASES),
-        help="Cases to evaluate. Quality is a fraction of these, so fewer cases make it a coarser measurement.",
+        default=20,
+        help="Cases to evaluate. Quality is a fraction of these, so fewer cases make it a coarser measurement, "
+        "while each one costs an Agent run for every candidate measured.",
     )
     parser.add_argument(
-        "--documents-per-category",
+        "--case-seed",
         type=int,
-        default=LARGE_CORPUS_DOCS_PER_CATEGORY,
-        help="Reviews streamed for each of the three categories. Lower this only for smoke testing.",
+        default=0,
+        help="Selects which cases are drawn from the dataset. The same seed rebuilds the same evaluation set.",
     )
     parser.add_argument(
         "--min-quality",
@@ -330,32 +306,18 @@ def main() -> None:
     if arguments.max_cases < 1:
         message = "--max-cases must be at least 1."
         raise SystemExit(message)
-    if arguments.documents_per_category < 1:
-        message = "--documents-per-category must be at least 1."
-        raise SystemExit(message)
     if arguments.fresh and WORKSPACE.exists():
         shutil.rmtree(path=WORKSPACE)
 
-    print("=== 1. set up large corpus ===")
-    corpus_key = (
-        "large"
-        if arguments.documents_per_category == LARGE_CORPUS_DOCS_PER_CATEGORY
-        else f"large-{arguments.documents_per_category}"
-    )
-    store = build_document_store(backend=arguments.store, corpus=corpus_key)
-    if store.count_documents() == 0:
-        populate_corpus(
-            store=store,
-            corpus="large",
-            documents_per_category=arguments.documents_per_category,
-        )
-    else:
-        print("  store already populated, skipping indexing")
+    print("=== 1. set up corpus and evaluation set ===")
+    store, chunks = prepare_corpus(backend=arguments.store)
     document_count = store.count_documents()
-    print(f"  amazon-reviews-2023 on {arguments.store}: {document_count} documents")
+    articles = len({chunk.meta["title"] for chunk in chunks})
+    print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks from {articles} articles")
 
-    selected_definitions = LARGE_CASES[: arguments.max_cases]
-    cases = build_cases(store=store, definitions=selected_definitions)
+    cases = build_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
+    expected_documents = sum(len(case.expected_document_ids) for case in cases)
+    print(f"  cases: {len(cases)} labelled from evidence, expecting {expected_documents} documents in total")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
     reference_agent = build_reference_agent(store=store, model=arguments.reference_model)
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference_agent.tools))
@@ -386,10 +348,7 @@ def main() -> None:
         ),
         run_ids=selected_run_ids,
         max_iterations=arguments.max_iterations,
-        configuration_key=(
-            f"amazon-reviews-2023:{','.join(LARGE_CORPUS_CATEGORIES)}:"
-            f"{arguments.documents_per_category}:{document_count}"
-        ),
+        configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()
     print(f"  configuration hash: {result.configuration_hash[:16]}")
