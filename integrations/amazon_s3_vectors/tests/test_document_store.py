@@ -7,12 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
     WriteDocumentsTest,
 )
 
@@ -97,52 +99,41 @@ def test_from_dict(_mock_boto3):
 
 
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
-def test_write_documents_no_embedding_raises(mock_boto3):
-    """S3 Vectors requires embeddings — this tests our validation, not the store."""
+def test_write_documents_missing_embedding_uses_placeholder(mock_boto3):
+    """Every S3 Vectors record needs a vector, so embedding-less documents get the placeholder."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
     client.get_index.return_value = {}
     mock_boto3.client.return_value = client
 
     store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
-    with pytest.raises(DocumentStoreError, match="no embedding"):
-        store.write_documents([Document(id="1", content="Hello")])
+    docs = [Document(id="1", content="ok", embedding=[0.1] * 4), Document(id="2", content="missing")]
+    assert store.write_documents(docs) == 2
+
+    written = client.put_vectors.call_args.kwargs["vectors"]
+    assert written[0]["data"]["float32"] == [0.1] * 4
+    # Non-zero: a cosine index rejects zero-norm vectors.
+    assert written[1]["data"]["float32"] == [-10.0] * 4
+    # The caller's Document is not mutated.
+    assert docs[1].embedding is None
 
 
+@pytest.mark.parametrize("policy", [DuplicatePolicy.FAIL, DuplicatePolicy.SKIP])
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
-def test_write_documents_skip_existing(mock_boto3):
-    """Tests our batch existence check logic for SKIP policy."""
+def test_write_documents_unsupported_policy_overwrites(mock_boto3, policy):
+    """
+    put_vectors is an upsert and S3 Vectors has no cheap existence check, so policies other than
+    OVERWRITE are ignored instead of paying for an extra read pass.
+    """
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
     client.get_index.return_value = {}
-    client.get_vectors.return_value = {"vectors": [{"key": "1"}]}
     mock_boto3.client.return_value = client
 
     store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
-    result = store.write_documents(
-        [Document(id="1", content="Hello", embedding=[0.1] * 4)],
-        policy=DuplicatePolicy.SKIP,
-    )
-    assert result == 0
-    client.put_vectors.assert_not_called()
-
-
-@pytest.mark.parametrize("policy", [DuplicatePolicy.FAIL, DuplicatePolicy.NONE])
-@patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
-def test_write_documents_fail_policy_raises(mock_boto3, policy):
-    """Both FAIL and NONE raise DuplicateDocumentError on existing IDs."""
-    client = MagicMock()
-    client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
-    client.get_vectors.return_value = {"vectors": [{"key": "1"}]}
-    mock_boto3.client.return_value = client
-
-    store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
-    with pytest.raises(DuplicateDocumentError, match="already exist"):
-        store.write_documents(
-            [Document(id="1", content="Hello", embedding=[0.1] * 4)],
-            policy=policy,
-        )
+    assert store.write_documents([Document(id="1", content="Hello", embedding=[0.1] * 4)], policy=policy) == 1
+    client.get_vectors.assert_not_called()
+    client.put_vectors.assert_called_once()
 
 
 def test_write_documents_invalid_input_raises():
@@ -152,25 +143,6 @@ def test_write_documents_invalid_input_raises():
         store.write_documents("not a list")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
         store.write_documents(["not a document"])  # type: ignore[list-item]
-
-
-@patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
-def test_write_documents_missing_embedding_validated_upfront(mock_boto3):
-    """Missing embeddings are reported up front, before any put_vectors call."""
-    client = MagicMock()
-    client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
-    mock_boto3.client.return_value = client
-
-    store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
-    docs = [
-        Document(id="1", content="ok", embedding=[0.1] * 4),
-        Document(id="2", content="missing"),
-        Document(id="3", content="also-missing"),
-    ]
-    with pytest.raises(DocumentStoreError, match=r"\['2', '3'\].*no embedding"):
-        store.write_documents(docs)
-    client.put_vectors.assert_not_called()
 
 
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
@@ -277,11 +249,25 @@ def test_document_roundtrip():
     assert restored.meta == doc.meta
 
 
-# ---------------------------------------------------------------------------
-# Integration tests — exercise a real S3 Vectors bucket via the `document_store`
-# fixture in conftest.py. The mixins below come from Haystack's test kit so we
-# get its standard Document Store contract for free.
-# ---------------------------------------------------------------------------
+def test_document_roundtrip_without_embedding():
+    """A document written without an embedding must read back without one, not with the placeholder."""
+    placeholder = [-10.0] * 3
+    doc = Document(id="test-1", content="Hello world", meta={"category": "test"})
+
+    vector = S3VectorsDocumentStore._document_to_s3_vector(doc, fallback_embedding=placeholder)
+    assert vector["data"]["float32"] == placeholder
+
+    restored = S3VectorsDocumentStore._s3_vector_to_document(vector, placeholder_embedding=placeholder)
+    assert restored.embedding is None
+    assert restored.content == doc.content
+    assert restored.meta == doc.meta
+
+
+def test_s3_vector_to_document_keeps_embedding_matching_no_placeholder():
+    """A real embedding is never mistaken for the placeholder."""
+    vector = {"key": "test-1", "data": {"float32": [0.1, 0.2, 0.3]}, "metadata": {}}
+    doc = S3VectorsDocumentStore._s3_vector_to_document(vector, placeholder_embedding=[-10.0] * 3)
+    assert doc.embedding == [0.1, 0.2, 0.3]
 
 
 @pytest.mark.integration
@@ -289,6 +275,9 @@ class TestDocumentStore(
     CountDocumentsTest,
     WriteDocumentsTest,
     DeleteDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    UpdateByFilterTest,
     FilterableDocsFixtureMixin,
 ):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
@@ -317,3 +306,23 @@ class TestDocumentStore(
         docs = [Document(id="1", content="hello", embedding=[0.1] * 768)]
         assert document_store.write_documents(docs) == 1
         assert document_store.write_documents(docs) == 1
+
+    def test_write_documents_without_embedding_reads_back_as_none(self, document_store: S3VectorsDocumentStore) -> None:
+        """
+        S3 Vectors stores a placeholder vector for embedding-less documents; `filter_documents`
+        must strip it again rather than hand back a vector the caller never supplied.
+
+        `assert_documents_are_equal` ignores embeddings, so this needs its own assertion.
+        """
+        document_store.write_documents([Document(id="no-emb", content="No embedding here")])
+
+        docs = document_store.filter_documents()
+        assert len(docs) == 1
+        assert docs[0].content == "No embedding here"
+        assert docs[0].embedding is None
+
+    @pytest.mark.skip(reason="S3 Vectors put_vectors is an upsert; only DuplicatePolicy.OVERWRITE is supported")
+    def test_write_documents_duplicate_fail(self, document_store: S3VectorsDocumentStore) -> None: ...
+
+    @pytest.mark.skip(reason="S3 Vectors put_vectors is an upsert; only DuplicatePolicy.OVERWRITE is supported")
+    def test_write_documents_duplicate_skip(self, document_store: S3VectorsDocumentStore) -> None: ...

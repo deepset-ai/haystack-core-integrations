@@ -130,3 +130,45 @@ def test_run():
     )
     assert len(res["documents"]) == 1
     assert res["documents"][0].content == "Test doc"
+
+
+@pytest.mark.integration
+def test_embedding_retrieval(document_store: S3VectorsDocumentStore) -> None:
+    docs = [
+        Document(id="r-1", content="First", embedding=[0.1] * 768),
+        Document(id="r-2", content="Second", embedding=[0.5] * 768),
+        Document(id="r-3", content="Third", embedding=[0.9] * 768),
+    ]
+    document_store.write_documents(docs)
+
+    results = document_store._embedding_retrieval(query_embedding=[0.1] * 768, top_k=10)
+    assert len(results) > 0
+    for doc in results:
+        assert doc.score is not None
+        assert doc.content is not None
+        # query_vectors does not return vector data
+        assert doc.embedding is None
+
+
+@pytest.mark.integration
+def test_embedding_retrieval_with_metadata_filter(document_store: S3VectorsDocumentStore) -> None:
+    docs = [
+        Document(id="f-1", content="Sports article", embedding=[0.1] * 768, meta={"category": "sports"}),
+        Document(id="f-2", content="News article", embedding=[0.1] * 768, meta={"category": "news"}),
+    ]
+    document_store.write_documents(docs)
+
+    filters = {"field": "meta.category", "operator": "==", "value": "sports"}
+    results = document_store._embedding_retrieval(query_embedding=[0.1] * 768, filters=filters, top_k=10)
+    assert len(results) >= 1
+    assert all(d.meta.get("category") == "sports" for d in results)
+
+
+@pytest.mark.integration
+def test_retriever_component(document_store: S3VectorsDocumentStore) -> None:
+    document_store.write_documents([Document(id="c-1", content="Hello", embedding=[0.1] * 768)])
+
+    retriever = S3VectorsEmbeddingRetriever(document_store=document_store, top_k=5)
+    result = retriever.run(query_embedding=[0.1] * 768)
+    assert "documents" in result
+    assert len(result["documents"]) > 0

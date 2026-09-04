@@ -13,15 +13,10 @@ A single vector bucket is created per test session (creating buckets is the
 slow part). Each test gets its own vector index inside that shared bucket so
 state is isolated.
 
-Two quirks of S3 Vectors are smoothed over here so the generic base tests
-can run unchanged:
-
-1. **Embeddings are required.** The base tests write `Document(content="...")`
-   without an embedding. We wrap `write_documents` so any document missing an
-   embedding gets a deterministic zero vector of the right dimension.
-2. **Writes are eventually consistent.** We sleep briefly after `write_documents`
-   and `delete_documents` so the subsequent `filter_documents`/`count_documents`
-   reflects the new state.
+One quirk of S3 Vectors is smoothed over here so the generic base tests can run
+unchanged: **writes are eventually consistent**. We sleep briefly after
+`write_documents` and `delete_documents` so the subsequent
+`filter_documents`/`count_documents` reflects the new state.
 """
 
 from __future__ import annotations
@@ -29,7 +24,6 @@ from __future__ import annotations
 import os
 import time
 import uuid
-import warnings
 from collections.abc import Iterator
 
 import boto3
@@ -109,11 +103,9 @@ def s3_vectors_bucket() -> Iterator[str]:
 @pytest.fixture
 def document_store(s3_vectors_bucket: str) -> Iterator[S3VectorsDocumentStore]:
     """
-    Provide a fresh S3VectorsDocumentStore (one per test) with `write_documents`
-    and `delete_documents` wrapped to:
-
-    * inject a default embedding for any `Document` that doesn't have one, and
-    * sleep briefly afterwards to absorb S3 Vectors' eventual consistency.
+    Provide a fresh S3VectorsDocumentStore (one per test), with `write_documents` and
+    `delete_documents` wrapped to sleep briefly afterwards so that S3 Vectors' eventual
+    consistency doesn't make the base tests flaky.
     """
     index_name = f"idx-{uuid.uuid4().hex[:10]}"
 
@@ -132,20 +124,12 @@ def document_store(s3_vectors_bucket: str) -> Iterator[S3VectorsDocumentStore]:
 
     original_write = store.write_documents
 
-    def write_with_defaults(documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.OVERWRITE) -> int:
-        # Only mutate well-formed input; bad input must surface as ValueError from
-        # the production code, not crash this wrapper.
-        if isinstance(documents, list):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                for d in documents:
-                    if isinstance(d, Document) and d.embedding is None:
-                        d.embedding = [0.0] * DIMENSION
+    def write_with_sleep(documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.OVERWRITE) -> int:
         result = original_write(documents, policy)
         time.sleep(WRITE_SLEEP_SECONDS)
         return result
 
-    store.write_documents = write_with_defaults  # type: ignore[method-assign]
+    store.write_documents = write_with_sleep  # type: ignore[method-assign]
 
     original_delete = store.delete_documents
 
