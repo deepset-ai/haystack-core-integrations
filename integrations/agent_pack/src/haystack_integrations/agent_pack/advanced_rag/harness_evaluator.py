@@ -25,6 +25,7 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
     score_advanced_rag_result,
 )
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
 
 _MODEL_KEYS = ("model", "azure_deployment", "model_name")
 _NESTED_MODEL_CONTAINERS = ("api_params",)
@@ -124,7 +125,14 @@ class AdvancedRAGHarnessEvaluator:
     A case passes only when its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass.
     """
 
-    def __init__(self, *, cases: list[AdvancedRAGEvaluationCase] | None = None, repetitions: int = 1) -> None:
+    def __init__(
+        self,
+        *,
+        cases: list[AdvancedRAGEvaluationCase] | None = None,
+        repetitions: int = 1,
+        digest_policy: RunDigestPolicy | None = None,
+        max_traced_cases: int | None = 6,
+    ) -> None:
         """
         Create an evaluator.
 
@@ -135,6 +143,10 @@ class AdvancedRAGHarnessEvaluator:
             makes a pass rate an unreliable basis for switching models. With more than one repetition, `quality` is
             the mean pass rate and `quality_lower_bound` is one standard deviation below it, which is what experiment
             gates compare against.
+        :param digest_policy: Caps applied to the tool trace recorded for each case.
+        :param max_traced_cases: How many case traces to keep, or `None` to keep every one. A trace explains a
+            result but a reader's history of them is cumulative, so failing cases keep theirs first: a passing case
+            has nothing to diagnose.
         :raises ValueError: If `repetitions` is below one.
         """
         if repetitions < 1:
@@ -142,6 +154,23 @@ class AdvancedRAGHarnessEvaluator:
             raise ValueError(msg)
         self.cases = {case.question: case for case in (cases or [])}
         self.repetitions = repetitions
+        self.digest_policy = digest_policy
+        self.max_traced_cases = max_traced_cases
+
+    def _traced_cases(self, metrics: list[AdvancedRAGCaseMetrics]) -> list[dict[str, Any]]:
+        """
+        Report every case, keeping tool traces for the ones worth diagnosing.
+
+        :param metrics: Every scored case of every repetition.
+        :returns: JSON-compatible case records, with the trace dropped from cases beyond the cap.
+        """
+        cases = [metric.to_dict() for metric in metrics]
+        if self.max_traced_cases is None:
+            return cases
+        ranked = sorted(range(len(metrics)), key=lambda index: (metrics[index].passed, index))
+        for index in ranked[self.max_traced_cases :]:
+            cases[index].pop(RUN_DIGEST_KEY, None)
+        return cases
 
     def fingerprint(self) -> dict[str, Any]:
         """
@@ -196,7 +225,11 @@ class AdvancedRAGHarnessEvaluator:
                 started = time.perf_counter()
                 result = agent.run(messages=messages)
                 latency_ms = (time.perf_counter() - started) * 1000
-                attempt.append(score_advanced_rag_result(result=result, case=case, latency_ms=latency_ms))
+                attempt.append(
+                    score_advanced_rag_result(
+                        result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
+                    )
+                )
                 for model, usage in (result.get("additional_model_usage") or {}).items():
                     current = additional_usage.get(model, ModelTokenUsage())
                     additional_usage[model] = ModelTokenUsage(
@@ -238,7 +271,7 @@ class AdvancedRAGHarnessEvaluator:
                 "quality_stdev": statistics.stdev(pass_rates) if len(pass_rates) > 1 else 0.0,
                 "validated": not derived,
                 "derived_cases": derived,
-                "cases": [metric.to_dict() for metric in flattened],
+                "cases": self._traced_cases(metrics=flattened),
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
             },

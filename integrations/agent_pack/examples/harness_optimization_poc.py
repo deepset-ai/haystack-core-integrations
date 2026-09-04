@@ -20,9 +20,10 @@ Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus require
     hatch run test:python examples/harness_optimization_poc.py --store opensearch
     hatch run test:python examples/harness_optimization_poc.py --docs-mcp
 
-The default evaluates two cases and at most three candidates. A persistent OpenSearch store avoids rebuilding the
-corpus between invocations. Journaled measurements are reused until the Agent, corpus identity, recorded runs, or
-evaluator configuration changes.
+By default every case is evaluated twice per candidate, so quality carries a lower bound rather than resting on one
+sample; that costs `--max-cases` x `--repetitions` Agent runs for every candidate measured. A persistent OpenSearch
+store avoids rebuilding the corpus between invocations. Journaled measurements are reused until the Agent, corpus
+identity, recorded runs, or evaluator configuration changes.
 """
 
 import argparse
@@ -65,6 +66,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
+from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 
 # The OpenAI SDK serializes its parsed structured-output response through Pydantic unions that do not describe the
 # `OptimizerDecision` text format, so every optimizer turn prints a wall of serializer warnings that say nothing
@@ -79,6 +81,12 @@ CANDIDATE_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna")
 # measured, so the optimizer does not have to infer all of that from serialized class names, and deliberately
 # prescribes no fix: which limit to change, and to what, is what the experiment is for. General experiment
 # discipline is not repeated here — it belongs to every harness and lives in the optimizer instructions.
+# A metadata listing is only usable as evidence when the optimizer knows it is complete: these three tools answer
+# "what values exist", and a truncated answer invites a candidate that hard-codes an incomplete set.
+DIGEST_POLICY = RunDigestPolicy(
+    keep_full_results_for=frozenset({"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"})
+)
+
 ADVANCED_RAG_OPTIMIZER_GUIDANCE = """
 The reference Agent is an Advanced RAG coordinator. It inspects document-store metadata, builds a Haystack metadata
 filter from what it finds, retrieves with that filter, and cites the documents it used.
@@ -234,7 +242,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
     parser.add_argument("--reference-model", default=REFERENCE_MODEL)
     parser.add_argument("--candidate-model", action="append", dest="candidate_models")
-    parser.add_argument("--max-cases", type=int, default=3)
+    parser.add_argument(
+        "--max-cases",
+        type=int,
+        default=len(LARGE_CASES),
+        help="Cases to evaluate. Quality is a fraction of these, so fewer cases make it a coarser measurement.",
+    )
     parser.add_argument(
         "--documents-per-category",
         type=int,
@@ -244,8 +257,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--repetitions",
         type=int,
-        default=1,
-        help="Times to evaluate each case per configuration. More repetitions reduce sensitivity to variable runs.",
+        default=2,
+        help="Times to evaluate each case per configuration. Agent runs vary, and one sample per case leaves the "
+        "gate comparing a single flip: two or more give `quality_lower_bound`, which the gate prefers. Costs "
+        "cases x repetitions Agent runs per candidate.",
     )
     parser.add_argument(
         "--min-quality",
@@ -335,7 +350,9 @@ def main() -> None:
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         run_store=run_store,
-        evaluator=AdvancedRAGHarnessEvaluator(cases=cases, repetitions=arguments.repetitions),
+        evaluator=AdvancedRAGHarnessEvaluator(
+            cases=cases, repetitions=arguments.repetitions, digest_policy=DIGEST_POLICY
+        ),
         pricing=pricing,
         objectives=OptimizationObjectives(
             min_quality=arguments.min_quality,
@@ -343,6 +360,7 @@ def main() -> None:
             primary=arguments.primary,
         ),
         journal=ExperimentJournal(path=WORKSPACE / "experiment.jsonl"),
+        digest_policy=DIGEST_POLICY,
         optimizer_agent=create_harness_optimizer_agent(
             docs_toolset=docs_toolset, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
         ),

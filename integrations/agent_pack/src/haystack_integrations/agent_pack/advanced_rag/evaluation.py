@@ -19,11 +19,16 @@ from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KE
 from haystack.dataclasses import ChatMessage
 from haystack.utils.filters import document_matches_filter
 
+from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run
+
 RETRIEVAL_TOOLS = frozenset({"search_documents", "fetch_documents_by_filter"})
 METADATA_TOOLS = frozenset({"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"})
 
 # Citation format produced by the Advanced RAG toolset: the first eight characters of a document ID.
 CITATION_PATTERN = re.compile(r"\[doc ([0-9a-fA-F]{8})\]")
+
+# A tool's own explanation of a refusal is the most useful part of a failing run, and the useful part comes first.
+_MAX_TRACE_ERROR_CHARS = 200
 
 
 @dataclass
@@ -31,7 +36,16 @@ class RunStats:
     """Tool-level process statistics extracted from an Agent conversation."""
 
     calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
-    errors: int = 0
+    error_messages: list[str] = field(default_factory=list)
+
+    @property
+    def errors(self) -> int:
+        """
+        Return how many tool results reported an error.
+
+        :returns: The number of failing tool calls.
+        """
+        return len(self.error_messages)
 
     @property
     def inspected_first(self) -> bool:
@@ -80,12 +94,14 @@ def extract_run_stats(messages: list[ChatMessage]) -> RunStats:
     Extract tool calls and error results from one Agent run.
 
     :param messages: The messages an Agent run produced.
-    :returns: The tool calls made, in order, and how many tool results reported an error.
+    :returns: The tool calls made, in order, and the message of every tool result that reported an error.
     """
     stats = RunStats()
     for message in messages:
         stats.calls.extend((call.tool_name, call.arguments or {}) for call in message.tool_calls)
-        stats.errors += sum(1 for result in message.tool_call_results if result.error)
+        stats.error_messages.extend(
+            str(result.result)[:_MAX_TRACE_ERROR_CHARS] for result in message.tool_call_results if result.error
+        )
     return stats
 
 
@@ -182,7 +198,11 @@ class AdvancedRAGCaseMetrics:
     Detailed score for one Advanced RAG evaluation case.
 
     `failures` names every expectation the run missed, so a regression report says what broke rather than only that
-    something did. `passed` is true exactly when `failures` is empty.
+    something did. `passed` is true exactly when `failures` is empty. `run_digest` records what the Agent actually
+    did — every tool call with its arguments and result — so a failure can be diagnosed rather than only counted.
+    `backup_answer_used` names one chain the counts hide: a run cut off by its step budget is answered by the
+    backup-answer hook, which does not cite, so it fails a citation expectation for a reason that has nothing to do
+    with retrieval.
     """
 
     question: str
@@ -203,6 +223,8 @@ class AdvancedRAGCaseMetrics:
     input_tokens: int
     output_tokens: int
     token_usage: dict[str, Any]
+    backup_answer_used: bool = False
+    run_digest: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -230,7 +252,11 @@ class AdvancedRAGCaseMetrics:
 
 
 def score_advanced_rag_result(
-    result: dict[str, Any], case: AdvancedRAGEvaluationCase, *, latency_ms: float
+    result: dict[str, Any],
+    case: AdvancedRAGEvaluationCase,
+    *,
+    latency_ms: float,
+    digest_policy: RunDigestPolicy | None = None,
 ) -> AdvancedRAGCaseMetrics:
     """
     Score retrieval grounding, answer behaviour, and process budgets for one Agent result.
@@ -238,7 +264,8 @@ def score_advanced_rag_result(
     :param result: The dictionary returned by `Agent.run`.
     :param case: The expectations to score the result against.
     :param latency_ms: Measured wall-clock duration of the run.
-    :returns: The score, naming every expectation the run missed.
+    :param digest_policy: Caps applied to the recorded tool trace.
+    :returns: The score, naming every expectation the run missed, and the trace explaining why.
     """
     messages = result.get("messages") or []
     stats = extract_run_stats(messages=messages)
@@ -326,6 +353,9 @@ def score_advanced_rag_result(
         tool_errors=stats.errors,
         steps=steps,
         latency_ms=latency_ms,
+        backup_answer_used=result.get("exit_reason") == "max_agent_steps"
+        and bool(result.get("additional_model_usage")),
+        run_digest=digest_agent_run(result=result, policy=digest_policy),
         input_tokens=_first_numeric(usage, _INPUT_TOKEN_KEYS),
         output_tokens=_first_numeric(usage, _OUTPUT_TOKEN_KEYS),
         token_usage=dict(usage),

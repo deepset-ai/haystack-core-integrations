@@ -15,7 +15,10 @@ from haystack.tools import Toolset, tool
 from haystack_integrations.agent_pack.advanced_rag import agent as agent_module
 from haystack_integrations.agent_pack.advanced_rag.agent import _default_llm, create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
-from haystack_integrations.agent_pack.advanced_rag.tools import DocumentStoreToolset
+from haystack_integrations.agent_pack.advanced_rag.tools import (
+    FetchDocumentsByFilterTool,
+    ListMetadataFieldsTool,
+)
 
 EXPECTED_TOOL_NAMES = [
     "list_metadata_fields",
@@ -102,8 +105,11 @@ class TestCreateAdvancedRagAgent:
         )
         assert isinstance(agent, Agent)
         assert _flat_tool_names(agent.tools) == EXPECTED_TOOL_NAMES
-        assert isinstance(agent.tools[0], DocumentStoreToolset)
-        assert agent.tools[0].max_fetched_docs == 4
+        # Each store tool sits directly in the tool list, so its own name, description and limits are reachable
+        # in the serialized configuration and it can be dropped on its own.
+        assert isinstance(agent.tools[0], ListMetadataFieldsTool)
+        assert isinstance(agent.tools[3], FetchDocumentsByFilterTool)
+        assert agent.tools[3].max_docs == 4
         assert agent.exit_conditions == ["text"]
         assert agent.max_agent_steps == 7
         assert set(agent.state_schema) >= {"documents", "additional_model_usage"}
@@ -202,7 +208,8 @@ class TestCreateAdvancedRagAgent:
 
         assert isinstance(restored, Agent)
         assert _flat_tool_names(restored.tools) == EXPECTED_TOOL_NAMES
-        assert isinstance(restored.tools[0], DocumentStoreToolset)
+        assert isinstance(restored.tools[0], ListMetadataFieldsTool)
+        assert isinstance(restored.tools[3], FetchDocumentsByFilterTool)
         assert [type(h) for h in restored.hooks["after_run"]] == [BackupAnswerHook]
         assert set(restored.state_schema) >= {"documents", "additional_model_usage"}
 

@@ -193,3 +193,61 @@ def test_evaluator_fingerprint_changes_with_the_evaluation_set(document):
 def test_repetitions_must_be_positive():
     with pytest.raises(ValueError, match="at least 1"):
         AdvancedRAGHarnessEvaluator(repetitions=0)
+
+
+def test_case_details_carry_the_tool_trace(document):
+    """A trace explains a result, and the digest must not become part of what identifies a measurement."""
+    case = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
+    evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
+    fingerprint = evaluator.fingerprint()
+
+    metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
+
+    trace = metrics.details["cases"][0]["run_digest"]
+    assert [step["tool"] for step in trace["tool_steps"]] == ["list_metadata_fields", "search_documents"]
+    assert trace["tool_steps"][1]["arguments"] == '{"query": "CRISPR"}'
+    assert trace["tool_steps"][0]["result"] == "fields"
+    assert metrics.details["cases"][0]["backup_answer_used"] is False
+    assert evaluator.fingerprint() == fingerprint
+    assert set(fingerprint) == {"repetitions", "cases"}
+
+
+def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(document):
+    """`answer_cites_nothing` on a truncated run is the backup hook's doing, not a retrieval fault."""
+
+    class CutOffAgent(FakeAgent):
+        """Return a run that ended on the step budget with the backup hook's usage attached."""
+
+        def run(self, **kwargs):  # noqa: ARG002
+            """Report the shape a cut-off run has."""
+            result = successful_result(self.document)
+            result["exit_reason"] = "max_agent_steps"
+            result["additional_model_usage"] = {"backup": {"input_tokens": 10, "output_tokens": 5}}
+            return result
+
+    case = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
+    evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
+
+    metrics = evaluator.evaluate(agent=CutOffAgent(document), reference_runs=[reference_run(document=document)])
+
+    assert metrics.details["cases"][0]["backup_answer_used"] is True
+
+
+def test_traces_are_dropped_from_passing_cases_before_failing_ones(document):
+    """Under a cap, the cases that need explaining keep their evidence, and every case is still reported."""
+    failing = AdvancedRAGEvaluationCase(
+        question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("absent term",)
+    )
+    passing = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
+    evaluator = AdvancedRAGHarnessEvaluator(cases=[passing], repetitions=2, max_traced_cases=1)
+    failing_metrics = AdvancedRAGHarnessEvaluator(cases=[failing]).evaluate(
+        agent=FakeAgent(document), reference_runs=[reference_run(document=document)]
+    )
+    passing_metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
+
+    assert failing_metrics.details["cases"][0]["passed"] is False
+    assert "run_digest" in failing_metrics.details["cases"][0]
+    # Two repetitions of a passing case, one trace kept.
+    traced = [case for case in passing_metrics.details["cases"] if "run_digest" in case]
+    assert len(passing_metrics.details["cases"]) == 2
+    assert len(traced) == 1

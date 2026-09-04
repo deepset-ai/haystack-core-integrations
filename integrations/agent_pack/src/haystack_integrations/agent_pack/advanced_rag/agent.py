@@ -17,7 +17,10 @@ from haystack.tools import Tool, Toolset, ToolsType
 from haystack_integrations.agent_pack.advanced_rag import prompts
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 from haystack_integrations.agent_pack.advanced_rag.tools import (
-    DocumentStoreToolset,
+    FetchDocumentsByFilterTool,
+    GetMetadataFieldRangeTool,
+    GetMetadataFieldValuesTool,
+    ListMetadataFieldsTool,
     _make_retrieval_pipeline_tool,
     _make_retriever_tool,
 )
@@ -105,7 +108,7 @@ def create_advanced_rag_agent(
         not bounded by a retriever's `top_k`, so this caps the tool result instead; the scored `search_documents` tool
         is bounded by the `top_k` configured on your retrieval components.
     :param extra_tools: Additional tools (or toolsets) for the agent, appended after the built-in document-store
-        toolset and the retrieval tool.
+        tools and the retrieval tool.
     :param state_schema: Additional entries merged into the agent's state schema. The built-in `documents` and
         `additional_model_usage` entries always take precedence.
     :param hooks: Additional hooks per hook point, merged with the built-in hooks. For `after_run`, the built-in
@@ -147,8 +150,15 @@ def create_advanced_rag_agent(
     llm = llm or _default_llm("gpt-5.4")
     backup_answer_llm = backup_answer_llm or _default_llm("gpt-5.4")
 
+    # The store tools are listed individually rather than bundled in a `DocumentStoreToolset`, so that each one
+    # occupies its own place in the serialized configuration: its name, its description, and its own limits are then
+    # reachable, and a tool can be dropped by removing one entry. Each holds the same store, so they deserialize into
+    # one store instance per tool.
     tools: list[Tool | Toolset] = [
-        DocumentStoreToolset(document_store, max_fetched_docs=max_fetched_docs),
+        ListMetadataFieldsTool(document_store),
+        GetMetadataFieldValuesTool(document_store),
+        GetMetadataFieldRangeTool(document_store),
+        FetchDocumentsByFilterTool(document_store, max_docs=max_fetched_docs),
         retrieval_tool,
     ]
     if extra_tools is not None:

@@ -7,12 +7,13 @@
 import json
 from typing import TYPE_CHECKING, Any
 
+from haystack import logging
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
-from haystack.tools import Toolset
+from haystack.tools import Toolset, flatten_tools_or_toolsets, warm_up_tools
 from haystack.utils import _serialize_value_with_schema
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
@@ -21,6 +22,7 @@ from haystack_integrations.agent_pack.optimization.models import (
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.optimization.mutations import AgentMutation, OptimizerDecision
+from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run, strip_run_digests
 
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset
@@ -28,10 +30,14 @@ if TYPE_CHECKING:
 with LazyImport(message="Install 'mcp-haystack' to use the Haystack documentation MCP server.") as mcp_import:
     from haystack_integrations.tools.mcp import MCPToolset, StreamableHttpServerInfo
 
+logger = logging.getLogger(__name__)
+
 HARNESS_OPTIMIZER_SYSTEM_PROMPT = """
 You optimize a Haystack Agent configuration through a measured sequence of experiments. On every turn you receive
-the complete serialized reference Agent configuration, successful reference inputs and outputs, known model prices,
-optimization objectives, a baseline measurement, and all candidate outcomes so far. Choose the most informative next
+the complete serialized reference Agent configuration, the tools that Agent can call, a digest of successful
+reference runs, known model prices, optimization objectives, a baseline measurement, and all candidate outcomes so
+far. Run evidence is a digest, so a tool result may be a prefix: a truncated result and an incomplete listing both
+say so, and a listing that reports omitted content is never exhaustive. Choose the most informative next
 configuration mutation based on that evidence. You may change any part of the serialized Agent configuration.
 Return null when no worthwhile experiment remains.
 
@@ -100,6 +106,40 @@ def create_harness_optimizer_agent(
     )
 
 
+def _tool_specifications(reference: Agent) -> list[dict[str, Any]]:
+    """
+    Describe the tools the reference Agent can call.
+
+    A serialized Agent does not reliably carry this: a `ComponentTool` serializes its parameter schema as null
+    whenever the schema is derived from the wrapped component, and a `Toolset` that serializes a descriptor of
+    itself carries no tool names at all. Without this, the only way to learn what a tool is called and what it
+    accepts is to find one already invoked in a recorded run.
+
+    :param reference: The Agent whose tools to describe.
+    :returns: One `{name, description, parameters}` entry per tool, or an empty list when they cannot be read.
+    """
+    try:
+        warm_up_tools(tools=reference.tools)
+        return [tool.tool_spec for tool in flatten_tools_or_toolsets(tools=reference.tools)]
+    except Exception as error:
+        logger.warning("Could not describe the reference Agent's tools: {error}", error=error)
+        return []
+
+
+def _bounded_history(history: list[dict[str, Any]], window: int) -> list[dict[str, Any]]:
+    """
+    Keep tool traces for the most recent outcomes and measurements for all of them.
+
+    :param history: Every outcome observed so far, oldest first.
+    :param window: How many of the most recent outcomes keep their traces.
+    :returns: The history with older traces removed.
+    """
+    if window <= 0:
+        return [strip_run_digests(payload=entry) for entry in history]
+    keep = len(history) - window
+    return [strip_run_digests(payload=entry) if index < keep else entry for index, entry in enumerate(history)]
+
+
 def propose_mutation(
     optimizer_agent: Agent,
     reference: Agent,
@@ -108,6 +148,8 @@ def propose_mutation(
     objectives: OptimizationObjectives,
     baseline: EvaluationMetrics,
     history: list[dict[str, Any]],
+    digest_policy: RunDigestPolicy | None = None,
+    history_digest_window: int = 2,
 ) -> AgentMutation | None:
     """
     Ask the optimizer Agent for the next structured configuration mutation.
@@ -119,6 +161,10 @@ def propose_mutation(
     :param objectives: Quality gates and primary optimization measurement.
     :param baseline: Measured reference Agent performance.
     :param history: Candidate mutations and outcomes observed so far.
+    :param digest_policy: Caps applied when compressing the reference runs into tool-behaviour evidence.
+    :param history_digest_window: How many of the most recent outcomes keep their tool traces. A history is
+        cumulative, so keeping every trace would grow the request with every turn; the measurements themselves are
+        kept for all of them.
     :returns: The next mutation, or `None` when the optimizer chooses to stop.
     """
     request = {
@@ -126,11 +172,12 @@ def propose_mutation(
         "known_model_prices": pricing.to_dict(),
         "objectives": objectives.to_dict(),
         "baseline": baseline.to_dict(),
-        "history": history,
+        "history": _bounded_history(history=history, window=history_digest_window),
+        "available_tools": _tool_specifications(reference=reference),
         "successful_reference_runs": [
             {
                 "inputs": _serialize_value_with_schema(payload=record.inputs)["serialized_data"],
-                "outputs": _serialize_value_with_schema(payload=record.outputs)["serialized_data"],
+                "outputs": digest_agent_run(result=record.outputs, policy=digest_policy),
             }
             for record in reference_runs[:3]
         ],

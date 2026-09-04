@@ -29,6 +29,7 @@ from haystack_integrations.agent_pack.optimization.mutations import (
     apply_mutation,
     rebuild_agent,
 )
+from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 
 logger = logging.getLogger(__name__)
 _MAX_STALLED_PROPOSALS = 3
@@ -185,6 +186,8 @@ class HarnessOptimizationExperiment:
         run_ids: frozenset[str] | None = None,
         configuration_key: str | None = None,
         max_iterations: int = 8,
+        digest_policy: RunDigestPolicy | None = None,
+        history_digest_window: int = 2,
     ) -> None:
         """
         Configure an iterative, journaled harness optimization run.
@@ -204,6 +207,9 @@ class HarnessOptimizationExperiment:
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment, counting compatible
             completed measurements loaded from the journal.
+        :param digest_policy: Caps applied when compressing reference runs into the evidence the optimizer reads.
+        :param history_digest_window: How many of the most recent outcomes keep their tool traces when the history
+            is sent to the optimizer.
         """
         self.reference = reference
         self.run_store = run_store
@@ -215,6 +221,8 @@ class HarnessOptimizationExperiment:
         self.run_ids = run_ids
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
+        self.digest_policy = digest_policy
+        self.history_digest_window = history_digest_window
 
     def run(self) -> ExperimentResult:
         """Measure the baseline, then iteratively evaluate structured configuration mutations."""
@@ -265,6 +273,8 @@ class HarnessOptimizationExperiment:
                 objectives=self.objectives,
                 baseline=baseline,
                 history=history,
+                digest_policy=self.digest_policy,
+                history_digest_window=self.history_digest_window,
             )
             if proposed is None:
                 break
