@@ -72,12 +72,14 @@ class OptimizationObjectives:
 
     :param min_quality: Absolute minimum normalized quality in `[0.0, 1.0]` required of a candidate.
     :param max_quality_loss: Maximum absolute quality-point decrease from the reference, in `[0.0, 1.0]`.
-    :param primary: Measurement minimized after candidates pass the quality gates.
+    :param primary: What candidates are ranked by. "cost" and "latency" are minimized among candidates that clear
+        the quality gates; "quality" is maximized directly, with cost breaking ties, which needs no quality
+        threshold to be chosen in advance and cannot prefer a cheaper configuration that answers worse.
     """
 
     min_quality: float = 0.0
     max_quality_loss: float = 0.0
-    primary: Literal["cost", "latency"] = "cost"
+    primary: Literal["cost", "latency", "quality"] = "cost"
 
     def __post_init__(self) -> None:
         """Validate normalized quality thresholds."""

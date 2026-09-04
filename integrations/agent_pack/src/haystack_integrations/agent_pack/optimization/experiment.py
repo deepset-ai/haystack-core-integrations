@@ -14,7 +14,6 @@ from typing import Any
 
 from haystack import logging
 from haystack.components.agents import Agent
-from pydantic import ValidationError
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.harness_evaluator import HarnessEvaluator
@@ -103,51 +102,30 @@ class ExperimentResult:
 
 
 class ExperimentJournal:
-    """Append-only JSON-lines persistence for raw experiment measurements."""
+    """Append-only JSON-lines record of raw experiment measurements."""
 
     def __init__(self, path: str | Path) -> None:
         """
-        Load existing measurements from an append-only JSON-lines journal.
+        Open an append-only JSON-lines journal.
 
-        :param path: Path to the journal file. Parent directories are created automatically, and an existing journal
-            is loaded so completed measurements can be reused.
+        The journal records what was measured; it is not read back to measure less. Every experiment measures its
+        own reference and its own candidates, so a run's result never depends on what an earlier one happened to
+        write, and the file stays a plain log that can be read after the fact.
+
+        :param path: Path to the journal file. Parent directories are created automatically.
         """
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
-        self._records: dict[str, CandidateEvaluation] = {}
-        if self.path.exists():
-            for line in self.path.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    record = CandidateEvaluation.from_dict(data=json.loads(line))
-                    self._records[record.candidate_id] = record
-
-    def get(self, candidate_id: str) -> CandidateEvaluation | None:
-        """Return a completed measurement; failed attempts remain retryable."""
-        with self._lock:
-            record = self._records.get(candidate_id)
-        return record if record is not None and record.succeeded else None
-
-    def completed(self, measurement_context: str) -> list[CandidateEvaluation]:
-        """Return successful candidate measurements from this context, excluding its baseline."""
-        with self._lock:
-            return [
-                record
-                for record in self._records.values()
-                if record.measurement_context == measurement_context
-                and record.succeeded
-                and record.mutation is not None
-            ]
 
     def append(self, evaluation: CandidateEvaluation) -> None:
-        """Persist an outcome unless a successful measurement already exists."""
-        with self._lock:
-            existing = self._records.get(evaluation.candidate_id)
-            if existing is not None and existing.succeeded:
-                return
-            with self.path.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(evaluation.to_dict(), sort_keys=True) + "\n")
-            self._records[evaluation.candidate_id] = evaluation
+        """
+        Record one outcome.
+
+        :param evaluation: The raw measurement or failure to record.
+        """
+        with self._lock, self.path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(evaluation.to_dict(), sort_keys=True) + "\n")
 
 
 def _stable_serialization(value: Any) -> Any:
@@ -200,13 +178,12 @@ class HarnessOptimizationExperiment:
         :param pricing: Model prices used to calculate candidate costs and rank cost optimizations. Prices do not
             restrict which models the optimizer may choose.
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
-        :param journal: Persistent measurement journal used to resume compatible experiments without repeating work.
+        :param journal: Record of every raw measurement the experiment takes.
         :param optimizer_agent: Agent that chooses each next mutation after observing prior outcomes.
         :param run_ids: Optional identifiers selecting which records to load from `run_store`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
-        :param max_iterations: Maximum number of candidate outcomes included in the experiment, counting compatible
-            completed measurements loaded from the journal.
+        :param max_iterations: Maximum number of candidate outcomes included in the experiment.
         :param digest_policy: Caps applied when compressing reference runs into the evidence the optimizer reads.
         :param history_digest_window: How many of the most recent outcomes keep their tool traces when the history
             is sent to the optimizer.
@@ -237,6 +214,11 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg) from error
 
         context = self._measurement_context(serialized_reference=serialized_reference, reference_runs=reference_runs)
+        logger.info(
+            "measuring the reference over {runs} recorded runs, then up to {total} candidates",
+            runs=len(reference_runs),
+            total=self.max_iterations,
+        )
         baseline = self.pricing.price(metrics=self._baseline(context=context, reference_runs=reference_runs))
         if self.objectives.primary == "cost" and baseline.cost is None:
             msg = "The reference Agent uses an unpriced model, so cost cannot be the primary objective."
@@ -245,22 +227,6 @@ class HarnessOptimizationExperiment:
         mutation_by_id: dict[str, AgentMutation] = {}
         history: list[dict[str, Any]] = []
         seen: set[str] = set()
-
-        for prior in self.journal.completed(measurement_context=context):
-            try:
-                mutation = AgentMutation.model_validate(prior.mutation)
-                serialized = apply_mutation(serialized_agent=serialized_reference, mutation=mutation)
-            except (ValueError, ValidationError):
-                continue
-            fingerprint = _configuration_fingerprint(serialized_agent=serialized)
-            expected_id = hashlib.sha256(f"{context}:{fingerprint}".encode()).hexdigest()
-            if prior.candidate_id != expected_id:
-                continue
-            seen.add(fingerprint)
-            priced = prior.price(pricing=self.pricing)
-            outcomes.append(priced)
-            mutation_by_id[priced.candidate_id] = mutation
-            history.append(self._history_entry(candidate=priced, baseline=baseline))
 
         reference_fingerprint = _configuration_fingerprint(serialized_agent=serialized_reference)
         stalled = 0
@@ -311,16 +277,14 @@ class HarnessOptimizationExperiment:
             stalled = 0
             seen.add(fingerprint)
             candidate_id = hashlib.sha256(f"{context}:{fingerprint}".encode()).hexdigest()
-            raw = self.journal.get(candidate_id=candidate_id)
-            if raw is None:
-                raw = self._evaluate_candidate(
-                    serialized_candidate=serialized,
-                    mutation=proposed,
-                    candidate_id=candidate_id,
-                    context=context,
-                    reference_runs=reference_runs,
-                )
-                self.journal.append(evaluation=raw)
+            raw = self._evaluate_candidate(
+                serialized_candidate=serialized,
+                mutation=proposed,
+                candidate_id=candidate_id,
+                context=context,
+                reference_runs=reference_runs,
+            )
+            self.journal.append(evaluation=raw)
             priced = raw.price(pricing=self.pricing)
             outcomes.append(priced)
             mutation_by_id[candidate_id] = proposed
@@ -364,8 +328,6 @@ class HarnessOptimizationExperiment:
     def _baseline(self, context: str, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
         """Load or measure the reference Agent for the current context."""
         candidate_id = f"baseline:{context}"
-        if (prior := self.journal.get(candidate_id=candidate_id)) is not None and prior.metrics is not None:
-            return prior.metrics
         metrics = self.evaluator.evaluate(agent=self.reference, reference_runs=reference_runs)
         self.journal.append(
             evaluation=CandidateEvaluation(
@@ -430,9 +392,16 @@ class HarnessOptimizationExperiment:
         return tuple(failures)
 
     def _rank(self, metrics: EvaluationMetrics) -> tuple[float, float]:
-        """Return the objective-dependent ordering key for priced metrics."""
+        """Return the objective-dependent ordering key for priced metrics, lower being better."""
         cost = metrics.cost if metrics.cost is not None else float("inf")
-        return (metrics.latency_ms, cost) if self.objectives.primary == "latency" else (cost, metrics.latency_ms)
+        if self.objectives.primary == "quality":
+            # Negated so that more quality sorts first, with cost deciding between equally good answers. Ranking
+            # on quality needs no threshold, and cannot rank a configuration that answers worse above one that
+            # answers better however cheap it is.
+            return (-self._gating_quality(metrics=metrics), cost)
+        if self.objectives.primary == "latency":
+            return (metrics.latency_ms, cost)
+        return (cost, metrics.latency_ms)
 
     @staticmethod
     def _gating_quality(metrics: EvaluationMetrics) -> float:
@@ -454,5 +423,5 @@ class HarnessOptimizationExperiment:
             reasons.append("quality_unvalidated")
         if candidate.metrics.quality_lower_bound is None:
             reasons.append("single_sample")
-        reasons.append("cost_improvement" if self.objectives.primary == "cost" else "latency_improvement")
+        reasons.append(f"{self.objectives.primary}_improvement")
         return tuple(reasons)

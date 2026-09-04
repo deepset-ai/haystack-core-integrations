@@ -22,13 +22,15 @@ Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus require
 
 Every case is evaluated once per candidate, so a candidate costs `--max-cases` Agent runs and quality is the
 fraction of cases it passed. A persistent OpenSearch store avoids rebuilding the corpus between invocations.
-Journaled measurements are reused until the Agent, corpus identity, recorded runs, or evaluator configuration
-changes.
+Each invocation measures its own reference and its own candidates, and records them to the journal; nothing is
+carried over from an earlier one.
 """
 
 import argparse
+import logging
 import os
 import shutil
+import sys
 import warnings
 from pathlib import Path
 from uuid import uuid4
@@ -43,11 +45,10 @@ from haystack.tools import ComponentTool, flatten_tools_or_toolsets
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_cases, prepare_corpus
 from util import build_retriever
 
-from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
+from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent, prompts
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
-    question_from_messages,
 )
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
 from haystack_integrations.agent_pack.local_run_store import LocalRunStore
@@ -123,8 +124,12 @@ def build_leftover_tool() -> ComponentTool:
     Build a retrieval tool left over from another corpus, pointing at a store that holds nothing.
 
     Nothing any evaluation case asks for is in there, so the tool can only ever return nothing — but its name,
-    description and argument schema are sent to the model on every step regardless. It is the kind of tool that
-    accumulates in a configuration nobody prunes, and removing it costs no quality.
+    description and full argument schema are sent to the model on every step regardless. It is the kind of tool
+    that accumulates in a configuration nobody prunes, and removing it costs no quality.
+
+    Its schema is spelled out rather than derived, and carries the same filter grammar the real retrieval tool
+    does, because that grammar is what makes such a tool expensive: the cost of keeping it is paid per model call,
+    and a tool whose schema is a couple of hundred characters is not worth an experiment to remove.
 
     :returns: The useless tool.
     """
@@ -132,10 +137,28 @@ def build_leftover_tool() -> ComponentTool:
         component=InMemoryBM25Retriever(document_store=InMemoryDocumentStore()),
         name=POOR_LEFTOVER_TOOL_NAME,
         description=(
-            "Search the product manual corpus for troubleshooting steps, specifications and warranty terms. "
-            "Use it when a question concerns how a product is meant to be used or serviced rather than what "
-            "reviewers said about it."
+            "Search the product manual corpus for troubleshooting steps, specifications, warranty terms and "
+            "service intervals. Use it when a question concerns how a product is meant to be used, installed or "
+            "serviced rather than what reviewers said about it."
         ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "The manual search query: a short phrase or a few keywords describing the procedure, "
+                        "specification or warranty clause to retrieve."
+                    ),
+                },
+                "filters": {
+                    "type": "object",
+                    "description": prompts.FILTER_GRAMMAR,
+                    "additionalProperties": True,
+                },
+            },
+            "required": ["query"],
+        },
     )
 
 
@@ -158,17 +181,22 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
 def capture_reference_runs(
     agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore
 ) -> frozenset[str]:
-    """Run and persist one successful reference input/output pair for every selected case."""
-    records_by_question = {
-        question_from_messages(messages=record.inputs.get("messages") or []): record for record in run_store.list()
-    }
+    """
+    Record one reference input/output pair for every selected case, replacing anything stored before.
+
+    The store is cleared first because a record carries no trace of which Agent produced it: keeping earlier runs
+    would describe a reference that has since been reconfigured, and those runs are what the optimizer reads as
+    evidence of how the reference behaves.
+
+    :param agent: The reference Agent to run.
+    :param cases: The cases whose questions to replay.
+    :param run_store: Store to record into. Cleared before recording.
+    :returns: The identifiers of the runs recorded here.
+    """
+    run_store.clear()
     selected_ids: set[str] = set()
-    for case in cases:
-        if existing := records_by_question.get(case.question):
-            print(f"  reusing: {case.question}")
-            selected_ids.add(existing.run_id)
-            continue
-        print(f"  capturing: {case.question}")
+    for position, case in enumerate(cases, start=1):
+        print(f"  capturing {position}/{len(cases)}: {case.question[:88]}")
         messages = [ChatMessage.from_user(text=case.question)]
         result = agent.run(messages=messages)
         record = AgentRunRecord(run_id=str(uuid4()), inputs={"messages": messages}, outputs=result)
@@ -297,9 +325,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def enable_progress_reporting() -> None:
+    """
+    Report progress while the experiment runs rather than when it finishes.
+
+    A run spends most of its time inside Agent calls, and its own output is a few lines per phase, so a redirected
+    stdout would otherwise stay empty for the length of an experiment: line buffering makes each line appear as it
+    is written. The library reports each case and each candidate through its logger, which is routed here so that
+    progress and phases arrive on the same stream in order.
+    """
+    sys.stdout.reconfigure(line_buffering=True)
+    handler = logging.StreamHandler(stream=sys.stdout)
+    handler.setFormatter(logging.Formatter("  %(message)s"))
+    progress = logging.getLogger("haystack_integrations.agent_pack")
+    progress.handlers.clear()
+    progress.addHandler(handler)
+    progress.setLevel(logging.INFO)
+    progress.propagate = False
+
+
 def main() -> None:
-    """Build the large-corpus experiment and run it end to end."""
+    """Build the experiment and run it end to end."""
     arguments = parse_args()
+    enable_progress_reporting()
     if not os.environ.get("OPENAI_API_KEY"):
         message = "OPENAI_API_KEY must be set to run this walkthrough."
         raise SystemExit(message)
@@ -355,7 +403,7 @@ def main() -> None:
 
     print("\n=== 5. outcome ===")
     report(result=result)
-    print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (re-running resumes measured candidates)")
+    print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (a record of every measurement this run took)")
 
 
 if __name__ == "__main__":

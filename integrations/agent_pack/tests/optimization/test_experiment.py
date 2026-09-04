@@ -139,30 +139,6 @@ def test_optimizer_learns_from_each_choice_before_making_the_next(tmp_path):
     assert result.recommendation.mutation == set_value(path=MODEL_PATH, value="cheap")
 
 
-def test_completed_measurements_seed_history_on_resume(tmp_path):
-    """A resumed search learns from journaled configurations without remeasuring them."""
-    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
-    initial_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="cheap"), None])
-    experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=fixed_metrics()),
-        optimizer_agent=initial_agent,
-        journal=journal,
-    ).run()
-
-    resumed_evaluator = ModelEvaluator(metrics_by_model=fixed_metrics())
-    resumed_agent, resumed_histories = optimizer_agent_for(mutations=[None])
-    result = experiment(
-        tmp_path=tmp_path,
-        evaluator=resumed_evaluator,
-        optimizer_agent=resumed_agent,
-        journal=journal,
-    ).run()
-    assert resumed_evaluator.calls == []
-    assert resumed_histories[0][0]["mutation"]["operations"][0]["value"] == "cheap"
-    assert result.recommendation is not None
-
-
 def test_resulting_full_configuration_defines_candidate_identity(tmp_path):
     """Different multi-operation decisions that produce one configuration are measured only once."""
     same_twice = AgentMutation(
@@ -225,40 +201,33 @@ def test_unknown_model_can_run_but_cannot_win_a_cost_objective(tmp_path):
     assert result.gate_failures[result.candidates[0].candidate_id] == ("cost_unavailable",)
 
 
-def test_current_prices_rerank_journaled_raw_usage_without_remeasurement(tmp_path):
-    """Changing informational prices does not invalidate expensive raw measurements."""
+def test_the_journal_records_raw_usage_while_the_report_prices_it(tmp_path):
+    """Prices are informational, so what is recorded is the measurement, not a number derived from a price list."""
     raw = {
         "reference": EvaluationMetrics(
-            quality=1.0,
-            latency_ms=100,
-            model_usage={"reference": ModelTokenUsage(input_tokens=1_000_000)},
+            quality=1.0, latency_ms=100, model_usage={"reference": ModelTokenUsage(input_tokens=1_000_000)}
         ),
         "cheap": EvaluationMetrics(
-            quality=1.0,
-            latency_ms=90,
-            model_usage={"cheap": ModelTokenUsage(input_tokens=1_000_000)},
+            quality=1.0, latency_ms=90, model_usage={"cheap": ModelTokenUsage(input_tokens=1_000_000)}
         ),
     }
-    journal = ExperimentJournal(path=tmp_path / "experiment.jsonl")
-    initial_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="cheap"), None])
-    experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=raw),
-        optimizer_agent=initial_agent,
-        pricing_context=pricing(cheap_price=2.0),
-        journal=journal,
-    ).run()
-    resumed = ModelEvaluator(metrics_by_model=raw)
-    resumed_agent, _ = optimizer_agent_for(mutations=[None])
+    journal_path = tmp_path / "experiment.jsonl"
+    optimizer_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="cheap"), None])
     result = experiment(
         tmp_path=tmp_path,
-        evaluator=resumed,
-        optimizer_agent=resumed_agent,
-        pricing_context=pricing(cheap_price=20.0),
-        journal=journal,
+        evaluator=ModelEvaluator(metrics_by_model=raw),
+        optimizer_agent=optimizer_agent,
+        pricing_context=pricing(cheap_price=2.0),
+        journal=ExperimentJournal(path=journal_path),
     ).run()
-    assert resumed.calls == []
-    assert result.recommendation is None
+
+    assert result.recommendation is not None
+    assert result.candidates[0].metrics.cost == pytest.approx(2.0)
+
+    recorded = [json.loads(line) for line in journal_path.read_text().splitlines() if line.strip()]
+    candidate = next(row for row in recorded if row["mutation"] is not None)
+    assert candidate["metrics"]["cost"] is None
+    assert candidate["metrics"]["model_usage"]["cheap"]["input_tokens"] == 1_000_000
 
 
 def test_recommendation_can_be_rebuilt_from_its_mutation_and_the_reference(tmp_path):
@@ -293,3 +262,38 @@ def test_empty_run_store_is_rejected(tmp_path):
     )
     with pytest.raises(ValueError, match="no successful reference runs"):
         configured.run()
+
+
+def test_quality_can_be_the_objective_so_no_threshold_has_to_be_guessed(tmp_path):
+    """Ranking on quality prefers the better answer over the cheaper one, without a threshold deciding it."""
+    metrics = {
+        "reference": EvaluationMetrics(quality=0.3, cost=10.0, latency_ms=100),
+        "worse": EvaluationMetrics(quality=0.4, cost=1.0, latency_ms=10),
+        "better": EvaluationMetrics(quality=1.0, cost=8.0, latency_ms=90),
+    }
+    proposals = [set_value(path=MODEL_PATH, value="worse"), set_value(path=MODEL_PATH, value="better"), None]
+
+    optimizer_agent, _ = optimizer_agent_for(mutations=list(proposals))
+    on_quality = experiment(
+        tmp_path=tmp_path / "quality",
+        evaluator=ModelEvaluator(metrics_by_model=metrics),
+        optimizer_agent=optimizer_agent,
+        objectives=OptimizationObjectives(min_quality=0.0, primary="quality"),
+    ).run()
+
+    assert on_quality.recommendation is not None
+    assert on_quality.recommendation.mutation == set_value(path=MODEL_PATH, value="better")
+    assert "quality_improvement" in on_quality.recommendation.reasons
+
+    # The same measurements ranked on cost with the gate opened pick the cheaper configuration that answers worse,
+    # which is what a quality objective avoids without anyone choosing a floor.
+    optimizer_agent, _ = optimizer_agent_for(mutations=list(proposals))
+    on_cost = experiment(
+        tmp_path=tmp_path / "cost",
+        evaluator=ModelEvaluator(metrics_by_model=metrics),
+        optimizer_agent=optimizer_agent,
+        objectives=OptimizationObjectives(min_quality=0.0, primary="cost"),
+    ).run()
+
+    assert on_cost.recommendation is not None
+    assert on_cost.recommendation.mutation == set_value(path=MODEL_PATH, value="worse")

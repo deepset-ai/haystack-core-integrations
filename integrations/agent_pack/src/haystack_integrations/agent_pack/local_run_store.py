@@ -42,6 +42,21 @@ class LocalRunStore:
             temporary.write_text(json.dumps(record.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
             os.replace(temporary, target)
 
+    def clear(self) -> None:
+        """
+        Remove every stored run, from memory and from disk.
+
+        A recorded run belongs to the Agent that produced it, and nothing about a record says which Agent that was.
+        Clearing before recording is what keeps a run store describing the Agent currently under test rather than
+        one that has since been reconfigured.
+        """
+        with self._lock:
+            self._records.clear()
+            if self.directory is None:
+                return
+            for path in self.directory.glob("*.json"):
+                path.unlink()
+
     def list(self, run_ids: frozenset[str] | None = None) -> list[AgentRunRecord]:
         """
         Return matching records in insertion order, newest first.

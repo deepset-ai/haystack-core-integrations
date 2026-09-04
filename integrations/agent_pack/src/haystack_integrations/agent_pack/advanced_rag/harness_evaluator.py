@@ -13,7 +13,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from haystack import Document
+from haystack import Document, logging
 from haystack.components.agents import Agent
 from haystack.core.serialization import component_to_dict
 from haystack.dataclasses import ChatMessage
@@ -25,6 +25,8 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import (
 )
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
+
+logger = logging.getLogger(__name__)
 
 _MODEL_KEYS = ("model", "azure_deployment", "model_name")
 _NESTED_MODEL_CONTAINERS = ("api_params",)
@@ -209,14 +211,21 @@ class AdvancedRAGHarnessEvaluator:
         agent.warm_up()
         flattened: list[AdvancedRAGCaseMetrics] = []
         additional_usage: dict[str, ModelTokenUsage] = {}
-        for case, messages in resolved:
+        for position, (case, messages) in enumerate(resolved, start=1):
             started = time.perf_counter()
             result = agent.run(messages=messages)
             latency_ms = (time.perf_counter() - started) * 1000
-            flattened.append(
-                score_advanced_rag_result(
-                    result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
-                )
+            scored = score_advanced_rag_result(
+                result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
+            )
+            flattened.append(scored)
+            logger.info(
+                "case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
+                position=position,
+                total=len(resolved),
+                verdict="passed" if scored.passed else f"FAILED ({', '.join(scored.failures)})",
+                latency=latency_ms,
+                question=case.question[:80],
             )
             for model, usage in (result.get("additional_model_usage") or {}).items():
                 current = additional_usage.get(model, ModelTokenUsage())
