@@ -266,12 +266,12 @@ class TestRun:
         assert result["links"] == []
 
 
+@pytest.mark.skipif(
+    not os.environ.get("FIRECRAWL_API_KEY"),
+    reason="Export FIRECRAWL_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
 class TestIntegration:
-    @pytest.mark.skipif(
-        not os.environ.get("FIRECRAWL_API_KEY"),
-        reason="Export FIRECRAWL_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     def test_run_integration(self) -> None:
         ws = FirecrawlWebSearch(
             api_key=Secret.from_env_var("FIRECRAWL_API_KEY"),
@@ -287,11 +287,6 @@ class TestIntegration:
         assert isinstance(result["documents"][0], Document)
         assert result["documents"][0].content
 
-    @pytest.mark.skipif(
-        not os.environ.get("FIRECRAWL_API_KEY"),
-        reason="Export FIRECRAWL_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_run_async_integration(self) -> None:
         ws = FirecrawlWebSearch(

@@ -260,12 +260,12 @@ class TestRun:
         assert "Failed to crawl website https://example.com: failed" in caplog.text
 
 
+@pytest.mark.skipif(
+    not os.environ.get("FIRECRAWL_API_KEY"),
+    reason="Export FIRECRAWL_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
 class TestIntegration:
-    @pytest.mark.skipif(
-        not os.environ.get("FIRECRAWL_API_KEY"),
-        reason="Export FIRECRAWL_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     def test_run_integration(self) -> None:
         fetcher = FirecrawlCrawler(api_key=Secret.from_env_var("FIRECRAWL_API_KEY"), params={"limit": 1})
         result = fetcher.run(urls=["https://docs.haystack.deepset.ai/docs/intro"], params={"limit": 1})
@@ -276,11 +276,6 @@ class TestIntegration:
         assert "Haystack" in result["documents"][0].content
         assert "https://docs.haystack.deepset.ai/docs/intro" == result["documents"][0].meta["url"]
 
-    @pytest.mark.skipif(
-        not os.environ.get("FIRECRAWL_API_KEY"),
-        reason="Export FIRECRAWL_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_run_async_integration(self) -> None:
         fetcher = FirecrawlCrawler(api_key=Secret.from_env_var("FIRECRAWL_API_KEY"), params={"limit": 1})
