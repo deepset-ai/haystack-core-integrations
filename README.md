@@ -4,11 +4,11 @@
 
 | Name                                                                               |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/preprocessors/chonkie/recursive\_splitter.py |       50 |        0 |       14 |        0 |    100% |           |
-| src/haystack\_integrations/components/preprocessors/chonkie/semantic\_splitter.py  |       59 |        1 |       16 |        1 |     97% |       106 |
-| src/haystack\_integrations/components/preprocessors/chonkie/sentence\_splitter.py  |       48 |        0 |       12 |        0 |    100% |           |
-| src/haystack\_integrations/components/preprocessors/chonkie/token\_splitter.py     |       40 |        0 |       10 |        0 |    100% |           |
-| **TOTAL**                                                                          |  **197** |    **1** |   **52** |    **1** | **99%** |           |
+| src/haystack\_integrations/components/preprocessors/chonkie/recursive\_splitter.py |       56 |        0 |       16 |        0 |    100% |           |
+| src/haystack\_integrations/components/preprocessors/chonkie/semantic\_splitter.py  |       58 |        1 |       14 |        1 |     97% |       106 |
+| src/haystack\_integrations/components/preprocessors/chonkie/sentence\_splitter.py  |       54 |        0 |       14 |        0 |    100% |           |
+| src/haystack\_integrations/components/preprocessors/chonkie/token\_splitter.py     |       45 |        0 |       12 |        0 |    100% |           |
+| **TOTAL**                                                                          |  **213** |    **1** |   **56** |    **1** | **99%** |           |
 
 
 ## Setup coverage badge
