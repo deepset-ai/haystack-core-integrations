@@ -10,7 +10,8 @@
 | src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       48 |        6 |        4 |        1 |     87% |188, 210-211, 229-231 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py          |      165 |        2 |       38 |        3 |     98% |388-\>390, 587, 591 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                    |      308 |       24 |      180 |       22 |     89% |222-223, 261-263, 270-\>278, 283-\>288, 327-329, 398-\>288, 461, 471-473, 511-\>545, 514-\>545, 519, 529-\>531, 532-537, 541-542, 558, 571, 582, 587-588, 673-\>644, 746-\>752, 752-\>738, 762, 768 |
-| **TOTAL**                                                                                       |  **810** |   **46** |  **324** |   **38** | **92%** |           |
+| src/haystack\_integrations/token\_counters/google\_genai/token\_counter.py                      |       59 |        3 |       18 |        3 |     92% |92, 146-147, 156-\>exit |
+| **TOTAL**                                                                                       |  **869** |   **49** |  **342** |   **41** | **92%** |           |
 
 
 ## Setup coverage badge
