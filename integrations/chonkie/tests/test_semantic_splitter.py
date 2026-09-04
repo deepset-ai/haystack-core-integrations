@@ -82,17 +82,14 @@ class TestChonkieSemanticDocumentSplitter:
         assert chunker.filter_window == 3
         assert chunker.filter_polyorder == 2
         assert chunker.filter_tolerance == 0.1
+        assert chunker._chunker is None
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_splitter.chonkie.SemanticChunker")
-    def test_warm_up(self, mock_chunker):
-        chunker = ChonkieSemanticDocumentSplitter()
-        assert chunker._chunker is None
-        chunker.warm_up()
-        assert chunker._chunker is not None
-        mock_chunker.assert_called_once()
-
-        # Calling warm_up again should not re-initialize
-        chunker.warm_up()
+    def test_warm_up_is_idempotent(self, mock_chunker):
+        splitter = ChonkieSemanticDocumentSplitter()
+        splitter.warm_up()
+        assert splitter._chunker is mock_chunker.return_value
+        splitter.warm_up()
         mock_chunker.assert_called_once()
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_splitter.chonkie.SemanticChunker")
