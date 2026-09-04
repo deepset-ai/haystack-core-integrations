@@ -76,6 +76,7 @@ types = """mypy -p haystack_integrations.common.amazon_bedrock \
 -p haystack_integrations.components.generators.amazon_bedrock \
 -p haystack_integrations.components.rankers.amazon_bedrock \
 -p haystack_integrations.components.retrievers.amazon_bedrock \
+-p haystack_integrations.token_counters.amazon_bedrock \
 -p haystack_integrations.components.downloaders.s3 \
 -p haystack_integrations.common.s3 {args}"""
 
