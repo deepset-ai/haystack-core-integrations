@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_genai-v4.9.0] - 2026-09-04
+
+### 🚀 Features
+
+- Add GoogleGenAITokenCounter to google-genai integration (#3868)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/google_genai-v4.8.0] - 2026-08-24
 
 ### 🚀 Features
