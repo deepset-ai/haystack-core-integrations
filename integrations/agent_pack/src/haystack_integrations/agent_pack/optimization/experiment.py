@@ -44,11 +44,6 @@ class CandidateEvaluation:
     metrics: EvaluationMetrics | None
     failure: str | None = None
 
-    @property
-    def succeeded(self) -> bool:
-        """Return whether evaluation produced metrics."""
-        return self.failure is None and self.metrics is not None
-
     def price(self, pricing: ModelPriceCatalog) -> "CandidateEvaluation":
         """Apply current prices without changing the journaled raw measurement."""
         return replace(self, metrics=pricing.price(metrics=self.metrics) if self.metrics is not None else None)
@@ -382,8 +377,8 @@ class HarnessOptimizationExperiment:
         if candidate.metrics is None:
             return ("evaluation_failed",)
         failures: list[str] = []
-        baseline_quality = self._gating_quality(metrics=baseline)
-        candidate_quality = self._gating_quality(metrics=candidate.metrics)
+        baseline_quality = baseline.quality
+        candidate_quality = candidate.metrics.quality
         floor = max(self.objectives.min_quality, baseline_quality - self.objectives.max_quality_loss)
         if candidate_quality < floor:
             failures.append(f"quality_below_floor:{floor:.4f}")
@@ -398,15 +393,10 @@ class HarnessOptimizationExperiment:
             # Negated so that more quality sorts first, with cost deciding between equally good answers. Ranking
             # on quality needs no threshold, and cannot rank a configuration that answers worse above one that
             # answers better however cheap it is.
-            return (-self._gating_quality(metrics=metrics), cost)
+            return (-metrics.quality, cost)
         if self.objectives.primary == "latency":
             return (metrics.latency_ms, cost)
         return (cost, metrics.latency_ms)
-
-    @staticmethod
-    def _gating_quality(metrics: EvaluationMetrics) -> float:
-        """Return the conservative quality value used by optimization gates."""
-        return metrics.quality if metrics.quality_lower_bound is None else metrics.quality_lower_bound
 
     def _candidate_rank(self, candidate: CandidateEvaluation) -> tuple[float, float]:
         """Return a sortable rank that places failed candidates last."""
@@ -421,7 +411,5 @@ class HarnessOptimizationExperiment:
         reasons: list[str] = []
         if candidate.metrics.details.get("validated") is False:
             reasons.append("quality_unvalidated")
-        if candidate.metrics.quality_lower_bound is None:
-            reasons.append("single_sample")
         reasons.append(f"{self.objectives.primary}_improvement")
         return tuple(reasons)

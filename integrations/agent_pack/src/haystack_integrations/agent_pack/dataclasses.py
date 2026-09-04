@@ -81,8 +81,6 @@ class EvaluationMetrics:
     :param latency_ms: Mean end-to-end evaluation latency in milliseconds.
     :param model_usage: Raw token usage keyed by model identifier.
     :param cost: Cost derived from `model_usage`, or `None` when usage has not been priced or includes an unknown model.
-    :param quality_lower_bound: Optional conservative quality estimate in `[0.0, 1.0]` for non-deterministic repeated
-        evaluations. It cannot exceed `quality`.
     :param details: Evaluator-specific measurements and diagnostic information.
     """
 
@@ -90,16 +88,12 @@ class EvaluationMetrics:
     latency_ms: float
     model_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
     cost: float | None = None
-    quality_lower_bound: float | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Validate the shared normalized quality contract."""
         if not 0.0 <= self.quality <= 1.0:
             msg = "quality must be between 0.0 and 1.0."
-            raise ValueError(msg)
-        if self.quality_lower_bound is not None and not 0.0 <= self.quality_lower_bound <= self.quality:
-            msg = "quality_lower_bound must be between 0.0 and quality."
             raise ValueError(msg)
 
     def to_dict(self) -> dict[str, Any]:
@@ -109,7 +103,6 @@ class EvaluationMetrics:
             "latency_ms": self.latency_ms,
             "model_usage": {model: asdict(obj=usage) for model, usage in self.model_usage.items()},
             "cost": self.cost,
-            "quality_lower_bound": self.quality_lower_bound,
             "details": self.details,
         }
 
@@ -121,13 +114,11 @@ class EvaluationMetrics:
         :param data: Serialized evaluation metrics.
         :returns: The restored evaluation metrics.
         """
-        lower_bound = data.get("quality_lower_bound")
         cost = data.get("cost")
         return cls(
             quality=float(data["quality"]),
             latency_ms=float(data["latency_ms"]),
             model_usage={model: ModelTokenUsage(**usage) for model, usage in (data.get("model_usage") or {}).items()},
             cost=None if cost is None else float(cost),
-            quality_lower_bound=None if lower_bound is None else float(lower_bound),
             details=data.get("details") or {},
         )

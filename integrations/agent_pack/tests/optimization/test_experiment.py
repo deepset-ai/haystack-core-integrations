@@ -22,7 +22,6 @@ from haystack_integrations.agent_pack.optimization import (
 )
 
 MODEL_PATH = "/init_parameters/chat_generator/init_parameters/model"
-STEPS_PATH = "/init_parameters/max_agent_steps"
 
 
 def reference_run(question="question"):

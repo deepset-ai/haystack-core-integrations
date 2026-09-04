@@ -124,8 +124,8 @@ class AdvancedRAGHarnessEvaluator:
 
     Quality is the fraction of cases that pass, and is therefore normalized to `[0.0, 1.0]`. A case passes only when
     its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass. Each case is measured
-    once, so `quality_lower_bound` is left unset and an experiment gate compares the fraction itself; breadth across
-    cases, rather than repeated measurement of a few, is what makes that fraction discriminating.
+    once, so breadth across cases, rather than repeated measurement of a few, is what makes that fraction
+    discriminating.
     """
 
     def __init__(
@@ -154,7 +154,7 @@ class AdvancedRAGHarnessEvaluator:
         """
         Report every case, keeping tool traces for the ones worth diagnosing.
 
-        :param metrics: Every scored case of every repetition.
+        :param metrics: Every scored case.
         :returns: JSON-compatible case records, with the trace dropped from cases beyond the cap.
         """
         cases = [metric.to_dict() for metric in metrics]

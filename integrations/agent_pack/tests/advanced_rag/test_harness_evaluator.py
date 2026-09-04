@@ -155,7 +155,6 @@ def test_every_case_is_measured_once_and_latency_is_their_total(document):
     assert agent.runs == 1
     assert agent.warmups == 1
     assert metrics.quality == 1.0
-    assert metrics.quality_lower_bound is None
     assert metrics.latency_ms == pytest.approx(
         sum(case_metrics["latency_ms"] for case_metrics in metrics.details["cases"])
     )
