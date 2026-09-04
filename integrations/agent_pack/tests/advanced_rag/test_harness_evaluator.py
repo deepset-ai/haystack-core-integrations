@@ -54,6 +54,10 @@ class FakeAgent:
         self.runs += 1
         return successful_result(self.document)
 
+    async def run_async(self, **kwargs):
+        """Answer the way `run` does, through the entry point concurrent measurement uses."""
+        return self.run(**kwargs)
+
     def warm_up(self):
         self.warmups += 1
 
@@ -228,3 +232,41 @@ def test_traces_are_dropped_from_passing_cases_before_failing_ones(document):
     # The trace is withheld past the cap, but the case is still reported.
     assert passing_metrics.details["cases"][0]["passed"] is True
     assert "run_digest" not in passing_metrics.details["cases"][0]
+
+
+def test_cases_measured_concurrently_are_reported_in_case_order(document):
+    """Concurrency must change how long an evaluation takes, not what it measures."""
+    questions = [f"{QUESTION} ({index})" for index in range(4)]
+
+    class MultiQuestionAgent(FakeAgent):
+        """Answer any of the questions, recording the order runs were started in."""
+
+        def run(self, **kwargs):  # noqa: ARG002 - the reply does not depend on which question was asked
+            """Return a successful result for whichever question was asked."""
+            self.runs += 1
+            return successful_result(self.document)
+
+    cases = [AdvancedRAGEvaluationCase(question=q, expected_document_ids=frozenset({document.id})) for q in questions]
+    runs = [
+        AgentRunRecord(run_id=f"run-{index}", inputs={"messages": [ChatMessage.from_user(q)]}, outputs={})
+        for index, q in enumerate(questions)
+    ]
+
+    sequential = AdvancedRAGHarnessEvaluator(cases=cases, max_concurrent_cases=1).evaluate(
+        agent=MultiQuestionAgent(document), reference_runs=runs
+    )
+    concurrent = AdvancedRAGHarnessEvaluator(cases=cases, max_concurrent_cases=4).evaluate(
+        agent=MultiQuestionAgent(document), reference_runs=runs
+    )
+
+    assert concurrent.quality == sequential.quality
+    assert [case["question"] for case in concurrent.details["cases"]] == [
+        case["question"] for case in sequential.details["cases"]
+    ]
+    assert concurrent.model_usage == sequential.model_usage
+
+
+def test_concurrency_must_be_positive():
+    """A concurrency of zero would measure nothing at all."""
+    with pytest.raises(ValueError, match="at least 1"):
+        AdvancedRAGHarnessEvaluator(max_concurrent_cases=0)

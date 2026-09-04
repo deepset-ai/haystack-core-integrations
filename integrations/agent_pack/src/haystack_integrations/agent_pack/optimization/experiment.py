@@ -160,7 +160,7 @@ class HarnessOptimizationExperiment:
         configuration_key: str | None = None,
         max_iterations: int = 8,
         digest_policy: RunDigestPolicy | None = None,
-        history_digest_window: int = 2,
+        history_digest_window: int = 1,
     ) -> None:
         """
         Configure an iterative, journaled harness optimization run.
@@ -265,6 +265,11 @@ class HarnessOptimizationExperiment:
 
             if fingerprint == reference_fingerprint or fingerprint in seen:
                 stalled += 1
+                logger.info(
+                    "proposal {stalled} of {limit} produced an already-measured configuration",
+                    stalled=stalled,
+                    limit=_MAX_STALLED_PROPOSALS,
+                )
                 history.append(
                     {"mutation": proposed.model_dump(), "status": "rejected", "reason": "duplicate_or_no_op"}
                 )
@@ -284,6 +289,14 @@ class HarnessOptimizationExperiment:
             outcomes.append(priced)
             mutation_by_id[candidate_id] = proposed
             history.append(self._history_entry(candidate=priced, baseline=baseline))
+            logger.info(
+                "candidate {position}/{total}: quality={quality} cost={cost} gates={gates}",
+                position=len(outcomes),
+                total=self.max_iterations,
+                quality=f"{priced.metrics.quality:.2f}" if priced.metrics else "not measured",
+                cost=f"${priced.metrics.cost:.6f}" if priced.metrics and priced.metrics.cost else "unpriced",
+                gates=", ".join(self._gate_failures(candidate=priced, baseline=baseline)) or "passed",
+            )
 
         gate_failures = {
             outcome.candidate_id: self._gate_failures(candidate=outcome, baseline=baseline) for outcome in outcomes

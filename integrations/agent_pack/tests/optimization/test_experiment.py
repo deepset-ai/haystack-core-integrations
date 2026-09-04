@@ -45,8 +45,9 @@ def optimizer_agent_for(mutations):
 
     def respond(messages):
         """Record optimizer context and return the next structured decision."""
-        request = json.loads(messages[-1].text)
-        histories.append(request["history"])
+        # The cumulative record of outcomes is the second-to-last message; the last repeats the newest few in full.
+        record = json.loads(messages[-2].text)
+        histories.append(record["outcomes"])
         mutation = remaining.popleft() if remaining else None
         return json.dumps({"mutation": mutation.model_dump() if mutation is not None else None})
 

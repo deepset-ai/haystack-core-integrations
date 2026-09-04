@@ -9,6 +9,7 @@ The evaluator depends only on the shared Agent Pack harness contracts. Optimizat
 measurements without the Advanced RAG package depending on optimizer implementation details.
 """
 
+import asyncio
 import time
 from collections.abc import Mapping
 from typing import Any
@@ -134,6 +135,7 @@ class AdvancedRAGHarnessEvaluator:
         cases: list[AdvancedRAGEvaluationCase] | None = None,
         digest_policy: RunDigestPolicy | None = None,
         max_traced_cases: int | None = 6,
+        max_concurrent_cases: int = 1,
     ) -> None:
         """
         Create an evaluator.
@@ -145,9 +147,20 @@ class AdvancedRAGHarnessEvaluator:
         :param max_traced_cases: How many case traces to keep, or `None` to keep every one. A trace explains a
             result but a reader's history of them is cumulative, so failing cases keep theirs first: a passing case
             has nothing to diagnose.
+        :param max_concurrent_cases: How many cases to measure at once. Cases are independent and each one spends
+            its time waiting on a model, so measuring several together is most of what makes an experiment
+            affordable in wall-clock terms. Token usage, and therefore cost, is unaffected. Measured latency is
+            not: concurrent runs contend for the same rate limits, so leave this at 1 when ranking by latency, or
+            the objective measures this setting rather than the configuration. Cases are driven through
+            `Agent.run_async` whatever this is set to, so one at a time is simply a concurrency of one.
+        :raises ValueError: If `max_concurrent_cases` is below one.
         """
+        if max_concurrent_cases < 1:
+            msg = "max_concurrent_cases must be at least 1."
+            raise ValueError(msg)
         self.cases = {case.question: case for case in (cases or [])}
         self.digest_policy = digest_policy
+        self.max_concurrent_cases = max_concurrent_cases
         self.max_traced_cases = max_traced_cases
 
     def _traced_cases(self, metrics: list[AdvancedRAGCaseMetrics]) -> list[dict[str, Any]]:
@@ -194,6 +207,65 @@ class AdvancedRAGHarnessEvaluator:
             resolved.append((case, messages))
         return resolved, derived
 
+    def _score(
+        self,
+        result: dict[str, Any],
+        case: AdvancedRAGEvaluationCase,
+        started: float,
+        position: int,
+        total: int,
+    ) -> tuple[AdvancedRAGCaseMetrics, dict[str, Any]]:
+        """
+        Score one completed Agent run and report it.
+
+        :param result: What `Agent.run` returned.
+        :param case: The expectations to score against.
+        :param started: The `perf_counter` reading from before the run.
+        :param position: Which case this is, for reporting.
+        :param total: How many cases there are, for reporting.
+        :returns: The case score and the usage of any model the Agent called besides its own.
+        """
+        latency_ms = (time.perf_counter() - started) * 1000
+        scored = score_advanced_rag_result(
+            result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
+        )
+        logger.info(
+            "case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
+            position=position,
+            total=total,
+            verdict="passed" if scored.passed else f"FAILED ({', '.join(scored.failures)})",
+            latency=latency_ms,
+            question=case.question[:80],
+        )
+        return scored, result.get("additional_model_usage") or {}
+
+    async def _measure(
+        self, agent: Agent, resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]]
+    ) -> list[tuple[AdvancedRAGCaseMetrics, dict[str, Any]]]:
+        """
+        Measure every case, running up to `max_concurrent_cases` of them at once.
+
+        :param agent: The candidate to measure.
+        :param resolved: Each case with the messages that pose it.
+        :returns: One result per case, in case order.
+        """
+        semaphore = asyncio.Semaphore(self.max_concurrent_cases)
+
+        async def measure(
+            position: int, case: AdvancedRAGEvaluationCase, messages: list[ChatMessage]
+        ) -> tuple[AdvancedRAGCaseMetrics, dict[str, Any]]:
+            """Run one case, waiting for a slot first."""
+            async with semaphore:
+                started = time.perf_counter()
+                result = await agent.run_async(messages=messages)
+            return self._score(result=result, case=case, started=started, position=position, total=len(resolved))
+
+        return list(
+            await asyncio.gather(
+                *(measure(position, case, messages) for position, (case, messages) in enumerate(resolved, start=1))
+            )
+        )
+
     def evaluate(self, agent: Agent, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
         """
         Replay every selected run and return raw experiment metrics.
@@ -209,25 +281,12 @@ class AdvancedRAGHarnessEvaluator:
             raise ValueError(msg)
 
         agent.warm_up()
-        flattened: list[AdvancedRAGCaseMetrics] = []
+        measured = asyncio.run(self._measure(agent=agent, resolved=resolved))
+
+        flattened = [scored for scored, _ in measured]
         additional_usage: dict[str, ModelTokenUsage] = {}
-        for position, (case, messages) in enumerate(resolved, start=1):
-            started = time.perf_counter()
-            result = agent.run(messages=messages)
-            latency_ms = (time.perf_counter() - started) * 1000
-            scored = score_advanced_rag_result(
-                result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
-            )
-            flattened.append(scored)
-            logger.info(
-                "case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
-                position=position,
-                total=len(resolved),
-                verdict="passed" if scored.passed else f"FAILED ({', '.join(scored.failures)})",
-                latency=latency_ms,
-                question=case.question[:80],
-            )
-            for model, usage in (result.get("additional_model_usage") or {}).items():
+        for _, usage_by_model in measured:
+            for model, usage in usage_by_model.items():
                 current = additional_usage.get(model, ModelTokenUsage())
                 additional_usage[model] = ModelTokenUsage(
                     input_tokens=current.input_tokens + int(usage.get("input_tokens", 0)),

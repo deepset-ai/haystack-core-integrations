@@ -94,7 +94,7 @@ def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     default = create_harness_optimizer_agent()
     assert isinstance(default.chat_generator, OpenAIResponsesChatGenerator)
-    assert default.chat_generator.model == "gpt-5.6-sol"
+    assert default.chat_generator.model == "gpt-5.6-terra"
     assert default.system_prompt == HARNESS_OPTIMIZER_SYSTEM_PROMPT
 
     @tool
@@ -185,11 +185,13 @@ def test_propose_mutation_sends_full_configuration_runs_and_history():
     history = [{"mutation": {"operations": []}, "status": "failed"}]
     assert propose_with(optimizer_agent=optimizer_agent, history=history) is None
     sent = [json.loads(message.text) for message in seen if message.is_from("user")]
-    # The unchanging context and the growing history are separate messages, so a cache breakpoint can sit between
-    # them and the reusable prefix stays identical from turn to turn.
-    context, tail = sent
+    # Three messages ordered by how often each changes, so a cache breakpoint can sit between them and everything
+    # ahead of the churn stays identical from turn to turn.
+    context, record, detail = sent
     assert "history" not in context
-    assert tail == {"history": history}
+    # The record carries every outcome without its tool traces, and never revises an entry once written.
+    assert record == {"outcomes": history}
+    assert detail == {"recent_outcomes_in_detail": history}
     request = context
     assert request["reference_agent_configuration"]["init_parameters"]["system_prompt"] == "reference prompt"
     assert request["baseline"]["cost"] == 10.0
@@ -256,6 +258,9 @@ def test_the_default_optimizer_carries_a_stable_cache_routing_key(monkeypatch):
     default = create_harness_optimizer_agent()
 
     assert default.chat_generator.generation_kwargs["prompt_cache_key"] == OPTIMIZER_PROMPT_CACHE_KEY
+    # Reasoning is billed as output on the most expensive model in the experiment, so the effort behind one
+    # decision per turn is chosen here rather than left to the provider's heavier default.
+    assert default.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}
 
     # A caller-supplied generator is left alone: the key is provider-specific, and a generator that has no such
     # setting must not acquire one.

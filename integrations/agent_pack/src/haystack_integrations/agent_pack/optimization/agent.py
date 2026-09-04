@@ -4,6 +4,7 @@
 
 """The Agent that chooses optimization experiments and the requests made to it."""
 
+import hashlib
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -39,8 +40,10 @@ HARNESS_OPTIMIZER_SYSTEM_PROMPT = """
 You optimize a Haystack Agent configuration through a measured sequence of experiments. On every turn you receive
 the complete serialized reference Agent configuration, the tools that Agent can call, a digest of successful
 reference runs, known model prices, optimization objectives, a baseline measurement, and all candidate outcomes so
-far. Run evidence is a digest, so a tool result may be a prefix: a truncated result and an incomplete listing both
-say so, and a listing that reports omitted content is never exhaustive. Choose the most informative next
+far. Outcomes arrive twice: once as a record of every one measured, and once as the most recent few repeated with
+the tool traces of their runs. Run evidence is a digest, so a tool result may be a prefix: a truncated result and an
+incomplete listing both say so, and a listing that reports omitted content is never exhaustive. Choose the most
+informative next
 configuration mutation based on that evidence. You may change any part of the serialized Agent configuration.
 Return null when no worthwhile experiment remains.
 
@@ -104,14 +107,24 @@ def create_harness_optimizer_agent(
     instructions = system_prompt or HARNESS_OPTIMIZER_SYSTEM_PROMPT
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n{additional_instructions.strip()}"
+    # The mid-priced model rather than the top one: an optimizer turn reads a large assembled request, and input
+    # tokens dominate what it costs, so the model choice here is worth about as much as everything the candidates
+    # spend. Pass a generator to choose differently.
     generator = chat_generator or OpenAIResponsesChatGenerator(
-        model="gpt-5.6-sol",
+        model="gpt-5.6-terra",
         timeout=180.0,
         max_retries=5,
-        # Requests carrying the same key are routed together, which is what makes a reusable prefix likely to be
-        # found in cache. It identifies this prompt family and its shape, so it changes when the request layout
-        # does. Provider-specific, hence only on the generator this function owns.
-        generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY},
+        generation_kwargs={
+            # Requests carrying the same key are routed together, which is what makes a reusable prefix likely to
+            # be found in cache. It identifies this prompt family and its shape, so it changes when the request
+            # layout does. Provider-specific, hence only on the generator this function owns.
+            "prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY,
+            # Set rather than left to the provider's heavier default. One decision is made per turn, from evidence
+            # already assembled and summarized, and reasoning tokens are billed as output on the most expensive
+            # model in the experiment. `_log_optimizer_usage` reports what each turn actually spends, so raising
+            # this is a measurable choice rather than a guess.
+            "reasoning": {"effort": "low"},
+        },
     )
     return Agent(
         chat_generator=generator,
@@ -142,39 +155,67 @@ def _tool_specifications(reference: Agent) -> list[dict[str, Any]]:
         return []
 
 
-def _log_cache_reuse(message: ChatMessage) -> None:
+def _log_optimizer_usage(message: ChatMessage, prefix_digest: str) -> None:
     """
-    Report how much of the request the provider served from cache.
+    Report what one optimizer turn spent.
 
-    The reusable prefix is the point of the request's layout, so whether it is actually being reused should be
-    observable rather than assumed.
+    Choosing candidates is not free, and its cost appears nowhere in an experiment's measurements: the reported
+    numbers describe the candidates, not the search that found them. Reporting input, cache reuse and reasoning
+    tokens per turn is what makes the model and effort behind the optimizer a measurable choice.
+
+    The digest of the unchanging message is reported alongside, because low reuse means two different things: an
+    identical digest across turns points at the provider or at something ahead of the messages, while a digest
+    that changes means the prefix was never stable to begin with.
 
     :param message: The optimizer's reply, whose metadata carries provider usage.
+    :param prefix_digest: Digest of the message that is supposed to be identical on every turn.
     """
     usage = (message.meta or {}).get("usage") or {}
-    details = usage.get("input_tokens_details") or {}
-    if (cached := details.get("cached_tokens")) is None or not (total := usage.get("input_tokens")):
+    if not (total := usage.get("input_tokens")):
         return
+    cached = (usage.get("input_tokens_details") or {}).get("cached_tokens") or 0
+    output = usage.get("output_tokens") or 0
+    reasoning = (usage.get("output_tokens_details") or {}).get("reasoning_tokens") or 0
     logger.info(
-        "Optimizer request reused {cached} of {total} input tokens from cache ({share:.0%}).",
-        cached=cached,
+        "optimizer turn: {total} input ({cached} cached, {share:.0%}), {output} output of which {reasoning} "
+        "reasoning, prefix {prefix}",
         total=total,
+        cached=cached,
         share=cached / total,
+        output=output,
+        reasoning=reasoning,
+        prefix=prefix_digest,
     )
 
 
-def _bounded_history(history: list[dict[str, Any]], window: int) -> list[dict[str, Any]]:
+def _history_record(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
-    Keep tool traces for the most recent outcomes and measurements for all of them.
+    Describe every outcome so far, without the tool traces.
+
+    Each entry takes this form the turn it is created and is never revised, so the record only ever grows by
+    appending. That is what a reusable prompt prefix requires: rewriting an earlier entry — which is what dropping
+    its trace later amounts to — changes the text mid-message and ends the reuse from that point on.
 
     :param history: Every outcome observed so far, oldest first.
-    :param window: How many of the most recent outcomes keep their traces.
-    :returns: The history with older traces removed.
+    :returns: The same outcomes with every tool trace removed.
     """
-    if window <= 0:
-        return [strip_run_digests(payload=entry) for entry in history]
-    keep = len(history) - window
-    return [strip_run_digests(payload=entry) if index < keep else entry for index, entry in enumerate(history)]
+    return [strip_run_digests(payload=entry) for entry in history]
+
+
+def _recent_outcomes(history: list[dict[str, Any]], window: int) -> list[dict[str, Any]]:
+    """
+    Repeat the most recent outcomes in full, tool traces included.
+
+    Traces dominate an outcome's size and only the newest are worth it, so they travel separately from the record
+    rather than being edited out of it later. These entries appear twice by design: once in the append-only record
+    and once here with their detail. This is the only part of a request whose shape changes from turn to turn,
+    which is why it is sent last.
+
+    :param history: Every outcome observed so far, oldest first.
+    :param window: How many of the most recent outcomes to repeat in full.
+    :returns: The most recent outcomes, or nothing when none are wanted.
+    """
+    return list(history[-window:]) if window > 0 else []
 
 
 def propose_mutation(
@@ -186,7 +227,7 @@ def propose_mutation(
     baseline: EvaluationMetrics,
     history: list[dict[str, Any]],
     digest_policy: RunDigestPolicy | None = None,
-    history_digest_window: int = 2,
+    history_digest_window: int = 1,
 ) -> AgentMutation | None:
     """
     Ask the optimizer Agent for the next structured configuration mutation.
@@ -199,9 +240,11 @@ def propose_mutation(
     :param baseline: Measured reference Agent performance.
     :param history: Candidate mutations and outcomes observed so far.
     :param digest_policy: Caps applied when compressing the reference runs into tool-behaviour evidence.
-    :param history_digest_window: How many of the most recent outcomes keep their tool traces. A history is
-        cumulative, so keeping every trace would grow the request with every turn; the measurements themselves are
-        kept for all of them.
+    :param history_digest_window: How many of the most recent outcomes are repeated in full with their tool
+        traces. Traces dominate an outcome's size, so keeping every one would grow the request with every turn;
+        the measurements themselves are kept for every outcome. Each repeat costs its whole entry, aggregates
+        included, and that repeat is the only part of a request that cannot be reused from turn to turn, so one is
+        the default.
     :returns: The next mutation, or `None` when the optimizer chooses to stop.
     """
     request = {
@@ -217,22 +260,26 @@ def propose_mutation(
             }
             for record in reference_runs[:3]
         ],
-        # Last on purpose. Everything above is identical on every turn of an experiment, so keeping the one growing
-        # section at the end leaves that stable text as a reusable prompt prefix instead of shifting it each turn.
-        "history": _bounded_history(history=history, window=history_digest_window),
     }
-    experiment_history = request.pop("history")
+    # The outcomes are deliberately not part of the message above: everything in it is identical on every turn of
+    # an experiment, and keeping what grows out of it is what leaves its text reusable.
+    context_text = json.dumps(request, default=str)
+    record = {"outcomes": _history_record(history=history)}
+    detail = {"recent_outcomes_in_detail": _recent_outcomes(history=history, window=history_digest_window)}
+    # Three messages, ordered by how often each changes: context that never does, a record that only grows by
+    # appending, then the newest outcomes in full. Cache reuse needs the rendered prefix to match, and a provider
+    # that marks cache breakpoints does so between messages, so those boundaries have to be message boundaries.
     result = optimizer_agent.run(
-        # The unchanging context and the growing history are sent as separate messages. Cache reuse needs the
-        # rendered prefix to match, and a provider that marks cache breakpoints does so between messages, so the
-        # boundary between what is stable and what grows has to be a message boundary rather than a key in one blob.
         messages=[
-            ChatMessage.from_user(text=json.dumps(request, default=str)),
-            ChatMessage.from_user(text=json.dumps({"history": experiment_history}, default=str)),
+            ChatMessage.from_user(text=context_text),
+            ChatMessage.from_user(text=json.dumps(record, default=str)),
+            ChatMessage.from_user(text=json.dumps(detail, default=str)),
         ],
         generation_kwargs={"text_format": OptimizerDecision},
     )
-    _log_cache_reuse(message=result["last_message"])
+    _log_optimizer_usage(
+        message=result["last_message"], prefix_digest=hashlib.sha256(context_text.encode()).hexdigest()[:12]
+    )
     text = result["last_message"].text
     if text is None:
         msg = "The harness optimizer Agent returned no structured decision text."

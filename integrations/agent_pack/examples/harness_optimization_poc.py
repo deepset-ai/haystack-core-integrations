@@ -27,6 +27,7 @@ carried over from an earlier one.
 """
 
 import argparse
+import asyncio
 import logging
 import os
 import shutil
@@ -179,7 +180,7 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
 
 
 def capture_reference_runs(
-    agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore
+    agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore, concurrency: int
 ) -> frozenset[str]:
     """
     Record one reference input/output pair for every selected case, replacing anything stored before.
@@ -191,19 +192,31 @@ def capture_reference_runs(
     :param agent: The reference Agent to run.
     :param cases: The cases whose questions to replay.
     :param run_store: Store to record into. Cleared before recording.
+    :param concurrency: How many questions to pose at once.
     :returns: The identifiers of the runs recorded here.
     """
     run_store.clear()
+
+    async def capture_all() -> list[tuple[AdvancedRAGEvaluationCase, dict]]:
+        """Pose every question, running several at once."""
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def capture(position: int, case: AdvancedRAGEvaluationCase) -> tuple[AdvancedRAGEvaluationCase, dict]:
+            """Pose one question once a slot is free."""
+            async with semaphore:
+                result = await agent.run_async(messages=[ChatMessage.from_user(text=case.question)])
+            answer = result["last_message"].text or ""
+            print(f"  captured {position}/{len(cases)}: {answer[:70]!r} <- {case.question[:60]}")
+            return case, result
+
+        return list(await asyncio.gather(*(capture(index, case) for index, case in enumerate(cases, start=1))))
+
     selected_ids: set[str] = set()
-    for position, case in enumerate(cases, start=1):
-        print(f"  capturing {position}/{len(cases)}: {case.question[:88]}")
+    for case, result in asyncio.run(capture_all()):
         messages = [ChatMessage.from_user(text=case.question)]
-        result = agent.run(messages=messages)
         record = AgentRunRecord(run_id=str(uuid4()), inputs={"messages": messages}, outputs=result)
         run_store.add(record=record)
         selected_ids.add(record.run_id)
-        answer = result["last_message"].text or ""
-        print(f"    run={record.run_id[:8]} answer={answer[:90]!r}")
     return frozenset(selected_ids)
 
 
@@ -302,9 +315,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--primary",
-        choices=("cost", "latency"),
+        choices=("cost", "latency", "quality"),
         default="cost",
-        help="Primary measurement to minimize after candidate quality gates pass.",
+        help="What candidates are ranked by. `cost` and `latency` are minimized among candidates that clear the "
+        "quality gates; `quality` is maximized directly with cost breaking ties, which needs no quality floor to "
+        "be chosen in advance.",
+    )
+    parser.add_argument(
+        "--max-concurrent-cases",
+        type=int,
+        default=4,
+        help="How many cases to measure at once. Cases are independent and spend their time waiting on a model, so "
+        "this is what decides how long an experiment takes. It does not change token usage, but concurrent runs "
+        "contend for rate limits, so it must be 1 when ranking by latency.",
     )
     parser.add_argument(
         "--max-iterations",
@@ -354,6 +377,15 @@ def main() -> None:
     if arguments.max_cases < 1:
         message = "--max-cases must be at least 1."
         raise SystemExit(message)
+    if arguments.max_concurrent_cases < 1:
+        message = "--max-concurrent-cases must be at least 1."
+        raise SystemExit(message)
+    if arguments.primary == "latency" and arguments.max_concurrent_cases > 1:
+        message = (
+            "Ranking by latency requires --max-concurrent-cases 1: concurrent runs contend for the same rate "
+            "limits, so the measurement would describe that contention rather than the configuration."
+        )
+        raise SystemExit(message)
     if arguments.fresh and WORKSPACE.exists():
         shutil.rmtree(path=WORKSPACE)
 
@@ -373,7 +405,9 @@ def main() -> None:
 
     print("\n=== 2. execute and store reference runs ===")
     run_store = LocalRunStore(directory=WORKSPACE / "runs")
-    selected_run_ids = capture_reference_runs(agent=reference_agent, cases=cases, run_store=run_store)
+    selected_run_ids = capture_reference_runs(
+        agent=reference_agent, cases=cases, run_store=run_store, concurrency=arguments.max_concurrent_cases
+    )
 
     pricing = build_pricing(models=(arguments.reference_model, *candidate_models))
 
@@ -382,7 +416,9 @@ def main() -> None:
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         run_store=run_store,
-        evaluator=AdvancedRAGHarnessEvaluator(cases=cases, digest_policy=DIGEST_POLICY),
+        evaluator=AdvancedRAGHarnessEvaluator(
+            cases=cases, digest_policy=DIGEST_POLICY, max_concurrent_cases=arguments.max_concurrent_cases
+        ),
         pricing=pricing,
         objectives=OptimizationObjectives(
             min_quality=arguments.min_quality,
