@@ -13,50 +13,57 @@ from haystack.utils import Secret
 from haystack_integrations.components.websearch.firecrawl import FirecrawlWebSearch
 
 
-class TestFirecrawlWebSearch:
-    @pytest.fixture
-    def search_result_web(self) -> MagicMock:
-        """A SearchResultWeb-like object (no markdown, just search metadata)."""
-        result = MagicMock(spec=["url", "title", "description"])
-        result.url = "https://example.com"
-        result.title = "Example Title"
-        result.description = "Example description snippet"
-        return result
+@pytest.fixture
+def search_result_web() -> MagicMock:
+    """A SearchResultWeb-like object (no markdown, just search metadata)."""
+    result = MagicMock(spec=["url", "title", "description"])
+    result.url = "https://example.com"
+    result.title = "Example Title"
+    result.description = "Example description snippet"
+    return result
 
-    @pytest.fixture
-    def search_result_document(self) -> MagicMock:
-        """A Document-like object (with markdown, from scrapeOptions)."""
-        result = MagicMock(spec=["markdown", "metadata_dict", "url"])
-        result.markdown = "# Full page content\nSome markdown text."
-        result.metadata_dict = {"url": "https://example.com/page", "title": "Page Title"}
-        result.url = "https://example.com/page"
-        return result
 
-    @pytest.fixture
-    def search_response(self, search_result_web) -> MagicMock:
-        """Standard search response with web results."""
-        response = MagicMock()
-        response.web = [search_result_web]
-        return response
+@pytest.fixture
+def search_result_document() -> MagicMock:
+    """A Document-like object (with markdown, from scrapeOptions)."""
+    result = MagicMock(spec=["markdown", "metadata_dict", "url"])
+    result.markdown = "# Full page content\nSome markdown text."
+    result.metadata_dict = {"url": "https://example.com/page", "title": "Page Title"}
+    result.url = "https://example.com/page"
+    return result
 
-    @pytest.fixture
-    def mock_client(self, search_response) -> MagicMock:
-        client = MagicMock()
-        client.search.return_value = search_response
-        return client
 
-    @pytest.fixture
-    def mock_async_client(self, search_response) -> MagicMock:
-        client = MagicMock()
-        client.search = AsyncMock(return_value=search_response)
-        return client
+@pytest.fixture
+def search_response(search_result_web) -> MagicMock:
+    """Standard search response with web results."""
+    response = MagicMock()
+    response.web = [search_result_web]
+    return response
 
+
+@pytest.fixture
+def mock_client(search_response) -> MagicMock:
+    client = MagicMock()
+    client.search.return_value = search_response
+    return client
+
+
+@pytest.fixture
+def mock_async_client(search_response) -> MagicMock:
+    client = MagicMock()
+    client.search = AsyncMock(return_value=search_response)
+    return client
+
+
+class TestInit:
     def test_init_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
         ws = FirecrawlWebSearch()
         assert ws.top_k == 10
         assert ws._search_params == {}
         assert ws.api_key.resolve_value() == "test-key"
+        assert ws._firecrawl_client is None
+        assert ws._async_firecrawl_client is None
 
     def test_init_with_params(self) -> None:
         ws = FirecrawlWebSearch(
@@ -68,8 +75,9 @@ class TestFirecrawlWebSearch:
         assert ws._search_params == {"tbs": "qdr:d", "location": "US"}
         assert ws.api_key.resolve_value() == "custom-key"
 
-    def test_to_dict(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
+
+class TestSerialization:
+    def test_to_dict(self) -> None:
         ws = FirecrawlWebSearch(top_k=5, search_params={"tbs": "qdr:d"})
         data = component_to_dict(ws, "FirecrawlWebSearch")
         assert (
@@ -94,6 +102,42 @@ class TestFirecrawlWebSearch:
         assert ws.search_params == {"location": "UK"}
         assert ws.api_key.resolve_value() == "test-key"
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+        ws = FirecrawlWebSearch()
+
+        with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
+            ws.warm_up()
+
+    def test_warm_up(self) -> None:
+        ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"))
+
+        with patch("haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.Firecrawl") as mock_client:
+            ws.warm_up()
+            ws.warm_up()
+
+        assert ws._firecrawl_client is mock_client.return_value
+        assert ws._async_firecrawl_client is None
+        mock_client.assert_called_once_with(api_key="test-key")
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async(self) -> None:
+        ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"))
+
+        with patch(
+            "haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.AsyncFirecrawl"
+        ) as mock_async_client:
+            await ws.warm_up_async()
+            await ws.warm_up_async()
+
+        assert ws._firecrawl_client is None
+        assert ws._async_firecrawl_client is mock_async_client.return_value
+        mock_async_client.assert_called_once_with(api_key="test-key")
+
+
+class TestRun:
     def test_run_returns_documents_and_links(self, mock_client) -> None:
         ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"), top_k=10)
         ws._firecrawl_client = mock_client
@@ -175,12 +219,9 @@ class TestFirecrawlWebSearch:
         assert result["links"] == []
 
     def test_run_calls_warm_up(self, search_response) -> None:
-        with (
-            patch(
-                "haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.Firecrawl"
-            ) as mock_firecrawl_client,
-            patch("haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.AsyncFirecrawl"),
-        ):
+        with patch(
+            "haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.Firecrawl"
+        ) as mock_firecrawl_client:
             mock_firecrawl_client.return_value.search.return_value = search_response
 
             ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"))
@@ -191,12 +232,9 @@ class TestFirecrawlWebSearch:
 
     @pytest.mark.asyncio
     async def test_run_async_calls_warm_up(self, search_response) -> None:
-        with (
-            patch("haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.Firecrawl"),
-            patch(
-                "haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.AsyncFirecrawl"
-            ) as mock_async_firecrawl_client,
-        ):
+        with patch(
+            "haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.AsyncFirecrawl"
+        ) as mock_async_firecrawl_client:
             mock_async_firecrawl_client.return_value.search = AsyncMock(return_value=search_response)
 
             ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"))
@@ -204,16 +242,6 @@ class TestFirecrawlWebSearch:
 
             assert ws._async_firecrawl_client is mock_async_firecrawl_client.return_value
             mock_async_firecrawl_client.assert_called_once_with(api_key="test-key")
-
-    def test_warm_up_initializes_clients(self) -> None:
-        ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"))
-        assert ws._firecrawl_client is None
-        assert ws._async_firecrawl_client is None
-
-        ws.warm_up()
-
-        assert ws._firecrawl_client is not None
-        assert ws._async_firecrawl_client is not None
 
     def test_run_empty_web_results(self, mock_client) -> None:
         empty_response = MagicMock()
@@ -237,6 +265,8 @@ class TestFirecrawlWebSearch:
         assert result["documents"] == []
         assert result["links"] == []
 
+
+class TestIntegration:
     @pytest.mark.skipif(
         not os.environ.get("FIRECRAWL_API_KEY"),
         reason="Export FIRECRAWL_API_KEY to run integration tests.",
