@@ -4,6 +4,7 @@
 
 import base64
 import json
+from collections.abc import Iterator
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -11,7 +12,6 @@ import boto3
 from botocore.exceptions import ClientError
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
-from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import document_matches_filter
@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 # S3 Vectors allows up to 500 vectors per put_vectors call
 _WRITE_BATCH_SIZE = 500
 
-# S3 Vectors allows up to 100 keys per get_vectors call, 500 per delete_vectors call
-_GET_BATCH_SIZE = 100
+# S3 Vectors allows up to 500 keys per delete_vectors call
 _DELETE_BATCH_SIZE = 500
 
 # Maximum number of results from query_vectors
@@ -59,7 +58,10 @@ class S3VectorsDocumentStore:
     - Maximum `top_k`: 100 results per query
     - Maximum vector dimension: 4,096
     - Metadata per vector: 40 KB total, 2 KB filterable
-    - All documents must have embeddings (`float32` only)
+    - Every record needs a vector (`float32` only), so documents written without an embedding are
+      stored with a placeholder vector (stripped again on read) and are only meaningfully
+      retrievable via `filter_documents()`
+    - Only `DuplicatePolicy.OVERWRITE` is supported, since `put_vectors` is an upsert
     - Distance metrics: `cosine` or `euclidean` (set at index creation, immutable)
     - `filter_documents()` is client-side — prefer `S3VectorsEmbeddingRetriever` with filters
 
@@ -115,6 +117,10 @@ class S3VectorsDocumentStore:
         self.aws_session_token = aws_session_token
         self.create_bucket_and_index = create_bucket_and_index
         self.non_filterable_metadata_keys = non_filterable_metadata_keys or []
+
+        # S3 Vectors requires a vector on every record, and a cosine index rejects zero-norm
+        # vectors, so documents written without an embedding get this non-zero placeholder.
+        self._dummy_vector = [-10.0] * dimension
 
         self._client: Any = None
 
@@ -210,6 +216,32 @@ class S3VectorsDocumentStore:
         )
         return default_from_dict(cls, data)
 
+    def _iter_vectors(self, *, return_data: bool = False, return_metadata: bool = False) -> Iterator[dict[str, Any]]:
+        """
+        Yield every vector in the index, paginating through `list_vectors`.
+
+        :param return_data: Whether to ask S3 Vectors for the vector data.
+        :param return_metadata: Whether to ask S3 Vectors for the vector metadata.
+        """
+        client = self._get_client()
+        next_token = None
+        while True:
+            kwargs: dict[str, Any] = {
+                "vectorBucketName": self.vector_bucket_name,
+                "indexName": self.index_name,
+            }
+            if return_data:
+                kwargs["returnData"] = True
+            if return_metadata:
+                kwargs["returnMetadata"] = True
+            if next_token:
+                kwargs["nextToken"] = next_token
+            response = client.list_vectors(**kwargs)
+            yield from response.get("vectors", [])
+            next_token = response.get("nextToken")
+            if not next_token:
+                break
+
     def count_documents(self) -> int:
         """
         Return the number of documents in the document store.
@@ -219,42 +251,27 @@ class S3VectorsDocumentStore:
             S3 Vectors does not provide a dedicated count API. This method lists all vector keys
             via pagination, which can be slow for large indexes.
         """
-        client = self._get_client()
-        count = 0
-        next_token = None
-        while True:
-            kwargs: dict[str, Any] = {
-                "vectorBucketName": self.vector_bucket_name,
-                "indexName": self.index_name,
-            }
-            if next_token:
-                kwargs["nextToken"] = next_token
-            response = client.list_vectors(**kwargs)
-            count += len(response.get("vectors", []))
-            next_token = response.get("nextToken")
-            if not next_token:
-                break
-        return count
+        return sum(1 for _ in self._iter_vectors())
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.OVERWRITE) -> int:
         """
         Write Documents to the S3 Vectors index.
 
-        All documents must have an embedding set. S3 Vectors `put_vectors` is an upsert operation
-        by default, so `DuplicatePolicy.OVERWRITE` is the natural behavior.
-        `DuplicatePolicy.SKIP` will check for existing documents first (slower).
-        `DuplicatePolicy.FAIL` and `DuplicatePolicy.NONE` will raise `DuplicateDocumentError`
-        if any document already exists.
+        `S3VectorsDocumentStore` only supports `DuplicatePolicy.OVERWRITE`: `put_vectors` is an
+        upsert, and S3 Vectors offers no cheap existence check (only `get_vectors` on batches of
+        100 keys, or a full index scan), so enforcing any other policy would cost an extra read
+        pass on every write. Other policies are ignored with a warning.
+
+        Documents without an embedding are stored with a placeholder vector, since S3 Vectors
+        requires a vector on every record. `filter_documents()` strips the placeholder, so they read
+        back with `embedding=None`, but they are meaningless as similarity-search results.
 
         Metadata per vector is limited to 40 KB total (2 KB filterable).
 
-        :param documents: A list of Documents to write. Each document must have an embedding.
-        :param policy: The duplicate policy. Defaults to `DuplicatePolicy.OVERWRITE`.
+        :param documents: A list of Documents to write.
+        :param policy: The duplicate policy. Only `DuplicatePolicy.OVERWRITE` is supported.
         :returns: The number of documents written.
         :raises ValueError: If `documents` is not a list of `Document` instances.
-        :raises DocumentStoreError: If any document is missing an embedding.
-        :raises DuplicateDocumentError: If `policy` is `FAIL` or `NONE` and any document already
-            exists in the store.
         """
         # Validate input type up front, before any writes happen.
         if not isinstance(documents, list) or any(not isinstance(d, Document) for d in documents):
@@ -264,56 +281,38 @@ class S3VectorsDocumentStore:
         if len(documents) == 0:
             return 0
 
-        # Validate ALL embeddings up front so we fail before any put_vectors call,
-        # never leaving the store with a partial write.
+        # DuplicatePolicy.NONE means "the store decides", so it needs no warning.
+        if policy not in (DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE):
+            logger.warning(
+                "S3VectorsDocumentStore only supports DuplicatePolicy.OVERWRITE because put_vectors is an "
+                "upsert. Ignoring policy={policy} and overwriting.",
+                policy=str(policy),
+            )
+
+        # Report every embedding-less document in one pass, before any put_vectors call, so the
+        # warning describes the whole write rather than arriving batch by batch.
         missing_embedding_ids = [doc.id for doc in documents if doc.embedding is None]
         if missing_embedding_ids:
-            msg = (
-                f"Document(s) {missing_embedding_ids} have no embedding. "
-                "S3VectorsDocumentStore requires every document to have an embedding."
+            logger.warning(
+                "Document(s) {ids} have no embedding and will be stored with a placeholder vector. "
+                "They are retrievable with filter_documents() but will pollute similarity search results.",
+                ids=missing_embedding_ids,
             )
-            raise DocumentStoreError(msg)
 
         client = self._get_client()
         written = 0
 
         for i in range(0, len(documents), _WRITE_BATCH_SIZE):
             batch = documents[i : i + _WRITE_BATCH_SIZE]
-
-            # Batch-check for existing documents when needed
-            existing_ids: set[str] = set()
-            if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
-                batch_ids = [doc.id for doc in batch]
-                for j in range(0, len(batch_ids), _GET_BATCH_SIZE):
-                    id_chunk = batch_ids[j : j + _GET_BATCH_SIZE]
-                    response = client.get_vectors(
-                        vectorBucketName=self.vector_bucket_name,
-                        indexName=self.index_name,
-                        keys=id_chunk,
-                    )
-                    for v in response.get("vectors", []):
-                        existing_ids.add(v["key"])
-
-                if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL) and existing_ids:
-                    msg = (
-                        f"Document(s) {sorted(existing_ids)} already exist in the document store. "
-                        "Use DuplicatePolicy.OVERWRITE or DuplicatePolicy.SKIP."
-                    )
-                    raise DuplicateDocumentError(msg)
-
-            vectors_to_write = []
-            for doc in batch:
-                if policy == DuplicatePolicy.SKIP and doc.id in existing_ids:
-                    continue
-                vectors_to_write.append(self._document_to_s3_vector(doc))
-
-            if vectors_to_write:
-                client.put_vectors(
-                    vectorBucketName=self.vector_bucket_name,
-                    indexName=self.index_name,
-                    vectors=vectors_to_write,
-                )
-                written += len(vectors_to_write)
+            vectors_to_write = [
+                self._document_to_s3_vector(doc, fallback_embedding=self._dummy_vector) for doc in batch
+            ]
+            client.put_vectors(
+                vectorBucketName=self.vector_bucket_name,
+                indexName=self.index_name,
+                vectors=vectors_to_write,
+            )
+            written += len(vectors_to_write)
 
         return written
 
@@ -339,28 +338,13 @@ class S3VectorsDocumentStore:
                 "Prefer using S3VectorsEmbeddingRetriever with filters for efficient filtered retrieval."
             )
 
-        client = self._get_client()
-
         # list_vectors supports returnData and returnMetadata directly,
         # so we can read documents in a single paginated pass without
         # a separate get_vectors round-trip.
-        documents: list[Document] = []
-        next_token = None
-        while True:
-            kwargs: dict[str, Any] = {
-                "vectorBucketName": self.vector_bucket_name,
-                "indexName": self.index_name,
-                "returnData": True,
-                "returnMetadata": True,
-            }
-            if next_token:
-                kwargs["nextToken"] = next_token
-            response = client.list_vectors(**kwargs)
-            for v in response.get("vectors", []):
-                documents.append(self._s3_vector_to_document(v))
-            next_token = response.get("nextToken")
-            if not next_token:
-                break
+        documents = [
+            self._s3_vector_to_document(v, placeholder_embedding=self._dummy_vector)
+            for v in self._iter_vectors(return_data=True, return_metadata=True)
+        ]
 
         if filters:
             _validate_filters(filters)
@@ -385,6 +369,55 @@ class S3VectorsDocumentStore:
                 indexName=self.index_name,
                 keys=batch,
             )
+
+    def delete_all_documents(self) -> None:
+        """
+        Delete all documents from the index.
+
+        .. note::
+
+            S3 Vectors has no truncate operation, so every key is listed and then deleted in
+            batches, which can be slow for large indexes.
+        """
+        self.delete_documents([v["key"] for v in self._iter_vectors()])
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Delete all documents matching the given filters.
+
+        .. warning::
+
+            Filtering is client-side (see `filter_documents`), so this reads the whole index.
+
+        :param filters: Haystack-format filters selecting the documents to delete.
+        :returns: The number of documents deleted.
+        """
+        document_ids = [doc.id for doc in self.filter_documents(filters=filters)]
+        self.delete_documents(document_ids)
+        return len(document_ids)
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Merge `meta` into the metadata of every document matching the given filters.
+
+        Keys present in `meta` are overwritten, the rest of each document's metadata is kept.
+
+        .. warning::
+
+            S3 Vectors cannot update metadata in place, so matching documents are read and written
+            back in full. Filtering is client-side (see `filter_documents`), so this reads the
+            whole index.
+
+        :param filters: Haystack-format filters selecting the documents to update.
+        :param meta: Metadata fields to set on the matching documents.
+        :returns: The number of documents updated.
+        """
+        matching = self.filter_documents(filters=filters)
+        if not matching:
+            return 0
+
+        self.write_documents([replace(doc, meta={**doc.meta, **meta}) for doc in matching])
+        return len(matching)
 
     def _embedding_retrieval(
         self,
@@ -460,8 +493,14 @@ class S3VectorsDocumentStore:
         return documents
 
     @staticmethod
-    def _document_to_s3_vector(doc: Document) -> dict[str, Any]:
-        """Convert a Haystack Document to an S3 Vectors vector entry."""
+    def _document_to_s3_vector(doc: Document, *, fallback_embedding: list[float] | None = None) -> dict[str, Any]:
+        """
+        Convert a Haystack Document to an S3 Vectors vector entry.
+
+        :param doc: The Document to convert.
+        :param fallback_embedding: Vector to send when `doc` has no embedding. S3 Vectors requires
+            a vector on every record.
+        """
         metadata: dict[str, Any] = {}
 
         # Store content as non-filterable metadata
@@ -503,13 +542,20 @@ class S3VectorsDocumentStore:
 
         return {
             "key": doc.id,
-            "data": {"float32": doc.embedding},
+            "data": {"float32": doc.embedding if doc.embedding is not None else fallback_embedding},
             "metadata": metadata,
         }
 
     @staticmethod
-    def _s3_vector_to_document(vector: dict[str, Any]) -> Document:
-        """Convert an S3 Vectors vector response to a Haystack Document."""
+    def _s3_vector_to_document(vector: dict[str, Any], *, placeholder_embedding: list[float] | None = None) -> Document:
+        """
+        Convert an S3 Vectors vector response to a Haystack Document.
+
+        :param vector: The vector as returned by `list_vectors` or `get_vectors`.
+        :param placeholder_embedding: Vector that stands for "no embedding". A stored vector equal to
+            it reads back as `embedding=None`, so a document written without an embedding round-trips
+            as one. See `write_documents`.
+        """
         metadata = dict(vector.get("metadata", {}))
         content = metadata.pop(_CONTENT_KEY, None)
         blob_data = metadata.pop(_BLOB_DATA_KEY, None)
@@ -528,6 +574,10 @@ class S3VectorsDocumentStore:
         data = vector.get("data", {})
         if "float32" in data:
             embedding = data["float32"]
+            # A placeholder vector means the document was written without an embedding; don't hand
+            # the caller a vector it never supplied.
+            if placeholder_embedding is not None and embedding == placeholder_embedding:
+                embedding = None
 
         return Document(
             id=vector["key"],

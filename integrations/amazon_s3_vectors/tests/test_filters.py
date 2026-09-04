@@ -93,15 +93,6 @@ def test_validate_filters():
         _validate_filters({"field": "meta.x"})  # missing operator/conditions
 
 
-# ---------------------------------------------------------------------------
-# Integration tests — run Haystack's full filter contract against a real S3
-# Vectors index. `S3VectorsDocumentStore.filter_documents` delegates the
-# actual matching to `haystack.utils.filters.document_matches_filter`, so the
-# only S3-specific quirk we have to absorb here is the float32 round-trip on
-# embeddings.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.integration
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
