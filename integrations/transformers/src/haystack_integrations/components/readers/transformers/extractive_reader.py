@@ -314,8 +314,10 @@ class TransformersExtractiveReader:
                 # But we shouldn't have special tokens in the answers at this point
                 # The whole span is given by the start of the start_token (index 0)
                 # and the end of the end token (index 1)
-                s_char_spans.append(encoding.token_to_chars(start_token)[0])
-                e_char_spans.append(encoding.token_to_chars(end_token)[1])
+                # `type: ignore[index]` because tokenizers>=0.23.1 types the return as
+                # `tuple[int, int] | None`; the `None` case cannot occur here per the above
+                s_char_spans.append(encoding.token_to_chars(start_token)[0])  # type: ignore[index]
+                e_char_spans.append(encoding.token_to_chars(end_token)[1])  # type: ignore[index]
             start_candidates_tokens_to_chars.append(s_char_spans)
             end_candidates_tokens_to_chars.append(e_char_spans)
             valid_candidates_values.append(candidates_values[i][valid])

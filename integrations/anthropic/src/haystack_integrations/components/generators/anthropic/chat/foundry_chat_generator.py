@@ -7,9 +7,7 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.utils import _normalize_messages
-from haystack.dataclasses import ChatMessage, StreamingChunk
-from haystack.dataclasses.streaming_chunk import StreamingCallbackT
+from haystack.dataclasses import StreamingChunk
 from haystack.tools import (
     ToolsType,
     _check_duplicate_tool_names,
@@ -179,20 +177,12 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             )
             raise ValueError(msg)
 
-        # Clients are created lazily in warm_up()
+        # mypy is not happy that the Foundry clients differ from the base Anthropic client types
         self.client = None  # type: ignore[assignment]
         self.async_client = None  # type: ignore[assignment]
-        self._is_warmed_up = False
 
-    def warm_up(self) -> None:
-        """
-        Create the AnthropicFoundry clients.
-
-        This method is idempotent — it only creates clients once.
-        """
-        if self._is_warmed_up:
-            return
-
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Anthropic Foundry clients."""
         client_kwargs: dict[str, Any] = {}
 
         if self.azure_ad_token_provider:
@@ -210,70 +200,17 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
 
         if self.max_retries is not None:
             client_kwargs["max_retries"] = self.max_retries
+        return client_kwargs
 
-        self.client = AnthropicFoundry(**client_kwargs)  # type: ignore[assignment]
-        self.async_client = AsyncAnthropicFoundry(**client_kwargs)  # type: ignore[assignment]
-        self._is_warmed_up = True
+    def warm_up(self) -> None:
+        """Create the synchronous Anthropic Foundry client."""
+        if self.client is None:
+            self.client = AnthropicFoundry(**self._client_kwargs())  # type: ignore[assignment]
 
-    @component.output_types(replies=list[ChatMessage])
-    def run(
-        self,
-        messages: list[ChatMessage] | str,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: ToolsType | None = None,
-    ) -> dict[str, list[ChatMessage]]:
-        """
-        Invokes the AnthropicFoundry API with the given messages and generation kwargs.
-
-        :param messages: A list of ChatMessage instances representing the input messages.
-            If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint. These are merged
-            per key with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys
-            set only at initialization are kept.
-        :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
-            Each tool should have a unique name. If set, it will override the `tools` parameter set during component
-            initialization.
-        :returns: A dictionary with the following keys:
-            - `replies`: The responses from the model
-        """
-        messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
-        return super(AnthropicFoundryChatGenerator, self).run(  # noqa: UP008
-            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
-        )
-
-    @component.output_types(replies=list[ChatMessage])
-    async def run_async(
-        self,
-        messages: list[ChatMessage] | str,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: ToolsType | None = None,
-    ) -> dict[str, list[ChatMessage]]:
-        """
-        Async version of the run method. Invokes the AnthropicFoundry API with the given messages and generation kwargs.
-
-        :param messages: A list of ChatMessage instances representing the input messages.
-            If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param streaming_callback: A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint. These are merged
-            per key with the `generation_kwargs` passed at initialization: keys provided here take precedence, keys
-            set only at initialization are kept.
-        :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
-            Each tool should have a unique name. If set, it will override the `tools` parameter set during component
-            initialization.
-        :returns: A dictionary with the following keys:
-            - `replies`: The responses from the model
-        """
-        messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
-        return await super(AnthropicFoundryChatGenerator, self).run_async(  # noqa: UP008
-            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
-        )
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Anthropic Foundry client."""
+        if self.async_client is None:
+            self.async_client = AsyncAnthropicFoundry(**self._client_kwargs())  # type: ignore[assignment]
 
     def to_dict(self) -> dict[str, Any]:
         """

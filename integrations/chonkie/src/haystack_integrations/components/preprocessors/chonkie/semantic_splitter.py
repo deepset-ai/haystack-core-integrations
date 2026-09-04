@@ -119,9 +119,8 @@ class ChonkieSemanticDocumentSplitter:
             msg = "ChonkieSemanticDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
 
-        if self._chunker is None:
-            self.warm_up()
-            assert self._chunker is not None  # noqa: S101
+        self.warm_up()
+        assert self._chunker is not None  # noqa: S101
 
         chunked_documents = []
         for doc in documents:

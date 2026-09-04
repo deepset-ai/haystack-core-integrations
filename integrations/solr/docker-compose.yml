@@ -1,0 +1,35 @@
+services:
+  solr:
+    # Overridable so the test suite can be run against the oldest supported Solr as well.
+    image: "${SOLR_IMAGE:-solr:10.0.0}"
+    ports:
+      - 8983:8983
+    restart: on-failure
+    # `solr-precreate` alone leaves <solr_home>/configsets empty, and CoreAdmin CREATE can only build
+    # a core from a configset found there. Copying `_default` over first is what lets the tests create
+    # a throwaway core per test, which in turn makes running them in parallel safe.
+    #
+    # `--user-managed` is what the stock `solr-precreate` command passes to `solr-fg`, and it selects
+    # standalone mode. Without it Solr 10 starts in SolrCloud mode, where a precreated core directory
+    # has no coreNodeName and fails to load.
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        mkdir -p /var/solr/data/configsets
+        cp -r /opt/solr/server/solr/configsets/_default /var/solr/data/configsets/_default
+        # A core created from a shared configset keeps its config overlay in that configset, not in
+        # the core. Seeding the overlay here means every test core starts with Solr's schemaless
+        # field guessing already off, so no test ever has to write shared state to disable it.
+        printf '%s' '{"userProps":{"update.autoCreateFields":"false"}}' \
+          > /var/solr/data/configsets/_default/conf/configoverlay.json
+        precreate-core haystack
+        exec solr-fg --user-managed
+    healthcheck:
+      # The Solr image declares no HEALTHCHECK, and /solr/admin/info/health is SolrCloud-only, so the
+      # per-core ping handler is the only dependable readiness probe in standalone mode.
+      test: ["CMD-SHELL", "curl -sf 'http://localhost:8983/solr/haystack/admin/ping?wt=json' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30

@@ -13,7 +13,8 @@
 
 - *(tavily)* Add TavilyFetcher component using the Extract API (#3561)
 
-### 🌀 Miscellaneous
+
+## [integrations/tavily-v0.2.1] - 2026-07-08
 
 
 ## [integrations/tavily-v0.2.0] - 2026-07-03

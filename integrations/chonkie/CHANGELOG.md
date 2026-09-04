@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/chonkie-v1.1.0] - 2026-09-04
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🚜 Refactor
+
+- Standardize Chonkie warm up (#3910)
+
+### 🧪 Testing
+
+- (chonkie) patch the model download for unit tests (#3431)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/chonkie-v1.0.0] - 2026-04-27
 
 ### 🚀 Features

@@ -192,8 +192,13 @@
 
 ### 🚀 Features
 
-- Improvements to NvidiaRanker and adding user input timeout (#1193)
 - Add model `nvidia/llama-3.2-nv-rerankqa-1b-v2` to `_MODEL_ENDPOINT_MAP` (#1260)
+
+## [integrations/nvidia-v0.1.2] - 2024-11-25
+
+### 🚀 Features
+
+- Improvements to NvidiaRanker and adding user input timeout (#1193)
 
 ### 🧹 Chores
 
@@ -211,18 +216,34 @@
 
 ### 🚀 Features
 
-- Update default embedding model to nvidia/nv-embedqa-e5-v5 (#1015)
-- Add NVIDIA NIM ranker support (#1023)
 - Raise error when attempting to embed empty documents/strings with Nvidia embedders (#1118)
 
 ### 🐛 Bug Fixes
 
-- Lints in `nvidia-haystack` (#993)
 - Missing Nvidia embedding truncate mode (#1043)
 
-### 🚜 Refactor
+### ⚙️ CI
 
-- Remove deprecated Nvidia Cloud Functions backend and related code. (#803)
+- Adopt uv as installer (#1142)
+
+### 🧹 Chores
+
+- Update ruff linting scripts and settings (#1105)
+
+### 🌀 Miscellaneous
+
+- Feat: add nvidia/llama-3.2-nv-rerankqa-1b-v1 to set of known ranking models (#1183)
+
+## [integrations/nvidia-v0.0.5] - 2024-08-28
+
+### 🚀 Features
+
+- Update default embedding model to nvidia/nv-embedqa-e5-v5 (#1015)
+- Add NVIDIA NIM ranker support (#1023)
+
+### 🐛 Bug Fixes
+
+- Lints in `nvidia-haystack` (#993)
 
 ### 📚 Documentation
 
@@ -232,25 +253,31 @@
 
 - Do not retry tests in `hatch run test` command (#954)
 
+### 🌀 Miscellaneous
+
+- Raise warning for base_url ../embeddings .../completions .../rankings (#922)
+- Update NvidiaGenerator docstrings (#966)
+-  Add default model for NVIDIA HayStack local NIM endpoints (#915)
+
+## [integrations/nvidia-v0.0.4] - 2024-07-24
+
+### 🚜 Refactor
+
+- Remove deprecated Nvidia Cloud Functions backend and related code. (#803)
+
 ### ⚙️ CI
 
 - Retry tests to reduce flakyness (#836)
-- Adopt uv as installer (#1142)
 
 ### 🧹 Chores
 
 - Update ruff invocation to include check parameter (#853)
-- Update ruff linting scripts and settings (#1105)
 
 ### 🌀 Miscellaneous
 
 - Fix: make hosted nim default (#734)
 - Fix: align tests and docs on NVIDIA_API_KEY (instead of NVIDIA_CATALOG_API_KEY) (#731)
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
-- Raise warning for base_url ../embeddings .../completions .../rankings (#922)
-- Update NvidiaGenerator docstrings (#966)
--  Add default model for NVIDIA HayStack local NIM endpoints (#915)
-- Feat: add nvidia/llama-3.2-nv-rerankqa-1b-v1 to set of known ranking models (#1183)
 
 ## [integrations/nvidia-v0.0.3] - 2024-05-22
 

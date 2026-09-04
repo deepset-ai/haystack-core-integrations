@@ -194,6 +194,23 @@
 
 ## [integrations/llama_cpp-v0.4.0] - 2024-05-13
 
+### 📚 Documentation
+
+- Small consistency improvements (#536)
+- Disable-class-def (#556)
+
+### 🌀 Miscellaneous
+
+- Llama.cpp - review docstrings (#510)
+- Llama.cpp - update examples (#511)
+- Make tests show coverage (#566)
+- Remove references to Python 3.7 (#601)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
+- Basic implementation of llama.cpp chat generation (#723)
+
+## [integrations/llama_cpp-v0.3.0] - 2024-02-27
+
 ### 🐛 Bug Fixes
 
 - Llama.cpp: change wrong links and imports (#436)
@@ -202,8 +219,6 @@
 ### 📚 Documentation
 
 - Update category slug (#442)
-- Small consistency improvements (#536)
-- Disable-class-def (#556)
 
 ### 🧹 Chores
 
@@ -213,13 +228,6 @@
 
 - Generate api docs (#353)
 - Model_name_or_path > model (#418)
-- Llama.cpp - review docstrings (#510)
-- Llama.cpp - update examples (#511)
-- Make tests show coverage (#566)
-- Remove references to Python 3.7 (#601)
-- Chore: add license classifiers (#680)
-- Chore: change the pydoc renderer class (#718)
-- Basic implementation of llama.cpp chat generation (#723)
 
 ## [integrations/llama_cpp-v0.2.1] - 2024-01-18
 

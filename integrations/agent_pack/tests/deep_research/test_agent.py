@@ -5,6 +5,7 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
 from haystack.core.serialization import allow_deserialization_module
 from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.tools import AgentTool, tool
 
 from haystack_integrations.agent_pack.deep_research.agent import (
     _collect_note,
@@ -46,10 +47,10 @@ def test_collect_note_skips_empty_message():
 def test_make_researcher_agent_wires_the_three_tools():
     researcher = _make_researcher_agent(
         researcher_llm=MockChatGenerator(),
-        summarizer_llm=MockChatGenerator(),
+        page_summary_llm=MockChatGenerator(),
+        search_tool=None,
         max_researcher_steps=12,
-        max_search_results=4,
-        max_content_length=1000,
+        max_page_chars=1000,
     )
     assert isinstance(researcher, Agent)
     assert [t.name for t in researcher.tools] == ["web_search", "read_url", "think_tool"]
@@ -57,18 +58,37 @@ def test_make_researcher_agent_wires_the_three_tools():
     assert researcher.max_agent_steps == 12
 
 
+def test_make_researcher_agent_with_custom_search_tool():
+    @tool
+    def my_search(query: str) -> str:
+        """Search."""
+        return query
+
+    researcher = _make_researcher_agent(
+        researcher_llm=MockChatGenerator(),
+        page_summary_llm=MockChatGenerator(),
+        search_tool=my_search,
+        max_researcher_steps=12,
+        max_page_chars=1000,
+    )
+    assert [t.name for t in researcher.tools] == ["my_search", "read_url", "think_tool"]
+
+
 def test_create_deep_research_agent():
     agent = create_deep_research_agent(
-        scope_llm=MockChatGenerator(),
-        orchestrator_llm=MockChatGenerator(),
+        llm=MockChatGenerator(),
+        brief_llm=MockChatGenerator(),
         researcher_llm=MockChatGenerator(),
-        summarizer_llm=MockChatGenerator(),
-        writer_llm=MockChatGenerator(),
+        page_summary_llm=MockChatGenerator(),
+        report_llm=MockChatGenerator(),
         max_subtopics=3,
         max_concurrent_researchers=2,
-        max_orchestrator_steps=6,
+        max_agent_steps=6,
     )
     assert [t.name for t in agent.tools] == ["research_subtopic", "think_tool"]
+    assert isinstance(agent.tools[0], AgentTool)
+    assert agent.tools[0].parameters["properties"]["messages"]["minItems"] == 1
+    assert agent.tools[0].parameters["properties"]["messages"]["maxItems"] == 1
     assert agent.exit_conditions == ["text"]
     assert agent.max_agent_steps == 6
     assert agent.tool_concurrency_limit == 2
@@ -82,15 +102,28 @@ def test_create_deep_research_agent():
     assert default_agent.chat_generator.model == "gpt-5.4"
 
 
+def test_create_deep_research_agent_with_custom_system_prompt():
+    agent = create_deep_research_agent(
+        llm=MockChatGenerator(),
+        brief_llm=MockChatGenerator(),
+        researcher_llm=MockChatGenerator(),
+        page_summary_llm=MockChatGenerator(),
+        report_llm=MockChatGenerator(),
+        system_prompt="Delegate at most {{ max_subtopics }} sub-questions.",
+        max_subtopics=2,
+    )
+    assert agent.system_prompt == "Delegate at most 2 sub-questions."
+
+
 def test_deep_research_run(monkeypatch):
     # agent.run() warms up the TavilyWebSearch tool component, which resolves TAVILY_API_KEY
     monkeypatch.setenv("TAVILY_API_KEY", "test-key")
     agent = create_deep_research_agent(
-        scope_llm=MockChatGenerator("Brief: investigate the causes of X."),
-        orchestrator_llm=MockChatGenerator(responses=_delegate_then_stop("What causes X?")),
+        llm=MockChatGenerator(responses=_delegate_then_stop("What causes X?")),
+        brief_llm=MockChatGenerator("Brief: investigate the causes of X."),
         researcher_llm=MockChatGenerator("X is caused by Y (https://example.com/x).\nSources:\nhttps://example.com/x"),
-        summarizer_llm=MockChatGenerator(),
-        writer_llm=MockChatGenerator("# Report\nX is caused by Y (https://example.com/x)."),
+        page_summary_llm=MockChatGenerator(),
+        report_llm=MockChatGenerator("# Report\nX is caused by Y (https://example.com/x)."),
         max_subtopics=1,
     )
     result = agent.run(messages=[ChatMessage.from_user("Tell me about X")])
@@ -104,17 +137,18 @@ def test_deep_research_run(monkeypatch):
 def test_create_deep_research_agent_serialization_roundtrip():
     allow_deserialization_module("haystack_integrations.agent_pack.*")
     agent = create_deep_research_agent(
-        scope_llm=MockChatGenerator(),
-        orchestrator_llm=MockChatGenerator(),
+        llm=MockChatGenerator(),
+        brief_llm=MockChatGenerator(),
         researcher_llm=MockChatGenerator(),
-        summarizer_llm=MockChatGenerator(),
-        writer_llm=MockChatGenerator(),
+        page_summary_llm=MockChatGenerator(),
+        report_llm=MockChatGenerator(),
     )
 
     restored = Agent.from_dict(agent.to_dict())
 
     assert isinstance(restored, Agent)
     assert [t.name for t in restored.tools] == ["research_subtopic", "think_tool"]
+    assert isinstance(restored.tools[0], AgentTool)
     assert [type(h) for h in restored.hooks["before_run"]] == [ScopeHook]
     assert [type(h) for h in restored.hooks["after_run"]] == [WriteHook]
     assert set(restored.state_schema) >= {"notes", "brief", "report"}
@@ -126,7 +160,7 @@ def test_create_deep_research_agent_serialization_roundtrip():
     reason="OPENAI_API_KEY and TAVILY_API_KEY required",
 )
 def test_deep_research_live_run():
-    agent = create_deep_research_agent(max_subtopics=2, max_orchestrator_steps=4, max_researcher_steps=6)
+    agent = create_deep_research_agent(max_subtopics=2, max_agent_steps=4, max_researcher_steps=6)
     result = agent.run(messages=[ChatMessage.from_user("What are the main causes and effects of ocean acidification?")])
 
     assert result["brief"].strip()

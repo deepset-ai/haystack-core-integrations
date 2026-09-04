@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/weaviate-v7.8.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- `Weaviate` match `search_term` against metadata field value, not content + default size value set to 10 (#3643)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `WeaviateDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3708)
+- Weaviate adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3741)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `WeaviateDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3787)
+
+
 ## [integrations/weaviate-v7.7.0] - 2026-07-22
 
 ### 🚜 Refactor
@@ -207,21 +222,20 @@
 
 ### 🧹 Chores
 
-- Weaviate - remove legacy filter support (#1070)
 - Update changelog after removing legacy filters (#1083)
 - Update ruff linting scripts and settings (#1105)
+
+## [integrations/weaviate-v3.0.0] - 2024-09-12
+
+### 🧹 Chores
+
+- Weaviate - remove legacy filter support (#1070)
 
 
 ## [integrations/weaviate-v2.2.1] - 2024-09-07
 
-### 🚀 Features
-
-- Add filter_policy to weaviate integration (#824)
-
 ### 🐛 Bug Fixes
 
-- Weaviate filter error (#811)
-- Fix connection to Weaviate Cloud Service (#624)
 - Pin weaviate-client (#1046)
 - Weaviate - fix connection issues with some WCS URLs (#1058)
 
@@ -229,9 +243,27 @@
 
 - Do not retry tests in `hatch run test` command (#954)
 
-### ⚙️ CI
+### 🌀 Miscellaneous
 
-- Retry tests to reduce flakyness (#836)
+- Chore: weaviate - ruff update, don't ruff tests (#986)
+
+## [integrations/weaviate-v2.2.0] - 2024-08-02
+
+### 🌀 Miscellaneous
+
+- Fix: Weaviate: Use collections.list_all instead of collections._get_all (#921)
+
+## [integrations/weaviate-v2.1.3] - 2024-07-17
+
+### 🌀 Miscellaneous
+
+- Fix: `weaviate` - Fallback to default filter policy when deserializing retrievers without the init parameter  (#903)
+
+## [integrations/weaviate-v2.1.2] - 2024-07-15
+
+### 🚀 Features
+
+- Add filter_policy to weaviate integration (#824)
 
 ### 🧹 Chores
 
@@ -239,15 +271,24 @@
 
 ### 🌀 Miscellaneous
 
+- Chore: Minor retriever pydoc fix (#884)
+
+## [integrations/weaviate-v2.1.1] - 2024-06-25
+
+### 🐛 Bug Fixes
+
+- Weaviate filter error (#811)
+- Fix connection to Weaviate Cloud Service (#624)
+
+### ⚙️ CI
+
+- Retry tests to reduce flakyness (#836)
+
+### 🌀 Miscellaneous
+
 - Handle connection to WCS and add tests
 - Revert "Handle connection to WCS and add tests"
-
-This reverts commit f48802b2ce612896fd06a13cf33dffd9f77a8859.
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
-- Chore: Minor retriever pydoc fix (#884)
-- Fix: `weaviate` - Fallback to default filter policy when deserializing retrievers without the init parameter  (#903)
-- Fix: Weaviate: Use collections.list_all instead of collections._get_all (#921)
-- Chore: weaviate - ruff update, don't ruff tests (#986)
 
 ## [integrations/weaviate-v2.1.0] - 2024-06-10
 

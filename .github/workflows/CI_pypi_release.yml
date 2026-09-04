@@ -67,15 +67,38 @@ jobs:
         with:
           packages-dir: ${{ steps.pathfinder.outputs.project_path }}/dist
 
-      - name: Generate changelog
-        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5 # v4.8.0
+      # git-cliff does not properly support a release use case that is common for us: tag the latest commit in main
+      # to release an integration that has been touched in a previous commit. (https://github.com/orhun/git-cliff/issues/1122)
+      # What does it happen?
+      # - at release time, the changelog appears with an [unreleased] section
+      # - at the next release, the commits appearing in the previous release are incorrectly attributed to the following
+      #   version
+      # For this reason, we:
+      # - pass --tag to name the current release
+      # - only generate changelog for the current release and prepend to the existing changelog
+      - name: Prepare git-cliff arguments
+        id: cliffargs
         env:
-          OUTPUT: "${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md"
+          REF_NAME: ${{ github.ref_name }}
+          PROJECT_PATH: ${{ steps.pathfinder.outputs.project_path }}
+        run: |
+          set -euo pipefail
+          # nearest release tag that is an ancestor of the one we're releasing; empty on first release
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "${PROJECT_PATH}-v*" "${REF_NAME}^" 2>/dev/null || true)
+          ARGS="--include-path \"${PROJECT_PATH}/**/*\" --tag-pattern \"^${PROJECT_PATH}-v\" --tag \"${REF_NAME}\""
+          if [ -n "${PREV_TAG}" ] && [ -f "${PROJECT_PATH}/CHANGELOG.md" ]; then
+            ARGS="${ARGS} --prepend \"${PROJECT_PATH}/CHANGELOG.md\" \"${PREV_TAG}..HEAD\""
+          else
+            # first release: nothing to preserve, generate the whole file
+            ARGS="${ARGS} --output \"${PROJECT_PATH}/CHANGELOG.md\""
+          fi
+          echo "args=${ARGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2 # v4.9.0
         with:
           config: cliff.toml
-          args: >
-            --include-path "${{ steps.pathfinder.outputs.project_path }}/**/*"
-            --tag-pattern "${{ steps.pathfinder.outputs.project_path }}-v*"
+          args: ${{ steps.cliffargs.outputs.args }}
 
       - name: Commit changelog
         uses: EndBug/add-and-commit@cc9c08ba6c8df3b93a8f2db63e89b98368ae2ae8 # v11.1.1
@@ -87,4 +110,3 @@ jobs:
           # to avoid that the pushed branch tip is behind its remote counterpart, we need to pull first
           pull: "origin main --rebase --autostash"
           push: origin HEAD:main
-

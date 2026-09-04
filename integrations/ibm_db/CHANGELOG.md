@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/ibm_db-v0.3.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- `IBMDB2DocumentStore` search_term + pagination (#3689)
+- IBMDB adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3739)
+
+### 🧪 Testing
+
+- `IBMDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3779)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/ibm_db-v0.2.0] - 2026-07-27
 
 ### 🚀 Features

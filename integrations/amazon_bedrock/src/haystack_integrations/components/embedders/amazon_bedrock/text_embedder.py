@@ -99,16 +99,23 @@ class AmazonBedrockTextEmbedder:
         self.boto3_config = boto3_config
         self.kwargs = kwargs
 
+        self._client: Any = None
+
+    def warm_up(self) -> None:
+        """Create the Amazon Bedrock client."""
+        if self._client is not None:
+            return
+
         def resolve_secret(secret: Secret | str | None) -> str | None:
             return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_region_name=resolve_secret(self.aws_region_name),
+                aws_profile_name=resolve_secret(self.aws_profile_name),
             )
             config = Config(
                 user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
@@ -121,6 +128,12 @@ class AmazonBedrockTextEmbedder:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
+    def close(self) -> None:
+        """Close the Amazon Bedrock client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     @component.output_types(embedding=list[float])
     def run(self, text: str) -> dict[str, list[float]]:
         """
@@ -132,6 +145,7 @@ class AmazonBedrockTextEmbedder:
         :raises TypeError: If the input text is not a string.
         :raises AmazonBedrockInferenceError: If the model inference fails.
         """
+        self.warm_up()
         if not isinstance(text, str):
             msg = (
                 "AmazonBedrockTextEmbedder expects a string as an input."
