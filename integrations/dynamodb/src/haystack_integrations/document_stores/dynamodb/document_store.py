@@ -242,7 +242,7 @@ class DynamoDBDocumentStore:
             for raw_item in page.get("Items", []):
                 item = _from_dynamodb_item(raw_item)
                 doc = self._item_to_doc(item)
-                if filters is None or document_matches_filter(filters, doc):
+                if not filters or document_matches_filter(filters, doc):
                     docs.append(doc)
         return docs
 
@@ -345,7 +345,7 @@ class DynamoDBDocumentStore:
             item = _from_dynamodb_item(match["Item"])
             doc = self._item_to_doc(item)
             doc = dataclasses.replace(doc, score=match.get("Distance"))
-            if filters is None or document_matches_filter(filters, doc):
+            if not filters or document_matches_filter(filters, doc):
                 docs.append(doc)
             if len(docs) >= top_k:
                 break
