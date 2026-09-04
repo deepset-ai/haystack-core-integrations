@@ -4,9 +4,9 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/fetchers/firecrawl/firecrawl\_crawler.py    |       64 |        0 |       16 |        2 |     98% |131-\>133, 133-\>exit |
-| src/haystack\_integrations/components/websearch/firecrawl/firecrawl\_websearch.py |       72 |        0 |       18 |        4 |     96% |78-\>80, 80-\>exit, 142-\>145, 192-\>169 |
-| **TOTAL**                                                                         |  **136** |    **0** |   **34** |    **6** | **96%** |           |
+| src/haystack\_integrations/components/fetchers/firecrawl/firecrawl\_crawler.py    |       59 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/websearch/firecrawl/firecrawl\_websearch.py |       73 |        0 |       14 |        2 |     98% |141-\>144, 191-\>168 |
+| **TOTAL**                                                                         |  **132** |    **0** |   **26** |    **2** | **99%** |           |
 
 
 ## Setup coverage badge
