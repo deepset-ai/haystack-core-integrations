@@ -115,12 +115,12 @@ class ChonkieSemanticDocumentSplitter:
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
-        self.warm_up()
-        assert self._chunker is not None  # noqa: S101
-
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieSemanticDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
+
+        self.warm_up()
+        assert self._chunker is not None  # noqa: S101
 
         chunked_documents = []
         for doc in documents:

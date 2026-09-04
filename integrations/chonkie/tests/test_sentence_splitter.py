@@ -77,7 +77,8 @@ class TestChonkieSentenceDocumentSplitter:
 
     @patch("haystack_integrations.components.preprocessors.chonkie.sentence_splitter.chonkie.SentenceChunker")
     def test_warm_up_is_idempotent(self, mock_chunker):
-        splitter = ChonkieSentenceDocumentSplitter()
+        delim = [". ", "? "]
+        splitter = ChonkieSentenceDocumentSplitter(delim=delim)
         splitter.warm_up()
         assert splitter._chunker is mock_chunker.return_value
         splitter.warm_up()
@@ -89,6 +90,7 @@ class TestChonkieSentenceDocumentSplitter:
             min_characters_per_sentence=12,
             approximate=False,
             include_delim="prev",
+            delim=delim,
         )
 
     def test_run(self):

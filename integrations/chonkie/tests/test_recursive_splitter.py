@@ -105,11 +105,14 @@ class TestChonkieRecursiveDocumentSplitter:
 
     @patch("haystack_integrations.components.preprocessors.chonkie.recursive_splitter.chonkie.RecursiveChunker")
     def test_warm_up_is_idempotent(self, mock_chunker):
-        splitter = ChonkieRecursiveDocumentSplitter()
+        rules = RecursiveRules(levels=[RecursiveLevel(delimiters=["\n\n"], include_delim="prev")])
+        splitter = ChonkieRecursiveDocumentSplitter(rules=rules)
         splitter.warm_up()
         assert splitter._chunker is mock_chunker.return_value
         splitter.warm_up()
-        mock_chunker.assert_called_once_with(tokenizer="character", chunk_size=2048, min_characters_per_chunk=24)
+        mock_chunker.assert_called_once_with(
+            tokenizer="character", chunk_size=2048, min_characters_per_chunk=24, rules=rules
+        )
 
     def test_run(self):
         chunker = ChonkieRecursiveDocumentSplitter(chunk_size=10, min_characters_per_chunk=2)
