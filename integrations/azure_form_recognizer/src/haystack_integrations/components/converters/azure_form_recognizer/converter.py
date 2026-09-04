@@ -91,9 +91,7 @@ class AzureOCRDocumentConverter:
             If True, the full path of the file is stored in the metadata of the document.
             If False, only the file name is stored.
         """
-        self.document_analysis_client = DocumentAnalysisClient(
-            endpoint=endpoint, credential=AzureKeyCredential(api_key.resolve_value() or "")
-        )
+        self.document_analysis_client: DocumentAnalysisClient | None = None
         self.endpoint = endpoint
         self.model_id = model_id
         self.api_key = api_key
@@ -105,6 +103,20 @@ class AzureOCRDocumentConverter:
         self.store_full_path = store_full_path
         if self.page_layout == "single_column" and self.threshold_y is None:
             self.threshold_y = 0.05
+
+    def warm_up(self) -> None:
+        """Create the Azure Document Analysis client."""
+        if self.document_analysis_client is None:
+            self.document_analysis_client = DocumentAnalysisClient(
+                endpoint=self.endpoint,
+                credential=AzureKeyCredential(self.api_key.resolve_value() or ""),
+            )
+
+    def close(self) -> None:
+        """Close the Azure Document Analysis client."""
+        if self.document_analysis_client is not None:
+            self.document_analysis_client.close()
+            self.document_analysis_client = None
 
     @component.output_types(documents=list[Document], raw_azure_response=list[dict])
     def run(
@@ -127,6 +139,8 @@ class AzureOCRDocumentConverter:
             - `documents`: List of created Documents
             - `raw_azure_response`: List of raw Azure responses used to create the Documents
         """
+        self.warm_up()
+        assert self.document_analysis_client is not None  # noqa: S101
         documents = []
         azure_output = []
         meta_list: list[dict[str, Any]] = normalize_metadata(meta=meta, sources_count=len(sources))
