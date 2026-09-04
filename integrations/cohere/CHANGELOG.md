@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/cohere-v10.0.0] - 2026-09-04
+
+### 🚜 Refactor
+
+- [**breaking**] Cohere - create clients in warm up methods (#3911)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- [**breaking**] Remove deprecated `CohereGenerator` (use `CohereChatGenerator` instead) (#3885)
+
+
 ## [integrations/cohere-v9.5.0] - 2026-08-11
 
 ### 🐛 Bug Fixes
