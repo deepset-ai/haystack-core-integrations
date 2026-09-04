@@ -12,4 +12,7 @@
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run integration tests locally, you need to export the `HF_TOKEN` environment variable.
+To run integration tests locally, you need a Docker container running a Text Embeddings Inference (TEI) server with
+a sparse embedding model. Use the provided `docker-compose.yml` file to start the container: `docker compose up -d`.
+
+The tests that call the Hugging Face Inference API are skipped unless `HF_TOKEN` is set as an evironment variable.

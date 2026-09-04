@@ -290,6 +290,8 @@ class TestMistralChatGenerator:
         assert component.tools == [weather_tool, toolset]
 
     def test_handle_stream_response(self):
+        streamed_usage = CompletionUsage(completion_tokens=35, prompt_tokens=77, total_tokens=112)
+
         mistral_chunks = [
             ChatCompletionChunk(
                 id="76535283139540de943bc2036121d4c5",
@@ -325,11 +327,7 @@ class TestMistralChatGenerator:
                 created=1750076261,
                 model="mistral-small-latest",
                 object="chat.completion.chunk",
-                usage=CompletionUsage(
-                    completion_tokens=35,
-                    prompt_tokens=77,
-                    total_tokens=112,
-                ),
+                usage=streamed_usage,
             ),
         ]
 
@@ -374,13 +372,7 @@ class TestMistralChatGenerator:
                 ],
                 "finish_reason": "tool_calls",
                 "received_at": ANY,
-                "usage": {
-                    "completion_tokens": 35,
-                    "prompt_tokens": 77,
-                    "total_tokens": 112,
-                    "completion_tokens_details": None,
-                    "prompt_tokens_details": None,
-                },
+                "usage": streamed_usage.model_dump(),
             },
             component_info=ComponentInfo(
                 type="haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
@@ -412,13 +404,7 @@ class TestMistralChatGenerator:
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None
-        assert result.meta["usage"] == {
-            "completion_tokens": 35,
-            "prompt_tokens": 77,
-            "total_tokens": 112,
-            "completion_tokens_details": None,
-            "prompt_tokens_details": None,
-        }
+        assert result.meta["usage"] == streamed_usage.model_dump()
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")

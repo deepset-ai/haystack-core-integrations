@@ -7,10 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
+from haystack.utils import Secret
 
-from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
+from haystack_integrations.common.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+)
 from haystack_integrations.components.retrievers.amazon_bedrock.knowledge_base_retriever import (
-    BedrockKnowledgeBaseRetriever,
+    AmazonBedrockKnowledgeBaseRetriever,
 )
 
 
@@ -24,16 +28,17 @@ def mock_aws_session():
         yield mock_client
 
 
-class TestBedrockKnowledgeBaseRetriever:
-    def test_init_defaults(self, mock_aws_session):
-        retriever = BedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
+class TestAmazonBedrockKnowledgeBaseRetriever:
+    def test_init_defaults(self):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
         assert retriever.knowledge_base_id == "TEST123456"
         assert retriever.number_of_results == 5
         assert retriever.knowledge_base_type == "MANAGED"
+        assert retriever._client is None
 
     @patch.dict("os.environ", {"AWS_KNOWLEDGE_BASE_ID": "ENV_KB", "AWS_DEFAULT_REGION": "eu-west-1"})
-    def test_init_from_env(self, mock_aws_session):
-        retriever = BedrockKnowledgeBaseRetriever()
+    def test_init_from_env(self):
+        retriever = AmazonBedrockKnowledgeBaseRetriever()
         assert retriever.knowledge_base_id == "ENV_KB"
         assert retriever.aws_region_name.resolve_value() == "eu-west-1"
 
@@ -53,7 +58,7 @@ class TestBedrockKnowledgeBaseRetriever:
             ]
         }
 
-        retriever = BedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
         result = retriever.run(query="What is managed KB?")
 
         # Verify correct API call
@@ -74,7 +79,7 @@ class TestBedrockKnowledgeBaseRetriever:
     def test_run_top_k_override(self, mock_aws_session):
         mock_aws_session.retrieve.return_value = {"retrievalResults": []}
 
-        retriever = BedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456", number_of_results=5)
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456", number_of_results=5)
         retriever.run(query="test", top_k=10)
 
         call_kwargs = mock_aws_session.retrieve.call_args.kwargs
@@ -83,7 +88,7 @@ class TestBedrockKnowledgeBaseRetriever:
     def test_run_empty_results(self, mock_aws_session):
         mock_aws_session.retrieve.return_value = {"retrievalResults": []}
 
-        retriever = BedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
         result = retriever.run(query="no match")
 
         assert result["documents"] == []
@@ -91,13 +96,13 @@ class TestBedrockKnowledgeBaseRetriever:
     def test_run_error_handling(self, mock_aws_session):
         mock_aws_session.retrieve.side_effect = Exception("Service unavailable")
 
-        retriever = BedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="TEST123456")
 
         with pytest.raises(AmazonBedrockInferenceError):
             retriever.run(query="test")
 
-    def test_to_dict(self, mock_aws_session):
-        retriever = BedrockKnowledgeBaseRetriever(
+    def test_to_dict(self):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(
             knowledge_base_id="TEST123456",
             number_of_results=10,
         )
@@ -106,7 +111,7 @@ class TestBedrockKnowledgeBaseRetriever:
         assert serialized == {
             "type": (
                 "haystack_integrations.components.retrievers.amazon_bedrock."
-                "knowledge_base_retriever.BedrockKnowledgeBaseRetriever"
+                "knowledge_base_retriever.AmazonBedrockKnowledgeBaseRetriever"
             ),
             "init_parameters": {
                 "knowledge_base_id": "TEST123456",
@@ -124,11 +129,11 @@ class TestBedrockKnowledgeBaseRetriever:
             },
         }
 
-    def test_from_dict(self, mock_aws_session):
+    def test_from_dict(self):
         data = {
             "type": (
                 "haystack_integrations.components.retrievers.amazon_bedrock."
-                "knowledge_base_retriever.BedrockKnowledgeBaseRetriever"
+                "knowledge_base_retriever.AmazonBedrockKnowledgeBaseRetriever"
             ),
             "init_parameters": {
                 "knowledge_base_id": "TEST123456",
@@ -141,10 +146,54 @@ class TestBedrockKnowledgeBaseRetriever:
                 "use_agentic_retrieval": False,
             },
         }
-        retriever = BedrockKnowledgeBaseRetriever.from_dict(data)
+        retriever = AmazonBedrockKnowledgeBaseRetriever.from_dict(data)
         assert retriever.knowledge_base_id == "TEST123456"
         assert retriever.number_of_results == 10
         assert retriever.use_agentic_retrieval is False
+
+
+class TestComponentLifecycle:
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        retriever = AmazonBedrockKnowledgeBaseRetriever(
+            knowledge_base_id="kb",
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(AmazonBedrockConfigurationError):
+            retriever.warm_up()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        client = mock_boto3_session.return_value.client.return_value
+        retriever.warm_up()
+        assert retriever._client is client
+        retriever.close()
+        client.close.assert_called_once_with()
+        assert retriever._client is None
+        retriever.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.warm_up()
+        retriever.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        retriever = AmazonBedrockKnowledgeBaseRetriever(knowledge_base_id="kb")
+        retriever.close()
+        assert retriever._client is None
 
 
 @pytest.mark.integration
@@ -152,12 +201,12 @@ class TestBedrockKnowledgeBaseRetriever:
     not os.environ.get("AWS_KNOWLEDGE_BASE_ID"),
     reason="Set AWS_KNOWLEDGE_BASE_ID env var to run integration tests",
 )
-class TestBedrockKnowledgeBaseRetrieverIntegration:
-    """Integration tests for BedrockKnowledgeBaseRetriever against a live managed KB."""
+class TestAmazonBedrockKnowledgeBaseRetrieverIntegration:
+    """Integration tests for AmazonBedrockKnowledgeBaseRetriever against a live managed KB."""
 
     def test_standard_retrieve(self):
         """Test standard Retrieve API on a managed knowledge base."""
-        retriever = BedrockKnowledgeBaseRetriever(
+        retriever = AmazonBedrockKnowledgeBaseRetriever(
             knowledge_base_id=os.environ["AWS_KNOWLEDGE_BASE_ID"],
             aws_region_name=os.environ["AWS_REGION"],
             use_agentic_retrieval=False,
@@ -173,7 +222,7 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
 
     def test_agentic_retrieve(self):
         """Test AgenticRetrieveStream on a managed knowledge base."""
-        retriever = BedrockKnowledgeBaseRetriever(
+        retriever = AmazonBedrockKnowledgeBaseRetriever(
             knowledge_base_id=os.environ["AWS_KNOWLEDGE_BASE_ID"],
             aws_region_name=os.environ["AWS_REGION"],
             use_agentic_retrieval=True,
@@ -188,10 +237,11 @@ class TestBedrockKnowledgeBaseRetrieverIntegration:
 
     def test_user_agent(self):
         """Verify user-agent header is set correctly."""
-        retriever = BedrockKnowledgeBaseRetriever(
+        retriever = AmazonBedrockKnowledgeBaseRetriever(
             knowledge_base_id=os.environ["AWS_KNOWLEDGE_BASE_ID"],
             aws_region_name=os.environ["AWS_REGION"],
         )
+        retriever.warm_up()
 
         ua = retriever._client._client_config.user_agent_extra
         assert "x-client-framework:haystack" in ua

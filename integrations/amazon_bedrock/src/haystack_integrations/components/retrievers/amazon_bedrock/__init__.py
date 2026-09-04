@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack_integrations.components.retrievers.amazon_bedrock.knowledge_base_retriever import (
-    BedrockKnowledgeBaseRetriever,
+    AmazonBedrockKnowledgeBaseRetriever,
 )
 
-__all__ = ["BedrockKnowledgeBaseRetriever"]
+__all__ = ["AmazonBedrockKnowledgeBaseRetriever"]

@@ -1,6 +1,25 @@
 # Changelog
 
-## [unreleased]
+## [integrations/huggingface_api-v0.6.0] - 2026-08-27
+
+### 🚀 Features
+
+- *(huggingface_api)* Add SPLADE sparse embedder components (#3835)
+
+## [integrations/huggingface_api-v0.5.0] - 2026-08-24
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Serialize missing init params in to_dict (transformers, huggingface_api, ragas) (#3808)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
+## [integrations/huggingface_api-v0.4.0] - 2026-07-09
 
 ### 🧪 Testing
 

@@ -99,6 +99,10 @@ class S3Storage:
                 msg = f"Failed to download file {s3_key!r} from S3. Error: {e}"
                 raise S3StorageError(msg) from e
 
+    def close(self) -> None:
+        """Close the S3 client owned by this storage instance."""
+        self._client.close()
+
     @classmethod
     def from_env(
         cls, *, session: Session, config: Config, s3_bucket_name_env: str = "S3_DOWNLOADER_BUCKET"

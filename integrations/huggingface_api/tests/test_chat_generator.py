@@ -763,8 +763,8 @@ class TestHuggingFaceAPIChatGenerator:
     def test_live_run_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen2.5-7B-Instruct", "provider": "together"},
-            generation_kwargs={"max_tokens": 20},
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
         )
 
         # No need for instruction tokens here since we use the chat_completion endpoint which handles the chat
@@ -785,7 +785,7 @@ class TestHuggingFaceAPIChatGenerator:
         assert meta["usage"]["prompt_tokens"] > 0
         assert "completion_tokens" in meta["usage"]
         assert meta["usage"]["completion_tokens"] > 0
-        assert meta["model"] == "Qwen/Qwen2.5-7B-Instruct"
+        assert meta["model"] == "Qwen/Qwen3.5-9B"
         assert meta["finish_reason"] is not None
 
     @pytest.mark.integration
@@ -796,8 +796,8 @@ class TestHuggingFaceAPIChatGenerator:
     def test_live_run_serverless_streaming(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen2.5-7B-Instruct", "provider": "together"},
-            generation_kwargs={"max_tokens": 20},
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
             streaming_callback=streaming_callback_handler,
         )
 
@@ -822,8 +822,7 @@ class TestHuggingFaceAPIChatGenerator:
         assert response_meta["usage"]["prompt_tokens"] >= 0
         assert "completion_tokens" in response_meta["usage"]
         assert response_meta["usage"]["completion_tokens"] >= 0
-        # internally, Together calls this "Qwen/Qwen2.5-7B-Instruct-Turbo"
-        assert "Qwen/Qwen2.5-7B-Instruct" in response_meta["model"]
+        assert response_meta["model"] == "Qwen/Qwen3.5-9B"
         assert response_meta["finish_reason"] is not None
 
     @pytest.mark.integration
@@ -1089,8 +1088,8 @@ class TestHuggingFaceAPIChatGenerator:
     async def test_live_run_async_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen2.5-7B-Instruct", "provider": "together"},
-            generation_kwargs={"max_tokens": 20},
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
         )
 
         messages = [
@@ -1111,7 +1110,7 @@ class TestHuggingFaceAPIChatGenerator:
             assert meta["usage"]["prompt_tokens"] > 0
             assert "completion_tokens" in meta["usage"]
             assert meta["usage"]["completion_tokens"] > 0
-            assert meta["model"] == "Qwen/Qwen2.5-7B-Instruct"
+            assert meta["model"] == "Qwen/Qwen3.5-9B"
             assert meta["finish_reason"] is not None
         finally:
             await generator._async_client.close()

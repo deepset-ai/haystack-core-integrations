@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/azure_ai_search-v4.2.0] - 2026-09-02
+
+### 🚀 Features
+
+- *(azure_ai_search)* Improve handling of unknown metadata fields (#3862)
+
+
+## [integrations/azure_ai_search-v4.1.1] - 2026-09-02
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `AzureSearchDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3713)
+- AzureAISearch adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3740)
+- Standardize license files (#3771)
+- *(azure_ai_search)* Use a value-safe delimiter for search.in filters (#3846)
+
+
 ## [integrations/azure_ai_search-v4.1.0] - 2026-07-27
 
 ### 🚀 Features

@@ -249,11 +249,11 @@ class TestMCPToolset:
             },
         )
 
-        combined_tools = toolset + [multiply_tool]
+        toolset.add(multiply_tool)
 
-        assert len(combined_tools) == 4  # add, subtract, divide_by_zero, multiply
+        assert len(toolset) == 4  # add, subtract, divide_by_zero, multiply
 
-        tool_names = [tool.name for tool in combined_tools.tools]
+        tool_names = [tool.name for tool in toolset.tools]
         assert "add" in tool_names
         assert "subtract" in tool_names
         assert "divide_by_zero" in tool_names

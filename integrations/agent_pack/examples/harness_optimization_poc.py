@@ -149,7 +149,7 @@ def build_leftover_tool() -> ComponentTool:
 def build_reference_agent(store: DocumentStore, model: str) -> Agent:
     """Build the badly configured Advanced RAG Agent whose complete configuration will be optimized."""
     generation_kwargs = {"reasoning": {"effort": POOR_REASONING_EFFORT}}
-    return create_advanced_rag_agent(
+    agent = create_advanced_rag_agent(
         document_store=store,
         retriever=build_retriever(store=store, top_k=POOR_RETRIEVER_TOP_K),
         llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs=generation_kwargs),
@@ -158,8 +158,8 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
         backup_answer_llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs=generation_kwargs),
         max_agent_steps=POOR_MAX_AGENT_STEPS,
         max_fetched_docs=POOR_MAX_FETCHED_DOCS,
-        extra_tools=[build_leftover_tool()],
     )
+    return agent.clone(tools=[*agent.tools, build_leftover_tool()])
 
 
 def build_cases(store: DocumentStore, definitions: list[EvalCase]) -> list[AdvancedRAGEvaluationCase]:

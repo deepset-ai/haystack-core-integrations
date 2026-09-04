@@ -4,6 +4,7 @@
 
 import array as _array
 import asyncio
+import decimal
 import json
 import logging
 import re
@@ -792,6 +793,13 @@ class OracleDocumentStore:
         """
         Return a paginated list of distinct values for a metadata field, plus the total distinct count.
 
+        **Note**: values of different JSON type categories are kept distinct - a string, a number and a
+        boolean never collapse into each other, even when they share a textual form (e.g. the string
+        `"1"` and the number `1`). One exception: the ``metadata`` column is Oracle's native ``JSON``
+        type, which canonicalizes numeric storage, so a whole-number float (`1.0`) and a numerically
+        equal int (`1`) collapse into the same value. Floats with a fractional part (e.g. `1.5`) are
+        unaffected.
+
         :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
             (e.g. ``"meta.lang"`` or ``"lang"``).
         :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
@@ -805,22 +813,28 @@ class OracleDocumentStore:
         """
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         _validate_field_path(field_path)
-        base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
+        # JSON_VALUE dequotes strings and stringifies numbers/booleans, so a JSON string "1" and the
+        # number 1 both become the identical SQL text '1' - merging distinct values and, once re-parsed,
+        # corrupting a numeric-looking string into a number. JSON_QUERY on our native JSON column keeps
+        # the driver's own decoded Python value instead (str stays str, bool stays bool, numbers come
+        # back as Decimal - converted to int/float below), so a string is never confused with a number.
+        json_extract = f"JSON_QUERY(metadata, '$.{field_path}')"
+        base_sql = f"FROM {self.table_name} WHERE {json_extract} IS NOT NULL"
         params: dict[str, Any] = {}
         if filters:
             counter = [0]
             filters_fragment = FilterTranslator().translate(filters, params, counter)
             base_sql += f" AND {filters_fragment}"
         if search_term:
-            base_sql += f" AND UPPER(JSON_VALUE(metadata, '$.{field_path}')) LIKE UPPER(:search)"
+            base_sql += f" AND UPPER({json_extract}) LIKE UPPER(:search)"
             params["search"] = f"%{search_term}%"
 
-        sql_count = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) {base_sql}"
+        sql_count = f"SELECT COUNT(DISTINCT {json_extract}) {base_sql}"
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql_count, params)
             total = cur.fetchone()[0] or 0
 
-            sql_vals = f"SELECT DISTINCT JSON_VALUE(metadata, '$.{field_path}') {base_sql} ORDER BY 1"
+            sql_vals = f"SELECT DISTINCT {json_extract} {base_sql} ORDER BY 1"
             if size is not None:
                 sql_vals += " OFFSET :row_offset ROWS FETCH NEXT :row_limit ROWS ONLY"
                 params["row_offset"] = from_
@@ -830,12 +844,10 @@ class OracleDocumentStore:
                 params["row_offset"] = from_
             cur.execute(sql_vals, params)
             rows = cur.fetchall()
-            values: list[Any] = []
-            for r in rows:
-                try:
-                    values.append(json.loads(r[0]))
-                except (json.JSONDecodeError, TypeError):
-                    values.append(r[0])
+            # oracledb decodes a JSON_QUERY result from our native JSON column into a Python value
+            # directly (str/bool stay as-is); JSON numbers decode as Decimal, so pick int vs float to
+            # match what write_documents() was originally given.
+            values: list[Any] = [_try_parse_number(r[0]) if isinstance(r[0], decimal.Decimal) else r[0] for r in rows]
             return values, total
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:

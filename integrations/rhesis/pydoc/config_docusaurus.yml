@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.connectors.rhesis.rhesis_connector
+      - haystack_integrations.tracing.rhesis.tracer
+      - haystack_integrations.tracing.rhesis.conversation
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Rhesis integration for Haystack
+  id: integrations-rhesis
+  filename: rhesis.md
+  title: Rhesis

@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/alloydb-v0.3.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `AlloyDBDocumentStore` match case insensitive metadata value (#3677)
+- `AlloyDBDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3705)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `AlloyDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3773)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/alloydb-v0.2.1] - 2026-07-23
 
 ### 🐛 Bug Fixes

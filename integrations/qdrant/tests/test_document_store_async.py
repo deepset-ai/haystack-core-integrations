@@ -342,34 +342,3 @@ class TestQdrantDocumentStoreAsync(
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
-
-    async def test_get_metadata_field_unique_values_with_meta_prefix_async(self, document_store: QdrantDocumentStore):
-        """Test that a 'meta.'-prefixed field name is normalized before lookup."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        values, total = await document_store.get_metadata_field_unique_values_async("meta.category")
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
-    async def test_get_metadata_field_unique_values_with_search_term_async(self, document_store: QdrantDocumentStore):
-        """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "Apple"}),
-            Document(content="Doc 2", meta={"category": "Banana"}),
-            Document(content="Doc 3", meta={"category": "Apricot"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        values, total = await document_store.get_metadata_field_unique_values_async("category", search_term="ap")
-        assert set(values) == {"Apple", "Apricot"}
-        assert total == 2
-
-        values, total = await document_store.get_metadata_field_unique_values_async(
-            "category", search_term="nonexistent"
-        )
-        assert values == []
-        assert total == 0

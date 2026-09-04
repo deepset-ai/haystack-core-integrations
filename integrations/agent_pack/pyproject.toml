@@ -23,10 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-# Agent Pack targets the current Haystack 3.1 Agent APIs.
-# The pre-release is named explicitly because a bare `>=3.1.0` excludes every shipped 3.1 release candidate;
-# tighten this to `>=3.1.0` once the final release is out.
-dependencies = ["haystack-ai>=3.1.0rc1", "pydantic"]
+dependencies = ["haystack-ai>=3.1.0", "pydantic"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/agent_pack#readme"
