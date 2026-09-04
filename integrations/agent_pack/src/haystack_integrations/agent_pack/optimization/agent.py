@@ -32,6 +32,9 @@ with LazyImport(message="Install 'mcp-haystack' to use the Haystack documentatio
 
 logger = logging.getLogger(__name__)
 
+# Version the routing key with the request layout: a changed layout is a different reusable prefix.
+OPTIMIZER_PROMPT_CACHE_KEY = "haystack-harness-optimizer-v1"
+
 HARNESS_OPTIMIZER_SYSTEM_PROMPT = """
 You optimize a Haystack Agent configuration through a measured sequence of experiments. On every turn you receive
 the complete serialized reference Agent configuration, the tools that Agent can call, a digest of successful
@@ -96,7 +99,15 @@ def create_harness_optimizer_agent(
     instructions = system_prompt or HARNESS_OPTIMIZER_SYSTEM_PROMPT
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n{additional_instructions.strip()}"
-    generator = chat_generator or OpenAIResponsesChatGenerator(model="gpt-5.6-sol", timeout=180.0, max_retries=5)
+    generator = chat_generator or OpenAIResponsesChatGenerator(
+        model="gpt-5.6-sol",
+        timeout=180.0,
+        max_retries=5,
+        # Requests carrying the same key are routed together, which is what makes a reusable prefix likely to be
+        # found in cache. It identifies this prompt family and its shape, so it changes when the request layout
+        # does. Provider-specific, hence only on the generator this function owns.
+        generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY},
+    )
     return Agent(
         chat_generator=generator,
         tools=[docs_toolset] if docs_toolset is not None else None,
@@ -124,6 +135,27 @@ def _tool_specifications(reference: Agent) -> list[dict[str, Any]]:
     except Exception as error:
         logger.warning("Could not describe the reference Agent's tools: {error}", error=error)
         return []
+
+
+def _log_cache_reuse(message: ChatMessage) -> None:
+    """
+    Report how much of the request the provider served from cache.
+
+    The reusable prefix is the point of the request's layout, so whether it is actually being reused should be
+    observable rather than assumed.
+
+    :param message: The optimizer's reply, whose metadata carries provider usage.
+    """
+    usage = (message.meta or {}).get("usage") or {}
+    details = usage.get("input_tokens_details") or {}
+    if (cached := details.get("cached_tokens")) is None or not (total := usage.get("input_tokens")):
+        return
+    logger.info(
+        "Optimizer request reused {cached} of {total} input tokens from cache ({share:.0%}).",
+        cached=cached,
+        total=total,
+        share=cached / total,
+    )
 
 
 def _bounded_history(history: list[dict[str, Any]], window: int) -> list[dict[str, Any]]:
@@ -184,10 +216,18 @@ def propose_mutation(
         # section at the end leaves that stable text as a reusable prompt prefix instead of shifting it each turn.
         "history": _bounded_history(history=history, window=history_digest_window),
     }
+    experiment_history = request.pop("history")
     result = optimizer_agent.run(
-        messages=[ChatMessage.from_user(text=json.dumps(request, default=str))],
+        # The unchanging context and the growing history are sent as separate messages. Cache reuse needs the
+        # rendered prefix to match, and a provider that marks cache breakpoints does so between messages, so the
+        # boundary between what is stable and what grows has to be a message boundary rather than a key in one blob.
+        messages=[
+            ChatMessage.from_user(text=json.dumps(request, default=str)),
+            ChatMessage.from_user(text=json.dumps({"history": experiment_history}, default=str)),
+        ],
         generation_kwargs={"text_format": OptimizerDecision},
     )
+    _log_cache_reuse(message=result["last_message"])
     text = result["last_message"].text
     if text is None:
         msg = "The harness optimizer Agent returned no structured decision text."

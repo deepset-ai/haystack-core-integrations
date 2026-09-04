@@ -20,7 +20,10 @@ from haystack_integrations.agent_pack.optimization import (
     create_haystack_documentation_mcp_toolset,
     propose_mutation,
 )
-from haystack_integrations.agent_pack.optimization.agent import HARNESS_OPTIMIZER_SYSTEM_PROMPT
+from haystack_integrations.agent_pack.optimization.agent import (
+    HARNESS_OPTIMIZER_SYSTEM_PROMPT,
+    OPTIMIZER_PROMPT_CACHE_KEY,
+)
 
 
 @tool
@@ -180,10 +183,15 @@ def test_propose_mutation_sends_full_configuration_runs_and_history():
     optimizer_agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=capture))
     history = [{"mutation": {"operations": []}, "status": "failed"}]
     assert propose_with(optimizer_agent=optimizer_agent, history=history) is None
-    request = json.loads(next(message.text for message in seen if message.is_from("user")))
+    sent = [json.loads(message.text) for message in seen if message.is_from("user")]
+    # The unchanging context and the growing history are separate messages, so a cache breakpoint can sit between
+    # them and the reusable prefix stays identical from turn to turn.
+    context, tail = sent
+    assert "history" not in context
+    assert tail == {"history": history}
+    request = context
     assert request["reference_agent_configuration"]["init_parameters"]["system_prompt"] == "reference prompt"
     assert request["baseline"]["cost"] == 10.0
-    assert request["history"] == history
     assert request["successful_reference_runs"][0]["inputs"]["messages"][0]["content"] == [{"text": "q"}]
 
     digest = request["successful_reference_runs"][0]["outputs"]
@@ -239,6 +247,19 @@ def test_available_tools_names_what_the_serialized_configuration_cannot():
             },
         }
     ]
+
+
+def test_the_default_optimizer_carries_a_stable_cache_routing_key(monkeypatch):
+    """Reuse of the prefix depends on requests for it being routed together."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    default = create_harness_optimizer_agent()
+
+    assert default.chat_generator.generation_kwargs["prompt_cache_key"] == OPTIMIZER_PROMPT_CACHE_KEY
+
+    # A caller-supplied generator is left alone: the key is provider-specific, and a generator that has no such
+    # setting must not acquire one.
+    supplied = create_harness_optimizer_agent(chat_generator=MockChatGenerator("{}"))
+    assert not hasattr(supplied.chat_generator, "generation_kwargs")
 
 
 def test_a_reference_whose_tools_cannot_be_read_still_produces_a_proposal(monkeypatch):
