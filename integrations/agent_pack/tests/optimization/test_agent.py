@@ -86,6 +86,7 @@ def test_system_prompt_grants_full_configuration_control_and_explains_mutations(
     assert "documentation tools" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
     assert "outcome is attributable" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
     assert "vary one thing at a time" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    assert "removing one withdraws the tool entirely" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
 
 
 def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):

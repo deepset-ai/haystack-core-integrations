@@ -50,6 +50,11 @@ configuration subtree. Array path `-` appends. Escape `~` as `~0` and `/` as `~1
 applied to the unchanged reference configuration, not to the preceding candidate. Every operation has `value` and
 `from_path` fields: set unused fields to null; only `set` uses `value`, and only `copy` uses `from_path`.
 
+The Agent's tools are an array of configurations like any other part of it. Editing one changes what that tool does
+or how it describes itself, and removing one withdraws the tool entirely, so its description and argument schema
+stop being sent to the model on every step. A tool the Agent does not need is therefore a cost as well as a choice,
+and instructing the Agent in its prompt to avoid a tool leaves that cost in place.
+
 Quality is a hard gate. Optimize the requested primary measurement only among candidates likely to preserve quality.
 Known prices are informational rather than an allowlist: you may select other models, but their measured cost cannot be
 ranked until pricing is supplied. Use documentation tools before changing an unfamiliar component path or provider
