@@ -16,6 +16,7 @@ on:
       - "Test / brave"
       - "Test / azure_ai_search"
       - "Test / azure_doc_intelligence"
+      - "Test / azure_documentdb"
       - "Test / azure_form_recognizer"
       - "Test / chonkie"
       - "Test / chroma"

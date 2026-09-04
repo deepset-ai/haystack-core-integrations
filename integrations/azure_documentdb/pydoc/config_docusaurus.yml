@@ -1,0 +1,16 @@
+loaders:
+  - modules:
+      - haystack_integrations.document_stores.azure_documentdb.document_store
+      - haystack_integrations.document_stores.azure_documentdb.filters
+      - haystack_integrations.components.retrievers.azure_documentdb.embedding_retriever
+      - haystack_integrations.components.retrievers.azure_documentdb.full_text_retriever
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Azure DocumentDB integration for Haystack
+  id: integrations-azure-documentdb
+  filename: azure_documentdb.md
+  title: Azure DocumentDB
