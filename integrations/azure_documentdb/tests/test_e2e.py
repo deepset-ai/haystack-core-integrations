@@ -21,7 +21,7 @@ from haystack_integrations.components.retrievers.azure_documentdb import (
 from haystack_integrations.document_stores.azure_documentdb import AzureDocumentDBDocumentStore
 from haystack_integrations.document_stores.azure_documentdb.document_store import AzureIdentityTokenCallback
 
-_DATABASE_NAME = "haystack_e2e_20260902"
+_DATABASE_NAME = "haystack_e2e"
 _COLLECTION_NAME = "documents"
 _VECTOR_INDEX_NAME = "haystack_vector_ivf"
 _FULL_TEXT_INDEX_NAME = "haystack_content_bm25"
@@ -29,7 +29,7 @@ _FULL_TEXT_INDEX_NAME = "haystack_content_bm25"
 
 @dataclass
 class StaticTokenCredential:
-    """Token credential used to pass a short-lived Azure CLI token into the Docker test container."""
+    """Token credential used to pass a short-lived Azure CLI token into the test process."""
 
     token: str
 
@@ -40,8 +40,12 @@ class StaticTokenCredential:
 
 @pytest.fixture(scope="module")
 def document_store() -> Iterator[AzureDocumentDBDocumentStore]:
-    cluster_name = os.environ["AZURE_DOCUMENTDB_CLUSTER_NAME"]
-    credential = StaticTokenCredential(os.environ["AZURE_DOCUMENTDB_ACCESS_TOKEN"])
+    cluster_name = os.getenv("AZURE_DOCUMENTDB_CLUSTER_NAME")
+    access_token = os.getenv("AZURE_DOCUMENTDB_ACCESS_TOKEN")
+    if not cluster_name or not access_token:
+        pytest.skip("Azure DocumentDB cluster name and access token are required for live E2E tests")
+
+    credential = StaticTokenCredential(access_token)
     client = MongoClient(
         f"mongodb+srv://{cluster_name}.global.mongocluster.cosmos.azure.com/",
         authMechanism="MONGODB-OIDC",
@@ -52,8 +56,6 @@ def document_store() -> Iterator[AzureDocumentDBDocumentStore]:
     )
     database = client[_DATABASE_NAME]
 
-    # This database is reserved for E2E testing. Recreate only its test collection so reruns are deterministic,
-    # then leave the populated database in place for manual inspection.
     database.drop_collection(_COLLECTION_NAME)
     database.create_collection(_COLLECTION_NAME)
     database[_COLLECTION_NAME].create_index("id", unique=True)
@@ -84,7 +86,7 @@ def _retry_until_documents(operation: Callable[[], list[Document]], *, timeout: 
             documents = operation()
             if documents:
                 return documents
-        except Exception as error:  # Search indexes are built asynchronously.
+        except Exception as error:
             last_error = error
         time.sleep(2)
     if last_error:
@@ -142,21 +144,14 @@ def test_crud_and_vector_e2e(document_store: AzureDocumentDBDocumentStore) -> No
         updated
     ]
 
-    document_store.create_vector_index(
-        dimensions=3,
-        kind="vector-ivf",
-        similarity="COS",
-        numLists=1,
-    )
-    vector_retriever = AzureDocumentDBEmbeddingRetriever(document_store=document_store, top_k=1)
-    vector_results = _retry_until_documents(
-        lambda: vector_retriever.run(query_embedding=[0.99, 0.01, 0.0])["documents"]
-    )
-    assert vector_results[0].id == "vector-guide"
-    assert vector_results[0].score is not None
-
     document_store.delete_documents(["unrelated-note"])
     assert document_store.count_documents() == 2
+
+    document_store.create_vector_index(dimensions=3, kind="vector-ivf", similarity="COS", numLists=1)
+    retriever = AzureDocumentDBEmbeddingRetriever(document_store=document_store, top_k=1)
+    results = _retry_until_documents(lambda: retriever.run(query_embedding=[0.99, 0.01, 0.0])["documents"])
+    assert results[0].id == "vector-guide"
+    assert results[0].score is not None
 
 
 @pytest.mark.integration
@@ -166,22 +161,13 @@ def test_crud_and_vector_e2e(document_store: AzureDocumentDBDocumentStore) -> No
 )
 def test_full_text_e2e(document_store: AzureDocumentDBDocumentStore) -> None:
     document_store.write_documents(
-        [
-            Document(
-                id="vector-guide",
-                content="Azure DocumentDB provides integrated vector search for retrieval augmented generation.",
-                embedding=[1.0, 0.0, 0.0],
-                meta={"category": "guide", "year": 2026},
-            )
-        ],
+        [Document(id="vector-guide", content="Azure DocumentDB provides integrated vector search.")],
         policy=DuplicatePolicy.OVERWRITE,
     )
-
     connection = document_store.connection
     assert isinstance(connection, MongoClient)
     assert document_store.full_text_search_index is not None
-    database = connection[document_store.database_name]
-    database.command(
+    connection[document_store.database_name].command(
         {
             "createSearchIndexes": document_store.collection_name,
             "indexes": [
@@ -197,9 +183,7 @@ def test_full_text_e2e(document_store: AzureDocumentDBDocumentStore) -> None:
             ],
         }
     )
-    full_text_retriever = AzureDocumentDBFullTextRetriever(document_store=document_store, top_k=2)
-    full_text_results = _retry_until_documents(
-        lambda: full_text_retriever.run(query="integrated vector search")["documents"]
-    )
-    assert full_text_results[0].id == "vector-guide"
-    assert full_text_results[0].score is not None
+    retriever = AzureDocumentDBFullTextRetriever(document_store=document_store, top_k=2)
+    results = _retry_until_documents(lambda: retriever.run(query="integrated vector search")["documents"])
+    assert results[0].id == "vector-guide"
+    assert results[0].score is not None

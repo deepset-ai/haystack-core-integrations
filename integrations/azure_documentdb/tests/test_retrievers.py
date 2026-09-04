@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import time
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from haystack import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.azure_documentdb import (
@@ -104,3 +107,40 @@ async def test_retriever_cleanup(mock_store):
 def test_retriever_rejects_invalid_top_k(mock_store, retriever_class):
     with pytest.raises(ValueError, match="top_k"):
         retriever_class(document_store=mock_store, top_k=0)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("AZURE_DOCUMENTDB_CONNECTION_STRING"), reason="No OSS DocumentDB connection string provided"
+)
+@pytest.mark.integration
+def test_embedding_retrieval_with_filter(real_collection):
+    database_name, collection_name, client = real_collection
+    store = AzureDocumentDBDocumentStore(
+        database_name=database_name, collection_name=collection_name, vector_search_index="vector_index"
+    )
+    client[database_name][collection_name].create_index("meta.category")
+    store.create_vector_index(dimensions=3, kind="vector-ivf", similarity="COS", numLists=1)
+    store.write_documents(
+        [
+            Document(id="guide", content="guide", embedding=[1.0, 0.0, 0.0], meta={"category": "guide"}),
+            Document(id="note", content="note", embedding=[0.0, 1.0, 0.0], meta={"category": "note"}),
+        ]
+    )
+    retriever = AzureDocumentDBEmbeddingRetriever(document_store=store, top_k=2)
+    deadline = time.monotonic() + 60
+    while True:
+        try:
+            documents = retriever.run(
+                query_embedding=[0.99, 0.01, 0.0],
+                filters={"field": "meta.category", "operator": "==", "value": "guide"},
+            )["documents"]
+            if documents:
+                break
+        except DocumentStoreError:
+            if time.monotonic() >= deadline:
+                raise
+        if time.monotonic() >= deadline:
+            pytest.fail("Vector index did not become ready before the timeout")
+        time.sleep(1)
+    assert [document.id for document in documents] == ["guide"]
+    assert documents[0].score is not None

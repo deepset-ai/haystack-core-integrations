@@ -37,7 +37,11 @@ class AzureIdentityTokenCallback(OIDCCallback):
         self._credential = credential
 
     def fetch(self, context: OIDCCallbackContext) -> OIDCCallbackResult:  # noqa: ARG002
-        """Fetch an access token for Azure DocumentDB."""
+        """Fetch an access token for Azure DocumentDB.
+
+        :param context: PyMongo OIDC callback context.
+        :returns: The OIDC callback result containing a Microsoft Entra access token.
+        """
         token = self._credential.get_token(_DOCUMENTDB_TOKEN_SCOPE)
         return OIDCCallbackResult(access_token=token.token)
 
@@ -54,7 +58,18 @@ class AzureDocumentDBDocumentStore:
     credentials and aren't recommended for production workloads.
 
     The collection must already exist. For embedding retrieval, create a `cosmosSearch` vector index by calling
-    `create_vector_index` or provisioning it separately.
+    `create_vector_index` or provisioning it separately. Filtered vector search also requires a regular index for
+    every filtered metadata field, such as `meta.category`. Values used with `>`, `>=`, `<`, or `<=` must be numbers
+    or ISO-formatted date strings.
+
+    Usage:
+
+    ```python
+    from haystack_integrations.document_stores.azure_documentdb import AzureDocumentDBDocumentStore
+
+    document_store = AzureDocumentDBDocumentStore(database_name="haystack", collection_name="documents")
+    document_store.create_vector_index(dimensions=1536, similarity="COS")
+    ```
     """
 
     def __init__(
@@ -174,6 +189,7 @@ class AzureDocumentDBDocumentStore:
             msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
             raise DocumentStoreError(msg)
         self._collection = database[self.collection_name]
+        self._collection.create_index("id", unique=True)
 
     async def _ensure_connection_setup_async(self) -> None:
         if self._connection_async is None:
@@ -187,10 +203,15 @@ class AzureDocumentDBDocumentStore:
             msg = f"Collection '{self.collection_name}' does not exist in database '{self.database_name}'."
             raise DocumentStoreError(msg)
         self._collection_async = database[self.collection_name]
+        await self._collection_async.create_index("id", unique=True)
 
     @property
     def connection(self) -> MongoClient | AsyncMongoClient:
-        """Return the active Azure DocumentDB client."""
+        """Return the active Azure DocumentDB client.
+
+        :returns: The synchronous or asynchronous PyMongo client.
+        :raises DocumentStoreError: If no connection has been established.
+        """
         if self._connection is not None:
             return self._connection
         if self._connection_async is not None:
@@ -200,7 +221,11 @@ class AzureDocumentDBDocumentStore:
 
     @property
     def collection(self) -> Collection | AsyncCollection:
-        """Return the active Azure DocumentDB collection."""
+        """Return the active Azure DocumentDB collection.
+
+        :returns: The synchronous or asynchronous PyMongo collection.
+        :raises DocumentStoreError: If no collection has been initialized.
+        """
         if self._collection is not None:
             return self._collection
         if self._collection_async is not None:
@@ -209,7 +234,7 @@ class AzureDocumentDBDocumentStore:
         raise DocumentStoreError(msg)
 
     def close(self) -> None:
-        """Release synchronous resources."""
+        """Release synchronous client resources."""
         if self._connection is not None:
             with suppress(Exception):
                 self._connection.close()
@@ -217,7 +242,7 @@ class AzureDocumentDBDocumentStore:
             self._collection = None
 
     async def close_async(self) -> None:
-        """Release asynchronous resources."""
+        """Release asynchronous client resources."""
         if self._connection_async is not None:
             with suppress(Exception):
                 await self._connection_async.close()
@@ -225,7 +250,10 @@ class AzureDocumentDBDocumentStore:
             self._collection_async = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this document store to a dictionary."""
+        """Serialize this document store to a dictionary.
+
+        :returns: Serialized document-store configuration.
+        """
         if self.azure_token_credential is not None:
             logger.warning(
                 "AzureDocumentDBDocumentStore was initialized with `azure_token_credential`, which cannot be "
@@ -245,31 +273,49 @@ class AzureDocumentDBDocumentStore:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AzureDocumentDBDocumentStore":
-        """Deserialize this document store from a dictionary."""
+        """Deserialize this document store from a dictionary.
+
+        :param data: Serialized document-store configuration.
+        :returns: The deserialized document store.
+        """
         deserialize_secrets_inplace(data["init_parameters"], keys=["mongo_connection_string"])
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
-        """Return the number of documents in the store."""
+        """Return the number of documents in the store.
+
+        :returns: The number of documents.
+        """
         self._ensure_connection_setup()
         assert self._collection is not None
         return self._collection.count_documents({})
 
     async def count_documents_async(self) -> int:
-        """Asynchronously return the number of documents in the store."""
+        """Asynchronously return the number of documents in the store.
+
+        :returns: The number of documents.
+        """
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None
         return await self._collection_async.count_documents({})
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
-        """Return documents matching Haystack metadata filters."""
+        """Return documents matching Haystack metadata filters.
+
+        :param filters: Haystack metadata filters. Strings in ordered comparisons must be ISO-formatted dates.
+        :returns: Documents matching the filters.
+        """
         self._ensure_connection_setup()
         assert self._collection is not None
         query = _normalize_filters(filters) if filters else {}
         return [self._mongo_doc_to_haystack_doc(doc) for doc in self._collection.find(query)]
 
     async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
-        """Asynchronously return documents matching Haystack metadata filters."""
+        """Asynchronously return documents matching Haystack metadata filters.
+
+        :param filters: Haystack metadata filters. Strings in ordered comparisons must be ISO-formatted dates.
+        :returns: Documents matching the filters.
+        """
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None
         query = _normalize_filters(filters) if filters else {}
@@ -277,31 +323,25 @@ class AzureDocumentDBDocumentStore:
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
-        """Write documents to Azure DocumentDB using the requested duplicate policy."""
+        """Write documents to Azure DocumentDB using the requested duplicate policy.
+
+        :param documents: Documents to write.
+        :param policy: How to handle documents whose IDs already exist.
+        :returns: The number of documents written.
+        :raises ValueError: If `documents` contains an object that is not a `Document`.
+        :raises DuplicateDocumentError: If a duplicate ID is written with `DuplicatePolicy.FAIL`.
+        """
         self._ensure_connection_setup()
         assert self._collection is not None
         return self._write_documents(self._collection, documents, policy)
 
     def _write_documents(self, collection: Collection, documents: list[Document], policy: DuplicatePolicy) -> int:
-        if any(not isinstance(document, Document) for document in documents):
-            msg = "param 'documents' must contain a list of objects of type Document"
-            raise ValueError(msg)
-        if not documents:
-            return 0
-        if policy == DuplicatePolicy.NONE:
-            policy = DuplicatePolicy.FAIL
-        mongo_documents = [self._haystack_doc_to_mongo_doc(document) for document in documents]
-        operations: list[InsertOne[dict[str, Any]] | ReplaceOne[dict[str, Any]] | UpdateOne]
+        existing = 0
         if policy == DuplicatePolicy.SKIP:
             existing = collection.count_documents({"id": {"$in": [document.id for document in documents]}})
-            operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
-            written = len(documents) - existing
-        elif policy == DuplicatePolicy.FAIL:
-            operations = [InsertOne(doc) for doc in mongo_documents]
-            written = len(documents)
-        else:
-            operations = [ReplaceOne({"id": doc["id"]}, doc, upsert=True) for doc in mongo_documents]
-            written = len(documents)
+        operations, written = self._prepare_write_operations(documents, policy, existing)
+        if not operations:
+            return 0
         try:
             collection.bulk_write(operations)
         except BulkWriteError as error:
@@ -310,25 +350,19 @@ class AzureDocumentDBDocumentStore:
             raise DuplicateDocumentError(msg) from error
         return written
 
-    async def write_documents_async(
-        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
-    ) -> int:
-        """Asynchronously write documents using the requested duplicate policy."""
-        await self._ensure_connection_setup_async()
-        assert self._collection_async is not None
+    def _prepare_write_operations(
+        self, documents: list[Document], policy: DuplicatePolicy, existing: int = 0
+    ) -> tuple[list[InsertOne[dict[str, Any]] | ReplaceOne[dict[str, Any]] | UpdateOne], int]:
         if any(not isinstance(document, Document) for document in documents):
             msg = "param 'documents' must contain a list of objects of type Document"
             raise ValueError(msg)
         if not documents:
-            return 0
+            return [], 0
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
         mongo_documents = [self._haystack_doc_to_mongo_doc(document) for document in documents]
         operations: list[InsertOne[dict[str, Any]] | ReplaceOne[dict[str, Any]] | UpdateOne]
         if policy == DuplicatePolicy.SKIP:
-            existing = await self._collection_async.count_documents(
-                {"id": {"$in": [document.id for document in documents]}}
-            )
             operations = [UpdateOne({"id": doc["id"]}, {"$setOnInsert": doc}, upsert=True) for doc in mongo_documents]
             written = len(documents) - existing
         elif policy == DuplicatePolicy.FAIL:
@@ -337,6 +371,29 @@ class AzureDocumentDBDocumentStore:
         else:
             operations = [ReplaceOne({"id": doc["id"]}, doc, upsert=True) for doc in mongo_documents]
             written = len(documents)
+        return operations, written
+
+    async def write_documents_async(
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+    ) -> int:
+        """Asynchronously write documents using the requested duplicate policy.
+
+        :param documents: Documents to write.
+        :param policy: How to handle documents whose IDs already exist.
+        :returns: The number of documents written.
+        :raises ValueError: If `documents` contains an object that is not a `Document`.
+        :raises DuplicateDocumentError: If a duplicate ID is written with `DuplicatePolicy.FAIL`.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        existing = 0
+        if policy == DuplicatePolicy.SKIP:
+            existing = await self._collection_async.count_documents(
+                {"id": {"$in": [document.id for document in documents]}}
+            )
+        operations, written = self._prepare_write_operations(documents, policy, existing)
+        if not operations:
+            return 0
         try:
             await self._collection_async.bulk_write(operations)
         except BulkWriteError as error:
@@ -346,28 +403,138 @@ class AzureDocumentDBDocumentStore:
         return written
 
     def delete_documents(self, document_ids: list[str]) -> None:
-        """Delete documents with matching Haystack IDs."""
+        """Delete documents with matching Haystack IDs.
+
+        :param document_ids: IDs of documents to delete.
+        """
         self._ensure_connection_setup()
         assert self._collection is not None
         if document_ids:
             self._collection.delete_many({"id": {"$in": document_ids}})
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
-        """Asynchronously delete documents with matching Haystack IDs."""
+        """Asynchronously delete documents with matching Haystack IDs.
+
+        :param document_ids: IDs of documents to delete.
+        """
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None
         if document_ids:
             await self._collection_async.delete_many({"id": {"$in": document_ids}})
 
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """Delete documents matching filters.
+
+        :param filters: Haystack metadata filters selecting documents to delete.
+        :returns: The number of documents deleted.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        result = self._collection.delete_many(_normalize_filters(filters))
+        return result.deleted_count
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """Asynchronously delete documents matching filters.
+
+        :param filters: Haystack metadata filters selecting documents to delete.
+        :returns: The number of documents deleted.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        result = await self._collection_async.delete_many(_normalize_filters(filters))
+        return result.deleted_count
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """Update metadata on documents matching filters.
+
+        :param filters: Haystack metadata filters selecting documents to update.
+        :param meta: Metadata fields and values to set.
+        :returns: The number of documents updated.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        update = {"$set": {f"meta.{key}": value for key, value in meta.items()}}
+        result = self._collection.update_many(_normalize_filters(filters), update)
+        return result.modified_count
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """Asynchronously update metadata on documents matching filters.
+
+        :param filters: Haystack metadata filters selecting documents to update.
+        :param meta: Metadata fields and values to set.
+        :returns: The number of documents updated.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        update = {"$set": {f"meta.{key}": value for key, value in meta.items()}}
+        result = await self._collection_async.update_many(_normalize_filters(filters), update)
+        return result.modified_count
+
+    def delete_all_documents(self, *, recreate_collection: bool = False) -> None:
+        """Delete all documents, optionally recreating the collection.
+
+        :param recreate_collection: Drop and recreate the collection instead of deleting documents individually.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        assert self._connection is not None
+        if recreate_collection:
+            database = self._connection[self.database_name]
+            collection_info = database.list_collections(filter={"name": self.collection_name})
+            options = next(collection_info, {}).get("options", {})
+            indexes = [index for index in self._collection.list_indexes() if index["name"] != "_id_"]
+            self._collection.drop()
+            database.create_collection(self.collection_name, **options)
+            self._collection = database[self.collection_name]
+            for index in indexes:
+                keys = list(index["key"].items())
+                index_options = {key: value for key, value in index.items() if key not in {"key", "v", "ns"}}
+                self._collection.create_index(keys, **index_options)
+        else:
+            self._collection.delete_many({})
+
+    async def delete_all_documents_async(self, *, recreate_collection: bool = False) -> None:
+        """Asynchronously delete all documents, optionally recreating the collection.
+
+        :param recreate_collection: Drop and recreate the collection instead of deleting documents individually.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        assert self._connection_async is not None
+        if recreate_collection:
+            database = self._connection_async[self.database_name]
+            collection_info = await database.list_collections(filter={"name": self.collection_name})
+            collection_info_list = await collection_info.to_list(length=1)
+            options = collection_info_list[0].get("options", {}) if collection_info_list else {}
+            indexes_cursor = await self._collection_async.list_indexes()
+            indexes = [index for index in await indexes_cursor.to_list(length=None) if index["name"] != "_id_"]
+            await self._collection_async.drop()
+            await database.create_collection(self.collection_name, **options)
+            self._collection_async = database[self.collection_name]
+            for index in indexes:
+                keys = list(index["key"].items())
+                index_options = {key: value for key, value in index.items() if key not in {"key", "v", "ns"}}
+                await self._collection_async.create_index(keys, **index_options)
+        else:
+            await self._collection_async.delete_many({})
+
     def create_vector_index(
         self,
         *,
         dimensions: int,
-        similarity: Literal["COS", "DOT", "EUC"] = "COS",
+        similarity: Literal["COS", "L2", "IP"] = "COS",
         kind: Literal["vector-ivf", "vector-hnsw", "vector-diskann"] = "vector-hnsw",
         **index_options: Any,
     ) -> None:
-        """Create the configured Azure DocumentDB `cosmosSearch` vector index."""
+        """Create the configured Azure DocumentDB `cosmosSearch` vector index.
+
+        :param dimensions: Number of dimensions in each embedding.
+        :param similarity: Similarity metric: cosine (`COS`), Euclidean (`L2`), or inner product (`IP`).
+        :param kind: Vector index algorithm.
+        :param index_options: Algorithm-specific Azure DocumentDB index options.
+        :raises ValueError: If `dimensions` is not positive.
+        :raises DocumentStoreError: If index creation fails.
+        """
         if dimensions <= 0:
             msg = "dimensions must be greater than zero"
             raise ValueError(msg)
@@ -394,11 +561,19 @@ class AzureDocumentDBDocumentStore:
         self,
         *,
         dimensions: int,
-        similarity: Literal["COS", "DOT", "EUC"] = "COS",
+        similarity: Literal["COS", "L2", "IP"] = "COS",
         kind: Literal["vector-ivf", "vector-hnsw", "vector-diskann"] = "vector-hnsw",
         **index_options: Any,
     ) -> None:
-        """Asynchronously create the configured `cosmosSearch` vector index."""
+        """Asynchronously create the configured `cosmosSearch` vector index.
+
+        :param dimensions: Number of dimensions in each embedding.
+        :param similarity: Similarity metric: cosine (`COS`), Euclidean (`L2`), or inner product (`IP`).
+        :param kind: Vector index algorithm.
+        :param index_options: Algorithm-specific Azure DocumentDB index options.
+        :raises ValueError: If `dimensions` is not positive.
+        :raises DocumentStoreError: If index creation fails.
+        """
         if dimensions <= 0:
             msg = "dimensions must be greater than zero"
             raise ValueError(msg)

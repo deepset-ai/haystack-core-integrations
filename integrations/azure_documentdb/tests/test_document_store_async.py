@@ -2,14 +2,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 from haystack import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store_async import (
+    CountDocumentsAsyncTest,
+    DeleteAllAsyncTest,
+    DeleteByFilterAsyncTest,
+    DeleteDocumentsAsyncTest,
+    FilterDocumentsAsyncTest,
+    UpdateByFilterAsyncTest,
+    WriteDocumentsAsyncTest,
+)
 from pymongo import InsertOne, ReplaceOne, UpdateOne
 from pymongo.errors import BulkWriteError
+
+from haystack_integrations.document_stores.azure_documentdb import AzureDocumentDBDocumentStore
 
 
 async def test_async_crud_methods(mocked_store_collection_async):
@@ -25,6 +38,25 @@ async def test_async_crud_methods(mocked_store_collection_async):
     await store.delete_documents_async(["one"])
 
     collection.delete_many.assert_awaited_once_with({"id": {"$in": ["one"]}})
+
+
+async def test_async_filter_mutation_methods(mocked_store_collection_async):
+    store, collection, _, _ = mocked_store_collection_async
+    collection.delete_many = AsyncMock()
+    collection.delete_many.return_value.deleted_count = 2
+    collection.update_many = AsyncMock()
+    collection.update_many.return_value.modified_count = 3
+
+    filters = {"field": "meta.kind", "operator": "==", "value": "guide"}
+    assert await store.delete_by_filter_async(filters) == 2
+    assert await store.update_by_filter_async(filters, {"reviewed": True}) == 3
+    await store.delete_all_documents_async()
+
+    collection.delete_many.assert_any_await({"meta.kind": {"$eq": "guide"}})
+    collection.update_many.assert_awaited_once_with(
+        {"meta.kind": {"$eq": "guide"}}, {"$set": {"meta.reviewed": True}}
+    )
+    collection.delete_many.assert_any_await({})
 
 
 @pytest.mark.parametrize(
@@ -91,3 +123,36 @@ async def test_async_connection_failure(mocked_store_collection_async):
     client.admin.command.side_effect = RuntimeError("unreachable")
     with pytest.raises(DocumentStoreError, match="Connection to Azure DocumentDB failed"):
         await store.count_documents_async()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("AZURE_DOCUMENTDB_CONNECTION_STRING"), reason="No OSS DocumentDB connection string provided"
+)
+@pytest.mark.integration
+class TestDocumentStoreAsync(
+    CountDocumentsAsyncTest,
+    WriteDocumentsAsyncTest,
+    DeleteDocumentsAsyncTest,
+    DeleteAllAsyncTest,
+    DeleteByFilterAsyncTest,
+    FilterDocumentsAsyncTest,
+    UpdateByFilterAsyncTest,
+):
+    @pytest_asyncio.fixture
+    async def document_store(self, real_collection):
+        database_name, collection_name, _ = real_collection
+        store = AzureDocumentDBDocumentStore(database_name=database_name, collection_name=collection_name)
+        try:
+            yield store
+        finally:
+            await store.close_async()
+
+    async def test_count_not_empty_async(self, document_store: AzureDocumentDBDocumentStore):
+        await document_store.write_documents_async([Document(content="one"), Document(content="two")])
+        assert await document_store.count_documents_async() == 2
+
+    async def test_write_documents_async(self, document_store: AzureDocumentDBDocumentStore):
+        documents = [Document(content="some text")]
+        assert await document_store.write_documents_async(documents) == 1
+        with pytest.raises(DuplicateDocumentError):
+            await document_store.write_documents_async(documents, DuplicatePolicy.FAIL)

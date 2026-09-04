@@ -46,7 +46,10 @@ class AzureDocumentDBFullTextRetriever:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this component to a dictionary."""
+        """Serialize this component to a dictionary.
+
+        :returns: Serialized retriever configuration.
+        """
         return default_to_dict(
             self,
             document_store=self.document_store.to_dict(),
@@ -57,7 +60,11 @@ class AzureDocumentDBFullTextRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AzureDocumentDBFullTextRetriever":
-        """Deserialize this component from a dictionary."""
+        """Deserialize this component from a dictionary.
+
+        :param data: Serialized retriever configuration.
+        :returns: The deserialized retriever.
+        """
         data["init_parameters"]["document_store"] = AzureDocumentDBDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
@@ -66,11 +73,11 @@ class AzureDocumentDBFullTextRetriever:
         return default_from_dict(cls, data)
 
     def close(self) -> None:
-        """Release synchronous document store resources."""
+        """Release synchronous document-store resources."""
         self.document_store.close()
 
     async def close_async(self) -> None:
-        """Release asynchronous document store resources."""
+        """Release asynchronous document-store resources."""
         await self.document_store.close_async()
 
     @component.output_types(documents=list[Document])

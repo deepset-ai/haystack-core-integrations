@@ -28,7 +28,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
@@ -58,6 +58,14 @@ jobs:
       matrix:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
+    services:
+      documentdb:
+        image: ghcr.io/documentdb/documentdb/documentdb-local:latest
+        env:
+          USERNAME: user
+          PASSWORD: pass
+        ports:
+          - 10260:10260
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -78,6 +86,11 @@ jobs:
 
       - name: Run unit tests
         run: hatch run test:unit-cov-retry
+
+      - name: Run integration tests
+        env:
+          AZURE_DOCUMENTDB_CONNECTION_STRING: mongodb://user:pass@localhost:10260/?tls=true&tlsAllowInvalidCertificates=true
+        run: hatch run test:integration-cov-append-retry
 
       - name: Store unit tests coverage
         id: coverage_comment

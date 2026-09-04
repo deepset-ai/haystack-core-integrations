@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from unittest.mock import Mock, patch
 
 import pytest
@@ -9,6 +10,7 @@ from azure.core.credentials import AccessToken
 from haystack import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests
 from haystack.utils import Secret
 from pymongo import InsertOne, ReplaceOne, UpdateOne
 from pymongo.errors import BulkWriteError
@@ -128,6 +130,14 @@ def test_create_vector_index(mocked_store_collection):
     )
 
 
+@pytest.mark.parametrize("similarity", ["COS", "L2", "IP"])
+def test_create_vector_index_supports_documentdb_similarities(mocked_store_collection, similarity):
+    store, _, _, database = mocked_store_collection
+    store.create_vector_index(dimensions=3, similarity=similarity)
+    options = database.command.call_args.args[0]["indexes"][0]["cosmosSearchOptions"]
+    assert options["similarity"] == similarity
+
+
 def test_custom_fields_round_trip():
     store = AzureDocumentDBDocumentStore(
         database_name="db", collection_name="collection", content_field="body", embedding_field="vector"
@@ -181,6 +191,23 @@ def test_crud_methods(mocked_store_collection):
     collection.count_documents.assert_called_with({})
     collection.find.assert_called_once_with({"meta.kind": {"$eq": "guide"}})
     collection.delete_many.assert_called_once_with({"id": {"$in": ["one"]}})
+
+
+def test_filter_mutation_methods(mocked_store_collection):
+    store, collection, _, _ = mocked_store_collection
+    collection.delete_many.return_value.deleted_count = 2
+    collection.update_many.return_value.modified_count = 3
+
+    filters = {"field": "meta.kind", "operator": "==", "value": "guide"}
+    assert store.delete_by_filter(filters) == 2
+    assert store.update_by_filter(filters, {"reviewed": True}) == 3
+    store.delete_all_documents()
+
+    collection.delete_many.assert_any_call({"meta.kind": {"$eq": "guide"}})
+    collection.update_many.assert_called_once_with(
+        {"meta.kind": {"$eq": "guide"}}, {"$set": {"meta.reviewed": True}}
+    )
+    collection.delete_many.assert_any_call({})
 
 
 @pytest.mark.parametrize(
@@ -267,3 +294,20 @@ def test_connection_failure_raises(mocked_store_collection):
     client.admin.command.side_effect = RuntimeError("unreachable")
     with pytest.raises(DocumentStoreError, match="Connection to Azure DocumentDB failed"):
         store.count_documents()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("AZURE_DOCUMENTDB_CONNECTION_STRING"), reason="No OSS DocumentDB connection string provided"
+)
+@pytest.mark.integration
+class TestDocumentStore(DocumentStoreBaseExtendedTests):
+    @pytest.fixture
+    def document_store(self, real_collection):
+        database_name, collection_name, _ = real_collection
+        return AzureDocumentDBDocumentStore(database_name=database_name, collection_name=collection_name)
+
+    def test_write_documents(self, document_store: AzureDocumentDBDocumentStore):
+        documents = [Document(content="some text")]
+        assert document_store.write_documents(documents) == 1
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents(documents, DuplicatePolicy.FAIL)
