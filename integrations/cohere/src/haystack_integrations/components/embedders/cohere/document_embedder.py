@@ -95,18 +95,28 @@ class CohereDocumentEmbedder:
         self.embedding_separator = embedding_separator
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
-        self._client = ClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
-        self._async_client = AsyncClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
+        self._client: ClientV2 | None = None
+        self._async_client: AsyncClientV2 | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Cohere client."""
+        if self._client is None:
+            self._client = ClientV2(
+                api_key=self.api_key.resolve_value(),
+                base_url=self.api_base_url,
+                timeout=self.timeout,
+                client_name="haystack",
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Cohere client."""
+        if self._async_client is None:
+            self._async_client = AsyncClientV2(
+                api_key=self.api_key.resolve_value(),
+                base_url=self.api_base_url,
+                timeout=self.timeout,
+                client_name="haystack",
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -191,6 +201,8 @@ class CohereDocumentEmbedder:
         if not documents:
             return {"documents": [], "meta": {}}
 
+        self.warm_up()
+        assert self._client is not None
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
         all_embeddings, metadata = get_response(
@@ -227,6 +239,8 @@ class CohereDocumentEmbedder:
         if not documents:
             return {"documents": [], "meta": {}}
 
+        await self.warm_up_async()
+        assert self._async_client is not None
         texts_to_embed = self._prepare_texts_to_embed(documents)
 
         all_embeddings, metadata = await get_async_response(
