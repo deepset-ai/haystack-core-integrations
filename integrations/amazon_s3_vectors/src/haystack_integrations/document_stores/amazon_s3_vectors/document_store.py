@@ -4,6 +4,7 @@
 
 import base64
 import json
+import math
 from collections.abc import Iterator
 from dataclasses import replace
 from typing import Any, Literal
@@ -58,6 +59,9 @@ class S3VectorsDocumentStore:
     - Maximum `top_k`: 100 results per query
     - Maximum vector dimension: 4,096
     - Metadata per vector: 40 KB total, 2 KB filterable
+    - A metadata value must be a string, a boolean, a finite number, or a non-empty array of either
+      all strings or all non-boolean numbers. Anything else (`None`, nested objects, empty or mixed
+      arrays) is dropped with a warning rather than failing the write
     - Every record needs a vector (`float32` only), so documents written without an embedding are
       stored with a placeholder vector (stripped again on read) and are only meaningfully
       retrievable via `filter_documents()`
@@ -419,6 +423,227 @@ class S3VectorsDocumentStore:
         self.write_documents([replace(doc, meta={**doc.meta, **meta}) for doc in matching])
         return len(matching)
 
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Return the number of documents matching the given filters.
+
+        .. warning::
+
+            Filtering is client-side (see `filter_documents`), so this reads the whole index.
+            Unlike stores with a capped query API, the count is exact: `list_vectors` paginates
+            over every vector.
+
+        :param filters: Haystack-format filters to apply.
+        :returns: The number of matching documents.
+        """
+        return len(self.filter_documents(filters=filters))
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Count the distinct values of each given metadata field, across documents matching `filters`.
+
+        .. warning::
+
+            Filtering and aggregation are client-side (see `filter_documents`), so this reads the
+            whole index.
+
+        :param filters: Haystack-format filters selecting the documents to consider.
+        :param metadata_fields: The metadata field names to count distinct values for.
+        :returns: A mapping of field name to its number of distinct values.
+        """
+        documents = self.filter_documents(filters=filters)
+        return self._count_unique_metadata_impl(documents, metadata_fields)
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Infer the metadata fields present in the index and their types.
+
+        S3 Vectors has no schema-introspection API, so types are inferred from the metadata of the
+        documents actually stored. Python types map to `boolean`, `long` (int/float), and `keyword`
+        (str); a field with mixed types across documents falls back to `keyword` with a warning.
+
+        .. warning::
+
+            This reads the whole index (see `filter_documents`).
+
+        :returns: A mapping of field name to `{"type": <type>}`.
+        """
+        return self._get_metadata_fields_info_impl(self.filter_documents())
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Return the minimum and maximum value of a metadata field.
+
+        Works for numeric, boolean and string values. A leading `meta.` on the field name is
+        stripped, since S3 Vectors stores metadata flat.
+
+        .. warning::
+
+            This reads the whole index (see `filter_documents`).
+
+        :param metadata_field: The metadata field to analyze.
+        :returns: `{"min": ..., "max": ...}`, both `None` when no document has a comparable value
+            for the field.
+        """
+        return self._get_metadata_field_min_max_impl(self.filter_documents(), metadata_field)
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
+        """
+        Return the distinct values of a metadata field, with optional search and pagination.
+
+        Values keep their original Python type, and values that merely share a string form (the int
+        `1`, the float `1.0`, the str `"1"`, `True`) are kept distinct. A leading `meta.` on the
+        field name is stripped.
+
+        .. warning::
+
+            This reads the whole index (see `filter_documents`).
+
+        :param metadata_field: The metadata field to get distinct values for.
+        :param search_term: Optional case-insensitive substring the value must contain.
+        :param from_: Pagination offset into the sorted distinct values.
+        :param size: Maximum number of values to return.
+        :param filters: Optional Haystack-format filters restricting the documents considered.
+        :returns: A tuple of (page of distinct values, total number of matching distinct values).
+        """
+        documents = self.filter_documents(filters=filters)
+        return self._get_metadata_field_unique_values_impl(documents, metadata_field, search_term, from_, size)
+
+    @staticmethod
+    def _count_unique_metadata_impl(documents: list[Document], metadata_fields: list[str]) -> dict[str, int]:
+        """Count distinct metadata values per field over an already-filtered document list."""
+        result = {}
+        for field in metadata_fields:
+            # Values of different types can compare equal in Python (`1 == True == 1.0`), so key on
+            # (type, value) to avoid silently merging them.
+            unique_values: set[tuple[type, Any]] = set()
+            for doc in documents:
+                if doc.meta and field in doc.meta:
+                    value = doc.meta[field]
+                    if isinstance(value, list):
+                        unique_values.update((type(item), item) for item in value)
+                    else:
+                        unique_values.add((type(value), value))
+            result[field] = len(unique_values)
+        return result
+
+    @staticmethod
+    def _get_metadata_fields_info_impl(documents: list[Document]) -> dict[str, dict[str, str]]:
+        """Infer metadata field types from an already-filtered document list."""
+        if not documents:
+            return {}
+
+        field_types: dict[str, dict[str, str]] = {}
+        if any(doc.content is not None for doc in documents):
+            field_types["content"] = {"type": "text"}
+
+        def _type_of(value: Any) -> str | None:
+            # bool must be checked before int/float: bool is a subclass of int in Python.
+            if isinstance(value, bool):
+                return "boolean"
+            if isinstance(value, (int, float)):
+                return "long"
+            if isinstance(value, str):
+                return "keyword"
+            return None
+
+        field_samples: dict[str, set[str]] = {}
+        for doc in documents:
+            for field, value in (doc.meta or {}).items():
+                # An empty list carries no type information, so it defaults to keyword.
+                inferred = (_type_of(value[0]) if value else "keyword") if isinstance(value, list) else _type_of(value)
+                if inferred is not None:
+                    field_samples.setdefault(field, set()).add(inferred)
+
+        for field, types_seen in field_samples.items():
+            if len(types_seen) == 1:
+                field_types[field] = {"type": types_seen.pop()}
+            else:
+                logger.warning(
+                    "Metadata field '{field}' has mixed types {types} across documents. Defaulting to 'keyword'.",
+                    field=field,
+                    types=sorted(types_seen),
+                )
+                field_types[field] = {"type": "keyword"}
+
+        return field_types
+
+    @staticmethod
+    def _get_metadata_field_min_max_impl(documents: list[Document], metadata_field: str) -> dict[str, Any]:
+        """Compute min/max of a metadata field over an already-filtered document list."""
+        field_name = metadata_field.removeprefix("meta.")
+        values: list[bool | int | float | str] = []
+        for doc in documents:
+            if doc.meta and field_name in doc.meta:
+                value = doc.meta[field_name]
+                # bool is a subclass of int, so it is already covered by the numeric check; listing
+                # it explicitly documents that booleans are comparable and intentionally included.
+                if isinstance(value, (bool, int, float, str)):
+                    values.append(value)
+
+        if not values:
+            return {"min": None, "max": None}
+
+        # min/max over mixed str and numeric values would raise, so only compare within one kind.
+        numeric = [v for v in values if not isinstance(v, str)]
+        comparable = numeric if numeric else values
+        return {"min": min(comparable), "max": max(comparable)}
+
+    @staticmethod
+    def _get_metadata_field_unique_values_impl(
+        documents: list[Document], metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[Any], int]:
+        """Collect distinct values of a metadata field over an already-filtered document list."""
+        field_name = metadata_field.removeprefix("meta.")
+        # Dedupe on (type, value): a plain set would merge `1`, `1.0` and `True`.
+        seen: set[tuple[type, Any]] = set()
+        unique_values: list[Any] = []
+
+        def _add(value: Any) -> None:
+            key = (type(value), value)
+            if key not in seen:
+                seen.add(key)
+                unique_values.append(value)
+
+        for doc in documents:
+            if doc.meta and field_name in doc.meta:
+                value = doc.meta[field_name]
+                if isinstance(value, list):
+                    for item in value:
+                        _add(item)
+                else:
+                    _add(value)
+
+        # Sort by string form so pagination is stable across mixed types.
+        values_list = sorted(unique_values, key=str)
+
+        if search_term:
+            needle = search_term.lower()
+            values_list = [v for v in values_list if needle in str(v).lower()]
+
+        return values_list[from_ : from_ + size], len(values_list)
+
+    def close(self) -> None:
+        """
+        Close the underlying boto3 client and release its connection pool.
+
+        The store can be used again afterwards: the next call lazily creates a new client.
+        """
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:
+                # Closing is best-effort; a failure here must not mask the caller's own work.
+                logger.debug("Ignoring error while closing the S3 Vectors client.")
+            self._client = None
+
     def _embedding_retrieval(
         self,
         query_embedding: list[float],
@@ -507,15 +732,17 @@ class S3VectorsDocumentStore:
         if doc.content is not None:
             metadata[_CONTENT_KEY] = doc.content
 
-        # Store blob fields
+        # Store blob fields. `blob.meta` is an arbitrary dict, which S3 Vectors rejects, so it is
+        # JSON-encoded into a string (and decoded again in `_s3_vector_to_document`).
         if doc.blob is not None:
             metadata[_BLOB_DATA_KEY] = base64.b64encode(doc.blob.data).decode("ascii")
             if doc.blob.meta:
-                metadata[_BLOB_META_KEY] = doc.blob.meta
+                metadata[_BLOB_META_KEY] = json.dumps(doc.blob.meta)
             if doc.blob.mime_type:
                 metadata[_BLOB_MIME_TYPE_KEY] = doc.blob.mime_type
 
         # Store user metadata
+        dropped: list[str] = []
         if doc.meta:
             for key, value in doc.meta.items():
                 if key in _RESERVED_META_KEYS:
@@ -524,7 +751,21 @@ class S3VectorsDocumentStore:
                         key=key,
                     )
                     continue
-                metadata[key] = value
+                if not S3VectorsDocumentStore._is_supported_metadata_value(value):
+                    dropped.append(key)
+                    continue
+                # A tuple is an array as far as S3 Vectors is concerned, but botocore's document-type
+                # validator only accepts `list`.
+                metadata[key] = list(value) if isinstance(value, tuple) else value
+
+        if dropped:
+            logger.warning(
+                "Document '{doc_id}': metadata key(s) {keys} have values S3 Vectors cannot store and "
+                "were dropped. Metadata values must be a string, a boolean, a finite number, or a "
+                "non-empty array of either all strings or all non-boolean numbers.",
+                doc_id=doc.id,
+                keys=sorted(dropped),
+            )
 
         # Warn if metadata is likely too large
         try:
@@ -547,6 +788,37 @@ class S3VectorsDocumentStore:
         }
 
     @staticmethod
+    def _is_supported_metadata_value(value: Any) -> bool:
+        """
+        Return whether S3 Vectors can store `value` as a metadata value.
+
+        The accepted set was established against the live service: a string (empty is fine), a
+        boolean, a finite number (ints of any magnitude), or a non-empty array whose elements are
+        *either* all strings or all non-boolean numbers. Everything else is rejected with a
+        `ValidationException` — `None`, dicts, empty arrays, nested arrays, arrays mixing strings and
+        numbers, arrays containing booleans, and NaN/infinity.
+
+        This matters in practice: `DocumentSplitter` with `split_overlap` writes a `_split_overlap`
+        list of dicts, so without this check a plain splitter-to-store pipeline would fail.
+        """
+        # bool first: it is a subclass of int, and unlike numbers it is allowed only outside arrays.
+        if isinstance(value, (bool, str)):
+            return True
+        if isinstance(value, int):
+            return True
+        if isinstance(value, float):
+            return math.isfinite(value)
+        if isinstance(value, (list, tuple)):
+            if not value:
+                return False
+            if all(isinstance(item, str) for item in value):
+                return True
+            return all(
+                not isinstance(item, bool) and isinstance(item, (int, float)) and math.isfinite(item) for item in value
+            )
+        return False
+
+    @staticmethod
     def _s3_vector_to_document(vector: dict[str, Any], *, placeholder_embedding: list[float] | None = None) -> Document:
         """
         Convert an S3 Vectors vector response to a Haystack Document.
@@ -564,6 +836,17 @@ class S3VectorsDocumentStore:
 
         blob = None
         if blob_data is not None:
+            # `blob.meta` is stored JSON-encoded (see `_document_to_s3_vector`).
+            if isinstance(blob_meta, str):
+                try:
+                    blob_meta = json.loads(blob_meta)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Could not decode the stored blob metadata of document '{doc_id}'; "
+                        "the blob is returned without it.",
+                        doc_id=vector["key"],
+                    )
+                    blob_meta = None
             blob = ByteStream(
                 data=base64.b64decode(blob_data) if isinstance(blob_data, str) else blob_data,
                 meta=blob_meta or {},
