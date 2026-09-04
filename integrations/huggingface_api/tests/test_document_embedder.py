@@ -4,8 +4,7 @@
 
 import os
 import random
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -30,12 +29,12 @@ def mock_embedding_generation(text, **kwargs):
     return array([[random.random() for _ in range(384)] for _ in range(len(text))])
 
 
-class TestHuggingFaceAPIDocumentEmbedder:
+class TestInitializationAndSerialization:
     def test_init_invalid_api_type(self):
         with pytest.raises(ValueError):
             HuggingFaceAPIDocumentEmbedder(api_type="invalid_api_type", api_params={})
 
-    def test_init_serverless(self, mock_check_valid_model):
+    def test_init_serverless(self):
         model = "BAAI/bge-small-en-v1.5"
         embedder = HuggingFaceAPIDocumentEmbedder(
             api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API, api_params={"model": model}
@@ -51,13 +50,8 @@ class TestHuggingFaceAPIDocumentEmbedder:
         assert embedder.progress_bar
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
-
-    def test_init_serverless_invalid_model(self, mock_check_valid_model):
-        mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id", response=MagicMock())
-        with pytest.raises(RepositoryNotFoundError):
-            HuggingFaceAPIDocumentEmbedder(
-                api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API, api_params={"model": "invalid_model_id"}
-            )
+        assert embedder._client is None
+        assert embedder._async_client is None
 
     def test_init_serverless_no_model(self):
         with pytest.raises(ValueError):
@@ -82,6 +76,8 @@ class TestHuggingFaceAPIDocumentEmbedder:
         assert embedder.progress_bar
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
+        assert embedder._client is None
+        assert embedder._async_client is None
 
     def test_init_tei_invalid_url(self):
         with pytest.raises(ValueError):
@@ -95,7 +91,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
                 api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE, api_params={"param": "irrelevant"}
             )
 
-    def test_to_dict(self, mock_check_valid_model):
+    def test_to_dict(self):
         embedder = HuggingFaceAPIDocumentEmbedder(
             api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
             api_params={"model": "BAAI/bge-small-en-v1.5"},
@@ -131,7 +127,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
             },
         }
 
-    def test_from_dict(self, mock_check_valid_model):
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.components.embedders.huggingface_api.document_embedder"
             ".HuggingFaceAPIDocumentEmbedder",
@@ -165,6 +161,130 @@ class TestHuggingFaceAPIDocumentEmbedder:
         assert embedder.embedding_separator == " "
         assert embedder.concurrency_limit == 7
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=Secret.from_env_var("MISSING_HF_TOKEN"),
+        )
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            embedder.warm_up()
+
+    def test_invalid_model_is_checked_at_warm_up(self, mock_check_valid_model):
+        mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id", response=MagicMock())
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API, api_params={"model": "invalid_model_id"}
+        )
+        with pytest.raises(RepositoryNotFoundError):
+            embedder.warm_up()
+
+    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.InferenceClient")
+    def test_sync_lifecycle(self, mock_client_cls):
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=Secret.from_token("test-token"),
+        )
+        client = mock_client_cls.return_value
+
+        embedder.warm_up()
+        assert embedder._client is client
+        assert embedder._async_client is None
+
+        embedder.close()
+        client.close.assert_called_once_with()
+        assert embedder._client is None
+
+        embedder.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.AsyncInferenceClient")
+    async def test_async_lifecycle(self, mock_client_cls):
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=Secret.from_token("test-token"),
+        )
+        client = MagicMock(close=AsyncMock())
+        mock_client_cls.return_value = client
+
+        await embedder.warm_up_async()
+        assert embedder._async_client is client
+        assert embedder._client is None
+
+        await embedder.close_async()
+        client.close.assert_awaited_once_with()
+        assert embedder._async_client is None
+
+        await embedder.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.InferenceClient")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.AsyncInferenceClient")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        await embedder.warm_up_async()
+        await embedder.warm_up_async()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
+
+    @pytest.mark.asyncio
+    async def test_close_is_safe_without_warm_up(self):
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        embedder.close()
+        await embedder.close_async()
+        assert embedder._client is None
+        assert embedder._async_client is None
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.AsyncInferenceClient")
+    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.InferenceClient")
+    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
+        sync_client = mock_sync_cls.return_value
+        async_client = MagicMock(close=AsyncMock())
+        mock_async_cls.return_value = async_client
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        embedder.warm_up()
+        await embedder.warm_up_async()
+
+        embedder.close()
+        assert embedder._client is None
+        assert embedder._async_client is async_client
+        async_client.close.assert_not_awaited()
+
+        await embedder.close_async()
+        assert embedder._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestRun:
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
             Document(content=f"document number {i}: content", meta={"meta_field": f"meta_value {i}"}) for i in range(5)
@@ -188,7 +308,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
             "meta_value 4 | document number 4: content",
         ]
 
-    def test_prepare_texts_to_embed_w_suffix(self, mock_check_valid_model):
+    def test_prepare_texts_to_embed_w_suffix(self):
         documents = [Document(content=f"document number {i}") for i in range(5)]
 
         embedder = HuggingFaceAPIDocumentEmbedder(
@@ -220,6 +340,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
                 api_params={"model": "BAAI/bge-small-en-v1.5"},
                 token=Secret.from_token("fake-api-token"),
             )
+            embedder.warm_up()
             embeddings = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
 
             assert mock_embedding_patch.call_count == 3
@@ -248,6 +369,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
                 api_params={"model": "BAAI/bge-small-en-v1.5"},
                 token=Secret.from_token("fake-api-token"),
             )
+            embedder.warm_up()
 
             with pytest.raises(ValueError):
                 embedder._embed_batch(texts_to_embed=texts, batch_size=2)
@@ -261,6 +383,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
                 api_params={"model": "BAAI/bge-small-en-v1.5"},
                 token=Secret.from_token("fake-api-token"),
             )
+            embedder.warm_up()
 
             with pytest.raises(ValueError):
                 embedder._embed_batch(texts_to_embed=texts, batch_size=2)
@@ -376,67 +499,6 @@ class TestHuggingFaceAPIDocumentEmbedder:
         assert truncate is True
         assert normalize is False
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
-    @pytest.mark.skipif(sys.platform != "linux", reason="We only test on Linux to avoid overloading the HF server")
-    def test_live_run_serverless(self):
-        docs = [
-            Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
-        ]
-
-        embedder = HuggingFaceAPIDocumentEmbedder(
-            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
-            meta_fields_to_embed=["topic"],
-            embedding_separator=" | ",
-        )
-        embedder._client.timeout = 10  # we want to fail fast if the server is not responding
-        result = embedder.run(documents=docs)
-        documents_with_embeddings = result["documents"]
-
-        assert isinstance(documents_with_embeddings, list)
-        assert len(documents_with_embeddings) == len(docs)
-        for doc in documents_with_embeddings:
-            assert isinstance(doc, Document)
-            assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) == 384
-            assert all(isinstance(x, float) for x in doc.embedding)
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
-    @pytest.mark.skipif(sys.platform != "linux", reason="We only test on Linux to avoid overloading the HF server")
-    async def test_live_run_serverless_async(self) -> None:
-        docs = [
-            Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
-        ]
-
-        embedder = HuggingFaceAPIDocumentEmbedder(
-            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
-            meta_fields_to_embed=["topic"],
-            embedding_separator=" | ",
-        )
-        embedder._async_client.timeout = 10  # we want to fail fast if the server is not responding
-        result = await embedder.run_async(documents=docs)
-        documents_with_embeddings = result["documents"]
-
-        assert isinstance(documents_with_embeddings, list)
-        assert len(documents_with_embeddings) == len(docs)
-        for doc in documents_with_embeddings:
-            assert isinstance(doc, Document)
-            assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) == 384
-            assert all(isinstance(x, float) for x in doc.embedding)
-
     @pytest.mark.asyncio
     async def test_embed_batch_async(self, mock_check_valid_model, caplog):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
@@ -450,6 +512,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
                 token=Secret.from_token("fake-api-token"),
                 concurrency_limit=4,
             )
+            await embedder.warm_up_async()
             embeddings = await embedder._embed_batch_async(texts_to_embed=texts, batch_size=2)
 
             assert mock_embedding_patch.call_count == 3
@@ -480,6 +543,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
                 token=Secret.from_token("fake-api-token"),
                 concurrency_limit=1,
             )
+            await embedder.warm_up_async()
 
             with pytest.raises(ValueError):
                 await embedder._embed_batch_async(texts_to_embed=texts, batch_size=2)
@@ -494,6 +558,7 @@ class TestHuggingFaceAPIDocumentEmbedder:
                 token=Secret.from_token("fake-api-token"),
                 concurrency_limit=1,
             )
+            await embedder.warm_up_async()
 
             with pytest.raises(ValueError):
                 await embedder._embed_batch_async(texts_to_embed=texts, batch_size=2)
@@ -589,6 +654,66 @@ class TestHuggingFaceAPIDocumentEmbedder:
 
             assert mock_embedding_patch.call_count == 2
 
+        documents_with_embeddings = result["documents"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 384
+            assert all(isinstance(x, float) for x in doc.embedding)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestIntegration:
+    def test_live_run_serverless(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
+            meta_fields_to_embed=["topic"],
+            embedding_separator=" | ",
+        )
+        embedder.warm_up()
+        assert embedder._client is not None
+        embedder._client.timeout = 10  # we want to fail fast if the server is not responding
+        result = embedder.run(documents=docs)
+        documents_with_embeddings = result["documents"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 384
+            assert all(isinstance(x, float) for x in doc.embedding)
+
+    @pytest.mark.asyncio
+    async def test_live_run_serverless_async(self) -> None:
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
+            meta_fields_to_embed=["topic"],
+            embedding_separator=" | ",
+        )
+        await embedder.warm_up_async()
+        assert embedder._async_client is not None
+        embedder._async_client.timeout = 10  # we want to fail fast if the server is not responding
+        result = await embedder.run_async(documents=docs)
         documents_with_embeddings = result["documents"]
 
         assert isinstance(documents_with_embeddings, list)
