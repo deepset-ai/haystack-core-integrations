@@ -37,7 +37,8 @@ class AzureIdentityTokenCallback(OIDCCallback):
         self._credential = credential
 
     def fetch(self, context: OIDCCallbackContext) -> OIDCCallbackResult:  # noqa: ARG002
-        """Fetch an access token for Azure DocumentDB.
+        """
+        Fetch an access token for Azure DocumentDB.
 
         :param context: PyMongo OIDC callback context.
         :returns: The OIDC callback result containing a Microsoft Entra access token.
@@ -207,7 +208,8 @@ class AzureDocumentDBDocumentStore:
 
     @property
     def connection(self) -> MongoClient | AsyncMongoClient:
-        """Return the active Azure DocumentDB client.
+        """
+        Return the active Azure DocumentDB client.
 
         :returns: The synchronous or asynchronous PyMongo client.
         :raises DocumentStoreError: If no connection has been established.
@@ -221,7 +223,8 @@ class AzureDocumentDBDocumentStore:
 
     @property
     def collection(self) -> Collection | AsyncCollection:
-        """Return the active Azure DocumentDB collection.
+        """
+        Return the active Azure DocumentDB collection.
 
         :returns: The synchronous or asynchronous PyMongo collection.
         :raises DocumentStoreError: If no collection has been initialized.
@@ -250,7 +253,8 @@ class AzureDocumentDBDocumentStore:
             self._collection_async = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this document store to a dictionary.
+        """
+        Serialize this document store to a dictionary.
 
         :returns: Serialized document-store configuration.
         """
@@ -273,7 +277,8 @@ class AzureDocumentDBDocumentStore:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AzureDocumentDBDocumentStore":
-        """Deserialize this document store from a dictionary.
+        """
+        Deserialize this document store from a dictionary.
 
         :param data: Serialized document-store configuration.
         :returns: The deserialized document store.
@@ -282,7 +287,8 @@ class AzureDocumentDBDocumentStore:
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
-        """Return the number of documents in the store.
+        """
+        Return the number of documents in the store.
 
         :returns: The number of documents.
         """
@@ -291,7 +297,8 @@ class AzureDocumentDBDocumentStore:
         return self._collection.count_documents({})
 
     async def count_documents_async(self) -> int:
-        """Asynchronously return the number of documents in the store.
+        """
+        Asynchronously return the number of documents in the store.
 
         :returns: The number of documents.
         """
@@ -300,7 +307,8 @@ class AzureDocumentDBDocumentStore:
         return await self._collection_async.count_documents({})
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
-        """Return documents matching Haystack metadata filters.
+        """
+        Return documents matching Haystack metadata filters.
 
         :param filters: Haystack metadata filters. Strings in ordered comparisons must be ISO-formatted dates.
         :returns: Documents matching the filters.
@@ -311,7 +319,8 @@ class AzureDocumentDBDocumentStore:
         return [self._mongo_doc_to_haystack_doc(doc) for doc in self._collection.find(query)]
 
     async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
-        """Asynchronously return documents matching Haystack metadata filters.
+        """
+        Asynchronously return documents matching Haystack metadata filters.
 
         :param filters: Haystack metadata filters. Strings in ordered comparisons must be ISO-formatted dates.
         :returns: Documents matching the filters.
@@ -323,7 +332,8 @@ class AzureDocumentDBDocumentStore:
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
-        """Write documents to Azure DocumentDB using the requested duplicate policy.
+        """
+        Write documents to Azure DocumentDB using the requested duplicate policy.
 
         :param documents: Documents to write.
         :param policy: How to handle documents whose IDs already exist.
@@ -376,7 +386,8 @@ class AzureDocumentDBDocumentStore:
     async def write_documents_async(
         self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
     ) -> int:
-        """Asynchronously write documents using the requested duplicate policy.
+        """
+        Asynchronously write documents using the requested duplicate policy.
 
         :param documents: Documents to write.
         :param policy: How to handle documents whose IDs already exist.
@@ -403,7 +414,8 @@ class AzureDocumentDBDocumentStore:
         return written
 
     def delete_documents(self, document_ids: list[str]) -> None:
-        """Delete documents with matching Haystack IDs.
+        """
+        Delete documents with matching Haystack IDs.
 
         :param document_ids: IDs of documents to delete.
         """
@@ -413,7 +425,8 @@ class AzureDocumentDBDocumentStore:
             self._collection.delete_many({"id": {"$in": document_ids}})
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
-        """Asynchronously delete documents with matching Haystack IDs.
+        """
+        Asynchronously delete documents with matching Haystack IDs.
 
         :param document_ids: IDs of documents to delete.
         """
@@ -423,7 +436,8 @@ class AzureDocumentDBDocumentStore:
             await self._collection_async.delete_many({"id": {"$in": document_ids}})
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
-        """Delete documents matching filters.
+        """
+        Delete documents matching filters.
 
         :param filters: Haystack metadata filters selecting documents to delete.
         :returns: The number of documents deleted.
@@ -434,7 +448,8 @@ class AzureDocumentDBDocumentStore:
         return result.deleted_count
 
     async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
-        """Asynchronously delete documents matching filters.
+        """
+        Asynchronously delete documents matching filters.
 
         :param filters: Haystack metadata filters selecting documents to delete.
         :returns: The number of documents deleted.
@@ -445,7 +460,8 @@ class AzureDocumentDBDocumentStore:
         return result.deleted_count
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
-        """Update metadata on documents matching filters.
+        """
+        Update metadata on documents matching filters.
 
         :param filters: Haystack metadata filters selecting documents to update.
         :param meta: Metadata fields and values to set.
@@ -458,7 +474,8 @@ class AzureDocumentDBDocumentStore:
         return result.modified_count
 
     async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
-        """Asynchronously update metadata on documents matching filters.
+        """
+        Asynchronously update metadata on documents matching filters.
 
         :param filters: Haystack metadata filters selecting documents to update.
         :param meta: Metadata fields and values to set.
@@ -471,7 +488,8 @@ class AzureDocumentDBDocumentStore:
         return result.modified_count
 
     def delete_all_documents(self, *, recreate_collection: bool = False) -> None:
-        """Delete all documents, optionally recreating the collection.
+        """
+        Delete all documents, optionally recreating the collection.
 
         :param recreate_collection: Drop and recreate the collection instead of deleting documents individually.
         """
@@ -494,7 +512,8 @@ class AzureDocumentDBDocumentStore:
             self._collection.delete_many({})
 
     async def delete_all_documents_async(self, *, recreate_collection: bool = False) -> None:
-        """Asynchronously delete all documents, optionally recreating the collection.
+        """
+        Asynchronously delete all documents, optionally recreating the collection.
 
         :param recreate_collection: Drop and recreate the collection instead of deleting documents individually.
         """
@@ -526,7 +545,8 @@ class AzureDocumentDBDocumentStore:
         kind: Literal["vector-ivf", "vector-hnsw", "vector-diskann"] = "vector-hnsw",
         **index_options: Any,
     ) -> None:
-        """Create the configured Azure DocumentDB `cosmosSearch` vector index.
+        """
+        Create the configured Azure DocumentDB `cosmosSearch` vector index.
 
         :param dimensions: Number of dimensions in each embedding.
         :param similarity: Similarity metric: cosine (`COS`), Euclidean (`L2`), or inner product (`IP`).
@@ -565,7 +585,8 @@ class AzureDocumentDBDocumentStore:
         kind: Literal["vector-ivf", "vector-hnsw", "vector-diskann"] = "vector-hnsw",
         **index_options: Any,
     ) -> None:
-        """Asynchronously create the configured `cosmosSearch` vector index.
+        """
+        Asynchronously create the configured `cosmosSearch` vector index.
 
         :param dimensions: Number of dimensions in each embedding.
         :param similarity: Similarity metric: cosine (`COS`), Euclidean (`L2`), or inner product (`IP`).

@@ -204,9 +204,7 @@ def test_filter_mutation_methods(mocked_store_collection):
     store.delete_all_documents()
 
     collection.delete_many.assert_any_call({"meta.kind": {"$eq": "guide"}})
-    collection.update_many.assert_called_once_with(
-        {"meta.kind": {"$eq": "guide"}}, {"$set": {"meta.reviewed": True}}
-    )
+    collection.update_many.assert_called_once_with({"meta.kind": {"$eq": "guide"}}, {"$set": {"meta.reviewed": True}})
     collection.delete_many.assert_any_call({})
 
 

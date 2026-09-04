@@ -46,7 +46,8 @@ class AzureDocumentDBEmbeddingRetriever:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this component to a dictionary.
+        """
+        Serialize this component to a dictionary.
 
         :returns: Serialized retriever configuration.
         """
@@ -60,7 +61,8 @@ class AzureDocumentDBEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AzureDocumentDBEmbeddingRetriever":
-        """Deserialize this component from a dictionary.
+        """
+        Deserialize this component from a dictionary.
 
         :param data: Serialized retriever configuration.
         :returns: The deserialized retriever.

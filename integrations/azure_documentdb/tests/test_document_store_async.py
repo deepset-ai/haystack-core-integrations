@@ -53,9 +53,7 @@ async def test_async_filter_mutation_methods(mocked_store_collection_async):
     await store.delete_all_documents_async()
 
     collection.delete_many.assert_any_await({"meta.kind": {"$eq": "guide"}})
-    collection.update_many.assert_awaited_once_with(
-        {"meta.kind": {"$eq": "guide"}}, {"$set": {"meta.reviewed": True}}
-    )
+    collection.update_many.assert_awaited_once_with({"meta.kind": {"$eq": "guide"}}, {"$set": {"meta.reviewed": True}})
     collection.delete_many.assert_any_await({})
 
 
