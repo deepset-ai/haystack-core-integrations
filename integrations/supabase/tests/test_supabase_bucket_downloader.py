@@ -86,6 +86,17 @@ class TestSupabaseBucketDownloader:
             downloader.warm_up()
             mock_create2.assert_not_called()
 
+    def test_warm_up_raises_when_the_key_cannot_be_resolved(self, monkeypatch):
+        monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
+        downloader = SupabaseBucketDownloader(
+            supabase_url="https://project.supabase.co",
+            supabase_key=Secret.from_env_var("SUPABASE_SERVICE_KEY", strict=False),
+            bucket_name="my-bucket",
+        )
+
+        with pytest.raises(ValueError, match="Supabase API key could not be resolved"):
+            downloader.warm_up()
+
     def test_run_returns_bytestreams(self, monkeypatch):
         monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
         downloader = SupabaseBucketDownloader(
