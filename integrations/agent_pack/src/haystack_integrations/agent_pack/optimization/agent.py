@@ -172,7 +172,6 @@ def propose_mutation(
         "known_model_prices": pricing.to_dict(),
         "objectives": objectives.to_dict(),
         "baseline": baseline.to_dict(),
-        "history": _bounded_history(history=history, window=history_digest_window),
         "available_tools": _tool_specifications(reference=reference),
         "successful_reference_runs": [
             {
@@ -181,6 +180,9 @@ def propose_mutation(
             }
             for record in reference_runs[:3]
         ],
+        # Last on purpose. Everything above is identical on every turn of an experiment, so keeping the one growing
+        # section at the end leaves that stable text as a reusable prompt prefix instead of shifting it each turn.
+        "history": _bounded_history(history=history, window=history_digest_window),
     }
     result = optimizer_agent.run(
         messages=[ChatMessage.from_user(text=json.dumps(request, default=str))],

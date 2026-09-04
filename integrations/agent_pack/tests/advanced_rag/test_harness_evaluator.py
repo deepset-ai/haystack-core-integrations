@@ -139,44 +139,24 @@ def test_derived_cases_are_reported_as_unvalidated(document):
     assert metrics.details["derived_cases"] == [QUESTION]
 
 
-def test_repetitions_produce_a_quality_lower_bound(document):
+def test_every_case_is_measured_once_and_latency_is_their_total(document):
+    """One measurement per case: quality is the fraction that passed, with no variance estimate to report."""
     case = AdvancedRAGEvaluationCase(
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("CRISPR",)
     )
     agent = FakeAgent(document)
-    metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=3).evaluate(
+
+    metrics = AdvancedRAGHarnessEvaluator(cases=[case]).evaluate(
         agent=agent, reference_runs=[reference_run(document=document)]
     )
 
-    assert agent.runs == 3
+    assert agent.runs == 1
     assert agent.warmups == 1
-    assert metrics.details["repetitions"] == 3
     assert metrics.quality == 1.0
-    assert metrics.quality_lower_bound == 1.0
-    assert metrics.details["quality_stdev"] == 0.0
-    # Latency is averaged per repetition so it stays comparable to a single-repetition baseline.
+    assert metrics.quality_lower_bound is None
     assert metrics.latency_ms == pytest.approx(
-        sum(case_metrics["latency_ms"] for case_metrics in metrics.details["cases"]) / 3
+        sum(case_metrics["latency_ms"] for case_metrics in metrics.details["cases"])
     )
-
-
-def test_a_flaky_candidate_reports_a_lower_bound_below_its_mean(document):
-    class FlakyAgent(FakeAgent):
-        def run(self, **kwargs):  # noqa: ARG002 - the reply does not depend on the request
-            self.runs += 1
-            result = successful_result(self.document)
-            if self.runs == 1:
-                result["documents"] = []
-            return result
-
-    case = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
-    metrics = AdvancedRAGHarnessEvaluator(cases=[case], repetitions=2).evaluate(
-        agent=FlakyAgent(document), reference_runs=[reference_run(document=document)]
-    )
-
-    assert metrics.quality == 0.5
-    assert metrics.quality_lower_bound is not None
-    assert metrics.quality_lower_bound < metrics.quality
 
 
 def test_evaluator_fingerprint_changes_with_the_evaluation_set(document):
@@ -188,11 +168,6 @@ def test_evaluator_fingerprint_changes_with_the_evaluation_set(document):
     )
     assert first.fingerprint() != second.fingerprint()
     assert first.fingerprint() == AdvancedRAGHarnessEvaluator(cases=list(first.cases.values())).fingerprint()
-
-
-def test_repetitions_must_be_positive():
-    with pytest.raises(ValueError, match="at least 1"):
-        AdvancedRAGHarnessEvaluator(repetitions=0)
 
 
 def test_case_details_carry_the_tool_trace(document):
@@ -209,7 +184,7 @@ def test_case_details_carry_the_tool_trace(document):
     assert trace["tool_steps"][0]["result"] == "fields"
     assert metrics.details["cases"][0]["backup_answer_used"] is False
     assert evaluator.fingerprint() == fingerprint
-    assert set(fingerprint) == {"repetitions", "cases"}
+    assert set(fingerprint) == {"cases"}
 
 
 def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(document):
@@ -239,15 +214,16 @@ def test_traces_are_dropped_from_passing_cases_before_failing_ones(document):
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("absent term",)
     )
     passing = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
-    evaluator = AdvancedRAGHarnessEvaluator(cases=[passing], repetitions=2, max_traced_cases=1)
+
     failing_metrics = AdvancedRAGHarnessEvaluator(cases=[failing]).evaluate(
         agent=FakeAgent(document), reference_runs=[reference_run(document=document)]
     )
-    passing_metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
+    passing_metrics = AdvancedRAGHarnessEvaluator(cases=[passing], max_traced_cases=0).evaluate(
+        agent=FakeAgent(document), reference_runs=[reference_run(document=document)]
+    )
 
     assert failing_metrics.details["cases"][0]["passed"] is False
     assert "run_digest" in failing_metrics.details["cases"][0]
-    # Two repetitions of a passing case, one trace kept.
-    traced = [case for case in passing_metrics.details["cases"] if "run_digest" in case]
-    assert len(passing_metrics.details["cases"]) == 2
-    assert len(traced) == 1
+    # The trace is withheld past the cap, but the case is still reported.
+    assert passing_metrics.details["cases"][0]["passed"] is True
+    assert "run_digest" not in passing_metrics.details["cases"][0]

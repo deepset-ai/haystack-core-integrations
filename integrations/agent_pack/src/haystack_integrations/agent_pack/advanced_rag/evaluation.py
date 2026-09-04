@@ -121,7 +121,8 @@ class AdvancedRAGEvaluationCase:
     :param min_recall: Minimum share of `expected_document_ids` that must be retrieved.
     :param min_precision: Minimum share of retrieved documents that must be expected. Left at 0 by default because
         an agent legitimately retrieves context beyond the labelled evidence; raise it to penalise over-retrieval.
-    :param expect_absent: Whether the corpus holds no answer, so the agent must retrieve nothing and say so.
+    :param expect_absent: Whether the corpus holds no answer, so the agent must attempt retrieval, retrieve nothing,
+        and say so.
     :param absence_phrases: Phrases accepted as that statement.
     :param require_metadata_inspection: Whether metadata must be inspected before the first retrieval.
     :param require_citations: Whether an answer grounded in retrieved documents must cite at least one of them. An
@@ -304,6 +305,11 @@ def score_advanced_rag_result(
             failures.append("expected_no_retrieved_documents")
         if not any(phrase in lowered for phrase in case.absence_phrases):
             failures.append("answer_does_not_state_absence")
+        # Retrieving nothing is the expected outcome here, which a configuration too starved to retrieve at all
+        # satisfies for the wrong reason. Requiring one retrieval attempt separates "looked and found nothing"
+        # from "never looked".
+        if stats.retrieval_calls == 0:
+            failures.append("no_retrieval_attempted")
     else:
         if case.expected_metadata_filter is not None and matched_count < case.min_matching_documents:
             failures.append(f"matching_documents_below_{case.min_matching_documents}")

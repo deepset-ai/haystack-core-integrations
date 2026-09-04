@@ -20,10 +20,10 @@ Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus require
     hatch run test:python examples/harness_optimization_poc.py --store opensearch
     hatch run test:python examples/harness_optimization_poc.py --docs-mcp
 
-By default every case is evaluated twice per candidate, so quality carries a lower bound rather than resting on one
-sample; that costs `--max-cases` x `--repetitions` Agent runs for every candidate measured. A persistent OpenSearch
-store avoids rebuilding the corpus between invocations. Journaled measurements are reused until the Agent, corpus
-identity, recorded runs, or evaluator configuration changes.
+Every case is evaluated once per candidate, so a candidate costs `--max-cases` Agent runs and quality is the
+fraction of cases it passed. A persistent OpenSearch store avoids rebuilding the corpus between invocations.
+Journaled measurements are reused until the Agent, corpus identity, recorded runs, or evaluator configuration
+changes.
 """
 
 import argparse
@@ -74,8 +74,8 @@ from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 warnings.filterwarnings(action="ignore", message="Pydantic serializer warnings", category=UserWarning)
 
 WORKSPACE = Path(".agent-pack-poc")
-REFERENCE_MODEL = "gpt-5.6-sol"
-CANDIDATE_MODELS = ("gpt-5.6-terra", "gpt-5.6-luna")
+REFERENCE_MODEL = "gpt-5.6-luna"
+CANDIDATE_MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")
 
 # What only this harness knows about its own reference Agent. It describes the Agent and how its retrieval is
 # measured, so the optimizer does not have to infer all of that from serialized class names, and deliberately
@@ -103,9 +103,11 @@ an answer needs, some require the complete filtered set, and each case budgets i
 # cut off after a few steps, so a run that does retrieve is liable to be summarized by the backup-answer hook without
 # citations. Cost: the most expensive model reasons at high effort over a task that does not need it.
 #
-# The reference deliberately starts on the *expensive* model rather than a weak one. Quality is a hard gate here and
-# cost is the primary objective, so a recommendation has to be cheaper than the reference: starting at the bottom of
-# the price list would make every quality repair unrecommendable by construction, no matter how much better it is.
+# The reference starts on the cheapest model, so the optimizer cannot buy its improvement by downgrading. A broken
+# configuration wastes money flailing — measured: a starved reference spent 19 retrieval calls and 37,011 input
+# tokens across its cases, and repairing it on the same model needed 3 calls and 24,955 tokens, 42% cheaper — so a
+# quality repair still clears the cost objective here, and it has to come from the configuration rather than the
+# price list.
 POOR_RETRIEVER_TOP_K = 1
 POOR_MAX_FETCHED_DOCS = 2
 POOR_MAX_AGENT_STEPS = 6
@@ -185,7 +187,9 @@ def build_pricing(models: tuple[str, ...]) -> ModelPriceCatalog:
                 input_cost_per_million=MODEL_PRICES[model][0],
                 output_cost_per_million=MODEL_PRICES[model][1],
             )
-            for model in models
+            # Deduplicated because the reference model is usually also one of the candidates, and a catalog rejects
+            # a repeated identifier.
+            for model in dict.fromkeys(models)
             if model in MODEL_PRICES
         ],
     )
@@ -253,14 +257,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=LARGE_CORPUS_DOCS_PER_CATEGORY,
         help="Reviews streamed for each of the three categories. Lower this only for smoke testing.",
-    )
-    parser.add_argument(
-        "--repetitions",
-        type=int,
-        default=2,
-        help="Times to evaluate each case per configuration. Agent runs vary, and one sample per case leaves the "
-        "gate comparing a single flip: two or more give `quality_lower_bound`, which the gate prefers. Costs "
-        "cases x repetitions Agent runs per candidate.",
     )
     parser.add_argument(
         "--min-quality",
@@ -350,9 +346,7 @@ def main() -> None:
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         run_store=run_store,
-        evaluator=AdvancedRAGHarnessEvaluator(
-            cases=cases, repetitions=arguments.repetitions, digest_policy=DIGEST_POLICY
-        ),
+        evaluator=AdvancedRAGHarnessEvaluator(cases=cases, digest_policy=DIGEST_POLICY),
         pricing=pricing,
         objectives=OptimizationObjectives(
             min_quality=arguments.min_quality,

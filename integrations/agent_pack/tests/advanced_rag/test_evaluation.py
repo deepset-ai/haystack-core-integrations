@@ -187,3 +187,43 @@ def test_run_stats_count_filtered_retrieval_calls():
     stats = extract_run_stats(messages=[ChatMessage.from_assistant(tool_calls=[call])])
     assert stats.retrieval_calls == 1
     assert stats.filtered_retrieval_calls == 1
+
+
+def test_an_absence_case_requires_the_agent_to_have_actually_looked():
+    """Retrieving nothing is the expected outcome, so a configuration too starved to retrieve must not pass it."""
+    case = AdvancedRAGEvaluationCase(question="What do reviews from 2030 say?", expect_absent=True)
+    inspected = ToolCall("list_metadata_fields", {}, id="metadata")
+    searched = ToolCall("search_documents", {"query": "2030"}, id="retrieval")
+    absent_answer = "No matching information was found for 2030 or later."
+
+    never_looked = score_advanced_rag_result(
+        result={
+            "messages": [
+                ChatMessage.from_assistant(tool_calls=[inspected]),
+                ChatMessage.from_tool("fields", origin=inspected),
+                ChatMessage.from_assistant(absent_answer),
+            ],
+            "last_message": ChatMessage.from_assistant(absent_answer),
+            "documents": [],
+        },
+        case=case,
+        latency_ms=1.0,
+    )
+    looked = score_advanced_rag_result(
+        result={
+            "messages": [
+                ChatMessage.from_assistant(tool_calls=[inspected]),
+                ChatMessage.from_tool("fields", origin=inspected),
+                ChatMessage.from_assistant(tool_calls=[searched]),
+                ChatMessage.from_tool("no documents matched", origin=searched),
+                ChatMessage.from_assistant(absent_answer),
+            ],
+            "last_message": ChatMessage.from_assistant(absent_answer),
+            "documents": [],
+        },
+        case=case,
+        latency_ms=1.0,
+    )
+
+    assert never_looked.failures == ("no_retrieval_attempted",)
+    assert looked.passed

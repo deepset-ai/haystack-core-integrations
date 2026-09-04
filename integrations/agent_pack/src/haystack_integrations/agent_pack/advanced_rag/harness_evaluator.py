@@ -9,7 +9,6 @@ The evaluator depends only on the shared Agent Pack harness contracts. Optimizat
 measurements without the Advanced RAG package depending on optimizer implementation details.
 """
 
-import statistics
 import time
 from collections.abc import Mapping
 from typing import Any
@@ -121,15 +120,16 @@ class AdvancedRAGHarnessEvaluator:
     """
     Replay recorded questions and score Advanced RAG candidates.
 
-    Quality is the mean fraction of cases that pass per repetition and is therefore normalized to `[0.0, 1.0]`.
-    A case passes only when its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass.
+    Quality is the fraction of cases that pass, and is therefore normalized to `[0.0, 1.0]`. A case passes only when
+    its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass. Each case is measured
+    once, so `quality_lower_bound` is left unset and an experiment gate compares the fraction itself; breadth across
+    cases, rather than repeated measurement of a few, is what makes that fraction discriminating.
     """
 
     def __init__(
         self,
         *,
         cases: list[AdvancedRAGEvaluationCase] | None = None,
-        repetitions: int = 1,
         digest_policy: RunDigestPolicy | None = None,
         max_traced_cases: int | None = 6,
     ) -> None:
@@ -139,21 +139,12 @@ class AdvancedRAGHarnessEvaluator:
         :param cases: Labelled expectations, keyed internally by question. A run whose question has no labelled
             case falls back to a grounding-parity case derived from the run itself, and the evaluation is reported as
             unvalidated.
-        :param repetitions: How many times each case is run. Agent runs are not deterministic, so a single sample
-            makes a pass rate an unreliable basis for switching models. With more than one repetition, `quality` is
-            the mean pass rate and `quality_lower_bound` is one standard deviation below it, which is what experiment
-            gates compare against.
         :param digest_policy: Caps applied to the tool trace recorded for each case.
         :param max_traced_cases: How many case traces to keep, or `None` to keep every one. A trace explains a
             result but a reader's history of them is cumulative, so failing cases keep theirs first: a passing case
             has nothing to diagnose.
-        :raises ValueError: If `repetitions` is below one.
         """
-        if repetitions < 1:
-            msg = "repetitions must be at least 1."
-            raise ValueError(msg)
         self.cases = {case.question: case for case in (cases or [])}
-        self.repetitions = repetitions
         self.digest_policy = digest_policy
         self.max_traced_cases = max_traced_cases
 
@@ -176,10 +167,9 @@ class AdvancedRAGHarnessEvaluator:
         """
         Describe the evaluation set so an experiment journal is invalidated when it changes.
 
-        :returns: The repetition count and every configured case, ordered by question.
+        :returns: Every configured case, ordered by question.
         """
         return {
-            "repetitions": self.repetitions,
             "cases": sorted(
                 (case.to_dict() for case in self.cases.values()),
                 key=lambda entry: str(entry["question"]),
@@ -208,7 +198,7 @@ class AdvancedRAGHarnessEvaluator:
 
         :param agent: The materialized candidate to score.
         :param reference_runs: The successful runs supplying the questions to replay.
-        :returns: Normalized case pass rate, raw model usage, and latency for the candidate, with per-case detail.
+        :returns: Fraction of cases passed, raw model usage, and total latency for the candidate, with per-case detail.
         :raises ValueError: If no reference runs were supplied.
         """
         resolved, derived = self._resolve(reference_runs=reference_runs)
@@ -217,34 +207,25 @@ class AdvancedRAGHarnessEvaluator:
             raise ValueError(msg)
 
         agent.warm_up()
-        run_metrics: list[list[AdvancedRAGCaseMetrics]] = []
+        flattened: list[AdvancedRAGCaseMetrics] = []
         additional_usage: dict[str, ModelTokenUsage] = {}
-        for _ in range(self.repetitions):
-            attempt: list[AdvancedRAGCaseMetrics] = []
-            for case, messages in resolved:
-                started = time.perf_counter()
-                result = agent.run(messages=messages)
-                latency_ms = (time.perf_counter() - started) * 1000
-                attempt.append(
-                    score_advanced_rag_result(
-                        result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
-                    )
+        for case, messages in resolved:
+            started = time.perf_counter()
+            result = agent.run(messages=messages)
+            latency_ms = (time.perf_counter() - started) * 1000
+            flattened.append(
+                score_advanced_rag_result(
+                    result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
                 )
-                for model, usage in (result.get("additional_model_usage") or {}).items():
-                    current = additional_usage.get(model, ModelTokenUsage())
-                    additional_usage[model] = ModelTokenUsage(
-                        input_tokens=current.input_tokens + int(usage.get("input_tokens", 0)),
-                        output_tokens=current.output_tokens + int(usage.get("output_tokens", 0)),
-                    )
-            run_metrics.append(attempt)
+            )
+            for model, usage in (result.get("additional_model_usage") or {}).items():
+                current = additional_usage.get(model, ModelTokenUsage())
+                additional_usage[model] = ModelTokenUsage(
+                    input_tokens=current.input_tokens + int(usage.get("input_tokens", 0)),
+                    output_tokens=current.output_tokens + int(usage.get("output_tokens", 0)),
+                )
 
-        pass_rates = [sum(metric.passed for metric in attempt) / len(attempt) for attempt in run_metrics]
-        quality = statistics.fmean(pass_rates)
-        lower_bound = None
-        if len(pass_rates) > 1:
-            lower_bound = max(0.0, quality - statistics.stdev(pass_rates))
-
-        flattened = [metric for attempt in run_metrics for metric in attempt]
+        quality = sum(metric.passed for metric in flattened) / len(flattened)
         input_tokens = sum(metric.input_tokens for metric in flattened)
         output_tokens = sum(metric.output_tokens for metric in flattened)
         model_id = _generator_model_id(generator=agent.chat_generator)
@@ -261,14 +242,10 @@ class AdvancedRAGHarnessEvaluator:
 
         return EvaluationMetrics(
             quality=quality,
-            latency_ms=sum(metric.latency_ms for metric in flattened) / self.repetitions,
+            latency_ms=sum(metric.latency_ms for metric in flattened),
             model_usage=model_usage,
-            quality_lower_bound=lower_bound,
             details={
                 "model": model_id,
-                "repetitions": self.repetitions,
-                "pass_rates": pass_rates,
-                "quality_stdev": statistics.stdev(pass_rates) if len(pass_rates) > 1 else 0.0,
                 "validated": not derived,
                 "derived_cases": derived,
                 "cases": self._traced_cases(metrics=flattened),
