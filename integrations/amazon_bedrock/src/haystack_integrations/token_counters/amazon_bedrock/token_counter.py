@@ -36,7 +36,7 @@ class AmazonBedrockTokenCounter:
     The messages and tools are converted to the Bedrock `Converse` format (the same conversion the
     `AmazonBedrockChatGenerator` uses), so the count matches what an equivalent `Converse` request would consume.
 
-    Because it delegates to a server-side API, `count()` measures a **complete, valid conversation** rather than an
+    Because it delegates to a server-side API, `count()` measures a complete, valid conversation rather than an
     arbitrary set of messages: Bedrock validates the input the same way the `Converse` inference API does (it must
     begin with a user message, and tool results must pair with the tool calls that produced them). This is the right
     fit for sizing a whole request before sending it - its intended use - but it cannot size a stand-alone fragment

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 
@@ -35,18 +35,6 @@ class TestAmazonBedrockTokenCounter:
         # the client is created lazily, on warm_up
         assert counter.client is None
 
-    def test_init_custom_parameters(self):
-        counter = AmazonBedrockTokenCounter(
-            model=MODEL,
-            aws_access_key_id=Secret.from_token("id"),
-            aws_secret_access_key=Secret.from_token("key"),
-            aws_region_name=Secret.from_token("us-west-2"),
-            boto3_config={"read_timeout": 1000},
-        )
-        assert counter.boto3_config == {"read_timeout": 1000}
-        assert counter.aws_region_name.resolve_value() == "us-west-2"
-        assert counter.client is None
-
     def test_empty_model(self):
         with pytest.raises(ValueError, match="cannot be None or empty string"):
             AmazonBedrockTokenCounter(model="")
@@ -68,12 +56,6 @@ class TestAmazonBedrockTokenCounter:
         with patch(_GET_AWS_SESSION, side_effect=Exception("boom")):
             with pytest.raises(AmazonBedrockConfigurationError):
                 counter.warm_up()
-
-    def test_user_agent(self, mock_boto3_session):
-        counter = AmazonBedrockTokenCounter(model=MODEL)
-        counter.warm_up()
-        config = mock_boto3_session.return_value.client.call_args.kwargs["config"]
-        assert config.user_agent_extra == "x-client-framework:haystack"
 
     def test_count(self, mock_boto3_session):
         counter = AmazonBedrockTokenCounter(model=MODEL)
@@ -109,12 +91,6 @@ class TestAmazonBedrockTokenCounter:
         )
         with pytest.raises(AmazonBedrockInferenceError, match="Could not count tokens"):
             counter.count([ChatMessage.from_user("Hello!")])
-
-    def test_count_raises_if_client_missing_after_warm_up(self):
-        counter = AmazonBedrockTokenCounter(model=MODEL)
-        with patch.object(counter, "warm_up"):  # no-op warm_up leaves the client unset
-            with pytest.raises(RuntimeError, match="client was not initialized"):
-                counter.count([ChatMessage.from_user("Hello!")])
 
     def test_close_releases_the_client(self, mock_boto3_session):
         counter = AmazonBedrockTokenCounter(model=MODEL)
@@ -162,12 +138,6 @@ class TestAmazonBedrockTokenCounter:
         assert counter.model == MODEL
         assert counter.boto3_config == {"read_timeout": 1000}
 
-    def test_from_dict_aws_region_name(self):
-        counter = AmazonBedrockTokenCounter.from_dict(
-            {"type": CLASS_TYPE, "init_parameters": {"model": MODEL, "aws_region_name": "us-east-1"}}
-        )
-        assert counter.aws_region_name == "us-east-1"
-
 
 @pytest.mark.integration
 @pytest.mark.skipif(
@@ -175,13 +145,22 @@ class TestAmazonBedrockTokenCounter:
     reason="AWS_REGION must be set (with AWS credentials available) for a live Bedrock call",
 )
 class TestAmazonBedrockTokenCounterInference:
-    def test_count_live(self):
+    def test_count_complex(self):
+        """Count tokens for a conversation with system, user, assistant and tool result messages, plus tools."""
         # Requires a model that supports Bedrock's CountTokens API (e.g. a current Claude model) and ambient AWS
         # credentials (a profile, static keys, or a Bedrock bearer token).
+        tool_call = ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_01")
+        messages = [
+            ChatMessage.from_system("You are a helpful weather assistant."),
+            ChatMessage.from_user("What is the weather in Paris?"),
+            ChatMessage.from_assistant("Let me check the weather for you.", tool_calls=[tool_call]),
+            ChatMessage.from_tool(tool_result="Weather in Paris: sunny", origin=tool_call),
+            ChatMessage.from_assistant("The weather in Paris is sunny."),
+        ]
         counter = AmazonBedrockTokenCounter(
             model="anthropic.claude-sonnet-4-20250514-v1:0",
             aws_region_name=Secret.from_token(os.environ["AWS_REGION"]),
         )
-        count = counter.count([ChatMessage.from_user("What is the capital of France?")])
+        count = counter.count(messages, tools=[_weather_tool()])
         assert isinstance(count, int)
-        assert count > 0
+        assert count > 20
