@@ -1,16 +1,15 @@
-from unittest.mock import patch
-
-import pytest
-
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from unittest.mock import patch
+
+import pytest
 from haystack import Document
 
 from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceDocumentSplitter
 
 
-class TestInitializationAndSerialization:
+class TestChonkieSentenceDocumentSplitter:
     def test_init_default(self):
         chunker = ChonkieSentenceDocumentSplitter()
         assert chunker.chunk_size == 2048
@@ -76,8 +75,6 @@ class TestInitializationAndSerialization:
         assert chunker.include_delim == "next"
         assert chunker._chunker is None
 
-
-class TestComponentLifecycle:
     @patch("haystack_integrations.components.preprocessors.chonkie.sentence_splitter.chonkie.SentenceChunker")
     def test_warm_up_is_idempotent(self, mock_chunker):
         splitter = ChonkieSentenceDocumentSplitter()
@@ -94,8 +91,6 @@ class TestComponentLifecycle:
             include_delim="prev",
         )
 
-
-class TestChonkieSentenceDocumentSplitterRun:
     def test_run(self):
         chunker = ChonkieSentenceDocumentSplitter(chunk_size=15, chunk_overlap=2)
         doc = Document(content="Hello world! This is a test string for chunking. Here is a new sentence.")

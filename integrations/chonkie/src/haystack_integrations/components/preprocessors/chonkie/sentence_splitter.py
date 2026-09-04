@@ -99,10 +99,7 @@ class ChonkieSentenceDocumentSplitter:
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
         self.warm_up()
-        chunker = self._chunker
-        if chunker is None:
-            msg = "The Chonkie sentence chunker was not initialized."
-            raise RuntimeError(msg)
+        assert self._chunker is not None  # noqa: S101
 
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieSentenceDocumentSplitter expects a list of Document objects."
@@ -121,7 +118,7 @@ class ChonkieSentenceDocumentSplitter:
                 )
                 continue
 
-            chunks = chunker.chunk(doc.content)
+            chunks = self._chunker.chunk(doc.content)
             base_page = doc.meta.get("page_number", 1) if doc.meta else 1
             for split_id, chunk in enumerate(chunks):
                 current_page = base_page + doc.content[: chunk.start_index].count(self.page_break_character)

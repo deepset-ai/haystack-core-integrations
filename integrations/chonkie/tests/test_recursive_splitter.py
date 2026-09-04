@@ -10,7 +10,7 @@ from haystack import Document
 from haystack_integrations.components.preprocessors.chonkie import ChonkieRecursiveDocumentSplitter
 
 
-class TestInitializationAndSerialization:
+class TestChonkieRecursiveDocumentSplitter:
     def test_init_default(self):
         chunker = ChonkieRecursiveDocumentSplitter()
         assert chunker.chunk_size == 2048
@@ -103,8 +103,6 @@ class TestInitializationAndSerialization:
         assert chunker.rules.levels[0].delimiters == ["\n\n"]
         assert chunker._chunker is None
 
-
-class TestComponentLifecycle:
     @patch("haystack_integrations.components.preprocessors.chonkie.recursive_splitter.chonkie.RecursiveChunker")
     def test_warm_up_is_idempotent(self, mock_chunker):
         splitter = ChonkieRecursiveDocumentSplitter()
@@ -113,8 +111,6 @@ class TestComponentLifecycle:
         splitter.warm_up()
         mock_chunker.assert_called_once_with(tokenizer="character", chunk_size=2048, min_characters_per_chunk=24)
 
-
-class TestChonkieRecursiveDocumentSplitterRun:
     def test_run(self):
         chunker = ChonkieRecursiveDocumentSplitter(chunk_size=10, min_characters_per_chunk=2)
         doc = Document(content="Hello world! This is a test string for chunking.")

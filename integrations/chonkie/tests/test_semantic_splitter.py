@@ -10,7 +10,7 @@ from haystack import Document
 from haystack_integrations.components.preprocessors.chonkie import ChonkieSemanticDocumentSplitter
 
 
-class TestInitializationAndSerialization:
+class TestChonkieSemanticDocumentSplitter:
     def test_init_default(self):
         chunker = ChonkieSemanticDocumentSplitter()
         assert chunker.embedding_model == "minishlab/potion-base-32M"
@@ -84,8 +84,6 @@ class TestInitializationAndSerialization:
         assert chunker.filter_tolerance == 0.1
         assert chunker._chunker is None
 
-
-class TestComponentLifecycle:
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_splitter.chonkie.SemanticChunker")
     def test_warm_up_is_idempotent(self, mock_chunker):
         splitter = ChonkieSemanticDocumentSplitter()
@@ -94,8 +92,6 @@ class TestComponentLifecycle:
         splitter.warm_up()
         mock_chunker.assert_called_once()
 
-
-class TestChonkieSemanticDocumentSplitterRun:
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_splitter.chonkie.SemanticChunker")
     def test_run(self, mock_chunker):
         # Setup mock return chunks
