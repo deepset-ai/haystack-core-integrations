@@ -3,6 +3,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .chat.chat_generator import LlamaCppChatGenerator
-from .generator import LlamaCppGenerator
 
-__all__ = ["LlamaCppChatGenerator", "LlamaCppGenerator"]
+__all__ = ["LlamaCppChatGenerator"]
