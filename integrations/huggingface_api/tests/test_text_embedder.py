@@ -17,10 +17,16 @@ from haystack_integrations.components.embedders.huggingface_api import HuggingFa
 
 @pytest.fixture
 def mock_check_valid_model():
-    with patch(
-        "haystack_integrations.components.embedders.huggingface_api.text_embedder._check_valid_model",
-        MagicMock(return_value=None),
-    ) as mock:
+    with (
+        patch(
+            "haystack_integrations.components.embedders.huggingface_api.text_embedder._check_valid_model",
+            MagicMock(return_value=None),
+        ) as mock,
+        patch(
+            "haystack_integrations.components.embedders.huggingface_api.text_embedder._check_valid_model_async",
+            AsyncMock(return_value=None),
+        ),
+    ):
         yield mock
 
 

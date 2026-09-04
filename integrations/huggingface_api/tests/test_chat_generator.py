@@ -68,10 +68,16 @@ def tools():
 
 @pytest.fixture
 def mock_check_valid_model():
-    with patch(
-        "haystack_integrations.components.generators.huggingface_api.chat.chat_generator._check_valid_model",
-        MagicMock(return_value=None),
-    ) as mock:
+    with (
+        patch(
+            "haystack_integrations.components.generators.huggingface_api.chat.chat_generator._check_valid_model",
+            MagicMock(return_value=None),
+        ) as mock,
+        patch(
+            "haystack_integrations.components.generators.huggingface_api.chat.chat_generator._check_valid_model_async",
+            AsyncMock(return_value=None),
+        ),
+    ):
         yield mock
 
 
@@ -872,7 +878,133 @@ class TestRun:
         assert converted_stream_chunk == expected_stream_chunk
 
 
-class TestAsyncRun:
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestSyncIntegration:
+    def test_live_run_serverless(self):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
+        )
+
+        # No need for instruction tokens here since we use the chat_completion endpoint which handles the chat
+        # templating for us.
+        messages = [
+            ChatMessage.from_user("What is the capital of France? Be concise only provide the capital, nothing else.")
+        ]
+        response = generator.run(messages=messages)
+
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) > 0
+        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+        assert response["replies"][0].text is not None
+        meta = response["replies"][0].meta
+        assert "usage" in meta
+        assert "prompt_tokens" in meta["usage"]
+        assert meta["usage"]["prompt_tokens"] > 0
+        assert "completion_tokens" in meta["usage"]
+        assert meta["usage"]["completion_tokens"] > 0
+        assert meta["model"] == "Qwen/Qwen3.5-9B"
+        assert meta["finish_reason"] is not None
+
+    def test_live_run_serverless_streaming(self):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
+            streaming_callback=streaming_callback_handler,
+        )
+
+        # No need for instruction tokens here since we use the chat_completion endpoint which handles the chat
+        # templating for us.
+        messages = [
+            ChatMessage.from_user("What is the capital of France? Be concise only provide the capital, nothing else.")
+        ]
+        response = generator.run(messages=messages)
+
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) > 0
+        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+        assert response["replies"][0].text is not None
+
+        response_meta = response["replies"][0].meta
+        assert "completion_start_time" in response_meta
+        assert datetime.fromisoformat(response_meta["completion_start_time"]) <= datetime.now(timezone.utc)
+        assert "usage" in response_meta
+        assert "prompt_tokens" in response_meta["usage"]
+        assert response_meta["usage"]["prompt_tokens"] >= 0
+        assert "completion_tokens" in response_meta["usage"]
+        assert response_meta["usage"]["completion_tokens"] >= 0
+        assert response_meta["model"] == "Qwen/Qwen3.5-9B"
+        assert response_meta["finish_reason"] is not None
+
+    def test_live_run_with_tools(self, tools):
+        """
+        We test the round trip: generate tool call, pass tool message, generate response.
+
+        The model used here is not gated and kept in a warm state.
+        """
+
+        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"temperature": 0.5, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
+        )
+
+        results = generator.run(chat_messages, tools=tools)
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.tool_name == "weather"
+        assert "city" in tool_call.arguments
+        assert "Paris" in tool_call.arguments["city"]
+        assert message.meta["finish_reason"] == "tool_calls"
+
+        new_messages = [*chat_messages, message, ChatMessage.from_tool(tool_result="22° C", origin=tool_call)]
+
+        # the model tends to make tool calls if provided with tools, so we don't pass them here
+        results = generator.run(new_messages, generation_kwargs={"max_tokens": 50})
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower() and "22" in final_message.text
+
+    def test_live_run_multimodal(self, test_files_path):
+        image_path = test_files_path / "apple.jpg"
+        # Resize the image to keep this test fast
+        image_content = ImageContent.from_file_path(file_path=image_path, size=(100, 100))
+        messages = [ChatMessage.from_user(content_parts=["What does this image show? Max 5 words", image_content])]
+
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
+        )
+
+        response = generator.run(messages=messages)
+
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) > 0
+        message = response["replies"][0]
+        assert message.text
+        assert len(message.text) > 0
+        assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
+
+
+class TestRunAsync:
     @pytest.mark.asyncio
     async def test_run_async(self, mock_check_valid_model, mock_chat_completion_async, chat_messages):
         generator = HuggingFaceAPIChatGenerator(
@@ -1059,7 +1191,99 @@ class TestAsyncRun:
         }
 
 
-class TestToolsAndReasoning:
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestAsyncIntegration:
+    @pytest.mark.asyncio
+    async def test_live_run_async_serverless(self):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
+            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
+        )
+
+        messages = [
+            ChatMessage.from_user("What is the capital of France? Be concise only provide the capital, nothing else.")
+        ]
+        try:
+            response = await generator.run_async(messages=messages)
+
+            assert "replies" in response
+            assert isinstance(response["replies"], list)
+            assert len(response["replies"]) > 0
+            assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+            assert response["replies"][0].text is not None
+
+            meta = response["replies"][0].meta
+            assert "usage" in meta
+            assert "prompt_tokens" in meta["usage"]
+            assert meta["usage"]["prompt_tokens"] > 0
+            assert "completion_tokens" in meta["usage"]
+            assert meta["usage"]["completion_tokens"] > 0
+            assert meta["model"] == "Qwen/Qwen3.5-9B"
+            assert meta["finish_reason"] is not None
+        finally:
+            await generator.close_async()
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestReasoningIntegration:
+    def test_live_run_multi_turn_with_reasoning_model(self):
+        """
+        Test multi-turn conversation with a reasoning model.
+
+        This test verifies that:
+        1. Reasoning content is captured from the model's response
+        2. When the assistant message (with reasoning) is sent back in a multi-turn conversation,
+           the API call succeeds (reasoning is dropped during conversion since HF API doesn't support it)
+        """
+        # Note: Using a model that supports reasoning AND a provider that actually follows the spec defined in
+        # huggingface-hub. Reasoning content especially seems to be non-standard across providers and is either left
+        # in the main response or put in a new field that is not part of the official API.
+        # One combo that does respect the spec is together + openai/gpt-oss-20b.
+        # together + openai/gpt-oss-20b actually uses the expected reasoning field in the response
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            # We use together + openai/gpt-oss-20b since it actually returns reasoning content in the expected field
+            api_params={"model": "openai/gpt-oss-20b", "provider": "together"},
+            generation_kwargs={"max_tokens": 300},
+        )
+
+        # First turn: ask a question
+        messages = [ChatMessage.from_user("What is 2 + 2? Answer briefly.")]
+        response = generator.run(messages=messages)
+
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+        first_reply = response["replies"][0]
+        assert first_reply.text is not None
+        assert first_reply.reasoning is not None
+
+        # Second turn: send a follow-up including the assistant's previous response
+        # This tests that convert_message_to_hf_format properly handles messages
+        # that may contain ReasoningContent (it should skip it)
+        follow_up_messages = [
+            ChatMessage.from_user("What is 2 + 2? Answer briefly."),
+            first_reply,  # Include the assistant's response with reasoning
+            ChatMessage.from_user("Now what is 3 + 3? Answer briefly."),
+        ]
+        follow_up_response = generator.run(messages=follow_up_messages)
+
+        # Verify the second turn succeeds
+        assert "replies" in follow_up_response
+        assert len(follow_up_response["replies"]) > 0
+        assert follow_up_response["replies"][0].text is not None
+        assert follow_up_response["replies"][0].reasoning is not None
+
+
+class TestTools:
     def test_hugging_face_api_generator_with_toolset_initialization(self, tools):
         """Test that the HuggingFaceAPIChatGenerator can be initialized with a Toolset."""
         toolset = Toolset(tools)
@@ -1221,6 +1445,8 @@ class TestToolsAndReasoning:
         component.warm_up()
         assert len(warm_up_calls) == call_count
 
+
+class TestReasoning:
     def test_run_with_reasoning_non_streaming(self, mock_check_valid_model, chat_messages):
         """Test that reasoning content is correctly extracted from non-streaming responses."""
         with patch("huggingface_hub.InferenceClient.chat_completion", autospec=True) as mock_chat_completion:
@@ -1541,6 +1767,8 @@ class TestToolsAndReasoning:
         assert streaming_chunk.content == "Hello"
         assert streaming_chunk.reasoning is None
 
+
+class TestToolSchema:
     def test_resolve_schema_refs_no_defs(self):
         """Schema without $defs is returned as-is."""
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
@@ -1603,214 +1831,3 @@ class TestToolsAndReasoning:
         params = hf_tools[0].function.parameters or hf_tools[0].function.arguments
         assert "$defs" not in params
         assert params["properties"]["user"]["type"] == "object"
-
-
-@pytest.mark.integration
-@pytest.mark.skipif(
-    not os.environ.get("HF_TOKEN", None),
-    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-)
-class TestSyncIntegration:
-    def test_live_run_serverless(self):
-        generator = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
-            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
-        )
-
-        # No need for instruction tokens here since we use the chat_completion endpoint which handles the chat
-        # templating for us.
-        messages = [
-            ChatMessage.from_user("What is the capital of France? Be concise only provide the capital, nothing else.")
-        ]
-        response = generator.run(messages=messages)
-
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) > 0
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-        assert response["replies"][0].text is not None
-        meta = response["replies"][0].meta
-        assert "usage" in meta
-        assert "prompt_tokens" in meta["usage"]
-        assert meta["usage"]["prompt_tokens"] > 0
-        assert "completion_tokens" in meta["usage"]
-        assert meta["usage"]["completion_tokens"] > 0
-        assert meta["model"] == "Qwen/Qwen3.5-9B"
-        assert meta["finish_reason"] is not None
-
-    def test_live_run_serverless_streaming(self):
-        generator = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
-            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
-            streaming_callback=streaming_callback_handler,
-        )
-
-        # No need for instruction tokens here since we use the chat_completion endpoint which handles the chat
-        # templating for us.
-        messages = [
-            ChatMessage.from_user("What is the capital of France? Be concise only provide the capital, nothing else.")
-        ]
-        response = generator.run(messages=messages)
-
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) > 0
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-        assert response["replies"][0].text is not None
-
-        response_meta = response["replies"][0].meta
-        assert "completion_start_time" in response_meta
-        assert datetime.fromisoformat(response_meta["completion_start_time"]) <= datetime.now(timezone.utc)
-        assert "usage" in response_meta
-        assert "prompt_tokens" in response_meta["usage"]
-        assert response_meta["usage"]["prompt_tokens"] >= 0
-        assert "completion_tokens" in response_meta["usage"]
-        assert response_meta["usage"]["completion_tokens"] >= 0
-        assert response_meta["model"] == "Qwen/Qwen3.5-9B"
-        assert response_meta["finish_reason"] is not None
-
-    def test_live_run_with_tools(self, tools):
-        """
-        We test the round trip: generate tool call, pass tool message, generate response.
-
-        The model used here is not gated and kept in a warm state.
-        """
-
-        chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        generator = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
-            generation_kwargs={"temperature": 0.5, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
-        )
-
-        results = generator.run(chat_messages, tools=tools)
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.tool_name == "weather"
-        assert "city" in tool_call.arguments
-        assert "Paris" in tool_call.arguments["city"]
-        assert message.meta["finish_reason"] == "tool_calls"
-
-        new_messages = [*chat_messages, message, ChatMessage.from_tool(tool_result="22° C", origin=tool_call)]
-
-        # the model tends to make tool calls if provided with tools, so we don't pass them here
-        results = generator.run(new_messages, generation_kwargs={"max_tokens": 50})
-
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_calls
-        assert len(final_message.text) > 0
-        assert "paris" in final_message.text.lower() and "22" in final_message.text
-
-    def test_live_run_multimodal(self, test_files_path):
-        image_path = test_files_path / "apple.jpg"
-        # Resize the image to keep this test fast
-        image_content = ImageContent.from_file_path(file_path=image_path, size=(100, 100))
-        messages = [ChatMessage.from_user(content_parts=["What does this image show? Max 5 words", image_content])]
-
-        generator = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
-            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
-        )
-
-        response = generator.run(messages=messages)
-
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) > 0
-        message = response["replies"][0]
-        assert message.text
-        assert len(message.text) > 0
-        assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
-
-
-@pytest.mark.integration
-@pytest.mark.skipif(
-    not os.environ.get("HF_TOKEN", None),
-    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-)
-class TestAsyncIntegration:
-    @pytest.mark.asyncio
-    async def test_live_run_async_serverless(self):
-        generator = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3.5-9B", "provider": "together"},
-            generation_kwargs={"max_tokens": 20, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}},
-        )
-
-        messages = [
-            ChatMessage.from_user("What is the capital of France? Be concise only provide the capital, nothing else.")
-        ]
-        try:
-            response = await generator.run_async(messages=messages)
-
-            assert "replies" in response
-            assert isinstance(response["replies"], list)
-            assert len(response["replies"]) > 0
-            assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-            assert response["replies"][0].text is not None
-
-            meta = response["replies"][0].meta
-            assert "usage" in meta
-            assert "prompt_tokens" in meta["usage"]
-            assert meta["usage"]["prompt_tokens"] > 0
-            assert "completion_tokens" in meta["usage"]
-            assert meta["usage"]["completion_tokens"] > 0
-            assert meta["model"] == "Qwen/Qwen3.5-9B"
-            assert meta["finish_reason"] is not None
-        finally:
-            await generator.close_async()
-
-    def test_live_run_multi_turn_with_reasoning_model(self):
-        """
-        Test multi-turn conversation with a reasoning model.
-
-        This test verifies that:
-        1. Reasoning content is captured from the model's response
-        2. When the assistant message (with reasoning) is sent back in a multi-turn conversation,
-           the API call succeeds (reasoning is dropped during conversion since HF API doesn't support it)
-        """
-        # Note: Using a model that supports reasoning AND a provider that actually follows the spec defined in
-        # huggingface-hub. Reasoning content especially seems to be non-standard across providers and is either left
-        # in the main response or put in a new field that is not part of the official API.
-        # One combo that does respect the spec is together + openai/gpt-oss-20b.
-        # together + openai/gpt-oss-20b actually uses the expected reasoning field in the response
-        generator = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            # We use together + openai/gpt-oss-20b since it actually returns reasoning content in the expected field
-            api_params={"model": "openai/gpt-oss-20b", "provider": "together"},
-            generation_kwargs={"max_tokens": 300},
-        )
-
-        # First turn: ask a question
-        messages = [ChatMessage.from_user("What is 2 + 2? Answer briefly.")]
-        response = generator.run(messages=messages)
-
-        assert "replies" in response
-        assert len(response["replies"]) > 0
-        first_reply = response["replies"][0]
-        assert first_reply.text is not None
-        assert first_reply.reasoning is not None
-
-        # Second turn: send a follow-up including the assistant's previous response
-        # This tests that convert_message_to_hf_format properly handles messages
-        # that may contain ReasoningContent (it should skip it)
-        follow_up_messages = [
-            ChatMessage.from_user("What is 2 + 2? Answer briefly."),
-            first_reply,  # Include the assistant's response with reasoning
-            ChatMessage.from_user("Now what is 3 + 3? Answer briefly."),
-        ]
-        follow_up_response = generator.run(messages=follow_up_messages)
-
-        # Verify the second turn succeeds
-        assert "replies" in follow_up_response
-        assert len(follow_up_response["replies"]) > 0
-        assert follow_up_response["replies"][0].text is not None
-        assert follow_up_response["replies"][0].reasoning is not None

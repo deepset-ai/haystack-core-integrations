@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from asyncio import Semaphore, gather, to_thread
+from asyncio import Semaphore, gather
 from dataclasses import replace
 from itertools import chain
 from typing import Any
@@ -18,6 +18,7 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
     _check_valid_model,
+    _check_valid_model_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,10 @@ class HuggingFaceAPIDocumentEmbedder:
         if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
             _check_valid_model(self._model_or_url, HFModelType.EMBEDDING, self.token)
 
+    async def _validate_model_async(self) -> None:
+        if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            await _check_valid_model_async(self._model_or_url, HFModelType.EMBEDDING, self.token)
+
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Hugging Face clients."""
         return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
@@ -212,8 +217,7 @@ class HuggingFaceAPIDocumentEmbedder:
     async def warm_up_async(self) -> None:
         """Create the asynchronous Hugging Face client."""
         if self._async_client is None:
-            if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
-                await to_thread(self._validate_model)
+            await self._validate_model_async()
             self._async_client = AsyncInferenceClient(**self._client_kwargs())
 
     def close(self) -> None:
@@ -311,7 +315,12 @@ class HuggingFaceAPIDocumentEmbedder:
         ):
             batch = texts_to_embed[i : i + batch_size]
 
-            np_embeddings = self._client.feature_extraction(text=batch, truncate=truncate, normalize=normalize)
+            # huggingface_hub 1.0 types this parameter as str even though the API accepts batched inputs.
+            np_embeddings = self._client.feature_extraction(
+                text=batch,  # type: ignore[arg-type]
+                truncate=truncate,
+                normalize=normalize,
+            )
 
             if np_embeddings.ndim != _EXPECTED_EMBEDDING_NDIM or np_embeddings.shape[0] != len(batch):
                 msg = f"Expected embedding shape ({batch_size}, embedding_dim), got {np_embeddings.shape}"
@@ -334,8 +343,11 @@ class HuggingFaceAPIDocumentEmbedder:
 
         async def _runner(batch: list[str]) -> list[list[float]]:
             async with sem:
+                # huggingface_hub 1.0 types this parameter as str even though the API accepts batched inputs.
                 np_embeddings = await async_client.feature_extraction(
-                    text=batch, truncate=truncate, normalize=normalize
+                    text=batch,  # type: ignore[arg-type]
+                    truncate=truncate,
+                    normalize=normalize,
                 )
 
                 if np_embeddings.ndim != _EXPECTED_EMBEDDING_NDIM or np_embeddings.shape[0] != len(batch):

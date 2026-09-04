@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from asyncio import to_thread
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -14,6 +13,7 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
     _check_valid_model,
+    _check_valid_model_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,6 +159,10 @@ class HuggingFaceAPITextEmbedder:
         if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
             _check_valid_model(self._model_or_url, HFModelType.EMBEDDING, self.token)
 
+    async def _validate_model_async(self) -> None:
+        if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            await _check_valid_model_async(self._model_or_url, HFModelType.EMBEDDING, self.token)
+
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Hugging Face clients."""
         return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
@@ -172,8 +176,7 @@ class HuggingFaceAPITextEmbedder:
     async def warm_up_async(self) -> None:
         """Create the asynchronous Hugging Face client."""
         if self._async_client is None:
-            if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
-                await to_thread(self._validate_model)
+            await self._validate_model_async()
             self._async_client = AsyncInferenceClient(**self._client_kwargs())
 
     def close(self) -> None:

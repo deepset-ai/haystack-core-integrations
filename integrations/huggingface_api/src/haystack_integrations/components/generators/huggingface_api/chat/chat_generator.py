@@ -4,7 +4,6 @@
 
 import inspect
 import json
-from asyncio import to_thread
 from collections.abc import AsyncIterable, Iterable
 from datetime import datetime, timezone
 from typing import Any, Union
@@ -50,6 +49,7 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFGenerationAPIType,
     HFModelType,
     _check_valid_model,
+    _check_valid_model_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -449,6 +449,10 @@ class HuggingFaceAPIChatGenerator:
         if self.api_type == HFGenerationAPIType.SERVERLESS_INFERENCE_API:
             _check_valid_model(self._model_or_url, HFModelType.GENERATION, self.token)
 
+    async def _validate_model_async(self) -> None:
+        if self.api_type == HFGenerationAPIType.SERVERLESS_INFERENCE_API:
+            await _check_valid_model_async(self._model_or_url, HFModelType.GENERATION, self.token)
+
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Hugging Face clients."""
         return {
@@ -477,8 +481,7 @@ class HuggingFaceAPIChatGenerator:
         """Create the asynchronous Hugging Face client and warm up the configured tools."""
         self._warm_up_tools()
         if self._async_client is None:
-            if self.api_type == HFGenerationAPIType.SERVERLESS_INFERENCE_API:
-                await to_thread(self._validate_model)
+            await self._validate_model_async()
             self._async_client = AsyncInferenceClient(**self._client_kwargs())
 
     def close(self) -> None:

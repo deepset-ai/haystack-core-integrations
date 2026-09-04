@@ -18,10 +18,16 @@ from haystack_integrations.components.embedders.huggingface_api import HuggingFa
 
 @pytest.fixture
 def mock_check_valid_model():
-    with patch(
-        "haystack_integrations.components.embedders.huggingface_api.document_embedder._check_valid_model",
-        MagicMock(return_value=None),
-    ) as mock:
+    with (
+        patch(
+            "haystack_integrations.components.embedders.huggingface_api.document_embedder._check_valid_model",
+            MagicMock(return_value=None),
+        ) as mock,
+        patch(
+            "haystack_integrations.components.embedders.huggingface_api.document_embedder._check_valid_model_async",
+            AsyncMock(return_value=None),
+        ),
+    ):
         yield mock
 
 
@@ -499,6 +505,68 @@ class TestRun:
         assert truncate is True
         assert normalize is False
 
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestIntegration:
+    def test_live_run_serverless(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
+            meta_fields_to_embed=["topic"],
+            embedding_separator=" | ",
+        )
+        embedder.warm_up()
+        assert embedder._client is not None
+        embedder._client.timeout = 10  # we want to fail fast if the server is not responding
+        result = embedder.run(documents=docs)
+        documents_with_embeddings = result["documents"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 384
+            assert all(isinstance(x, float) for x in doc.embedding)
+
+    @pytest.mark.asyncio
+    async def test_live_run_serverless_async(self) -> None:
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
+            meta_fields_to_embed=["topic"],
+            embedding_separator=" | ",
+        )
+        await embedder.warm_up_async()
+        assert embedder._async_client is not None
+        embedder._async_client.timeout = 10  # we want to fail fast if the server is not responding
+        result = await embedder.run_async(documents=docs)
+        documents_with_embeddings = result["documents"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 384
+            assert all(isinstance(x, float) for x in doc.embedding)
+
+
+class TestRunAsync:
     @pytest.mark.asyncio
     async def test_embed_batch_async(self, mock_check_valid_model, caplog):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
@@ -654,66 +722,6 @@ class TestRun:
 
             assert mock_embedding_patch.call_count == 2
 
-        documents_with_embeddings = result["documents"]
-
-        assert isinstance(documents_with_embeddings, list)
-        assert len(documents_with_embeddings) == len(docs)
-        for doc in documents_with_embeddings:
-            assert isinstance(doc, Document)
-            assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) == 384
-            assert all(isinstance(x, float) for x in doc.embedding)
-
-
-@pytest.mark.integration
-@pytest.mark.skipif(
-    not os.environ.get("HF_TOKEN", None),
-    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-)
-class TestIntegration:
-    def test_live_run_serverless(self):
-        docs = [
-            Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
-        ]
-
-        embedder = HuggingFaceAPIDocumentEmbedder(
-            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
-            meta_fields_to_embed=["topic"],
-            embedding_separator=" | ",
-        )
-        embedder.warm_up()
-        assert embedder._client is not None
-        embedder._client.timeout = 10  # we want to fail fast if the server is not responding
-        result = embedder.run(documents=docs)
-        documents_with_embeddings = result["documents"]
-
-        assert isinstance(documents_with_embeddings, list)
-        assert len(documents_with_embeddings) == len(docs)
-        for doc in documents_with_embeddings:
-            assert isinstance(doc, Document)
-            assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) == 384
-            assert all(isinstance(x, float) for x in doc.embedding)
-
-    @pytest.mark.asyncio
-    async def test_live_run_serverless_async(self) -> None:
-        docs = [
-            Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
-        ]
-
-        embedder = HuggingFaceAPIDocumentEmbedder(
-            api_type=HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
-            meta_fields_to_embed=["topic"],
-            embedding_separator=" | ",
-        )
-        await embedder.warm_up_async()
-        assert embedder._async_client is not None
-        embedder._async_client.timeout = 10  # we want to fail fast if the server is not responding
-        result = await embedder.run_async(documents=docs)
         documents_with_embeddings = result["documents"]
 
         assert isinstance(documents_with_embeddings, list)
