@@ -66,7 +66,7 @@ class OpenDataLoaderConverter:
             `True`.
         :raises ValueError: If image extraction is enabled without an output directory.
         """
-        conversion_options = convert_kwargs or {}
+        conversion_options = convert_kwargs.copy() if convert_kwargs else {}
         if managed_options := {"image_dir", "image_output"}.intersection(conversion_options):
             message = (
                 f"Ignoring component-managed image options in convert_kwargs: {', '.join(sorted(managed_options))}"
