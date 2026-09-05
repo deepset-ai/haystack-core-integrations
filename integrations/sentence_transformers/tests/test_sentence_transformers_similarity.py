@@ -281,6 +281,39 @@ class TestSentenceTransformersSimilarityRanker:
         with pytest.raises(ValueError):
             ranker.run(query="test", documents=[Document(content="document")], top_k=-1)
 
+    def test_run_falsy_scale_score_override(self):
+        ranker = SentenceTransformersSimilarityRanker(model="model")  # scale_score=True by default
+        mock_cross_encoder = MagicMock()
+        ranker._cross_encoder = mock_cross_encoder
+
+        ranker.run(query="test", documents=[Document(content="document")], scale_score=False)
+
+        _, kwargs = mock_cross_encoder.rank.call_args
+        assert isinstance(kwargs["activation_fn"], torch.nn.Identity)
+
+    def test_run_falsy_score_threshold_override(self):
+        ranker = SentenceTransformersSimilarityRanker(model="model", score_threshold=0.5)
+        mock_cross_encoder = MagicMock()
+        mock_cross_encoder.rank.return_value = [
+            {"score": 0.1, "corpus_id": 0},
+            {"score": -0.1, "corpus_id": 1},
+        ]
+        ranker._cross_encoder = mock_cross_encoder
+
+        out = ranker.run(
+            query="test", documents=[Document(content="doc 0"), Document(content="doc 1")], score_threshold=0.0
+        )
+
+        assert len(out["documents"]) == 1
+        assert out["documents"][0].score == pytest.approx(0.1, abs=1e-4)
+
+    def test_run_top_k_zero_raises(self):
+        ranker = SentenceTransformersSimilarityRanker()
+        ranker._cross_encoder = MagicMock()
+
+        with pytest.raises(ValueError):
+            ranker.run(query="test", documents=[Document(content="document")], top_k=0)
+
     def test_returns_empty_list_if_no_documents_are_provided(self):
         ranker = SentenceTransformersSimilarityRanker()
         ranker._cross_encoder = MagicMock()
