@@ -66,13 +66,23 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
-types = "mypy -p haystack_integrations.document_stores.dynamodb {args}"
+types = """mypy -p haystack_integrations.document_stores.dynamodb \
+-p haystack_integrations.components.retrievers.dynamodb {args}"""
 
 [tool.mypy]
 install_types = true
 non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+# Unofficial boto3/botocore type stubs do not play well with the DynamoDB client here;
+# mirror the amazon_bedrock integration and ignore missing imports for these modules.
+module = [
+"botocore.*",
+"boto3.*",
+]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120

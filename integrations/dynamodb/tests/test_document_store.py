@@ -4,10 +4,13 @@
 
 import contextlib
 import os
+import time
 import uuid
 from unittest.mock import MagicMock, patch
 
+import boto3
 import pytest
+from botocore.exceptions import ClientError
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -36,6 +39,20 @@ def _require_live_aws() -> str:
     if not region or not os.environ.get("HAYSTACK_DYNAMODB_INTEGRATION_TESTS"):
         pytest.skip("Set AWS_DEFAULT_REGION and HAYSTACK_DYNAMODB_INTEGRATION_TESTS=1 to run integration tests.")
     return region
+
+
+def _best_effort_delete_table(store: DynamoDBDocumentStore) -> None:
+    """
+    Best-effort table delete for per-test teardown.
+
+    A freshly-written table often still has its vector index in a CREATING/UPDATING state
+    when the test finishes, and DynamoDB rejects `DeleteTable` during that window with
+    `ResourceInUseException`. We therefore attempt the delete but never block or fail the
+    test on it — any table that can't be deleted yet is swept later by the session-scoped
+    `_cleanup_test_tables` fixture, once its index has finished building.
+    """
+    with contextlib.suppress(Exception):
+        store._get_client().delete_table(TableName=store.table_name)
 
 
 class TestDynamoDBDocumentStore:
@@ -151,10 +168,10 @@ class TestDynamoDBDocumentStore:
         store = _make_store()
         mock_client = MagicMock()
         mock_client.search_vectors.return_value = {
-            "Vectors": [
+            "SearchResults": [
                 {
                     "Item": {"id": {"S": "1"}, "payload": {"S": '{"content": "hello"}'}},
-                    "Distance": 0.95,
+                    "Score": 0.95,
                 }
             ]
         }
@@ -164,19 +181,23 @@ class TestDynamoDBDocumentStore:
             assert len(docs) == 1
             assert docs[0].id == "1"
             assert docs[0].score == 0.95
+            # verify we call SearchVectors with the real API param shape
+            _, kwargs = mock_client.search_vectors.call_args
+            assert kwargs["SearchVector"] == [{"N": "0.1"}, {"N": "0.2"}, {"N": "0.3"}]
+            assert "QueryVector" not in kwargs
 
     def test_embedding_retrieval_applies_client_side_filter(self) -> None:
         store = _make_store()
         mock_client = MagicMock()
         mock_client.search_vectors.return_value = {
-            "Vectors": [
+            "SearchResults": [
                 {
                     "Item": {"id": {"S": "1"}, "payload": {"S": '{"content": "a", "meta": {"topic": "ai"}}'}},
-                    "Distance": 0.9,
+                    "Score": 0.9,
                 },
                 {
                     "Item": {"id": {"S": "2"}, "payload": {"S": '{"content": "b", "meta": {"topic": "db"}}'}},
-                    "Distance": 0.8,
+                    "Score": 0.8,
                 },
             ]
         }
@@ -211,9 +232,66 @@ class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseTests):
     credentials on the calling environment (never hardcoded here).
     """
 
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
+        """
+        Compares two lists of Documents order-independently.
+
+        `filter_documents` has no ordering contract, and DynamoDB's `Scan`/`SearchVectors`
+        return items in an order that does not match the base suite's insertion order. We
+        therefore sort both sides by `id` before comparing. We also null the `score` (set on
+        retrieval, non-deterministic) and compare embeddings approximately, since floats do
+        not survive the DynamoDB number round-trip exactly. This mirrors the approach used by
+        the merged `opensearch` integration's document-store tests.
+        """
+        assert len(received) == len(expected)
+        received = sorted(received, key=lambda x: x.id)
+        expected = sorted(expected, key=lambda x: x.id)
+        for received_doc, expected_doc in zip(received, expected, strict=True):
+            received_doc.score = None
+            if received_doc.embedding is None:
+                assert expected_doc.embedding is None
+            else:
+                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
+            received_doc.embedding, expected_doc.embedding = None, None
+            assert received_doc == expected_doc
+
     def test_write_documents(self, document_store: DynamoDBDocumentStore) -> None:
         docs = [Document(content="doc1"), Document(content="doc2")]
         assert document_store.write_documents(docs) == 2
+
+    def test_embedding_retrieval_ranks_by_similarity(self) -> None:
+        """
+        Exercises the real `SearchVectors` vector-search path end to end.
+
+        The base `DocumentStoreBaseTests` suite never calls the embedding-retrieval path, so
+        this test is what actually validates the native vector search against real AWS: it
+        writes docs with known embeddings, queries with a vector identical to one of them, and
+        asserts that doc ranks first with the highest score (COSINE: higher score == closer).
+        """
+        _require_live_aws()
+        dim = 8
+        store = DynamoDBDocumentStore(
+            table_name=f"haystack_test_embedding_retrieval_{uuid.uuid4().hex[:8]}",
+            index_name="test_index",
+            embedding_dimension=dim,
+        )
+        try:
+            near = [1.0] + [0.0] * (dim - 1)
+            mid = [0.7, 0.7] + [0.0] * (dim - 2)
+            far = [0.0, 1.0] + [0.0] * (dim - 2)
+            store.write_documents(
+                [
+                    Document(id="near", content="near", embedding=near),
+                    Document(id="mid", content="mid", embedding=mid),
+                    Document(id="far", content="far", embedding=far),
+                ]
+            )
+            results = store._embedding_retrieval(query_embedding=near, top_k=3)
+            assert [d.id for d in results] == ["near", "mid", "far"]
+            assert all(d.score is not None for d in results)
+            assert results[0].score >= results[1].score >= results[2].score
+        finally:
+            _best_effort_delete_table(store)
 
     @pytest.fixture
     def document_store(self, request: pytest.FixtureRequest) -> DynamoDBDocumentStore:
@@ -230,5 +308,37 @@ class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseTests):
             embedding_dimension=768,
         )
         yield store
-        with contextlib.suppress(Exception):
-            store._get_client().delete_table(TableName=store.table_name)
+        _best_effort_delete_table(store)
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _cleanup_test_tables(self) -> None:
+        """
+        Session-safety net: after all tests in this class finish, sweep any leftover
+        `haystack_test_*` tables whose per-test best-effort delete was rejected because their
+        vector index was still building. By this point the indexes have settled, so these
+        deletes succeed and the run leaves the AWS account clean. Retries briefly to ride out
+        any tables still transitioning.
+        """
+        yield
+        region = os.environ.get("AWS_DEFAULT_REGION")
+        if not region or not os.environ.get("HAYSTACK_DYNAMODB_INTEGRATION_TESTS"):
+            return
+        client = boto3.client("dynamodb", region_name=region)
+        deadline = time.monotonic() + 300.0
+        while time.monotonic() < deadline:
+            leftovers = [t for t in client.list_tables().get("TableNames", []) if t.startswith("haystack_test_")]
+            if not leftovers:
+                break
+            still_pending = False
+            for table_name in leftovers:
+                try:
+                    client.delete_table(TableName=table_name)
+                except ClientError as e:
+                    code = e.response["Error"]["Code"]
+                    if code == "ResourceInUseException":
+                        still_pending = True
+                    elif code != "ResourceNotFoundException":
+                        raise
+            if not still_pending:
+                break
+            time.sleep(10)

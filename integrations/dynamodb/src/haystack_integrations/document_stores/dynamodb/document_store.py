@@ -17,10 +17,9 @@ from haystack.utils.filters import document_matches_filter
 
 logger = logging.getLogger(__name__)
 
-# DynamoDB SearchVectors returns cosine similarity, not distance: higher is more similar.
-# This is the opposite convention from services like S3 Vectors, whose cosine "distance"
-# is 1 - similarity (lower is more similar). Verified against the boto3 SearchVectors
-# reference; treat as authoritative unless a live call proves otherwise.
+# DynamoDB SearchVectors returns a `Score` per result whose meaning depends on the index's
+# distance function. For a COSINE index, higher scores indicate greater similarity, so results
+# are already ordered most-similar-first and the score maps directly onto Haystack's Document.score.
 _DEFAULT_TOP_K_CAP = 10000
 
 
@@ -271,9 +270,7 @@ class DynamoDBDocumentStore:
         existing_ids: set[str] = set()
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
             for doc in documents:
-                response = client.get_item(
-                    TableName=self.table_name, Key={"id": {"S": doc.id}}, ConsistentRead=True
-                )
+                response = client.get_item(TableName=self.table_name, Key={"id": {"S": doc.id}}, ConsistentRead=True)
                 if "Item" in response:
                     existing_ids.add(doc.id)
 
@@ -335,16 +332,15 @@ class DynamoDBDocumentStore:
         response = client.search_vectors(
             TableName=self.table_name,
             IndexName=self.index_name,
-            QueryVector=query_embedding,
+            SearchVector=[{"N": str(v)} for v in query_embedding],
             TopK=fetch_k,
-            ReturnMetadata=True,
         )
 
         docs = []
-        for match in response.get("Vectors", []):
+        for match in response.get("SearchResults", []):
             item = _from_dynamodb_item(match["Item"])
             doc = self._item_to_doc(item)
-            doc = dataclasses.replace(doc, score=match.get("Distance"))
+            doc = dataclasses.replace(doc, score=match.get("Score"))
             if not filters or document_matches_filter(filters, doc):
                 docs.append(doc)
             if len(docs) >= top_k:
