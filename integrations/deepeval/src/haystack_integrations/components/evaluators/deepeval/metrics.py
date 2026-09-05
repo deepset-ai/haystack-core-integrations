@@ -1,6 +1,6 @@
 import dataclasses
 import inspect
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
@@ -16,6 +16,11 @@ from deepeval.metrics import (
     FaithfulnessMetric,
 )
 from deepeval.test_case import LLMTestCase
+
+try:  # deepeval >= 4 renamed this enum; keep working on the >=2.9.0 floor
+    from deepeval.test_case import SingleTurnParams
+except ImportError:  # pragma: no cover - exercised only on older deepeval
+    from deepeval.test_case import LLMTestCaseParams as SingleTurnParams  # type: ignore[no-redef]
 
 
 class DeepEvalMetric(Enum):
@@ -70,6 +75,86 @@ class DeepEvalMetric(Enum):
         return metric
 
 
+#: Evaluator inputs that can be mapped onto a DeepEval test case parameter, in the
+#: order in which they are exposed by the component. Used to derive the expected
+#: inputs of a user-provided metric from the parameters it declares as required.
+CUSTOM_METRIC_INPUT_PARAMETERS: Mapping[SingleTurnParams, tuple[str, Any]] = {
+    SingleTurnParams.INPUT: ("questions", list[str]),
+    SingleTurnParams.ACTUAL_OUTPUT: ("responses", list[str]),
+    SingleTurnParams.RETRIEVAL_CONTEXT: ("contexts", list[list[str]]),
+    SingleTurnParams.EXPECTED_OUTPUT: ("ground_truths", list[str]),
+}
+
+#: Reverse of `CUSTOM_METRIC_INPUT_PARAMETERS`, mapping an evaluator input to the
+#: keyword argument of `LLMTestCase` that it populates.
+_TEST_CASE_KEYWORDS: Mapping[str, str] = {
+    name: param.value for param, (name, _) in CUSTOM_METRIC_INPUT_PARAMETERS.items()
+}
+
+#: Fallback for metrics that don't declare their required parameters. Matches the
+#: inputs of the built-in RAG metrics.
+_DEFAULT_CUSTOM_METRIC_PARAMETERS = (
+    SingleTurnParams.INPUT,
+    SingleTurnParams.ACTUAL_OUTPUT,
+    SingleTurnParams.RETRIEVAL_CONTEXT,
+)
+
+
+def _metric_name(metric: "DeepEvalMetric | BaseMetric") -> str:
+    """
+    Return a human-readable name for a metric, used in error messages.
+
+    :param metric:
+        A built-in metric or a DeepEval metric instance.
+    :returns:
+        The value of the metric for built-in metrics, the class name otherwise.
+    """
+    # `BaseMetric` overrides `__name__` on instances, so we read it off the class.
+    return str(metric) if isinstance(metric, DeepEvalMetric) else type(metric).__qualname__
+
+
+def _custom_metric_input_parameters(metric: BaseMetric) -> dict[str, Any]:
+    """
+    Determine the inputs that the evaluator should expose for a user-provided metric.
+
+    :param metric:
+        An initialized DeepEval metric.
+    :returns:
+        Dictionary of input parameter names to their types.
+    :raises ValueError:
+        If the metric requires a test case parameter that the evaluator cannot provide.
+    """
+    declared = getattr(metric, "_required_params", None)
+    if (
+        isinstance(declared, Collection)
+        and not isinstance(declared, (str, bytes))
+        and all(isinstance(p, SingleTurnParams) for p in declared)
+    ):
+        # Accept any collection of params, not just `list`: DeepEval does not promise a
+        # concrete container, and silently discarding a tuple/set declaration would map
+        # the component's inputs to the RAG defaults without telling the user.
+        required_params = list(declared)
+    else:
+        # `BaseMetric` only annotates `_required_params` without assigning a value, so on
+        # a metric that doesn't declare it `getattr` returns the typing alias
+        # (`typing.List[SingleTurnParams]`) rather than `None`. Treat that -- and anything
+        # else we can't interpret as params -- as "undeclared" and assume RAG inputs.
+        required_params = list(_DEFAULT_CUSTOM_METRIC_PARAMETERS)
+
+    unsupported = [p for p in required_params if p not in CUSTOM_METRIC_INPUT_PARAMETERS]
+    if unsupported:
+        msg = (
+            f"DeepEval metric '{_metric_name(metric)}' requires test case parameters that the evaluator "
+            f"cannot provide: {sorted(p.value for p in unsupported)}. "
+            f"Supported: {sorted(p.value for p in CUSTOM_METRIC_INPUT_PARAMETERS)}"
+        )
+        raise ValueError(msg)
+
+    # `LLMTestCase` always needs an input, even if the metric doesn't ask for it.
+    selected = {SingleTurnParams.INPUT, *required_params}
+    return {name: type_ for param, (name, type_) in CUSTOM_METRIC_INPUT_PARAMETERS.items() if param in selected}
+
+
 @dataclass(frozen=True)
 class MetricResult:
     """
@@ -103,7 +188,7 @@ class MetricDescriptor:
     Descriptor for a metric.
 
     :param metric:
-        The metric.
+        The metric. Either a built-in metric or the user-provided metric instance.
     :param backend:
         The associated DeepEval metric class.
     :param input_parameters:
@@ -118,7 +203,7 @@ class MetricDescriptor:
         Additional parameters that need to be passed to the metric class during initialization.
     """
 
-    metric: DeepEvalMetric
+    metric: DeepEvalMetric | BaseMetric
     backend: type[BaseMetric]
     input_parameters: dict[str, type]
     input_converter: Callable[[Any], Iterable[LLMTestCase]]
@@ -170,6 +255,32 @@ class MetricDescriptor:
             init_parameters=init_parameters,
         )
 
+    @classmethod
+    def for_custom_metric(cls, metric: BaseMetric) -> "MetricDescriptor":
+        """
+        Create a metric descriptor for an initialized DeepEval metric provided by the user.
+
+        The inputs expected by the evaluator are derived from the test case parameters that
+        the metric declares as required through `BaseMetric._required_params`. Metrics that
+        don't declare them expect the same inputs as the built-in RAG metrics, namely
+        `questions`, `contexts` and `responses`.
+
+        :param metric:
+            A fully initialized DeepEval metric, for example a subclass of `BaseMetric`.
+        :returns:
+            A new `MetricDescriptor` instance.
+        :raises ValueError:
+            If the metric requires a test case parameter that the evaluator cannot provide.
+        """
+        input_parameters = _custom_metric_input_parameters(metric)
+        return cls(
+            metric=metric,
+            backend=type(metric),
+            input_parameters=input_parameters,
+            input_converter=InputConverters.custom(input_parameters),  # type: ignore[arg-type]
+            output_converter=OutputConverters.custom,
+        )
+
 
 class InputConverters:
     """
@@ -199,7 +310,9 @@ class InputConverters:
             raise ValueError(msg)
 
     @staticmethod
-    def validate_input_parameters(metric: DeepEvalMetric, expected: dict[str, Any], received: dict[str, Any]) -> None:
+    def validate_input_parameters(
+        metric: DeepEvalMetric | BaseMetric, expected: dict[str, Any], received: dict[str, Any]
+    ) -> None:
         """
         Validate that all expected input parameters are present in the received inputs.
 
@@ -214,7 +327,7 @@ class InputConverters:
         """
         for param, _ in expected.items():
             if param not in received:
-                msg = f"DeepEval evaluator expected input parameter '{param}' for metric '{metric}'"
+                msg = f"DeepEval evaluator expected input parameter '{param}' for metric '{_metric_name(metric)}'"
                 raise ValueError(msg)
 
     @staticmethod
@@ -263,6 +376,29 @@ class InputConverters:
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c, expected_output=gt)  # type: ignore[arg-type]
             yield test_case
 
+    @staticmethod
+    def custom(input_parameters: Iterable[str]) -> Callable[..., Iterable[LLMTestCase]]:
+        """
+        Create a converter for a user-provided metric that expects the given inputs.
+
+        :param input_parameters:
+            Names of the evaluator inputs to convert. Each of them must be a key of
+            `CUSTOM_METRIC_INPUT_PARAMETERS`.
+        :returns:
+            Callable that converts the inputs to DeepEval test cases.
+        """
+        names = list(input_parameters)
+
+        def inner(**inputs: Any) -> Iterable[LLMTestCase]:
+            selected = {name: inputs[name] for name in names}
+            InputConverters._validate_input_elements(**selected)
+            for values in zip(*selected.values(), strict=True):
+                kwargs = {_TEST_CASE_KEYWORDS[name]: value for name, value in zip(names, values, strict=True)}
+                # for retrieval_context, deepeval expects list[str | RetrievedContextData]; we pass list[str]
+                yield LLMTestCase(**kwargs)
+
+        return inner
+
 
 class OutputConverters:
     """
@@ -293,6 +429,24 @@ class OutputConverters:
             return out
 
         return partial(inner, metric=metric)
+
+    @staticmethod
+    def custom(output: TestResult) -> list[MetricResult]:
+        """
+        Convert the result of a user-provided metric.
+
+        Unlike the built-in metrics, the name is taken from the result reported by
+        DeepEval since it's determined by the metric itself.
+
+        :param output:
+            The result of a single test case.
+        :returns:
+            A list with the result of the metric.
+        """
+        assert output.metrics_data
+        assert len(output.metrics_data) == 1
+        metric_result = output.metrics_data[0]
+        return [MetricResult(name=metric_result.name, score=metric_result.score, explanation=metric_result.reason)]
 
 
 METRIC_DESCRIPTORS = {
