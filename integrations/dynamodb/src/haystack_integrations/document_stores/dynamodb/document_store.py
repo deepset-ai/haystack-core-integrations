@@ -4,6 +4,7 @@
 
 import dataclasses
 import json
+import time
 from typing import Any
 
 import boto3
@@ -17,9 +18,13 @@ from haystack.utils.filters import document_matches_filter
 
 logger = logging.getLogger(__name__)
 
-# DynamoDB SearchVectors returns a `Score` per result whose meaning depends on the index's
-# distance function. For a COSINE index, higher scores indicate greater similarity, so results
-# are already ordered most-similar-first and the score maps directly onto Haystack's Document.score.
+# DynamoDB `SearchVectors` returns a `Score` whose meaning depends on the index's distance
+# function. For a COSINE index the score is a *distance*: per the AWS docs it ranges from 0
+# (identical) to 2 (opposite), and DynamoDB returns the k *smallest* scores — lower means more
+# similar. Haystack's `Document.score` uses the opposite convention (higher = more relevant), so
+# the distance is converted to a similarity below. Verified on real AWS: an identical vector
+# scored 0.0 and an orthogonal one scored 1.0.
+_COSINE_MAX_DISTANCE = 2.0
 _DEFAULT_TOP_K_CAP = 10000
 
 
@@ -90,6 +95,11 @@ class DynamoDBDocumentStore:
         self.aws_session_token = aws_session_token
         self.create_table_if_not_exists = create_table_if_not_exists
         self.similarity_function = similarity_function
+        # Vector-index readiness polling (see `_wait_for_vector_index_ready`). With the index
+        # declared inline on CreateTable it is queryable in ~20s, so poll frequently; the timeout
+        # stays generous to tolerate a slower region or a pre-existing table still backfilling.
+        self.index_ready_timeout = 900.0
+        self.index_ready_poll_interval = 5.0
         self._client: Any | None = None
         self._table_ready = False
 
@@ -126,35 +136,74 @@ class DynamoDBDocumentStore:
                 msg = f"Table '{self.table_name}' does not exist and create_table_if_not_exists is False."
                 raise ValueError(msg) from e
 
+        # Declare the vector index inline on `CreateTable` rather than adding it afterwards with
+        # `UpdateTable(VectorIndexUpdates=...)`. Both work, but adding an index to an existing
+        # table triggers a *backfill* of that index, which on a real account keeps it in
+        # `IndexStatus=CREATING`/`Backfilling=True` — and therefore unqueryable — for many minutes
+        # (measured: >6 min even for an empty table). Creating the index as part of the table has
+        # nothing to backfill, so it reaches `ACTIVE` with the table: measured queryable ~20s.
+        # Vector indexes are a distinct index type from GSIs/LSIs, hence `VectorIndexes` here and
+        # `VectorIndexUpdates` on `UpdateTable` — never `GlobalSecondaryIndexes`.
         client.create_table(
             TableName=self.table_name,
             AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}],
             KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
             BillingMode="PAY_PER_REQUEST",
-        )
-        client.get_waiter("table_exists").wait(TableName=self.table_name)
-
-        # Vector indexes are a distinct index type from GSIs/LSIs, created via the
-        # `VectorIndexUpdates` parameter on `UpdateTable` (or `VectorIndexes` on
-        # `CreateTable`) — NOT via `GlobalSecondaryIndexUpdates`. Verified against the
-        # real API reference (CreateVectorIndexAction/VectorAttributeDefinition) after
-        # a naive GSI-shaped attempt failed real-AWS validation with a ParamValidationError.
-        client.update_table(
-            TableName=self.table_name,
-            VectorIndexUpdates=[
+            VectorIndexes=[
                 {
-                    "Create": {
-                        "IndexName": self.index_name,
-                        "VectorAttribute": {"AttributeName": "embedding"},
-                        "Dimensions": self.embedding_dimension,
-                        "DistanceFunction": "COSINE",
-                        "Projection": {"ProjectionType": "ALL"},
-                    }
+                    "IndexName": self.index_name,
+                    "VectorAttribute": {"AttributeName": "embedding"},
+                    "Dimensions": self.embedding_dimension,
+                    "DistanceFunction": "COSINE",
+                    "Projection": {"ProjectionType": "ALL"},
                 }
             ],
         )
         client.get_waiter("table_exists").wait(TableName=self.table_name)
+        self._wait_for_vector_index_ready(client)
         self._table_ready = True
+
+    def _wait_for_vector_index_ready(self, client: Any) -> None:
+        """
+        Blocks until the vector index is queryable.
+
+        A vector index has its own lifecycle that is *not* captured by the table's status or
+        the ``table_exists`` waiter, so we poll ``DescribeTable`` until the index reports
+        ``IndexStatus=ACTIVE`` and is not backfilling. There is no dedicated boto3 waiter for
+        vector indexes.
+
+        Measured against real AWS: for an index created inline with the table the index reaches
+        ``ACTIVE`` alongside the table (no ``Backfilling`` key at all) and becomes queryable in
+        ~20s. Note ``SearchVectors`` may briefly return ``ResourceNotFoundException`` for a few
+        seconds after the index is ``ACTIVE`` while the dedicated vector-search endpoint catches
+        up; callers retry rather than treating that as fatal. An index *added to an existing
+        table* instead backfills and can stay unqueryable for many minutes, which is why
+        `_ensure_table` declares the index at table-creation time.
+
+        :param client: The DynamoDB client to poll with.
+        :raises TimeoutError: If the index does not become queryable within the timeout budget.
+        """
+        deadline = time.monotonic() + self.index_ready_timeout
+        last_status = "not reported"
+        last_backfilling: Any = "n/a"
+        while True:
+            description = client.describe_table(TableName=self.table_name)["Table"]
+            indexes = description.get("VectorIndexes") or []
+            index = next((idx for idx in indexes if idx.get("IndexName") == self.index_name), None)
+            if index is not None:
+                last_status = index.get("IndexStatus", "unknown")
+                # `Backfilling` is absent entirely for an index that never had to backfill.
+                last_backfilling = index.get("Backfilling", False)
+                if last_status == "ACTIVE" and not last_backfilling:
+                    return
+            if time.monotonic() >= deadline:
+                msg = (
+                    f"Vector index '{self.index_name}' on table '{self.table_name}' did not become "
+                    f"queryable within {self.index_ready_timeout}s "
+                    f"(last status: {last_status}, backfilling: {last_backfilling})."
+                )
+                raise TimeoutError(msg)
+            time.sleep(self.index_ready_poll_interval)
 
     @staticmethod
     def _sanitize_metadata_value(value: Any) -> Any:
@@ -319,7 +368,8 @@ class DynamoDBDocumentStore:
         :param query_embedding: The query vector.
         :param top_k: Number of top results to return.
         :param filters: Optional metadata filters, applied client-side.
-        :returns: List of `Document` objects sorted by descending similarity score.
+        :returns: List of `Document` objects ordered most-similar-first, with `score` set to a
+            similarity in ``[0, 1]`` (converted from DynamoDB's cosine distance).
         """
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -340,12 +390,29 @@ class DynamoDBDocumentStore:
         for match in response.get("SearchResults", []):
             item = _from_dynamodb_item(match["Item"])
             doc = self._item_to_doc(item)
-            doc = dataclasses.replace(doc, score=match.get("Score"))
+            doc = dataclasses.replace(doc, score=self._distance_to_similarity(match.get("Score")))
             if not filters or document_matches_filter(filters, doc):
                 docs.append(doc)
             if len(docs) >= top_k:
                 break
         return docs
+
+    @staticmethod
+    def _distance_to_similarity(score: float | None) -> float | None:
+        """
+        Converts a DynamoDB COSINE distance into a Haystack similarity score.
+
+        DynamoDB returns a cosine *distance* in ``[0, 2]`` where 0 is identical, while Haystack's
+        `Document.score` convention is higher-is-more-relevant. Mapping to ``1 - distance / 2``
+        yields ``1.0`` for an identical vector and ``0.0`` for an opposite one, preserving
+        DynamoDB's ordering while matching Haystack's semantics.
+
+        :param score: The raw `Score` returned by `SearchVectors`, if any.
+        :returns: The corresponding similarity in ``[0, 1]``, or `None` if no score was returned.
+        """
+        if score is None:
+            return None
+        return 1.0 - (float(score) / _COSINE_MAX_DISTANCE)
 
     def to_dict(self) -> dict[str, Any]:
         """

@@ -23,7 +23,9 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "boto3"]
+# DynamoDB native vector search (SearchVectors, VectorIndexes) is only available in
+# boto3 >= 1.43.66; earlier SDKs silently lack these operations entirely.
+dependencies = ["haystack-ai", "boto3>=1.43.66"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/dynamodb#readme"

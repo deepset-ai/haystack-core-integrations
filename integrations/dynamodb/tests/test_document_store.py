@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
+import dataclasses
 import os
 import time
 import uuid
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import boto3
@@ -171,7 +173,8 @@ class TestDynamoDBDocumentStore:
             "SearchResults": [
                 {
                     "Item": {"id": {"S": "1"}, "payload": {"S": '{"content": "hello"}'}},
-                    "Score": 0.95,
+                    # DynamoDB returns a COSINE *distance* (0 = identical, 2 = opposite).
+                    "Score": 0.5,
                 }
             ]
         }
@@ -180,11 +183,32 @@ class TestDynamoDBDocumentStore:
             docs = store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
             assert len(docs) == 1
             assert docs[0].id == "1"
-            assert docs[0].score == 0.95
+            # distance 0.5 -> similarity 1 - 0.5/2 = 0.75 (Haystack: higher = more relevant)
+            assert docs[0].score == pytest.approx(0.75)
             # verify we call SearchVectors with the real API param shape
             _, kwargs = mock_client.search_vectors.call_args
             assert kwargs["SearchVector"] == [{"N": "0.1"}, {"N": "0.2"}, {"N": "0.3"}]
             assert "QueryVector" not in kwargs
+
+    def test_embedding_retrieval_converts_cosine_distance_to_similarity(self) -> None:
+        """An identical vector (distance 0) must score 1.0 and an opposite one (distance 2) 0.0."""
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.search_vectors.return_value = {
+            "SearchResults": [
+                {"Item": {"id": {"S": "same"}, "payload": {"S": '{"content": "a"}'}}, "Score": 0.0},
+                {"Item": {"id": {"S": "orth"}, "payload": {"S": '{"content": "b"}'}}, "Score": 1.0},
+                {"Item": {"id": {"S": "opp"}, "payload": {"S": '{"content": "c"}'}}, "Score": 2.0},
+            ]
+        }
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            docs = store._embedding_retrieval(query_embedding=[1.0, 0.0], top_k=3)
+            assert [d.score for d in docs] == [
+                pytest.approx(1.0),
+                pytest.approx(0.5),
+                pytest.approx(0.0),
+            ]
 
     def test_embedding_retrieval_applies_client_side_filter(self) -> None:
         store = _make_store()
@@ -247,13 +271,18 @@ class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseTests):
         received = sorted(received, key=lambda x: x.id)
         expected = sorted(expected, key=lambda x: x.id)
         for received_doc, expected_doc in zip(received, expected, strict=True):
-            received_doc.score = None
             if received_doc.embedding is None:
                 assert expected_doc.embedding is None
             else:
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
-            received_doc.embedding, expected_doc.embedding = None, None
-            assert received_doc == expected_doc
+            # Compare everything except `score` and `embedding`: the store assigns a similarity
+            # score the expected documents don't carry, and embeddings are compared approximately
+            # above. Use `dataclasses.replace` rather than mutating the instances in place —
+            # Haystack warns that mutating a `Document` can affect other pipeline users of the
+            # same dataclass instance.
+            assert dataclasses.replace(received_doc, score=None, embedding=None) == dataclasses.replace(
+                expected_doc, score=None, embedding=None
+            )
 
     def test_write_documents(self, document_store: DynamoDBDocumentStore) -> None:
         docs = [Document(content="doc1"), Document(content="doc2")]
@@ -294,7 +323,7 @@ class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseTests):
             _best_effort_delete_table(store)
 
     @pytest.fixture
-    def document_store(self, request: pytest.FixtureRequest) -> DynamoDBDocumentStore:
+    def document_store(self, request: pytest.FixtureRequest) -> Iterator[DynamoDBDocumentStore]:
         _require_live_aws()
         # A random suffix (not just the deterministic test name) prevents this run's
         # table from colliding with an orphaned table of the same name left behind by
@@ -311,13 +340,18 @@ class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseTests):
         _best_effort_delete_table(store)
 
     @pytest.fixture(scope="class", autouse=True)
-    def _cleanup_test_tables(self) -> None:
+    @classmethod
+    def _cleanup_test_tables(cls) -> Iterator[None]:
         """
         Session-safety net: after all tests in this class finish, sweep any leftover
         `haystack_test_*` tables whose per-test best-effort delete was rejected because their
         vector index was still building. By this point the indexes have settled, so these
         deletes succeed and the run leaves the AWS account clean. Retries briefly to ride out
         any tables still transitioning.
+
+        Declared as a `classmethod` because the fixture is class-scoped: pytest warns when a
+        class-scoped fixture is defined as an instance method, since no single instance spans
+        the class scope.
         """
         yield
         region = os.environ.get("AWS_DEFAULT_REGION")
