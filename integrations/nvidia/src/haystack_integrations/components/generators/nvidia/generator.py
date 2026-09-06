@@ -155,6 +155,7 @@ class NvidiaGenerator:
             api_url=self.api_url,
             api_key=self._api_key.to_dict() if self._api_key else None,
             model_arguments=self._model_arguments,
+            timeout=self.timeout,
         )
 
     @property

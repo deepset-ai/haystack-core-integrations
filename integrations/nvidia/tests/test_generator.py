@@ -89,6 +89,7 @@ class TestNvidiaGenerator:
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "playground_nemotron_steerlm_8b",
                 "model_arguments": {},
+                "timeout": 60.0,
             },
         }
 
@@ -105,6 +106,7 @@ class TestNvidiaGenerator:
                 "bad": None,
                 "stop": None,
             },
+            timeout=10.0,
         )
         data = generator.to_dict()
         assert data == {
@@ -121,8 +123,15 @@ class TestNvidiaGenerator:
                     "bad": None,
                     "stop": None,
                 },
+                "timeout": 10.0,
             },
         }
+
+    def test_to_dict_from_dict_roundtrip_preserves_timeout(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        generator = NvidiaGenerator("meta/llama-3.1-8b-instruct", timeout=12.5)
+        restored = NvidiaGenerator.from_dict(generator.to_dict())
+        assert restored.timeout == 12.5
 
     def test_setting_timeout(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -285,12 +294,14 @@ class TestNvidiaGenerator:
                 "api_url": "https://my.url.com/v1",
                 "model": "meta/llama-3.1-8b-instruct",
                 "model_arguments": {"temperature": 0.5},
+                "timeout": 10.0,
             },
         }
         generator = NvidiaGenerator.from_dict(data)
         assert generator._model == "meta/llama-3.1-8b-instruct"
         assert generator.api_url == "https://my.url.com/v1"
         assert generator._model_arguments == {"temperature": 0.5}
+        assert generator.timeout == 10.0
 
     def test_run(self, monkeypatch, mock_local_chat_completion):  # noqa: ARG002
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
