@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/huggingface_api-v1.0.0] - 2026-09-07
+
+### 🚀 Features
+
+- [**breaking**] HF API - add lifecycle handling (#3917)
+
+### 🧪 Testing
+
+- Replace retired Qwen2.5 models in `huggingface_api` live tests (#3866)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/huggingface_api-v0.6.0] - 2026-08-27
 
 ### 🚀 Features
