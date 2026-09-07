@@ -315,7 +315,7 @@ class HuggingFaceAPIDocumentEmbedder:
         ):
             batch = texts_to_embed[i : i + batch_size]
 
-            # huggingface_hub 1.0 types this parameter as str even though the API accepts batched inputs.
+            # a batch is accepted but text is typed as str
             np_embeddings = self._client.feature_extraction(
                 text=batch,  # type: ignore[arg-type]
                 truncate=truncate,
@@ -343,7 +343,7 @@ class HuggingFaceAPIDocumentEmbedder:
 
         async def _runner(batch: list[str]) -> list[list[float]]:
             async with sem:
-                # huggingface_hub 1.0 types this parameter as str even though the API accepts batched inputs.
+                # a batch is accepted but text is typed as str
                 np_embeddings = await async_client.feature_extraction(
                     text=batch,  # type: ignore[arg-type]
                     truncate=truncate,
