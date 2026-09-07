@@ -218,32 +218,3 @@ def test_partial_recall_scores_partially_but_a_broken_budget_scores_nothing(stor
     assert any(f.startswith("retrieved_over_budget") for f in busted.details["cases"][0]["failures"])
     assert busted.details["cases"][0]["recall"] > 0.0
     assert busted.quality == 0.0
-
-
-def test_a_local_cross_encoder_ranker_is_drivable_and_costs_no_tokens(store):
-    """A ranker that runs locally adds no model usage, which is the point of preferring it."""
-    ranker = pytest.importorskip(
-        "haystack_integrations.components.rankers.sentence_transformers"
-    ).SentenceTransformersSimilarityRanker
-
-    pipeline = Pipeline()
-    pipeline.add_component(
-        "expander", QueryExpander(chat_generator=MockChatGenerator(EXPANSION, model="expander"), n_expansions=2)
-    )
-    pipeline.add_component(
-        "retriever", MultiQueryTextRetriever(retriever=InMemoryBM25Retriever(document_store=store, top_k=2))
-    )
-    pipeline.add_component("ranker", ranker(top_k=1))
-    pipeline.connect("expander.queries", "retriever.queries")
-    pipeline.connect("retriever.documents", "ranker.documents")
-
-    # The harness finds the ranker's own query input and its documents output without being told the names.
-    assert "ranker" in query_entry_points(pipeline=pipeline)
-    assert documents_exit_point(pipeline=pipeline) == "ranker"
-    RetrievalHarnessEvaluator(cases=[case(store)]).validate_pipeline(pipeline)
-
-    metrics = RetrievalHarnessEvaluator(cases=[case(store)]).evaluate(target=pipeline, reference_runs=runs())
-
-    assert metrics.details["cases"][0]["retrieved"] == 1
-    # Only the expander reports usage; the ranker never calls a model API.
-    assert set(metrics.model_usage) == {"expander"}

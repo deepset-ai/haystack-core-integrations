@@ -62,8 +62,6 @@ dependencies = [
     "tavily-haystack>=0.4.0",
     # optional Haystack docs toolset for the harness optimizer agent
     "mcp-haystack>=0.4.0",
-    # a local cross-encoder ranker, so a retrieval experiment can rerank without paying a model per case
-    "sentence-transformers-haystack",
     "trafilatura",
     "pypdf",
     "arrow",

@@ -102,18 +102,25 @@ right subset of whatever was considered.
 
 Once that limit binds, the way past it is to stop treating those two things as the same. Retrieve a wide candidate
 set, then rank it and return only the best of it: the limit applies to the ranked output, while the candidate set
-behind it can be as wide as recall needs. Use `SentenceTransformersSimilarityRanker` for that, placed between
-retrieval and the pipeline's `documents` output. It is a cross-encoder: it scores the query against each candidate
-with a model that runs locally, so it adds no token usage and what it costs does not grow with the size of the
-candidate set. It takes a `query` input of its own alongside the documents, and its `top_k` decides how many
+behind it can be as wide as recall needs. Use `LLMRanker` for that, placed between retrieval and the pipeline's
+`documents` output. It takes a `query` input of its own alongside the documents, and its `top_k` decides how many
 survive. Inspect it before writing it in, so its parameters and serialized shape come from the component rather
 than from memory.
 
-Its `model` parameter chooses the cross-encoder, and the choice is worth an experiment of its own. Three are
-already downloaded here: `cross-encoder/ms-marco-MiniLM-L-6-v2`, which is the default and the smallest,
-`intfloat/simlm-msmarco-reranker`, and `tomaarsen/Qwen3-Reranker-0.6B-seq-cls`, which is the largest and slowest
-to load. Any other cross-encoder published on Hugging Face can be named instead, at the cost of downloading it
-the first time it warms up.
+Why that kind of ranker, on this evaluation set. Its questions are answered by several documents together, and no
+one document answers such a question on its own; what the output needs is coverage of the separate facets, not the
+several best matches for the question as a whole. `LLMRanker` puts the whole question and every candidate into one
+prompt and chooses from them together, so it can see that a candidate repeats evidence already selected and pick
+one that adds a facet instead. A ranker that scores each candidate on its own cannot: it has no way to know what
+else it is returning, so it fills the output with the nearest matches to whichever facet the question words most
+strongly, and the remaining facets go unretrieved. Measured here, judging the candidates jointly retrieved close
+to twice the evidence that scoring them one at a time did.
+
+Two things about running it. It calls a chat model once per case with every candidate's text in the prompt, so its
+cost grows with the candidate set and it is normally the largest single expense in the pipeline: keep the set no
+wider than the recall actually needs. And it must not be given a `temperature`; the models available here reject
+the parameter outright, and the failure is swallowed into a warning that leaves the documents unranked rather than
+raising.
 
 Merging the results of several queries is where this goes wrong quietly, and it decides which kind of ranking is
 worth adding. A keyword retriever's score is a property of the query that produced it, not a scale shared between
