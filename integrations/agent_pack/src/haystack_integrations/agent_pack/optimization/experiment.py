@@ -309,6 +309,12 @@ class HarnessOptimizationExperiment:
                 )
             workspace.validation_failures.clear()
             if proposed is None:
+                logger.info(
+                    "optimizer ended the search with {remaining} of {total} evaluations unused: {reason}",
+                    remaining=self.max_iterations - len(outcomes),
+                    total=self.max_iterations,
+                    reason=workspace.finish_reason or "no reason recorded",
+                )
                 break
             (artifacts / f"{proposed.candidate_id}.yaml").write_text(proposed.yaml, encoding="utf-8")
             try:

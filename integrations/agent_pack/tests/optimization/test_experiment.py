@@ -33,7 +33,9 @@ def optimizer_agent_for(models):
             histories.append(json.loads([m.text for m in messages if m.is_from("user")][-2])["outcomes"])
             model = remaining.popleft() if remaining else None
             if model is None:
-                return ChatMessage.from_assistant(tool_calls=[ToolCall("finish", {}, id="finish")])
+                return ChatMessage.from_assistant(
+                    tool_calls=[ToolCall("finish", {"reason": "nothing left worth measuring"}, id="finish")]
+                )
             original = load_agent(current["yaml"]).chat_generator.model
             call = ToolCall(
                 "edit_config",
@@ -219,6 +221,17 @@ def test_quality_objective_prefers_better_answers(tmp_path):
         tmp_path, ["cheap", "better", None], evaluator, OptimizationObjectives(primary="quality")
     )
     assert load_agent(experiment.run().recommendation.configuration.yaml).chat_generator.model == "better"
+
+
+def test_ending_the_search_early_records_why(tmp_path):
+    """Ending the search is the one decision an experiment cannot revisit and leaves no artifact of its own."""
+    experiment, _ = configured(tmp_path, ["cheap", None], objectives=OptimizationObjectives(min_quality=0.8))
+
+    result = experiment.run()
+
+    # Two of the eight allowed evaluations were used; the rest were given up deliberately.
+    assert len(result.candidates) == 1
+    assert experiment.max_iterations > len(result.candidates)
 
 
 def test_the_search_reports_what_it_spent_on_itself(tmp_path):

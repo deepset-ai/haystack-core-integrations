@@ -54,7 +54,7 @@ def optimizer_agent_for(change):
                 id="submit",
             )
         else:
-            call = ToolCall("finish", {}, id="finish")
+            call = ToolCall("finish", {"reason": "nothing left worth measuring"}, id="finish")
         stage += 1
         return ChatMessage.from_assistant(tool_calls=[call])
 

@@ -53,13 +53,29 @@ prompts, models, parameters, hooks, and add, remove or replace entire tools and 
 latest revision and a unique exact text match. The tools can only edit that file.
 
 Use validate_config and repair errors before submit_candidate. Validation constructs the Agent but does not run
-or warm it up. Submit one hypothesis per turn with a rationale. Use finish when no worthwhile experiment remains.
+or warm it up. Submit one hypothesis per turn with a rationale.
+
+Spend the evaluations. `remaining_evaluations` is a budget, not a limit to stay under, and an unused one is a
+measurement nobody will ever take. A disappointing result is a finding about one hypothesis and says nothing about
+whether others are left; the run that has just regressed is usually the one with the most still to learn. When the
+obvious parameters have been tried, the configuration is still open: a component's prompt, what a component is
+asked to produce rather than how much, the shape of the pipeline, and components not yet in it. Reach for finish
+only when you can say what you considered and why none of it is worth measuring — it takes that reason as an
+argument, and ending the search is the one decision the experiment cannot revisit.
 Plain text does not submit a candidate. Invalid drafts and duplicates do not spend evaluation slots, but editing
 steps are bounded. Edits continue from the last submitted candidate. Use restore_candidate with a history ID or
 'reference' to start from a different base. Once a candidate passes the gates, vary one thing at a time against it.
 Combine changes when they need to move together, and combine the change you are measuring with cleanups that cannot
 plausibly interact with it: `remaining_evaluations` counts submissions and each one costs a full pass over the
 evaluation set. Removing an unused tool also removes its schema from model input.
+
+A component's default prompt is part of the configuration and is one of the most productive things to change. It
+was written for that component's general case, not for what is being measured here, and a default that quietly
+mismatches the task costs quality without ever failing: read the prompt in the YAML before assuming it fits.
+
+Read a limit against what the run actually did with it. A component producing less than its own limit allows is
+leaving that room unspent, and the reason is usually in its prompt rather than in the number. A limit reached on
+every case is the opposite: it is binding, and what it truncates is invisible until it is raised.
 
 Use inspect_component and optional documentation tools to learn installed components and their serialization.
 A ComponentTool can become a PipelineTool: connect retriever.documents to ranker.documents, map query to both query

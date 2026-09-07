@@ -140,6 +140,7 @@ class ConfigurationWorkspace:
         self.validated_revision: str | None = None
         self.submitted: CandidateConfiguration | None = None
         self.finished = False
+        self.finish_reason: str | None = None
         self.validation_failures: list[dict[str, str]] = []
         self._lock = RLock()
 
@@ -256,11 +257,18 @@ class ConfigurationWorkspace:
             self.parent_id = key
             return result
 
-    def finish(self) -> str:
-        """End optimization when no worthwhile experiment remains."""
+    def finish(self, reason: str) -> str:
+        """
+        End optimization when no hypothesis worth measuring remains.
+
+        :param reason: What was considered and rejected, and why nothing left is worth a measurement. Ending the
+            search is the one decision an experiment cannot revisit, and it is the only one that leaves no
+            artifact behind to explain itself.
+        """
         with self._lock:
             if self.submitted is None:
                 self.finished = True
+                self.finish_reason = reason
             return "Finished."
 
     def begin_turn(self) -> None:

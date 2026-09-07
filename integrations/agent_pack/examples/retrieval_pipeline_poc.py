@@ -36,7 +36,7 @@ import sys
 from pathlib import Path
 
 from haystack import Pipeline
-from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator, OpenAIResponsesChatGenerator
 from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
@@ -55,6 +55,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
+from haystack_integrations.agent_pack.optimization.agent import OPTIMIZER_PROMPT_CACHE_KEY
 from haystack_integrations.agent_pack.retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
@@ -77,7 +78,9 @@ POOR_TOP_K = 2
 RETRIEVAL_OPTIMIZER_GUIDANCE = """
 The configuration is a one-shot retrieval pipeline, and retrieval is all of it. A question enters at the `query`
 input, whatever the pipeline does with it must end at exactly one unconnected `documents` output, and that output
-is scored against the documents the answer needed. Quality is the mean recall over the cases, so retrieving more
+is scored against the documents the answer needed. The per-case query budget counts every query issued, including
+the original question when the expansion keeps it, so an expansion count set to the budget will exceed it.
+Quality is the mean recall over the cases, so retrieving more
 of what a question needs registers even when no single case is yet complete; a case that breaks one of its
 budgets contributes nothing at all, however much of the evidence it found. Nothing writes an answer, so nothing is
 gained by adding a generator.
@@ -116,11 +119,24 @@ else it is returning, so it fills the output with the nearest matches to whichev
 strongly, and the remaining facets go unretrieved. Measured here, judging the candidates jointly retrieved close
 to twice the evidence that scoring them one at a time did.
 
-Two things about running it. It calls a chat model once per case with every candidate's text in the prompt, so its
-cost grows with the candidate set and it is normally the largest single expense in the pipeline: keep the set no
-wider than the recall actually needs. And it must not be given a `temperature`; the models available here reject
-the parameter outright, and the failure is swallowed into a warning that leaves the documents unranked rather than
-raising.
+The two stages are answerable to different things. Retrieval before the ranker is judged only on whether the
+evidence is somewhere in the candidate set, so widening it costs nothing that is measured and a candidate document
+that is never retrieved cannot be recovered later. The ranker is what decides the answer, so it is where being
+selective matters. What the case scores in the end is recall, so a ranker that leaves a needed document out has
+lost something a narrower candidate set could never have given back.
+
+Its `top_k` is a ceiling on the answer, and the ceiling and the prompt do different jobs. Cases here need between
+two and four documents, so a ceiling of four leaves a four-document case no room to be wrong once, while a
+two-document case has nothing useful to do with the spare slots. Set the ceiling above the most any case needs and
+let the prompt decide how many actually come back — asking for the documents that together cover the question and
+no others, so the extra room is available when a question needs it and unused when it does not. A run reporting
+that fewer documents came back than the ceiling allows is not necessarily wasting it; a run reporting exactly the
+ceiling on every case is being truncated by it.
+
+Two things about running it. It calls a chat model once per case with every candidate's text in the prompt, so
+what it costs grows with the candidate set. And it must not be given a `temperature`; the models available here
+reject the parameter outright, and the failure is swallowed into a warning that leaves the documents unranked
+rather than raising.
 
 Merging the results of several queries is where this goes wrong quietly, and it decides which kind of ranking is
 worth adding. A keyword retriever's score is a property of the query that produced it, not a scale shared between
@@ -165,6 +181,26 @@ def build_pricing() -> ModelPriceCatalog:
             ModelPrice(model_id=model, input_cost_per_million=prices[0], output_cost_per_million=prices[1])
             for model, prices in MODEL_PRICES.items()
         ]
+    )
+
+
+def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator | None:
+    """
+    Build the optimizer's generator on a named model, leaving everything else as the default.
+
+    Only the model differs from what the library would build, so a run that changes it measures the model rather
+    than the settings around it.
+
+    :param model: Model to reason with, or None to accept the library default.
+    :returns: The generator, or None to let `create_harness_optimizer_agent` choose.
+    """
+    if model is None:
+        return None
+    return OpenAIResponsesChatGenerator(
+        model=model,
+        timeout=180.0,
+        max_retries=5,
+        generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY, "reasoning": {"effort": "low"}},
     )
 
 
@@ -258,6 +294,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-concurrent-cases", type=int, default=6)
     parser.add_argument("--max-iterations", type=int, default=8)
     parser.add_argument("--optimizer-steps", type=int, default=24, help="Editing steps per optimizer turn.")
+    parser.add_argument(
+        "--optimizer-model",
+        help="Model the optimizer itself reasons with. Its turns are most of what an experiment costs on a harness "
+        "whose cases are cheap, so what it is worth paying for them is itself a measurable question. Defaults to "
+        "whatever `create_harness_optimizer_agent` chooses.",
+    )
     parser.add_argument("--docs-mcp", action="store_true", help="Give the optimizer the Haystack documentation MCP.")
     parser.add_argument("--fresh", action="store_true", help="Remove saved runs and journals before starting.")
     return parser.parse_args()
@@ -340,6 +382,7 @@ def main() -> None:
         ),
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
         optimizer_agent=create_harness_optimizer_agent(
+            chat_generator=build_optimizer_generator(model=arguments.optimizer_model),
             docs_toolset=docs_toolset,
             additional_instructions=RETRIEVAL_OPTIMIZER_GUIDANCE,
             max_agent_steps=arguments.optimizer_steps,
