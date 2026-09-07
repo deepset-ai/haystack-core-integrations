@@ -23,6 +23,8 @@ def test_defaults_and_environment(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test")
     agent = create_harness_optimizer_agent(additional_instructions="Keep the corpus.")
     assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
+    # Pinned so that changing what the search itself costs stays a deliberate decision.
+    assert agent.chat_generator.model == "gpt-5.6-luna"
     assert describe_environment() in agent.system_prompt
     assert agent.system_prompt.endswith("Keep the corpus.")
     assert agent.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}

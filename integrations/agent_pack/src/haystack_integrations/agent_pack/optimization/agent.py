@@ -164,8 +164,12 @@ def create_harness_optimizer_agent(
     instructions = f"{instructions}\n\n{describe_environment()}"
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n{additional_instructions.strip()}"
+    # Measured on the retrieval harness over twenty labelled cases: this model reached a better configuration than
+    # one costing ten times as much, and a whole experiment on it costs less than a single one of the other's
+    # turns. The optimizer's turns are most of what an experiment costs once its cases are cheap, so what it is
+    # worth paying for them is a question the harness can answer rather than assume.
     generator = chat_generator or OpenAIResponsesChatGenerator(
-        model="gpt-5.6-terra",
+        model="gpt-5.6-luna",
         timeout=180.0,
         max_retries=5,
         generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY, "reasoning": {"effort": "low"}},
