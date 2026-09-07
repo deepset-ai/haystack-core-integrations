@@ -77,10 +77,17 @@ class RetrievalCaseMetrics:
 
     `queries` is the evidence an optimizer acts on: it is what the configuration actually asked the store, and a
     recall failure is usually explained by the wording of those queries rather than by the number of them.
+
+    `score` is what quality aggregates, and it is the case's recall rather than whether it passed. Recall over a
+    handful of expected documents moves in steps of a half or a third, so a threshold on it reports a
+    configuration that went from finding none of the evidence to finding two thirds of it as no change at all.
+    A case that broke one of its budgets scores nothing, because a budget is a constraint on the answer rather
+    than a matter of degree, and partial credit for exceeding one would restore the incentive it exists to remove.
     """
 
     question: str
     passed: bool
+    score: float
     failures: tuple[str, ...]
     recall: float
     precision: float
@@ -131,9 +138,12 @@ def score_retrieval_result(
     if case.max_retrieved is not None and len(retrieved_ids) > case.max_retrieved:
         failures.append(f"retrieved_over_budget:{len(retrieved_ids)}")
 
+    # Every failure except falling short on recall is a broken constraint rather than a partial result.
+    breached_budget = [failure for failure in failures if not failure.startswith("recall_below")]
     return RetrievalCaseMetrics(
         question=case.question,
         passed=not failures,
+        score=0.0 if breached_budget else recall,
         failures=tuple(failures),
         recall=recall,
         precision=precision,

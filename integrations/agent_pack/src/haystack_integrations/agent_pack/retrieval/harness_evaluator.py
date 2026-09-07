@@ -97,9 +97,11 @@ class RetrievalHarnessEvaluator:
     """
     Replay recorded questions through a retrieval pipeline and score what came back.
 
-    Quality is the fraction of cases that pass, normalized to `[0.0, 1.0]`, so it is directly comparable with the
-    other harnesses. No answer is generated: the labelled evidence names the documents an answer needs, which is
-    what makes one case cost a single model call rather than an agent loop.
+    Quality is the mean of the per-case scores, normalized to `[0.0, 1.0]`. A case scores its recall, or nothing
+    when it broke one of its budgets, so a configuration that finds more of the evidence is measured as better
+    even while no case yet finds all of it. `passed` is still reported per case, and remains the stricter reading.
+    No answer is generated: the labelled evidence names the documents an answer needs, which is what makes one
+    case cost a single model call rather than an agent loop.
     """
 
     def __init__(
@@ -248,7 +250,7 @@ class RetrievalHarnessEvaluator:
         for case_detail in cases:
             case_detail["queries"] = case_detail["queries"][: self.max_reported_queries]
         return EvaluationMetrics(
-            quality=sum(metric.passed for metric in scored) / len(scored),
+            quality=sum(metric.score for metric in scored) / len(scored),
             latency_ms=sum(metric.latency_ms for metric in scored) / len(scored),
             model_usage=model_usage,
             details={

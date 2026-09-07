@@ -12,7 +12,9 @@ that runs them all against the store:
     QueryExpander.queries -> MultiQueryTextRetriever.queries -> documents
 
 Nothing generates an answer. The MultiHopRAG cases already name the documents an answer needs, so retrieval is
-scored directly as recall and precision over those IDs. That is what makes this affordable: one case costs a
+scored directly as recall and precision over those IDs. Quality is the mean of the per-case recall, with a case
+that broke one of its budgets scoring nothing, so a configuration that finds more of the evidence measures as
+better even while no case yet finds all of it. That is what makes this affordable: one case costs a
 single query-expansion call, against the five to twenty model calls an Agent loop spends. At that point the
 optimizer's own turns, not the measurements, are most of what an experiment costs.
 
@@ -75,7 +77,9 @@ POOR_TOP_K = 2
 RETRIEVAL_OPTIMIZER_GUIDANCE = """
 The configuration is a one-shot retrieval pipeline, and retrieval is all of it. A question enters at the `query`
 input, whatever the pipeline does with it must end at exactly one unconnected `documents` output, and that output
-is scored as recall and precision against the documents the answer needed. Nothing writes an answer, so nothing is
+is scored against the documents the answer needed. Quality is the mean recall over the cases, so retrieving more
+of what a question needs registers even when no single case is yet complete; a case that breaks one of its
+budgets contributes nothing at all, however much of the evidence it found. Nothing writes an answer, so nothing is
 gained by adding a generator.
 
 Cases require evidence spread across several documents, and one query phrased for the whole question tends to
@@ -98,10 +102,18 @@ right subset of whatever was considered.
 
 Once that limit binds, the way past it is to stop treating those two things as the same. Retrieve a wide candidate
 set, then rank it and return only the best of it: the limit applies to the ranked output, while the candidate set
-behind it can be as wide as recall needs. Haystack ships ranker components for exactly this, placed between
-retrieval and the pipeline's `documents` output. Find which ones this environment can import, confirm what one
-serializes to and what its inputs are called, and remember that a ranker driven by a model needs a query as well
-as the documents.
+behind it can be as wide as recall needs. Use `SentenceTransformersSimilarityRanker` for that, placed between
+retrieval and the pipeline's `documents` output. It is a cross-encoder: it scores the query against each candidate
+with a model that runs locally, so it adds no token usage and what it costs does not grow with the size of the
+candidate set. It takes a `query` input of its own alongside the documents, and its `top_k` decides how many
+survive. Inspect it before writing it in, so its parameters and serialized shape come from the component rather
+than from memory.
+
+Its `model` parameter chooses the cross-encoder, and the choice is worth an experiment of its own. Three are
+already downloaded here: `cross-encoder/ms-marco-MiniLM-L-6-v2`, which is the default and the smallest,
+`intfloat/simlm-msmarco-reranker`, and `tomaarsen/Qwen3-Reranker-0.6B-seq-cls`, which is the largest and slowest
+to load. Any other cross-encoder published on Hugging Face can be named instead, at the cost of downloading it
+the first time it warms up.
 
 Merging the results of several queries is where this goes wrong quietly, and it decides which kind of ranking is
 worth adding. A keyword retriever's score is a property of the query that produced it, not a scale shared between
@@ -208,8 +220,8 @@ def parse_args() -> argparse.Namespace:
         "--max-cases",
         type=int,
         default=20,
-        help="Cases to evaluate. Quality is a fraction of these, so the smallest difference it can express is "
-        "1/max-cases; keep it well above the effect worth detecting.",
+        help="Cases to evaluate. Quality averages their recall, so more cases make the measurement finer as well "
+        "as less noisy; each one costs a model call per candidate.",
     )
     parser.add_argument("--case-seed", type=int, default=0, help="Selects which cases are drawn from the dataset.")
     parser.add_argument(

@@ -103,9 +103,11 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
 
     result = experiment.run()
 
-    # One document of the two: the reference cannot reach full recall however it is queried.
-    assert result.baseline.quality == 0.0
+    # One document of the two: quality is the recall, not whether the case cleared a threshold, so finding half
+    # the evidence scores half rather than nothing.
+    assert result.baseline.quality == 0.5
     assert result.baseline.details["mean_recall"] == 0.5
+    assert result.baseline.details["cases"][0]["passed"] is False
     assert result.recommendation is not None
     assert result.recommendation.evaluation.metrics.quality == 1.0
     assert result.recommendation.reasons == ("quality_improvement",)
