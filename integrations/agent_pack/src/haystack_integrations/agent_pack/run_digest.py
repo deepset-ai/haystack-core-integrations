@@ -10,17 +10,21 @@ metadata, model reasoning, and retrieved document bodies that the tool results a
 those are dropped — every tool call with its arguments, every tool result, and how the run ended — is the part that
 explains a run, and it is a small fraction of the whole.
 
-This module depends only on the `Agent.run` output contract, so both the optimization experiment and a harness
-evaluator can use it without either importing the other.
+This module depends only on the `Agent.run` output contract and on the two keys every harness evaluator reports a
+case with, so both the optimization experiment and a harness evaluator can use it without either importing the
+other.
 """
 
 import json
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
 from haystack.dataclasses import ChatMessage, ToolCall
 
 RUN_DIGEST_KEY = "run_digest"
+CASES_KEY = "cases"
+CASE_SUMMARY_KEY = "case_summary"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -131,4 +135,50 @@ def strip_run_digests(payload: Any) -> Any:
         return [strip_run_digests(payload=item) for item in payload]
     if isinstance(payload, dict):
         return {key: strip_run_digests(payload=value) for key, value in payload.items() if key != RUN_DIGEST_KEY}
+    return payload
+
+
+def _is_case_listing(value: Any) -> bool:
+    """Recognize a harness evaluator's per-case listing by the two keys every one of them reports."""
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, dict) and "passed" in item and "failures" in item for item in value)
+    )
+
+
+def _summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Reduce a per-case listing to how many passed and which kinds of failure occurred."""
+    failures: Counter[str] = Counter()
+    for case in cases:
+        failures.update(str(label) for label in case.get("failures") or ())
+    return {
+        "cases": len(cases),
+        "passed": sum(1 for case in cases if case.get("passed")),
+        "failures": dict(failures.most_common()),
+    }
+
+
+def summarize_case_details(payload: Any) -> Any:
+    """
+    Replace every per-case listing with a count of how the cases ended.
+
+    A listing carries one rich record per case, and an experiment history holds one listing per candidate, so the
+    listings grow as the square of what an experiment learns while saying the same thing repeatedly. What survives
+    is what a reader compares across candidates: how many cases passed, and which failures accounted for the rest.
+    The candidate whose detail is still worth reading is the most recent one, and it is sent separately in full.
+
+    :param payload: Any JSON-compatible structure.
+    :returns: The same structure with every case listing replaced by a `CASE_SUMMARY_KEY` summary.
+    """
+    if isinstance(payload, list):
+        return [summarize_case_details(payload=item) for item in payload]
+    if isinstance(payload, dict):
+        summarized: dict[str, Any] = {}
+        for key, value in payload.items():
+            if key == CASES_KEY and _is_case_listing(value):
+                summarized[CASE_SUMMARY_KEY] = _summarize_cases(cases=value)
+            else:
+                summarized[key] = summarize_case_details(payload=value)
+        return summarized
     return payload

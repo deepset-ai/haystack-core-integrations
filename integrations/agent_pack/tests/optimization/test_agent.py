@@ -99,6 +99,48 @@ def test_the_optimizer_is_told_how_many_measurements_remain(tmp_path):
     assert seen["remaining_evaluations"] == 3
 
 
+def test_only_the_most_recently_measured_configuration_is_described_case_by_case(tmp_path):
+    """On the first turn that is the reference; once a candidate has been measured, the reference is summarized."""
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+    baseline = EvaluationMetrics(
+        quality=0.5,
+        latency_ms=1,
+        details={
+            "model": "reference",
+            "cases": [{"passed": True, "failures": []}, {"passed": False, "failures": ["r"]}],
+        },
+    )
+    seen = []
+
+    def respond(messages):
+        seen.append(json.loads(messages[1].text)["baseline"]["details"])
+        return ChatMessage.from_assistant("done")
+
+    def propose(history):
+        propose_candidate(
+            optimizer_agent=create_harness_optimizer_agent(
+                chat_generator=MockChatGenerator(response_fn=respond), max_agent_steps=1
+            ),
+            workspace=workspace,
+            reference=Agent(chat_generator=MockChatGenerator()),
+            reference_runs=[],
+            pricing=ModelPriceCatalog([]),
+            objectives=OptimizationObjectives(),
+            baseline=baseline,
+            history=history,
+        )
+
+    propose(history=[])
+    propose(history=[{"candidate_id": "c1", "metrics": None}])
+
+    first, later = seen
+    assert [case["passed"] for case in first["cases"]] == [True, False]
+    assert "cases" not in later
+    assert later["case_summary"] == {"cases": 2, "passed": 1, "failures": {"r": 1}}
+    # The measurement itself is untouched; only what the request carries changes.
+    assert baseline.details["cases"][0]["passed"] is True
+
+
 def test_plain_text_does_not_submit_or_run_forever(tmp_path):
     workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
     result = propose_candidate(

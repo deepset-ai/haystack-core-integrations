@@ -28,7 +28,12 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     ConfigurationWorkspace,
     Optimizable,
 )
-from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run, strip_run_digests
+from haystack_integrations.agent_pack.run_digest import (
+    RunDigestPolicy,
+    digest_agent_run,
+    strip_run_digests,
+    summarize_case_details,
+)
 
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset
@@ -205,7 +210,12 @@ def propose_candidate(
         "known_model_prices": pricing.to_dict(),
         "objectives": objectives.to_dict(),
         "remaining_evaluations": remaining_evaluations,
-        "baseline": baseline.to_dict(),
+        # Exactly one configuration is described case by case: the most recently measured one. On the first turn
+        # that is the reference, because nothing else has been measured yet. Afterwards it is the last candidate,
+        # which `recent_outcomes_in_detail` carries, and re-sending the reference's listing every turn would spend
+        # the budget describing a configuration that has since been superseded. How the reference behaved is not
+        # lost with it: `reference_runs` carries its recorded runs separately.
+        "baseline": baseline.to_dict() if not history else summarize_case_details(payload=baseline.to_dict()),
         "available_tools": _tool_specifications(reference=reference),
         "reference_runs": [
             {
@@ -228,7 +238,11 @@ def propose_candidate(
     result = agent.run(
         messages=[
             ChatMessage.from_user(text=context_text),
-            ChatMessage.from_user(text=json.dumps({"outcomes": strip_run_digests(history)}, default=str)),
+            ChatMessage.from_user(
+                text=json.dumps(
+                    {"outcomes": summarize_case_details(payload=strip_run_digests(payload=history))}, default=str
+                )
+            ),
             ChatMessage.from_user(
                 text=json.dumps(
                     {

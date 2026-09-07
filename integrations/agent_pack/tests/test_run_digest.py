@@ -7,6 +7,7 @@ from haystack_integrations.agent_pack.run_digest import (
     RunDigestPolicy,
     digest_agent_run,
     strip_run_digests,
+    summarize_case_details,
 )
 
 
@@ -104,3 +105,45 @@ def test_strip_run_digests_removes_them_at_any_depth():
 
     assert stripped["history"][0]["metrics"]["details"]["cases"][0] == {"passed": True}
     assert stripped["history"][1] == payload["history"][1]
+
+
+def outcome(passed, failures):
+    return {"question": "q", "passed": passed, "failures": failures, "recall": 1.0, "run_digest": {"tool_steps": []}}
+
+
+def test_old_case_listings_become_a_count_of_how_the_cases_ended():
+    history = [
+        {"metrics": {"details": {"model": "m", "cases": [outcome(True, []), outcome(False, ["recall_below_1"])]}}}
+    ]
+
+    summarized = summarize_case_details(payload=history)
+
+    assert summarized[0]["metrics"]["details"]["case_summary"] == {
+        "cases": 2,
+        "passed": 1,
+        "failures": {"recall_below_1": 1},
+    }
+    # Everything that is not the listing survives untouched.
+    assert summarized[0]["metrics"]["details"]["model"] == "m"
+    assert "cases" not in summarized[0]["metrics"]["details"]
+
+
+def test_a_listing_that_is_not_cases_is_left_alone():
+    """Only a list of records reporting `passed` and `failures` is a case listing."""
+    payload = {"cases": [{"question": "q"}], "other": ["a", "b"]}
+
+    assert summarize_case_details(payload=payload) == payload
+
+
+def test_summarizing_is_safe_on_a_failed_candidate_with_no_metrics():
+    history = [{"metrics": None, "failure": "boom"}]
+
+    assert summarize_case_details(payload=history) == history
+
+
+def test_summarizing_composes_with_digest_stripping():
+    history = [{"metrics": {"details": {"cases": [outcome(False, ["a", "b"]), outcome(False, ["a"])]}}}]
+
+    summarized = summarize_case_details(payload=strip_run_digests(payload=history))
+
+    assert summarized[0]["metrics"]["details"]["case_summary"]["failures"] == {"a": 2, "b": 1}
