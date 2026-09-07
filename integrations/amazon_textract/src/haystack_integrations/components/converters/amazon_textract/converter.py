@@ -129,6 +129,14 @@ class AmazonTextractConverter:
             )
             raise AmazonTextractConfigurationError(msg) from e
 
+    def close(self) -> None:
+        """Closes the AWS Textract client."""
+        if self._client is None:
+            return
+
+        self._client.close()
+        self._client = None
+
     @component.output_types(documents=list[Document], raw_textract_response=list[dict])
     def run(
         self,
@@ -157,8 +165,7 @@ class AmazonTextractConverter:
             - `documents`: List of created Documents with extracted text as content.
             - `raw_textract_response`: List of raw Textract API responses.
         """
-        if self._client is None:
-            self.warm_up()
+        self.warm_up()
 
         documents: list[Document] = []
         raw_responses: list[dict[str, Any]] = []
