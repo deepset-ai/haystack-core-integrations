@@ -14,7 +14,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_haystack_documentation_mcp_toolset,
     propose_candidate,
 )
-from haystack_integrations.agent_pack.optimization.agent import describe_environment
+from haystack_integrations.agent_pack.optimization.agent import _documentation_result, describe_environment
 
 from .test_workspace import agent_yaml
 
@@ -33,6 +33,40 @@ def test_documentation_toolset_is_optional_and_read_only():
     docs = create_haystack_documentation_mcp_toolset()
     assert docs.tool_names == ["search_haystack_docs"]
     assert docs.eager_connect is False
+
+
+def docs_payload(**body):
+    """The shape the documentation server answers with: a payload serialized inside an MCP envelope."""
+    return json.dumps({"meta": None, "content": [{"type": "text", "text": json.dumps(body)}]})
+
+
+def test_documentation_search_reports_documentation_not_the_servers_debug_output():
+    """Measured against the live server, the debug payload is 94% of the answer and says nothing about Haystack."""
+    payload = docs_payload(
+        documents=[{"content": "LLMRanker reorders documents.", "meta": {"url": "https://docs/llmranker"}}],
+        _debug={"pipeline": "x" * 5000},
+    )
+
+    result = _documentation_result(payload)
+
+    assert result == "[https://docs/llmranker]\nLLMRanker reorders documents."
+    assert "_debug" not in result
+
+
+def test_a_long_documentation_section_is_capped():
+    payload = docs_payload(documents=[{"content": "x" * 10_000, "meta": {}}])
+
+    assert len(_documentation_result(payload)) <= 4100
+
+
+def test_an_unexpected_answer_is_passed_through_rather_than_swallowed():
+    """A server that changes shape must not silently look like an empty search."""
+    assert _documentation_result("not json at all") == "not json at all"
+    assert _documentation_result(docs_payload(unexpected=1)).startswith('{"meta"')
+
+
+def test_no_matching_documentation_says_so():
+    assert _documentation_result(docs_payload(documents=[])) == "No documentation matched."
 
 
 def test_optimizer_repairs_yaml_before_submitting(tmp_path):

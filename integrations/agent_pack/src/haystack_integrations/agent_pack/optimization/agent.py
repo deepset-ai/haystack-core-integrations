@@ -72,18 +72,55 @@ Run evidence is compressed: truncated results and incomplete listings are explic
 """.strip()
 
 
+DOCS_SEARCH_TOOL = "search_haystack_docs"
+
+# Documentation the search actually found, per result. Enough for a class signature or a serialization example,
+# which is what the optimizer asks this tool for; a whole page is not needed to learn a component's shape.
+MAX_DOCUMENTATION_CHARS = 4000
+
+
+def _documentation_result(payload: Any) -> str:
+    """
+    Keep the documentation a search found and drop the search engine's own bookkeeping.
+
+    The server answers with its full pipeline debug output, and measured against the live server that is 94% of
+    the payload: 183,000 characters of `_debug` around 10,700 characters of documentation. A tool result stays in
+    the conversation and is resent on every later step of the turn, so an unfiltered answer costs more context
+    than the entire experiment history it is meant to inform.
+
+    :param payload: Whatever the MCP server returned.
+    :returns: The retrieved documentation, or the raw answer when it does not have the expected shape.
+    """
+    try:
+        # The server answers inside an MCP envelope, which arrives already serialized, so the body is reached by
+        # parsing twice: once for the envelope and once for the payload its single text content carries.
+        body = payload if isinstance(payload, dict) else json.loads(str(payload))
+        if "documents" not in body:
+            body = json.loads(body["content"][0]["text"])
+        documents = body["documents"]
+    except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        return str(payload)
+    sections = []
+    for document in documents:
+        url = (document.get("meta") or {}).get("url", "")
+        content = str(document.get("content") or "")[:MAX_DOCUMENTATION_CHARS]
+        sections.append(f"[{url}]\n{content}" if url else content)
+    return "\n\n".join(sections) or "No documentation matched."
+
+
 def create_haystack_documentation_mcp_toolset(eager_connect: bool = False) -> "MCPToolset":
     """
     Create the optional read-only public Haystack documentation toolset.
 
     :param eager_connect: Connect to the documentation server immediately instead of on first use.
-    :returns: A toolset exposing Haystack documentation search.
+    :returns: A toolset exposing Haystack documentation search, reporting only the documentation it found.
     """
     mcp_import.check()
     return MCPToolset(
         server_info=StreamableHttpServerInfo(url="https://docs.haystack.deepset.ai/api/mcp"),
-        tool_names=["search_haystack_docs"],
+        tool_names=[DOCS_SEARCH_TOOL],
         eager_connect=eager_connect,
+        outputs_to_string={DOCS_SEARCH_TOOL: {"handler": _documentation_result}},
     )
 
 
