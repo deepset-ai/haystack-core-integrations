@@ -4,8 +4,8 @@
 
 | Name                                                                                   |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
 |--------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/converters/azure\_doc\_intelligence/converter.py |       60 |        0 |        8 |        0 |     100% |           |
-| **TOTAL**                                                                              |   **60** |    **0** |    **8** |    **0** | **100%** |           |
+| src/haystack\_integrations/components/converters/azure\_doc\_intelligence/converter.py |       63 |        0 |        8 |        0 |     100% |           |
+| **TOTAL**                                                                              |   **63** |    **0** |    **8** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
