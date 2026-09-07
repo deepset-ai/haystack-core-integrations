@@ -83,14 +83,15 @@ class HFModelType(Enum):
 
 def _check_valid_model(model_id: str, model_type: HFModelType, token: Secret | None) -> None:
     """
-    Check if the provided model ID corresponds to a valid model on HuggingFace Hub.
+    Check if the provided model ID corresponds to a valid model on Hugging Face Hub.
 
-    Also check if the model is an embedding or generation model.
+    Also check if the model supports the requested embedding or generation task.
 
-    :param model_id: A string representing the HuggingFace model ID.
-    :param model_type: the model type, HFModelType.EMBEDDING or HFModelType.GENERATION
-    :param token: The optional authentication token.
-    :raises ValueError: If the model is not found or is not a embedding model.
+    :param model_id: A string representing the Hugging Face model ID.
+    :param model_type: The model type, `HFModelType.EMBEDDING` or `HFModelType.GENERATION`.
+    :param token: The optional authentication secret.
+    :raises ValueError: If the secret cannot be resolved, the model is not found, or it does not match the
+        requested type.
     """
     api = HfApi()
     try:
@@ -103,7 +104,17 @@ def _check_valid_model(model_id: str, model_type: HFModelType, token: Secret | N
 
 
 async def _check_valid_model_async(model_id: str, model_type: HFModelType, token: Secret | None) -> None:
-    """Check asynchronously if the provided model ID corresponds to a valid model on Hugging Face Hub."""
+    """
+    Asynchronously check if the provided model ID corresponds to a valid model on Hugging Face Hub.
+
+    Also check if the model supports the requested embedding or generation task.
+
+    :param model_id: A string representing the Hugging Face model ID.
+    :param model_type: The model type, `HFModelType.EMBEDDING` or `HFModelType.GENERATION`.
+    :param token: The optional authentication secret.
+    :raises ValueError: If the secret cannot be resolved, the model is not found, or it does not match the
+        requested type.
+    """
     api = HfApi()
     try:
         async with get_async_session() as client:

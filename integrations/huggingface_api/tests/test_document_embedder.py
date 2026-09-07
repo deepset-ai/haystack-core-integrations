@@ -525,7 +525,6 @@ class TestIntegration:
             embedding_separator=" | ",
         )
         embedder.warm_up()
-        assert embedder._client is not None
         embedder._client.timeout = 10  # we want to fail fast if the server is not responding
         result = embedder.run(documents=docs)
         documents_with_embeddings = result["documents"]
@@ -552,7 +551,6 @@ class TestIntegration:
             embedding_separator=" | ",
         )
         await embedder.warm_up_async()
-        assert embedder._async_client is not None
         embedder._async_client.timeout = 10  # we want to fail fast if the server is not responding
         result = await embedder.run_async(documents=docs)
         documents_with_embeddings = result["documents"]
