@@ -6,16 +6,18 @@
 
 import json
 import traceback
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
+from math import isclose
 from pathlib import Path
 from threading import RLock
 from typing import Any
 from uuid import uuid4
 
-from haystack import logging
+from haystack import Pipeline, logging
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, content_digest
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, content_digest
 from haystack_integrations.agent_pack.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization.agent import propose_candidate
@@ -26,11 +28,15 @@ from haystack_integrations.agent_pack.optimization.models import (
 from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
+    Optimizable,
     configuration_id,
     dump_agent,
+    dump_pipeline,
     load_agent,
+    load_pipeline,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
+from haystack_integrations.agent_pack.usage_tracer import UsageTracer
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +101,10 @@ class ExperimentResult:
     run_id: str
     artifact_directory: Path
     gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # What the search itself spent. An experiment prices the configurations it measures; this is the other half of
+    # the bill, and on a harness whose cases are cheap it is most of it.
+    optimizer_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
+    optimizer_cost: float | None = None
 
 
 class ExperimentJournal:
@@ -139,12 +149,29 @@ class ExperimentJournal:
             stream.write(json.dumps(evaluation.to_dict()) + "\n")
 
 
+def _serialization(
+    reference: Optimizable,
+) -> tuple[Callable[[Any], str], Callable[[str], Optimizable]]:
+    """
+    Pick the pair that round-trips this reference through YAML.
+
+    Inferred rather than configured, because the two have to agree: a reference dumped as a bare Pipeline and
+    loaded under the Agent contract fails on every candidate, and nothing else in the experiment would say why.
+
+    :param reference: What the experiment optimizes.
+    :returns: The dump and load functions for it.
+    """
+    if isinstance(reference, Pipeline):
+        return dump_pipeline, load_pipeline
+    return dump_agent, load_agent
+
+
 class HarnessOptimizationExperiment:
     """Let an optimizer Agent choose, observe, and refine a bounded sequence of configuration experiments."""
 
     def __init__(
         self,
-        reference: Agent,
+        reference: Optimizable,
         run_store: LocalRunStore,
         evaluator: HarnessEvaluator,
         pricing: ModelPriceCatalog,
@@ -161,7 +188,8 @@ class HarnessOptimizationExperiment:
         """
         Configure an iterative, journaled harness optimization run.
 
-        :param reference: Agent used to generate the initial pipeline YAML and baseline.
+        :param reference: Agent or Pipeline used to generate the initial pipeline YAML and baseline. An Agent is
+            serialized wrapped in a one-component Pipeline; a Pipeline is serialized as itself.
         :param run_store: Local store of successful Agent runs whose inputs are replayed during evaluation.
         :param evaluator: Evaluator that measures the reference and each materialized candidate against the selected
             runs.
@@ -201,7 +229,8 @@ class HarnessOptimizationExperiment:
         if not reference_runs:
             msg = "The selected run store contains no successful reference runs."
             raise ValueError(msg)
-        reference_yaml = dump_agent(self.reference)
+        dump, load = _serialization(reference=self.reference)
+        reference_yaml = dump(self.reference)
         payload = {
             "reference": configuration_id(reference_yaml),
             "runs": sorted(record.fingerprint() for record in reference_runs),
@@ -220,12 +249,13 @@ class HarnessOptimizationExperiment:
             self.config_path or artifacts / "candidate.yaml",
             reference_yaml,
             validator=validator if callable(validator) else None,
+            loader=load,
         )
-        baseline_agent = load_agent(reference_yaml)
+        baseline_target = load(reference_yaml)
         try:
-            baseline_raw = self.evaluator.evaluate(agent=baseline_agent, reference_runs=reference_runs)
+            baseline_raw = self.evaluator.evaluate(target=baseline_target, reference_runs=reference_runs)
         finally:
-            baseline_agent.close()
+            baseline_target.close()
         self.journal.append(
             CandidateEvaluation(
                 measurement_context=context,
@@ -241,19 +271,31 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg)
         outcomes: list[CandidateEvaluation] = []
         history: list[dict[str, Any]] = []
+        optimizer_usage: dict[str, ModelTokenUsage] = {}
+        optimizer_tracer = UsageTracer()
         while len(outcomes) < self.max_iterations:
-            proposed = propose_candidate(
-                optimizer_agent=self.optimizer_agent,
-                workspace=workspace,
-                reference=self.reference,
-                reference_runs=reference_runs,
-                pricing=self.pricing,
-                objectives=self.objectives,
-                baseline=baseline,
-                history=history,
-                digest_policy=self.digest_policy,
-                history_digest_window=self.history_digest_window,
-            )
+            # The optimizer's own calls are measured the same way a candidate's are, so the cost of searching is
+            # reported next to the cost of what the search found rather than left to the reader to guess.
+            with optimizer_tracer.activate(), optimizer_tracer.case() as turn_usage:
+                proposed = propose_candidate(
+                    optimizer_agent=self.optimizer_agent,
+                    workspace=workspace,
+                    reference=self.reference,
+                    reference_runs=reference_runs,
+                    pricing=self.pricing,
+                    objectives=self.objectives,
+                    baseline=baseline,
+                    history=history,
+                    digest_policy=self.digest_policy,
+                    history_digest_window=self.history_digest_window,
+                    remaining_evaluations=self.max_iterations - len(outcomes),
+                )
+            for model, tokens in turn_usage.models.items():
+                current = optimizer_usage.get(model, ModelTokenUsage())
+                optimizer_usage[model] = ModelTokenUsage(
+                    input_tokens=current.input_tokens + tokens.input_tokens,
+                    output_tokens=current.output_tokens + tokens.output_tokens,
+                )
             for failure in workspace.validation_failures:
                 self.journal.append(
                     CandidateEvaluation(
@@ -270,9 +312,9 @@ class HarnessOptimizationExperiment:
                 break
             (artifacts / f"{proposed.candidate_id}.yaml").write_text(proposed.yaml, encoding="utf-8")
             try:
-                candidate = load_agent(proposed.yaml)
+                candidate = load(proposed.yaml)
                 try:
-                    metrics = self.evaluator.evaluate(agent=candidate, reference_runs=reference_runs)
+                    metrics = self.evaluator.evaluate(target=candidate, reference_runs=reference_runs)
                 finally:
                     candidate.close()
                 raw = CandidateEvaluation(
@@ -327,8 +369,25 @@ class HarnessOptimizationExperiment:
                 )
                 (artifacts / "recommended.yaml").write_text(evaluated.configuration.yaml, encoding="utf-8")
                 break
+        optimizer_cost = self.pricing.cost_of(model_usage=optimizer_usage)
+        logger.info(
+            "optimizer spend across {turns} turns: {usage} ({cost})",
+            turns=len(outcomes),
+            usage={model: asdict(obj=tokens) for model, tokens in optimizer_usage.items()},
+            cost="unpriced" if optimizer_cost is None else f"${optimizer_cost:.6f}",
+        )
         (artifacts / "context.json").write_text(
-            json.dumps({"measurement_context": context, "run_id": run_id, **payload}, indent=2, default=str),
+            json.dumps(
+                {
+                    "measurement_context": context,
+                    "run_id": run_id,
+                    **payload,
+                    "optimizer_usage": {model: asdict(obj=tokens) for model, tokens in optimizer_usage.items()},
+                    "optimizer_cost": optimizer_cost,
+                },
+                indent=2,
+                default=str,
+            ),
             encoding="utf-8",
         )
         return ExperimentResult(
@@ -339,6 +398,8 @@ class HarnessOptimizationExperiment:
             run_id=run_id,
             artifact_directory=artifacts,
             gate_failures=gates,
+            optimizer_usage=optimizer_usage,
+            optimizer_cost=optimizer_cost,
         )
 
     def _gate_failures(self, candidate: CandidateEvaluation, baseline: EvaluationMetrics) -> tuple[str, ...]:
@@ -349,7 +410,10 @@ class HarnessOptimizationExperiment:
         baseline_quality = baseline.quality
         candidate_quality = candidate.metrics.quality
         floor = max(self.objectives.min_quality, baseline_quality - self.objectives.max_quality_loss)
-        if candidate_quality < floor:
+        # Quality is a ratio of counted cases and the floor subtracts a tolerance from another such ratio, so a
+        # candidate sitting exactly on the tolerance can land one representation step below it: 0.2 - 0.05 is
+        # 0.15000000000000002, which rejects a candidate measuring 0.15 while the report prints both as "0.1500".
+        if candidate_quality < floor and not isclose(candidate_quality, floor, rel_tol=1e-9, abs_tol=1e-12):
             failures.append(f"quality_below_floor:{floor:.4f}")
         if self.objectives.primary == "cost" and candidate.metrics.cost is None:
             failures.append("cost_unavailable")

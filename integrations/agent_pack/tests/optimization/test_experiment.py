@@ -58,7 +58,10 @@ def optimizer_agent_for(models):
         stage = (stage + 1) % 3
         return ChatMessage.from_assistant(tool_calls=[call])
 
-    return create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond)), histories
+    generator = MockChatGenerator(
+        response_fn=respond, model="optimizer", meta={"usage": {"prompt_tokens": 20, "completion_tokens": 4}}
+    )
+    return create_harness_optimizer_agent(chat_generator=generator), histories
 
 
 class ModelEvaluator:
@@ -71,9 +74,9 @@ class ModelEvaluator:
         self.failing = failing
         self.calls = []
 
-    def evaluate(self, agent, reference_runs):
+    def evaluate(self, target, reference_runs):
         assert reference_runs
-        model = agent.chat_generator.model
+        model = target.chat_generator.model
         self.calls.append(model)
         if model in self.failing:
             msg = f"provider unavailable for {model}"
@@ -102,6 +105,7 @@ def configured(tmp_path, models, evaluator=None, objectives=None):
             [
                 ModelPrice(model_id="reference", input_cost_per_million=10),
                 ModelPrice(model_id="cheap", input_cost_per_million=2),
+                ModelPrice(model_id="optimizer", input_cost_per_million=5),
             ]
         ),
         objectives=objectives or OptimizationObjectives(min_quality=0.8),
@@ -194,6 +198,38 @@ def test_quality_objective_prefers_better_answers(tmp_path):
         tmp_path, ["cheap", "better", None], evaluator, OptimizationObjectives(primary="quality")
     )
     assert load_agent(experiment.run().recommendation.configuration.yaml).chat_generator.model == "better"
+
+
+def test_the_search_reports_what_it_spent_on_itself(tmp_path):
+    """An experiment prices the configurations it measures; the optimizer's own calls are the other half."""
+    experiment, _ = configured(tmp_path, ["cheap", None])
+
+    result = experiment.run()
+
+    # Four scripted model calls across two turns: edit, validate, submit, then finish.
+    assert result.optimizer_usage["optimizer"] == ModelTokenUsage(input_tokens=80, output_tokens=16)
+    assert result.optimizer_cost == pytest.approx(80 * 5 / 1_000_000)
+    context = json.loads((result.artifact_directory / "context.json").read_text())
+    assert context["optimizer_cost"] == result.optimizer_cost
+
+
+def test_a_candidate_exactly_on_the_quality_tolerance_is_not_gated_out(tmp_path):
+    """A tolerance of one case in twenty is 0.05, and 0.2 - 0.05 is 0.15000000000000002 in binary floating point."""
+    experiment, _ = configured(
+        tmp_path,
+        ["cheap", None],
+        evaluator=ModelEvaluator(
+            metrics={
+                "reference": EvaluationMetrics(quality=4 / 20, cost=10, latency_ms=100),
+                "cheap": EvaluationMetrics(quality=3 / 20, cost=2, latency_ms=90),
+            }
+        ),
+        objectives=OptimizationObjectives(min_quality=0.0, max_quality_loss=0.05, primary="quality"),
+    )
+
+    result = experiment.run()
+
+    assert result.gate_failures[result.candidates[0].candidate_id] == ()
 
 
 def test_iteration_budget_counts_evaluations(tmp_path):

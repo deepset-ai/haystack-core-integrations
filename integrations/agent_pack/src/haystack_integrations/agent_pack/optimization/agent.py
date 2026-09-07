@@ -23,7 +23,11 @@ from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.workspace import CandidateConfiguration, ConfigurationWorkspace
+from haystack_integrations.agent_pack.optimization.workspace import (
+    CandidateConfiguration,
+    ConfigurationWorkspace,
+    Optimizable,
+)
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run, strip_run_digests
 
 if TYPE_CHECKING:
@@ -48,7 +52,9 @@ or warm it up. Submit one hypothesis per turn with a rationale. Use finish when 
 Plain text does not submit a candidate. Invalid drafts and duplicates do not spend evaluation slots, but editing
 steps are bounded. Edits continue from the last submitted candidate. Use restore_candidate with a history ID or
 'reference' to start from a different base. Once a candidate passes the gates, vary one thing at a time against it.
-Combine changes when they need to move together. Removing an unused tool also removes its schema from model input.
+Combine changes when they need to move together, and combine the change you are measuring with cleanups that cannot
+plausibly interact with it: `remaining_evaluations` counts submissions and each one costs a full pass over the
+evaluation set. Removing an unused tool also removes its schema from model input.
 
 Use inspect_component and optional documentation tools to learn installed components and their serialization.
 A ComponentTool can become a PipelineTool: connect retriever.documents to ranker.documents, map query to both query
@@ -140,7 +146,7 @@ def describe_environment() -> str:
     )
 
 
-def _tool_specifications(reference: Agent) -> list[dict[str, Any]]:
+def _tool_specifications(reference: Optimizable) -> list[dict[str, Any]]:
     """
     Describe the tools the reference Agent can call.
 
@@ -149,12 +155,15 @@ def _tool_specifications(reference: Agent) -> list[dict[str, Any]]:
     itself carries no tool names at all. Without this, the only way to learn what a tool is called and what it
     accepts is to find one already invoked in a recorded run.
 
-    :param reference: The Agent whose tools to describe.
+    :param reference: The configuration whose tools to describe. A Pipeline that is not an Agent has none.
     :returns: One `{name, description, parameters}` entry per tool, or an empty list when they cannot be read.
     """
+    tools = getattr(reference, "tools", None)
+    if not tools:
+        return []
     try:
-        warm_up_tools(tools=reference.tools)
-        return [tool.tool_spec for tool in flatten_tools_or_toolsets(tools=reference.tools)]
+        warm_up_tools(tools=tools)
+        return [tool.tool_spec for tool in flatten_tools_or_toolsets(tools=tools)]
     except Exception as error:
         logger.warning("Could not describe the reference Agent's tools: {error}", error=error)
         return []
@@ -163,7 +172,7 @@ def _tool_specifications(reference: Agent) -> list[dict[str, Any]]:
 def propose_candidate(
     optimizer_agent: Agent,
     workspace: ConfigurationWorkspace,
-    reference: Agent,
+    reference: Optimizable,
     reference_runs: list[AgentRunRecord],
     pricing: ModelPriceCatalog,
     objectives: OptimizationObjectives,
@@ -171,13 +180,14 @@ def propose_candidate(
     history: list[dict[str, Any]],
     digest_policy: RunDigestPolicy | None = None,
     history_digest_window: int = 1,
+    remaining_evaluations: int | None = None,
 ) -> CandidateConfiguration | None:
     """
     Let the optimizer edit, validate and submit one YAML candidate.
 
     :param optimizer_agent: Agent supplying generator, instructions and optional documentation tools.
     :param workspace: Single editable file and previous snapshots.
-    :param reference: Reference Agent supplying tool specifications.
+    :param reference: Reference configuration supplying tool specifications, when it has any.
     :param reference_runs: Recorded behavior evidence.
     :param pricing: Known model prices.
     :param objectives: Quality gates and ranking objective.
@@ -185,12 +195,16 @@ def propose_candidate(
     :param history: Prior candidate outcomes.
     :param digest_policy: Run evidence limits.
     :param history_digest_window: Number of recent detailed outcomes.
+    :param remaining_evaluations: How many candidates, including this one, the experiment can still measure. A
+        submission costs one pass over the whole evaluation set, so without this the optimizer cannot tell a
+        measurement it can afford to spend on one small change from its last remaining one.
     :returns: Submitted snapshot, or None after finish or exhaustion of the proposal step budget.
     """
     workspace.begin_turn()
     request = {
         "known_model_prices": pricing.to_dict(),
         "objectives": objectives.to_dict(),
+        "remaining_evaluations": remaining_evaluations,
         "baseline": baseline.to_dict(),
         "available_tools": _tool_specifications(reference=reference),
         "reference_runs": [
@@ -228,5 +242,16 @@ def propose_candidate(
             ),
         ]
     )
-    logger.info("optimizer turn token usage: {usage}", usage=result.get("token_usage"))
+    # What the turn spent, and on what. The journal records the diff a turn produced but nothing about how it got
+    # there, so without this there is no way to tell an optimizer that considered a change and rejected it from one
+    # that never looked. `exit_reason` matters on its own: a turn that ends on max_agent_steps without submitting
+    # stops the whole experiment, not just itself.
+    logger.info(
+        "optimizer turn: steps={steps}/{budget} exit={exit_reason} calls={calls} usage={usage}",
+        steps=result.get("step_count"),
+        budget=agent.max_agent_steps,
+        exit_reason=result.get("exit_reason"),
+        calls=[call.tool_name for message in result.get("messages") or [] for call in message.tool_calls],
+        usage=result.get("token_usage"),
+    )
     return workspace.submitted

@@ -17,6 +17,7 @@ Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus require
 
     hatch run test:python examples/harness_optimization_poc.py
     hatch run test:python examples/harness_optimization_poc.py --max-cases 1 --max-iterations 1
+    hatch run test:python examples/harness_optimization_poc.py --primary quality --max-quality-loss 0.05
     hatch run test:python examples/harness_optimization_poc.py --store opensearch
     hatch run test:python examples/harness_optimization_poc.py --docs-mcp
 
@@ -28,7 +29,6 @@ carried over from an earlier one.
 
 import argparse
 import asyncio
-import json
 import logging
 import os
 import shutil
@@ -62,7 +62,6 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
-    load_agent,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 
@@ -97,8 +96,10 @@ reports which one occurred.
 
 The retrieval tool itself is part of the configuration and can be replaced, not only retuned. It is a single
 keyword retriever, which ranks by wording alone; a tool backed by a retrieval pipeline could retrieve a wider
-candidate set and then rank it by something else. Confirm what such a pipeline serializes to, and which components
-this environment can actually import, before spending a measurement on one.
+candidate set and then rank it by something else. Retrieval that keeps failing once both the instructions and the
+retriever's own limits have been tuned is evidence about that mechanism rather than about the wording of either,
+and the mechanism is then the variable worth a measurement. Confirm what such a pipeline serializes to, and which
+components this environment can actually import, before spending one on it.
 """.strip()
 
 # The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the
@@ -276,6 +277,14 @@ def report(result: ExperimentResult) -> None:
             if not case_metrics["passed"]:
                 print(f"      regression on {case_metrics['question']!r}: {','.join(case_metrics['failures'])}")
 
+    print("\n--- what the search itself cost ---")
+    usage = ", ".join(
+        f"{model}: {tokens.input_tokens} in / {tokens.output_tokens} out"
+        for model, tokens in result.optimizer_usage.items()
+    )
+    print(f"  optimizer usage: {usage or 'none recorded'}")
+    print(f"  optimizer cost:  {format_cost(cost=result.optimizer_cost)} (input tokens charged at full price)")
+
     print("\n--- recommendation ---")
     if result.recommendation is None:
         print("  none: no candidate cleared every gate and improved on the reference")
@@ -300,7 +309,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config", type=Path, help="Optional editable YAML file; created from the reference if absent."
     )
-    parser.add_argument("--holdout-cases", type=int, default=5, help="Disjoint cases used only to confirm the winner.")
     parser.add_argument(
         "--max-cases",
         type=int,
@@ -387,9 +395,6 @@ def main() -> None:
     if not os.environ.get("OPENAI_API_KEY"):
         message = "OPENAI_API_KEY must be set to run this walkthrough."
         raise SystemExit(message)
-    if arguments.holdout_cases < 0:
-        message = "--holdout-cases must be nonnegative."
-        raise SystemExit(message)
     if arguments.max_cases < 1:
         message = "--max-cases must be at least 1."
         raise SystemExit(message)
@@ -411,8 +416,7 @@ def main() -> None:
     articles = len({chunk.meta["title"] for chunk in chunks})
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks from {articles} articles")
 
-    selected = build_cases(chunks=chunks, limit=arguments.max_cases + arguments.holdout_cases, seed=arguments.case_seed)
-    cases, holdout = selected[: arguments.max_cases], selected[arguments.max_cases :]
+    cases = build_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
     expected_documents = sum(len(case.expected_document_ids) for case in cases)
     print(f"  cases: {len(cases)} labelled from evidence, expecting {expected_documents} documents in total")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
@@ -458,37 +462,6 @@ def main() -> None:
     print("\n=== 4. outcome ===")
     report(result=result)
     print(f"\nJournal: {experiment.journal.path_for(result.run_id)}")
-
-    if result.recommendation is not None and holdout:
-        print("\n=== 5. held-out confirmation (never sent to optimizer) ===")
-        evaluator = AdvancedRAGHarnessEvaluator(cases=holdout, max_concurrent_cases=arguments.max_concurrent_cases)
-        runs = [
-            AgentRunRecord(
-                run_id=f"holdout-{index}", inputs={"messages": [ChatMessage.from_user(case.question)]}, outputs={}
-            )
-            for index, case in enumerate(holdout)
-        ]
-        baseline = pricing.price(evaluator.evaluate(agent=reference_agent, reference_runs=runs))
-        candidate = load_agent(result.recommendation.configuration.yaml)
-        try:
-            measured = pricing.price(evaluator.evaluate(agent=candidate, reference_runs=runs))
-        finally:
-            candidate.close()
-        print(f"  reference: quality={baseline.quality:.2f} cost={format_cost(baseline.cost)}")
-        print(f"  candidate: quality={measured.quality:.2f} cost={format_cost(measured.cost)}")
-        floor = max(arguments.min_quality, baseline.quality - arguments.max_quality_loss)
-        print(f"  held-out quality gate: {'passed' if measured.quality >= floor else 'FAILED'}")
-        (result.artifact_directory / "holdout.json").write_text(
-            json.dumps(
-                {
-                    "reference": baseline.to_dict(),
-                    "candidate": measured.to_dict(),
-                    "quality_gate_passed": measured.quality >= floor,
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
 
 
 if __name__ == "__main__":

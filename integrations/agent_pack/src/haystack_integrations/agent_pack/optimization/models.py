@@ -7,7 +7,7 @@
 from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -38,6 +38,29 @@ class ModelPriceCatalog:
         """Return known pricing for a model."""
         return self.prices.get(model_id)
 
+    def cost_of(self, model_usage: dict[str, ModelTokenUsage]) -> float | None:
+        """
+        Calculate what raw token usage costs at known prices.
+
+        Every input token is charged at full price. A provider that discounts tokens served from its prompt cache
+        charges less than this, so the result is an upper bound wherever caching is in play, and comparisons
+        between configurations that cache alike stay fair.
+
+        :param model_usage: Raw token usage keyed by model identifier.
+        :returns: The total cost, or `None` when any model in the usage has no known price.
+        """
+        if any(self.get(model_id=model_id) is None for model_id in model_usage):
+            return None
+        total = 0.0
+        for model_id, usage in model_usage.items():
+            price = self.get(model_id=model_id)
+            if price is None:  # pragma: no cover - excluded by the check above
+                continue
+            total += (
+                usage.input_tokens * price.input_cost_per_million + usage.output_tokens * price.output_cost_per_million
+            ) / 1_000_000
+        return total
+
     def price(self, metrics: EvaluationMetrics) -> EvaluationMetrics:
         """
         Apply known prices to raw model usage.
@@ -52,15 +75,7 @@ class ModelPriceCatalog:
         unknown = sorted(model_id for model_id in metrics.model_usage if self.get(model_id=model_id) is None)
         if unknown:
             return replace(metrics, cost=None, details={**metrics.details, "unpriced_models": unknown})
-        total = 0.0
-        for model_id, usage in metrics.model_usage.items():
-            price = self.get(model_id=model_id)
-            if price is None:
-                continue
-            total += (
-                usage.input_tokens * price.input_cost_per_million + usage.output_tokens * price.output_cost_per_million
-            ) / 1_000_000
-        return replace(metrics, cost=total)
+        return replace(metrics, cost=self.cost_of(model_usage=metrics.model_usage))
 
     def to_dict(self) -> list[dict[str, Any]]:
         """Return a JSON-compatible representation for the optimizer Agent."""

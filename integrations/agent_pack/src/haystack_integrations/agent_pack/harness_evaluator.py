@@ -6,19 +6,18 @@
 
 from typing import Protocol
 
-from haystack.components.agents import Agent
-
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
+from haystack_integrations.agent_pack.optimization.workspace import Optimizable
 
 
 class HarnessEvaluator(Protocol):
-    """Measure materialized Agents over reference runs using normalized quality scores."""
+    """Measure materialized configurations over reference runs using normalized quality scores."""
 
-    def evaluate(self, agent: Agent, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
+    def evaluate(self, target: Optimizable, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
         """
-        Measure an Agent over the supplied reference runs.
+        Measure an Agent or Pipeline over the supplied reference runs.
 
-        :param agent: Materialized Agent configuration to evaluate.
+        :param target: Materialized configuration to evaluate.
         :param reference_runs: Successful runs supplying inputs and optional evaluator-specific reference outputs.
         :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
         """

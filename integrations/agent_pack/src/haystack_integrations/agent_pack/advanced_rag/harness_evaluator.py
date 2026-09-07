@@ -280,11 +280,11 @@ class AdvancedRAGHarnessEvaluator:
             )
         )
 
-    def evaluate(self, agent: Agent, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
+    def evaluate(self, target: Agent, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
         """
         Replay every selected run and return raw experiment metrics.
 
-        :param agent: The materialized candidate to score.
+        :param target: The materialized candidate Agent to score.
         :param reference_runs: The successful runs supplying the questions to replay.
         :returns: Fraction of cases passed, raw model usage, and mean latency for the candidate, with per-case detail.
         :raises ValueError: If no reference runs were supplied.
@@ -295,9 +295,9 @@ class AdvancedRAGHarnessEvaluator:
             raise ValueError(msg)
 
         tracer = UsageTracer()
-        agent.warm_up()
+        target.warm_up()
         with tracer.activate():
-            measured = asyncio.run(self._measure(agent=agent, resolved=resolved, tracer=tracer))
+            measured = asyncio.run(self._measure(agent=target, resolved=resolved, tracer=tracer))
 
         flattened = [scored for scored, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}
@@ -311,7 +311,7 @@ class AdvancedRAGHarnessEvaluator:
         quality = sum(metric.passed for metric in flattened) / len(flattened)
         input_tokens = sum(usage.input_tokens for usage in model_usage.values())
         output_tokens = sum(usage.output_tokens for usage in model_usage.values())
-        model_id = getattr(agent.chat_generator, "model", None)
+        model_id = getattr(target.chat_generator, "model", None)
         return EvaluationMetrics(
             quality=quality,
             latency_ms=sum(metric.latency_ms for metric in flattened) / len(flattened),

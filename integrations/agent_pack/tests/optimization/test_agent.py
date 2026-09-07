@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
@@ -69,6 +71,32 @@ def test_optimizer_repairs_yaml_before_submitting(tmp_path):
     assert result is not None
     assert "model: cheap" in result.yaml
     assert len(workspace.validation_failures) == 1
+
+
+def test_the_optimizer_is_told_how_many_measurements_remain(tmp_path):
+    """A submission costs a full pass over the evaluation set, so the budget has to be visible to economize."""
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+    seen = {}
+
+    def respond(messages):
+        seen.update(json.loads(messages[1].text))
+        return ChatMessage.from_assistant("done")
+
+    propose_candidate(
+        optimizer_agent=create_harness_optimizer_agent(
+            chat_generator=MockChatGenerator(response_fn=respond), max_agent_steps=1
+        ),
+        workspace=workspace,
+        reference=Agent(chat_generator=MockChatGenerator()),
+        reference_runs=[],
+        pricing=ModelPriceCatalog([]),
+        objectives=OptimizationObjectives(),
+        baseline=EvaluationMetrics(quality=1, cost=1, latency_ms=1),
+        history=[],
+        remaining_evaluations=3,
+    )
+
+    assert seen["remaining_evaluations"] == 3
 
 
 def test_plain_text_does_not_submit_or_run_forever(tmp_path):

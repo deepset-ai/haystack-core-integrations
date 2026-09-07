@@ -36,14 +36,19 @@ instrumentation before their costs can be compared reliably.
 Run the MultiHopRAG PoC from this integration directory with `OPENAI_API_KEY` configured and `datasets` installed:
 
 ```sh
-hatch run test:python examples/harness_optimization_poc.py --max-cases 1 --max-iterations 1 --holdout-cases 0 --max-concurrent-cases 1
+hatch run test:python examples/harness_optimization_poc.py --max-cases 1 --max-iterations 1 --max-concurrent-cases 1
 ```
 
 Use `--workspace` to separate experiment artifacts, `--config` to supply an editable YAML draft, and `--docs-mcp`
-to enable documentation search. By default, five disjoint held-out cases confirm the selected candidate after the
-search; their outcomes are saved separately and never sent to the optimizer. The lightweight checks measure
-retrieval, answer substrings and citation references, rather than full semantic answer correctness. Metadata
-inspection remains available but is not mandatory for the MultiHopRAG example.
+to enable documentation search. The lightweight checks measure retrieval, answer substrings and citation
+references, rather than full semantic answer correctness. Metadata inspection remains available but is not
+mandatory for the MultiHopRAG example.
+
+Quality is the fraction of cases a candidate passes, and each case is measured once, so the smallest difference
+the measurement can express is `1 / --max-cases`. Agent runs are not deterministic: the same configuration
+re-measured over the same eight cases has scored two and three. Keep `--max-cases` well above the effect worth
+detecting, and leave `--max-quality-loss` at no less than one case, or single-case noise gates out real
+improvements.
 
 ## Contributing
 

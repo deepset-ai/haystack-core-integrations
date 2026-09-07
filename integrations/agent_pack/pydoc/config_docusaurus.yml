@@ -4,11 +4,15 @@ loaders:
       - haystack_integrations.agent_pack.dataclasses
       - haystack_integrations.agent_pack.local_run_store
       - haystack_integrations.agent_pack.harness_evaluator
+      - haystack_integrations.agent_pack.run_digest
+      - haystack_integrations.agent_pack.usage_tracer
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
       - haystack_integrations.agent_pack.advanced_rag.evaluation
       - haystack_integrations.agent_pack.advanced_rag.harness_evaluator
+      - haystack_integrations.agent_pack.retrieval.evaluation
+      - haystack_integrations.agent_pack.retrieval.harness_evaluator
       - haystack_integrations.agent_pack.optimization.models
       - haystack_integrations.agent_pack.optimization.workspace
       - haystack_integrations.agent_pack.optimization.agent

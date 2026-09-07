@@ -1,14 +1,20 @@
 from types import SimpleNamespace
 
 import pytest
-from haystack import Document, tracing
+from haystack import Document, Pipeline, tracing
+from haystack.components.agents import Agent
+from haystack.components.generators.chat import MockChatGenerator
+from haystack.components.rankers import LLMRanker
+from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
     case_from_reference_run,
 )
+from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_pipeline_tool
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
 from haystack_integrations.agent_pack.optimization import ModelPrice, ModelPriceCatalog
 
@@ -104,7 +110,7 @@ def test_evaluator_prices_the_run_from_the_price_catalog(document):
     evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
 
     metrics = catalog().price(
-        metrics=evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
+        metrics=evaluator.evaluate(target=FakeAgent(document), reference_runs=[reference_run(document=document)])
     )
 
     assert metrics.quality == 1.0
@@ -125,7 +131,7 @@ def test_evaluator_includes_secondary_model_usage(document):
         cases=[AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))]
     )
     metrics = catalog().price(
-        metrics=evaluator.evaluate(agent=BackupAgent(document), reference_runs=[reference_run(document=document)])
+        metrics=evaluator.evaluate(target=BackupAgent(document), reference_runs=[reference_run(document=document)])
     )
 
     assert metrics.model_usage["backup"].input_tokens == 7
@@ -138,7 +144,7 @@ def test_unpriced_models_are_reported_without_restricting_evaluation(document):
         cases=[AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))]
     )
     metrics = evaluator.evaluate(
-        agent=FakeAgent(document, model="unknown"), reference_runs=[reference_run(document=document)]
+        target=FakeAgent(document, model="unknown"), reference_runs=[reference_run(document=document)]
     )
     priced = catalog().price(metrics=metrics)
     assert priced.cost is None
@@ -148,7 +154,7 @@ def test_unpriced_models_are_reported_without_restricting_evaluation(document):
 def test_derived_cases_are_reported_as_unvalidated(document):
     """Grounding parity with the incumbent is not a correctness measurement, and must be flagged as such."""
     evaluator = AdvancedRAGHarnessEvaluator()
-    metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
+    metrics = evaluator.evaluate(target=FakeAgent(document), reference_runs=[reference_run(document=document)])
     assert metrics.details["validated"] is False
     assert metrics.details["derived_cases"] == [QUESTION]
 
@@ -161,7 +167,7 @@ def test_every_case_is_measured_once_and_latency_is_their_total(document):
     agent = FakeAgent(document)
 
     metrics = AdvancedRAGHarnessEvaluator(cases=[case]).evaluate(
-        agent=agent, reference_runs=[reference_run(document=document)]
+        target=agent, reference_runs=[reference_run(document=document)]
     )
 
     assert agent.runs == 1
@@ -189,7 +195,7 @@ def test_case_details_carry_the_tool_trace(document):
     evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
     fingerprint = evaluator.fingerprint()
 
-    metrics = evaluator.evaluate(agent=FakeAgent(document), reference_runs=[reference_run(document=document)])
+    metrics = evaluator.evaluate(target=FakeAgent(document), reference_runs=[reference_run(document=document)])
 
     trace = metrics.details["cases"][0]["run_digest"]
     assert [step["tool"] for step in trace["tool_steps"]] == ["list_metadata_fields", "search_documents"]
@@ -216,7 +222,7 @@ def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(documen
     case = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
     evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
 
-    metrics = evaluator.evaluate(agent=CutOffAgent(document), reference_runs=[reference_run(document=document)])
+    metrics = evaluator.evaluate(target=CutOffAgent(document), reference_runs=[reference_run(document=document)])
 
     assert metrics.details["cases"][0]["backup_answer_used"] is True
 
@@ -229,10 +235,10 @@ def test_traces_are_dropped_from_passing_cases_before_failing_ones(document):
     passing = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
 
     failing_metrics = AdvancedRAGHarnessEvaluator(cases=[failing]).evaluate(
-        agent=FakeAgent(document), reference_runs=[reference_run(document=document)]
+        target=FakeAgent(document), reference_runs=[reference_run(document=document)]
     )
     passing_metrics = AdvancedRAGHarnessEvaluator(cases=[passing], max_traced_cases=0).evaluate(
-        agent=FakeAgent(document), reference_runs=[reference_run(document=document)]
+        target=FakeAgent(document), reference_runs=[reference_run(document=document)]
     )
 
     assert failing_metrics.details["cases"][0]["passed"] is False
@@ -261,10 +267,10 @@ def test_cases_measured_concurrently_are_reported_in_case_order(document):
     ]
 
     sequential = AdvancedRAGHarnessEvaluator(cases=cases, max_concurrent_cases=1).evaluate(
-        agent=MultiQuestionAgent(document), reference_runs=runs
+        target=MultiQuestionAgent(document), reference_runs=runs
     )
     concurrent = AdvancedRAGHarnessEvaluator(cases=cases, max_concurrent_cases=4).evaluate(
-        agent=MultiQuestionAgent(document), reference_runs=runs
+        target=MultiQuestionAgent(document), reference_runs=runs
     )
 
     assert concurrent.quality == sequential.quality
@@ -281,15 +287,6 @@ def test_concurrency_must_be_positive():
 
 
 def test_renamed_pipeline_tool_keeps_budget_and_nested_ranker_usage(document):
-    from haystack import Pipeline
-    from haystack.components.agents import Agent
-    from haystack.components.generators.chat import MockChatGenerator
-    from haystack.components.rankers import LLMRanker
-    from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
-    from haystack.document_stores.in_memory import InMemoryDocumentStore
-
-    from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_pipeline_tool
-
     store = InMemoryDocumentStore()
     store.write_documents([document])
     pipeline = Pipeline()

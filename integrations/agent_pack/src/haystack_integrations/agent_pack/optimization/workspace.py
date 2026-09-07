@@ -42,11 +42,22 @@ class _ReadableYamlMarshaller(YamlMarshaller):
         return yaml.dump(dict_, Dumper=_ReadableDumper, allow_unicode=True, width=120)
 
 
+# What an experiment optimizes. Both are serialized as one Haystack Pipeline YAML and expose the same
+# `warm_up`/`close` lifecycle, so the experiment loop treats them alike; an Agent is the special case that is
+# wrapped in a one-component Pipeline to be serialized at all.
+Optimizable = Agent | Pipeline
+
+
+def dump_pipeline(pipeline: Pipeline) -> str:
+    """Emit readable Haystack Pipeline YAML."""
+    return pipeline.dumps(marshaller=_ReadableYamlMarshaller())
+
+
 def dump_agent(agent: Agent) -> str:
     """Wrap an independent copy of the Agent and emit readable Haystack Pipeline YAML."""
     pipeline = Pipeline()
     pipeline.add_component("agent", agent.clone())
-    return pipeline.dumps(marshaller=_ReadableYamlMarshaller())
+    return dump_pipeline(pipeline=pipeline)
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):
@@ -64,13 +75,21 @@ def configuration_id(text: str) -> str:
     return content_digest(json.dumps(yaml.load(text, Loader=_UniqueKeyLoader), sort_keys=True))  # noqa: S506
 
 
+def load_pipeline(text: str) -> Pipeline:
+    """Load a Pipeline using Haystack's deserialization security, rejecting duplicate keys first."""
+    # Parsed twice on purpose: Haystack's own loader accepts a repeated key and keeps the last one, which would
+    # silently discard an edit the optimizer believes it made.
+    yaml.load(text, Loader=_UniqueKeyLoader)  # noqa: S506 - SafeLoader subclass
+    return Pipeline.loads(text)
+
+
 def load_agent(text: str) -> Agent:
     """Load an Agent from its one-component Pipeline using Haystack's deserialization security."""
     data = yaml.load(text, Loader=_UniqueKeyLoader)  # noqa: S506 - SafeLoader subclass
     if not isinstance(data, dict) or set(data.get("components", {})) != {"agent"} or data.get("connections"):
         msg = "The outer Pipeline must contain exactly one component named 'agent' and no connections."
         raise ValueError(msg)
-    agent = Pipeline.loads(text).get_component("agent")
+    agent = load_pipeline(text).get_component("agent")
     if not isinstance(agent, Agent):
         msg = "The 'agent' component must be a Haystack Agent."
         raise ValueError(msg)
@@ -91,13 +110,21 @@ class CandidateConfiguration:
 class ConfigurationWorkspace:
     """Tools are bound to one file; snapshots and the reference are owned by the runner."""
 
-    def __init__(self, path: str | Path, reference_yaml: str, validator: Callable[[Agent], None] | None = None) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        reference_yaml: str,
+        validator: Callable[[Optimizable], None] | None = None,
+        loader: Callable[[str], Optimizable] = load_agent,
+    ) -> None:
         """
         Use an existing YAML draft, or initialize a new file from the reference.
 
         :param path: The only file the editing tools can write.
-        :param reference_yaml: Reference Agent wrapped in a Pipeline.
+        :param reference_yaml: The reference configuration, as one Pipeline YAML document.
         :param validator: Optional evaluator-specific check after deserialization.
+        :param loader: Builds the configuration from YAML, and decides what shape a candidate must keep. Defaults
+            to the Agent contract; pass `load_pipeline` to optimize a Pipeline that is not a single Agent.
         """
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,6 +132,7 @@ class ConfigurationWorkspace:
             with self.path.open("x", encoding="utf-8") as stream:
                 stream.write(reference_yaml)
         self._read()
+        self.loader = loader
         self.reference_id = configuration_id(reference_yaml)
         self.snapshots = {self.reference_id: reference_yaml}
         self.parent_id = self.reference_id
@@ -164,13 +192,16 @@ class ConfigurationWorkspace:
             revision = content_digest(text)
             self.validated_revision = None
             try:
-                agent = load_agent(text)
+                loaded = self.loader(text)
                 try:
                     if self.validator is not None:
-                        self.validator(agent)
-                    specs = [item.tool_spec for item in flatten_tools_or_toolsets(agent.tools)]
+                        self.validator(loaded)
+                    # A Pipeline that is not an Agent has no tools, and reporting an empty list is the honest
+                    # answer rather than a missing key the reader has to interpret.
+                    tools = getattr(loaded, "tools", None) or []
+                    specs = [item.tool_spec for item in flatten_tools_or_toolsets(tools)]
                 finally:
-                    agent.close()
+                    loaded.close()
             except Exception as error:
                 failure = {"revision": revision, "error": f"{type(error).__name__}: {error}"}
                 self.validation_failures.append(failure)
