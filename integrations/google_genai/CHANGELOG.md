@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v5.0.0] - 2026-09-07
+
+### 🚀 Features
+
+- [**breaking**] Google GenAI - add lifecycle handling (#3915)
+
+
 ## [integrations/google_genai-v4.9.0] - 2026-09-04
 
 ### 🚀 Features
