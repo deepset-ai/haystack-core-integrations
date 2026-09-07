@@ -1,3 +1,4 @@
+import json
 from copy import deepcopy
 
 import pytest
@@ -99,3 +100,30 @@ def test_mutation_fingerprint_is_stable_and_value_sensitive():
     other = AgentMutation(operations=(MutationOperation(op="set", path="/x", value=2),))
     assert first.fingerprint() == same.fingerprint()
     assert first.fingerprint() != other.fingerprint()
+
+
+def test_set_json_replaces_a_component_with_a_differently_shaped_one():
+    """Retuning a component is one operation; replacing it with a pipeline has to be one too."""
+    reference = reference_agent()
+    pipeline_tool = {
+        "type": "haystack.tools.PipelineTool",
+        "data": {"name": "search_documents", "description": "Retrieve then rerank.", "pipeline": {"components": {}}},
+    }
+    mutation = AgentMutation(
+        operations=(MutationOperation(op="set_json", path="/init_parameters/tools/0", value=json.dumps(pipeline_tool)),)
+    )
+
+    changed = apply_mutation(serialized_agent=reference.to_dict(), mutation=mutation)
+
+    assert changed["init_parameters"]["tools"][0] == pipeline_tool
+    assert changed["init_parameters"]["tools"][0]["data"]["name"] == "search_documents"
+
+
+def test_set_json_rejects_text_that_is_not_json_and_values_that_are_not_text():
+    """A subtree written as text has to be text, and has to parse, or the failure is silent corruption."""
+    with pytest.raises(ValidationError, match="JSON string"):
+        MutationOperation(op="set_json", path="/x", value=3)
+
+    broken = AgentMutation(operations=(MutationOperation(op="set_json", path="/x", value="{not json"),))
+    with pytest.raises(ValueError, match="invalid JSON"):
+        apply_mutation(serialized_agent={"x": 1}, mutation=broken)

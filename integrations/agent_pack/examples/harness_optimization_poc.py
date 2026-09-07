@@ -92,6 +92,17 @@ Retrieval has two independent paths with separate limits. `search_documents` ran
 the retriever's own `top_k`. `fetch_documents_by_filter` returns an exact filtered set and refuses outright when the
 filter matches more documents than its own per-fetch limit allows. Evaluation cases state how many matching documents
 an answer needs, some require the complete filtered set, and each case budgets its metadata and retrieval calls.
+
+A case can require evidence that is spread across several documents, and one query phrased for the whole question
+will tend to surface the documents that share its wording and miss the rest. A retrieval budget therefore does not
+have to be spent on one broad search: it can be spent on one search per piece of evidence the question asks for,
+each phrased for that piece. Retrieving too little and retrieving loosely are separate failures, and the case
+reports which one occurred.
+
+The retrieval tool itself is part of the configuration and can be replaced, not only retuned. It is a single
+keyword retriever, which ranks by wording alone; a tool backed by a retrieval pipeline could retrieve a wider
+candidate set and then rank it by something else. Confirm what such a pipeline serializes to, and which components
+this environment can actually import, before spending a measurement on one.
 """.strip()
 
 # The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the

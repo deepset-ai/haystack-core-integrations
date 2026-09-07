@@ -4,6 +4,7 @@
 
 """Structured operations that can change any serialized Agent configuration."""
 
+import json
 from copy import deepcopy
 from typing import Any, Literal, Self, TypeAlias
 
@@ -20,7 +21,7 @@ class MutationOperation(BaseModel):
     """One flat, strict-schema-compatible operation over an Agent configuration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    op: Literal["set", "create_object", "create_array", "remove", "copy"]
+    op: Literal["set", "set_json", "create_object", "create_array", "remove", "copy"]
     path: str
     value: ScalarValue = None
     from_path: str | None = None
@@ -34,8 +35,11 @@ class MutationOperation(BaseModel):
         if self.op != "copy" and self.from_path is not None:
             msg = f"A {self.op} operation must set from_path to null."
             raise ValueError(msg)
-        if self.op != "set" and self.value is not None:
+        if self.op not in ("set", "set_json") and self.value is not None:
             msg = f"A {self.op} operation must set value to null."
+            raise ValueError(msg)
+        if self.op == "set_json" and not isinstance(self.value, str):
+            msg = "A set_json operation requires value to be a JSON string."
             raise ValueError(msg)
         return self
 
@@ -163,6 +167,15 @@ def apply_mutation(serialized_agent: dict[str, Any], mutation: AgentMutation) ->
     for operation in mutation.operations:
         if operation.op == "set":
             changed = _write(root=changed, path=operation.path, value=operation.value)
+        elif operation.op == "set_json":
+            # One operation writes a whole subtree, which is what replacing a component with a differently shaped
+            # one takes. The value travels as text so the decision schema stays a strict one.
+            try:
+                decoded = json.loads(str(operation.value))
+            except json.JSONDecodeError as error:
+                msg = f"A set_json operation at {operation.path} carried invalid JSON: {error}"
+                raise ValueError(msg) from error
+            changed = _write(root=changed, path=operation.path, value=decoded)
         elif operation.op == "create_object":
             changed = _write(root=changed, path=operation.path, value={})
         elif operation.op == "create_array":

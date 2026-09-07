@@ -5,8 +5,10 @@
 """The Agent that chooses optimization experiments and the requests made to it."""
 
 import json
+from importlib.metadata import distributions
 from typing import TYPE_CHECKING, Any
 
+from haystack import __version__ as haystack_version
 from haystack import logging
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
@@ -57,6 +59,13 @@ or how it describes itself, and removing one withdraws the tool entirely, so its
 stop being sent to the model on every step. A tool the Agent does not need is therefore a cost as well as a choice,
 and instructing the Agent in its prompt to avoid a tool leaves that cost in place.
 
+`set_json` writes a whole subtree from JSON text in one operation, so a component can be replaced by a differently
+shaped one rather than only retuned. A tool backed by a single component can become one backed by a retrieval
+pipeline, for instance, by writing that pipeline's serialized form in place of the component's. Such a change
+succeeds only if every type it names can be imported and constructed in this environment, so confirm the shape of
+what you are writing with the documentation tools before spending a measurement on it; a configuration that cannot
+be rebuilt is reported back to you as a failed candidate.
+
 Quality is a hard gate. Optimize the requested primary measurement only among candidates likely to preserve quality.
 Known prices are informational rather than an allowlist: you may select other models, but their measured cost cannot be
 ranked until pricing is supplied. Use documentation tools before changing an unfamiliar component path or provider
@@ -96,7 +105,8 @@ def create_harness_optimizer_agent(
 
     :param chat_generator: Generator used to reason about experiment results and propose configuration changes.
     :param docs_toolset: Optional Haystack documentation tools available to the Agent.
-    :param system_prompt: Optional replacement for the default optimizer instructions.
+    :param system_prompt: Optional replacement for the default optimizer instructions. What this environment has
+        installed is appended either way, since it constrains every configuration the optimizer can propose.
     :param additional_instructions: Guidance appended to the instructions, for what a good configuration looks like
         in one specific harness. The instructions themselves stay free of any assumption about what the reference
         Agent does, so domain knowledge belongs here rather than in a rewritten replacement.
@@ -104,6 +114,7 @@ def create_harness_optimizer_agent(
     :returns: The configured optimizer Agent.
     """
     instructions = system_prompt or HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    instructions = f"{instructions}\n\n{describe_environment()}"
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n{additional_instructions.strip()}"
     # The mid-priced model rather than the top one: an optimizer turn reads a large assembled request, and input
@@ -131,6 +142,31 @@ def create_harness_optimizer_agent(
         system_prompt=instructions,
         exit_conditions=["text"],
         max_agent_steps=max_agent_steps,
+    )
+
+
+def describe_environment() -> str:
+    """
+    Describe what an experiment can actually import, as a line for the optimizer's instructions.
+
+    A configuration is only worth measuring if it can be rebuilt, and whether it can depends on what is installed
+    here rather than on what exists. Naming the Haystack version and the integrations present turns a guess about
+    availability into a fact the optimizer already has, and a candidate that cannot be constructed costs a whole
+    measurement to discover.
+
+    :returns: A sentence naming the Haystack version and every installed Haystack integration.
+    """
+    integrations = sorted(
+        f"{distribution.metadata['Name']} {distribution.version}"
+        for distribution in distributions()
+        if "haystack" in (distribution.metadata["Name"] or "").lower()
+        and distribution.metadata["Name"] != "haystack-ai"
+    )
+    installed = ", ".join(integrations) if integrations else "none"
+    return (
+        f"This environment runs Haystack {haystack_version} and has these Haystack integrations installed: "
+        f"{installed}. Anything a configuration names has to be importable from those; nothing else is available, "
+        f"however well it would suit the experiment."
     )
 
 

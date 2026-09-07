@@ -23,6 +23,7 @@ from haystack_integrations.agent_pack.optimization import (
 from haystack_integrations.agent_pack.optimization.agent import (
     HARNESS_OPTIMIZER_SYSTEM_PROMPT,
     OPTIMIZER_PROMPT_CACHE_KEY,
+    describe_environment,
 )
 
 
@@ -95,7 +96,8 @@ def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):
     default = create_harness_optimizer_agent()
     assert isinstance(default.chat_generator, OpenAIResponsesChatGenerator)
     assert default.chat_generator.model == "gpt-5.6-terra"
-    assert default.system_prompt == HARNESS_OPTIMIZER_SYSTEM_PROMPT
+    assert default.system_prompt is not None
+    assert default.system_prompt.startswith(HARNESS_OPTIMIZER_SYSTEM_PROMPT)
 
     @tool
     def search_haystack_docs(query: str) -> str:
@@ -107,13 +109,34 @@ def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):
     assert with_docs.tools == [docs]
 
 
+def test_instructions_name_what_this_environment_can_import():
+    """A configuration is only worth measuring if it can be rebuilt here, which depends on what is installed."""
+    described = describe_environment()
+    assert "Haystack" in described
+    # Whatever is installed alongside Haystack is named with its version; agent_pack itself always is.
+    assert "agent-pack-haystack" in described
+    assert "haystack-ai" not in described
+
+    agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator("{}"))
+    assert agent.system_prompt is not None
+    assert described in agent.system_prompt
+    # It survives a replacement of the instructions, because it constrains what any of them can propose.
+    replaced = create_harness_optimizer_agent(
+        chat_generator=MockChatGenerator("{}"), system_prompt="Only these rules apply."
+    )
+    assert replaced.system_prompt is not None
+    assert described in replaced.system_prompt
+
+
 def test_domain_guidance_extends_rather_than_replaces_the_optimizer_instructions():
     """A harness can teach the optimizer about its own Agent without rewriting the mutation instructions."""
     guided = create_harness_optimizer_agent(
         chat_generator=MockChatGenerator("{}"), additional_instructions="  Keep top_k above the case minimum.  "
     )
     assert guided.system_prompt is not None
+    # Instructions, then what this environment can import, then the harness's own guidance.
     assert guided.system_prompt.startswith(HARNESS_OPTIMIZER_SYSTEM_PROMPT)
+    assert describe_environment() in guided.system_prompt
     assert guided.system_prompt.endswith("\n\nKeep top_k above the case minimum.")
 
     replaced = create_harness_optimizer_agent(
@@ -121,7 +144,9 @@ def test_domain_guidance_extends_rather_than_replaces_the_optimizer_instructions
         system_prompt="Only these rules apply.",
         additional_instructions="Keep top_k above the case minimum.",
     )
-    assert replaced.system_prompt == "Only these rules apply.\n\nKeep top_k above the case minimum."
+    assert replaced.system_prompt is not None
+    assert replaced.system_prompt.startswith("Only these rules apply.")
+    assert replaced.system_prompt.endswith("\n\nKeep top_k above the case minimum.")
 
 
 def test_haystack_documentation_mcp_server_is_read_only_and_lazy():
@@ -140,11 +165,15 @@ def test_optimizer_decision_converts_to_a_provider_strict_schema():
     assert "oneOf" not in operation_schema
     assert operation_schema["properties"]["op"]["enum"] == [
         "set",
+        "set_json",
         "create_object",
         "create_array",
         "remove",
         "copy",
     ]
+    # `set_json` carries a subtree as text precisely so the schema stays strict: an arbitrary object could not be
+    # expressed here, but a string can.
+    assert operation_schema["properties"]["value"]["anyOf"][0] == {"type": "string"}
 
 
 def test_propose_mutation_returns_one_typed_mutation_or_stops():
