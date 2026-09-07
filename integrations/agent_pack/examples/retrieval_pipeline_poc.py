@@ -94,12 +94,14 @@ retrieval and the pipeline's `documents` output. Find which ones this environmen
 serializes to and what its inputs are called, and remember that a ranker driven by a model needs a query as well
 as the documents.
 
-Merging the results of several queries is where this goes wrong quietly. A keyword retriever's score is a property
-of the query that produced it, not a scale shared between queries, so pooling per-query results and sorting them
-by score produces an order that means nothing, and keeping the best few of that order is close to keeping an
-arbitrary few. Reciprocal rank fusion is the standard answer: it merges on each document's rank within its own
-result list, which is comparable across queries, and it is what a joiner should be asked for when several queries
-feed one output. Anything that trims a pooled result set has to settle this question one way or the other.
+Merging the results of several queries is where this goes wrong quietly, and it decides which kind of ranking is
+worth adding. A keyword retriever's score is a property of the query that produced it, not a scale shared between
+queries, so an order produced by pooling per-query results and sorting them by score means little, and taking the
+best few of that order is close to taking an arbitrary few. Reciprocal rank fusion is the standard answer to that
+problem, but it merges on each document's rank within its own result list and therefore needs those lists kept
+apart. Check whether the retrieval in this configuration keeps them apart or pools them before anything downstream
+sees them: if they are already pooled, a joiner placed after it can only deduplicate and trim, and the way to
+improve the returned subset is to rank it on something other than those scores.
 
 The retrieval path is part of the configuration and can be restructured, not only retuned. A keyword retriever
 ranks by wording alone; a wider candidate set that is then reranked by something else is a different mechanism,
