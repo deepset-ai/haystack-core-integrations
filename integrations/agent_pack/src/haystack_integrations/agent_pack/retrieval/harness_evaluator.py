@@ -16,6 +16,7 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging
 
+from haystack_integrations.agent_pack.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.retrieval.evaluation import (
     RetrievalCaseMetrics,
@@ -231,7 +232,7 @@ class RetrievalHarnessEvaluator:
 
         tracer = UsageTracer()
         target.warm_up()
-        with tracer.activate():
+        with ComponentLogCollector().collect() as diagnostics, tracer.activate():
             measured = asyncio.run(self._measure(target=target, resolved=resolved, tracer=tracer))
 
         scored = [metric for metric, _ in measured]
@@ -258,6 +259,9 @@ class RetrievalHarnessEvaluator:
                 "mean_precision": sum(metric.precision for metric in scored) / len(scored),
                 "mean_retrieved": sum(metric.retrieved for metric in scored) / len(scored),
                 "mean_queries": sum(len(metric.queries) for metric in scored) / len(scored),
+                # What the components said about themselves. A component that degrades rather than failing keeps
+                # the run alive and reports it only here, so a score with no explanation gets one.
+                "warnings": diagnostics.to_list(),
                 "cases": cases,
             },
         )

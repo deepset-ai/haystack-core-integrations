@@ -153,20 +153,41 @@ def test_raw_usage_is_journaled_before_pricing(tmp_path):
     assert result.recommendation.evaluation.metrics.cost == 2
 
 
-def test_unknown_or_incomplete_usage_cannot_win_on_cost(tmp_path):
-    for details in ({}, {"usage_complete": False}):
-        evaluator = ModelEvaluator(
-            metrics={
-                "reference": EvaluationMetrics(quality=1, cost=10, latency_ms=100),
-                "unknown": EvaluationMetrics(
-                    quality=1, latency_ms=90, details=details, model_usage={"unknown": ModelTokenUsage(input_tokens=10)}
-                ),
-            }
+def unmeasurable(details):
+    """A candidate whose usage cannot be accounted for, for the stated reason."""
+    return ModelEvaluator(
+        metrics={
+            "reference": EvaluationMetrics(quality=1, cost=10, latency_ms=100),
+            "unknown": EvaluationMetrics(
+                quality=1, latency_ms=90, details=details, model_usage={"unknown": ModelTokenUsage(input_tokens=10)}
+            ),
+        }
+    )
+
+
+def test_an_unpriced_model_cannot_win_on_cost(tmp_path):
+    experiment, _ = configured(tmp_path, ["unknown", None], unmeasurable({}))
+
+    result = experiment.run()
+
+    assert result.recommendation is None
+    assert result.gate_failures[result.candidates[0].candidate_id] == ("cost_unavailable",)
+
+
+def test_incomplete_usage_cannot_win_on_any_objective(tmp_path):
+    """Usage a harness could not account for is what a silently swallowed component failure looks like."""
+    for primary in ("cost", "quality", "latency"):
+        experiment, _ = configured(
+            tmp_path,
+            ["unknown", None],
+            unmeasurable({"usage_complete": False}),
+            objectives=OptimizationObjectives(min_quality=0.8, primary=primary),
         )
-        experiment, _ = configured(tmp_path, ["unknown", None], evaluator)
+
         result = experiment.run()
+
         assert result.recommendation is None
-        assert result.gate_failures[result.candidates[0].candidate_id] == ("cost_unavailable",)
+        assert result.gate_failures[result.candidates[0].candidate_id] == ("usage_incomplete",)
 
 
 def test_repeated_experiments_have_separate_journals(tmp_path):

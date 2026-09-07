@@ -133,3 +133,65 @@ def test_an_unlabelled_question_is_refused_rather_than_scored(store):
     other = [AgentRunRecord(run_id="case-0", inputs={"query": "something else"}, outputs={})]
     with pytest.raises(ValueError, match="No labelled retrieval case"):
         RetrievalHarnessEvaluator(cases=[case(store)]).evaluate(target=retrieval_pipeline(store), reference_runs=other)
+
+
+def test_returning_most_of_the_corpus_is_charged_against_a_document_budget(store):
+    """Recall on its own is maximized by returning everything; the budget is what makes the answer set matter."""
+    metrics = RetrievalHarnessEvaluator(cases=[case(store, max_retrieved=1)]).evaluate(
+        target=retrieval_pipeline(store, top_k=2), reference_runs=runs()
+    )
+
+    assert metrics.quality == 0.0
+    assert any(f.startswith("retrieved_over_budget:") for f in metrics.details["cases"][0]["failures"])
+
+
+def test_ranking_a_wide_candidate_set_down_satisfies_the_document_budget(store):
+    """The cap is on what the pipeline returns, so widening then reranking complies while widening alone does not."""
+    wide = retrieval_pipeline(store, top_k=2)
+    wide_metrics = RetrievalHarnessEvaluator(cases=[case(store, max_retrieved=1)]).evaluate(
+        target=wide, reference_runs=runs()
+    )
+
+    ranked = Pipeline()
+    ranked.add_component("expander", QueryExpander(chat_generator=MockChatGenerator(EXPANSION), n_expansions=2))
+    ranked.add_component(
+        "retriever", MultiQueryTextRetriever(retriever=InMemoryBM25Retriever(document_store=store, top_k=2))
+    )
+    ranked.add_component(
+        "ranker", LLMRanker(chat_generator=MockChatGenerator('{"documents": [{"index": 1}]}'), top_k=1)
+    )
+    ranked.connect("expander.queries", "retriever.queries")
+    ranked.connect("retriever.documents", "ranker.documents")
+    ranked_metrics = RetrievalHarnessEvaluator(cases=[case(store, max_retrieved=1)]).evaluate(
+        target=ranked, reference_runs=runs()
+    )
+
+    assert wide_metrics.details["cases"][0]["retrieved"] > 1
+    assert ranked_metrics.details["cases"][0]["retrieved"] == 1
+    assert not any(f.startswith("retrieved_over_budget:") for f in ranked_metrics.details["cases"][0]["failures"])
+
+
+def test_a_component_that_degrades_instead_of_failing_is_reported(store):
+    """The exact case that scored as an improvement while its ranker was returning documents unranked."""
+
+    def explode(*_args, **_kwargs):
+        message = "Error code: 400 - temperature does not support 0.0 with this model"
+        raise RuntimeError(message)
+
+    pipeline = Pipeline()
+    pipeline.add_component("expander", QueryExpander(chat_generator=MockChatGenerator(EXPANSION), n_expansions=2))
+    pipeline.add_component(
+        "retriever", MultiQueryTextRetriever(retriever=InMemoryBM25Retriever(document_store=store, top_k=2))
+    )
+    # raise_on_failure is False by default, which is what makes the failure invisible to the score.
+    pipeline.add_component("ranker", LLMRanker(chat_generator=MockChatGenerator(response_fn=explode), top_k=1))
+    pipeline.connect("expander.queries", "retriever.queries")
+    pipeline.connect("retriever.documents", "ranker.documents")
+
+    metrics = RetrievalHarnessEvaluator(cases=[case(store)]).evaluate(target=pipeline, reference_runs=runs())
+
+    warnings = metrics.details["warnings"]
+    assert any("LLMRanker failed during chat generation" in entry["message"] for entry in warnings)
+    assert any("temperature does not support 0.0" in entry["message"] for entry in warnings)
+    # The ranker returned its input untouched, so the run looks ordinary to every other measurement.
+    assert metrics.details["cases"][0]["retrieved"] > 1

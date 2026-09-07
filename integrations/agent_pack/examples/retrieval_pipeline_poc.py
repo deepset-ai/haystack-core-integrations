@@ -83,6 +83,24 @@ surface only the documents that share its wording. Expansion buys recall with mo
 set buys it with precision; the case reports recall and precision separately, and names the documents that were
 missed, so the two are distinguishable.
 
+Each case also limits how many documents the pipeline may return. The limit is on what comes out, not on what the
+pipeline looks at, so past a certain point recall cannot be bought by widening: what is returned has to be the
+right subset of whatever was considered.
+
+Once that limit binds, the way past it is to stop treating those two things as the same. Retrieve a wide candidate
+set, then rank it and return only the best of it: the limit applies to the ranked output, while the candidate set
+behind it can be as wide as recall needs. Haystack ships ranker components for exactly this, placed between
+retrieval and the pipeline's `documents` output. Find which ones this environment can import, confirm what one
+serializes to and what its inputs are called, and remember that a ranker driven by a model needs a query as well
+as the documents.
+
+Merging the results of several queries is where this goes wrong quietly. A keyword retriever's score is a property
+of the query that produced it, not a scale shared between queries, so pooling per-query results and sorting them
+by score produces an order that means nothing, and keeping the best few of that order is close to keeping an
+arbitrary few. Reciprocal rank fusion is the standard answer: it merges on each document's rank within its own
+result list, which is comparable across queries, and it is what a joiner should be asked for when several queries
+feed one output. Anything that trims a pooled result set has to settle this question one way or the other.
+
 The retrieval path is part of the configuration and can be restructured, not only retuned. A keyword retriever
 ranks by wording alone; a wider candidate set that is then reranked by something else is a different mechanism,
 not a bigger version of the same one. Confirm what any component you introduce serializes to, and that this
@@ -189,6 +207,15 @@ def parse_args() -> argparse.Namespace:
         default=6,
         help="Per-case cap on issued queries. Without one, expanding without limit is the cheapest way to pass.",
     )
+    parser.add_argument(
+        "--max-retrieved",
+        type=int,
+        default=10,
+        help="Per-case cap on documents the pipeline may return. Recall on its own is maximized by returning most "
+        "of the corpus, and this harness generates no answer, so nothing downstream makes that expensive. The cap "
+        "applies to the pipeline's output rather than to its candidate set, so widening and then ranking down "
+        "still satisfies it.",
+    )
     parser.add_argument("--min-quality", type=float, default=0.0)
     parser.add_argument(
         "--max-quality-loss",
@@ -245,6 +272,7 @@ def main() -> None:
             question=case.question,
             expected_document_ids=case.expected_document_ids,
             max_queries=arguments.max_queries,
+            max_retrieved=arguments.max_retrieved,
         )
         for case in labelled
     ]
@@ -252,7 +280,10 @@ def main() -> None:
     print(f"  cases: {len(cases)} labelled from evidence, expecting {expected} documents in total")
 
     reference = build_reference_pipeline(store=store, model=arguments.expander_model)
-    print(f"  reference: n_expansions={POOR_EXPANSIONS} top_k={POOR_TOP_K} model={arguments.expander_model}")
+    print(
+        f"  reference: n_expansions={POOR_EXPANSIONS} top_k={POOR_TOP_K} model={arguments.expander_model}; "
+        f"budgets: {arguments.max_queries} queries and {arguments.max_retrieved} documents per case"
+    )
 
     # A retrieval run replays only its question, so the store records that rather than a captured pipeline run:
     # unlike an Agent harness, there is no tool trace worth keeping and nothing about the reference's behaviour

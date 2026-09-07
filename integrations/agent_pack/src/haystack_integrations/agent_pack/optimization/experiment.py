@@ -415,7 +415,12 @@ class HarnessOptimizationExperiment:
         # 0.15000000000000002, which rejects a candidate measuring 0.15 while the report prints both as "0.1500".
         if candidate_quality < floor and not isclose(candidate_quality, floor, rel_tol=1e-9, abs_tol=1e-12):
             failures.append(f"quality_below_floor:{floor:.4f}")
-        if self.objectives.primary == "cost" and candidate.metrics.cost is None:
+        # Usage a harness could not account for means a model call was observed and produced nothing measurable,
+        # which is what a silently swallowed component failure looks like from here. Such a candidate is not
+        # describing its own behaviour, whatever it scored, so it cannot win on any objective.
+        if candidate.metrics.details.get("usage_complete") is False:
+            failures.append("usage_incomplete")
+        elif self.objectives.primary == "cost" and candidate.metrics.cost is None:
             failures.append("cost_unavailable")
         return tuple(failures)
 

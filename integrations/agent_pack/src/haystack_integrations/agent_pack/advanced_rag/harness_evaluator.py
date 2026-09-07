@@ -30,6 +30,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     GetMetadataFieldValuesTool,
     ListMetadataFieldsTool,
 )
+from haystack_integrations.agent_pack.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
 from haystack_integrations.agent_pack.usage_tracer import CaseUsage, UsageTracer
@@ -296,7 +297,7 @@ class AdvancedRAGHarnessEvaluator:
 
         tracer = UsageTracer()
         target.warm_up()
-        with tracer.activate():
+        with ComponentLogCollector().collect() as diagnostics, tracer.activate():
             measured = asyncio.run(self._measure(agent=target, resolved=resolved, tracer=tracer))
 
         flattened = [scored for scored, _ in measured]
@@ -322,6 +323,9 @@ class AdvancedRAGHarnessEvaluator:
                 "mean_recall": sum(metric.recall for metric in flattened) / len(flattened),
                 "mean_precision": sum(metric.precision for metric in flattened) / len(flattened),
                 "answer_pass_rate": sum(metric.answer_requirements_met for metric in flattened) / len(flattened),
+                # What the components said about themselves while they ran; a tool or hook that degrades rather
+                # than failing reports it only here.
+                "warnings": diagnostics.to_list(),
                 "validated": not derived,
                 "derived_cases": derived,
                 "cases": self._traced_cases(metrics=flattened),

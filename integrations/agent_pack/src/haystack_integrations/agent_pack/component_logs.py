@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Collect what the components themselves reported while a configuration was measured.
+
+A measurement says how a configuration scored; it does not say whether the configuration did what it was written
+to do. A component that swallows a failure keeps the run alive and reports the fact to a logger nobody is reading:
+`LLMRanker` returns its documents in the order it received them, and the only evidence that no ranking happened is
+a warning. Measured against a live model, a candidate in exactly that state scored as an improvement.
+
+So the logs are part of the evidence. What a component says when it degrades is usually the precise remedy — an
+unsupported parameter names itself — and it reaches the optimizer alongside the score it explains.
+"""
+
+import logging
+from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from threading import Lock
+from typing import Any
+
+# The trees worth listening to. Component diagnostics live under `haystack`; this pack's own harnesses log their
+# progress under `haystack_integrations`, and a candidate may be built from an integration's components too.
+DEFAULT_LOGGERS = ("haystack", "haystack_integrations")
+
+# One record's rendered message is kept in full up to this length. A component that names an unsupported parameter
+# or a failed request says so early, and the remainder is usually a provider's serialized error envelope.
+MAX_MESSAGE_CHARS = 400
+
+# Distinct messages kept. A configuration that warns in more shapes than this is broken in a way the first few
+# already explain, and the count of what was dropped is reported rather than the messages.
+MAX_DISTINCT_MESSAGES = 12
+
+
+@dataclass
+class CollectedLogs:
+    """Distinct diagnostics emitted during one evaluation, with how often each occurred."""
+
+    counts: Counter[tuple[str, str, str]] = field(default_factory=Counter)
+    dropped: int = 0
+    lock: Lock = field(default_factory=Lock, repr=False)
+
+    def add(self, level: str, logger_name: str, message: str) -> None:
+        """
+        Record one diagnostic, collapsing repeats of the same message.
+
+        :param level: The record's level name.
+        :param logger_name: The logger that emitted it.
+        :param message: The rendered message.
+        """
+        key = (level, logger_name, message[:MAX_MESSAGE_CHARS])
+        with self.lock:
+            if key not in self.counts and len(self.counts) >= MAX_DISTINCT_MESSAGES:
+                self.dropped += 1
+                return
+            self.counts[key] += 1
+
+    def to_list(self) -> list[dict[str, Any]]:
+        """
+        Return the diagnostics as JSON-compatible records, most frequent first.
+
+        :returns: One entry per distinct message, carrying its level, logger, text and count.
+        """
+        with self.lock:
+            return [
+                {"level": level, "logger": logger_name, "message": message, "count": count}
+                for (level, logger_name, message), count in self.counts.most_common()
+            ]
+
+
+class _CollectingHandler(logging.Handler):
+    def __init__(self, logs: CollectedLogs) -> None:
+        super().__init__(level=logging.WARNING)
+        self.logs = logs
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Record one rendered message, never letting a logging failure disturb the run being measured."""
+        try:
+            self.logs.add(level=record.levelname, logger_name=record.name, message=record.getMessage())
+        except Exception:
+            self.handleError(record)
+
+
+class ComponentLogCollector:
+    """
+    Capture warnings and errors the measured components emit, for the duration of one evaluation.
+
+    Collection is per evaluation rather than per case. Retrieval components hand work to a thread pool, and a
+    context-local collector would silently lose whatever those threads reported; a reader also wants to know that
+    a component degraded and how often, not which question it happened on.
+    """
+
+    def __init__(self, logger_names: tuple[str, ...] = DEFAULT_LOGGERS) -> None:
+        """
+        Create a collector.
+
+        :param logger_names: Roots of the logger trees to listen to.
+        """
+        self.logger_names = logger_names
+
+    @contextmanager
+    def collect(self) -> Iterator[CollectedLogs]:
+        """
+        Listen to the configured logger trees, restoring each one's level afterward.
+
+        :returns: The diagnostics collected while the block ran.
+        """
+        logs = CollectedLogs()
+        handler = _CollectingHandler(logs=logs)
+        touched: list[tuple[logging.Logger, int]] = []
+        try:
+            for name in self.logger_names:
+                logger = logging.getLogger(name)
+                touched.append((logger, logger.level))
+                # A tree left at its default would filter warnings before any handler sees them; anything already
+                # more verbose is left alone so a caller's own logging setup survives the evaluation.
+                if not logger.isEnabledFor(logging.WARNING):
+                    logger.setLevel(logging.WARNING)
+                logger.addHandler(handler)
+            yield logs
+        finally:
+            for logger, level in touched:
+                logger.removeHandler(handler)
+                logger.setLevel(level)

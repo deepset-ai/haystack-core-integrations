@@ -30,6 +30,12 @@ class RetrievalEvaluationCase:
     :param max_queries: Optional cap on how many queries the pipeline may issue for one question. Expanding a
         query buys recall with model calls, and without a cap the cheapest way to pass every case is to expand
         without limit.
+    :param max_retrieved: Optional cap on how many documents the pipeline may return for one question. Recall
+        alone has a degenerate optimum: a pipeline that returns most of the corpus reaches it, and measuring a
+        retrieval pipeline that generates no answer cannot see the cost of doing so, because nothing downstream
+        reads the documents. This cap is what makes the size of the answer set matter. It applies to what the
+        pipeline returns rather than to what it considers, so retrieving widely and then ranking the result down
+        satisfies it while retrieving widely alone does not.
     """
 
     question: str
@@ -37,6 +43,7 @@ class RetrievalEvaluationCase:
     min_recall: float = 1.0
     min_precision: float = 0.0
     max_queries: int | None = None
+    max_retrieved: int | None = None
 
     def __post_init__(self) -> None:
         """Require ground truth to score against."""
@@ -121,6 +128,8 @@ def score_retrieval_result(
         failures.append(f"precision_below_{case.min_precision:g}")
     if case.max_queries is not None and len(outcome.queries) > case.max_queries:
         failures.append(f"queries_over_budget:{len(outcome.queries)}")
+    if case.max_retrieved is not None and len(retrieved_ids) > case.max_retrieved:
+        failures.append(f"retrieved_over_budget:{len(retrieved_ids)}")
 
     return RetrievalCaseMetrics(
         question=case.question,
