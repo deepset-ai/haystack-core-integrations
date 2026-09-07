@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
-from haystack import Document
+from haystack import Document, tracing
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
@@ -56,7 +56,15 @@ class FakeAgent:
 
     async def run_async(self, **kwargs):
         """Answer the way `run` does, through the entry point concurrent measurement uses."""
-        return self.run(**kwargs)
+        result = self.run(**kwargs)
+        usages = {self.chat_generator.model: result["token_usage"], **result.get("additional_model_usage", {})}
+        for model, usage in usages.items():
+            with tracing.tracer.trace("haystack.chat_generator.run") as span:
+                span.set_content_tag(
+                    "haystack.component.output",
+                    {"replies": [ChatMessage.from_assistant("answer", meta={"model": model, "usage": usage})]},
+                )
+        return result
 
     def warm_up(self):
         self.warmups += 1
@@ -270,3 +278,60 @@ def test_concurrency_must_be_positive():
     """A concurrency of zero would measure nothing at all."""
     with pytest.raises(ValueError, match="at least 1"):
         AdvancedRAGHarnessEvaluator(max_concurrent_cases=0)
+
+
+def test_renamed_pipeline_tool_keeps_budget_and_nested_ranker_usage(document):
+    from haystack import Pipeline
+    from haystack.components.agents import Agent
+    from haystack.components.generators.chat import MockChatGenerator
+    from haystack.components.rankers import LLMRanker
+    from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
+    from haystack.document_stores.in_memory import InMemoryDocumentStore
+
+    from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_pipeline_tool
+
+    store = InMemoryDocumentStore()
+    store.write_documents([document])
+    pipeline = Pipeline()
+    pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
+    pipeline.add_component(
+        "ranker",
+        LLMRanker(
+            chat_generator=MockChatGenerator(
+                '{"documents": [{"index": 1}]}',
+                model="ranker",
+                meta={"usage": {"input_tokens": 7, "output_tokens": 2}},
+            )
+        ),
+    )
+    pipeline.connect("retriever.documents", "ranker.documents")
+    tool = _make_retrieval_pipeline_tool(
+        pipeline=pipeline,
+        name="ranked_search",
+        input_mapping={"query": ["retriever.query", "ranker.query"], "filters": ["retriever.filters"]},
+        output_mapping={"ranker.documents": "documents"},
+    )
+    agent = Agent(
+        chat_generator=MockChatGenerator(
+            [
+                ChatMessage.from_assistant(tool_calls=[ToolCall("ranked_search", {"query": "CRISPR"}, id="call")]),
+                ChatMessage.from_assistant(f"CRISPR [doc {document.id[:8]}]"),
+            ],
+            model="cheap",
+            meta={"usage": {"input_tokens": 10, "output_tokens": 3}},
+        ),
+        tools=[tool],
+        state_schema={"documents": {"type": list[Document]}},
+    )
+    case = AdvancedRAGEvaluationCase(
+        question=QUESTION,
+        expected_document_ids=frozenset({document.id}),
+        require_metadata_inspection=False,
+        max_retrieval_calls=0,
+    )
+    metrics = AdvancedRAGHarnessEvaluator(cases=[case]).evaluate(agent, [reference_run(document)])
+    assert metrics.details["usage_complete"]
+    assert metrics.model_usage["ranker"].input_tokens == 7
+    assert metrics.model_usage["cheap"].input_tokens == 20
+    assert metrics.details["cases"][0]["retrieval_calls"] == 1
+    assert metrics.details["cases"][0]["failures"] == ["retrieval_calls_over_budget:1"]

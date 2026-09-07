@@ -28,11 +28,11 @@ carried over from an earlier one.
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import shutil
 import sys
-import warnings
 from pathlib import Path
 from uuid import uuid4
 
@@ -62,13 +62,9 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
+    load_agent,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
-
-# The OpenAI SDK serializes its parsed structured-output response through Pydantic unions that do not describe the
-# `OptimizerDecision` text format, so every optimizer turn prints a wall of serializer warnings that say nothing
-# about this run. They come from the SDK, not from the experiment, so keep them out of the report.
-warnings.filterwarnings(action="ignore", message="Pydantic serializer warnings", category=UserWarning)
 
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-luna"
@@ -269,10 +265,10 @@ def report(result: ExperimentResult) -> None:
     for candidate in result.candidates:
         gates = result.gate_failures.get(candidate.candidate_id, ())
         if candidate.metrics is None:
-            print(f"  {candidate.mutation} -> failed: {candidate.failure}")
+            print(f"  {candidate.candidate_id} -> failed: {candidate.failure}")
             continue
         print(
-            f"  {candidate.mutation} -> quality={candidate.metrics.quality:.2f} "
+            f"  {candidate.candidate_id} -> quality={candidate.metrics.quality:.2f} "
             f"cost={format_cost(cost=candidate.metrics.cost)} latency={candidate.metrics.latency_ms:.0f}ms"
         )
         print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
@@ -285,7 +281,8 @@ def report(result: ExperimentResult) -> None:
         print("  none: no candidate cleared every gate and improved on the reference")
         return
     recommendation = result.recommendation
-    print(f"  mutation: {recommendation.evaluation.mutation}")
+    print(f"  configuration: {result.artifact_directory / 'recommended.yaml'}")
+    print(f"  rationale: {recommendation.configuration.rationale}")
     print(f"  reasons: {', '.join(recommendation.reasons)}")
     recommendation_metrics = recommendation.evaluation.metrics
     if baseline.cost is not None and recommendation_metrics is not None and recommendation_metrics.cost is not None:
@@ -298,7 +295,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
     parser.add_argument("--reference-model", default=REFERENCE_MODEL)
+    parser.add_argument("--workspace", type=Path, default=WORKSPACE, help="Directory for runs and YAML artifacts.")
     parser.add_argument("--candidate-model", action="append", dest="candidate_models")
+    parser.add_argument(
+        "--config", type=Path, help="Optional editable YAML file; created from the reference if absent."
+    )
+    parser.add_argument("--holdout-cases", type=int, default=5, help="Disjoint cases used only to confirm the winner.")
     parser.add_argument(
         "--max-cases",
         type=int,
@@ -385,6 +387,9 @@ def main() -> None:
     if not os.environ.get("OPENAI_API_KEY"):
         message = "OPENAI_API_KEY must be set to run this walkthrough."
         raise SystemExit(message)
+    if arguments.holdout_cases < 0:
+        message = "--holdout-cases must be nonnegative."
+        raise SystemExit(message)
     if arguments.max_cases < 1:
         message = "--max-cases must be at least 1."
         raise SystemExit(message)
@@ -397,8 +402,8 @@ def main() -> None:
             "limits, so the measurement would describe that contention rather than the configuration."
         )
         raise SystemExit(message)
-    if arguments.fresh and WORKSPACE.exists():
-        shutil.rmtree(path=WORKSPACE)
+    if arguments.fresh and arguments.workspace.exists():
+        shutil.rmtree(path=arguments.workspace)
 
     print("=== 1. set up corpus and evaluation set ===")
     store, chunks = prepare_corpus(backend=arguments.store)
@@ -406,7 +411,8 @@ def main() -> None:
     articles = len({chunk.meta["title"] for chunk in chunks})
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks from {articles} articles")
 
-    cases = build_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
+    selected = build_cases(chunks=chunks, limit=arguments.max_cases + arguments.holdout_cases, seed=arguments.case_seed)
+    cases, holdout = selected[: arguments.max_cases], selected[arguments.max_cases :]
     expected_documents = sum(len(case.expected_document_ids) for case in cases)
     print(f"  cases: {len(cases)} labelled from evidence, expecting {expected_documents} documents in total")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
@@ -415,7 +421,7 @@ def main() -> None:
     print(f"  model={arguments.reference_model} tools={tool_names}")
 
     print("\n=== 2. execute and store reference runs ===")
-    run_store = LocalRunStore(directory=WORKSPACE / "runs")
+    run_store = LocalRunStore(directory=arguments.workspace / "runs")
     selected_run_ids = capture_reference_runs(
         agent=reference_agent, cases=cases, run_store=run_store, concurrency=arguments.max_concurrent_cases
     )
@@ -436,21 +442,53 @@ def main() -> None:
             max_quality_loss=arguments.max_quality_loss,
             primary=arguments.primary,
         ),
-        journal=ExperimentJournal(directory=WORKSPACE / "journals"),
+        journal=ExperimentJournal(directory=arguments.workspace / "journals"),
         digest_policy=DIGEST_POLICY,
         optimizer_agent=create_harness_optimizer_agent(
             docs_toolset=docs_toolset, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
         ),
         run_ids=selected_run_ids,
         max_iterations=arguments.max_iterations,
+        config_path=arguments.config,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()
-    print(f"  configuration hash: {result.configuration_hash}")
+    print(f"  measurement context: {result.measurement_context}; run: {result.run_id}")
 
-    print("\n=== 5. outcome ===")
+    print("\n=== 4. outcome ===")
     report(result=result)
-    print(f"\nJournal: {WORKSPACE / 'experiment.jsonl'} (a record of every measurement this run took)")
+    print(f"\nJournal: {experiment.journal.path_for(result.run_id)}")
+
+    if result.recommendation is not None and holdout:
+        print("\n=== 5. held-out confirmation (never sent to optimizer) ===")
+        evaluator = AdvancedRAGHarnessEvaluator(cases=holdout, max_concurrent_cases=arguments.max_concurrent_cases)
+        runs = [
+            AgentRunRecord(
+                run_id=f"holdout-{index}", inputs={"messages": [ChatMessage.from_user(case.question)]}, outputs={}
+            )
+            for index, case in enumerate(holdout)
+        ]
+        baseline = pricing.price(evaluator.evaluate(agent=reference_agent, reference_runs=runs))
+        candidate = load_agent(result.recommendation.configuration.yaml)
+        try:
+            measured = pricing.price(evaluator.evaluate(agent=candidate, reference_runs=runs))
+        finally:
+            candidate.close()
+        print(f"  reference: quality={baseline.quality:.2f} cost={format_cost(baseline.cost)}")
+        print(f"  candidate: quality={measured.quality:.2f} cost={format_cost(measured.cost)}")
+        floor = max(arguments.min_quality, baseline.quality - arguments.max_quality_loss)
+        print(f"  held-out quality gate: {'passed' if measured.quality >= floor else 'FAILED'}")
+        (result.artifact_directory / "holdout.json").write_text(
+            json.dumps(
+                {
+                    "reference": baseline.to_dict(),
+                    "candidate": measured.to_dict(),
+                    "quality_gate_passed": measured.quality >= floor,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
 
 if __name__ == "__main__":

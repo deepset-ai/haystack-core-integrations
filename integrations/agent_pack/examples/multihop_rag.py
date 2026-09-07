@@ -182,6 +182,7 @@ def exact_case_candidates(chunks: list[Document]) -> dict[str, list[AdvancedRAGE
                     question=row["query"],
                     expected_document_ids=frozenset(expected),
                     answer_must_mention=_answer_terms(answer=row["answer"]),
+                    require_metadata_inspection=False,
                 )
             )
     if unlocatable:

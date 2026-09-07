@@ -1,5 +1,4 @@
-import json
-
+import yaml
 from haystack import Document
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
@@ -12,28 +11,52 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import Adva
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
 from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
-    AgentMutation,
     ExperimentJournal,
     HarnessOptimizationExperiment,
     ModelPrice,
     ModelPriceCatalog,
-    MutationOperation,
     OptimizationObjectives,
-    apply_mutation,
     create_harness_optimizer_agent,
-    rebuild_agent,
+    load_agent,
 )
 
 QUESTION = "What is CRISPR used for?"
 
 
-def optimizer_agent_for(mutation):
-    """Build an optimizer Agent that returns one mutation and then stops."""
-    responses = iter([json.dumps({"mutation": mutation.model_dump()}), '{"mutation": null}'])
+def optimizer_agent_for(change):
+    """Drive actual file edits and validation using a scripted model."""
+    stage = 0
 
-    def respond(messages):  # noqa: ARG001
-        """Return the next structured optimizer decision."""
-        return next(responses)
+    def respond(_messages, tools):
+        nonlocal stage
+        current = next(tool for tool in tools if tool.name == "read_config").function()
+        if stage == 0:
+            data = yaml.safe_load(current["yaml"])
+            change(data["components"]["agent"]["init_parameters"])
+            call = ToolCall(
+                "edit_config",
+                {
+                    "old": current["yaml"],
+                    "new": yaml.safe_dump(data),
+                    "expected_revision": current["revision"],
+                },
+                id="edit",
+            )
+        elif stage == 1:
+            call = ToolCall("validate_config", {}, id="validate")
+        elif stage == 2:
+            call = ToolCall(
+                "submit_candidate",
+                {
+                    "expected_revision": current["revision"],
+                    "rationale": "test hypothesis",
+                },
+                id="submit",
+            )
+        else:
+            call = ToolCall("finish", {}, id="finish")
+        stage += 1
+        return ChatMessage.from_assistant(tool_calls=[call])
 
     return create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond))
 
@@ -106,15 +129,7 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(directory=tmp_path / "journals"),
         optimizer_agent=optimizer_agent_for(
-            mutation=AgentMutation(
-                operations=(
-                    MutationOperation(
-                        op="set",
-                        path="/init_parameters/chat_generator/init_parameters/model",
-                        value="cheap",
-                    ),
-                )
-            )
+            lambda params: params["chat_generator"]["init_parameters"].update(model="cheap")
         ),
     )
 
@@ -122,15 +137,13 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
 
     assert result.baseline.quality == 1.0
     assert result.recommendation is not None
-    assert result.recommendation.evaluation.mutation["operations"][0]["value"] == "cheap"
+    assert "model: cheap" in result.recommendation.configuration.yaml
     assert result.recommendation.reasons == ("cost_improvement",)
     assert result.recommendation.evaluation.metrics.quality == 1.0
     assert result.recommendation.evaluation.metrics.cost < result.baseline.cost
     assert result.recommendation.evaluation.metrics.details["validated"] is True
 
-    approved = rebuild_agent(
-        serialized_agent=apply_mutation(serialized_agent=reference.to_dict(), mutation=result.recommendation.mutation)
-    )
+    approved = load_agent(result.recommendation.configuration.yaml)
     assert approved.chat_generator.model == "cheap"
     assert reference.chat_generator.model == "reference"
 
@@ -172,11 +185,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(directory=tmp_path / "journals"),
-        optimizer_agent=optimizer_agent_for(
-            mutation=AgentMutation(
-                operations=(MutationOperation(op="set", path="/init_parameters/max_agent_steps", value=1),)
-            )
-        ),
+        optimizer_agent=optimizer_agent_for(lambda params: params.update(max_agent_steps=1)),
     )
 
     result = experiment.run()

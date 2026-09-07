@@ -45,6 +45,8 @@ class ModelPriceCatalog:
         :param metrics: Raw harness evaluation metrics to price.
         :returns: A copy with calculated cost, or unavailable cost and the unknown model identifiers in its details.
         """
+        if metrics.details.get("usage_complete") is False:
+            return replace(metrics, cost=None)
         if metrics.cost is not None:
             return metrics
         unknown = sorted(model_id for model_id in metrics.model_usage if self.get(model_id=model_id) is None)

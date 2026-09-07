@@ -4,300 +4,202 @@ from collections import deque
 import pytest
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
-    AgentMutation,
     ExperimentJournal,
     HarnessOptimizationExperiment,
     ModelPrice,
     ModelPriceCatalog,
-    MutationOperation,
     OptimizationObjectives,
-    apply_mutation,
     create_harness_optimizer_agent,
-    rebuild_agent,
+    load_agent,
 )
 
-MODEL_PATH = "/init_parameters/chat_generator/init_parameters/model"
 
-
-def reference_run(question="question"):
-    """Create one replayable successful reference run."""
-    return AgentRunRecord(
-        run_id="reference-run",
-        inputs={"messages": [ChatMessage.from_user(question)]},
-        outputs={"last_message": ChatMessage.from_assistant("answer")},
-    )
-
-
-def set_value(path, value):
-    """Build one scalar Agent configuration mutation."""
-    return AgentMutation(operations=(MutationOperation(op="set", path=path, value=value),))
-
-
-def optimizer_agent_for(mutations):
-    """Build a deterministic optimizer Agent and expose every history it observes."""
-    remaining = deque(mutations)
+def optimizer_agent_for(models):
+    """Script real edit, validate and submit tool calls for a sequence of model changes."""
+    remaining = deque(models)
     histories = []
+    stage = 0
 
-    def respond(messages):
-        """Record optimizer context and return the next structured decision."""
-        # The cumulative record of outcomes is the second-to-last message; the last repeats the newest few in full.
-        record = json.loads(messages[-2].text)
-        histories.append(record["outcomes"])
-        mutation = remaining.popleft() if remaining else None
-        return json.dumps({"mutation": mutation.model_dump() if mutation is not None else None})
+    def respond(messages, tools):
+        nonlocal stage
+        read = next(tool for tool in tools if tool.name == "read_config")
+        current = read.function()
+        if stage == 0:
+            histories.append(json.loads([m.text for m in messages if m.is_from("user")][-2])["outcomes"])
+            model = remaining.popleft() if remaining else None
+            if model is None:
+                return ChatMessage.from_assistant(tool_calls=[ToolCall("finish", {}, id="finish")])
+            original = load_agent(current["yaml"]).chat_generator.model
+            call = ToolCall(
+                "edit_config",
+                {
+                    "old": f"model: {original}",
+                    "new": f"model: {model}",
+                    "expected_revision": current["revision"],
+                },
+                id="edit",
+            )
+        elif stage == 1:
+            call = ToolCall("validate_config", {}, id="validate")
+        else:
+            call = ToolCall(
+                "submit_candidate",
+                {
+                    "expected_revision": current["revision"],
+                    "rationale": "test model change",
+                },
+                id="submit",
+            )
+        stage = (stage + 1) % 3
+        return ChatMessage.from_assistant(tool_calls=[call])
 
-    agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond))
-    return agent, histories
+    return create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond)), histories
 
 
 class ModelEvaluator:
-    """Return configured metrics based on the candidate coordinator model."""
-
-    def __init__(self, metrics_by_model, failing=()):
-        """Configure model outcomes and optional runtime failures."""
-        self.metrics_by_model = metrics_by_model
-        self.failing = set(failing)
+    def __init__(self, metrics=None, failing=()):
+        self.metrics = metrics or {
+            "reference": EvaluationMetrics(quality=1, cost=10, latency_ms=100),
+            "cheap": EvaluationMetrics(quality=1, cost=2, latency_ms=90),
+            "bad": EvaluationMetrics(quality=0.5, cost=1, latency_ms=50),
+        }
+        self.failing = failing
         self.calls = []
 
     def evaluate(self, agent, reference_runs):
-        """Measure a candidate by looking up its model."""
-        assert reference_runs[0].run_id == "reference-run"
+        assert reference_runs
         model = agent.chat_generator.model
         self.calls.append(model)
         if model in self.failing:
             msg = f"provider unavailable for {model}"
             raise RuntimeError(msg)
-        return self.metrics_by_model[model]
+        return self.metrics[model]
 
     def fingerprint(self):
-        """Return stable evaluator configuration for journaling."""
         return {"kind": "model-evaluator"}
 
 
-def fixed_metrics():
-    """Return baseline, quality-regressing, and improving model measurements."""
-    return {
-        "reference": EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
-        "cheap": EvaluationMetrics(quality=1.0, cost=2.0, latency_ms=90),
-        "bad": EvaluationMetrics(quality=0.5, cost=1.0, latency_ms=50),
-        "unknown": EvaluationMetrics(
-            quality=1.0,
-            latency_ms=80,
-            model_usage={"unknown": ModelTokenUsage(input_tokens=100)},
-        ),
-    }
-
-
-def pricing(cheap_price=2.0):
-    """Create known prices without constraining candidate model identifiers."""
-    return ModelPriceCatalog(
-        prices=[
-            ModelPrice(model_id="reference", input_cost_per_million=10.0),
-            ModelPrice(model_id="cheap", input_cost_per_million=cheap_price),
-            ModelPrice(model_id="bad", input_cost_per_million=1.0),
-        ]
-    )
-
-
-def experiment(tmp_path, evaluator, optimizer_agent, pricing_context=None, objectives=None, store=None, journal=None):
-    """Build an experiment around a serializable reference Agent."""
-    store = store or LocalRunStore()
-    if not store.list():
-        store.add(record=reference_run())
-    return HarnessOptimizationExperiment(
-        reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        run_store=store,
-        evaluator=evaluator,
-        pricing=pricing_context or pricing(),
-        objectives=objectives or OptimizationObjectives(min_quality=0.8),
-        journal=journal or ExperimentJournal(directory=tmp_path / "journals"),
-        optimizer_agent=optimizer_agent,
-    )
-
-
-def test_optimizer_learns_from_each_choice_before_making_the_next(tmp_path):
-    """Every candidate's measured outcome is supplied to the following optimizer turn."""
-    optimizer_agent, histories = optimizer_agent_for(
-        mutations=[set_value(path=MODEL_PATH, value="bad"), set_value(path=MODEL_PATH, value="cheap"), None]
-    )
-    result = experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=fixed_metrics()),
-        optimizer_agent=optimizer_agent,
-    ).run()
-
-    assert histories[0] == []
-    assert histories[1][0]["mutation"]["operations"][0]["value"] == "bad"
-    assert histories[1][0]["gate_failures"] == ["quality_below_floor:1.0000"]
-    assert histories[2][1]["metrics"]["cost"] == 2.0
-    assert result.recommendation is not None
-    assert result.recommendation.mutation == set_value(path=MODEL_PATH, value="cheap")
-
-
-def test_resulting_full_configuration_defines_candidate_identity(tmp_path):
-    """Different multi-operation decisions that produce one configuration are measured only once."""
-    same_twice = AgentMutation(
-        operations=(
-            MutationOperation(op="set", path=MODEL_PATH, value="cheap"),
-            MutationOperation(op="set", path=MODEL_PATH, value="cheap"),
+def configured(tmp_path, models, evaluator=None, objectives=None):
+    optimizer, histories = optimizer_agent_for(models)
+    store = LocalRunStore()
+    store.add(
+        AgentRunRecord(
+            run_id="reference",
+            inputs={"messages": [ChatMessage.from_user("question")]},
+            outputs={"last_message": ChatMessage.from_assistant("answer")},
         )
     )
-    optimizer_agent, histories = optimizer_agent_for(
-        mutations=[set_value(path=MODEL_PATH, value="cheap"), same_twice, None]
+    experiment = HarnessOptimizationExperiment(
+        reference=Agent(chat_generator=MockChatGenerator(model="reference")),
+        run_store=store,
+        evaluator=evaluator or ModelEvaluator(),
+        pricing=ModelPriceCatalog(
+            [
+                ModelPrice(model_id="reference", input_cost_per_million=10),
+                ModelPrice(model_id="cheap", input_cost_per_million=2),
+            ]
+        ),
+        objectives=objectives or OptimizationObjectives(min_quality=0.8),
+        journal=ExperimentJournal(tmp_path / "journals"),
+        optimizer_agent=optimizer,
     )
-    evaluator = ModelEvaluator(metrics_by_model=fixed_metrics())
-    result = experiment(tmp_path=tmp_path, evaluator=evaluator, optimizer_agent=optimizer_agent).run()
-    assert evaluator.calls == ["reference", "cheap"]
-    assert len(result.candidates) == 1
-    assert histories[2][-1]["reason"] == "duplicate_or_no_op"
+    return experiment, histories
 
 
-def test_invalid_configuration_is_an_outcome_the_optimizer_can_learn_from(tmp_path):
-    """Haystack deserialization failures feed the next decision instead of aborting the experiment."""
-    invalid = set_value(path="/init_parameters/unsupported_parameter", value=True)
-    optimizer_agent, histories = optimizer_agent_for(
-        mutations=[invalid, set_value(path=MODEL_PATH, value="cheap"), None]
-    )
-    result = experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=fixed_metrics()),
-        optimizer_agent=optimizer_agent,
-    ).run()
-    assert result.candidates[0].metrics is None
-    assert "could not be rebuilt" in (result.candidates[0].failure or "")
-    assert histories[1][0]["status"] == "failed"
+def test_optimizer_learns_from_outcomes_and_recommendation_is_loadable(tmp_path):
+    experiment, histories = configured(tmp_path, ["bad", "cheap", None])
+    result = experiment.run()
+    assert histories[0] == []
+    assert histories[1][0]["gate_failures"] == ["quality_below_floor:1.0000"]
+    assert histories[2][1]["metrics"]["cost"] == 2
     assert result.recommendation is not None
+    assert load_agent(result.recommendation.configuration.yaml).chat_generator.model == "cheap"
+    assert experiment.reference.chat_generator.model == "reference"
+    assert result.candidates[1].configuration.parent_id == result.candidates[0].candidate_id
+    assert (result.artifact_directory / "recommended.yaml").read_text() == result.recommendation.configuration.yaml
 
 
-def test_evaluation_failure_is_journaled_and_supplied_to_next_turn(tmp_path):
-    """Provider/runtime failures also become optimizer evidence."""
-    optimizer_agent, histories = optimizer_agent_for(
-        mutations=[set_value(path=MODEL_PATH, value="bad"), set_value(path=MODEL_PATH, value="cheap"), None]
-    )
-    result = experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=fixed_metrics(), failing=("bad",)),
-        optimizer_agent=optimizer_agent,
-    ).run()
+def test_runtime_failure_is_journaled_and_supplied_to_next_turn(tmp_path):
+    experiment, histories = configured(tmp_path, ["bad", "cheap", None], ModelEvaluator(failing=("bad",)))
+    result = experiment.run()
     assert result.candidates[0].failure == "RuntimeError: provider unavailable for bad"
     assert histories[1][0]["gate_failures"] == ["evaluation_failed"]
+    rows = [json.loads(line) for line in experiment.journal.path_for(result.run_id).read_text().splitlines()]
+    assert rows[1]["failure"] == result.candidates[0].failure
 
 
-def test_unknown_model_can_run_but_cannot_win_a_cost_objective(tmp_path):
-    """Lack of pricing is a ranking limitation rather than an edit authorization failure."""
-    optimizer_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="unknown"), None])
-    result = experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=fixed_metrics()),
-        optimizer_agent=optimizer_agent,
-    ).run()
-    assert result.candidates[0].metrics is not None
-    assert result.candidates[0].metrics.details["unpriced_models"] == ["unknown"]
-    assert result.gate_failures[result.candidates[0].candidate_id] == ("cost_unavailable",)
-
-
-def test_the_journal_records_raw_usage_while_the_report_prices_it(tmp_path):
-    """Prices are informational, so what is recorded is the measurement, not a number derived from a price list."""
-    raw = {
-        "reference": EvaluationMetrics(
-            quality=1.0, latency_ms=100, model_usage={"reference": ModelTokenUsage(input_tokens=1_000_000)}
-        ),
-        "cheap": EvaluationMetrics(
-            quality=1.0, latency_ms=90, model_usage={"cheap": ModelTokenUsage(input_tokens=1_000_000)}
-        ),
-    }
-    journal = ExperimentJournal(directory=tmp_path / "journals")
-    optimizer_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="cheap"), None])
-    result = experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=raw),
-        optimizer_agent=optimizer_agent,
-        pricing_context=pricing(cheap_price=2.0),
-        journal=journal,
-    ).run()
-
-    assert result.recommendation is not None
-    assert result.candidates[0].metrics.cost == pytest.approx(2.0)
-
-    # One file per experiment, named after the context, with the context leading every line.
-    journal_path = journal.path_for(measurement_context=result.measurement_context)
-    recorded = [json.loads(line) for line in journal_path.read_text().splitlines() if line.strip()]
-    assert next(iter(recorded[0])) == "measurement_context"
-    assert [path.name for path in (tmp_path / "journals").glob("*.jsonl")] == [f"{result.measurement_context}.jsonl"]
-    candidate = next(row for row in recorded if row["mutation"] is not None)
-    assert candidate["metrics"]["cost"] is None
-    assert candidate["metrics"]["model_usage"]["cheap"]["input_tokens"] == 1_000_000
-
-
-def test_recommendation_can_be_rebuilt_from_its_mutation_and_the_reference(tmp_path):
-    """A recommendation needs only its complete mutation and the unchanged reference, without a patch catalog."""
-    optimizer_agent, _ = optimizer_agent_for(mutations=[set_value(path=MODEL_PATH, value="cheap"), None])
-    configured = experiment(
-        tmp_path=tmp_path,
-        evaluator=ModelEvaluator(metrics_by_model=fixed_metrics()),
-        optimizer_agent=optimizer_agent,
+def test_raw_usage_is_journaled_before_pricing(tmp_path):
+    evaluator = ModelEvaluator(
+        metrics={
+            name: EvaluationMetrics(
+                quality=1, latency_ms=100, model_usage={name: ModelTokenUsage(input_tokens=1_000_000)}
+            )
+            for name in ("reference", "cheap")
+        }
     )
-    result = configured.run()
-    assert result.recommendation is not None
-    reference = configured.reference
-    candidate = rebuild_agent(
-        serialized_agent=apply_mutation(serialized_agent=reference.to_dict(), mutation=result.recommendation.mutation)
-    )
-    assert candidate.chat_generator.model == "cheap"
-    assert reference.chat_generator.model == "reference"
+    experiment, _ = configured(tmp_path, ["cheap", None], evaluator)
+    result = experiment.run()
+    rows = [json.loads(line) for line in experiment.journal.path_for(result.run_id).read_text().splitlines()]
+    assert rows[1]["metrics"]["cost"] is None
+    assert result.recommendation.evaluation.metrics.cost == 2
 
 
-def test_empty_run_store_is_rejected(tmp_path):
-    """Optimization requires at least one successful input/output example."""
-    optimizer_agent, _ = optimizer_agent_for(mutations=[None])
-    configured = HarnessOptimizationExperiment(
-        reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        run_store=LocalRunStore(),
-        evaluator=ModelEvaluator(metrics_by_model=fixed_metrics()),
-        pricing=pricing(),
-        objectives=OptimizationObjectives(),
-        journal=ExperimentJournal(directory=tmp_path / "journals"),
-        optimizer_agent=optimizer_agent,
-    )
+def test_unknown_or_incomplete_usage_cannot_win_on_cost(tmp_path):
+    for details in ({}, {"usage_complete": False}):
+        evaluator = ModelEvaluator(
+            metrics={
+                "reference": EvaluationMetrics(quality=1, cost=10, latency_ms=100),
+                "unknown": EvaluationMetrics(
+                    quality=1, latency_ms=90, details=details, model_usage={"unknown": ModelTokenUsage(input_tokens=10)}
+                ),
+            }
+        )
+        experiment, _ = configured(tmp_path, ["unknown", None], evaluator)
+        result = experiment.run()
+        assert result.recommendation is None
+        assert result.gate_failures[result.candidates[0].candidate_id] == ("cost_unavailable",)
+
+
+def test_repeated_experiments_have_separate_journals(tmp_path):
+    first, _ = configured(tmp_path, [None])
+    second, _ = configured(tmp_path, [None])
+    a, b = first.run(), second.run()
+    assert a.measurement_context == b.measurement_context
+    assert a.run_id != b.run_id
+    assert first.journal.path_for(a.run_id).exists()
+    assert second.journal.path_for(b.run_id).exists()
+
+
+def test_empty_store_rejected(tmp_path):
+    experiment, _ = configured(tmp_path, [None])
+    experiment.run_store = LocalRunStore()
     with pytest.raises(ValueError, match="no successful reference runs"):
-        configured.run()
+        experiment.run()
 
 
-def test_quality_can_be_the_objective_so_no_threshold_has_to_be_guessed(tmp_path):
-    """Ranking on quality prefers the better answer over the cheaper one, without a threshold deciding it."""
-    metrics = {
-        "reference": EvaluationMetrics(quality=0.3, cost=10.0, latency_ms=100),
-        "worse": EvaluationMetrics(quality=0.4, cost=1.0, latency_ms=10),
-        "better": EvaluationMetrics(quality=1.0, cost=8.0, latency_ms=90),
-    }
-    proposals = [set_value(path=MODEL_PATH, value="worse"), set_value(path=MODEL_PATH, value="better"), None]
+def test_quality_objective_prefers_better_answers(tmp_path):
+    evaluator = ModelEvaluator(
+        metrics={
+            "reference": EvaluationMetrics(quality=0.3, cost=10, latency_ms=100),
+            "cheap": EvaluationMetrics(quality=0.4, cost=1, latency_ms=50),
+            "better": EvaluationMetrics(quality=1, cost=8, latency_ms=90),
+        }
+    )
+    experiment, _ = configured(
+        tmp_path, ["cheap", "better", None], evaluator, OptimizationObjectives(primary="quality")
+    )
+    assert load_agent(experiment.run().recommendation.configuration.yaml).chat_generator.model == "better"
 
-    optimizer_agent, _ = optimizer_agent_for(mutations=list(proposals))
-    on_quality = experiment(
-        tmp_path=tmp_path / "quality",
-        evaluator=ModelEvaluator(metrics_by_model=metrics),
-        optimizer_agent=optimizer_agent,
-        objectives=OptimizationObjectives(min_quality=0.0, primary="quality"),
-    ).run()
 
-    assert on_quality.recommendation is not None
-    assert on_quality.recommendation.mutation == set_value(path=MODEL_PATH, value="better")
-    assert "quality_improvement" in on_quality.recommendation.reasons
-
-    # The same measurements ranked on cost with the gate opened pick the cheaper configuration that answers worse,
-    # which is what a quality objective avoids without anyone choosing a floor.
-    optimizer_agent, _ = optimizer_agent_for(mutations=list(proposals))
-    on_cost = experiment(
-        tmp_path=tmp_path / "cost",
-        evaluator=ModelEvaluator(metrics_by_model=metrics),
-        optimizer_agent=optimizer_agent,
-        objectives=OptimizationObjectives(min_quality=0.0, primary="cost"),
-    ).run()
-
-    assert on_cost.recommendation is not None
-    assert on_cost.recommendation.mutation == set_value(path=MODEL_PATH, value="worse")
+def test_iteration_budget_counts_evaluations(tmp_path):
+    evaluator = ModelEvaluator()
+    experiment, _ = configured(tmp_path, ["bad", "cheap", None], evaluator)
+    experiment.max_iterations = 1
+    result = experiment.run()
+    assert evaluator.calls == ["reference", "bad"]
+    assert len(result.candidates) == 1

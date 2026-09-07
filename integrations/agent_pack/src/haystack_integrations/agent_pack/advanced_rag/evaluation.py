@@ -37,6 +37,8 @@ class RunStats:
 
     calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     error_messages: list[str] = field(default_factory=list)
+    retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS
+    metadata_tools: frozenset[str] = METADATA_TOOLS
 
     @property
     def errors(self) -> int:
@@ -55,9 +57,9 @@ class RunStats:
         :returns: True if a metadata tool was called before any retrieval tool.
         """
         for name, _ in self.calls:
-            if name in METADATA_TOOLS:
+            if name in self.metadata_tools:
                 return True
-            if name in RETRIEVAL_TOOLS:
+            if name in self.retrieval_tools:
                 return False
         return False
 
@@ -68,7 +70,7 @@ class RunStats:
 
         :returns: How many calls targeted a metadata tool.
         """
-        return sum(1 for name, _ in self.calls if name in METADATA_TOOLS)
+        return sum(1 for name, _ in self.calls if name in self.metadata_tools)
 
     @property
     def filtered_retrieval_calls(self) -> int:
@@ -77,7 +79,7 @@ class RunStats:
 
         :returns: How many retrieval calls passed a non-empty `filters` argument.
         """
-        return sum(1 for name, arguments in self.calls if name in RETRIEVAL_TOOLS and arguments.get("filters"))
+        return sum(1 for name, arguments in self.calls if name in self.retrieval_tools and arguments.get("filters"))
 
     @property
     def retrieval_calls(self) -> int:
@@ -86,17 +88,23 @@ class RunStats:
 
         :returns: How many calls targeted a retrieval tool.
         """
-        return sum(1 for name, _ in self.calls if name in RETRIEVAL_TOOLS)
+        return sum(1 for name, _ in self.calls if name in self.retrieval_tools)
 
 
-def extract_run_stats(messages: list[ChatMessage]) -> RunStats:
+def extract_run_stats(
+    messages: list[ChatMessage],
+    retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
+    metadata_tools: frozenset[str] = METADATA_TOOLS,
+) -> RunStats:
     """
     Extract tool calls and error results from one Agent run.
 
     :param messages: The messages an Agent run produced.
+    :param retrieval_tools: Resolved retrieval tool names.
+    :param metadata_tools: Resolved metadata tool names.
     :returns: The tool calls made, in order, and the message of every tool result that reported an error.
     """
-    stats = RunStats()
+    stats = RunStats(retrieval_tools=retrieval_tools, metadata_tools=metadata_tools)
     for message in messages:
         stats.calls.extend((call.tool_name, call.arguments or {}) for call in message.tool_calls)
         stats.error_messages.extend(
@@ -251,6 +259,8 @@ def score_advanced_rag_result(
     *,
     latency_ms: float,
     digest_policy: RunDigestPolicy | None = None,
+    retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
+    metadata_tools: frozenset[str] = METADATA_TOOLS,
 ) -> AdvancedRAGCaseMetrics:
     """
     Score retrieval grounding, answer behaviour, and process budgets for one Agent result.
@@ -262,7 +272,7 @@ def score_advanced_rag_result(
     :returns: The score, naming every expectation the run missed, and the trace explaining why.
     """
     messages = result.get("messages") or []
-    stats = extract_run_stats(messages=messages)
+    stats = extract_run_stats(messages=messages, retrieval_tools=retrieval_tools, metadata_tools=metadata_tools)
     last_message = result.get("last_message")
     answer = (getattr(last_message, "text", None) or "") if last_message is not None else ""
     lowered = answer.lower()

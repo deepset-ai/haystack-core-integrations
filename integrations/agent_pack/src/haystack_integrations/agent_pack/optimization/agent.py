@@ -18,12 +18,12 @@ from haystack.lazy_imports import LazyImport
 from haystack.tools import Toolset, flatten_tools_or_toolsets, warm_up_tools
 from haystack.utils import _serialize_value_with_schema
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, content_digest
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.mutations import AgentMutation, OptimizerDecision
+from haystack_integrations.agent_pack.optimization.workspace import CandidateConfiguration, ConfigurationWorkspace
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run, strip_run_digests
 
 if TYPE_CHECKING:
@@ -35,46 +35,29 @@ with LazyImport(message="Install 'mcp-haystack' to use the Haystack documentatio
 logger = logging.getLogger(__name__)
 
 # Version the routing key with the request layout: a changed layout is a different reusable prefix.
-OPTIMIZER_PROMPT_CACHE_KEY = "haystack-harness-optimizer-v1"
+OPTIMIZER_PROMPT_CACHE_KEY = "haystack-harness-optimizer-yaml-v1"
 
 HARNESS_OPTIMIZER_SYSTEM_PROMPT = """
-You optimize a Haystack Agent configuration through a measured sequence of experiments. On every turn you receive
-the complete serialized reference Agent configuration, the tools that Agent can call, a digest of successful
-reference runs, known model prices, optimization objectives, a baseline measurement, and all candidate outcomes so
-far. Outcomes arrive twice: once as a record of every one measured, and once as the most recent few repeated with
-the tool traces of their runs. Run evidence is a digest, so a tool result may be a prefix: a truncated result and an
-incomplete listing both say so, and a listing that reports omitted content is never exhaustive. Choose the most
-informative next
-configuration mutation based on that evidence. You may change any part of the serialized Agent configuration.
-Return null when no worthwhile experiment remains.
+Optimize a Haystack Agent through measured experiments. The configuration is in candidate.yaml, a one-component
+Pipeline containing the Agent named 'agent'. Use read_config and edit_config to edit YAML directly. You may change
+prompts, models, parameters, hooks, and add, remove or replace entire tools and pipelines. Each edit requires the
+latest revision and a unique exact text match. The tools can only edit that file.
 
-Express edits as ordered RFC 6901 JSON Pointer operations. `set` writes a scalar. `create_object` and `create_array`
-create containers that later operations can populate. `remove` deletes a value. `copy` deep-copies any existing
-configuration subtree. Array path `-` appends. Escape `~` as `~0` and `/` as `~1` in path segments. Every mutation is
-applied to the unchanged reference configuration, not to the preceding candidate. Every operation has `value` and
-`from_path` fields: set unused fields to null; only `set` uses `value`, and only `copy` uses `from_path`.
+Use validate_config and repair errors before submit_candidate. Validation constructs the Agent but does not run
+or warm it up. Submit one hypothesis per turn with a rationale. Use finish when no worthwhile experiment remains.
+Plain text does not submit a candidate. Invalid drafts and duplicates do not spend evaluation slots, but editing
+steps are bounded. Edits continue from the last submitted candidate. Use restore_candidate with a history ID or
+'reference' to start from a different base. Once a candidate passes the gates, vary one thing at a time against it.
+Combine changes when they need to move together. Removing an unused tool also removes its schema from model input.
 
-The Agent's tools are an array of configurations like any other part of it. Editing one changes what that tool does
-or how it describes itself, and removing one withdraws the tool entirely, so its description and argument schema
-stop being sent to the model on every step. A tool the Agent does not need is therefore a cost as well as a choice,
-and instructing the Agent in its prompt to avoid a tool leaves that cost in place.
+Use inspect_component and optional documentation tools to learn installed components and their serialization.
+A ComponentTool can become a PipelineTool: connect retriever.documents to ranker.documents, map query to both query
+inputs, filters to the retriever, and ranker.documents to the tool documents output. Preserve outputs_to_state and
+formatting handlers required by the harness. Do not invent serialization shapes or assume a package is installed.
 
-`set_json` writes a whole subtree from JSON text in one operation, so a component can be replaced by a differently
-shaped one rather than only retuned. A tool backed by a single component can become one backed by a retrieval
-pipeline, for instance, by writing that pipeline's serialized form in place of the component's. Such a change
-succeeds only if every type it names can be imported and constructed in this environment, so confirm the shape of
-what you are writing with the documentation tools before spending a measurement on it; a configuration that cannot
-be rebuilt is reported back to you as a failed candidate.
-
-Quality is a hard gate. Optimize the requested primary measurement only among candidates likely to preserve quality.
-Known prices are informational rather than an allowlist: you may select other models, but their measured cost cannot be
-ranked until pricing is supplied. Use documentation tools before changing an unfamiliar component path or provider
-generation argument. Learn from failed mutations and measurements, and do not repeat a resulting configuration.
-
-Design every candidate so that its outcome is attributable. Combine changes only when they have to move together to
-clear a gate, and once a candidate passes every gate, treat that candidate as the base and vary one thing at a time
-against it. The measured failure names identify the cause, so read them before choosing what to change. A setting that
-is cheaper or smaller per unit is not automatically cheaper per task, so measure such a change instead of assuming it.
+Quality is a hard gate. Known prices are informational rather than an allowlist. Unpriced or incomplete usage
+cannot win a cost optimization. Read gate failures and run evidence before choosing the next experiment.
+Run evidence is compressed: truncated results and incomplete listings are explicitly marked.
 """.strip()
 
 
@@ -98,7 +81,7 @@ def create_harness_optimizer_agent(
     docs_toolset: Toolset | None = None,
     system_prompt: str | None = None,
     additional_instructions: str | None = None,
-    max_agent_steps: int = 12,
+    max_agent_steps: int = 24,
 ) -> Agent:
     """
     Create the Agent that chooses the next configuration experiment.
@@ -117,24 +100,11 @@ def create_harness_optimizer_agent(
     instructions = f"{instructions}\n\n{describe_environment()}"
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n{additional_instructions.strip()}"
-    # The mid-priced model rather than the top one: an optimizer turn reads a large assembled request, and input
-    # tokens dominate what it costs, so the model choice here is worth about as much as everything the candidates
-    # spend. Pass a generator to choose differently.
     generator = chat_generator or OpenAIResponsesChatGenerator(
         model="gpt-5.6-terra",
         timeout=180.0,
         max_retries=5,
-        generation_kwargs={
-            # Requests carrying the same key are routed together, which is what makes a reusable prefix likely to
-            # be found in cache. It identifies this prompt family and its shape, so it changes when the request
-            # layout does. Provider-specific, hence only on the generator this function owns.
-            "prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY,
-            # Set rather than left to the provider's heavier default. One decision is made per turn, from evidence
-            # already assembled and summarized, and reasoning tokens are billed as output on the most expensive
-            # model in the experiment. `_log_optimizer_usage` reports what each turn actually spends, so raising
-            # this is a measurable choice rather than a guess.
-            "reasoning": {"effort": "low"},
-        },
+        generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY, "reasoning": {"effort": "low"}},
     )
     return Agent(
         chat_generator=generator,
@@ -190,71 +160,9 @@ def _tool_specifications(reference: Agent) -> list[dict[str, Any]]:
         return []
 
 
-def _log_optimizer_usage(message: ChatMessage, prefix_digest: str) -> None:
-    """
-    Report what one optimizer turn spent.
-
-    Choosing candidates is not free, and its cost appears nowhere in an experiment's measurements: the reported
-    numbers describe the candidates, not the search that found them. Reporting input, cache reuse and reasoning
-    tokens per turn is what makes the model and effort behind the optimizer a measurable choice.
-
-    The digest of the unchanging message is reported alongside, because low reuse means two different things: an
-    identical digest across turns points at the provider or at something ahead of the messages, while a digest
-    that changes means the prefix was never stable to begin with.
-
-    :param message: The optimizer's reply, whose metadata carries provider usage.
-    :param prefix_digest: Digest of the message that is supposed to be identical on every turn.
-    """
-    usage = (message.meta or {}).get("usage") or {}
-    if not (total := usage.get("input_tokens")):
-        return
-    cached = (usage.get("input_tokens_details") or {}).get("cached_tokens") or 0
-    output = usage.get("output_tokens") or 0
-    reasoning = (usage.get("output_tokens_details") or {}).get("reasoning_tokens") or 0
-    logger.info(
-        "optimizer turn: {total} input ({cached} cached, {share:.0%}), {output} output of which {reasoning} "
-        "reasoning, prefix {prefix}",
-        total=total,
-        cached=cached,
-        share=cached / total,
-        output=output,
-        reasoning=reasoning,
-        prefix=prefix_digest,
-    )
-
-
-def _history_record(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """
-    Describe every outcome so far, without the tool traces.
-
-    Each entry takes this form the turn it is created and is never revised, so the record only ever grows by
-    appending. That is what a reusable prompt prefix requires: rewriting an earlier entry — which is what dropping
-    its trace later amounts to — changes the text mid-message and ends the reuse from that point on.
-
-    :param history: Every outcome observed so far, oldest first.
-    :returns: The same outcomes with every tool trace removed.
-    """
-    return [strip_run_digests(payload=entry) for entry in history]
-
-
-def _recent_outcomes(history: list[dict[str, Any]], window: int) -> list[dict[str, Any]]:
-    """
-    Repeat the most recent outcomes in full, tool traces included.
-
-    Traces dominate an outcome's size and only the newest are worth it, so they travel separately from the record
-    rather than being edited out of it later. These entries appear twice by design: once in the append-only record
-    and once here with their detail. This is the only part of a request whose shape changes from turn to turn,
-    which is why it is sent last.
-
-    :param history: Every outcome observed so far, oldest first.
-    :param window: How many of the most recent outcomes to repeat in full.
-    :returns: The most recent outcomes, or nothing when none are wanted.
-    """
-    return list(history[-window:]) if window > 0 else []
-
-
-def propose_mutation(
+def propose_candidate(
     optimizer_agent: Agent,
+    workspace: ConfigurationWorkspace,
     reference: Agent,
     reference_runs: list[AgentRunRecord],
     pricing: ModelPriceCatalog,
@@ -263,32 +171,29 @@ def propose_mutation(
     history: list[dict[str, Any]],
     digest_policy: RunDigestPolicy | None = None,
     history_digest_window: int = 1,
-) -> AgentMutation | None:
+) -> CandidateConfiguration | None:
     """
-    Ask the optimizer Agent for the next structured configuration mutation.
+    Let the optimizer edit, validate and submit one YAML candidate.
 
-    :param optimizer_agent: Agent that chooses the next configuration experiment.
-    :param reference: Unchanged reference Agent and source configuration for every candidate.
-    :param reference_runs: Reference inputs and outputs that candidates must preserve.
-    :param pricing: Known model prices supplied as optimization context.
-    :param objectives: Quality gates and primary optimization measurement.
-    :param baseline: Measured reference Agent performance.
-    :param history: Candidate mutations and outcomes observed so far.
-    :param digest_policy: Caps applied when compressing the reference runs into tool-behaviour evidence.
-    :param history_digest_window: How many of the most recent outcomes are repeated in full with their tool
-        traces. Traces dominate an outcome's size, so keeping every one would grow the request with every turn;
-        the measurements themselves are kept for every outcome. Each repeat costs its whole entry, aggregates
-        included, and that repeat is the only part of a request that cannot be reused from turn to turn, so one is
-        the default.
-    :returns: The next mutation, or `None` when the optimizer chooses to stop.
+    :param optimizer_agent: Agent supplying generator, instructions and optional documentation tools.
+    :param workspace: Single editable file and previous snapshots.
+    :param reference: Reference Agent supplying tool specifications.
+    :param reference_runs: Recorded behavior evidence.
+    :param pricing: Known model prices.
+    :param objectives: Quality gates and ranking objective.
+    :param baseline: Reference measurement.
+    :param history: Prior candidate outcomes.
+    :param digest_policy: Run evidence limits.
+    :param history_digest_window: Number of recent detailed outcomes.
+    :returns: Submitted snapshot, or None after finish or exhaustion of the proposal step budget.
     """
+    workspace.begin_turn()
     request = {
-        "reference_agent_configuration": reference.to_dict(),
         "known_model_prices": pricing.to_dict(),
         "objectives": objectives.to_dict(),
         "baseline": baseline.to_dict(),
         "available_tools": _tool_specifications(reference=reference),
-        "successful_reference_runs": [
+        "reference_runs": [
             {
                 "inputs": _serialize_value_with_schema(payload=record.inputs)["serialized_data"],
                 "outputs": digest_agent_run(result=record.outputs, policy=digest_policy),
@@ -296,25 +201,32 @@ def propose_mutation(
             for record in reference_runs[:3]
         ],
     }
-    # The outcomes are deliberately not part of the message above: everything in it is identical on every turn of
-    # an experiment, and keeping what grows out of it is what leaves its text reusable.
     context_text = json.dumps(request, default=str)
-    record = {"outcomes": _history_record(history=history)}
-    detail = {"recent_outcomes_in_detail": _recent_outcomes(history=history, window=history_digest_window)}
-    # Three messages, ordered by how often each changes: context that never does, a record that only grows by
-    # appending, then the newest outcomes in full. Cache reuse needs the rendered prefix to match, and a provider
-    # that marks cache breakpoints does so between messages, so those boundaries have to be message boundaries.
-    result = optimizer_agent.run(
+    # Avoid serializing file-bound callables or cloning generator clients.
+    agent = Agent(
+        chat_generator=optimizer_agent.chat_generator,
+        tools=[*optimizer_agent.tools, *workspace.tools()],
+        system_prompt=optimizer_agent.system_prompt,
+        max_agent_steps=optimizer_agent.max_agent_steps,
+        tool_concurrency_limit=1,
+        exit_conditions=["submit_candidate", "finish"],
+    )
+    result = agent.run(
         messages=[
             ChatMessage.from_user(text=context_text),
-            ChatMessage.from_user(text=json.dumps(record, default=str)),
-            ChatMessage.from_user(text=json.dumps(detail, default=str)),
-        ],
-        generation_kwargs={"text_format": OptimizerDecision},
+            ChatMessage.from_user(text=json.dumps({"outcomes": strip_run_digests(history)}, default=str)),
+            ChatMessage.from_user(
+                text=json.dumps(
+                    {
+                        "recent_outcomes_in_detail": history[-history_digest_window:]
+                        if history_digest_window > 0
+                        else [],
+                        "workspace": workspace.read_config(),
+                    },
+                    default=str,
+                )
+            ),
+        ]
     )
-    _log_optimizer_usage(message=result["last_message"], prefix_digest=content_digest(payload=context_text))
-    text = result["last_message"].text
-    if text is None:
-        msg = "The harness optimizer Agent returned no structured decision text."
-        raise ValueError(msg)
-    return OptimizerDecision.model_validate_json(text).mutation
+    logger.info("optimizer turn token usage: {usage}", usage=result.get("token_usage"))
+    return workspace.submitted

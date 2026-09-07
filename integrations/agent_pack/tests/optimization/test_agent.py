@@ -1,340 +1,118 @@
-import json
-
 import pytest
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
-from haystack.tools import Toolset, tool
-from openai.lib._pydantic import to_strict_json_schema
-from pydantic import ValidationError
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import (
-    AgentMutation,
-    ModelPrice,
+    ConfigurationWorkspace,
     ModelPriceCatalog,
-    MutationOperation,
     OptimizationObjectives,
-    OptimizerDecision,
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
-    propose_mutation,
+    propose_candidate,
 )
-from haystack_integrations.agent_pack.optimization.agent import (
-    HARNESS_OPTIMIZER_SYSTEM_PROMPT,
-    OPTIMIZER_PROMPT_CACHE_KEY,
-    describe_environment,
-)
+from haystack_integrations.agent_pack.optimization.agent import describe_environment
+
+from .test_workspace import agent_yaml
 
 
-@tool
-def search_documents(query: str) -> str:
-    """Retrieve documents matching a query."""
-    return query
+def test_defaults_and_environment(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    agent = create_harness_optimizer_agent(additional_instructions="Keep the corpus.")
+    assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
+    assert describe_environment() in agent.system_prompt
+    assert agent.system_prompt.endswith("Keep the corpus.")
+    assert agent.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}
 
 
-def reference_run():
-    """Create one successful input/output example carrying the tool behavior an optimizer reasons from."""
-    call = ToolCall(tool_name="search_documents", arguments={"query": "q", "filters": {"field": "meta.year"}}, id="c1")
-    messages = [
-        ChatMessage.from_user("q"),
-        ChatMessage.from_assistant(tool_calls=[call]),
-        ChatMessage.from_tool("one document", origin=call),
-        ChatMessage.from_assistant("a"),
-    ]
-    return AgentRunRecord(
-        run_id="run",
-        inputs={"messages": [ChatMessage.from_user("q")]},
-        outputs={
-            "messages": messages,
-            "last_message": messages[-1],
-            "exit_reason": "text",
-            "step_count": 2,
-            "tool_call_counts": {"search_documents": 1, "fetch_documents_by_filter": 0},
-        },
-    )
+def test_documentation_toolset_is_optional_and_read_only():
+    pytest.importorskip("haystack_integrations.tools.mcp")
+    docs = create_haystack_documentation_mcp_toolset()
+    assert docs.tool_names == ["search_haystack_docs"]
+    assert docs.eager_connect is False
 
 
-def pricing():
-    """Create optimizer price context that is deliberately not an allowlist."""
-    return ModelPriceCatalog(prices=[ModelPrice(model_id="reference"), ModelPrice(model_id="cheap")])
+def test_optimizer_repairs_yaml_before_submitting(tmp_path):
+    reference = Agent(chat_generator=MockChatGenerator(model="reference"))
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml(reference))
+    stage = iter(["break", "validate", "repair", "validate", "submit"])
 
+    def respond(_messages):
+        current = workspace.read_config()
+        action = next(stage)
+        if action in ("break", "repair"):
+            old, new = (
+                ("model: reference", "model: [broken") if action == "break" else ("model: [broken", "model: cheap")
+            )
+            call = ToolCall(
+                "edit_config", {"old": old, "new": new, "expected_revision": current["revision"]}, id=action
+            )
+        elif action == "validate":
+            call = ToolCall("validate_config", {}, id=action)
+        else:
+            call = ToolCall(
+                "submit_candidate", {"expected_revision": current["revision"], "rationale": "reduce cost"}, id=action
+            )
+        return ChatMessage.from_assistant(tool_calls=[call])
 
-def optimizer_agent_for(response):
-    """Build an optimizer Agent around a deterministic mock generator."""
-    return create_harness_optimizer_agent(chat_generator=MockChatGenerator(response))
-
-
-def propose_with(optimizer_agent, history=None):
-    """Request a mutation with complete minimal experiment context."""
-    return propose_mutation(
-        optimizer_agent=optimizer_agent,
-        reference=Agent(chat_generator=MockChatGenerator(model="reference"), system_prompt="reference prompt"),
-        reference_runs=[reference_run()],
-        pricing=pricing(),
+    result = propose_candidate(
+        optimizer_agent=create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond)),
+        workspace=workspace,
+        reference=reference,
+        reference_runs=[],
+        pricing=ModelPriceCatalog([]),
         objectives=OptimizationObjectives(),
-        baseline=EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
-        history=history or [],
+        baseline=EvaluationMetrics(quality=1, cost=1, latency_ms=1),
+        history=[],
     )
+    assert result is not None
+    assert "model: cheap" in result.yaml
+    assert len(workspace.validation_failures) == 1
 
 
-def test_system_prompt_grants_full_configuration_control_and_explains_mutations():
-    """The optimizer is guided toward evidence-based arbitrary edits rather than named patches."""
-    assert "complete serialized reference Agent configuration" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    assert "may change any part" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    assert "RFC 6901" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    assert "rather than an allowlist" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    assert "documentation tools" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    assert "outcome is attributable" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    assert "vary one thing at a time" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    assert "removing one withdraws the tool entirely" in HARNESS_OPTIMIZER_SYSTEM_PROMPT
-
-
-def test_optimizer_agent_defaults_and_optional_docs_toolset(monkeypatch):
-    """The factory keeps provider and optional documentation setup compact."""
-    monkeypatch.setenv("OPENAI_API_KEY", "test")
-    default = create_harness_optimizer_agent()
-    assert isinstance(default.chat_generator, OpenAIResponsesChatGenerator)
-    assert default.chat_generator.model == "gpt-5.6-terra"
-    assert default.system_prompt is not None
-    assert default.system_prompt.startswith(HARNESS_OPTIMIZER_SYSTEM_PROMPT)
-
-    @tool
-    def search_haystack_docs(query: str) -> str:
-        """Search official Haystack documentation."""
-        return query
-
-    docs = Toolset([search_haystack_docs])
-    with_docs = create_harness_optimizer_agent(chat_generator=MockChatGenerator("{}"), docs_toolset=docs)
-    assert with_docs.tools == [docs]
-
-
-def test_instructions_name_what_this_environment_can_import():
-    """A configuration is only worth measuring if it can be rebuilt here, which depends on what is installed."""
-    described = describe_environment()
-    assert "Haystack" in described
-    # Whatever is installed alongside Haystack is named with its version; agent_pack itself always is.
-    assert "agent-pack-haystack" in described
-    assert "haystack-ai" not in described
-
-    agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator("{}"))
-    assert agent.system_prompt is not None
-    assert described in agent.system_prompt
-    # It survives a replacement of the instructions, because it constrains what any of them can propose.
-    replaced = create_harness_optimizer_agent(
-        chat_generator=MockChatGenerator("{}"), system_prompt="Only these rules apply."
+def test_plain_text_does_not_submit_or_run_forever(tmp_path):
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+    result = propose_candidate(
+        optimizer_agent=create_harness_optimizer_agent(chat_generator=MockChatGenerator("done"), max_agent_steps=2),
+        workspace=workspace,
+        reference=Agent(chat_generator=MockChatGenerator()),
+        reference_runs=[],
+        pricing=ModelPriceCatalog([]),
+        objectives=OptimizationObjectives(),
+        baseline=EvaluationMetrics(quality=1, cost=1, latency_ms=1),
+        history=[],
     )
-    assert replaced.system_prompt is not None
-    assert described in replaced.system_prompt
+    assert result is None
+    assert workspace.submitted is None
 
 
-def test_domain_guidance_extends_rather_than_replaces_the_optimizer_instructions():
-    """A harness can teach the optimizer about its own Agent without rewriting the mutation instructions."""
-    guided = create_harness_optimizer_agent(
-        chat_generator=MockChatGenerator("{}"), additional_instructions="  Keep top_k above the case minimum.  "
-    )
-    assert guided.system_prompt is not None
-    # Instructions, then what this environment can import, then the harness's own guidance.
-    assert guided.system_prompt.startswith(HARNESS_OPTIMIZER_SYSTEM_PROMPT)
-    assert describe_environment() in guided.system_prompt
-    assert guided.system_prompt.endswith("\n\nKeep top_k above the case minimum.")
+def test_failed_submission_keeps_the_agent_running_for_repair(tmp_path):
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+    current = workspace.read_config()
+    workspace.edit_config("model: reference", "model: cheap", current["revision"])
+    steps = iter(["submit_candidate", "validate_config", "submit_candidate"])
 
-    replaced = create_harness_optimizer_agent(
-        chat_generator=MockChatGenerator("{}"),
-        system_prompt="Only these rules apply.",
-        additional_instructions="Keep top_k above the case minimum.",
-    )
-    assert replaced.system_prompt is not None
-    assert replaced.system_prompt.startswith("Only these rules apply.")
-    assert replaced.system_prompt.endswith("\n\nKeep top_k above the case minimum.")
-
-
-def test_haystack_documentation_mcp_server_is_read_only_and_lazy():
-    """The exposed public MCP integration contains only documentation search."""
-    pytest.importorskip("haystack_integrations.tools.mcp", reason="mcp-haystack is optional")
-    toolset = create_haystack_documentation_mcp_toolset()
-    assert toolset.tool_names == ["search_haystack_docs"]
-    assert toolset.eager_connect is False
-
-
-def test_optimizer_decision_converts_to_a_provider_strict_schema():
-    """The fixed decision model is valid provider-native structured output."""
-    schema = to_strict_json_schema(OptimizerDecision)
-    assert schema["additionalProperties"] is False
-    operation_schema = schema["$defs"]["MutationOperation"]
-    assert "oneOf" not in operation_schema
-    assert operation_schema["properties"]["op"]["enum"] == [
-        "set",
-        "set_json",
-        "create_object",
-        "create_array",
-        "remove",
-        "copy",
-    ]
-    # `set_json` carries a subtree as text precisely so the schema stays strict: an arbitrary object could not be
-    # expressed here, but a string can.
-    assert operation_schema["properties"]["value"]["anyOf"][0] == {"type": "string"}
-
-
-def test_propose_mutation_returns_one_typed_mutation_or_stops():
-    """No manual JSON extraction sits between provider output and Pydantic validation."""
-    response = json.dumps(
-        {
-            "mutation": {
-                "operations": [
-                    {
-                        "op": "set",
-                        "path": "/init_parameters/chat_generator/init_parameters/model",
-                        "value": "any-model",
-                    }
-                ]
+    def respond(_messages):
+        name = next(steps)
+        arguments = (
+            {}
+            if name == "validate_config"
+            else {
+                "expected_revision": workspace.read_config()["revision"],
+                "rationale": "test validation gate",
             }
-        }
-    )
-    assert propose_with(optimizer_agent=optimizer_agent_for(response=response)) == AgentMutation(
-        operations=(
-            MutationOperation(
-                op="set", path="/init_parameters/chat_generator/init_parameters/model", value="any-model"
-            ),
         )
+        return ChatMessage.from_assistant(tool_calls=[ToolCall(name, arguments, id=name)])
+
+    result = propose_candidate(
+        optimizer_agent=create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond)),
+        workspace=workspace,
+        reference=Agent(chat_generator=MockChatGenerator()),
+        reference_runs=[],
+        pricing=ModelPriceCatalog([]),
+        objectives=OptimizationObjectives(),
+        baseline=EvaluationMetrics(quality=1, cost=1, latency_ms=1),
+        history=[],
     )
-    assert propose_with(optimizer_agent=optimizer_agent_for(response='{"mutation": null}')) is None
-
-
-def test_propose_mutation_sends_full_configuration_runs_and_history():
-    """The optimizer can reason from all editable state plus measured input/output outcomes."""
-    seen = []
-
-    def capture(messages):
-        """Capture generator messages and return a stop decision."""
-        seen.extend(messages)
-        return '{"mutation": null}'
-
-    optimizer_agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=capture))
-    history = [{"mutation": {"operations": []}, "status": "failed"}]
-    assert propose_with(optimizer_agent=optimizer_agent, history=history) is None
-    sent = [json.loads(message.text) for message in seen if message.is_from("user")]
-    # Three messages ordered by how often each changes, so a cache breakpoint can sit between them and everything
-    # ahead of the churn stays identical from turn to turn.
-    context, record, detail = sent
-    assert "history" not in context
-    # The record carries every outcome without its tool traces, and never revises an entry once written.
-    assert record == {"outcomes": history}
-    assert detail == {"recent_outcomes_in_detail": history}
-    request = context
-    assert request["reference_agent_configuration"]["init_parameters"]["system_prompt"] == "reference prompt"
-    assert request["baseline"]["cost"] == 10.0
-    assert request["successful_reference_runs"][0]["inputs"]["messages"][0]["content"] == [{"text": "q"}]
-
-    digest = request["successful_reference_runs"][0]["outputs"]
-    assert digest["exit_reason"] == "text"
-    assert digest["tool_call_counts"] == {"search_documents": 1, "fetch_documents_by_filter": 0}
-    assert digest["tool_steps"] == [
-        {
-            "tool": "search_documents",
-            "arguments": '{"query": "q", "filters": {"field": "meta.year"}}',
-            "result": "one document",
-            "error": False,
-        }
-    ]
-    assert digest["answer_excerpt"] == "a"
-    # The verbatim transcript is not sent: provider response metadata dominates it, and `last_message` only
-    # repeats the final message.
-    assert "messages" not in digest
-    assert "last_message" not in digest
-
-
-def test_available_tools_names_what_the_serialized_configuration_cannot():
-    """A ComponentTool serializes a null parameter schema, so the request has to carry the specs separately."""
-    seen = []
-
-    def capture(messages):
-        """Capture generator messages and return a stop decision."""
-        seen.extend(messages)
-        return '{"mutation": null}'
-
-    optimizer_agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=capture))
-    reference = Agent(chat_generator=MockChatGenerator(model="reference"), tools=[search_documents])
-    assert (
-        propose_mutation(
-            optimizer_agent=optimizer_agent,
-            reference=reference,
-            reference_runs=[reference_run()],
-            pricing=pricing(),
-            objectives=OptimizationObjectives(),
-            baseline=EvaluationMetrics(quality=1.0, cost=10.0, latency_ms=100),
-            history=[],
-        )
-        is None
-    )
-    request = json.loads(next(message.text for message in seen if message.is_from("user")))
-    assert request["available_tools"] == [
-        {
-            "name": "search_documents",
-            "description": "Retrieve documents matching a query.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-            },
-        }
-    ]
-
-
-def test_the_default_optimizer_carries_a_stable_cache_routing_key(monkeypatch):
-    """Reuse of the prefix depends on requests for it being routed together."""
-    monkeypatch.setenv("OPENAI_API_KEY", "test")
-    default = create_harness_optimizer_agent()
-
-    assert default.chat_generator.generation_kwargs["prompt_cache_key"] == OPTIMIZER_PROMPT_CACHE_KEY
-    # Reasoning is billed as output on the most expensive model in the experiment, so the effort behind one
-    # decision per turn is chosen here rather than left to the provider's heavier default.
-    assert default.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}
-
-    # A caller-supplied generator is left alone: the key is provider-specific, and a generator that has no such
-    # setting must not acquire one.
-    supplied = create_harness_optimizer_agent(chat_generator=MockChatGenerator("{}"))
-    assert not hasattr(supplied.chat_generator, "generation_kwargs")
-
-
-def test_a_reference_whose_tools_cannot_be_read_still_produces_a_proposal(monkeypatch):
-    """Losing the tool specs degrades the evidence; it must not end the experiment."""
-    seen = []
-
-    def capture(messages):
-        """Capture generator messages and return a stop decision."""
-        seen.extend(messages)
-        return '{"mutation": null}'
-
-    def explode(tools):  # noqa: ARG001
-        """Fail the way a lazily-loaded toolset that cannot connect would."""
-        msg = "toolset unavailable"
-        raise RuntimeError(msg)
-
-    monkeypatch.setattr("haystack_integrations.agent_pack.optimization.agent.warm_up_tools", explode)
-    optimizer_agent = create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=capture))
-    assert propose_with(optimizer_agent=optimizer_agent) is None
-    request = json.loads(next(message.text for message in seen if message.is_from("user")))
-    assert request["available_tools"] == []
-
-
-def test_propose_mutation_always_passes_the_pydantic_text_format(monkeypatch):
-    """Structured output is mandatory rather than an optional provider-specific switch."""
-    optimizer_agent = optimizer_agent_for(response='{"mutation": null}')
-    captured = {}
-    original = optimizer_agent.run
-
-    def spy(**kwargs):
-        """Record Agent invocation arguments before delegating to the real implementation."""
-        captured.update(kwargs)
-        return original(**kwargs)
-
-    monkeypatch.setattr(optimizer_agent, "run", spy)
-    assert propose_with(optimizer_agent=optimizer_agent) is None
-    assert captured["generation_kwargs"] == {"text_format": OptimizerDecision}
-
-
-def test_invalid_structured_text_fails_at_one_validation_boundary():
-    """Malformed output is not recovered through brace scanning or ad-hoc retries."""
-    with pytest.raises(ValidationError):
-        propose_with(optimizer_agent=optimizer_agent_for(response="not json"))
+    assert result is not None

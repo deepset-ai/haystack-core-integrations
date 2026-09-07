@@ -6,40 +6,43 @@
 
 import json
 import traceback
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from threading import RLock
 from typing import Any
+from uuid import uuid4
 
 from haystack import logging
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, content_digest
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, content_digest
 from haystack_integrations.agent_pack.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.local_run_store import LocalRunStore
-from haystack_integrations.agent_pack.optimization.agent import propose_mutation
+from haystack_integrations.agent_pack.optimization.agent import propose_candidate
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.mutations import (
-    AgentMutation,
-    apply_mutation,
-    rebuild_agent,
+from haystack_integrations.agent_pack.optimization.workspace import (
+    CandidateConfiguration,
+    ConfigurationWorkspace,
+    configuration_id,
+    dump_agent,
+    load_agent,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 
 logger = logging.getLogger(__name__)
-_MAX_STALLED_PROPOSALS = 3
 
 
 @dataclass(frozen=True, kw_only=True)
 class CandidateEvaluation:
-    """Journaled raw measurement or failure for one resolved configuration mutation."""
+    """Journaled raw measurement or failure for one complete YAML configuration."""
 
     measurement_context: str
+    run_id: str
     candidate_id: str
-    mutation: dict[str, Any] | None
+    configuration: CandidateConfiguration | None
     metrics: EvaluationMetrics | None
     failure: str | None = None
 
@@ -51,8 +54,9 @@ class CandidateEvaluation:
         """Return a JSON-compatible journal record."""
         return {
             "measurement_context": self.measurement_context,
+            "run_id": self.run_id,
             "candidate_id": self.candidate_id,
-            "mutation": self.mutation,
+            "configuration": asdict(self.configuration) if self.configuration is not None else None,
             "metrics": self.metrics.to_dict() if self.metrics is not None else None,
             "failure": self.failure,
         }
@@ -63,8 +67,9 @@ class CandidateEvaluation:
         metrics = data.get("metrics")
         return cls(
             measurement_context=data["measurement_context"],
+            run_id=data["run_id"],
             candidate_id=data["candidate_id"],
-            mutation=data.get("mutation"),
+            configuration=CandidateConfiguration(**data["configuration"]) if data.get("configuration") else None,
             metrics=EvaluationMetrics.from_dict(data=metrics) if metrics is not None else None,
             failure=data.get("failure"),
         )
@@ -74,7 +79,7 @@ class CandidateEvaluation:
 class ExperimentRecommendation:
     """The measured configuration that passed its gates and outranked the reference."""
 
-    mutation: AgentMutation
+    configuration: CandidateConfiguration
     evaluation: CandidateEvaluation
     reasons: tuple[str, ...] = ()
 
@@ -87,12 +92,9 @@ class ExperimentResult:
     candidates: tuple[CandidateEvaluation, ...]
     recommendation: ExperimentRecommendation | None
     measurement_context: str
+    run_id: str
+    artifact_directory: Path
     gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
-
-    @property
-    def configuration_hash(self) -> str:
-        """Compatibility alias for the measurement context identifier."""
-        return self.measurement_context
 
 
 class ExperimentJournal:
@@ -105,9 +107,7 @@ class ExperimentJournal:
         The journal records what was measured; it is not read back to measure less. Every experiment measures its
         own reference and its own candidates, so a run's result never depends on what an earlier one wrote.
 
-        Each outcome is filed under the measurement context that produced it, which gives one file per experiment
-        rather than one file accumulating every experiment ever run. Runs stay separable without anyone having to
-        group lines by hand, and the file name says which conditions its measurements belong to.
+        Each invocation gets a unique run ID and journal, even when its measurement context matches an earlier run.
 
         :param directory: Directory to write journals into. Created automatically.
         """
@@ -115,14 +115,14 @@ class ExperimentJournal:
         self.directory.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
 
-    def path_for(self, measurement_context: str) -> Path:
+    def path_for(self, run_id: str) -> Path:
         """
         Return the journal file holding one experiment's measurements.
 
-        :param measurement_context: The context identifying the experiment.
+        :param run_id: Unique identifier of one experiment invocation.
         :returns: Path to that experiment's journal.
         """
-        return self.directory / f"{measurement_context}.jsonl"
+        return self.directory / f"{run_id}.jsonl"
 
     def append(self, evaluation: CandidateEvaluation) -> None:
         """
@@ -134,30 +134,9 @@ class ExperimentJournal:
         # context and the candidate it describes.
         with (
             self._lock,
-            self.path_for(measurement_context=evaluation.measurement_context).open("a", encoding="utf-8") as stream,
+            self.path_for(run_id=evaluation.run_id).open("a", encoding="utf-8") as stream,
         ):
             stream.write(json.dumps(evaluation.to_dict()) + "\n")
-
-
-def _stable_serialization(value: Any) -> Any:
-    """Remove only process-local InMemoryDocumentStore identity from serialized Agent data."""
-    if isinstance(value, list):
-        return [_stable_serialization(value=item) for item in value]
-    if not isinstance(value, dict):
-        return value
-    normalized = {key: _stable_serialization(value=item) for key, item in value.items()}
-    type_name = normalized.get("type")
-    if isinstance(type_name, str) and type_name.endswith("InMemoryDocumentStore"):
-        parameters = normalized.get("init_parameters")
-        if isinstance(parameters, dict):
-            parameters.pop("index", None)
-    return normalized
-
-
-def _configuration_fingerprint(serialized_agent: dict[str, Any]) -> str:
-    """Fingerprint the stable form of a complete resulting Agent configuration."""
-    payload = json.dumps(_stable_serialization(value=serialized_agent), sort_keys=True, default=str)
-    return content_digest(payload=payload)
 
 
 class HarnessOptimizationExperiment:
@@ -177,12 +156,12 @@ class HarnessOptimizationExperiment:
         max_iterations: int = 8,
         digest_policy: RunDigestPolicy | None = None,
         history_digest_window: int = 1,
+        config_path: str | Path | None = None,
     ) -> None:
         """
         Configure an iterative, journaled harness optimization run.
 
-        :param reference: The unchanged Agent used as the baseline and as the source configuration for every
-            candidate mutation.
+        :param reference: Agent used to generate the initial pipeline YAML and baseline.
         :param run_store: Local store of successful Agent runs whose inputs are replayed during evaluation.
         :param evaluator: Evaluator that measures the reference and each materialized candidate against the selected
             runs.
@@ -190,15 +169,19 @@ class HarnessOptimizationExperiment:
             restrict which models the optimizer may choose.
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
         :param journal: Where every raw measurement the experiment takes is recorded.
-        :param optimizer_agent: Agent that chooses each next mutation after observing prior outcomes.
+        :param optimizer_agent: Agent that edits YAML after observing prior outcomes.
         :param run_ids: Optional identifiers selecting which records to load from `run_store`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
         :param digest_policy: Caps applied when compressing reference runs into the evidence the optimizer reads.
-        :param history_digest_window: How many of the most recent outcomes keep their tool traces when the history
-            is sent to the optimizer.
+        :param history_digest_window: How many recent outcomes retain detailed traces in optimizer context.
+        :param config_path: Optional editable YAML draft, created if absent. Defaults to the artifact directory.
         """
+        if max_iterations < 0:
+            msg = "max_iterations must be nonnegative."
+            raise ValueError(msg)
+        self.config_path = config_path
         self.reference = reference
         self.run_store = run_store
         self.evaluator = evaluator
@@ -213,37 +196,55 @@ class HarnessOptimizationExperiment:
         self.history_digest_window = history_digest_window
 
     def run(self) -> ExperimentResult:
-        """Measure the baseline, then iteratively evaluate structured configuration mutations."""
+        """Measure a baseline and a bounded number of validated YAML candidates."""
         reference_runs = self.run_store.list(run_ids=self.run_ids)
         if not reference_runs:
             msg = "The selected run store contains no successful reference runs."
             raise ValueError(msg)
-        try:
-            serialized_reference = self.reference.to_dict()
-        except Exception as error:
-            msg = f"{type(self.reference).__name__} cannot be serialized and optimized: {error}"
-            raise ValueError(msg) from error
-
-        context = self._measurement_context(serialized_reference=serialized_reference, reference_runs=reference_runs)
-        logger.info(
-            "measuring the reference over {runs} recorded runs, then up to {total} candidates",
-            runs=len(reference_runs),
-            total=self.max_iterations,
+        reference_yaml = dump_agent(self.reference)
+        payload = {
+            "reference": configuration_id(reference_yaml),
+            "runs": sorted(record.fingerprint() for record in reference_runs),
+            "evaluator": type(self.evaluator).__qualname__,
+            "configuration_key": self.configuration_key,
+        }
+        if callable(fingerprint := getattr(self.evaluator, "fingerprint", None)):
+            payload["evaluator_configuration"] = fingerprint()
+        context = content_digest(json.dumps(payload, sort_keys=True, default=str))
+        run_id = uuid4().hex[:12]
+        artifacts = self.journal.directory / run_id
+        artifacts.mkdir()
+        (artifacts / "reference.yaml").write_text(reference_yaml, encoding="utf-8")
+        validator = getattr(self.evaluator, "validate_agent", None)
+        workspace = ConfigurationWorkspace(
+            self.config_path or artifacts / "candidate.yaml",
+            reference_yaml,
+            validator=validator if callable(validator) else None,
         )
-        baseline = self.pricing.price(metrics=self._baseline(context=context, reference_runs=reference_runs))
+        baseline_agent = load_agent(reference_yaml)
+        try:
+            baseline_raw = self.evaluator.evaluate(agent=baseline_agent, reference_runs=reference_runs)
+        finally:
+            baseline_agent.close()
+        self.journal.append(
+            CandidateEvaluation(
+                measurement_context=context,
+                run_id=run_id,
+                candidate_id=workspace.reference_id,
+                configuration=None,
+                metrics=baseline_raw,
+            )
+        )
+        baseline = self.pricing.price(baseline_raw)
         if self.objectives.primary == "cost" and baseline.cost is None:
-            msg = "The reference Agent uses an unpriced model, so cost cannot be the primary objective."
+            msg = "The reference Agent has unavailable cost; supply pricing and complete usage."
             raise ValueError(msg)
         outcomes: list[CandidateEvaluation] = []
-        mutation_by_id: dict[str, AgentMutation] = {}
         history: list[dict[str, Any]] = []
-        seen: set[str] = set()
-
-        reference_fingerprint = _configuration_fingerprint(serialized_agent=serialized_reference)
-        stalled = 0
-        while len(outcomes) < self.max_iterations and stalled < _MAX_STALLED_PROPOSALS:
-            proposed = propose_mutation(
+        while len(outcomes) < self.max_iterations:
+            proposed = propose_candidate(
                 optimizer_agent=self.optimizer_agent,
+                workspace=workspace,
                 reference=self.reference,
                 reference_runs=reference_runs,
                 pricing=self.pricing,
@@ -253,153 +254,92 @@ class HarnessOptimizationExperiment:
                 digest_policy=self.digest_policy,
                 history_digest_window=self.history_digest_window,
             )
+            for failure in workspace.validation_failures:
+                self.journal.append(
+                    CandidateEvaluation(
+                        measurement_context=context,
+                        run_id=run_id,
+                        candidate_id=failure["revision"],
+                        configuration=None,
+                        metrics=None,
+                        failure=failure["error"],
+                    )
+                )
+            workspace.validation_failures.clear()
             if proposed is None:
                 break
-
+            (artifacts / f"{proposed.candidate_id}.yaml").write_text(proposed.yaml, encoding="utf-8")
             try:
-                serialized = apply_mutation(serialized_agent=serialized_reference, mutation=proposed)
-                fingerprint = _configuration_fingerprint(serialized_agent=serialized)
-            except Exception as error:
-                stalled = 0
-                candidate_id = content_digest(payload=f"{context}:invalid:{proposed.fingerprint()}")
-                failure = "".join(traceback.format_exception_only(type(error), error)).strip()
-                outcome = CandidateEvaluation(
+                candidate = load_agent(proposed.yaml)
+                try:
+                    metrics = self.evaluator.evaluate(agent=candidate, reference_runs=reference_runs)
+                finally:
+                    candidate.close()
+                raw = CandidateEvaluation(
                     measurement_context=context,
-                    candidate_id=candidate_id,
-                    mutation=proposed.model_dump(),
+                    run_id=run_id,
+                    candidate_id=proposed.candidate_id,
+                    configuration=proposed,
+                    metrics=metrics,
+                )
+            except Exception as error:
+                raw = CandidateEvaluation(
+                    measurement_context=context,
+                    run_id=run_id,
+                    candidate_id=proposed.candidate_id,
+                    configuration=proposed,
                     metrics=None,
-                    failure=failure,
+                    failure="".join(traceback.format_exception_only(type(error), error)).strip(),
                 )
-                outcomes.append(outcome)
-                history.append(self._history_entry(candidate=outcome, baseline=baseline))
-                logger.warning(
-                    "Candidate configuration could not be mutated for {mutation}: {error}",
-                    mutation=proposed,
-                    error=error,
-                )
-                continue
-
-            if fingerprint == reference_fingerprint or fingerprint in seen:
-                stalled += 1
-                logger.info(
-                    "proposal {stalled} of {limit} produced an already-measured configuration",
-                    stalled=stalled,
-                    limit=_MAX_STALLED_PROPOSALS,
-                )
-                history.append(
-                    {"mutation": proposed.model_dump(), "status": "rejected", "reason": "duplicate_or_no_op"}
-                )
-                continue
-            stalled = 0
-            seen.add(fingerprint)
-            candidate_id = content_digest(payload=f"{context}:{fingerprint}")
-            raw = self._evaluate_candidate(
-                serialized_candidate=serialized,
-                mutation=proposed,
-                candidate_id=candidate_id,
-                context=context,
-                reference_runs=reference_runs,
-            )
-            self.journal.append(evaluation=raw)
-            priced = raw.price(pricing=self.pricing)
+            self.journal.append(raw)
+            priced = raw.price(self.pricing)
             outcomes.append(priced)
-            mutation_by_id[candidate_id] = proposed
-            history.append(self._history_entry(candidate=priced, baseline=baseline))
+            history.append(
+                {
+                    "candidate_id": proposed.candidate_id,
+                    "parent_id": proposed.parent_id,
+                    "rationale": proposed.rationale,
+                    "diff": proposed.diff,
+                    "metrics": priced.metrics.to_dict() if priced.metrics is not None else None,
+                    "failure": priced.failure,
+                    "gate_failures": self._gate_failures(priced, baseline),
+                }
+            )
             logger.info(
-                "candidate {position}/{total}: quality={quality} cost={cost} gates={gates}",
+                "candidate {position}/{total}: {candidate_id}, gates={gates}",
                 position=len(outcomes),
                 total=self.max_iterations,
-                quality=f"{priced.metrics.quality:.2f}" if priced.metrics else "not measured",
-                cost=f"${priced.metrics.cost:.6f}" if priced.metrics and priced.metrics.cost else "unpriced",
-                gates=", ".join(self._gate_failures(candidate=priced, baseline=baseline)) or "passed",
+                candidate_id=proposed.candidate_id,
+                gates=history[-1]["gate_failures"],
             )
-
-        gate_failures = {
-            outcome.candidate_id: self._gate_failures(candidate=outcome, baseline=baseline) for outcome in outcomes
-        }
-        eligible = [outcome for outcome in outcomes if not gate_failures[outcome.candidate_id]]
-        eligible.sort(key=self._candidate_rank)
+        gates = {outcome.candidate_id: self._gate_failures(outcome, baseline) for outcome in outcomes}
+        eligible = sorted(
+            (outcome for outcome in outcomes if not gates[outcome.candidate_id]), key=self._candidate_rank
+        )
         recommendation = None
-        for eligible_candidate in eligible:
-            if (reasons := self._recommendation_reasons(candidate=eligible_candidate, baseline=baseline)) is not None:
+        for evaluated in eligible:
+            reasons = self._recommendation_reasons(evaluated, baseline)
+            if reasons is not None and evaluated.configuration is not None:
                 recommendation = ExperimentRecommendation(
-                    mutation=mutation_by_id[eligible_candidate.candidate_id],
-                    evaluation=eligible_candidate,
+                    configuration=evaluated.configuration,
+                    evaluation=evaluated,
                     reasons=reasons,
                 )
+                (artifacts / "recommended.yaml").write_text(evaluated.configuration.yaml, encoding="utf-8")
                 break
+        (artifacts / "context.json").write_text(
+            json.dumps({"measurement_context": context, "run_id": run_id, **payload}, indent=2, default=str),
+            encoding="utf-8",
+        )
         return ExperimentResult(
             baseline=baseline,
             candidates=tuple(outcomes),
             recommendation=recommendation,
             measurement_context=context,
-            gate_failures=gate_failures,
+            run_id=run_id,
+            artifact_directory=artifacts,
+            gate_failures=gates,
         )
-
-    def _measurement_context(self, serialized_reference: dict[str, Any], reference_runs: list[AgentRunRecord]) -> str:
-        """Fingerprint every input that changes a raw Agent measurement."""
-        evaluator: dict[str, Any] = {"type": f"{type(self.evaluator).__module__}.{type(self.evaluator).__qualname__}"}
-        if callable(fingerprint := getattr(self.evaluator, "fingerprint", None)):
-            evaluator["configuration"] = fingerprint()
-        payload = {
-            "reference": _stable_serialization(value=serialized_reference),
-            "evaluator": evaluator,
-            "runs": sorted(record.fingerprint() for record in reference_runs),
-            "configuration_key": self.configuration_key,
-        }
-        return content_digest(payload=json.dumps(payload, sort_keys=True, default=str))
-
-    def _baseline(self, context: str, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
-        """Load or measure the reference Agent for the current context."""
-        candidate_id = f"baseline:{context}"
-        metrics = self.evaluator.evaluate(agent=self.reference, reference_runs=reference_runs)
-        self.journal.append(
-            evaluation=CandidateEvaluation(
-                measurement_context=context,
-                candidate_id=candidate_id,
-                mutation=None,
-                metrics=metrics,
-            )
-        )
-        return metrics
-
-    def _evaluate_candidate(
-        self,
-        serialized_candidate: dict[str, Any],
-        mutation: AgentMutation,
-        candidate_id: str,
-        context: str,
-        reference_runs: list[AgentRunRecord],
-    ) -> CandidateEvaluation:
-        """Rebuild and measure one candidate configuration, converting failures into journal records."""
-        try:
-            candidate = rebuild_agent(serialized_agent=serialized_candidate)
-            metrics = self.evaluator.evaluate(agent=candidate, reference_runs=reference_runs)
-            return CandidateEvaluation(
-                measurement_context=context,
-                candidate_id=candidate_id,
-                mutation=mutation.model_dump(),
-                metrics=metrics,
-            )
-        except Exception as error:
-            logger.warning("Candidate evaluation failed for {mutation}: {error}", mutation=mutation, error=error)
-            return CandidateEvaluation(
-                measurement_context=context,
-                candidate_id=candidate_id,
-                mutation=mutation.model_dump(),
-                metrics=None,
-                failure="".join(traceback.format_exception_only(type(error), error)).strip(),
-            )
-
-    def _history_entry(self, candidate: CandidateEvaluation, baseline: EvaluationMetrics) -> dict[str, Any]:
-        """Describe one outcome for the optimizer Agent's next decision."""
-        return {
-            "mutation": candidate.mutation,
-            "status": "measured" if candidate.metrics is not None else "failed",
-            "metrics": candidate.metrics.to_dict() if candidate.metrics is not None else None,
-            "failure": candidate.failure,
-            "gate_failures": self._gate_failures(candidate=candidate, baseline=baseline),
-        }
 
     def _gate_failures(self, candidate: CandidateEvaluation, baseline: EvaluationMetrics) -> tuple[str, ...]:
         """Return the hard gates a candidate failed."""

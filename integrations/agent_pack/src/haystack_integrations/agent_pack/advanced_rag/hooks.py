@@ -6,6 +6,7 @@ from haystack import logging
 from haystack.components.agents.state import State
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 from haystack.components.generators.chat.types import ChatGenerator
+from haystack.components.generators.utils import _trace_chat_generator_run
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ChatRole
 
@@ -86,7 +87,10 @@ class BackupAnswerHook:
         logger.info("run ended without a final answer (likely max_agent_steps); writing a backup answer")
         transcript = [m for m in messages if not m.is_from(ChatRole.SYSTEM)]
         prompt = [ChatMessage.from_system(prompts.BACKUP_ANSWER_PROMPT), *transcript]
-        reply = self.chat_generator.run(messages=prompt)["replies"][0]
+        with _trace_chat_generator_run(self.chat_generator, {"messages": prompt}) as span:
+            result = self.chat_generator.run(messages=prompt)
+            span.set_content_tag("haystack.component.output", result)
+        reply = result["replies"][0]
         state.set("messages", [reply])  # merge_lists handler: appended as the final message
         usage = reply.meta.get("usage") or {}
         model = next(

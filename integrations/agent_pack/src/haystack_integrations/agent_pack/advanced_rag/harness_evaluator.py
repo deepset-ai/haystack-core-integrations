@@ -11,55 +11,30 @@ measurements without the Advanced RAG package depending on optimizer implementat
 
 import asyncio
 import time
-from collections.abc import Mapping
 from typing import Any
 
 from haystack import Document, logging
 from haystack.components.agents import Agent
-from haystack.core.serialization import component_to_dict
 from haystack.dataclasses import ChatMessage
+from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import (
+    METADATA_TOOLS,
+    RETRIEVAL_TOOLS,
     AdvancedRAGCaseMetrics,
     AdvancedRAGEvaluationCase,
     score_advanced_rag_result,
 )
+from haystack_integrations.agent_pack.advanced_rag.tools import (
+    GetMetadataFieldRangeTool,
+    GetMetadataFieldValuesTool,
+    ListMetadataFieldsTool,
+)
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
+from haystack_integrations.agent_pack.usage_tracer import CaseUsage, UsageTracer
 
 logger = logging.getLogger(__name__)
-
-_MODEL_KEYS = ("model", "azure_deployment", "model_name")
-_NESTED_MODEL_CONTAINERS = ("api_params",)
-_NESTED_MODEL_KEYS = ("model", "repo_id")
-
-
-def _model_id_from_parameters(parameters: Mapping[str, Any]) -> str | None:
-    """Return a model identifier from recognized generator parameter locations."""
-    for key in _MODEL_KEYS:
-        if isinstance(value := parameters.get(key), str):
-            return value
-    for container in _NESTED_MODEL_CONTAINERS:
-        nested = parameters.get(container)
-        if isinstance(nested, Mapping):
-            for key in _NESTED_MODEL_KEYS:
-                if isinstance(value := nested.get(key), str):
-                    return value
-    return None
-
-
-def _generator_model_id(generator: Any) -> str | None:
-    """Return a live generator's model identifier from attributes or its serialized parameters."""
-    direct = {key: getattr(generator, key, None) for key in _MODEL_KEYS}
-    direct.update({container: getattr(generator, container, None) for container in _NESTED_MODEL_CONTAINERS})
-    if model_id := _model_id_from_parameters(parameters=direct):
-        return model_id
-    try:
-        serialized = component_to_dict(obj=generator, name="chat_generator")
-    except Exception:
-        return None
-    parameters = serialized.get("init_parameters") or serialized.get("data") or {}
-    return _model_id_from_parameters(parameters=parameters) if isinstance(parameters, Mapping) else None
 
 
 def messages_from_run(record: AgentRunRecord) -> list[ChatMessage]:
@@ -163,6 +138,16 @@ class AdvancedRAGHarnessEvaluator:
         self.max_concurrent_cases = max_concurrent_cases
         self.max_traced_cases = max_traced_cases
 
+    def validate_agent(self, agent: Agent) -> None:
+        """
+        Require document state used for retrieval and citation scoring.
+
+        :param agent: Candidate Agent deserialized from YAML.
+        """
+        if "documents" not in agent.resolved_state_schema:
+            msg = "The RAG evaluator requires a documents state output."
+            raise ValueError(msg)
+
     def _traced_cases(self, metrics: list[AdvancedRAGCaseMetrics]) -> list[dict[str, Any]]:
         """
         Report every case, keeping tool traces for the ones worth diagnosing.
@@ -214,7 +199,9 @@ class AdvancedRAGHarnessEvaluator:
         started: float,
         position: int,
         total: int,
-    ) -> tuple[AdvancedRAGCaseMetrics, dict[str, Any]]:
+        retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
+        metadata_tools: frozenset[str] = METADATA_TOOLS,
+    ) -> AdvancedRAGCaseMetrics:
         """
         Score one completed Agent run and report it.
 
@@ -223,11 +210,18 @@ class AdvancedRAGHarnessEvaluator:
         :param started: The `perf_counter` reading from before the run.
         :param position: Which case this is, for reporting.
         :param total: How many cases there are, for reporting.
-        :returns: The case score and the usage of any model the Agent called besides its own.
+        :param retrieval_tools: Names resolved from candidate document outputs.
+        :param metadata_tools: Names resolved from metadata tool classes.
+        :returns: The case score.
         """
         latency_ms = (time.perf_counter() - started) * 1000
         scored = score_advanced_rag_result(
-            result=result, case=case, latency_ms=latency_ms, digest_policy=self.digest_policy
+            result=result,
+            case=case,
+            latency_ms=latency_ms,
+            digest_policy=self.digest_policy,
+            retrieval_tools=retrieval_tools,
+            metadata_tools=metadata_tools,
         )
         logger.info(
             "case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
@@ -237,28 +231,48 @@ class AdvancedRAGHarnessEvaluator:
             latency=latency_ms,
             question=case.question[:80],
         )
-        return scored, result.get("additional_model_usage") or {}
+        return scored
 
     async def _measure(
-        self, agent: Agent, resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]]
-    ) -> list[tuple[AdvancedRAGCaseMetrics, dict[str, Any]]]:
+        self, agent: Agent, resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]], tracer: UsageTracer
+    ) -> list[tuple[AdvancedRAGCaseMetrics, CaseUsage]]:
         """
         Measure every case, running up to `max_concurrent_cases` of them at once.
 
         :param agent: The candidate to measure.
         :param resolved: Each case with the messages that pose it.
+        :param tracer: Collector for per-case generator usage.
         :returns: One result per case, in case order.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_cases)
+        tools = flatten_tools_or_toolsets(getattr(agent, "tools", []))
+        retrieval_tools = RETRIEVAL_TOOLS | frozenset(
+            tool.name for tool in tools if "documents" in (tool.outputs_to_state or {})
+        )
+        metadata_tools = METADATA_TOOLS | frozenset(
+            tool.name
+            for tool in tools
+            if isinstance(tool, (ListMetadataFieldsTool, GetMetadataFieldValuesTool, GetMetadataFieldRangeTool))
+        )
 
         async def measure(
             position: int, case: AdvancedRAGEvaluationCase, messages: list[ChatMessage]
-        ) -> tuple[AdvancedRAGCaseMetrics, dict[str, Any]]:
+        ) -> tuple[AdvancedRAGCaseMetrics, CaseUsage]:
             """Run one case, waiting for a slot first."""
             async with semaphore:
                 started = time.perf_counter()
-                result = await agent.run_async(messages=messages)
-            return self._score(result=result, case=case, started=started, position=position, total=len(resolved))
+                with tracer.case() as usage:
+                    result = await agent.run_async(messages=messages)
+            scored = self._score(
+                result=result,
+                case=case,
+                started=started,
+                position=position,
+                total=len(resolved),
+                retrieval_tools=retrieval_tools,
+                metadata_tools=metadata_tools,
+            )
+            return scored, usage
 
         return list(
             await asyncio.gather(
@@ -272,7 +286,7 @@ class AdvancedRAGHarnessEvaluator:
 
         :param agent: The materialized candidate to score.
         :param reference_runs: The successful runs supplying the questions to replay.
-        :returns: Fraction of cases passed, raw model usage, and total latency for the candidate, with per-case detail.
+        :returns: Fraction of cases passed, raw model usage, and mean latency for the candidate, with per-case detail.
         :raises ValueError: If no reference runs were supplied.
         """
         resolved, derived = self._resolve(reference_runs=reference_runs)
@@ -280,40 +294,34 @@ class AdvancedRAGHarnessEvaluator:
             msg = "No reference runs were supplied to the Advanced RAG evaluator."
             raise ValueError(msg)
 
+        tracer = UsageTracer()
         agent.warm_up()
-        measured = asyncio.run(self._measure(agent=agent, resolved=resolved))
+        with tracer.activate():
+            measured = asyncio.run(self._measure(agent=agent, resolved=resolved, tracer=tracer))
 
         flattened = [scored for scored, _ in measured]
-        additional_usage: dict[str, ModelTokenUsage] = {}
-        for _, usage_by_model in measured:
-            for model, usage in usage_by_model.items():
-                current = additional_usage.get(model, ModelTokenUsage())
-                additional_usage[model] = ModelTokenUsage(
-                    input_tokens=current.input_tokens + int(usage.get("input_tokens", 0)),
-                    output_tokens=current.output_tokens + int(usage.get("output_tokens", 0)),
+        model_usage: dict[str, ModelTokenUsage] = {}
+        for _, usage in measured:
+            for model, tokens in usage.models.items():
+                current = model_usage.get(model, ModelTokenUsage())
+                model_usage[model] = ModelTokenUsage(
+                    input_tokens=current.input_tokens + tokens.input_tokens,
+                    output_tokens=current.output_tokens + tokens.output_tokens,
                 )
-
         quality = sum(metric.passed for metric in flattened) / len(flattened)
-        input_tokens = sum(metric.input_tokens for metric in flattened)
-        output_tokens = sum(metric.output_tokens for metric in flattened)
-        model_id = _generator_model_id(generator=agent.chat_generator)
-        if model_id is None:
-            msg = "The evaluator cannot attribute token usage because the Agent's model identifier is unknown."
-            raise ValueError(msg)
-
-        model_usage = dict(additional_usage)
-        coordinator = model_usage.get(model_id, ModelTokenUsage())
-        model_usage[model_id] = ModelTokenUsage(
-            input_tokens=coordinator.input_tokens + input_tokens,
-            output_tokens=coordinator.output_tokens + output_tokens,
-        )
-
+        input_tokens = sum(usage.input_tokens for usage in model_usage.values())
+        output_tokens = sum(usage.output_tokens for usage in model_usage.values())
+        model_id = getattr(agent.chat_generator, "model", None)
         return EvaluationMetrics(
             quality=quality,
-            latency_ms=sum(metric.latency_ms for metric in flattened),
+            latency_ms=sum(metric.latency_ms for metric in flattened) / len(flattened),
             model_usage=model_usage,
             details={
                 "model": model_id,
+                "usage_complete": all(usage.complete and usage.calls > 0 for _, usage in measured),
+                "mean_recall": sum(metric.recall for metric in flattened) / len(flattened),
+                "mean_precision": sum(metric.precision for metric in flattened) / len(flattened),
+                "answer_pass_rate": sum(metric.answer_requirements_met for metric in flattened) / len(flattened),
                 "validated": not derived,
                 "derived_cases": derived,
                 "cases": self._traced_cases(metrics=flattened),
