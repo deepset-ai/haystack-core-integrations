@@ -83,6 +83,15 @@ surface only the documents that share its wording. Expansion buys recall with mo
 set buys it with precision; the case reports recall and precision separately, and names the documents that were
 missed, so the two are distinguishable.
 
+One property of the expander is worth knowing before a measurement is spent discovering it. Its expansion count is
+applied by truncating whatever the model returned and keeping that many from the front, and the worked examples
+built into its default prompt demonstrate three or four expansions whatever the count is set to. A low count
+therefore does not ask the model for fewer queries: it pays for the three or four the examples elicit and then
+discards all but an arbitrary prefix of them, which the run reports as a truncation warning. That prompt is part
+of this configuration and can be edited, so the count and the examples it shows can be made to agree. The original
+question is also appended unless the model already produced it, so the queries actually issued are usually one
+more than the count.
+
 Each case also limits how many documents the pipeline may return. The limit is on what comes out, not on what the
 pipeline looks at, so past a certain point recall cannot be bought by widening: what is returned has to be the
 right subset of whatever was considered.
