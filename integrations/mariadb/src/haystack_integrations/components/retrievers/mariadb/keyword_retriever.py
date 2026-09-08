@@ -26,7 +26,7 @@ class MariaDBKeywordRetriever:
     from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
     from haystack_integrations.components.retrievers.mariadb import MariaDBKeywordRetriever
 
-    store = MariaDBDocumentStore(host="localhost", database="haystack", embedding_dimension=768)
+    store = MariaDBDocumentStore(host="127.0.0.1", database="haystack", embedding_dimension=768)
     retriever = MariaDBKeywordRetriever(document_store=store, top_k=5)
     result = retriever.run(query="climate change")
     documents = result["documents"]

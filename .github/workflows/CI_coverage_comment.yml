@@ -16,6 +16,7 @@ on:
       - "Test / brave"
       - "Test / azure_ai_search"
       - "Test / azure_doc_intelligence"
+      - "Test / azure_documentdb"
       - "Test / azure_form_recognizer"
       - "Test / chonkie"
       - "Test / chroma"
@@ -40,6 +41,7 @@ on:
       - "Test / google-genai"
       - "Test / google_drive"
       - "Test / hanlp"
+      - "Test / hetzner"
       - "Test / huggingface_api"
       - "Test / ibm_db"
       - "Test / jina"
@@ -71,6 +73,7 @@ on:
       - "Test / oracle"
       - "Test / orcarouter"
       - "Test / paddleocr"
+      - "Test / parallel"
       - "Test / perplexity"
       - "Test / pgvector"
       - "Test / pinecone"
@@ -78,10 +81,12 @@ on:
       - "Test / pyversity"
       - "Test / qdrant"
       - "Test / ragas"
+      - "Test / rhesis"
       - "Test / searchapi"
       - "Test / sentence_transformers"
       - "Test / serperdev"
       - "Test / snowflake"
+      - "Test / solr"
       - "Test / spacy"
       - "Test / sqlalchemy"
       - "Test / stackit"
@@ -99,6 +104,7 @@ on:
       - "Test / weave"
       - "Test / weaviate"
       - "Test / whisper"
+      - "Test / youcom"
     types: [completed]
 
 jobs:
@@ -114,7 +120,7 @@ jobs:
           # Workflow names follow "Test / <name>" convention; normalize hyphens to underscores to match directory names
           echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //' | tr '-' '_')" >> "$GITHUB_OUTPUT"
 
-      - uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+      - uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}

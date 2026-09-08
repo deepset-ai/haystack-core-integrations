@@ -64,6 +64,11 @@ integration:azure-doc-intelligence:
       - any-glob-to-any-file: "integrations/azure_doc_intelligence/**/*"
       - any-glob-to-any-file: ".github/workflows/azure_doc_intelligence.yml"
 
+integration:azure-documentdb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/azure_documentdb/**/*"
+      - any-glob-to-any-file: ".github/workflows/azure_documentdb.yml"
+
 integration:azure-form-recognizer:
   - changed-files:
       - any-glob-to-any-file: "integrations/azure_form_recognizer/**/*"
@@ -192,6 +197,11 @@ integration:hanlp:
   - changed-files:
       - any-glob-to-any-file: "integrations/hanlp/**/*"
       - any-glob-to-any-file: ".github/workflows/hanlp.yml"
+
+integration:hetzner:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/hetzner/**/*"
+      - any-glob-to-any-file: ".github/workflows/hetzner.yml"
 
 integration:huggingface-api:
   - changed-files:
@@ -353,6 +363,11 @@ integration:paddleocr:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
       - any-glob-to-any-file: ".github/workflows/paddleocr.yml"
 
+integration:parallel:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/parallel/**/*"
+      - any-glob-to-any-file: ".github/workflows/parallel.yml"
+
 integration:perplexity:
   - changed-files:
       - any-glob-to-any-file: "integrations/perplexity/**/*"
@@ -388,6 +403,11 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:rhesis:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/rhesis/**/*"
+      - any-glob-to-any-file: ".github/workflows/rhesis.yml"
+
 integration:searchapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/searchapi/**/*"
@@ -407,6 +427,11 @@ integration:snowflake:
   - changed-files:
       - any-glob-to-any-file: "integrations/snowflake/**/*"
       - any-glob-to-any-file: ".github/workflows/snowflake.yml"
+
+integration:solr:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/solr/**/*"
+      - any-glob-to-any-file: ".github/workflows/solr.yml"
 
 integration:spacy:
   - changed-files:
@@ -507,3 +532,7 @@ integration:whisper:
   - changed-files:
       - any-glob-to-any-file: "integrations/whisper/**/*"
       - any-glob-to-any-file: ".github/workflows/whisper.yml"
+integration:youcom:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/youcom/**/*"
+      - any-glob-to-any-file: ".github/workflows/youcom.yml"

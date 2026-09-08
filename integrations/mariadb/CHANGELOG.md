@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mariadb-v0.1.0] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- MariaDB - use 127.0.0.1 as default host (#3814)
+
+
 ## [integrations/mariadb-v0.0.1] - 2026-08-14
 
 ### 🌀 Miscellaneous

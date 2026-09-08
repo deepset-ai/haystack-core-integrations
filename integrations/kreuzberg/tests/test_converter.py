@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import json
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -83,17 +82,17 @@ def test_serialization_roundtrip_all_params() -> None:
         batch=False,
         easyocr_kwargs={"gpu": True, "beam_width": 3},
     )
-    # to_dict serializes config as JSON string
+    # to_dict serializes config as a dict (native YAML mapping, no JSON string)
     d = converter.to_dict()
     params = d["init_parameters"]
-    assert isinstance(params["config"], str)
-    assert json.loads(params["config"])["output_format"] == "html"
+    assert isinstance(params["config"], dict)
+    assert params["config"]["output_format"] == "html"
     assert params["store_full_path"] is True
     assert params["batch"] is False
     assert params["easyocr_kwargs"] == {"gpu": True, "beam_width": 3}
 
-    # Save config JSON before from_dict mutates d in place
-    original_config_json = json.loads(params["config"])
+    # Capture config dict before from_dict mutates d in place
+    original_config_dict = params["config"]
 
     # from_dict restores all fields
     restored = KreuzbergConverter.from_dict(d)
@@ -110,7 +109,43 @@ def test_serialization_roundtrip_all_params() -> None:
     p1 = {k: v for k, v in d["init_parameters"].items() if k != "config"}
     p2 = {k: v for k, v in d2["init_parameters"].items() if k != "config"}
     assert p1 == p2
-    assert original_config_json == json.loads(d2["init_parameters"]["config"])
+    assert original_config_dict == d2["init_parameters"]["config"]
+
+
+def test_serialization_from_dict_config_as_dict() -> None:
+    """from_dict() must accept config as a plain dict (natural YAML mapping form)."""
+    d = {
+        "type": "haystack_integrations.components.converters.kreuzberg.converter.KreuzbergConverter",
+        "init_parameters": {
+            "config": {"output_format": "html", "ocr": {"backend": "tesseract", "language": "deu"}},
+            "config_path": None,
+            "store_full_path": False,
+            "batch": True,
+            "easyocr_kwargs": None,
+        },
+    }
+    converter = KreuzbergConverter.from_dict(d)
+    assert converter.config.output_format == "html"
+    assert converter.config.ocr.backend == "tesseract"
+    assert converter.config.ocr.language == "deu"
+
+
+def test_serialization_from_dict_config_as_str_backward_compat() -> None:
+    """from_dict() must still accept config as a JSON string for backward compatibility."""
+    config = ExtractionConfig(output_format="markdown")
+    json_str = config_to_json(config)
+    d = {
+        "type": "haystack_integrations.components.converters.kreuzberg.converter.KreuzbergConverter",
+        "init_parameters": {
+            "config": json_str,
+            "config_path": None,
+            "store_full_path": False,
+            "batch": True,
+            "easyocr_kwargs": None,
+        },
+    }
+    converter = KreuzbergConverter.from_dict(d)
+    assert converter.config.output_format == "markdown"
 
 
 def test_serialization_roundtrip_config_path() -> None:

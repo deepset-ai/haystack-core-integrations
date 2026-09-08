@@ -10,6 +10,9 @@
 
 - Fix new issues raised by ruff 0.16.0 (#3670)
 
+
+## [integrations/watsonx-v1.6.0] - 2026-07-09
+
 ### 🧪 Testing
 
 - Fix failing test watsonx integration (#3414)
@@ -19,8 +22,6 @@
 ### 🧹 Chores
 
 - Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
-
-### 🌀 Miscellaneous
 
 
 ## [integrations/watsonx-v1.5.0] - 2026-06-04

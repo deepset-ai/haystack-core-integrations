@@ -201,18 +201,20 @@ class TestRun:
             call_kwargs = fake_litellm.completion.call_args
             assert call_kwargs.kwargs["api_base"] == "https://proxy.local"
 
-    def test_generation_kwargs_merged(self):
-        gen = LiteLLMChatGenerator(model="openai/gpt-4o", generation_kwargs={"temperature": 0.5})
+    def test_run_with_generation_kwargs(self):
+        gen = LiteLLMChatGenerator(
+            model="openai/gpt-4o", generation_kwargs={"temperature": 0.5, "max_completion_tokens": 100}
+        )
         mock_resp = _make_mock_response()
 
         fake_litellm = types.ModuleType("litellm")
         fake_litellm.completion = MagicMock(return_value=mock_resp)
 
         with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
-            gen.run(messages=[ChatMessage.from_user("hi")], generation_kwargs={"max_tokens": 100})
+            gen.run(messages=[ChatMessage.from_user("hi")], generation_kwargs={"temperature": 0.9})
             call_kwargs = fake_litellm.completion.call_args
-            assert call_kwargs.kwargs["temperature"] == 0.5
-            assert call_kwargs.kwargs["max_tokens"] == 100
+            assert call_kwargs.kwargs["temperature"] == 0.9
+            assert call_kwargs.kwargs["max_completion_tokens"] == 100
 
     def test_empty_messages_returns_empty(self):
         gen = LiteLLMChatGenerator()
@@ -462,6 +464,27 @@ class TestAsync:
             assert isinstance(result["replies"], list)
             assert len(result["replies"]) == 1
             assert isinstance(result["replies"][0], ChatMessage)
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self):
+        gen = LiteLLMChatGenerator(
+            model="openai/gpt-4o", generation_kwargs={"temperature": 0.5, "max_completion_tokens": 100}
+        )
+        mock_resp = _make_mock_response()
+
+        fake_litellm = types.ModuleType("litellm")
+        captured_kwargs = {}
+
+        async def _acompletion(**kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_resp
+
+        fake_litellm.acompletion = _acompletion
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            await gen.run_async(messages=[ChatMessage.from_user("hi")], generation_kwargs={"temperature": 0.9})
+            assert captured_kwargs["temperature"] == 0.9
+            assert captured_kwargs["max_completion_tokens"] == 100
 
     @pytest.mark.asyncio
     async def test_run_async_empty_messages(self):

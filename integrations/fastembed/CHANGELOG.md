@@ -1,10 +1,20 @@
 # Changelog
 
+## [integrations/fastembed-v2.7.0] - 2026-08-24
+
+### 🚀 Features
+
+- *(fastembed)* Add Python 3.14 support (#3829)
+
+
 ## [integrations/fastembed-v2.6.0] - 2026-08-12
 
 ### 🚀 Features
 
 - Add GPU/XPU support to fastembed rankers via `model_kwargs` (#3728)
+
+
+## [integrations/fastembed-v2.5.0] - 2026-08-11
 
 ### 🐛 Bug Fixes
 
@@ -14,8 +24,6 @@
 ### 📚 Documentation
 
 - Fix TypeError in FastembedSparseDocumentEmbedder usage example (#3731)
-
-### 🌀 Miscellaneous
 
 
 ## [integrations/fastembed-v2.4.0] - 2026-07-30
@@ -148,6 +156,16 @@
 
 - Do not retry tests in `hatch run test` command (#954)
 
+### 🧹 Chores
+
+- Update ruff linting scripts and settings (#1105)
+
+### 🌀 Miscellaneous
+
+- Chore: fastembed - ruff update, don't ruff tests (#997)
+
+## [integrations/fastembed-v1.2.0] - 2024-07-01
+
 ### ⚙️ CI
 
 - Retry tests to reduce flakyness (#836)
@@ -155,13 +173,11 @@
 ### 🧹 Chores
 
 - Update ruff invocation to include check parameter (#853)
-- Update ruff linting scripts and settings (#1105)
 
 ### 🌀 Miscellaneous
 
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Typo on Sparse embedders. The parameter should be "progress_bar" … (#814)
-- Chore: fastembed - ruff update, don't ruff tests (#997)
 
 ## [integrations/fastembed-v1.1.0] - 2024-05-15
 

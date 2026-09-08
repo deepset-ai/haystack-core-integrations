@@ -1089,10 +1089,16 @@ class TestConvertMessagesToAnthropicFormat:
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
         )
+        base64_pdf = "JVBERi0xLjEKMSAwIG9iago8PC9UeXBlL0NhdGFsb2c+PgplbmRvYmoKdHJhaWxlcgo8PC9Sb290IDEgMCBSPj4KJSVFT0Y="
 
         tool_result = [
-            TextContent("Here's the retrieved image"),
+            TextContent("Here are the retrieved image and document"),
             ImageContent(base64_image=base64_image, mime_type="image/png"),
+            FileContent(
+                base64_data=base64_pdf,
+                mime_type="application/pdf",
+                extra={"context": "This document contains a table", "title": "A nice PDF"},
+            ),
         ]
         messages = [
             ChatMessage.from_tool(
@@ -1109,10 +1115,20 @@ class TestConvertMessagesToAnthropicFormat:
                             "type": "tool_result",
                             "tool_use_id": "123",
                             "content": [
-                                {"type": "text", "text": "Here's the retrieved image"},
+                                {"type": "text", "text": "Here are the retrieved image and document"},
                                 {
                                     "type": "image",
                                     "source": {"type": "base64", "media_type": "image/png", "data": base64_image},
+                                },
+                                {
+                                    "type": "document",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": "application/pdf",
+                                        "data": base64_pdf,
+                                    },
+                                    "context": "This document contains a table",
+                                    "title": "A nice PDF",
                                 },
                             ],
                             "is_error": False,

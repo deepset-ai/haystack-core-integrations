@@ -393,11 +393,20 @@ class ChromaDocumentStore:
         if not metadatas:
             return [], 0
 
-        unique_values = {
-            meta.get(field_name)
-            for meta in metadatas
-            if meta and field_name in meta and meta.get(field_name) is not None
-        }
+        # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain set
+        # would silently merge them. Dedupe by (type, value) instead to keep them distinct.
+        seen: set[tuple[type, Any]] = set()
+        unique_values: list[Any] = []
+        for meta in metadatas:
+            if not meta or field_name not in meta:
+                continue
+            value = meta.get(field_name)
+            if value is None:
+                continue
+            dedup_key = (type(value), value)
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                unique_values.append(value)
 
         sorted_values = sorted(unique_values, key=str)
         total_count = len(sorted_values)

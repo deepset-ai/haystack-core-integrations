@@ -27,6 +27,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_user_message,
     _parse_completion_response,
     _parse_streaming_response,
+    _parse_streaming_response_async,
     _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
@@ -460,6 +461,56 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
+    def test_format_tool_result_message_with_file_content(self):
+        file_content = FileContent(
+            base64_data=base64.b64encode(b"This is a test document."),
+            mime_type="application/pdf",
+            filename="test document.pdf",
+            validation=False,
+        )
+        message = ChatMessage.from_tool(
+            tool_result=[TextContent("Here's the retrieved document"), file_content],
+            origin=ToolCall(id="123", tool_name="file_retriever", arguments={"path": "test document.pdf"}),
+        )
+
+        formatted_message = _format_tool_result_message(message)
+
+        assert formatted_message == {
+            "role": "user",
+            "content": [
+                {
+                    "toolResult": {
+                        "toolUseId": "123",
+                        "content": [
+                            {"text": "Here's the retrieved document"},
+                            {
+                                "document": {
+                                    "format": "pdf",
+                                    "source": {"bytes": b"This is a test document."},
+                                    "name": "test document",
+                                }
+                            },
+                        ],
+                    }
+                }
+            ],
+        }
+
+    def test_format_tool_result_message_with_unsupported_list_item_raises(self):
+        message = ChatMessage.from_tool(
+            tool_result=[TextContent("This is supported"), 256],
+            origin=ToolCall(id="123", tool_name="test_tool", arguments={}),
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"Unsupported content type in tool call result list. "
+                "Only TextContent, ImageContent, and FileContent are supported."
+            ),
+        ):
+            _format_tool_result_message(message)
+
     def test_format_message_thinking(self):
         assistant_message = ChatMessage.from_assistant(
             "This is a test message.",
@@ -702,7 +753,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-    def test_extract_replies_from_text_response(self, mock_boto3_session):
+    def test_extract_replies_from_text_response(self):
         model = "global.anthropic.claude-sonnet-4-6"
         text_response = {
             "output": {
@@ -740,7 +791,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "index": 0,
         }
 
-    def test_extract_replies_from_tool_response(self, mock_boto3_session):
+    def test_extract_replies_from_tool_response(self):
         model = "global.anthropic.claude-sonnet-4-6"
         tool_response = {
             "output": {
@@ -782,7 +833,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "index": 0,
         }
 
-    def test_extract_replies_from_text_mixed_response(self, mock_boto3_session):
+    def test_extract_replies_from_text_mixed_response(self):
         model = "global.anthropic.claude-sonnet-4-6"
         mixed_response = {
             "output": {
@@ -826,7 +877,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "index": 0,
         }
 
-    def test_extract_replies_from_multi_tool_response(self, mock_boto3_session):
+    def test_extract_replies_from_multi_tool_response(self):
         model = "global.anthropic.claude-sonnet-4-6"
         response_body = {
             "ResponseMetadata": {
@@ -906,7 +957,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
         assert replies[0] == expected_message
 
-    def test_extract_replies_from_one_tool_response_with_thinking(self, mock_boto3_session):
+    def test_extract_replies_from_one_tool_response_with_thinking(self):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
         response_body = {
             "ResponseMetadata": {
@@ -995,7 +1046,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
         assert replies[0] == expected_message
 
-    def test_extract_replies_with_guardrail(self, mock_boto3_session):
+    def test_extract_replies_with_guardrail(self):
         model = "global.anthropic.claude-sonnet-4-6"
 
         trace = {
@@ -1075,7 +1126,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "trace": trace,
         }
 
-    def test_parse_completion_response_with_citations(self, mock_boto3_session):
+    def test_parse_completion_response_with_citations(self):
         model = "anthropic.claude-4-6-sonnet"
 
         response_body = {
@@ -1166,7 +1217,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
-    def test_process_streaming_response_one_tool_call(self, mock_boto3_session):
+    def test_process_streaming_response_one_tool_call(self):
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
         """
@@ -1443,7 +1494,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert len(replies) == 1
         assert replies == expected_messages
 
-    def test_process_streaming_response_one_tool_call_with_thinking(self, mock_boto3_session):
+    def test_process_streaming_response_one_tool_call_with_thinking(self):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
@@ -1620,7 +1671,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         for chunk in reasoning_chunks:
             assert "reasoning_contents" not in chunk.meta
 
-    def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
+    def test_parse_streaming_response_with_two_tool_calls(self):
         model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
@@ -1798,7 +1849,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
         assert replies == expected_messages
 
-    def test_parse_streaming_response_with_guardrail(self, mock_boto3_session):
+    def test_parse_streaming_response_with_guardrail(self):
         model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
@@ -1885,6 +1936,39 @@ class TestAmazonBedrockChatGeneratorUtils:
             )
         ]
         assert replies == expected_messages
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async_callback", [True, False])
+    async def test_parse_streaming_response_async_with_sync_and_async_callback(self, use_async_callback):
+        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        events = [
+            {"contentBlockDelta": {"delta": {"text": "Hello"}, "contentBlockIndex": 0}},
+            {"contentBlockDelta": {"delta": {"text": " world"}, "contentBlockIndex": 0}},
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": "end_turn"}},
+        ]
+
+        async def event_stream():
+            for event in events:
+                yield event
+
+        collected = []
+
+        async def async_callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        def sync_callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        callback = async_callback if use_async_callback else sync_callback
+
+        replies = await _parse_streaming_response_async(event_stream(), callback, model, ComponentInfo(type="test"))
+
+        assert len(collected) == len(events)
+        assert "".join(chunk.content for chunk in collected) == "Hello world"
+        assert len(replies) == 1
+        assert replies[0].text == "Hello world"
+        assert replies[0].meta["finish_reason"] == "stop"
 
     def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(
         self,

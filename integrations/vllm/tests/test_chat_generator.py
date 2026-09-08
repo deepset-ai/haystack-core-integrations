@@ -369,16 +369,16 @@ class TestVLLMChatGeneratorRun:
         assert reply.reasoning is not None
         assert "capital of France" in reply.reasoning.reasoning_text
 
-    def test_run_passes_generation_kwargs(self, mock_chat_completion):
+    def test_run_with_generation_kwargs(self, mock_chat_completion):
         component = VLLMChatGenerator(
             model=MODEL,
             generation_kwargs={"max_tokens": 100, "temperature": 0.5},
         )
-        component.run([ChatMessage.from_user("Hello")])
+        component.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
 
         _, kwargs = mock_chat_completion.call_args
         assert kwargs["max_tokens"] == 100
-        assert kwargs["temperature"] == 0.5
+        assert kwargs["temperature"] == 0.9
 
     def test_run_with_string_input(self, mock_chat_completion):
         component = VLLMChatGenerator(model=MODEL)
@@ -465,6 +465,17 @@ class TestVLLMChatGeneratorRunAsync:
         assert isinstance(result["replies"], list)
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
+
+    async def test_run_async_with_generation_kwargs(self, mock_async_chat_completion):
+        component = VLLMChatGenerator(
+            model=MODEL,
+            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
+        )
+        await component.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert kwargs["max_tokens"] == 100
+        assert kwargs["temperature"] == 0.9
 
     async def test_run_async(self, mock_async_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model=MODEL)

@@ -32,7 +32,7 @@ def warmed_converter():
     return converter
 
 
-class TestAzureDocumentIntelligenceConverter:
+class TestAzureDocumentIntelligenceConverterInitSerde:
     def test_init_default(self):
         """Test basic initialization with defaults"""
         converter = AzureDocumentIntelligenceConverter(
@@ -41,28 +41,30 @@ class TestAzureDocumentIntelligenceConverter:
         )
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
-        assert converter.model_id == "prebuilt-document"
+        assert converter.model_id == "prebuilt-layout"
         assert converter.store_full_path is False
+        assert converter.client is None
 
     def test_init_custom_params(self):
         """Test initialization with custom parameters"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_token("test_api_key"),
-            model_id="prebuilt-layout",
+            model_id="prebuilt-read",
             store_full_path=True,
         )
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
-        assert converter.model_id == "prebuilt-layout"
+        assert converter.model_id == "prebuilt-read"
         assert converter.store_full_path is True
+        assert converter.client is None
 
     def test_to_dict(self):
         """Test serialization with Secret handling"""
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_env_var("AZURE_DI_API_KEY"),
-            model_id="prebuilt-layout",
+            model_id="prebuilt-read",
             store_full_path=True,
         )
 
@@ -77,7 +79,7 @@ class TestAzureDocumentIntelligenceConverter:
             "init_parameters": {
                 "api_key": {"type": "env_var", "env_vars": ["AZURE_DI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
-                "model_id": "prebuilt-layout",
+                "model_id": "prebuilt-read",
                 "store_full_path": True,
             },
         }
@@ -92,7 +94,7 @@ class TestAzureDocumentIntelligenceConverter:
         data = converter.to_dict()
 
         assert data["init_parameters"]["endpoint"] == "https://test.cognitiveservices.azure.com/"
-        assert data["init_parameters"]["model_id"] == "prebuilt-document"
+        assert data["init_parameters"]["model_id"] == "prebuilt-layout"
         assert data["init_parameters"]["store_full_path"] is False
 
     def test_from_dict(self):
@@ -106,7 +108,7 @@ class TestAzureDocumentIntelligenceConverter:
             "init_parameters": {
                 "api_key": {"type": "env_var", "env_vars": ["AZURE_DI_API_KEY"], "strict": True},
                 "endpoint": "https://test.cognitiveservices.azure.com/",
-                "model_id": "prebuilt-layout",
+                "model_id": "prebuilt-read",
                 "store_full_path": False,
             },
         }
@@ -114,25 +116,66 @@ class TestAzureDocumentIntelligenceConverter:
         converter = AzureDocumentIntelligenceConverter.from_dict(data)
 
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
-        assert converter.model_id == "prebuilt-layout"
+        assert converter.model_id == "prebuilt-read"
         assert converter.store_full_path is False
+        assert converter.client is None
 
-    def test_warm_up_initializes_client_only_once(self):
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AZURE_DI_API_KEY", raising=False)
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_env_var("MISSING_AZURE_DI_API_KEY"),
+        )
+
+        assert converter.client is None
+        with pytest.raises(ValueError, match="MISSING_AZURE_DI_API_KEY"):
+            converter.warm_up()
+
+    def test_sync_lifecycle(self):
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_token("test_api_key"),
         )
-        assert converter.client is None
+        with patch(
+            "haystack_integrations.components.converters.azure_doc_intelligence.converter.DocumentIntelligenceClient"
+        ) as mock_client_cls:
+            client = mock_client_cls.return_value
+            converter.warm_up()
+            assert converter.client is client
+            converter.close()
+            client.close.assert_called_once_with()
+            assert converter.client is None
+            converter.warm_up()
+            assert mock_client_cls.call_count == 2
+
+    def test_warm_up_is_idempotent(self):
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_token("test_api_key"),
+        )
         with patch(
             "haystack_integrations.components.converters.azure_doc_intelligence.converter.DocumentIntelligenceClient"
         ) as mock_client_cls:
             converter.warm_up()
-            assert converter.client is mock_client_cls.return_value
-            mock_client_cls.assert_called_once()
             converter.warm_up()
-            mock_client_cls.assert_called_once()
 
-    def test_run_calls_warm_up_when_client_is_none(self):
+        mock_client_cls.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_token("test_api_key"),
+        )
+
+        converter.close()
+
+        assert converter.client is None
+
+
+class TestAzureDocumentIntelligenceConverterRun:
+    def test_run_calls_warm_up(self):
         converter = AzureDocumentIntelligenceConverter(
             endpoint="https://test.cognitiveservices.azure.com/",
             api_key=Secret.from_token("test_api_key"),
@@ -158,7 +201,7 @@ class TestAzureDocumentIntelligenceConverter:
         assert len(result["documents"]) == 1
         doc = result["documents"][0]
         assert doc.content == "# Heading\n\nHello"
-        assert doc.meta["model_id"] == "prebuilt-document"
+        assert doc.meta["model_id"] == "prebuilt-layout"
         assert doc.meta["page_count"] == 3
 
     def test_run_returns_raw_azure_response(self, warmed_converter):
@@ -263,7 +306,7 @@ class TestAzureDocumentIntelligenceConverterIntegration:
         assert "documents" in results
         assert len(results["documents"]) == 1
         assert len(results["documents"][0].content) > 0
-        assert results["documents"][0].meta["model_id"] == "prebuilt-document"
+        assert results["documents"][0].meta["model_id"] == "prebuilt-layout"
 
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_ENDPOINT"), reason="Azure endpoint not available")
     @pytest.mark.skipif(not os.environ.get("AZURE_DI_API_KEY"), reason="Azure credentials not available")

@@ -199,8 +199,9 @@ class SagemakerGenerator:
         Invoke the text generation inference based on the provided prompt and generation parameters.
 
         :param prompt: The string prompt to use for text generation.
-        :param generation_kwargs: Additional keyword arguments for text generation. These parameters will
-            potentially override the parameters passed in the `__init__` method.
+        :param generation_kwargs: Additional keyword arguments for text generation.
+            These are merged per key with the `generation_kwargs` passed at initialization: keys provided here
+            take precedence, keys set only at initialization are kept.
         :raises ValueError: If the model response type is not a list of dictionaries or a single dictionary.
         :raises SagemakerNotReadyError: If the SageMaker model is not ready to accept requests.
         :raises SagemakerInferenceError: If the SageMaker Inference returns an error.
@@ -208,7 +209,7 @@ class SagemakerGenerator:
             - `replies`: A list of strings containing the generated responses
             - `meta`: A list of dictionaries containing the metadata for each response.
         """
-        generation_kwargs = generation_kwargs or self.generation_kwargs
+        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         custom_attributes = ";".join(
             f"{k}={str(v).lower() if isinstance(v, bool) else str(v)}" for k, v in self.aws_custom_attributes.items()
         )

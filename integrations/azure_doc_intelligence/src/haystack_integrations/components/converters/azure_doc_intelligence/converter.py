@@ -65,7 +65,7 @@ class AzureDocumentIntelligenceConverter:
         endpoint: str,
         *,
         api_key: Secret = Secret.from_env_var("AZURE_DI_API_KEY"),
-        model_id: str = "prebuilt-document",
+        model_id: str = "prebuilt-layout",
         store_full_path: bool = False,
     ) -> None:
         """
@@ -79,9 +79,8 @@ class AzureDocumentIntelligenceConverter:
             to load from AZURE_DI_API_KEY environment variable.
         :param model_id:
             Azure model to use for analysis. Options:
-            - "prebuilt-document": General document analysis (default)
+            - "prebuilt-layout": Layout analysis with table and structure detection (default)
             - "prebuilt-read": Fast OCR for text extraction
-            - "prebuilt-layout": Enhanced layout analysis with better table/structure detection
             - Custom model IDs from your Azure resource
         :param store_full_path:
             If True, stores complete file path in metadata.
@@ -101,6 +100,12 @@ class AzureDocumentIntelligenceConverter:
             self.client = DocumentIntelligenceClient(
                 endpoint=self.endpoint, credential=AzureKeyCredential(self.api_key.resolve_value() or "")
             )
+
+    def close(self) -> None:
+        """Close the Azure Document Intelligence client."""
+        if self.client is not None:
+            self.client.close()
+            self.client = None
 
     @component.output_types(documents=list[Document], raw_azure_response=list[dict])
     def run(
@@ -125,8 +130,7 @@ class AzureDocumentIntelligenceConverter:
             - `documents`: List of created Documents
             - `raw_azure_response`: List of raw Azure responses used to create the Documents
         """
-        if self.client is None:
-            self.warm_up()
+        self.warm_up()
 
         documents = []
         azure_responses = []

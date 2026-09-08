@@ -149,7 +149,9 @@ class LiteLLMChatGenerator:
         :param messages: Input messages as ChatMessage instances.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: Override the streaming callback for this call.
-        :param generation_kwargs: Override generation parameters for this call.
+        :param generation_kwargs: Additional parameters for this call. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools: Override tools for this call.
         :returns: A dict with key ``replies`` containing ChatMessage instances.
         """
@@ -186,7 +188,9 @@ class LiteLLMChatGenerator:
         :param messages: Input messages as ChatMessage instances.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: Override the streaming callback for this call.
-        :param generation_kwargs: Override generation parameters for this call.
+        :param generation_kwargs: Additional parameters for this call. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
+            at initialization are kept.
         :param tools: Override tools for this call.
         :returns: A dict with key ``replies`` containing ChatMessage instances.
         """

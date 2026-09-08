@@ -88,7 +88,7 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/tika
@@ -106,7 +106,9 @@ jobs:
       - name: Start Tika server
         if: runner.os == 'Linux'
         run: |
-          docker run -d -p 127.0.0.1:9998:9998 apache/tika:latest
+          # Pinned to the last 3.x image because the tika Python client does not yet support
+          # Tika Server 4.x (TIKA-4816).
+          docker run -d -p 127.0.0.1:9998:9998 apache/tika:3.3.1.0
           for i in $(seq 1 30); do
             if curl -sf http://localhost:9998/tika > /dev/null 2>&1; then
               echo "Tika is ready"
@@ -121,7 +123,7 @@ jobs:
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/tika

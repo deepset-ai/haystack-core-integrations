@@ -13,9 +13,13 @@ from haystack_integrations.tools.mcp import MCPTool, MCPToolset
 # are filled in per invocation by the mcp_calculator_server fixture below.
 _CALCULATOR_SERVER_TEMPLATE = """
 import sys
-from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("MCP Calculator", host="127.0.0.1", port={port})
+try:
+    from mcp.server import MCPServer          # mcp v2
+    mcp, run_kwargs = MCPServer("MCP Calculator"), {{"host": "127.0.0.1", "port": {port}}}
+except ImportError:
+    from mcp.server.fastmcp import FastMCP    # mcp v1
+    mcp, run_kwargs = FastMCP("MCP Calculator", host="127.0.0.1", port={port}), {{}}
 
 
 @mcp.tool()
@@ -32,7 +36,7 @@ def subtract(a: int, b: int) -> int:
 
 if __name__ == "__main__":
     try:
-        mcp.run(transport="{transport}")
+        mcp.run(transport="{transport}", **run_kwargs)
     except Exception:
         sys.exit(1)
 """

@@ -180,7 +180,7 @@ def _update_anthropic_message_with_tool_call_results(
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Anthropic."
             raise ValueError(msg)
 
-        tool_result_block_content: list[TextBlockParam | ImageBlockParam] = []
+        tool_result_block_content: list[TextBlockParam | ImageBlockParam | DocumentBlockParam] = []
         if isinstance(tool_call_result.result, str):
             tool_result_block_content.append(TextBlockParam(type="text", text=tool_call_result.result))
         elif isinstance(tool_call_result.result, list):
@@ -188,7 +188,9 @@ def _update_anthropic_message_with_tool_call_results(
                 if isinstance(item, TextContent):
                     tool_result_block_content.append(TextBlockParam(type="text", text=item.text))
                 elif isinstance(item, ImageContent):
-                    tool_result_block_content.append(_convert_image_content_to_anthropic_format(item))
+                    tool_result_block_content.append(_convert_image_content_to_anthropic_format(image_content=item))
+                elif isinstance(item, FileContent):
+                    tool_result_block_content.append(_convert_file_content_to_anthropic_format(file_content=item))
                 else:
                     msg = "Unsupported content type in tool call result"
                     raise ValueError(msg)

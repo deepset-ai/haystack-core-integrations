@@ -78,19 +78,28 @@ class CohereTextEmbedder:
         self.timeout = timeout
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
-        self._client = ClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
+        self._client: ClientV2 | None = None
+        self._async_client: AsyncClientV2 | None = None
 
-        self._async_client = AsyncClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
+    def warm_up(self) -> None:
+        """Create the synchronous Cohere client."""
+        if self._client is None:
+            self._client = ClientV2(
+                api_key=self.api_key.resolve_value(),
+                base_url=self.api_base_url,
+                timeout=self.timeout,
+                client_name="haystack",
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Cohere client."""
+        if self._async_client is None:
+            self._async_client = AsyncClientV2(
+                api_key=self.api_key.resolve_value(),
+                base_url=self.api_base_url,
+                timeout=self.timeout,
+                client_name="haystack",
+            )
 
     def _validate_input(self, text: str) -> None:
         if not isinstance(text, str):
@@ -155,6 +164,8 @@ class CohereTextEmbedder:
             If the input is not a string.
         """
         self._validate_input(text=text)
+        self.warm_up()
+        assert self._client is not None
 
         embedding, metadata = get_response(
             cohere_client=self._client,
@@ -187,6 +198,8 @@ class CohereTextEmbedder:
             If the input is not a string.
         """
         self._validate_input(text=text)
+        await self.warm_up_async()
+        assert self._async_client is not None
 
         embedding, metadata = await get_async_response(
             cohere_async_client=self._async_client,

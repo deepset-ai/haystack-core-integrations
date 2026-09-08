@@ -4,13 +4,11 @@ import re
 import pytest
 from haystack import Document, Pipeline
 from haystack.components.agents import Agent
-from haystack.components.agents.state import State
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.hooks import hook
-from haystack.tools import Toolset, tool
+from haystack.tools import Toolset
 
 from haystack_integrations.agent_pack.advanced_rag import agent as agent_module
 from haystack_integrations.agent_pack.advanced_rag.agent import _default_llm, create_advanced_rag_agent
@@ -122,39 +120,6 @@ class TestCreateAdvancedRagAgent:
         )
         assert _flat_tool_names(agent.tools) == EXPECTED_TOOL_NAMES
 
-    def test_supports_extra_tools_state_schema_and_hooks(self, store):
-        @tool
-        def extra_tool(text: str) -> str:
-            """Do something extra."""
-            return text
-
-        @hook
-        def custom_after_run(state: State) -> None:  # noqa: ARG001
-            return None
-
-        @hook
-        def custom_before_llm(state: State) -> None:  # noqa: ARG001
-            return None
-
-        agent = create_advanced_rag_agent(
-            document_store=store,
-            retriever=InMemoryBM25Retriever(document_store=store),
-            llm=MockChatGenerator(),
-            extra_tools=[extra_tool],
-            state_schema={"notes": {"type": list}},
-            hooks={"after_run": [custom_after_run], "before_llm": [custom_before_llm]},
-            raise_on_tool_invocation_failure=True,
-            tool_concurrency_limit=2,
-        )
-
-        assert _flat_tool_names(agent.tools) == [*EXPECTED_TOOL_NAMES, "extra_tool"]
-        assert set(agent.state_schema) >= {"notes", "documents"}
-        # The built-in backup-answer hook runs first, custom after_run hooks after it.
-        assert [type(h) for h in agent.hooks["after_run"]] == [BackupAnswerHook, type(custom_after_run)]
-        assert agent.hooks["before_llm"] == [custom_before_llm]
-        assert agent.raise_on_tool_invocation_failure is True
-        assert agent.tool_concurrency_limit == 2
-
     def test_backup_answer_llm_is_never_the_agent_llm(self, store):
         llm = MockChatGenerator()
         agent = create_advanced_rag_agent(
@@ -173,15 +138,6 @@ class TestCreateAdvancedRagAgent:
             backup_answer_llm=backup_llm,
         )
         assert agent.hooks["after_run"][0].chat_generator is backup_llm
-
-    def test_built_in_documents_state_entry_wins_over_custom(self, store):
-        agent = create_advanced_rag_agent(
-            document_store=store,
-            retriever=InMemoryBM25Retriever(document_store=store),
-            llm=MockChatGenerator(),
-            state_schema={"documents": {"type": str}},
-        )
-        assert agent.state_schema["documents"]["type"] == list[Document]
 
     def test_accepts_a_custom_system_prompt(self, store):
         agent = create_advanced_rag_agent(

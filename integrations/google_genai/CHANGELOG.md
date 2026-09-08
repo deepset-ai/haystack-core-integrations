@@ -1,5 +1,64 @@
 # Changelog
 
+## [integrations/google_genai-v5.0.0] - 2026-09-07
+
+### 🚀 Features
+
+- [**breaking**] Google GenAI - add lifecycle handling (#3915)
+
+
+## [integrations/google_genai-v4.9.0] - 2026-09-04
+
+### 🚀 Features
+
+- Add GoogleGenAITokenCounter to google-genai integration (#3868)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
+## [integrations/google_genai-v4.8.0] - 2026-08-24
+
+### 🚀 Features
+
+- Feat (google-genai): add file content support in tool result (#3828)
+
+
+## [integrations/google_genai-v4.7.1] - 2026-08-20
+
+### 🐛 Bug Fixes
+
+- Fix finish reason mapping for streaming Gemini models (#3823)
+
+
+## [integrations/google_genai-v4.7.0] - 2026-08-20
+
+### 📚 Documentation
+
+- *(gemini)* Update defaults to 3.7 Flash (#3816)
+
+
+## [integrations/google_genai-v4.6.1] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Confine GoogleGenAIMultimodalDocumentEmbedder file paths to root_path (#3811)
+
+
+## [integrations/google_genai-v4.6.0] - 2026-08-18
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+- [**breaking**] Standardize generation_kwargs handling in GoogleGenAIChatGenerator (#3804)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/google_genai-v4.5.0] - 2026-07-03
 
 ### 🧪 Testing
@@ -98,11 +157,15 @@
 
 ### 🚀 Features
 
-- *(google-genai)* Add timeout and max_retries to chat generator (#2875)
 - GoogleGenAIChatGenerator provides supported models list (#2930)
 - Add GoogleGenAIMultimodalDocumentEmbedder to support gemini-embedding-2 (#2944)
 
-### 🌀 Miscellaneous
+
+## [integrations/google_genai-v3.9.0] - 2026-03-09
+
+### 🚀 Features
+
+- *(google-genai)* Add timeout and max_retries to chat generator (#2875)
 
 
 ## [integrations/google_genai-v3.8.0] - 2026-03-02

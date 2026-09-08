@@ -4,7 +4,7 @@
 
 import os
 import random
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -24,7 +24,7 @@ def mock_google_response(contents: list[str], model: str = "gemini-embedding-001
     return dict_response
 
 
-class TestGoogleGenAIDocumentEmbedder:
+class TestGoogleGenAIDocumentEmbedderInitSerDe:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
         embedder = GoogleGenAIDocumentEmbedder()
@@ -42,8 +42,10 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._config is None
         assert embedder._timeout is None
         assert embedder._max_retries is None
+        assert embedder._client is None
+        assert embedder._async_client is None
 
-    def test_init_with_parameters(self, monkeypatch):
+    def test_init_with_parameters(self):
         embedder = GoogleGenAIDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key-2"),
             model="model",
@@ -69,14 +71,7 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._timeout == 30.0
         assert embedder._max_retries == 3
 
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match="you must export the GOOGLE_API_KEY or GEMINI_API_KEY"):
-            GoogleGenAIDocumentEmbedder()
-
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+    def test_to_dict(self):
         component = GoogleGenAIDocumentEmbedder()
         data = component.to_dict()
         assert data == {
@@ -101,8 +96,7 @@ class TestGoogleGenAIDocumentEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "fake-api-key")
+    def test_to_dict_with_custom_init_parameters(self):
         component = GoogleGenAIDocumentEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
             model="model",
@@ -178,6 +172,88 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._timeout == 30.0
         assert embedder._max_retries == 3
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_GOOGLE_API_KEY", raising=False)
+        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_env_var("MISSING_GOOGLE_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_GOOGLE_API_KEY"):
+            embedder.warm_up()
+
+    @patch("haystack_integrations.components.embedders.google_genai.document_embedder._get_client")
+    def test_sync_lifecycle(self, mock_get_client):
+        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+        client = mock_get_client.return_value
+        embedder.warm_up()
+        assert embedder._client is client
+        assert embedder._async_client is None
+
+        embedder.close()
+        client.close.assert_called_once_with()
+        assert embedder._client is None
+
+        embedder.warm_up()
+        assert mock_get_client.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.google_genai.document_embedder._get_client")
+    async def test_async_lifecycle(self, mock_get_client):
+        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+        client = mock_get_client.return_value
+        client.aclose = AsyncMock()
+        await embedder.warm_up_async()
+        assert embedder._async_client is client
+        assert embedder._client is None
+
+        await embedder.close_async()
+        client.aclose.assert_awaited_once_with()
+        assert embedder._async_client is None
+
+        await embedder.warm_up_async()
+        assert mock_get_client.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.google_genai.document_embedder._get_client")
+    def test_warm_up_is_idempotent(self, mock_get_client):
+        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_get_client.assert_called_once()
+
+    @patch("haystack_integrations.components.embedders.google_genai.document_embedder._get_client")
+    async def test_warm_up_async_is_idempotent(self, mock_get_client):
+        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+        await embedder.warm_up_async()
+        await embedder.warm_up_async()
+        mock_get_client.assert_called_once()
+
+    async def test_close_is_safe_without_warm_up(self):
+        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+        embedder.close()
+        await embedder.close_async()
+        assert embedder._client is None
+        assert embedder._async_client is None
+
+    @patch("haystack_integrations.components.embedders.google_genai.document_embedder._get_client")
+    async def test_close_and_close_async_are_independent(self, mock_get_client):
+        sync_client = MagicMock()
+        async_client = MagicMock()
+        async_client.aclose = AsyncMock()
+        mock_get_client.side_effect = [sync_client, async_client]
+        embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
+        embedder.warm_up()
+        await embedder.warm_up_async()
+
+        embedder.close()
+        assert embedder._client is None
+        assert embedder._async_client is async_client
+        async_client.aclose.assert_not_awaited()
+
+        await embedder.close_async()
+        assert embedder._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestGoogleGenAIDocumentEmbedderRun:
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
             Document(id=f"{i}", content=f"document number {i}:\ncontent", meta={"meta_field": f"meta_value {i}"})
@@ -199,6 +275,7 @@ class TestGoogleGenAIDocumentEmbedder:
 
     def test_run_wrong_input_format(self):
         embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
+        embedder._client = MagicMock()
 
         # wrong formats
         string_input = "text"
@@ -212,6 +289,7 @@ class TestGoogleGenAIDocumentEmbedder:
 
     def test_run_on_empty_list(self):
         embedder = GoogleGenAIDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
+        embedder._client = MagicMock()
 
         empty_list_input = []
         result = embedder.run(documents=empty_list_input)
@@ -219,9 +297,9 @@ class TestGoogleGenAIDocumentEmbedder:
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
 
-    def test_run_does_not_modify_original_documents(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+    def test_run_does_not_modify_original_documents(self):
         embedder = GoogleGenAIDocumentEmbedder()
+        embedder._client = MagicMock()
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
@@ -247,9 +325,9 @@ class TestGoogleGenAIDocumentEmbedder:
             assert doc_with_embedding.embedding == [0.1, 0.2, 0.3]
 
     @pytest.mark.asyncio
-    async def test_run_async_does_not_modify_original_documents(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+    async def test_run_async_does_not_modify_original_documents(self):
         embedder = GoogleGenAIDocumentEmbedder()
+        embedder._async_client = MagicMock()
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
@@ -274,8 +352,7 @@ class TestGoogleGenAIDocumentEmbedder:
         for doc_with_embedding in result["documents"]:
             assert doc_with_embedding.embedding == [0.1, 0.2, 0.3]
 
-    def test_embed_batch_passes_full_texts(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+    def test_embed_batch_passes_full_texts(self):
         embedder = GoogleGenAIDocumentEmbedder(batch_size=2)
 
         texts = ["first document text", "second document text", "third document text"]
@@ -300,8 +377,7 @@ class TestGoogleGenAIDocumentEmbedder:
         assert [c.parts[0].text for c in calls[1].kwargs["contents"]] == ["third document text"]
 
     @pytest.mark.asyncio
-    async def test_embed_batch_async_passes_full_texts(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+    async def test_embed_batch_async_passes_full_texts(self):
         embedder = GoogleGenAIDocumentEmbedder(batch_size=2)
 
         texts = ["first document text", "second document text", "third document text"]
@@ -312,12 +388,12 @@ class TestGoogleGenAIDocumentEmbedder:
         mock_response = MagicMock()
         mock_response.embeddings = [mock_embedding]
 
-        embedder._client = MagicMock()
-        embedder._client.aio.models.embed_content = AsyncMock(return_value=mock_response)
+        embedder._async_client = MagicMock()
+        embedder._async_client.models.embed_content = AsyncMock(return_value=mock_response)
 
         await embedder._embed_batch_async(texts, batch_size=2)
 
-        calls = embedder._client.aio.models.embed_content.call_args_list
+        calls = embedder._async_client.models.embed_content.call_args_list
         assert len(calls) == 2
         assert [c.parts[0].text for c in calls[0].kwargs["contents"]] == [
             "first document text",

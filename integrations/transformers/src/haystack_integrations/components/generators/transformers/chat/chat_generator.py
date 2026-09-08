@@ -353,7 +353,9 @@ class TransformersChatGenerator:
 
         :param messages: A list of ChatMessage objects representing the input messages. If a string is provided,
             it is converted to a list containing a ChatMessage with user role.
-        :param generation_kwargs: Additional keyword arguments for text generation.
+        :param generation_kwargs: Additional keyword arguments for text generation. These are merged per key with
+            the `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept.
         :param streaming_callback: An optional callable for handling streaming responses.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             If set, it will override the `tools` parameter provided during initialization.
@@ -472,7 +474,9 @@ class TransformersChatGenerator:
         and return values but can be used with `await` in an async code.
 
         :param messages: A list of ChatMessage objects representing the input messages.
-        :param generation_kwargs: Additional keyword arguments for text generation.
+        :param generation_kwargs: Additional keyword arguments for text generation. These are merged per key with
+            the `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept.
         :param streaming_callback: An optional callable for handling streaming responses.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             If set, it will override the `tools` parameter provided during initialization.

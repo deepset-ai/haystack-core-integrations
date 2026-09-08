@@ -1,5 +1,36 @@
 # Changelog
 
+## [integrations/llama_cpp-v3.0.0] - 2026-09-08
+
+### 🚀 Features
+
+- Llama.cpp - add close method (#3924)
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in anthropic, llama_cpp, olama, pinecone tests (#3551)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### ⚙️ CI
+
+- Add hf token to CI env (#3427)
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- [**breaking**] Remove deprecated `LlamaCppGenerator` (use `LlamaCppChatGenerator` instead) (#3888)
+
+
 ## [integrations/llama_cpp-v2.3.0] - 2026-06-04
 
 ### 🚀 Features
@@ -194,6 +225,23 @@
 
 ## [integrations/llama_cpp-v0.4.0] - 2024-05-13
 
+### 📚 Documentation
+
+- Small consistency improvements (#536)
+- Disable-class-def (#556)
+
+### 🌀 Miscellaneous
+
+- Llama.cpp - review docstrings (#510)
+- Llama.cpp - update examples (#511)
+- Make tests show coverage (#566)
+- Remove references to Python 3.7 (#601)
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
+- Basic implementation of llama.cpp chat generation (#723)
+
+## [integrations/llama_cpp-v0.3.0] - 2024-02-27
+
 ### 🐛 Bug Fixes
 
 - Llama.cpp: change wrong links and imports (#436)
@@ -202,8 +250,6 @@
 ### 📚 Documentation
 
 - Update category slug (#442)
-- Small consistency improvements (#536)
-- Disable-class-def (#556)
 
 ### 🧹 Chores
 
@@ -213,13 +259,6 @@
 
 - Generate api docs (#353)
 - Model_name_or_path > model (#418)
-- Llama.cpp - review docstrings (#510)
-- Llama.cpp - update examples (#511)
-- Make tests show coverage (#566)
-- Remove references to Python 3.7 (#601)
-- Chore: add license classifiers (#680)
-- Chore: change the pydoc renderer class (#718)
-- Basic implementation of llama.cpp chat generation (#723)
 
 ## [integrations/llama_cpp-v0.2.1] - 2024-01-18
 

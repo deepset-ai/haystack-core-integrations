@@ -4,7 +4,7 @@
 
 import json
 import os
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import anthropic
 import pytest
@@ -73,19 +73,19 @@ class TestInit:
         assert len(models) > 0
         assert all(isinstance(m, str) for m in models)
 
-    def test_init_default(self, monkeypatch):
+    def test_init_default(self):
         """
         Test the default initialization of the AnthropicChatGenerator component.
         """
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         component = AnthropicChatGenerator()
-        assert component.client.api_key == "test-api-key"
+        assert component.client is None
+        assert component.async_client is None
         assert component.model == "claude-sonnet-4-5"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.tools is None
 
-    def test_init_with_parameters(self, monkeypatch):
+    def test_init_with_parameters(self):
         """
         Test that the AnthropicChatGenerator component initializes with parameters.
         """
@@ -98,19 +98,12 @@ class TestInit:
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             tools=[tool],
         )
-        assert component.client.api_key == "test-api-key"
+        assert component.client is None
+        assert component.async_client is None
         assert component.model == "claude-sonnet-4-5"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.tools == [tool]
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        """
-        Test that the AnthropicChatGenerator component fails to initialize without an API key.
-        """
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        with pytest.raises(ValueError):
-            AnthropicChatGenerator()
 
     def test_init_fail_with_duplicate_tool_names(self, monkeypatch, tools):
         """
@@ -238,23 +231,6 @@ class TestSerialization:
             Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
         ]
 
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        """
-        Test that the AnthropicChatGenerator component fails to deserialize from a dictionary without an API key.
-        """
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        data = {
-            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
-            "init_parameters": {
-                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
-                "model": "claude-sonnet-4-5",
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            },
-        }
-        with pytest.raises(ValueError):
-            AnthropicChatGenerator.from_dict(data)
-
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
@@ -309,6 +285,89 @@ class TestSerialization:
         assert new_pipeline == pipeline
 
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_ANTHROPIC_API_KEY", raising=False)
+        component = AnthropicChatGenerator(api_key=Secret.from_env_var("MISSING_ANTHROPIC_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_ANTHROPIC_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
+    def test_sync_lifecycle(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_client_cls.return_value
+
+        component.warm_up()
+        assert component.client is client
+        assert component.async_client is None
+
+        component.close()
+        client.close.assert_called_once_with()
+        assert component.client is None
+
+        component.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
+    async def test_async_lifecycle(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await component.warm_up_async()
+        assert component.async_client is client
+        assert component.client is None
+
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component.async_client is None
+
+        await component.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"), timeout=10.0, max_retries=1)
+        component.warm_up()
+        component.warm_up()
+        mock_client_cls.assert_called_once_with(api_key="test-api-key", timeout=10.0, max_retries=1)
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_client_cls.assert_called_once_with(api_key="test-api-key")
+
+    async def test_close_is_safe_without_warm_up(self):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.close()
+        await component.close_async()
+        assert component.client is None
+        assert component.async_client is None
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.AsyncAnthropic")
+    @patch("haystack_integrations.components.generators.anthropic.chat.chat_generator.Anthropic")
+    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
+        sync_client = MagicMock()
+        async_client = MagicMock(close=AsyncMock())
+        mock_sync_cls.return_value = sync_client
+        mock_async_cls.return_value = async_client
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        await component.warm_up_async()
+
+        component.close()
+        assert component.client is None
+        assert component.async_client is async_client
+        async_client.close.assert_not_awaited()
+
+        await component.close_async()
+        assert component.async_client is None
+        sync_client.close.assert_called_once_with()
+
+
 class TestRun:
     @pytest.mark.parametrize(
         "messages",
@@ -357,6 +416,16 @@ class TestRun:
         assert "Hello! I'm Claude." in response["replies"][0].text
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-5"
         assert response["replies"][0].meta["finish_reason"] == "stop"
+
+    def test_run_with_generation_kwargs(self, chat_messages, mock_chat_completion):
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+        )
+        component.run(chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.9
 
     @pytest.mark.parametrize(
         "generation_kwargs,expected_kwargs",
@@ -1195,28 +1264,35 @@ class TestIntegration:
         _, non_system = _convert_messages_to_anthropic_format([message])
         assert non_system[0]["content"] == raw_content
 
-    def test_live_run_agent_with_images_in_tool_result(self, test_files_path):
-        def retrieve_image():
+    def test_live_run_agent_with_multimodal_content_in_tool_result(self, test_files_path):
+        def retrieve_multimodal_content():
             return [
-                TextContent("Here is the retrieved image."),
-                ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
+                TextContent("Here are the retrieved image and document."),
+                ImageContent.from_file_path(file_path=test_files_path / "apple.jpg", size=(100, 100)),
+                FileContent.from_file_path(file_path=test_files_path / "sample_pdf_3.pdf"),
             ]
 
-        image_retriever_tool = create_tool_from_function(
-            name="retrieve_image", description="Tool to retrieve an image", function=retrieve_image
+        multimodal_retriever_tool = create_tool_from_function(
+            name="retrieve_multimodal_content",
+            description="Tool to retrieve an image and a document",
+            function=retrieve_multimodal_content,
+            outputs_to_string={"raw_result": True},
         )
-        image_retriever_tool.outputs_to_string = {"raw_result": True}
 
         agent = Agent(
             chat_generator=AnthropicChatGenerator(model="claude-haiku-4-5"),
-            system_prompt="You are an Agent that can retrieve images and describe them.",
-            tools=[image_retriever_tool],
+            system_prompt="You are an Agent that can retrieve and analyze images and documents.",
+            tools=[multimodal_retriever_tool],
         )
 
-        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
+        user_message = ChatMessage.from_user(
+            "Retrieve the image and document. Identify what is shown in the image. Then determine whether the document "
+            "is a paper about Large Language Models and answer that part with exactly 'yes' or 'no'. Respond briefly."
+        )
         result = agent.run(messages=[user_message])
 
         assert "apple" in result["last_message"].text.lower()
+        assert "no" in result["last_message"].text.lower()
 
     @pytest.mark.parametrize("streaming", [False, True])
     def test_live_run_agent_with_local_and_anthropic_server_tools(self, streaming):

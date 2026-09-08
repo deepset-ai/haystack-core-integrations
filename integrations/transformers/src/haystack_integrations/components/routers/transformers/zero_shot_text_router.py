@@ -156,7 +156,11 @@ class TransformersZeroShotTextRouter:
             Dictionary with serialized data.
         """
         serialization_dict = default_to_dict(
-            self, labels=self.labels, huggingface_pipeline_kwargs=self.huggingface_pipeline_kwargs, token=self.token
+            self,
+            labels=self.labels,
+            multi_label=self.multi_label,
+            huggingface_pipeline_kwargs=self.huggingface_pipeline_kwargs,
+            token=self.token,
         )
 
         huggingface_pipeline_kwargs = serialization_dict["init_parameters"]["huggingface_pipeline_kwargs"]

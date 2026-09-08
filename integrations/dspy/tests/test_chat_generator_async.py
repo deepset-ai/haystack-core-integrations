@@ -27,6 +27,7 @@ def mock_dspy_module():
         mock_module = MagicMock()
         mock_module.return_value = MagicMock(answer="Hello world!")
         mock_module.acall = AsyncMock(return_value=MagicMock(answer="Hello world!"))
+        mock_module.lm_class = mock_lm_class
 
         mock_cot_class.return_value = mock_module
         mock_predict_class.return_value = mock_module
@@ -71,14 +72,19 @@ class TestDSPySignatureChatGeneratorAsync:
         assert kwargs["config"] == {}
 
     @pytest.mark.asyncio
-    async def test_run_async_with_params(self, chat_messages, mock_dspy_module):
+    async def test_run_async_with_generation_kwargs(self, chat_messages, mock_dspy_module):
         component = DSPySignatureChatGenerator(
             signature="question -> answer",
+            generation_kwargs={"max_tokens": 10, "temperature": 0.5},
         )
         response = await component.run_async(
             messages=chat_messages,
             generation_kwargs={"temperature": 0.9},
         )
+
+        lm_kwargs = mock_dspy_module.lm_class.call_args.kwargs
+        assert lm_kwargs["max_tokens"] == 10
+        assert lm_kwargs["temperature"] == 0.5
 
         _, kwargs = mock_dspy_module.acall.call_args
         assert kwargs["config"] == {"temperature": 0.9}

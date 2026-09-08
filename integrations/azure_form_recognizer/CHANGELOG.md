@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/azure_form_recognizer-v2.0.0] - 2026-09-04
+
+### 🚀 Features
+
+- [**breaking**] Azure Form Recognizer - lifecycle handling (#3909)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- Azure Form Recognizer - add more unit tests (#3498)
+
+
 ## [integrations/azure_form_recognizer-v1.0.0] - 2026-06-22
 
 ### 🚀 Features

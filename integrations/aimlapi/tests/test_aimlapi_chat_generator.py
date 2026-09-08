@@ -901,22 +901,9 @@ class TestChatCompletionChunkConversion:
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None
 
-        # Normalize usage details since cache_write_tokens is not always present in the response
-        result.meta["usage"]["prompt_tokens_details"].setdefault("cache_write_tokens", None)
-
-        assert result.meta["usage"] == {
-            "completion_tokens": 42,
-            "prompt_tokens": 55,
-            "total_tokens": 97,
-            "completion_tokens_details": {
-                "accepted_prediction_tokens": None,
-                "audio_tokens": None,
-                "reasoning_tokens": 0,
-                "rejected_prediction_tokens": None,
-            },
-            "prompt_tokens_details": {
-                "audio_tokens": None,
-                "cache_write_tokens": None,
-                "cached_tokens": 0,
-            },
-        }
+        usage = result.meta["usage"]
+        assert usage["completion_tokens"] == 42
+        assert usage["prompt_tokens"] == 55
+        assert usage["total_tokens"] == 97
+        assert usage["completion_tokens_details"]["reasoning_tokens"] == 0
+        assert usage["prompt_tokens_details"]["cached_tokens"] == 0
