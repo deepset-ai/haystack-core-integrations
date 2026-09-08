@@ -23,7 +23,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     GetMetadataFieldValuesTool,
     ListMetadataFieldsTool,
 )
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
 from haystack_integrations.tracing.agent_pack.tracer import CaseUsage, UsageTracer
@@ -31,7 +31,7 @@ from haystack_integrations.tracing.agent_pack.tracer import CaseUsage, UsageTrac
 logger = logging.getLogger(__name__)
 
 
-def messages_from_run(record: AgentRunRecord) -> list[ChatMessage]:
+def messages_from_run(record: RunRecord) -> list[ChatMessage]:
     """
     Reconstruct the Agent input messages recorded in a reference run.
 
@@ -61,7 +61,7 @@ def question_from_messages(messages: list[ChatMessage]) -> str:
     raise ValueError(msg)
 
 
-def case_from_reference_run(record: AgentRunRecord) -> AdvancedRAGEvaluationCase:
+def case_from_reference_run(record: RunRecord) -> AdvancedRAGEvaluationCase:
     """
     Create a grounding-parity case from a reference run.
 
@@ -171,7 +171,7 @@ class AdvancedRAGHarnessEvaluator:
         }
 
     def _resolve(
-        self, reference_runs: list[AgentRunRecord]
+        self, reference_runs: list[RunRecord]
     ) -> tuple[list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]], list[str]]:
         """Pair each reference run with the case that scores it, reporting which cases had to be derived."""
         resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]] = []
@@ -274,7 +274,7 @@ class AdvancedRAGHarnessEvaluator:
             )
         )
 
-    def evaluate(self, target: Agent, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
+    def evaluate(self, target: Agent, reference_runs: list[RunRecord]) -> EvaluationMetrics:
         """
         Replay every selected run and return raw experiment metrics.
 

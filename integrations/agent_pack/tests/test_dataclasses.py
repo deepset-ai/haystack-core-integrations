@@ -1,13 +1,13 @@
 import pytest
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 
 
 def test_run_fingerprint_depends_on_content_not_storage_identity() -> None:
     """Run content, rather than its storage identifier, determines its experiment fingerprint."""
-    first = AgentRunRecord(run_id="first", inputs={"messages": []}, outputs={"answer": "same"})
-    second = AgentRunRecord(run_id="second", inputs=first.inputs, outputs=first.outputs)
-    changed = AgentRunRecord(run_id="first", inputs=first.inputs, outputs={"answer": "changed"})
+    first = RunRecord(run_id="first", inputs={"messages": []}, outputs={"answer": "same"})
+    second = RunRecord(run_id="second", inputs=first.inputs, outputs=first.outputs)
+    changed = RunRecord(run_id="first", inputs=first.inputs, outputs={"answer": "changed"})
 
     assert first.fingerprint() == second.fingerprint()
     assert first.fingerprint() != changed.fingerprint()

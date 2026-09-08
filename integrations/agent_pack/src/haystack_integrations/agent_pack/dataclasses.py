@@ -7,8 +7,6 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from haystack import Pipeline
-from haystack.components.agents import Agent
 from haystack.utils import _deserialize_value_with_schema, _serialize_value_with_schema
 
 
@@ -16,33 +14,23 @@ def content_digest(payload: str) -> str:
     """
     Return a short, stable digest of serialized content.
 
-    Digests identify configurations, measurements and runs, and they are read by people: in journal records, in
-    reports and in logs. Twelve hexadecimal characters separate the few dozen things one experiment distinguishes
-    with room to spare, and a full hash only makes those files harder to read.
-
     :param payload: The serialized content to identify.
     :returns: A twelve-character hexadecimal digest.
     """
     return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
-# What an experiment measures and optimizes. Both are serialized as one Haystack Pipeline YAML and expose the same
-# `warm_up`/`close` lifecycle, so an evaluator and the experiment loop treat them alike; an Agent is the special
-# case that is wrapped in a one-component Pipeline to be serialized at all.
-Optimizable = Agent | Pipeline
-
-
 @dataclass(frozen=True, kw_only=True)
-class AgentRunRecord:
+class RunRecord:
     """
-    Inputs and outputs of one successful Agent run.
+    Inputs and outputs of one successful run of an Agent or a Pipeline.
 
     This is deliberately not a tracing abstraction. Optimization needs examples it can replay and compare, not the
     span hierarchy produced while an example ran.
 
     :param run_id: Stable identifier for the run.
-    :param inputs: Keyword arguments passed to `Agent.run`.
-    :param outputs: Dictionary returned by `Agent.run`.
+    :param inputs: Keyword arguments the run was given.
+    :param outputs: Dictionary the run returned.
     """
 
     run_id: str
@@ -58,7 +46,7 @@ class AgentRunRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AgentRunRecord":
+    def from_dict(cls, data: dict[str, Any]) -> "RunRecord":
         """
         Restore a serialized run record.
 

@@ -26,7 +26,6 @@ from haystack_integrations.agent_pack.optimization.models import (
 from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
-    Optimizable,
     dump_agent,
     dump_pipeline,
     load_agent,
@@ -171,7 +170,7 @@ class ExperimentJournal:
             stream.write(json.dumps(evaluation.to_dict()) + "\n")
 
 
-def _serialization(reference: Optimizable) -> tuple[Callable[[Any], str], Callable[[str], Optimizable]]:
+def _serialization(reference: Agent | Pipeline) -> tuple[Callable[[Any], str], Callable[[str], Agent | Pipeline]]:
     """
     Pick the pair that round-trips this reference through YAML.
 
@@ -188,7 +187,7 @@ class HarnessOptimizationExperiment:
 
     def __init__(
         self,
-        reference: Optimizable,
+        reference: Agent | Pipeline,
         run_store: LocalRunStore,
         evaluator: HarnessEvaluator,
         pricing: ModelPriceCatalog,

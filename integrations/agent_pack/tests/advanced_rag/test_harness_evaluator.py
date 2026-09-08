@@ -15,7 +15,7 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     case_from_reference_run,
 )
 from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_pipeline_tool
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.optimization import ModelPrice, ModelPriceCatalog
 
 QUESTION = "What is CRISPR used for?"
@@ -41,7 +41,7 @@ def successful_result(document):
 
 
 def reference_run(document):
-    return AgentRunRecord(
+    return RunRecord(
         run_id="rag-reference",
         inputs={"messages": [ChatMessage.from_user(QUESTION)]},
         outputs={"last_message": ChatMessage.from_assistant("reference"), "documents": [document]},
@@ -262,7 +262,7 @@ def test_cases_measured_concurrently_are_reported_in_case_order(document):
 
     cases = [AdvancedRAGEvaluationCase(question=q, expected_document_ids=frozenset({document.id})) for q in questions]
     runs = [
-        AgentRunRecord(run_id=f"run-{index}", inputs={"messages": [ChatMessage.from_user(q)]}, outputs={})
+        RunRecord(run_id=f"run-{index}", inputs={"messages": [ChatMessage.from_user(q)]}, outputs={})
         for index, q in enumerate(questions)
     ]
 

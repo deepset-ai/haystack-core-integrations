@@ -21,7 +21,7 @@ from haystack.marshal import YamlMarshaller
 from haystack.tools import Tool, flatten_tools_or_toolsets
 from haystack.tools.from_function import create_tool_from_function
 
-from haystack_integrations.agent_pack.dataclasses import Optimizable, content_digest
+from haystack_integrations.agent_pack.dataclasses import content_digest
 
 
 class _ReadableDumper(yaml.SafeDumper):
@@ -107,8 +107,8 @@ class ConfigurationWorkspace:
         self,
         path: str | Path,
         reference_yaml: str,
-        validator: Callable[[Optimizable], None] | None = None,
-        loader: Callable[[str], Optimizable] = load_agent,
+        validator: Callable[[Agent | Pipeline], None] | None = None,
+        loader: Callable[[str], Agent | Pipeline] = load_agent,
     ) -> None:
         """
         Use an existing YAML draft, or initialize a new file from the reference.

@@ -8,7 +8,7 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -91,7 +91,7 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     run_store = LocalRunStore()
     messages = [ChatMessage.from_user(text=QUESTION)]
     run_store.add(
-        record=AgentRunRecord(
+        record=RunRecord(
             run_id="reference",
             inputs={"messages": messages},
             outputs=reference.run(messages=messages),
@@ -158,7 +158,7 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     run_store = LocalRunStore()
     messages = [ChatMessage.from_user(text=QUESTION)]
     run_store.add(
-        record=AgentRunRecord(
+        record=RunRecord(
             run_id="reference",
             inputs={"messages": messages},
             outputs=reference.run(messages=messages),

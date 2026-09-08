@@ -7,7 +7,7 @@ from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -82,7 +82,7 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
 
     reference = build_pipeline(store, top_k=1)
     run_store = LocalRunStore()
-    run_store.add(record=AgentRunRecord(run_id="case-0", inputs={"query": QUESTION}, outputs={}))
+    run_store.add(record=RunRecord(run_id="case-0", inputs={"query": QUESTION}, outputs={}))
 
     experiment = HarnessOptimizationExperiment(
         reference=reference,

@@ -8,7 +8,7 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.tracing.agent_pack.tracer import CaseUsage, UsageTracer
 from retrieval.evaluation import (
@@ -25,7 +25,7 @@ DOCUMENTS_SOCKET = "documents"
 QUERIES_SOCKET = "queries"
 
 
-def question_from_run(record: AgentRunRecord) -> str:
+def question_from_run(record: RunRecord) -> str:
     """
     Return the question a reference run replays.
 
@@ -210,7 +210,7 @@ class RetrievalHarnessEvaluator:
 
         return list(await asyncio.gather(*(measure(index, case) for index, case in enumerate(resolved, start=1))))
 
-    def evaluate(self, target: Pipeline, reference_runs: list[AgentRunRecord]) -> EvaluationMetrics:
+    def evaluate(self, target: Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
         """
         Replay every selected run through the pipeline and return raw experiment metrics.
 

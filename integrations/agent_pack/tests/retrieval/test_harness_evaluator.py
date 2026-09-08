@@ -12,7 +12,7 @@ from retrieval.harness_evaluator import (
     query_reporters,
 )
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.optimization import dump_pipeline, load_pipeline
 
 QUESTION = "What is CRISPR used for?"
@@ -49,7 +49,7 @@ def retrieval_pipeline(store, *, top_k=2, expansions=2, model="expander"):
 
 
 def runs():
-    return [AgentRunRecord(run_id="case-0", inputs={"query": QUESTION}, outputs={})]
+    return [RunRecord(run_id="case-0", inputs={"query": QUESTION}, outputs={})]
 
 
 def case(store, **overrides):
@@ -130,7 +130,7 @@ def test_the_pipeline_round_trips_through_yaml_and_still_measures(store):
 
 
 def test_an_unlabelled_question_is_refused_rather_than_scored(store):
-    other = [AgentRunRecord(run_id="case-0", inputs={"query": "something else"}, outputs={})]
+    other = [RunRecord(run_id="case-0", inputs={"query": "something else"}, outputs={})]
     with pytest.raises(ValueError, match="No labelled retrieval case"):
         RetrievalHarnessEvaluator(cases=[case(store)]).evaluate(target=retrieval_pipeline(store), reference_runs=other)
 

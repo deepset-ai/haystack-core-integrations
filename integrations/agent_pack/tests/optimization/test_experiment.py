@@ -6,7 +6,7 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -93,7 +93,7 @@ def configured(tmp_path, models, evaluator=None, objectives=None):
     optimizer, histories = optimizer_agent_for(models)
     store = LocalRunStore()
     store.add(
-        AgentRunRecord(
+        RunRecord(
             run_id="reference",
             inputs={"messages": [ChatMessage.from_user("question")]},
             outputs={"last_message": ChatMessage.from_assistant("answer")},

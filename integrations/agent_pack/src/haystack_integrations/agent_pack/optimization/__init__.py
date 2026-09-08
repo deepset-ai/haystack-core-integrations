@@ -22,7 +22,6 @@ from haystack_integrations.agent_pack.optimization.models import (
 from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
-    Optimizable,
     dump_agent,
     dump_pipeline,
     load_agent,
@@ -39,7 +38,6 @@ __all__ = [
     "HarnessOptimizationExperiment",
     "ModelPrice",
     "ModelPriceCatalog",
-    "Optimizable",
     "OptimizationObjectives",
     "create_harness_optimizer_agent",
     "create_haystack_documentation_mcp_toolset",

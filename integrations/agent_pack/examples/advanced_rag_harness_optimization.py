@@ -49,7 +49,7 @@ from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAG
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
 )
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -223,7 +223,7 @@ def capture_reference_runs(
     selected_ids: set[str] = set()
     for case, result in asyncio.run(capture_all()):
         messages = [ChatMessage.from_user(text=case.question)]
-        record = AgentRunRecord(run_id=str(uuid4()), inputs={"messages": messages}, outputs=result)
+        record = RunRecord(run_id=str(uuid4()), inputs={"messages": messages}, outputs=result)
         run_store.add(record=record)
         selected_ids.add(record.run_id)
     return frozenset(selected_ids)

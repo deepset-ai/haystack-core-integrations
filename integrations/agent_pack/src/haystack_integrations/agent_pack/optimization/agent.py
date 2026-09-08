@@ -7,8 +7,8 @@ import re
 from importlib.metadata import distributions
 from typing import TYPE_CHECKING, Any
 
+from haystack import Pipeline, logging
 from haystack import __version__ as haystack_version
-from haystack import logging
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.generators.chat.types import ChatGenerator
@@ -16,7 +16,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import flatten_tools_or_toolsets, warm_up_tools
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, RunRecord
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
@@ -24,7 +24,6 @@ from haystack_integrations.agent_pack.optimization.models import (
 from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
-    Optimizable,
 )
 from haystack_integrations.agent_pack.run_digest import (
     CASE_SUMMARY_KEY,
@@ -284,7 +283,7 @@ def describe_environment() -> str:
     )
 
 
-def _tool_specifications(reference: Optimizable) -> list[dict[str, Any]]:
+def _tool_specifications(reference: Agent | Pipeline) -> list[dict[str, Any]]:
     """
     Describe the tools the reference Agent can call.
 
@@ -367,13 +366,13 @@ def _render_outcomes(history: list[dict[str, Any]]) -> str:
         parent = (entry.get("parent_id") or "reference")[:12]
         gates = ", ".join(entry.get("gate_failures") or ()) or "passed"
         lines = [f"### {position}. `{entry['candidate_id'][:12]}` from `{parent}` — gates {gates}"]
-        lines.append(_headline(entry.get("metrics")))
+        lines.append(_headline(metrics=entry.get("metrics")))
         if failure := entry.get("failure"):
             lines.append(f"failed to evaluate: {failure}")
         if rationale := entry.get("rationale"):
             lines.append(f"hypothesis: {rationale}")
         if diff := entry.get("diff"):
-            lines.append(_fenced(diff.rstrip(), "diff"))
+            lines.append(_fenced(text=diff.rstrip(), language="diff"))
         entries.append("\n\n".join(lines))
     return "\n\n".join(entries)
 
@@ -381,8 +380,8 @@ def _render_outcomes(history: list[dict[str, Any]]) -> str:
 def propose_candidate(
     optimizer_agent: Agent,
     workspace: ConfigurationWorkspace,
-    reference: Optimizable,
-    reference_runs: list[AgentRunRecord],
+    reference: Agent | Pipeline,
+    reference_runs: list[RunRecord],
     pricing: ModelPriceCatalog,
     objectives: OptimizationObjectives,
     baseline: EvaluationMetrics,
@@ -413,19 +412,21 @@ def propose_candidate(
     """
     workspace.begin_turn(base_id=base_id)
     configuration = workspace.read_config()
-    # Three messages in order of how often they change, so the stable ones stay a reusable cached prefix: what is
-    # being optimized and how it is judged never changes, the outcomes only ever gain an entry, and everything
-    # that differs every turn is last.
+
+    # The three messages are ordered by how they change, so that as much of each turn as possible is a cache hit:
+    # caching matches the longest common token prefix, so anything rewritten has to come after anything that is not.
+
+    # First message: identical every turn, so it caches in full.
+    tools = _tool_specifications(reference=reference)
     context = "".join(
         [
-            _section("Objectives", json.dumps(objectives.to_dict())),
-            _section("Known model prices", json.dumps(pricing.to_dict())),
-            # TODO The tools available section is worthless when the reference is not an Agent
-            _section("Tools available to the reference", json.dumps(_tool_specifications(reference=reference))),
+            _section(title="Objectives", body=json.dumps(objectives.to_dict())),
+            _section(title="Known model prices", body=json.dumps(pricing.to_dict())),
+            _section(title="Tools available to the reference", body=json.dumps(tools) if tools else ""),
             _section(
-                "How the reference behaved",
-                "\n\n".join(
-                    _fenced(json.dumps(digest_agent_run(result=record.outputs, policy=digest_policy), default=str))
+                title="How the reference behaved",
+                body="\n\n".join(
+                    _fenced(text=json.dumps(digest_agent_run(result=record.outputs, policy=digest_policy), default=str))
                     for record in reference_runs[:3]
                     if record.outputs
                 ),
@@ -433,31 +434,41 @@ def propose_candidate(
             # Described case by case only while it is the only thing measured; once a candidate exists, the most
             # recent one is the configuration worth reading in that much detail.
             _section(
-                "Reference measurement",
-                json.dumps(baseline.to_dict() if not history else summarize_case_details(payload=baseline.to_dict())),
+                title="Reference measurement",
+                body=json.dumps(
+                    baseline.to_dict() if not history else summarize_case_details(payload=baseline.to_dict())
+                ),
             ),
         ]
     )
-    outcomes = _section("Outcomes so far", _render_outcomes(history=summarize_case_details(payload=history)))
+
+    # Second message: append-only, so every turn re-reads all but the newest entry from cache.
+    outcomes = _section(title="Outcomes so far", body=_render_outcomes(history=summarize_case_details(payload=history)))
+
+    # Third message: rewritten every turn, so none of it is cacheable and all of it goes last.
     recent = history[-history_digest_window:] if history_digest_window > 0 else []
     current = "".join(
         [
             _section(
-                "Budget",
-                "unknown"
+                title="Budget",
+                body="unknown"
                 if remaining_evaluations is None
                 else f"{remaining_evaluations} evaluations remain, including this one.",
             ),
-            _section("Most recent outcome in full", "\n\n".join(json.dumps(entry, default=str) for entry in recent)),
             _section(
-                "candidate.yaml",
-                f"revision `{configuration['revision']}`, edited from `{configuration['parent_id'][:12]}`\n\n"
+                title="Most recent outcome in full",
+                body="\n\n".join(json.dumps(entry, default=str) for entry in recent),
+            ),
+            _section(
+                title="candidate.yaml",
+                body=f"revision `{configuration['revision']}`, edited from `{configuration['parent_id'][:12]}`\n\n"
                 # Reproduced as a fenced block rather than a JSON string: this is the text the editing tools match
                 # against, and a JSON string would show it with its newlines and quotes escaped.
-                + _fenced(configuration["yaml"], "yaml"),
+                + _fenced(text=configuration["yaml"], language="yaml"),
             ),
         ]
     )
+
     # We must create a new Agent for each turn, because the tools are bound to the workspace and the workspace is bound
     # to the turn. So we clone the optimizer_agent and add the workspace tools to it and update its exit conditions.
     agent = optimizer_agent.clone(
@@ -472,6 +483,7 @@ def propose_candidate(
             ChatMessage.from_user(text=current),
         ]
     )
+
     logger.info(
         "optimizer turn: steps={steps}/{budget} exit={exit_reason} calls={calls} usage={usage}",
         steps=result.get("step_count"),

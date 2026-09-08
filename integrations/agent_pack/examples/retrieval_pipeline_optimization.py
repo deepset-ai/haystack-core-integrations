@@ -35,7 +35,7 @@ from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cas
 from retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
 from util import build_bm25_retriever
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -378,7 +378,7 @@ def main() -> None:
     run_store = LocalRunStore(directory=arguments.workspace / "runs")
     run_store.clear()
     for index, case in enumerate(cases):
-        run_store.add(record=AgentRunRecord(run_id=f"case-{index}", inputs={"query": case.question}, outputs={}))
+        run_store.add(record=RunRecord(run_id=f"case-{index}", inputs={"query": case.question}, outputs={}))
     print(f"  recorded {len(cases)} questions")
 
     print("\n=== 3. optimization experiment ===")

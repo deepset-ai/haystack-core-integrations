@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from threading import RLock
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.dataclasses import RunRecord
 
 
 class LocalRunStore:
@@ -21,15 +21,15 @@ class LocalRunStore:
             The directory is created when it does not exist.
         """
         self.directory = Path(directory) if directory is not None else None
-        self._records: dict[str, AgentRunRecord] = {}
+        self._records: dict[str, RunRecord] = {}
         self._lock = RLock()
         if self.directory is not None:
             self.directory.mkdir(parents=True, exist_ok=True)
             for path in sorted(self.directory.glob("*.json")):
-                record = AgentRunRecord.from_dict(data=json.loads(path.read_text(encoding="utf-8")))
+                record = RunRecord.from_dict(data=json.loads(path.read_text(encoding="utf-8")))
                 self._records[record.run_id] = record
 
-    def add(self, record: AgentRunRecord) -> None:
+    def add(self, record: RunRecord) -> None:
         """Store or replace a run by ID."""
         with self._lock:
             self._records[record.run_id] = record
@@ -55,7 +55,7 @@ class LocalRunStore:
             for path in self.directory.glob("*.json"):
                 path.unlink()
 
-    def list(self, run_ids: frozenset[str] | None = None) -> list[AgentRunRecord]:
+    def list(self, run_ids: frozenset[str] | None = None) -> list[RunRecord]:
         """
         Return matching records in insertion order, newest first.
 

@@ -1,9 +1,12 @@
 import json
 
 import pytest
+from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
+from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import (
@@ -12,6 +15,8 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
+    dump_pipeline,
+    load_pipeline,
     propose_candidate,
 )
 from haystack_integrations.agent_pack.optimization.agent import _documentation_result, describe_environment
@@ -226,3 +231,32 @@ def test_failed_submission_keeps_the_agent_running_for_repair(tmp_path):
         history=[],
     )
     assert result is not None
+
+
+def test_a_reference_without_tools_gets_no_tools_section(tmp_path):
+    """A Pipeline that is not an Agent has no tools, and a heading over an empty list only costs cached prefix."""
+    pipeline = Pipeline()
+    pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=InMemoryDocumentStore()))
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", dump_pipeline(pipeline), loader=load_pipeline)
+    seen = []
+
+    def respond(messages):
+        # messages[0] is the system prompt; the stable context is the first user message.
+        seen.append(messages[1].text or "")
+        return ChatMessage.from_assistant("done")
+
+    propose_candidate(
+        optimizer_agent=create_harness_optimizer_agent(
+            chat_generator=MockChatGenerator(response_fn=respond), max_agent_steps=1
+        ),
+        workspace=workspace,
+        reference=pipeline,
+        reference_runs=[],
+        pricing=ModelPriceCatalog([]),
+        objectives=OptimizationObjectives(),
+        baseline=EvaluationMetrics(quality=1, cost=1, latency_ms=1),
+        history=[],
+    )
+
+    assert "## Tools available to the reference" not in seen[0]
+    assert "## Objectives" in seen[0]
