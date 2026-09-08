@@ -8,11 +8,12 @@ import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
 from psycopg.adapt import Transformer
-from psycopg.sql import SQL, Composed
+from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Jsonb
 
 from haystack_integrations.document_stores.pgvector.filters import (
+    COMPARISON_OPERATORS,
     FilterError,
     _convert_filters_to_where_clause_and_params,
     _parse_comparison_condition,
@@ -21,6 +22,10 @@ from haystack_integrations.document_stores.pgvector.filters import (
     _treat_meta_field_as_jsonb,
     _validate_filters,
 )
+
+FIELD = Identifier("meta", "year")
+
+ORDERING_OPERATORS = [">", ">=", "<", "<="]
 
 
 def _render(composed: Composed) -> str:
@@ -483,3 +488,73 @@ def test_validate_filters():
     invalid_filters = {"field": "meta.number", "value": "100"}
     with pytest.raises(ValueError):
         _validate_filters(invalid_filters)
+
+
+def _apply(operator: str, value: object) -> tuple[str, object]:
+    """Run a comparison operator and render the SQL fragment it produced."""
+    clause, params = COMPARISON_OPERATORS[operator](FIELD, value)
+    return _render(clause), params
+
+
+class TestEquality:
+    def test_equal(self):
+        assert _apply("==", 2024) == ('"meta"."year" = %s', 2024)
+
+    def test_not_equal_uses_is_distinct_from_so_nulls_compare_correctly(self):
+        # Plain `!=` returns NULL for NULL values, which would drop those rows.
+        assert _apply("!=", 2024) == ('"meta"."year" IS DISTINCT FROM %s', 2024)
+
+
+class TestOrderingOperators:
+    @pytest.mark.parametrize(
+        ("operator", "sql_operator"),
+        [(">", ">"), (">=", ">="), ("<", "<"), ("<=", "<=")],
+    )
+    def test_render_the_matching_sql_operator(self, operator, sql_operator):
+        assert _apply(operator, 2024) == (f'"meta"."year" {sql_operator} %s', 2024)
+
+    @pytest.mark.parametrize("operator", ORDERING_OPERATORS)
+    def test_accept_iso_formatted_dates(self, operator):
+        clause, params = _apply(operator, "2024-01-15")
+
+        assert "%s" in clause
+        assert params == "2024-01-15"
+
+    @pytest.mark.parametrize("operator", ORDERING_OPERATORS)
+    def test_reject_strings_that_are_not_dates(self, operator):
+        with pytest.raises(FilterError, match="Strings are only comparable if they are ISO formatted dates"):
+            _apply(operator, "book")
+
+    @pytest.mark.parametrize("operator", ORDERING_OPERATORS)
+    @pytest.mark.parametrize("value", [[1, 2], Jsonb({"a": 1})], ids=["list", "jsonb"])
+    def test_reject_values_that_cannot_be_ordered(self, operator, value):
+        with pytest.raises(FilterError, match="Filter value can't be of type"):
+            _apply(operator, value)
+
+
+class TestMembershipOperators:
+    def test_in_compares_against_the_whole_array(self):
+        clause, params = _apply("in", [2020, 2024])
+
+        assert clause == '"meta"."year" = ANY(%s)'
+        assert params == [[2020, 2024]]
+
+    def test_not_in_also_matches_rows_where_the_field_is_null(self):
+        # SQL: NULL != ALL(...) is NULL, not TRUE, so absent values need an explicit clause.
+        clause, params = _apply("not in", [2020, 2024])
+
+        assert clause == '("meta"."year" IS NULL OR "meta"."year" != ALL(%s))'
+        assert params == [[2020, 2024]]
+
+    @pytest.mark.parametrize("operator", ["in", "not in"])
+    def test_require_a_list(self, operator):
+        with pytest.raises(FilterError, match="value must be a list"):
+            _apply(operator, 2024)
+
+
+class TestPatternOperators:
+    def test_like(self):
+        assert _apply("like", "%book%") == ('"meta"."year" LIKE %s', "%book%")
+
+    def test_not_like(self):
+        assert _apply("not like", "%book%") == ('"meta"."year" NOT LIKE %s', "%book%")
