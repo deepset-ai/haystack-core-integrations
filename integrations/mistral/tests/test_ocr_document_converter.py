@@ -16,11 +16,7 @@ from haystack_integrations.components.converters.mistral import (
 )
 
 
-class TestMistralOCRDocumentConverter:
-    CLASS_TYPE = (
-        "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter"
-    )
-
+class TestInitialization:
     def test_supported_models(self) -> None:
         """SUPPORTED_MODELS is a non-empty list of strings."""
         models = MistralOCRDocumentConverter.SUPPORTED_MODELS
@@ -38,6 +34,7 @@ class TestMistralOCRDocumentConverter:
         assert converter.pages is None
         assert converter.image_limit is None
         assert converter.image_min_size is None
+        assert converter.client is None
 
     def test_init_with_all_optional_parameters(self):
         converter = MistralOCRDocumentConverter(
@@ -55,6 +52,12 @@ class TestMistralOCRDocumentConverter:
         assert converter.pages == [0, 1, 2]
         assert converter.image_limit == 10
         assert converter.image_min_size == 100
+
+
+class TestSerialization:
+    CLASS_TYPE = (
+        "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter"
+    )
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
@@ -164,6 +167,52 @@ class TestMistralOCRDocumentConverter:
         assert converter.image_min_size == 100
         assert converter.cleanup_uploaded_files is False
 
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.converters.mistral.ocr_document_converter.Mistral")
+    def test_key_resolved_at_warm_up_not_init(self, mock_mistral, monkeypatch):
+        monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+
+        converter = MistralOCRDocumentConverter()
+
+        assert converter.client is None
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+            converter.warm_up()
+        mock_mistral.assert_not_called()
+
+    @patch("haystack_integrations.components.converters.mistral.ocr_document_converter.Mistral")
+    def test_sync_lifecycle(self, mock_mistral):
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
+        client = mock_mistral.return_value
+
+        converter.warm_up()
+        assert converter.client is client
+
+        converter.close()
+        client.__exit__.assert_called_once_with(None, None, None)
+        assert converter.client is None
+
+        converter.warm_up()
+        assert mock_mistral.call_count == 2
+
+    @patch("haystack_integrations.components.converters.mistral.ocr_document_converter.Mistral")
+    def test_warm_up_is_idempotent(self, mock_mistral):
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
+
+        converter.warm_up()
+        converter.warm_up()
+
+        mock_mistral.assert_called_once_with(api_key="test-api-key")
+
+    def test_close_is_safe_without_warm_up(self):
+        converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
+
+        converter.close()
+
+        assert converter.client is None
+
+
+class TestRun:
     @pytest.fixture
     def mock_ocr_response(self):
         """Create a mock OCR response"""
@@ -216,16 +265,18 @@ class TestMistralOCRDocumentConverter:
         """Test processing with remote chunk types (DocumentURLChunk, FileChunk, ImageURLChunk)"""
         converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-            result = converter.run(sources=[source])
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-            assert len(result["documents"]) == 1
-            assert isinstance(result["documents"][0], Document)
-            assert result["documents"][0].content == "# Sample Document\n\nThis is page 1."
-            # Metadata assertions apply to all chunk types
-            if isinstance(source, DocumentURLChunk):
-                assert result["documents"][0].meta["source_page_count"] == 1
-                assert result["documents"][0].meta["source_total_images"] == 0
+        result = converter.run(sources=[source])
+
+        assert len(result["documents"]) == 1
+        assert isinstance(result["documents"][0], Document)
+        assert result["documents"][0].content == "# Sample Document\n\nThis is page 1."
+        # Metadata assertions apply to all chunk types
+        if isinstance(source, DocumentURLChunk):
+            assert result["documents"][0].meta["source_page_count"] == 1
+            assert result["documents"][0].meta["source_total_images"] == 0
 
     @pytest.mark.parametrize(
         "source_type",
@@ -251,16 +302,17 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
-            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-                with patch.object(converter.client.files, "delete"):
-                    result = converter.run(sources=[source])
+        converter.client = MagicMock()
+        converter.client.files.upload.return_value = mock_uploaded_file
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-                    assert len(result["documents"]) == 1
-                    assert isinstance(result["documents"][0], Document)
-                    # Verify file was uploaded for local sources
-                    if source_type == "file_path_str":
-                        converter.client.files.upload.assert_called_once()
+        result = converter.run(sources=[source])
+
+        assert len(result["documents"]) == 1
+        assert isinstance(result["documents"][0], Document)
+        # Verify file was uploaded for local sources
+        if source_type == "file_path_str":
+            converter.client.files.upload.assert_called_once()
 
     def test_run_with_multiple_sources(self, mock_ocr_response, tmp_path):
         """Test processing with multiple mixed source types"""
@@ -273,18 +325,19 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
-            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-                with patch.object(converter.client.files, "delete"):
-                    sources = [
-                        DocumentURLChunk(document_url="https://example.com/doc.pdf"),
-                        FileChunk(file_id="file-123"),
-                        str(test_file),
-                    ]
-                    result = converter.run(sources=sources)
+        converter.client = MagicMock()
+        converter.client.files.upload.return_value = mock_uploaded_file
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-                    assert len(result["documents"]) == 3
-                    assert all(isinstance(doc, Document) for doc in result["documents"])
+        sources = [
+            DocumentURLChunk(document_url="https://example.com/doc.pdf"),
+            FileChunk(file_id="file-123"),
+            str(test_file),
+        ]
+        result = converter.run(sources=sources)
+
+        assert len(result["documents"]) == 3
+        assert all(isinstance(doc, Document) for doc in result["documents"])
 
     def test_run_with_bbox_annotations(self):
         """Test processing with bbox annotation schema"""
@@ -311,13 +364,15 @@ class TestMistralOCRDocumentConverter:
             "document_annotation": None,
         }
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_response):
-            sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(sources=sources, bbox_annotation_schema=ImageAnnotation)
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_response
 
-            assert len(result["documents"]) == 1
-            # Check that image annotation was enriched in content
-            assert "Image Annotation:" in result["documents"][0].content
+        sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
+        result = converter.run(sources=sources, bbox_annotation_schema=ImageAnnotation)
+
+        assert len(result["documents"]) == 1
+        # Check that image annotation was enriched in content
+        assert "Image Annotation:" in result["documents"][0].content
 
     def test_run_with_document_annotations(self):
         """Test processing with document annotation schema"""
@@ -341,14 +396,16 @@ class TestMistralOCRDocumentConverter:
             "document_annotation": '{"language": "en", "topics": ["AI", "ML"]}',
         }
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_response):
-            sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(sources=sources, document_annotation_schema=DocumentAnnotation)
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_response
 
-            assert len(result["documents"]) == 1
-            # Check that document annotations are in metadata
-            assert result["documents"][0].meta["source_language"] == "en"
-            assert result["documents"][0].meta["source_topics"] == ["AI", "ML"]
+        sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
+        result = converter.run(sources=sources, document_annotation_schema=DocumentAnnotation)
+
+        assert len(result["documents"]) == 1
+        # Check that document annotations are in metadata
+        assert result["documents"][0].meta["source_language"] == "en"
+        assert result["documents"][0].meta["source_topics"] == ["AI", "ML"]
 
     def test_run_with_both_annotations(self):
         """Test processing with both bbox and document annotation schemas"""
@@ -377,114 +434,123 @@ class TestMistralOCRDocumentConverter:
             "document_annotation": '{"language": "en"}',
         }
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_response):
-            sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(
-                sources=sources,
-                bbox_annotation_schema=ImageAnnotation,
-                document_annotation_schema=DocumentAnnotation,
-            )
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_response
 
-            assert len(result["documents"]) == 1
-            assert "Image Annotation:" in result["documents"][0].content
-            assert result["documents"][0].meta["source_language"] == "en"
+        sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
+        result = converter.run(
+            sources=sources,
+            bbox_annotation_schema=ImageAnnotation,
+            document_annotation_schema=DocumentAnnotation,
+        )
+
+        assert len(result["documents"]) == 1
+        assert "Image Annotation:" in result["documents"][0].content
+        assert result["documents"][0].meta["source_language"] == "en"
 
     def test_run_with_pages_parameter(self, mock_ocr_response):
         """Test that pages parameter is passed to API"""
         converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"), pages=[0, 1])
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response) as mock_process:
-            sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(sources=sources)
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-            # Verify pages parameter was passed
-            call_args = mock_process.call_args
-            assert call_args.kwargs["pages"] == [0, 1]
-            assert len(result["documents"]) == 1
+        sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
+        result = converter.run(sources=sources)
+
+        # Verify pages parameter was passed
+        call_args = converter.client.ocr.process.call_args
+        assert call_args.kwargs["pages"] == [0, 1]
+        assert len(result["documents"]) == 1
 
     def test_run_handles_api_error(self, mock_ocr_response):
         """Test error handling when API fails"""
         converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
-        with patch.object(converter.client.ocr, "process") as mock_process:
-            # First call succeeds, second fails, third succeeds
-            mock_process.side_effect = [
-                mock_ocr_response,
-                Exception("API Error"),
-                mock_ocr_response,
-            ]
+        converter.client = MagicMock()
+        converter.client.ocr.process.side_effect = [
+            mock_ocr_response,
+            Exception("API Error"),
+            mock_ocr_response,
+        ]
 
-            sources = [
-                DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
-                DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
-                DocumentURLChunk(document_url="https://example.com/doc3.pdf"),
-            ]
-            result = converter.run(sources=sources)
+        sources = [
+            DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
+            DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
+            DocumentURLChunk(document_url="https://example.com/doc3.pdf"),
+        ]
+        result = converter.run(sources=sources)
 
-            # Should only return 2 documents (failed source skipped)
-            assert len(result["documents"]) == 2
-            assert len(result["raw_mistral_response"]) == 2
+        # Should only return 2 documents (failed source skipped)
+        assert len(result["documents"]) == 2
+        assert len(result["raw_mistral_response"]) == 2
 
     def test_run_with_meta_single_dict(self, mock_ocr_response):
         """Test that meta parameter with single dict is applied to all documents"""
         converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-            sources = [
-                DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
-                DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
-            ]
-            result = converter.run(sources=sources, meta={"department": "engineering", "year": 2024})
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-            assert len(result["documents"]) == 2
-            # Both documents should have the same metadata
-            for doc in result["documents"]:
-                assert doc.meta["department"] == "engineering"
-                assert doc.meta["year"] == 2024
-                # Automatic metadata should still be present
-                assert "source_page_count" in doc.meta
-                assert "source_total_images" in doc.meta
+        sources = [
+            DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
+            DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
+        ]
+        result = converter.run(sources=sources, meta={"department": "engineering", "year": 2024})
+
+        assert len(result["documents"]) == 2
+        # Both documents should have the same metadata
+        for doc in result["documents"]:
+            assert doc.meta["department"] == "engineering"
+            assert doc.meta["year"] == 2024
+            # Automatic metadata should still be present
+            assert "source_page_count" in doc.meta
+            assert "source_total_images" in doc.meta
 
     def test_run_with_meta_list_of_dicts(self, mock_ocr_response):
         """Test that meta parameter with list of dicts applies each dict to corresponding document"""
         converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-            sources = [
-                DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
-                DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
-            ]
-            result = converter.run(
-                sources=sources,
-                meta=[
-                    {"author": "Alice", "category": "report"},
-                    {"author": "Bob", "category": "invoice"},
-                ],
-            )
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-            assert len(result["documents"]) == 2
-            # First document
-            assert result["documents"][0].meta["author"] == "Alice"
-            assert result["documents"][0].meta["category"] == "report"
-            # Second document
-            assert result["documents"][1].meta["author"] == "Bob"
-            assert result["documents"][1].meta["category"] == "invoice"
-            # Automatic metadata should still be present in both
-            assert "source_page_count" in result["documents"][0].meta
-            assert "source_page_count" in result["documents"][1].meta
+        sources = [
+            DocumentURLChunk(document_url="https://example.com/doc1.pdf"),
+            DocumentURLChunk(document_url="https://example.com/doc2.pdf"),
+        ]
+        result = converter.run(
+            sources=sources,
+            meta=[
+                {"author": "Alice", "category": "report"},
+                {"author": "Bob", "category": "invoice"},
+            ],
+        )
+
+        assert len(result["documents"]) == 2
+        # First document
+        assert result["documents"][0].meta["author"] == "Alice"
+        assert result["documents"][0].meta["category"] == "report"
+        # Second document
+        assert result["documents"][1].meta["author"] == "Bob"
+        assert result["documents"][1].meta["category"] == "invoice"
+        # Automatic metadata should still be present in both
+        assert "source_page_count" in result["documents"][0].meta
+        assert "source_page_count" in result["documents"][1].meta
 
     def test_run_with_meta_none(self, mock_ocr_response):
         """Test that meta parameter with None works correctly"""
         converter = MistralOCRDocumentConverter(api_key=Secret.from_token("test-api-key"))
 
-        with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-            sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
-            result = converter.run(sources=sources, meta=None)
+        converter.client = MagicMock()
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-            assert len(result["documents"]) == 1
-            # Only automatic metadata should be present
-            assert "source_page_count" in result["documents"][0].meta
-            assert "source_total_images" in result["documents"][0].meta
+        sources = [DocumentURLChunk(document_url="https://example.com/doc.pdf")]
+        result = converter.run(sources=sources, meta=None)
+
+        assert len(result["documents"]) == 1
+        # Only automatic metadata should be present
+        assert "source_page_count" in result["documents"][0].meta
+        assert "source_total_images" in result["documents"][0].meta
 
     def test_run_with_meta_list_length_mismatch(self):
         """Test that meta parameter with list length mismatch raises ValueError"""
@@ -548,16 +614,17 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
-            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-                with patch.object(converter.client.files, "delete") as mock_delete:
-                    sources = [str(test_file)]
-                    result = converter.run(sources=sources)
+        converter.client = MagicMock()
+        converter.client.files.upload.return_value = mock_uploaded_file
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-                    # Verify file was uploaded but NOT deleted
-                    assert len(result["documents"]) == 1
-                    converter.client.files.upload.assert_called_once()
-                    mock_delete.assert_not_called()
+        sources = [str(test_file)]
+        result = converter.run(sources=sources)
+
+        # Verify file was uploaded but NOT deleted
+        assert len(result["documents"]) == 1
+        converter.client.files.upload.assert_called_once()
+        converter.client.files.delete.assert_not_called()
 
     def test_run_cleanup_happens_on_ocr_failure(self, tmp_path):
         """Test that cleanup happens even when OCR processing fails"""
@@ -570,16 +637,17 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
-            with patch.object(converter.client.ocr, "process", side_effect=Exception("OCR failed")):
-                with patch.object(converter.client.files, "delete") as mock_delete:
-                    sources = [str(test_file)]
-                    result = converter.run(sources=sources)
+        converter.client = MagicMock()
+        converter.client.files.upload.return_value = mock_uploaded_file
+        converter.client.ocr.process.side_effect = Exception("OCR failed")
 
-                    # Verify no documents returned due to failure
-                    assert len(result["documents"]) == 0
-                    # But file should still be deleted
-                    mock_delete.assert_called_once_with(file_id="uploaded-file-123")
+        sources = [str(test_file)]
+        result = converter.run(sources=sources)
+
+        # Verify no documents returned due to failure
+        assert len(result["documents"]) == 0
+        # But file should still be deleted
+        converter.client.files.delete.assert_called_once_with(file_id="uploaded-file-123")
 
     def test_run_cleanup_failure_does_not_break_flow(self, mock_ocr_response, tmp_path):
         """Test that cleanup failures don't break the main flow"""
@@ -592,20 +660,18 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
-            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-                with patch.object(
-                    converter.client.files,
-                    "delete",
-                    side_effect=Exception("Delete failed"),
-                ):
-                    sources = [str(test_file)]
-                    # Should not raise an exception
-                    result = converter.run(sources=sources)
+        converter.client = MagicMock()
+        converter.client.files.upload.return_value = mock_uploaded_file
+        converter.client.ocr.process.return_value = mock_ocr_response
+        converter.client.files.delete.side_effect = Exception("Delete failed")
 
-                    # Verify document was still processed successfully
-                    assert len(result["documents"]) == 1
-                    assert isinstance(result["documents"][0], Document)
+        sources = [str(test_file)]
+        # Should not raise an exception
+        result = converter.run(sources=sources)
+
+        # Verify document was still processed successfully
+        assert len(result["documents"]) == 1
+        assert isinstance(result["documents"][0], Document)
 
     def test_run_mixed_sources_only_uploaded_files_deleted(self, mock_ocr_response, tmp_path):
         """Test that only uploaded files are deleted, not user-provided chunks"""
@@ -618,20 +684,21 @@ class TestMistralOCRDocumentConverter:
         mock_uploaded_file = MagicMock()
         mock_uploaded_file.id = "uploaded-file-123"
 
-        with patch.object(converter.client.files, "upload", return_value=mock_uploaded_file):
-            with patch.object(converter.client.ocr, "process", return_value=mock_ocr_response):
-                with patch.object(converter.client.files, "delete") as mock_delete:
-                    sources = [
-                        str(test_file),  # This will be uploaded
-                        FileChunk(file_id="user-file-123"),  # User-provided
-                        DocumentURLChunk(document_url="https://example.com/doc.pdf"),  # URL
-                    ]
-                    result = converter.run(sources=sources)
+        converter.client = MagicMock()
+        converter.client.files.upload.return_value = mock_uploaded_file
+        converter.client.ocr.process.return_value = mock_ocr_response
 
-                    # Verify all sources processed
-                    assert len(result["documents"]) == 3
-                    # Only the uploaded file should be deleted
-                    mock_delete.assert_called_once_with(file_id="uploaded-file-123")
+        sources = [
+            str(test_file),  # This will be uploaded
+            FileChunk(file_id="user-file-123"),  # User-provided
+            DocumentURLChunk(document_url="https://example.com/doc.pdf"),  # URL
+        ]
+        result = converter.run(sources=sources)
+
+        # Verify all sources processed
+        assert len(result["documents"]) == 3
+        # Only the uploaded file should be deleted
+        converter.client.files.delete.assert_called_once_with(file_id="uploaded-file-123")
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY"),

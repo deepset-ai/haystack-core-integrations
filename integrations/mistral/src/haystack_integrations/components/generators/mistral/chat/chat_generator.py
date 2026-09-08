@@ -430,11 +430,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if hasattr(self, "warm_up_async"):
-            # haystack-ai >= 3.0 initializes the async client on the running event loop
-            await self.warm_up_async()
-        else:
-            self.warm_up()
+        await self.warm_up_async()
 
         if len(messages) == 0:
             return {"replies": []}
