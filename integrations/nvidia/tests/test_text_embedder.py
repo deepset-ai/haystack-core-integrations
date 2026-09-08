@@ -14,7 +14,7 @@ from haystack_integrations.utils.nvidia import DEFAULT_API_URL
 from . import MockBackend
 
 
-class TestNvidiaTextEmbedder:
+class TestInitialization:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         embedder = NvidiaTextEmbedder()
@@ -40,6 +40,8 @@ class TestNvidiaTextEmbedder:
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
 
+
+class TestSerialization:
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         component = NvidiaTextEmbedder("nvolveqa_40k")

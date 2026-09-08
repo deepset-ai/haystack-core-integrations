@@ -17,7 +17,7 @@ from haystack_integrations.components.rankers.nvidia.truncate import RankerTrunc
 _DEFAULT_MODEL = "nvidia/nv-rerankqa-mistral-4b-v3"
 
 
-class TestNvidiaRanker:
+class TestInitialization:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         client = NvidiaRanker()
@@ -42,6 +42,8 @@ class TestNvidiaRanker:
         client = NvidiaRanker(api_url=url)
         assert client.api_url == url
 
+
+class TestSerialization:
     def test_to_dict(self) -> None:
         client = NvidiaRanker()
         assert client.to_dict() == {
