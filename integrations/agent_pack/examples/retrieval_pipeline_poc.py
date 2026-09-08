@@ -72,6 +72,10 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
 # still asks one thing, and a question whose evidence is spread over several articles needs the retriever to
 # surface more than a couple of chunks. Neither limit is where the fix has to be: which of them matters, and
 # whether the retrieval path should be reranked rather than widened, is what the experiment is for.
+#
+# It also expands through `OpenAIChatGenerator`, on the completions endpoint, where a reasoning model runs without
+# the control the responses endpoint gives. Nothing about that fails, so it is easy to leave in place, and a
+# candidate that inherits the class rather than choosing it inherits the defect too.
 POOR_EXPANSIONS = 1
 POOR_TOP_K = 2
 

@@ -5,6 +5,7 @@
 """Iterative measurement and recommendation of Agent configuration candidates."""
 
 import json
+import re
 import traceback
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
@@ -12,7 +13,6 @@ from math import isclose
 from pathlib import Path
 from threading import RLock
 from typing import Any
-from uuid import uuid4
 
 from haystack import Pipeline, logging
 from haystack.components.agents import Agent
@@ -29,7 +29,6 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
     Optimizable,
-    configuration_id,
     dump_agent,
     dump_pipeline,
     load_agent,
@@ -124,6 +123,33 @@ class ExperimentJournal:
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
+
+    def claim_run(self) -> tuple[str, Path]:
+        """
+        Allocate the next run identifier and create the directory its artifacts go in.
+
+        Numbered rather than random so a directory of experiments reads in the order they were run. The number is
+        claimed by creating the directory, which either succeeds or tells us somebody else has that number: two
+        experiments pointed at one journal directory would otherwise both count the same existing runs and pick
+        the same next one.
+
+        :returns: The run identifier and its artifact directory.
+        """
+        with self._lock:
+            taken = [
+                int(match.group(1))
+                for path in self.directory.iterdir()
+                if (match := re.fullmatch(r"run-(\d+)(?:\.jsonl)?", path.name))
+            ]
+            number = max(taken, default=0) + 1
+            while True:
+                artifacts = self.directory / f"run-{number}"
+                try:
+                    artifacts.mkdir()
+                except FileExistsError:
+                    number += 1
+                    continue
+                return f"run-{number}", artifacts
 
     def path_for(self, run_id: str) -> Path:
         """
@@ -231,8 +257,12 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg)
         dump, load = _serialization(reference=self.reference)
         reference_yaml = dump(self.reference)
+        # What decides whether two measurements can be compared: the questions, the yardstick they are scored
+        # against, and the corpus behind them. Deliberately not the reference configuration — comparing a changed
+        # reference against an earlier run is the ordinary case, and its serialization carries incidental values
+        # such as an in-memory store's generated index that would mark every run as incomparable to every other.
+        # The configuration itself is still recorded, as `reference.yaml` and as the baseline's candidate ID.
         payload = {
-            "reference": configuration_id(reference_yaml),
             "runs": sorted(record.fingerprint() for record in reference_runs),
             "evaluator": type(self.evaluator).__qualname__,
             "configuration_key": self.configuration_key,
@@ -240,13 +270,12 @@ class HarnessOptimizationExperiment:
         if callable(fingerprint := getattr(self.evaluator, "fingerprint", None)):
             payload["evaluator_configuration"] = fingerprint()
         context = content_digest(json.dumps(payload, sort_keys=True, default=str))
-        run_id = uuid4().hex[:12]
-        artifacts = self.journal.directory / run_id
-        artifacts.mkdir()
+        run_id, artifacts = self.journal.claim_run()
         (artifacts / "reference.yaml").write_text(reference_yaml, encoding="utf-8")
         validator = getattr(self.evaluator, "validate_agent", None)
+        draft = artifacts / "candidate.yaml"
         workspace = ConfigurationWorkspace(
-            self.config_path or artifacts / "candidate.yaml",
+            self.config_path or draft,
             reference_yaml,
             validator=validator if callable(validator) else None,
             loader=load,
@@ -402,6 +431,11 @@ class HarnessOptimizationExperiment:
             ),
             encoding="utf-8",
         )
+        # Everything the run produced is in the snapshots and the journal; what is left in the editable file is
+        # whatever the last turn happened to leave there. It is kept while the run is in flight, so a crash leaves
+        # it to inspect, and removed once there is a complete record without it.
+        if self.config_path is None:
+            draft.unlink(missing_ok=True)
         return ExperimentResult(
             baseline=baseline,
             candidates=tuple(outcomes),

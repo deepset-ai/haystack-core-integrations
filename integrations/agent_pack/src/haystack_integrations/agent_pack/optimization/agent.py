@@ -55,13 +55,13 @@ latest revision and a unique exact text match. The tools can only edit that file
 Use validate_config and repair errors before submit_candidate. Validation constructs the Agent but does not run
 or warm it up. Submit one hypothesis per turn with a rationale.
 
-Spend the evaluations. `remaining_evaluations` is a budget, not a limit to stay under, and an unused one is a
-measurement nobody will ever take. A disappointing result is a finding about one hypothesis and says nothing about
-whether others are left; the run that has just regressed is usually the one with the most still to learn. When the
+Spend the evaluations. `remaining_evaluations` is a budget rather than a limit to stay under, and one left unused
+is a measurement not taken. A disappointing result is a finding about one hypothesis and says little about whether
+others are left. When the
 obvious parameters have been tried, the configuration is still open: a component's prompt, what a component is
 asked to produce rather than how much, the shape of the pipeline, and components not yet in it. Reach for finish
 only when you can say what you considered and why none of it is worth measuring — it takes that reason as an
-argument, and ending the search is the one decision the experiment cannot revisit.
+argument, and nothing after it can revisit the decision.
 Plain text does not submit a candidate. Invalid drafts and duplicates do not spend evaluation slots, but editing
 steps are bounded. Edits continue from the last submitted candidate. Use restore_candidate with a history ID or
 'reference' to start from a different base.
@@ -82,6 +82,32 @@ mismatches the task costs quality without ever failing: read the prompt in the Y
 Read a limit against what the run actually did with it. A component producing less than its own limit allows is
 leaving that room unspent, and the reason is usually in its prompt rather than in the number. A limit reached on
 every case is the opposite: it is binding, and what it truncates is invisible until it is raised.
+
+Every OpenAI generator in a configuration should be `OpenAIResponsesChatGenerator`, including one held inside
+another component. Haystack reaches OpenAI two ways, and the choice decides what the model can do: the responses
+endpoint supports reasoning, the completions endpoint behind `OpenAIChatGenerator` does not, and a current model
+placed there simply reasons less without anything failing. Choose it when adding a component rather than copying
+whichever class the surrounding configuration or a usage example happened to use, and change the ones already
+there: a reference written against the completions generator is getting less out of its model, and swapping
+the class is a small edit with nothing else riding on it.
+
+Its parameters go in `generation_kwargs`, and anything `openai.Responses.create` accepts works:
+
+- reasoning depth: `{"reasoning": {"effort": "low" | "medium" | "high"}}`, optionally with `"summary": "auto"`
+- structured output: `{"text": {"format": {"type": "json_schema", "name": ..., "strict": true, "schema": {...}}}}`
+- `temperature` is rejected outright by the current models, and `text_format` takes a Pydantic class that no
+  serialized configuration can carry, so the JSON schema goes in `text` as above
+
+Constrain the reply with that schema wherever a component parses it rather than passing it on — a ranker reading
+indices, an expander reading a list. Such a component does not recover: it catches the parse error, logs a
+warning, and returns something unranked or unexpanded, so the run continues and the measurement describes the
+fallback rather than the configuration. Asking for well-formed output in the prompt is not the same as requiring
+it, and what a component falls back to is worth knowing: one returns the documents unranked, another returns the
+single unexpanded query, and both look like an ordinary poor score.
+
+Both of these are properties of every generator in the configuration, so audit them once at the start rather than
+finding them one failure at a time. A reference is usually wrong about them uniformly — the same class copied into
+each component, no schema on any of them — and fixing them together costs one measurement instead of several.
 
 Use inspect_component and optional documentation tools to learn installed components and their serialization.
 A ComponentTool can become a PipelineTool: connect retriever.documents to ranker.documents, map query to both query

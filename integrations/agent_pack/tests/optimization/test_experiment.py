@@ -192,6 +192,62 @@ def test_incomplete_usage_cannot_win_on_any_objective(tmp_path):
         assert result.gate_failures[result.candidates[0].candidate_id] == ("usage_incomplete",)
 
 
+def test_runs_are_numbered_in_the_order_they_happened(tmp_path):
+    """A directory of experiments should read in order, and a second run must not reuse the first one's name."""
+    first, _ = configured(tmp_path, ["cheap", None])
+    second, _ = configured(tmp_path, ["cheap", None])
+
+    one = first.run()
+    two = second.run()
+
+    assert one.run_id == "run-1"
+    assert two.run_id == "run-2"
+    assert one.artifact_directory.name == "run-1"
+    assert first.journal.path_for("run-1").exists()
+    # The editable draft is scratch, so a completed run leaves only its record behind.
+    assert not (one.artifact_directory / "candidate.yaml").exists()
+    assert (one.artifact_directory / "reference.yaml").exists()
+
+
+def test_a_supplied_draft_is_left_alone(tmp_path):
+    """A file the caller pointed at is theirs, not an artifact the experiment cleans up."""
+    draft = tmp_path / "mine.yaml"
+    experiment, _ = configured(tmp_path, ["cheap", None])
+    experiment.config_path = draft
+
+    experiment.run()
+
+    assert draft.exists()
+
+
+def test_runs_measuring_the_same_thing_share_a_measurement_context(tmp_path):
+    """The context answers whether two runs' numbers can be compared, and a changed reference does not break that."""
+    first, _ = configured(tmp_path, ["cheap", None])
+    second, _ = configured(tmp_path, ["cheap", None])
+    # A different reference configuration, measured against the same runs, cases and evaluator.
+    second.reference = Agent(chat_generator=MockChatGenerator(model="reference"), max_agent_steps=7)
+
+    one = first.run()
+    two = second.run()
+
+    assert one.measurement_context == two.measurement_context
+    # The configurations themselves are still distinguishable, and still recorded.
+    assert (one.artifact_directory / "reference.yaml").read_text() != (
+        two.artifact_directory / "reference.yaml"
+    ).read_text()
+
+
+def test_a_different_evaluation_set_is_not_comparable(tmp_path):
+    class OtherCases(ModelEvaluator):
+        def fingerprint(self):
+            return {"kind": "different-cases"}
+
+    first, _ = configured(tmp_path, ["cheap", None])
+    second, _ = configured(tmp_path, ["cheap", None], evaluator=OtherCases())
+
+    assert first.run().measurement_context != second.run().measurement_context
+
+
 def test_repeated_experiments_have_separate_journals(tmp_path):
     first, _ = configured(tmp_path, [None])
     second, _ = configured(tmp_path, [None])
