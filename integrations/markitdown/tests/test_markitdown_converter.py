@@ -4,7 +4,7 @@
 
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -21,10 +21,11 @@ def mock_result():
     return result
 
 
-class TestMarkItDownConverter:
+class TestInitializationSerialization:
     def test_init_defaults(self):
         converter = MarkItDownConverter()
         assert converter.store_full_path is False
+        assert converter._converter is None
 
     def test_init_store_full_path(self):
         converter = MarkItDownConverter(store_full_path=True)
@@ -47,6 +48,28 @@ class TestMarkItDownConverter:
         converter = component_from_dict(MarkItDownConverter, data, "MarkItDownConverter")
         assert converter.store_full_path is True
 
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.converters.markitdown.markitdown_converter.MarkItDown")
+    def test_warm_up(self, mock_markitdown):
+        converter = MarkItDownConverter()
+
+        converter.warm_up()
+
+        mock_markitdown.assert_called_once_with()
+        assert converter._converter is mock_markitdown.return_value
+
+    @patch("haystack_integrations.components.converters.markitdown.markitdown_converter.MarkItDown")
+    def test_warm_up_is_idempotent(self, mock_markitdown):
+        converter = MarkItDownConverter()
+
+        converter.warm_up()
+        converter.warm_up()
+
+        mock_markitdown.assert_called_once_with()
+
+
+class TestRun:
     def test_run_with_file_path(self, mock_result, tmp_path):
         txt_file = tmp_path / "test.txt"
         txt_file.write_text("Hello world")

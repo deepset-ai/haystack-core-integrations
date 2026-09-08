@@ -47,7 +47,12 @@ class MarkItDownConverter:
             If `False`, only the file name is stored. Defaults to `False`.
         """
         self.store_full_path = store_full_path
-        self._converter = MarkItDown()
+        self._converter: MarkItDown | None = None
+
+    def warm_up(self) -> None:
+        """Initialize the MarkItDown converter."""
+        if self._converter is None:
+            self._converter = MarkItDown()
 
     @component.output_types(documents=list[Document])
     def run(
@@ -66,6 +71,9 @@ class MarkItDownConverter:
         :returns:
             A dictionary with key `documents` containing the converted Documents.
         """
+        self.warm_up()
+        assert self._converter is not None  # noqa: S101
+
         meta_list = normalize_metadata(meta, sources_count=len(sources))
         documents: list[Document] = []
 
