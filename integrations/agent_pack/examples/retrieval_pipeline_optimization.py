@@ -361,11 +361,11 @@ def main() -> None:
         shutil.rmtree(path=arguments.workspace)
 
     print("=== 1. set up corpus and evaluation set ===")
-    store, chunks = prepare_corpus(backend=arguments.store)
+    store, articles = prepare_corpus(backend=arguments.store)
     document_count = store.count_documents()
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks")
 
-    labelled = build_eval_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
+    labelled = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
     cases = [
         RetrievalEvaluationCase(
             question=case.question,

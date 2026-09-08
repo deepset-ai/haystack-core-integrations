@@ -413,12 +413,11 @@ def main() -> None:
         shutil.rmtree(path=arguments.workspace)
 
     print("=== 1. set up corpus and evaluation set ===")
-    store, chunks = prepare_corpus(backend=arguments.store)
+    store, articles = prepare_corpus(backend=arguments.store)
     document_count = store.count_documents()
-    articles = len({chunk.meta["title"] for chunk in chunks})
-    print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks from {articles} articles")
+    print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks from {len(articles)} articles")
 
-    cases = build_eval_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
+    cases = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
     expected_documents = sum(len(case.expected_document_ids) for case in cases)
     print(f"  cases: {len(cases)} labelled from evidence, expecting {expected_documents} documents in total")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
