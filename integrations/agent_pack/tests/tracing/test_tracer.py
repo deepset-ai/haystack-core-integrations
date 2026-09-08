@@ -6,11 +6,11 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.tracing.agent_pack.tracer import UsageTracer
+from haystack_integrations.tracing.agent_pack.tracer import HarnessTracer
 
 
 def test_ranker_and_agent_usage_counted_once_without_content_tracing():
-    tracer = UsageTracer()
+    tracer = HarnessTracer()
     old_content = tracing.tracer.is_content_tracing_enabled
     tracing.tracer.is_content_tracing_enabled = False
     ranker = LLMRanker(
@@ -42,7 +42,7 @@ def test_ranker_and_agent_usage_counted_once_without_content_tracing():
 
 
 def test_concurrent_cases_and_threaded_parents_keep_usage_separate():
-    tracer = UsageTracer()
+    tracer = HarnessTracer()
 
     async def run_case(index):
         with tracer.case() as usage:
@@ -80,7 +80,7 @@ def test_concurrent_cases_and_threaded_parents_keep_usage_separate():
 
 
 def test_missing_usage_is_unavailable_and_tracer_is_disabled_after_failure():
-    tracer = UsageTracer()
+    tracer = HarnessTracer()
     try:
         with tracer.activate(), tracer.case() as usage:
             with tracer.trace("haystack.chat_generator.run") as span:

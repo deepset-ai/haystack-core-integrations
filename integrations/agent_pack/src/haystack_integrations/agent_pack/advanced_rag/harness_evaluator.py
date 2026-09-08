@@ -26,7 +26,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
-from haystack_integrations.tracing.agent_pack.tracer import CaseUsage, UsageTracer
+from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
 
 logger = logging.getLogger(__name__)
 
@@ -228,8 +228,8 @@ class AdvancedRAGHarnessEvaluator:
         return scored
 
     async def _measure(
-        self, agent: Agent, resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]], tracer: UsageTracer
-    ) -> list[tuple[AdvancedRAGCaseMetrics, CaseUsage]]:
+        self, agent: Agent, resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]], tracer: HarnessTracer
+    ) -> list[tuple[AdvancedRAGCaseMetrics, EvalCaseUsage]]:
         """
         Measure every eval case, running up to `max_concurrent_cases` of them at once.
 
@@ -251,7 +251,7 @@ class AdvancedRAGHarnessEvaluator:
 
         async def measure(
             position: int, case: AdvancedRAGEvaluationCase, messages: list[ChatMessage]
-        ) -> tuple[AdvancedRAGCaseMetrics, CaseUsage]:
+        ) -> tuple[AdvancedRAGCaseMetrics, EvalCaseUsage]:
             """Run one case, waiting for a slot first."""
             async with semaphore:
                 started = time.perf_counter()
@@ -289,7 +289,7 @@ class AdvancedRAGHarnessEvaluator:
             msg = "No reference runs were supplied to the Advanced RAG evaluator."
             raise ValueError(msg)
 
-        tracer = UsageTracer()
+        tracer = HarnessTracer()
         target.warm_up()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
             measured = asyncio.run(self._measure(agent=target, resolved=resolved, tracer=tracer))

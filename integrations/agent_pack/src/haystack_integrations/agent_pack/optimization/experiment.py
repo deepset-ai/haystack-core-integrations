@@ -32,7 +32,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_pipeline,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
-from haystack_integrations.tracing.agent_pack.tracer import UsageTracer
+from haystack_integrations.tracing.agent_pack.tracer import HarnessTracer
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +297,7 @@ class HarnessOptimizationExperiment:
         history: list[dict[str, Any]] = []
         best_id: str | None = None
         optimizer_usage: dict[str, ModelTokenUsage] = {}
-        optimizer_tracer = UsageTracer()
+        optimizer_tracer = HarnessTracer()
         while len(outcomes) < self.max_iterations:
             # Measured like a candidate's calls, so the cost of searching is reported beside what it found.
             with optimizer_tracer.activate(), optimizer_tracer.case() as turn_usage:

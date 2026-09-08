@@ -2,6 +2,7 @@ import json
 from collections import deque
 
 import pytest
+from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
@@ -15,6 +16,7 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
     load_agent,
+    load_pipeline,
 )
 from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
@@ -353,3 +355,71 @@ def test_iteration_budget_counts_evaluations(tmp_path):
     result = experiment.run()
     assert evaluator.calls == ["reference", "bad"]
     assert len(result.candidates) == 1
+
+
+def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_path):
+    """
+    An Agent is serialized by wrapping it in a one-component Pipeline; a Pipeline is already one. The experiment
+    picks the pair to use from the reference, so a candidate comes back as the same kind of thing it started as.
+    """
+    reference = Pipeline()
+    reference.add_component("generator", MockChatGenerator(model="reference"))
+
+    class PipelineEvaluator:
+        def __init__(self):
+            self.measured = []
+
+        def evaluate(self, target, reference_runs):
+            assert reference_runs
+            # A Pipeline reference must arrive as a Pipeline, not wrapped in an Agent.
+            assert isinstance(target, Pipeline)
+            model = target.get_component("generator").model
+            self.measured.append(model)
+            return EvaluationMetrics(quality=1.0 if model == "cheap" else 0.5, cost=1, latency_ms=1)
+
+    # A scripted optimizer of its own: the shared one reads the model back through `load_agent`, which by
+    # design refuses anything that is not a one-component Agent wrapper.
+    stage = 0
+
+    def respond(_messages, tools):
+        nonlocal stage
+        current = next(tool for tool in tools if tool.name == "read_config").function()
+        call = [
+            ToolCall(
+                "edit_config",
+                {"old": "model: reference", "new": "model: cheap", "expected_revision": current["revision"]},
+                id="edit",
+            ),
+            ToolCall("validate_config", {}, id="validate"),
+            ToolCall(
+                "submit_candidate",
+                {"expected_revision": current["revision"], "rationale": "cheaper model"},
+                id="submit",
+            ),
+        ][stage]
+        stage += 1
+        return ChatMessage.from_assistant(tool_calls=[call])
+
+    store = LocalRunStore()
+    store.add(RunRecord(run_id="reference", inputs={"query": "question"}, outputs={}))
+    optimizer = create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond))
+    evaluator = PipelineEvaluator()
+    result = HarnessOptimizationExperiment(
+        reference=reference,
+        run_store=store,
+        evaluator=evaluator,
+        pricing=ModelPriceCatalog([]),
+        # Ranked on quality: both configurations cost the same, so only the better answer can win.
+        objectives=OptimizationObjectives(primary="quality", min_quality=0.0),
+        journal=ExperimentJournal(tmp_path / "journals"),
+        optimizer_agent=optimizer,
+        max_iterations=1,
+    ).run()
+
+    assert evaluator.measured == ["reference", "cheap"]
+    assert result.recommendation is not None
+    approved = load_pipeline(result.recommendation.configuration.yaml)
+    assert isinstance(approved, Pipeline)
+    assert approved.get_component("generator").model == "cheap"
+    # The reference itself is never edited in place.
+    assert reference.get_component("generator").model == "reference"

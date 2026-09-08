@@ -19,7 +19,7 @@ from haystack_integrations.agent_pack.dataclasses import ModelTokenUsage
 
 
 @dataclass
-class CaseUsage:
+class EvalCaseUsage:
     """
     Only usage totals and output sizes are retained; prompts, replies and documents are discarded.
 
@@ -36,8 +36,8 @@ class CaseUsage:
     lock: LockType = field(default_factory=Lock, repr=False)
 
 
-class _UsageSpan(Span):
-    def __init__(self, usage: CaseUsage | None, generator: bool, component: str | None = None) -> None:
+class _HarnessSpan(Span):
+    def __init__(self, usage: EvalCaseUsage | None, generator: bool, component: str | None = None) -> None:
         self.usage = usage
         self.generator = generator
         self.component = component
@@ -97,26 +97,32 @@ class _UsageSpan(Span):
                 )
 
 
-class UsageTracer(Tracer):
-    """Collect generator-call spans only, ignoring aggregate Agent and Pipeline outputs."""
+class HarnessTracer(Tracer):
+    """
+    Collect what one eval case spent and how much reached each of its stages.
+
+    Two things are taken from the spans a run emits and nothing else is kept: the token usage a generator
+    reports, and how many items every other component emitted. Prompts, replies and documents are discarded as
+    they pass, so no content is retained and content tracing never has to be enabled.
+    """
 
     def __init__(self) -> None:
         """Initialize task-local case and span context."""
-        self._case: ContextVar[CaseUsage | None] = ContextVar("harness_usage", default=None)
-        self._span: ContextVar[_UsageSpan | None] = ContextVar("harness_span", default=None)
+        self._case: ContextVar[EvalCaseUsage | None] = ContextVar("harness_usage", default=None)
+        self._span: ContextVar[_HarnessSpan | None] = ContextVar("harness_span", default=None)
 
     @contextmanager
     def trace(
         self, operation_name: str, tags: dict[str, Any] | None = None, parent_span: Span | None = None
     ) -> Iterator[Span]:
         """Follow explicit parents as well as context propagated into async worker threads."""
-        parent = parent_span if isinstance(parent_span, _UsageSpan) else self.current_span()
+        parent = parent_span if isinstance(parent_span, _HarnessSpan) else self.current_span()
         usage = parent.usage if parent is not None else self._case.get()
         generator = operation_name in ("haystack.chat_generator.run", "haystack.agent.step.llm") or (
             operation_name == "haystack.component.run"
             and str((tags or {}).get("haystack.component.type", "")).endswith("ChatGenerator")
         )
-        span = _UsageSpan(usage, generator, str((tags or {}).get("haystack.component.name") or "") or None)
+        span = _HarnessSpan(usage, generator, str((tags or {}).get("haystack.component.name") or "") or None)
         token = self._span.set(span)
         try:
             yield span
@@ -125,14 +131,14 @@ class UsageTracer(Tracer):
                 usage.complete = False
             self._span.reset(token)
 
-    def current_span(self) -> _UsageSpan | None:
+    def current_span(self) -> _HarnessSpan | None:
         """Return the current span for Haystack's explicit thread-parent propagation."""
         return self._span.get()
 
     @contextmanager
-    def case(self) -> Iterator[CaseUsage]:
-        """Collect one evaluation case independently of concurrently running cases."""
-        usage = CaseUsage()
+    def case(self) -> Iterator[EvalCaseUsage]:
+        """Collect one eval case independently of concurrently running cases."""
+        usage = EvalCaseUsage()
         token = self._case.set(usage)
         try:
             yield usage

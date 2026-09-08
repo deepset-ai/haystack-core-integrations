@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .tracer import CaseUsage, UsageTracer
+from .tracer import EvalCaseUsage, HarnessTracer
 
-__all__ = ["CaseUsage", "UsageTracer"]
+__all__ = ["EvalCaseUsage", "HarnessTracer"]

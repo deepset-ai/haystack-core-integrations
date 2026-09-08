@@ -10,7 +10,7 @@ from haystack import Document, Pipeline, logging
 
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
-from haystack_integrations.tracing.agent_pack.tracer import CaseUsage, UsageTracer
+from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
 from retrieval.evaluation import (
     RetrievalCaseMetrics,
     RetrievalEvaluationCase,
@@ -190,8 +190,8 @@ class RetrievalHarnessEvaluator:
         return RetrievalOutcome(documents=documents, queries=tuple(issued or [question]))
 
     async def _measure(
-        self, target: Pipeline, resolved: list[RetrievalEvaluationCase], tracer: UsageTracer
-    ) -> list[tuple[RetrievalCaseMetrics, CaseUsage]]:
+        self, target: Pipeline, resolved: list[RetrievalEvaluationCase], tracer: HarnessTracer
+    ) -> list[tuple[RetrievalCaseMetrics, EvalCaseUsage]]:
         """
         Measure every case, running up to `max_concurrent_cases` of them at once.
 
@@ -205,7 +205,7 @@ class RetrievalHarnessEvaluator:
         reporters = query_reporters(pipeline=target)
         entry_points = query_entry_points(pipeline=target)
 
-        async def measure(position: int, case: RetrievalEvaluationCase) -> tuple[RetrievalCaseMetrics, CaseUsage]:
+        async def measure(position: int, case: RetrievalEvaluationCase) -> tuple[RetrievalCaseMetrics, EvalCaseUsage]:
             """Pose one question once a slot is free."""
             data = {name: {QUERY_SOCKET: case.question} for name in entry_points}
             async with semaphore:
@@ -248,7 +248,7 @@ class RetrievalHarnessEvaluator:
                 raise ValueError(msg)
             resolved.append(case)
 
-        tracer = UsageTracer()
+        tracer = HarnessTracer()
         target.warm_up()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
             measured = asyncio.run(self._measure(target=target, resolved=resolved, tracer=tracer))

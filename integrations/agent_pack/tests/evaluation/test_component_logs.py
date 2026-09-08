@@ -1,5 +1,9 @@
 import logging
 
+from haystack import Document, Pipeline
+from haystack.components.generators.chat import MockChatGenerator
+from haystack.components.rankers import LLMRanker
+
 from haystack_integrations.agent_pack.evaluation.component_logs import (
     MAX_DISTINCT_MESSAGES,
     MAX_MESSAGE_CHARS,
@@ -77,3 +81,29 @@ def test_only_the_configured_trees_are_listened_to():
         logging.getLogger("someone_else").warning("not mine")
 
     assert [entry["message"] for entry in logs.to_list()] == ["mine"]
+
+
+def test_a_component_that_degrades_inside_a_running_pipeline_is_captured():
+    """
+    The exact shape that once scored as an improvement: `LLMRanker` catches a rejected parameter, returns the
+    documents in the order it received them, and reports it only to a logger. The run succeeds, so nothing but
+    the warning distinguishes an unranked answer from a ranked one.
+    """
+
+    def reject(*_args, **_kwargs):
+        message = "Error code: 400 - temperature does not support 0.0 with this model"
+        raise RuntimeError(message)
+
+    documents = [Document(content="first"), Document(content="second"), Document(content="third")]
+    pipeline = Pipeline()
+    # raise_on_failure is False by default, which is what makes the failure invisible to the score.
+    pipeline.add_component("ranker", LLMRanker(chat_generator=MockChatGenerator(response_fn=reject), top_k=1))
+
+    with ComponentLogCollector().collect() as logs:
+        result = pipeline.run({"ranker": {"query": "which one", "documents": documents}})
+
+    reported = logs.to_list()
+    assert any("LLMRanker failed during chat generation" in entry["message"] for entry in reported)
+    assert any("temperature does not support 0.0" in entry["message"] for entry in reported)
+    # The run completed and handed back its input untouched, so every other measurement looks ordinary.
+    assert [document.content for document in result["ranker"]["documents"]] == ["first", "second", "third"]
