@@ -19,19 +19,23 @@
 
 import argparse
 import hashlib
+import os
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.lazy_imports import LazyImport
-from util import build_document_store
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 
 with LazyImport(message='Run "pip install datasets" to build the MultiHopRAG evaluation set.') as datasets_import:
     from datasets import load_dataset
+
+with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
+    from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 DATASET_ID = "yixuantt/MultiHopRAG"
 CORPUS_KEY = "multihop-rag"
@@ -70,6 +74,26 @@ class Article:
 
     body: str
     chunks: tuple[Document, ...]
+
+
+def build_document_store(backend: str, index: str) -> DocumentStore:
+    """
+    Build an empty in-memory or OpenSearch document store under a named index.
+
+    :param backend: Either "in_memory" or "opensearch".
+    :param index: Names the index to open or create.
+    :returns: The empty store.
+    """
+    if backend == "opensearch":
+        opensearch_import.check()
+        url = os.environ.get("OPENSEARCH_URL", "http://localhost:9200")
+        return OpenSearchDocumentStore(
+            hosts=url,
+            index=index,
+            use_ssl=url.startswith("https"),
+            verify_certs=not url.startswith("https://localhost"),
+        )
+    return InMemoryDocumentStore(index=index)
 
 
 def prepare_corpus(
