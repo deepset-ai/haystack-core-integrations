@@ -193,7 +193,7 @@ class TestNvidiaGenerator:
     @pytest.mark.integration
     def test_run_integration_with_api_catalog(self):
         generator = NvidiaGenerator(
-            model="meta/llama-3.1-8b-instruct",
+            model="nvidia/nemotron-3.5-lightning-30b-a3b",
             api_url="https://integrate.api.nvidia.com/v1",
             api_key=Secret.from_env_var("NVIDIA_API_KEY"),
             model_arguments={

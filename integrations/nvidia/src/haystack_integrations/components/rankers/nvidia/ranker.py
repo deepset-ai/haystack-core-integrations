@@ -25,7 +25,7 @@ class NvidiaRanker:
     from haystack.utils import Secret
 
     ranker = NvidiaRanker(
-        model="nvidia/nv-rerankqa-mistral-4b-v3",
+        model="nvidia/llama-nemotron-rerank-vl-1b-v2",
         api_key=Secret.from_env_var("NVIDIA_API_KEY"),
     )
     # Components warm up automatically on first run.

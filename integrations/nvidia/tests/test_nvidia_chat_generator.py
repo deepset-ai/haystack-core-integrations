@@ -120,7 +120,7 @@ class TestNvidiaChatGenerator:
         monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
         component = NvidiaChatGenerator()
         assert component.api_key.resolve_value() == "test-api-key"
-        assert component.model == "meta/llama-3.1-8b-instruct"
+        assert component.model == "nvidia/nemotron-3.5-lightning-30b-a3b"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.client is None
@@ -150,7 +150,7 @@ class TestNvidiaChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "meta/llama-3.1-8b-instruct",
+            "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
             "streaming_callback": None,
             "api_base_url": DEFAULT_API_URL,
             "generation_kwargs": {},
@@ -205,7 +205,7 @@ class TestRun:
         # check that the component calls the OpenAI API with the correct parameters
         _, kwargs = mock_chat_completion.call_args
         assert kwargs["extra_body"] == extra_body
-        assert kwargs["model"] == "meta/llama-3.1-8b-instruct"
+        assert kwargs["model"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
         assert kwargs["messages"] == [
             {"role": "system", "content": "You are a helpful assistant"},
             {"role": "user", "content": "What's the capital of France"},
@@ -293,7 +293,7 @@ class TestRun:
         ]
 
         component = NvidiaChatGenerator(
-            model="meta/llama-3.1-70b-instruct",
+            model="nvidia/nemotron-3.5-lightning-30b-a3b",
             generation_kwargs={
                 "response_format": {
                     "type": "json_schema",
@@ -327,7 +327,7 @@ class TestRun:
         ]
 
         component = NvidiaChatGenerator(
-            model="meta/llama-3.1-70b-instruct",
+            model="nvidia/nemotron-3.5-lightning-30b-a3b",
             generation_kwargs={"response_format": {"type": "json_object"}},
         )
 
@@ -505,7 +505,7 @@ class TestAsyncRun:
         # check that the component calls the OpenAI API with the correct parameters
         _, kwargs = mock_async_chat_completion.call_args
         assert kwargs["extra_body"] == extra_body
-        assert kwargs["model"] == "meta/llama-3.1-8b-instruct"
+        assert kwargs["model"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
         assert kwargs["messages"] == [
             {"role": "system", "content": "You are a helpful assistant"},
             {"role": "user", "content": "What's the capital of France"},
