@@ -1,10 +1,38 @@
 # Changelog
 
-## [integrations/google_vertex-v5.3.0.post1] - 2025-11-18
+## [integrations/google_vertex-v5.3.1] - 2026-04-07
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations with dataclasses.replace() (#3112)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
 
 ### 🧹 Chores
 
-- archive google-ai and google-vertex integrations, migrate to google-genai (#2521)
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+
+## [integrations/google_vertex-v5.3.0.post1] - 2025-11-18
+
+### 📚 Documentation
+
+- Add pydoc configurations for Docusaurus (#2411)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
+### 🧹 Chores
+
+- Standardize readmes - part 2 (#2205)
+
+### 🌀 Miscellaneous
+
+- Enhancement: Adopt PEP 585 type hinting (part 4) (#2527)
+- Chore: archive google-ai and google-vertex integrations, migrate to google-genai (#2521)
 
 ## [integrations/google_vertex-v5.3.0] - 2025-07-29
 
@@ -80,6 +108,9 @@
 
 - [**breaking**] Google Vertex - support for Tool + general refactoring (#1327)
 
+
+## [integrations/google_vertex-v4.0.2] - 2025-01-16
+
 ### 🌀 Miscellaneous
 
 - Handle function role removal (#1296)
@@ -132,10 +163,25 @@
 
 ### 🚀 Features
 
-- Enable streaming for VertexAIGeminiChatGenerator (#1014)
-- Add tests for VertexAIGeminiGenerator and enable streaming (#1012)
 - Add chatrole tests and meta for GeminiChatGenerators (#1090)
 - Add custom params to VertexAIGeminiGenerator and VertexAIGeminiChatGenerator (#1100)
+
+### 🧹 Chores
+
+- Update ruff linting scripts and settings (#1105)
+
+### 🌀 Miscellaneous
+
+- Update docstrings to remove vertexai preview package (#1074)
+- Chore: Unpin protobuf dependency in Google Vertex integration (#1085)
+- Chore: pin `google-cloud-aiplatform>=1.61` and fix tests (#1124)
+
+## [integrations/google_vertex-v2.0.0] - 2024-09-09
+
+### 🚀 Features
+
+- Enable streaming for VertexAIGeminiChatGenerator (#1014)
+- Add tests for VertexAIGeminiGenerator and enable streaming (#1012)
 
 ### 🐛 Bug Fixes
 
@@ -154,7 +200,6 @@
 ### 🧹 Chores
 
 - Update ruff invocation to include check parameter (#853)
-- Update ruff linting scripts and settings (#1105)
 
 ### 🌀 Miscellaneous
 
@@ -162,9 +207,6 @@
 - Chore: change the pydoc renderer class (#718)
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Ping `protobuf` to `<5.28` to fix Google Vertex Components serialization (#1050)
-- Update docstrings to remove vertexai preview package (#1074)
-- Chore: Unpin protobuf dependency in Google Vertex integration (#1085)
-- Chore: pin `google-cloud-aiplatform>=1.61` and fix tests (#1124)
 
 ## [integrations/google_vertex-v1.1.0] - 2024-03-28
 

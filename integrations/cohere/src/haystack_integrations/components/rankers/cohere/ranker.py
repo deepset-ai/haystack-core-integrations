@@ -69,12 +69,22 @@ class CohereRanker:
         self.meta_data_separator = meta_data_separator
         self.max_tokens_per_doc = max_tokens_per_doc
 
-        self._cohere_client = ClientV2(
-            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
-        )
-        self._cohere_async_client = AsyncClientV2(
-            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
-        )
+        self._cohere_client: ClientV2 | None = None
+        self._cohere_async_client: AsyncClientV2 | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Cohere client."""
+        if self._cohere_client is None:
+            self._cohere_client = ClientV2(
+                api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Cohere client."""
+        if self._cohere_async_client is None:
+            self._cohere_async_client = AsyncClientV2(
+                api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -172,6 +182,8 @@ class CohereRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
+        self.warm_up()
+        assert self._cohere_client is not None
         cohere_input_docs, top_k = self._prepare_cohere_input_docs(documents, top_k)
 
         response = self._cohere_client.rerank(
@@ -205,6 +217,8 @@ class CohereRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
+        await self.warm_up_async()
+        assert self._cohere_async_client is not None
         cohere_input_docs, top_k = self._prepare_cohere_input_docs(documents, top_k)
 
         response = await self._cohere_async_client.rerank(

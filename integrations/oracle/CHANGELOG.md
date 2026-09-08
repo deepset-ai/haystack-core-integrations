@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/oracle-v0.5.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
 
@@ -27,6 +27,9 @@
 
 - `Oracle` match `search_term` against metadata field value only, drop content match (#3645)
 - Fix new issues raised by ruff 0.16.0 (#3670)
+
+
+## [integrations/oracle-v0.3.0] - 2026-07-09
 
 ### 🧹 Chores
 

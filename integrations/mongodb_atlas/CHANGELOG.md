@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/mongodb_atlas-v4.4.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
 
@@ -127,15 +127,16 @@
 
 ## [integrations/mongodb_atlas-v3.2.1] - 2025-05-13
 
-### 🚀 Features
-
-- Support custom content field (#1721)
-
 ### 🐛 Bug Fixes
 
 - Fulltext retrieval (#1730)
 
-### 📚 Documentation
+
+## [integrations/mongodb_atlas-v3.2.0] - 2025-05-12
+
+### 🚀 Features
+
+- Support custom content field (#1721)
 
 
 ## [integrations/mongodb_atlas-v3.1.2] - 2025-05-07
@@ -151,13 +152,15 @@
 
 ## [integrations/mongodb_atlas-v3.1.1] - 2025-04-11
 
-### 🚀 Features
-
-- Mongodb async (#1590)
-
 ### 🐛 Bug Fixes
 
 - Async failing in mongodb-integrations (#1633)
+
+## [integrations/mongodb_atlas-v3.1.0] - 2025-04-08
+
+### 🚀 Features
+
+- Mongodb async (#1590)
 
 
 ### ⚙️ CI
@@ -183,44 +186,81 @@
 
 ## [integrations/mongodb_atlas-v2.0.0] - 2025-02-14
 
-### 🚀 Features
 
-- Defer the database connection to when it's needed (#770)
-- Add filter_policy to mongodb_atlas integration (#823)
+### 🌀 Miscellaneous
 
-### 🐛 Bug Fixes
+- Chore!: Mongodb - remove dataframe support (#1398)
 
-- Pass empty dict to filter instead of None (#775)
-- `Mongo` - Fallback to default filter policy when deserializing retrievers without the init parameter (#899)
-
-
-### 🧪 Testing
-
-- Do not retry tests in `hatch run test` command (#954)
+## [integrations/mongodb_atlas-v1.1.0] - 2025-02-10
 
 ### ⚙️ CI
 
-- Retry tests to reduce flakyness (#836)
 - Adopt uv as installer (#1142)
 
 ### 🧹 Chores
 
-- Update ruff invocation to include check parameter (#853)
-- Update mongodb test for the new `apply_filter_policy` usage (#971)
-- MongoDB - remove legacy filter support (#1066)
 - Update ruff linting scripts and settings (#1105)
 - Inherit from `FilterDocumentsTestWithDataframe` in Document Stores (#1290)
 
 ### 🌀 Miscellaneous
 
-- Chore: add license classifiers (#680)
-- Chore: change the pydoc renderer class (#718)
-- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
-- Chore: Minor retriever pydoc fix (#884)
+- Mongodb keyword search (#1228)
+
+## [integrations/mongodb_atlas-v1.0.0] - 2024-09-12
+
+### 🧪 Testing
+
+- Do not retry tests in `hatch run test` command (#954)
+
+### 🧹 Chores
+
+- Update mongodb test for the new `apply_filter_policy` usage (#971)
+- MongoDB - remove legacy filter support (#1066)
+
+### 🌀 Miscellaneous
+
 - Fix: remove exposure of connection_string (#937)
 - Chore: mongo - ruff update, don't ruff tests (#991)
-- Mongodb keyword search (#1228)
-- Chore!: Mongodb - remove dataframe support (#1398)
+
+## [integrations/mongodb_atlas-v0.4.1] - 2024-07-17
+
+### 🐛 Bug Fixes
+
+- `Mongo` - Fallback to default filter policy when deserializing retrievers without the init parameter (#899)
+
+## [integrations/mongodb_atlas-v0.4.0] - 2024-07-15
+
+### 🚀 Features
+
+- Add filter_policy to mongodb_atlas integration (#823)
+
+### ⚙️ CI
+
+- Retry tests to reduce flakyness (#836)
+
+### 🧹 Chores
+
+- Update ruff invocation to include check parameter (#853)
+
+### 🌀 Miscellaneous
+
+- Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
+- Chore: Minor retriever pydoc fix (#884)
+
+## [integrations/mongodb_atlas-v0.3.0] - 2024-05-30
+
+### 🚀 Features
+
+- Defer the database connection to when it's needed (#770)
+
+### 🐛 Bug Fixes
+
+- Pass empty dict to filter instead of None (#775)
+
+### 🌀 Miscellaneous
+
+- Chore: add license classifiers (#680)
+- Chore: change the pydoc renderer class (#718)
 
 ## [integrations/mongodb_atlas-v0.2.1] - 2024-04-09
 

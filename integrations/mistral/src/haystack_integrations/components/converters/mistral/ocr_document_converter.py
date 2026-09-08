@@ -149,8 +149,18 @@ class MistralOCRDocumentConverter:
         self.image_min_size = image_min_size
         self.cleanup_uploaded_files = cleanup_uploaded_files
 
-        # Initialize Mistral client
-        self.client = Mistral(api_key=self.api_key.resolve_value())
+        self.client: Mistral | None = None
+
+    def warm_up(self) -> None:
+        """Initialize the Mistral client."""
+        if self.client is None:
+            self.client = Mistral(api_key=self.api_key.resolve_value())
+
+    def close(self) -> None:
+        """Close the Mistral client."""
+        if self.client is not None:
+            self.client.__exit__(None, None, None)
+            self.client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -229,6 +239,9 @@ class MistralOCRDocumentConverter:
                 List of dictionaries containing raw OCR responses from Mistral API (one per source).
                 Each response includes per-page details, images, annotations, and usage info.
         """
+        self.warm_up()
+        assert self.client is not None
+
         # Convert Pydantic models to Mistral ResponseFormat schemas
         bbox_annotation_format = (
             response_format_from_pydantic_model(bbox_annotation_schema) if bbox_annotation_schema else None
@@ -294,6 +307,7 @@ class MistralOCRDocumentConverter:
             A tuple of (Document|None, raw_response_dict|None, uploaded_file_id|None).
             Returns (None, None, uploaded_file_id) if processing fails but file was uploaded.
         """
+        assert self.client is not None
         uploaded_file_id = None
         try:
             chunk = self._convert_source_to_chunk(source)
@@ -333,6 +347,7 @@ class MistralOCRDocumentConverter:
         if not self.cleanup_uploaded_files or not file_ids:
             return
 
+        assert self.client is not None
         for file_id in file_ids:
             try:
                 self.client.files.delete(file_id=file_id)
@@ -362,6 +377,8 @@ class MistralOCRDocumentConverter:
         # If already a Mistral chunk type, return as-is
         if isinstance(source, (DocumentURLChunk, FileChunk, ImageURLChunk)):
             return source
+
+        assert self.client is not None
 
         # Convert str/Path/ByteStream to ByteStream
         bytestream = get_bytestream_from_source(source=source)
