@@ -20,12 +20,6 @@ class ScopeHook:
     allowed_hook_points = ("before_run",)
 
     def __init__(self, generator: ChatGenerator, prompt_builder: ChatPromptBuilder) -> None:
-        """
-        Create the scoping hook from its generator and prompt builder.
-
-        :param generator: Chat generator that turns the user's request into a structured research brief.
-        :param prompt_builder: Prompt builder that prepares the scoping request for the generator.
-        """
         self.generator = generator
         self.prompt_builder = prompt_builder
 
@@ -62,12 +56,6 @@ class WriteHook:
     allowed_hook_points = ("after_run",)
 
     def __init__(self, generator: ChatGenerator, prompt_builder: ChatPromptBuilder) -> None:
-        """
-        Create the report-writing hook from its generator and prompt builder.
-
-        :param generator: Chat generator that writes the final report from the collected research notes.
-        :param prompt_builder: Prompt builder that prepares the report-writing request for the generator.
-        """
         self.generator = generator
         self.prompt_builder = prompt_builder
 
