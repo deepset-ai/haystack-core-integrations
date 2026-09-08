@@ -54,9 +54,9 @@ span_stack_var: ContextVar[list["LangfuseSpan"] | None] = ContextVar("span_stack
 
 class LangfuseContextToken:
     """
-    Opaque token returned by :func:`set_langfuse_context`.
+    Opaque token returned by `set_langfuse_context`.
 
-    Pass it to :func:`reset_langfuse_context` to restore the previous tracing context.
+    Pass it to `reset_langfuse_context` to restore the previous tracing context.
     """
 
     def __init__(self, token: Any) -> None:
@@ -64,31 +64,43 @@ class LangfuseContextToken:
 
 
 def set_langfuse_context(
-    trace_id: Any | None = None,
-    user_id: Any | None = None,
-    session_id: Any | None = None,
+    *,
+    trace_id: str | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
     tags: list[str] | None = None,
-    version: Any | None = None,
+    version: str | None = None,
 ) -> LangfuseContextToken:
     """
     Set Langfuse trace-level context for the current execution context.
 
-    The values are picked up by :class:`LangfuseTracer` when the next root trace is created
-    and propagated to all child spans in that trace. Use :func:`reset_langfuse_context` with
+    The values are picked up by `LangfuseTracer` when the next root trace is created
+    and propagated to all child spans in that trace. Use `reset_langfuse_context` with
     the returned token to restore the previous context.
+
+    ### Usage example
+
+    ```python
+    from haystack_integrations.tracing.langfuse import (
+        reset_langfuse_context,
+        set_langfuse_context,
+    )
+
+    token = set_langfuse_context(
+        user_id="user-456", session_id="session-123", tags=["production"]
+    )
+    try:
+        response = pipe.run(...)
+    finally:
+        reset_langfuse_context(token)
+    ```
 
     :param trace_id: Custom trace ID to use for the next root trace.
     :param user_id: User ID to attach to the trace.
     :param session_id: Session ID to attach to the trace.
     :param tags: Tags to attach to the trace.
     :param version: Version to attach to the trace.
-    :returns: A token that can be passed to :func:`reset_langfuse_context` to undo this change.
-
-    Example:
-        >>> from haystack_integrations.tracing.langfuse import set_langfuse_context, reset_langfuse_context
-        >>> token = set_langfuse_context(user_id="user-456", tags=["production"])
-        >>> response = pipe.run(...)
-        >>> reset_langfuse_context(token)
+    :returns: A token that can be passed to `reset_langfuse_context` to undo this change.
     """
     new_ctx = tracing_context_var.get({}).copy()
     if trace_id is not None:
@@ -108,7 +120,7 @@ def reset_langfuse_context(token: LangfuseContextToken | None = None) -> None:
     """
     Reset the Langfuse trace-level context for the current execution context.
 
-    :param token: The token returned by :func:`set_langfuse_context`. If omitted, the context is
+    :param token: The token returned by `set_langfuse_context`. If omitted, the context is
         cleared entirely.
     """
     if token is not None:
