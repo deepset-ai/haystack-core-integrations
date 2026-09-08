@@ -47,33 +47,55 @@ logger = logging.getLogger(__name__)
 OPTIMIZER_PROMPT_CACHE_KEY = "haystack-harness-optimizer-yaml-v1"
 
 HARNESS_OPTIMIZER_SYSTEM_PROMPT = """
-Optimize a Haystack Agent through measured experiments. The configuration is in candidate.yaml, a one-component
-Pipeline containing the Agent named 'agent'. Use read_config and edit_config to edit YAML directly. You may change
-prompts, models, parameters, hooks, and add, remove or replace entire tools and pipelines. Each edit requires the
-latest revision and a unique exact text match. The tools can only edit that file.
+Optimize a Haystack pipeline through measured experiments. Each turn you edit its YAML and submit the result to be
+measured against a fixed evaluation set.
 
-Use validate_config and repair errors before submit_candidate. Validation constructs the Agent but does not run
-or warm it up. Submit one hypothesis per turn with a rationale.
+## The workspace
+
+The configuration is in candidate.yaml, a serialized Haystack Pipeline. What it holds varies with the experiment:
+connected components, or a single component that is an Agent, which is how an Agent is serialized. Read it
+rather than assuming either. Use read_config and edit_config to edit YAML directly. You may change prompts,
+models, parameters, hooks, and add, remove or replace entire tools and pipelines. Each edit requires the latest
+revision and a unique exact text match. The tools can only edit that file.
+
+Use validate_config and repair errors before submit_candidate. Validation constructs the pipeline but does not
+run or warm it up. Submit one hypothesis per turn with a rationale. Plain text does not submit a candidate. Invalid
+drafts and duplicates do not spend evaluation slots, but editing steps are bounded.
+
+## Spending the budget
 
 Spend the evaluations. `remaining_evaluations` is a budget rather than a limit to stay under, and one left unused
 is a measurement not taken. A disappointing result is a finding about one hypothesis and says little about whether
-others are left. When the
-obvious parameters have been tried, the configuration is still open: a component's prompt, what a component is
-asked to produce rather than how much, the shape of the pipeline, and components not yet in it. Reach for finish
-only when you can say what you considered and why none of it is worth measuring — it takes that reason as an
-argument, and nothing after it can revisit the decision.
-Plain text does not submit a candidate. Invalid drafts and duplicates do not spend evaluation slots, but editing
-steps are bounded. Edits continue from the last submitted candidate. Use restore_candidate with a history ID or
-'reference' to start from a different base.
+others are left. When the obvious parameters have been tried, the configuration is still open: a component's
+prompt, what a component is asked to produce rather than how much, the shape of the pipeline, and components not
+yet in it. Reach for finish only when you can say what you considered and why none of it is worth measuring. It
+takes that reason as an argument and ends the experiment.
+
+Combine changes when they need to move together, and combine the change you are measuring with cleanups that
+cannot plausibly interact with it: `remaining_evaluations` counts submissions and each one costs a full pass over
+the evaluation set. Removing an unused tool also removes its schema from model input.
+
+## Choosing the next experiment
 
 Each turn starts from the best candidate measured so far, not from whatever was tried last, so a variation that
 regresses is not inherited by the next one and you are always varying against the best known configuration. Vary
-one thing at a time against it. Use restore_candidate to leave that base deliberately rather than to climb back
-to it: to retry a structural change whose parameters were wrong rather than its shape, or to return to
-'reference' and take a different direction entirely when a line of variations has stopped paying.
-Combine changes when they need to move together, and combine the change you are measuring with cleanups that cannot
-plausibly interact with it: `remaining_evaluations` counts submissions and each one costs a full pass over the
-evaluation set. Removing an unused tool also removes its schema from model input.
+one thing at a time against it. Edits continue from that base; use restore_candidate with a history ID or
+'reference' to leave it deliberately rather than to climb back to it: to retry a structural change whose
+parameters were wrong rather than its shape, or to return to 'reference' and take a different direction entirely
+when a line of variations has stopped paying.
+
+Varying one thing at a time says how to change the configuration, not which thing to keep changing. When
+successive candidates move the same component in the same direction and the scores follow in order, that axis is
+answered, and the next point on it will restate what the earlier ones showed. A monotone series against one
+component is the signal to go and measure a different one: most configurations have components that have been
+measured once, and the one measured five times is rarely where the remaining quality is.
+
+A component that selects or filters what it is handed saturates in a particular way. Once it is set to keep
+everything it can, the measurement stops describing that component and starts describing its input, so further
+variations of it land on the same score — what is missing was never in front of it. Repeated ties at the
+permissive end of such a component mean the limit is upstream of it.
+
+## Where quality usually hides
 
 A component's default prompt is part of the configuration and is one of the most productive things to change. It
 was written for that component's general case, not for what is being measured here, and a default that quietly
@@ -82,6 +104,8 @@ mismatches the task costs quality without ever failing: read the prompt in the Y
 Read a limit against what the run actually did with it. A component producing less than its own limit allows is
 leaving that room unspent, and the reason is usually in its prompt rather than in the number. A limit reached on
 every case is the opposite: it is binding, and what it truncates is invisible until it is raised.
+
+## OpenAI generators
 
 Every OpenAI generator in a configuration should be `OpenAIResponsesChatGenerator`, including one held inside
 another component. Haystack reaches OpenAI two ways, and the choice decides what the model can do: the responses
@@ -109,10 +133,14 @@ Both of these are properties of every generator in the configuration, so audit t
 finding them one failure at a time. A reference is usually wrong about them uniformly — the same class copied into
 each component, no schema on any of them — and fixing them together costs one measurement instead of several.
 
+## Learning what is available
+
 Use inspect_component and optional documentation tools to learn installed components and their serialization.
 A ComponentTool can become a PipelineTool: connect retriever.documents to ranker.documents, map query to both query
 inputs, filters to the retriever, and ranker.documents to the tool documents output. Preserve outputs_to_state and
 formatting handlers required by the harness. Do not invent serialization shapes or assume a package is installed.
+
+## How a candidate is judged
 
 Quality is a hard gate. Known prices are informational rather than an allowlist. Unpriced or incomplete usage
 cannot win a cost optimization. Read gate failures and run evidence before choosing the next experiment.
@@ -188,14 +216,16 @@ def create_harness_optimizer_agent(
         installed is appended either way, since it constrains every configuration the optimizer can propose.
     :param additional_instructions: Guidance appended to the instructions, for what a good configuration looks like
         in one specific harness. The instructions themselves stay free of any assumption about what the reference
-        Agent does, so domain knowledge belongs here rather than in a rewritten replacement.
+        configuration does, so domain knowledge belongs here rather than in a rewritten replacement.
     :param max_agent_steps: Maximum number of Agent steps used to produce one proposal.
     :returns: The configured optimizer Agent.
     """
     instructions = system_prompt or HARNESS_OPTIMIZER_SYSTEM_PROMPT
-    instructions = f"{instructions}\n\n{describe_environment()}"
+    # Headed like the sections above them, so an appended block reads as its own section rather than as a
+    # continuation of whatever the instructions happened to end on.
+    instructions = f"{instructions}\n\n## This environment\n\n{describe_environment()}"
     if additional_instructions is not None:
-        instructions = f"{instructions}\n\n{additional_instructions.strip()}"
+        instructions = f"{instructions}\n\n## This harness\n\n{additional_instructions.strip()}"
     # Measured on the retrieval harness over twenty labelled cases: this model reached a better configuration than
     # one costing ten times as much, and a whole experiment on it costs less than a single one of the other's
     # turns. The optimizer's turns are most of what an experiment costs once its cases are cheap, so what it is
