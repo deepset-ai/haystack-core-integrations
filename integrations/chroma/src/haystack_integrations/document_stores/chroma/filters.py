@@ -114,7 +114,7 @@ def _create_where_document_filter(field: str, value: dict[Any, Any]) -> dict[str
         return value
     # In case of a logical operator, check if the given filters contain "content"
     # Then combine the filters into a single where_document filter to pass to Chroma
-    if field in ["$and", "$or"] and value[0].get("content"):
+    if field in ["$and", "$or"] and value and value[0].get("content"):
         # Use list comprehension to populate the field without modifying the original structure
         document_filters = [
             _create_where_document_filter(k, v) for v in value if isinstance(v, dict) for k, v in v.items()
