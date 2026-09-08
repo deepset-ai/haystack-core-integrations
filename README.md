@@ -4,18 +4,18 @@
 
 | Name                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/nvidia/document\_embedder.py    |      101 |        5 |       32 |        4 |     93% |110, 127-\>exit, 130-131, 138, 142 |
-| src/haystack\_integrations/components/embedders/nvidia/text\_embedder.py        |       75 |        5 |       24 |        4 |     91% |93, 116-\>exit, 119-120, 127, 131 |
+| src/haystack\_integrations/components/embedders/nvidia/document\_embedder.py    |      102 |        4 |       32 |        3 |     95% |109, 126-\>exit, 129-130, 141 |
+| src/haystack\_integrations/components/embedders/nvidia/text\_embedder.py        |       76 |        4 |       24 |        3 |     93% |92, 115-\>exit, 118-119, 130 |
 | src/haystack\_integrations/components/embedders/nvidia/truncate.py              |       15 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/generators/nvidia/chat/chat\_generator.py |       17 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/components/generators/nvidia/generator.py            |       57 |        2 |       14 |        3 |     93% |99, 116-\>exit, 141, 193-\>196 |
-| src/haystack\_integrations/components/rankers/nvidia/ranker.py                  |       95 |        3 |       38 |        1 |     95% |126, 181-182 |
+| src/haystack\_integrations/components/rankers/nvidia/ranker.py                  |       96 |        2 |       36 |        1 |     98% |  125, 182 |
 | src/haystack\_integrations/components/rankers/nvidia/truncate.py                |        9 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/client.py                               |       16 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/models.py                               |       29 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/utils/nvidia/nim\_backend.py                         |      118 |        0 |       32 |        4 |     97% |72-\>75, 164-\>166, 166-\>169, 187-\>189 |
+| src/haystack\_integrations/utils/nvidia/nim\_backend.py                         |      120 |        0 |       32 |        4 |     97% |69-\>72, 167-\>169, 169-\>172, 190-\>192 |
 | src/haystack\_integrations/utils/nvidia/utils.py                                |       46 |        0 |       24 |        0 |    100% |           |
-| **TOTAL**                                                                       |  **578** |   **15** |  **172** |   **16** | **96%** |           |
+| **TOTAL**                                                                       |  **583** |   **12** |  **170** |   **14** | **97%** |           |
 
 
 ## Setup coverage badge
