@@ -1,0 +1,17 @@
+loaders:
+  - modules:
+      - haystack_integrations.memory_stores.everos.memory_store
+      - haystack_integrations.components.retrievers.everos.retriever
+      - haystack_integrations.components.writers.everos.writer
+      - haystack_integrations.tools.everos.retriever_tool
+      - haystack_integrations.tools.everos.writer_tool
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: EverOS long-term memory integration for Haystack
+  id: integrations-everos
+  filename: everos.md
+  title: EverOS
