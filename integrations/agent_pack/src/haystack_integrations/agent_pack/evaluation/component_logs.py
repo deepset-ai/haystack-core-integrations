@@ -2,18 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Collect what the components themselves reported while a configuration was measured.
-
-A measurement says how a configuration scored; it does not say whether the configuration did what it was written
-to do. A component that swallows a failure keeps the run alive and reports the fact to a logger nobody is reading:
-`LLMRanker` returns its documents in the order it received them, and the only evidence that no ranking happened is
-a warning. Measured against a live model, a candidate in exactly that state scored as an improvement.
-
-So the logs are part of the evidence. What a component says when it degrades is usually the precise remedy — an
-unsupported parameter names itself — and it reaches the optimizer alongside the score it explains.
-"""
-
 import logging
 from collections import Counter
 from collections.abc import Iterator
@@ -87,6 +75,13 @@ class _CollectingHandler(logging.Handler):
 class ComponentLogCollector:
     """
     Capture warnings and errors the measured components emit, for the duration of one evaluation.
+
+    A measurement says how a configuration scored; it does not say whether the configuration did what it was
+    written to do. A component that swallows a failure keeps the run alive and reports the fact to a logger nobody
+    is reading: `LLMRanker` returns its documents in the order it received them, and the only evidence that no
+    ranking happened is a warning. Measured against a live model, a candidate in exactly that state scored as an
+    improvement. So what a component says when it degrades is part of the evidence, and it is usually the precise
+    remedy — an unsupported parameter names itself.
 
     Collection is per evaluation rather than per case. Retrieval components hand work to a thread pool, and a
     context-local collector would silently lose whatever those threads reported; a reader also wants to know that

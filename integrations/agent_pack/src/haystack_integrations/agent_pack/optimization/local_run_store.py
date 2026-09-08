@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Local persistence for successful Agent run records."""
-
 import json
 import os
 from pathlib import Path

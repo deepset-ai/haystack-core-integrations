@@ -2,12 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared contracts for evaluating Agent Pack harnesses."""
-
 from typing import Protocol
 
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
-from haystack_integrations.agent_pack.optimization.workspace import Optimizable
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, Optimizable
 
 
 class HarnessEvaluator(Protocol):

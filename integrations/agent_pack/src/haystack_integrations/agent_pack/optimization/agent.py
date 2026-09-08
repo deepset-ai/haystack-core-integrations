@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The Agent that chooses optimization experiments and the requests made to it."""
-
 import json
 import re
 from importlib.metadata import distributions

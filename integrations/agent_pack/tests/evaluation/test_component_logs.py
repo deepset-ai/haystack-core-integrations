@@ -1,6 +1,6 @@
 import logging
 
-from haystack_integrations.agent_pack.component_logs import (
+from haystack_integrations.agent_pack.evaluation.component_logs import (
     MAX_DISTINCT_MESSAGES,
     MAX_MESSAGE_CHARS,
     ComponentLogCollector,

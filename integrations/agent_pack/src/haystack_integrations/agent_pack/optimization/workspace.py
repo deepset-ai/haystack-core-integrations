@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A single editable pipeline YAML and immutable, validated candidate snapshots."""
-
 import inspect
 import json
 import os
@@ -23,7 +21,7 @@ from haystack.marshal import YamlMarshaller
 from haystack.tools import Tool, flatten_tools_or_toolsets
 from haystack.tools.from_function import create_tool_from_function
 
-from haystack_integrations.agent_pack.dataclasses import content_digest
+from haystack_integrations.agent_pack.dataclasses import Optimizable, content_digest
 
 
 class _ReadableDumper(yaml.SafeDumper):
@@ -41,12 +39,6 @@ class _ReadableYamlMarshaller(YamlMarshaller):
     def marshal(self, dict_: dict[str, Any]) -> str:
         """Keep multiline prompts editable without escaped newlines or Unicode."""
         return yaml.dump(dict_, Dumper=_ReadableDumper, allow_unicode=True, width=120)
-
-
-# What an experiment optimizes. Both are serialized as one Haystack Pipeline YAML and expose the same
-# `warm_up`/`close` lifecycle, so the experiment loop treats them alike; an Agent is the special case that is
-# wrapped in a one-component Pipeline to be serialized at all.
-Optimizable = Agent | Pipeline
 
 
 def dump_pipeline(pipeline: Pipeline) -> str:

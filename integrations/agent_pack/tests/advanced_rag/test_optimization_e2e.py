@@ -9,7 +9,6 @@ from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_ag
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
-from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -19,6 +18,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     load_agent,
 )
+from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
 QUESTION = "What is CRISPR used for?"
 

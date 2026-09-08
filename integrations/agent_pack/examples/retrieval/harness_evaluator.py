@@ -2,29 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Experiment evaluator for one-shot retrieval pipelines.
-
-Nothing here names a component. The pipeline under measurement is the thing being optimized, so an optimizer is
-free to rename `retriever`, insert a ranker, or replace the retrieval path entirely; the harness finds where to put
-the question and where to read documents by socket name, and says so at validation time when it cannot.
-"""
-
 import asyncio
 import time
 from typing import Any
 
 from haystack import Document, Pipeline, logging
 
-from haystack_integrations.agent_pack.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
-from haystack_integrations.agent_pack.retrieval.evaluation import (
+from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
+from haystack_integrations.tracing.agent_pack.tracer import CaseUsage, UsageTracer
+from retrieval.evaluation import (
     RetrievalCaseMetrics,
     RetrievalEvaluationCase,
     RetrievalOutcome,
     score_retrieval_result,
 )
-from haystack_integrations.agent_pack.usage_tracer import CaseUsage, UsageTracer
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +88,10 @@ def query_reporters(pipeline: Pipeline) -> set[str]:
 class RetrievalHarnessEvaluator:
     """
     Replay recorded questions through a retrieval pipeline and score what came back.
+
+    Nothing here names a component. The pipeline under measurement is the thing being optimized, so an optimizer is
+    free to rename `retriever`, insert a ranker, or replace the retrieval path entirely; this finds where to put the
+    question and where to read documents by socket name, and says so at validation time when it cannot.
 
     Quality is the mean of the per-case scores, normalized to `[0.0, 1.0]`. A case scores its recall, or nothing
     when it broke one of its budgets, so a configuration that finds more of the evidence is measured as better

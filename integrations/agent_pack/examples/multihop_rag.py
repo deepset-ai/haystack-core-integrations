@@ -2,33 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Prepare the MultiHopRAG dataset as an evaluation set for harness optimization.
-
-The dataset pairs 609 news articles carrying real metadata — category, source, author, publication timestamp — with
-2,556 labelled queries whose supporting evidence is quoted verbatim and attributed to its article. That combination
-is what this harness needs: questions whose answers live behind metadata constraints, and ground truth precise
-enough to score retrieval rather than only the answer.
-
-Two properties of the raw data shape everything here, and both were measured rather than assumed:
-
-Articles are long — a median of 7,836 characters, up to 71,034 — and the retrieval tools print a retrieved
-document's content in full. Left whole, one retrieval would put tens of thousands of characters into the Agent's
-context. So articles are split. Splitting is by word with overlap rather than by markdown header, because only 7 of
-the 609 bodies contain a heading while every one of them has paragraph breaks.
-
-Splitting would normally blur the ground truth, since evidence is attributed to an article and retrieval then
-returns pieces of one. It does not here: every one of the 6,084 evidence facts can be located in its article, and
-at `SPLIT_LENGTH`/`SPLIT_OVERLAP` every one of them lands wholly inside a chunk. So a case's expected documents are
-computed from where its evidence actually ended up. `build_cases` keeps only the queries whose every fact landed in
-exactly one chunk, which leaves the expectation exact: overlap means some facts sit in two adjacent chunks, and
-demanding both would fail an Agent that retrieved either.
-
-Run this module directly to build the corpus and report what it produced, including the checks that the mapping
-still holds:
-
-    hatch run test:python examples/multihop_rag.py
-"""
+# Prepare the MultiHopRAG dataset as an evaluation set for harness optimization.
+#
+# The dataset pairs 609 news articles carrying real metadata — category, source, author, publication timestamp — with
+# 2,556 labelled queries whose supporting evidence is quoted verbatim and attributed to its article. That combination
+# is what this harness needs: questions whose answers live behind metadata constraints, and ground truth precise
+# enough to score retrieval rather than only the answer.
+#
+# Two properties of the raw data shape everything here, and both were measured rather than assumed:
+#
+# Articles are long — a median of 7,836 characters, up to 71,034 — and the retrieval tools print a retrieved
+# document's content in full. Left whole, one retrieval would put tens of thousands of characters into the Agent's
+# context. So articles are split. Splitting is by word with overlap rather than by markdown header, because only 7 of
+# the 609 bodies contain a heading while every one of them has paragraph breaks.
+#
+# Splitting would normally blur the ground truth, since evidence is attributed to an article and retrieval then
+# returns pieces of one. It does not here: every one of the 6,084 evidence facts can be located in its article, and
+# at `SPLIT_LENGTH`/`SPLIT_OVERLAP` every one of them lands wholly inside a chunk. So a case's expected documents are
+# computed from where its evidence actually ended up. `build_cases` keeps only the queries whose every fact landed in
+# exactly one chunk, which leaves the expectation exact: overlap means some facts sit in two adjacent chunks, and
+# demanding both would fail an Agent that retrieved either.
+#
+# Run this module directly to build the corpus and report what it produced, including the checks that the mapping
+# still holds:
+#
+#     hatch run test:python examples/multihop_rag.py
 
 import argparse
 import hashlib

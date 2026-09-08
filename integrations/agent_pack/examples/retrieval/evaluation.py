@@ -2,14 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Evaluation primitives for one-shot retrieval pipelines.
-
-A retrieval pipeline is scored on what it retrieved, not on what it said about it. That is what makes it cheap to
-optimize: the labelled evidence already names the documents an answer needs, so no answer has to be generated to
-find out whether they were found.
-"""
-
 from dataclasses import asdict, dataclass, field
 from typing import Any
 

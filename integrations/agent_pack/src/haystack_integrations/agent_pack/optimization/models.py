@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Objectives and pricing context used by harness optimization."""
-
 from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 

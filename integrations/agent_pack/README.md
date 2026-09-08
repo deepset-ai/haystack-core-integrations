@@ -36,7 +36,7 @@ instrumentation before their costs can be compared reliably.
 Run the MultiHopRAG PoC from this integration directory with `OPENAI_API_KEY` configured and `datasets` installed:
 
 ```sh
-hatch run test:python examples/harness_optimization_poc.py --max-cases 1 --max-iterations 1 --max-concurrent-cases 1
+hatch run test:python examples/advanced_rag_harness_optimization.py --max-cases 1 --max-iterations 1 --max-concurrent-cases 1
 ```
 
 Use `--workspace` to separate experiment artifacts, `--config` to supply an editable YAML draft, and `--docs-mcp`

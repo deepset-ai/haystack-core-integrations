@@ -5,9 +5,9 @@ from haystack.components.query import QueryExpander
 from haystack.components.retrievers import InMemoryBM25Retriever, MultiQueryTextRetriever
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+from retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
-from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -17,7 +17,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     load_pipeline,
 )
-from haystack_integrations.agent_pack.retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
+from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
 QUESTION = "Which breakthroughs involved gene editing?"
 EXPANSION = '{"queries": ["gene editing breakthrough"]}'

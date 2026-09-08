@@ -2,31 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Optimize a one-shot retrieval Pipeline, rather than an Agent, against the same labelled evaluation set.
-
-This is the cheap counterpart to `harness_optimization_poc`. The configuration under optimization is a plain
-Haystack Pipeline — a `QueryExpander` that turns one question into several, feeding a `MultiQueryTextRetriever`
-that runs them all against the store:
-
-    QueryExpander.queries -> MultiQueryTextRetriever.queries -> documents
-
-Nothing generates an answer. The MultiHopRAG cases already name the documents an answer needs, so retrieval is
-scored directly as recall and precision over those IDs. Quality is the mean of the per-case recall, with a case
-that broke one of its budgets scoring nothing, so a configuration that finds more of the evidence measures as
-better even while no case yet finds all of it. That is what makes this affordable: one case costs a
-single query-expansion call, against the five to twenty model calls an Agent loop spends. At that point the
-optimizer's own turns, not the measurements, are most of what an experiment costs.
-
-It is also a harness where retrieval is the whole configuration. There is no system prompt to tune and no tool
-budget to trim, so an optimizer that wants to improve quality has to change the expansion or the retrieval path.
-
-Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
-
-    hatch run test:python examples/retrieval_pipeline_poc.py
-    hatch run test:python examples/retrieval_pipeline_poc.py --max-cases 5 --max-iterations 2
-    hatch run test:python examples/retrieval_pipeline_poc.py --docs-mcp
-"""
+# Optimize a one-shot retrieval Pipeline, rather than an Agent, against the same labelled evaluation set.
+#
+# This is the cheap counterpart to `advanced_rag_harness_optimization`. The configuration under optimization is a plain
+# Haystack Pipeline — a `QueryExpander` that turns one question into several, feeding a `MultiQueryTextRetriever`
+# that runs them all against the store:
+#
+#     QueryExpander.queries -> MultiQueryTextRetriever.queries -> documents
+#
+# Nothing generates an answer. The MultiHopRAG cases already name the documents an answer needs, so retrieval is
+# scored directly as recall and precision over those IDs. Quality is the mean of the per-case recall, with a case
+# that broke one of its budgets scoring nothing, so a configuration that finds more of the evidence measures as
+# better even while no case yet finds all of it. That is what makes this affordable: one case costs a
+# single query-expansion call, against the five to twenty model calls an Agent loop spends. At that point the
+# optimizer's own turns, not the measurements, are most of what an experiment costs.
+#
+# It is also a harness where retrieval is the whole configuration. There is no system prompt to tune and no tool
+# budget to trim, so an optimizer that wants to improve quality has to change the expansion or the retrieval path.
+#
+# Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
+#
+#     hatch run test:python examples/retrieval_pipeline_optimization.py
+#     hatch run test:python examples/retrieval_pipeline_optimization.py --max-cases 5 --max-iterations 2
+#     hatch run test:python examples/retrieval_pipeline_optimization.py --docs-mcp
 
 import argparse
 import logging
@@ -41,10 +39,10 @@ from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_cases, prepare_corpus
+from retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
 from util import build_retriever
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
-from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -56,7 +54,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_haystack_documentation_mcp_toolset,
 )
 from haystack_integrations.agent_pack.optimization.agent import OPTIMIZER_PROMPT_CACHE_KEY
-from haystack_integrations.agent_pack.retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
+from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
 EXPANDER_MODEL = "gpt-5.6-luna"

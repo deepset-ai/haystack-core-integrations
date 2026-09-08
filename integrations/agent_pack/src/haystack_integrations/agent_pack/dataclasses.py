@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared data structures for Agent Pack harnesses."""
-
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from haystack import Pipeline
+from haystack.components.agents import Agent
 from haystack.utils import _deserialize_value_with_schema, _serialize_value_with_schema
 
 
@@ -24,6 +24,12 @@ def content_digest(payload: str) -> str:
     :returns: A twelve-character hexadecimal digest.
     """
     return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
+# What an experiment measures and optimizes. Both are serialized as one Haystack Pipeline YAML and expose the same
+# `warm_up`/`close` lifecycle, so an evaluator and the experiment loop treat them alike; an Agent is the special
+# case that is wrapped in a one-component Pipeline to be serialized at all.
+Optimizable = Agent | Pipeline
 
 
 @dataclass(frozen=True, kw_only=True)

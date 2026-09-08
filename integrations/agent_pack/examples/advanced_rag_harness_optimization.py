@@ -2,30 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Run an Agent-configuration optimization experiment against a labelled RAG evaluation set.
-
-The corpus and cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives each case's
-expected documents from where its labelled evidence landed. The PoC records successful reference runs, lets an
-optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against those cases,
-and feeds the measured outcome into the next choice. Nothing is deployed automatically.
-
-The reference Agent is deliberately badly configured, so the run shows whether the optimizer can build a better one
-from measured evidence. See `POOR_RETRIEVER_TOP_K` and the constants next to it for what is wrong with it and why.
-
-Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
-
-    hatch run test:python examples/harness_optimization_poc.py
-    hatch run test:python examples/harness_optimization_poc.py --max-cases 1 --max-iterations 1
-    hatch run test:python examples/harness_optimization_poc.py --primary quality --max-quality-loss 0.05
-    hatch run test:python examples/harness_optimization_poc.py --store opensearch
-    hatch run test:python examples/harness_optimization_poc.py --docs-mcp
-
-Every case is evaluated once per candidate, so a candidate costs `--max-cases` Agent runs and quality is the
-fraction of cases it passed. A persistent OpenSearch store avoids rebuilding the corpus between invocations.
-Each invocation measures its own reference and its own candidates, and records them to the journal; nothing is
-carried over from an earlier one.
-"""
+# Run an Agent-configuration optimization experiment against a labelled RAG evaluation set.
+#
+# The corpus and cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives each case's
+# expected documents from where its labelled evidence landed. The PoC records successful reference runs, lets an
+# optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against those cases,
+# and feeds the measured outcome into the next choice. Nothing is deployed automatically.
+#
+# The reference Agent is deliberately badly configured, so the run shows whether the optimizer can build a better one
+# from measured evidence. See `POOR_RETRIEVER_TOP_K` and the constants next to it for what is wrong with it and why.
+#
+# Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
+#
+#     hatch run test:python examples/advanced_rag_harness_optimization.py
+#     hatch run test:python examples/advanced_rag_harness_optimization.py --max-cases 1 --max-iterations 1
+#     hatch run test:python examples/advanced_rag_harness_optimization.py --primary quality --max-quality-loss 0.05
+#     hatch run test:python examples/advanced_rag_harness_optimization.py --store opensearch
+#     hatch run test:python examples/advanced_rag_harness_optimization.py --docs-mcp
+#
+# Every case is evaluated once per candidate, so a candidate costs `--max-cases` Agent runs and quality is the
+# fraction of cases it passed. A persistent OpenSearch store avoids rebuilding the corpus between invocations.
+# Each invocation measures its own reference and its own candidates, and records them to the journal; nothing is
+# carried over from an earlier one.
 
 import argparse
 import asyncio
@@ -52,7 +50,6 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
 )
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
-from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -63,6 +60,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     create_haystack_documentation_mcp_toolset,
 )
+from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 
 WORKSPACE = Path(".agent-pack-poc")

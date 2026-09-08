@@ -2,19 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Compress an Agent run to the evidence a reader can act on.
-
-An `Agent.run` result is dominated by material that says nothing about how the Agent behaved: provider response
-metadata, model reasoning, and retrieved document bodies that the tool results already quote. What remains after
-those are dropped — every tool call with its arguments, every tool result, and how the run ended — is the part that
-explains a run, and it is a small fraction of the whole.
-
-This module depends only on the `Agent.run` output contract and on the two keys every harness evaluator reports a
-case with, so both the optimization experiment and a harness evaluator can use it without either importing the
-other.
-"""
-
 import json
 from collections import Counter
 from dataclasses import dataclass, field
@@ -94,6 +81,11 @@ def _tool_steps(messages: list[ChatMessage], policy: RunDigestPolicy) -> tuple[l
 def digest_agent_run(result: dict[str, Any], policy: RunDigestPolicy | None = None) -> dict[str, Any]:
     """
     Compress one Agent run to its tool behaviour and outcome.
+
+    An `Agent.run` result is dominated by material that says nothing about how the Agent behaved: provider response
+    metadata, model reasoning, and retrieved document bodies that the tool results already quote. What remains once
+    those are dropped — every tool call with its arguments, every tool result, and how the run ended — is the part
+    that explains a run, and it is a small fraction of the whole.
 
     :param result: The dictionary returned by `Agent.run`.
     :param policy: Caps to apply. Defaults to `RunDigestPolicy()`.

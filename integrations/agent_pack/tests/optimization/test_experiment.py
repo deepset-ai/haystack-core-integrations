@@ -7,7 +7,6 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
-from haystack_integrations.agent_pack.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -17,6 +16,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     load_agent,
 )
+from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
 
 def optimizer_agent_for(models):

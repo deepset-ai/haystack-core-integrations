@@ -6,7 +6,7 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.agent_pack.usage_tracer import UsageTracer
+from haystack_integrations.tracing.agent_pack.tracer import UsageTracer
 
 
 def test_ranker_and_agent_usage_counted_once_without_content_tracing():

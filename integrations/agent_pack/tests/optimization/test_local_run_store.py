@@ -1,7 +1,7 @@
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
-from haystack_integrations.agent_pack.local_run_store import LocalRunStore
+from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
 
 def test_store_persists_replayable_inputs_and_outputs(tmp_path):

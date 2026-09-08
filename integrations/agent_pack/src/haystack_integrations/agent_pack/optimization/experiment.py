@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Iterative measurement and recommendation of Agent configuration candidates."""
-
 import json
 import re
 import traceback
@@ -18,9 +16,9 @@ from haystack import Pipeline, logging
 from haystack.components.agents import Agent
 
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, content_digest
-from haystack_integrations.agent_pack.harness_evaluator import HarnessEvaluator
-from haystack_integrations.agent_pack.local_run_store import LocalRunStore
+from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.optimization.agent import propose_candidate
+from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
@@ -35,7 +33,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_pipeline,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
-from haystack_integrations.agent_pack.usage_tracer import UsageTracer
+from haystack_integrations.tracing.agent_pack.tracer import UsageTracer
 
 logger = logging.getLogger(__name__)
 

@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""In-memory model usage collection for a harness that owns tracing during evaluation."""
-
 from _thread import LockType
 from collections.abc import Iterator
 from contextlib import contextmanager

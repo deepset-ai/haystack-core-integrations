@@ -2,13 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Experiment evaluator for Advanced RAG harnesses.
-
-The evaluator depends only on the shared Agent Pack harness contracts. Optimization packages can consume its raw
-measurements without the Advanced RAG package depending on optimizer implementation details.
-"""
-
 import asyncio
 import time
 from typing import Any
@@ -30,10 +23,10 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     GetMetadataFieldValuesTool,
     ListMetadataFieldsTool,
 )
-from haystack_integrations.agent_pack.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
-from haystack_integrations.agent_pack.usage_tracer import CaseUsage, UsageTracer
+from haystack_integrations.tracing.agent_pack.tracer import CaseUsage, UsageTracer
 
 logger = logging.getLogger(__name__)
 

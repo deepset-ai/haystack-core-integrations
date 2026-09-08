@@ -5,15 +5,15 @@ from haystack.components.query import QueryExpander
 from haystack.components.rankers import LLMRanker
 from haystack.components.retrievers import InMemoryBM25Retriever, MultiQueryTextRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-
-from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
-from haystack_integrations.agent_pack.optimization import dump_pipeline, load_pipeline
-from haystack_integrations.agent_pack.retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
-from haystack_integrations.agent_pack.retrieval.harness_evaluator import (
+from retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
+from retrieval.harness_evaluator import (
     documents_exit_point,
     query_entry_points,
     query_reporters,
 )
+
+from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
+from haystack_integrations.agent_pack.optimization import dump_pipeline, load_pipeline
 
 QUESTION = "What is CRISPR used for?"
 EXPANSION = '{"queries": ["CRISPR gene editing", "hereditary blindness treatment"]}'
