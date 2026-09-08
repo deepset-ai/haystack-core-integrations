@@ -38,9 +38,9 @@ from haystack.components.generators.chat import OpenAIChatGenerator, OpenAIRespo
 from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
-from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_cases, prepare_corpus
+from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
 from retrieval import RetrievalEvaluationCase, RetrievalHarnessEvaluator
-from util import build_retriever
+from util import build_bm25_retriever
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord
 from haystack_integrations.agent_pack.optimization import (
@@ -177,7 +177,7 @@ def build_reference_pipeline(store: DocumentStore, model: str) -> Pipeline:
         QueryExpander(chat_generator=OpenAIChatGenerator(model=model), n_expansions=POOR_EXPANSIONS),
     )
     pipeline.add_component(
-        "retriever", MultiQueryTextRetriever(retriever=build_retriever(store=store, top_k=POOR_TOP_K))
+        "retriever", MultiQueryTextRetriever(retriever=build_bm25_retriever(store=store, top_k=POOR_TOP_K))
     )
     pipeline.connect("expander.queries", "retriever.queries")
     return pipeline
@@ -365,7 +365,7 @@ def main() -> None:
     document_count = store.count_documents()
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks")
 
-    labelled = build_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
+    labelled = build_eval_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
     cases = [
         RetrievalEvaluationCase(
             question=case.question,

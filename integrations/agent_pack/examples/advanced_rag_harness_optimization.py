@@ -5,7 +5,7 @@
 # Run an Agent-configuration optimization experiment against a labelled RAG evaluation set.
 #
 # The corpus and cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives each case's
-# expected documents from where its labelled evidence landed. The PoC records successful reference runs, lets an
+# expected documents from which chunks contain its labelled evidence. The PoC records successful reference runs,
 # optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against those cases,
 # and feeds the measured outcome into the next choice. Nothing is deployed automatically.
 #
@@ -41,8 +41,8 @@ from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
 from haystack.tools import ComponentTool, flatten_tools_or_toolsets
-from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_cases, prepare_corpus
-from util import build_retriever
+from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
+from util import build_bm25_retriever
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent, prompts
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
@@ -178,7 +178,7 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
     generation_kwargs = {"reasoning": {"effort": POOR_REASONING_EFFORT}}
     agent = create_advanced_rag_agent(
         document_store=store,
-        retriever=build_retriever(store=store, top_k=POOR_RETRIEVER_TOP_K),
+        retriever=build_bm25_retriever(store=store, top_k=POOR_RETRIEVER_TOP_K),
         llm=OpenAIResponsesChatGenerator(model=model, generation_kwargs=generation_kwargs),
         # Keep backup-answer usage attributable to the selected reference model. Changing only the coordinator's
         # model path leaves this fallback unchanged unless the optimizer explicitly edits it too.
@@ -418,7 +418,7 @@ def main() -> None:
     articles = len({chunk.meta["title"] for chunk in chunks})
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks from {articles} articles")
 
-    cases = build_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
+    cases = build_eval_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
     expected_documents = sum(len(case.expected_document_ids) for case in cases)
     print(f"  cases: {len(cases)} labelled from evidence, expecting {expected_documents} documents in total")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)

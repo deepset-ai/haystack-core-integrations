@@ -5,23 +5,18 @@
 # Prepare the MultiHopRAG dataset as an evaluation set for harness optimization.
 #
 # The dataset pairs 609 news articles carrying real metadata — category, source, author, publication timestamp — with
-# 2,556 labelled queries whose supporting evidence is quoted verbatim and attributed to its article. That combination
-# is what this harness needs: questions whose answers live behind metadata constraints, and ground truth precise
-# enough to score retrieval rather than only the answer.
-#
-# Two properties of the raw data shape everything here, and both were measured rather than assumed:
+# 2,556 labelled queries whose supporting evidence is quoted verbatim and attributed to its article.
 #
 # Articles are long — a median of 7,836 characters, up to 71,034 — and the retrieval tools print a retrieved
 # document's content in full. Left whole, one retrieval would put tens of thousands of characters into the Agent's
-# context. So articles are split. Splitting is by word with overlap rather than by markdown header, because only 7 of
-# the 609 bodies contain a heading while every one of them has paragraph breaks.
+# context. So articles are split. Splitting is by word with overlap.
 #
 # Splitting would normally blur the ground truth, since evidence is attributed to an article and retrieval then
 # returns pieces of one. It does not here: every one of the 6,084 evidence facts can be located in its article, and
-# at `SPLIT_LENGTH`/`SPLIT_OVERLAP` every one of them lands wholly inside a chunk. So a case's expected documents are
-# computed from where its evidence actually ended up. `build_cases` keeps only the queries whose every fact landed in
-# exactly one chunk, which leaves the expectation exact: overlap means some facts sit in two adjacent chunks, and
-# demanding both would fail an Agent that retrieved either.
+# at `SPLIT_LENGTH`/`SPLIT_OVERLAP` every one of them is contained wholly within a chunk. So a case's expected
+# documents are computed from which chunks contain its evidence. `build_eval_cases` keeps only the queries whose
+# every fact is contained within exactly one chunk, which leaves the expectation exact: overlap means some facts
+# sit in two adjacent chunks, and demanding both would fail an Agent that retrieved either.
 #
 # Run this module directly to build the corpus and report what it produced, including the checks that the mapping
 # still holds:
@@ -30,7 +25,7 @@
 
 import argparse
 import hashlib
-from typing import Any
+from typing import Any, Literal
 
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
@@ -46,9 +41,9 @@ with LazyImport(message='Run "pip install datasets" to build the MultiHopRAG eva
 DATASET_ID = "yixuantt/MultiHopRAG"
 CORPUS_KEY = "multihop-rag"
 
-# Word-based splitting with overlap. Measured over the whole dataset: every evidence fact lands wholly inside a
-# chunk at this setting, which is what keeps a case's expected documents exact. Chunks average ~2,000 characters,
-# which is also about as much as is reasonable to put in the Agent's context per retrieved document.
+# Word-based splitting with overlap. Measured over the whole dataset: every evidence fact is contained wholly
+# within a chunk at this setting, which is what keeps a case's expected documents exact. Chunks average ~2,000
+# characters, which is also about as much as is reasonable to put in the Agent's context per retrieved document.
 SPLIT_BY = "word"
 SPLIT_LENGTH = 350
 SPLIT_OVERLAP = 90
@@ -69,47 +64,27 @@ _UNASSERTABLE_ANSWERS = frozenset({"yes", "no", "true", "false", "insufficient i
 _MIN_ASSERTABLE_ANSWER_CHARS = 5
 
 
-def load_articles() -> list[Document]:
-    """
-    Load the news articles, one Document each, with their metadata.
-
-    The body alone becomes the content: the title travels in metadata, where the retrieval tools print it alongside
-    every chunk, and keeping the content untouched is what makes the measured evidence mapping hold.
-
-    :returns: One Document per article.
-    """
-    datasets_import.check()
-    rows = load_dataset(DATASET_ID, "corpus", split="train")
-    return [
-        Document(content=row["body"], meta={field: row[field] for field in ARTICLE_METADATA})
-        for row in rows
-        if (row["body"] or "").strip()
-    ]
-
-
-def split_articles(articles: list[Document]) -> list[Document]:
-    """
-    Split articles into retrievable chunks, each carrying its article's metadata.
-
-    :param articles: The articles to split.
-    :returns: The chunks, in document order. `DocumentSplitter` adds `source_id`, `split_id` and `split_idx_start`,
-        which the `fetch_documents_by_filter` tool uses to put a filtered fetch back into reading order.
-    """
-    splitter = DocumentSplitter(split_by=SPLIT_BY, split_length=SPLIT_LENGTH, split_overlap=SPLIT_OVERLAP)
-    splitter.warm_up()
-    return splitter.run(documents=articles)["documents"]
-
-
-def prepare_corpus(backend: str = "in_memory") -> tuple[DocumentStore, list[Document]]:
+def prepare_corpus(
+    backend: Literal["in_memory", "opensearch"] = "in_memory", index: str = CORPUS_KEY
+) -> tuple[DocumentStore, list[Document]]:
     """
     Build the chunked corpus and index it, reusing an already-populated store.
 
     :param backend: Either "in_memory" or "opensearch".
-    :returns: The populated store and the chunks it holds. The chunks are returned because building cases needs to
-        know which chunk each evidence fact landed in, and a document store cannot answer that.
+    :param index: Names the index holding the corpus.
+    :returns: The populated store and the chunks it holds.
     """
-    store = build_document_store(backend=backend, corpus=CORPUS_KEY)
-    chunks = split_articles(articles=load_articles())
+    datasets_import.check()
+    store = build_document_store(backend=backend, index=index)
+    # The body alone becomes the content: the title travels in metadata, where the retrieval tools print it
+    # alongside every chunk, and keeping the content untouched is what makes the measured evidence mapping hold.
+    articles = [
+        Document(content=row["body"], meta={field: row[field] for field in ARTICLE_METADATA})
+        for row in load_dataset(DATASET_ID, "corpus", split="train")
+        if (row["body"] or "").strip()
+    ]
+    splitter = DocumentSplitter(split_by=SPLIT_BY, split_length=SPLIT_LENGTH, split_overlap=SPLIT_OVERLAP)
+    chunks = splitter.run(documents=articles)["documents"]
     if store.count_documents() != len(chunks):
         store.write_documents(documents=chunks, policy=DuplicatePolicy.OVERWRITE)
     return store, chunks
@@ -147,14 +122,14 @@ def _answer_terms(answer: str) -> tuple[str, ...]:
 
 def exact_case_candidates(chunks: list[Document]) -> dict[str, list[AdvancedRAGEvaluationCase]]:
     """
-    Build every case whose expected documents can be stated exactly, grouped by question type.
+    Build every eval case whose expected documents can be stated exactly, grouped by question type.
 
-    A query qualifies when each of its evidence facts landed in exactly one chunk. Facts sitting in two adjacent
+    A query qualifies when each of its evidence facts is contained in exactly one chunk. Facts sitting in two
     chunks are the price of overlap, and a case naming both would fail an Agent that retrieved either, so those
     queries are left out rather than scored loosely.
 
-    :param chunks: The chunked corpus the cases will be scored against.
-    :returns: Cases per question type, ordered by question for reproducibility.
+    :param chunks: The chunked corpus the eval cases will be scored against.
+    :returns: Eval cases per question type, ordered by question for reproducibility.
     :raises ValueError: If any evidence fact cannot be located at all, which would mean the corpus and the labels
         no longer correspond.
     """
@@ -185,21 +160,21 @@ def exact_case_candidates(chunks: list[Document]) -> dict[str, list[AdvancedRAGE
             )
     if unlocatable:
         msg = (
-            f"{unlocatable} evidence facts could not be found in the corpus, so cases cannot be scored against it. "
-            f"The dataset or the splitting settings changed."
+            f"{unlocatable} evidence facts could not be found in the corpus, so eval cases cannot be scored "
+            f"against it. The dataset or the splitting settings changed."
         )
         raise ValueError(msg)
     return {name: sorted(cases, key=lambda case: case.question) for name, cases in candidates.items()}
 
 
-def build_cases(chunks: list[Document], limit: int, seed: int = 0) -> list[AdvancedRAGEvaluationCase]:
+def build_eval_cases(chunks: list[Document], limit: int, seed: int = 0) -> list[AdvancedRAGEvaluationCase]:
     """
-    Select a reproducible evaluation set spread evenly across the question types.
+    Build a reproducible set of eval cases, spread evenly across the question types.
 
-    :param chunks: The chunked corpus the cases will be scored against.
-    :param limit: How many cases to select. Each one costs an Agent run per candidate measured.
+    :param chunks: The chunked corpus the eval cases will be scored against.
+    :param limit: How many eval cases to select. Each one costs an Agent run per candidate measured.
     :param seed: Seed for the selection, so the same evaluation set is rebuilt every time.
-    :returns: The selected cases, interleaved by question type so a truncated set stays balanced.
+    :returns: The selected eval cases, interleaved by question type so a truncated set stays balanced.
     :raises ValueError: If `limit` is below one.
     """
     if limit < 1:
@@ -208,7 +183,7 @@ def build_cases(chunks: list[Document], limit: int, seed: int = 0) -> list[Advan
     candidates = exact_case_candidates(chunks=chunks)
 
     def rank(case: AdvancedRAGEvaluationCase) -> str:
-        """Order cases by a hash of the seed and the question."""
+        """Order eval cases by a hash of the seed and the question."""
         return hashlib.sha256(f"{seed}:{case.question}".encode()).hexdigest()
 
     # Hashed rather than shuffled: the same seed has to rebuild the same evaluation set, and the ordering `random`
@@ -226,7 +201,7 @@ def build_cases(chunks: list[Document], limit: int, seed: int = 0) -> list[Advan
 
 
 def _report(store: DocumentStore, chunks: list[Document], cases: list[AdvancedRAGEvaluationCase]) -> None:
-    """Describe what was built, including the checks that make the cases scoreable."""
+    """Describe what was built, including the checks that make the eval cases scoreable."""
     articles = {chunk.meta["title"] for chunk in chunks}
     lengths = sorted(len(chunk.content or "") for chunk in chunks)
     metadata: dict[str, Any] = {field: {chunk.meta.get(field) for chunk in chunks} for field in ARTICLE_METADATA}
@@ -254,7 +229,7 @@ def main() -> None:
 
     print(f"=== preparing {DATASET_ID} on {arguments.store} ===")
     store, chunks = prepare_corpus(backend=arguments.store)
-    cases = build_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
+    cases = build_eval_cases(chunks=chunks, limit=arguments.max_cases, seed=arguments.case_seed)
     _report(store=store, chunks=chunks, cases=cases)
 
     available = exact_case_candidates(chunks=chunks)

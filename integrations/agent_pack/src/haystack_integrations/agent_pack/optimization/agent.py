@@ -95,7 +95,7 @@ measured once, and the one measured five times is rarely where the remaining qua
 
 A component that selects or filters what it is handed saturates in a particular way. Once it is set to keep
 everything it can, the measurement stops describing that component and starts describing its input, so further
-variations of it land on the same score — what is missing was never in front of it. Repeated ties at the
+variations of it produce the same score — what is missing was never in front of it. Repeated ties at the
 permissive end of such a component mean the limit is upstream of it.
 
 ## Where quality usually hides

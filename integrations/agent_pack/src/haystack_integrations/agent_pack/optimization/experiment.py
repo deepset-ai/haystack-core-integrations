@@ -455,7 +455,7 @@ class HarnessOptimizationExperiment:
         candidate_quality = candidate.metrics.quality
         floor = max(self.objectives.min_quality, baseline_quality - self.objectives.max_quality_loss)
         # Quality is a ratio of counted cases and the floor subtracts a tolerance from another such ratio, so a
-        # candidate sitting exactly on the tolerance can land one representation step below it: 0.2 - 0.05 is
+        # candidate sitting exactly on the tolerance can fall one representation step below it: 0.2 - 0.05 is
         # 0.15000000000000002, which rejects a candidate measuring 0.15 while the report prints both as "0.1500".
         if candidate_quality < floor and not isclose(candidate_quality, floor, rel_tol=1e-9, abs_tol=1e-12):
             failures.append(f"quality_below_floor:{floor:.4f}")

@@ -286,7 +286,7 @@ class ConfigurationWorkspace:
 
         :param base_id: Snapshot the next edits start from. Without one the turn continues from whatever was
             submitted last, which makes a run that regresses carry the regression into everything after it: each
-            edit lands on the previous attempt rather than on the best one, so a search can spend its budget
+            edit builds on the previous attempt rather than on the best one, so a search can spend its budget
             walking away from a configuration it already found. Passing the best measured candidate makes the
             default a climb instead.
         """
