@@ -75,11 +75,10 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
 POOR_EXPANSIONS = 1
 POOR_TOP_K = 2
 
-RETRIEVAL_OPTIMIZER_GUIDANCE = """
+_RETRIEVAL_OPTIMIZER_GUIDANCE = """
 The configuration is a one-shot retrieval pipeline, and retrieval is all of it. A question enters at the `query`
 input, whatever the pipeline does with it must end at exactly one unconnected `documents` output, and that output
-is scored against the documents the answer needed. The per-case query budget counts every query issued, including
-the original question when the expansion keeps it, so an expansion count set to the budget will exceed it.
+is scored against the documents the answer needed.
 Quality is the mean recall over the cases, so retrieving more
 of what a question needs registers even when no single case is yet complete; a case that breaks one of its
 budgets contributes nothing at all, however much of the evidence it found. Nothing writes an answer, so nothing is
@@ -99,9 +98,11 @@ of this configuration and can be edited, so the count and the examples it shows 
 question is also appended unless the model already produced it, so the queries actually issued are usually one
 more than the count.
 
-Each case also limits how many documents the pipeline may return. The limit is on what comes out, not on what the
-pipeline looks at, so past a certain point recall cannot be bought by widening: what is returned has to be the
-right subset of whatever was considered.
+Each case also limits how many documents the pipeline may return, and how many queries it may issue; the exact
+numbers are stated below. The document limit is on what comes out, not on what the pipeline looks at, so past a
+certain point recall cannot be bought by widening: what is returned has to be the right subset of whatever was
+considered. A configuration that exceeds either limit scores nothing for that case however much it retrieved, so
+a ranker ceiling above the document limit cannot help and will cost the cases that reach it.
 
 Once that limit binds, the way past it is to stop treating those two things as the same. Retrieve a wide candidate
 set, then rank it and return only the best of it: the limit applies to the ranked output, while the candidate set
@@ -182,6 +183,25 @@ def build_pricing() -> ModelPriceCatalog:
             for model, prices in MODEL_PRICES.items()
         ]
     )
+
+
+def retrieval_guidance(max_queries: int, max_retrieved: int) -> str:
+    """
+    State this harness's per-case budgets alongside the rest of what it knows about itself.
+
+    The budgets are the harness's own settings, and an optimizer that is not told them has to find them by
+    exceeding them: a candidate that overshoots scores nothing and the run learns a number the harness could
+    simply have stated.
+
+    :param max_queries: Queries a case allows, including the original question.
+    :param max_retrieved: Documents a case allows the pipeline to return.
+    :returns: The harness guidance with its budgets filled in.
+    """
+    budgets = (
+        f"The budgets are {max_queries} queries and {max_retrieved} documents per case. The query budget counts "
+        f"the original question when the expansion keeps it, so an expansion count of {max_queries} overshoots."
+    )
+    return f"{_RETRIEVAL_OPTIMIZER_GUIDANCE}\n\n{budgets}"
 
 
 def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator | None:
@@ -384,7 +404,9 @@ def main() -> None:
         optimizer_agent=create_harness_optimizer_agent(
             chat_generator=build_optimizer_generator(model=arguments.optimizer_model),
             docs_toolset=docs_toolset,
-            additional_instructions=RETRIEVAL_OPTIMIZER_GUIDANCE,
+            additional_instructions=retrieval_guidance(
+                max_queries=arguments.max_queries, max_retrieved=arguments.max_retrieved
+            ),
             max_agent_steps=arguments.optimizer_steps,
         ),
         max_iterations=arguments.max_iterations,
