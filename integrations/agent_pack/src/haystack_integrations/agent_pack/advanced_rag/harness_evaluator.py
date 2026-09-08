@@ -92,8 +92,8 @@ class AdvancedRAGHarnessEvaluator:
     """
     Replay recorded questions and score Advanced RAG candidates.
 
-    Quality is the fraction of cases that pass, and is therefore normalized to `[0.0, 1.0]`. A case passes only when
-    its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass. Each case is measured
+    Quality is the fraction of eval cases that pass, and is therefore normalized to `[0.0, 1.0]`. A case passes only
+    when its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass. Each is measured
     once, so breadth across cases, rather than repeated measurement of a few, is what makes that fraction
     discriminating.
     """
@@ -144,7 +144,7 @@ class AdvancedRAGHarnessEvaluator:
 
     def _traced_cases(self, metrics: list[AdvancedRAGCaseMetrics]) -> list[dict[str, Any]]:
         """
-        Report every case, keeping tool traces for the ones worth diagnosing.
+        Report every eval case, keeping tool traces for the ones worth diagnosing.
 
         :param metrics: Every scored case.
         :returns: JSON-compatible case records, with the trace dropped from cases beyond the cap.
@@ -231,12 +231,12 @@ class AdvancedRAGHarnessEvaluator:
         self, agent: Agent, resolved: list[tuple[AdvancedRAGEvaluationCase, list[ChatMessage]]], tracer: UsageTracer
     ) -> list[tuple[AdvancedRAGCaseMetrics, CaseUsage]]:
         """
-        Measure every case, running up to `max_concurrent_cases` of them at once.
+        Measure every eval case, running up to `max_concurrent_cases` of them at once.
 
         :param agent: The candidate to measure.
         :param resolved: Each case with the messages that pose it.
-        :param tracer: Collector for per-case generator usage.
-        :returns: One result per case, in case order.
+        :param tracer: Collector for per-eval-case generator usage.
+        :returns: One result per eval case, in the order the eval cases were given.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_cases)
         tools = flatten_tools_or_toolsets(getattr(agent, "tools", []))
@@ -280,7 +280,8 @@ class AdvancedRAGHarnessEvaluator:
 
         :param target: The materialized candidate Agent to score.
         :param reference_runs: The successful runs supplying the questions to replay.
-        :returns: Fraction of cases passed, raw model usage, and mean latency for the candidate, with per-case detail.
+        :returns: Fraction of cases passed, raw model usage, and mean latency for the candidate, with
+            per-eval-case detail.
         :raises ValueError: If no reference runs were supplied.
         """
         resolved, derived = self._resolve(reference_runs=reference_runs)

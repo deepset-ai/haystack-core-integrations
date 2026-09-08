@@ -131,7 +131,7 @@ def strip_run_digests(payload: Any) -> Any:
 
 
 def _is_case_listing(value: Any) -> bool:
-    """Recognize a harness evaluator's per-case listing by the two keys every one of them reports."""
+    """Recognize a harness evaluator's per-eval-case listing by the two keys every one of them reports."""
     return (
         isinstance(value, list)
         and bool(value)
@@ -140,7 +140,7 @@ def _is_case_listing(value: Any) -> bool:
 
 
 def _summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
-    """Reduce a per-case listing to how many passed and which kinds of failure occurred."""
+    """Reduce a per-eval-case listing to how many passed and which kinds of failure occurred."""
     failures: Counter[str] = Counter()
     for case in cases:
         failures.update(str(label) for label in case.get("failures") or ())
@@ -153,9 +153,9 @@ def _summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
 
 def summarize_case_details(payload: Any) -> Any:
     """
-    Replace every per-case listing with a count of how the cases ended.
+    Replace every per-eval-case listing with a count of how the eval cases ended.
 
-    A listing carries one rich record per case, and an experiment history holds one listing per candidate, so the
+    A listing carries one rich record per eval case, and an experiment history holds one listing per candidate, so the
     listings grow as the square of what an experiment learns while saying the same thing repeatedly. What survives
     is what a reader compares across candidates: how many cases passed, and which failures accounted for the rest.
     The candidate whose detail is still worth reading is the most recent one, and it is sent separately in full.

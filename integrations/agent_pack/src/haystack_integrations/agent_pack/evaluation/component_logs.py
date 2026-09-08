@@ -83,7 +83,7 @@ class ComponentLogCollector:
     improvement. So what a component says when it degrades is part of the evidence, and it is usually the precise
     remedy — an unsupported parameter names itself.
 
-    Collection is per evaluation rather than per case. Retrieval components hand work to a thread pool, and a
+    Collection is per evaluation rather than per eval case. Retrieval components hand work to a thread pool, and a
     context-local collector would silently lose whatever those threads reported; a reader also wants to know that
     a component degraded and how often, not which question it happened on.
     """

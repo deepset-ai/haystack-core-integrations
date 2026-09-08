@@ -87,15 +87,15 @@ def query_reporters(pipeline: Pipeline) -> set[str]:
 
 class RetrievalHarnessEvaluator:
     """
-    Replay recorded questions through a retrieval pipeline and score what came back.
+    Replay the recorded question of every eval case through a retrieval pipeline and score what came back.
 
     Nothing here names a component. The pipeline under measurement is the thing being optimized, so an optimizer is
     free to rename `retriever`, insert a ranker, or replace the retrieval path entirely; this finds where to put the
     question and where to read documents by socket name, and says so at validation time when it cannot.
 
-    Quality is the mean of the per-case scores, normalized to `[0.0, 1.0]`. A case scores its recall, or nothing
+    Quality is the mean of the per-eval-case scores, normalized to `[0.0, 1.0]`. A case scores its recall, or nothing
     when it broke one of its budgets, so a configuration that finds more of the evidence is measured as better
-    even while no case yet finds all of it. `passed` is still reported per case, and remains the stricter reading.
+    even while no case yet finds all of it. `passed` is still reported per eval case, and remains the stricter reading.
     No answer is generated: the labelled evidence names the documents an answer needs, which is what makes one
     case cost a single model call rather than an agent loop.
     """
@@ -114,7 +114,7 @@ class RetrievalHarnessEvaluator:
         :param max_concurrent_cases: How many cases to measure at once. Cases are independent and each spends its
             time waiting on a model, so this decides wall-clock time rather than cost. Leave it at 1 when ranking
             by latency, or the objective measures contention rather than the configuration.
-        :param max_reported_queries: How many issued queries to report per case. A configuration that expands
+        :param max_reported_queries: How many issued queries to report per eval case. A configuration that expands
             without limit would otherwise put its whole expansion into the optimizer's context.
         :raises ValueError: If `cases` is empty or `max_concurrent_cases` is below one.
         """
@@ -178,9 +178,9 @@ class RetrievalHarnessEvaluator:
         Measure every case, running up to `max_concurrent_cases` of them at once.
 
         :param target: The candidate pipeline to measure.
-        :param resolved: The cases to pose.
-        :param tracer: Collector for per-case generator usage.
-        :returns: One result per case, in case order.
+        :param resolved: The eval cases to pose.
+        :param tracer: Collector for per-eval-case generator usage.
+        :returns: One result per eval case, in the order the eval cases were given.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_cases)
         exit_point = documents_exit_point(pipeline=target)
@@ -216,7 +216,7 @@ class RetrievalHarnessEvaluator:
 
         :param target: The materialized candidate pipeline to score.
         :param reference_runs: The successful runs supplying the questions to replay.
-        :returns: Fraction of cases passed, raw model usage, and mean latency, with per-case detail.
+        :returns: Fraction of cases passed, raw model usage, and mean latency, with per-eval-case detail.
         :raises ValueError: If a recorded question has no labelled case.
         """
         resolved = []

@@ -7,19 +7,13 @@
 # The dataset pairs 609 news articles carrying real metadata — category, source, author, publication timestamp — with
 # 2,556 labelled queries whose supporting evidence is quoted verbatim and attributed to its article.
 #
-# Articles are long — a median of 7,836 characters, up to 71,034 — and the retrieval tools print a retrieved
-# document's content in full. Left whole, one retrieval would put tens of thousands of characters into the Agent's
-# context. So articles are split. Splitting is by word with overlap.
+# Articles are long — a median of 7,836 characters, up to 71,034. So articles are split by word with overlap.
 #
-# Splitting would normally blur the ground truth, since evidence is attributed to an article and retrieval then
-# returns pieces of one. It does not here: every one of the 6,084 evidence facts can be located in its article, and
-# at `SPLIT_LENGTH`/`SPLIT_OVERLAP` every one of them is contained wholly within a chunk. So a case's expected
-# documents are computed from which chunks contain its evidence. `build_eval_cases` keeps only the queries whose
-# every fact is contained within exactly one chunk, which leaves the expectation exact: overlap means some facts
-# sit in two adjacent chunks, and demanding both would fail an Agent that retrieved either.
+# Splitting would normally blur the ground truth, since evidence is attributed to an article and not a chunk.
+# So we ensure that a fact is contained wholly within a chunk. If a fact is split across two chunks, the query is
+# excluded from the evaluation set.
 #
-# Run this module directly to build the corpus and report what it produced, including the checks that the mapping
-# still holds:
+# Run this module directly to build the corpus and report what it produced:
 #
 #     hatch run test:python examples/multihop_rag.py
 
@@ -42,8 +36,10 @@ with LazyImport(message='Run "pip install datasets" to build the MultiHopRAG eva
 DATASET_ID = "yixuantt/MultiHopRAG"
 CORPUS_KEY = "multihop-rag"
 
-# Word-based splitting with overlap. Measured over the whole dataset: every evidence fact is contained wholly
-# within a chunk at this setting, which is what keeps a case's expected documents exact.
+# Word-based splitting with overlap. Measured over the whole dataset at this setting: no evidence fact is split
+# across a chunk boundary, so every one of the 6,084 is contained wholly within a chunk. Overlap is what costs:
+# 926 of them sit in the region two adjacent chunks share, and a query touching one of those cannot name a single
+# expected document, so it is dropped rather than scored loosely. 1,432 of the 2,255 queries survive that.
 SPLIT_BY = "word"
 SPLIT_LENGTH = 350
 SPLIT_OVERLAP = 90
@@ -258,7 +254,7 @@ def _report(store: DocumentStore, articles: dict[str, Article], cases: list[Adva
     )
     print(f"  published: {min(metadata['published_at'])} .. {max(metadata['published_at'])}")
     print(f"\n  cases selected: {len(cases)}")
-    print(f"    expected documents per case: {sorted({len(case.expected_document_ids) for case in cases})}")
+    print(f"    expected documents per eval case: {sorted({len(case.expected_document_ids) for case in cases})}")
     print(f"    with an assertable answer:   {sum(1 for case in cases if case.answer_must_mention)}")
     for case in cases[:3]:
         print(f"    - {case.question[:96]}")

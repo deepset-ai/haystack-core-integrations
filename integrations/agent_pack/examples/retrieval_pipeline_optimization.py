@@ -2,23 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Optimize a one-shot retrieval Pipeline, rather than an Agent, against the same labelled evaluation set.
+# Optimize a one-shot retrieval Pipeline against a labelled evaluation set.
 #
-# This is the cheap counterpart to `advanced_rag_harness_optimization`. The configuration under optimization is a plain
-# Haystack Pipeline — a `QueryExpander` that turns one question into several, feeding a `MultiQueryTextRetriever`
-# that runs them all against the store:
+# The configuration under optimization is a plain Haystack Pipeline — a `QueryExpander` that turns one question
+# into several, feeding a `MultiQueryTextRetriever` that runs them all against the store:
 #
 #     QueryExpander.queries -> MultiQueryTextRetriever.queries -> documents
 #
-# Nothing generates an answer. The MultiHopRAG cases already name the documents an answer needs, so retrieval is
-# scored directly as recall and precision over those IDs. Quality is the mean of the per-case recall, with a case
-# that broke one of its budgets scoring nothing, so a configuration that finds more of the evidence measures as
-# better even while no case yet finds all of it. That is what makes this affordable: one case costs a
-# single query-expansion call, against the five to twenty model calls an Agent loop spends. At that point the
-# optimizer's own turns, not the measurements, are most of what an experiment costs.
+# Nothing generates an answer. The MultiHopRAG eval cases already name the documents an answer needs, so retrieval is
+# scored directly against those IDs. Quality is the mean of the per-eval-case recall, so a configuration that finds
+# more of the evidence measures as better even while no eval case yet finds all of it.
 #
-# It is also a harness where retrieval is the whole configuration. There is no system prompt to tune and no tool
-# budget to trim, so an optimizer that wants to improve quality has to change the expansion or the retrieval path.
+# Retrieval is the whole configuration, so improving quality means changing the expansion or the retrieval path.
 #
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
@@ -81,12 +76,12 @@ _RETRIEVAL_OPTIMIZER_GUIDANCE = """
 The configuration is a one-shot retrieval pipeline, and retrieval is all of it. A question enters at the `query`
 input, whatever the pipeline does with it must end at exactly one unconnected `documents` output, and that output
 is scored against the documents the answer needed.
-Quality is the mean recall over the cases, so retrieving more
+Quality is the mean recall over the eval cases, so retrieving more
 of what a question needs registers even when no single case is yet complete; a case that breaks one of its
 budgets contributes nothing at all, however much of the evidence it found. Nothing writes an answer, so nothing is
 gained by adding a generator.
 
-Cases require evidence spread across several documents, and one query phrased for the whole question tends to
+Eval cases require evidence spread across several documents, and one query phrased for the whole question tends to
 surface only the documents that share its wording. Expansion buys recall with model calls, and a wider candidate
 set buys it with precision; the case reports recall and precision separately, and names the documents that were
 missed, so the two are distinguishable.
@@ -142,7 +137,7 @@ minimal or "two to four" set has measured worse here more than once, and never b
 Trimming what comes back is worth measuring only once recall has stopped moving, and then as a latency and cost
 question rather than a scoring one.
 
-Two things about running it. It calls a chat model once per case with every candidate's text in the prompt, so
+Two things about running it. It calls a chat model once per eval case with every candidate's text in the prompt, so
 what it costs grows with the candidate set. And it must not be given a `temperature`; the models available here
 reject the parameter outright, and the failure is swallowed into a warning that leaves the documents unranked
 rather than raising.
@@ -195,7 +190,7 @@ def build_pricing() -> ModelPriceCatalog:
 
 def retrieval_guidance(max_queries: int, max_retrieved: int) -> str:
     """
-    State this harness's per-case budgets alongside the rest of what it knows about itself.
+    State this harness's per-eval-case budgets alongside the rest of what it knows about itself.
 
     The budgets are the harness's own settings, and an optimizer that is not told them has to find them by
     exceeding them, spending a measurement to learn a number the harness could simply have stated.
@@ -205,7 +200,7 @@ def retrieval_guidance(max_queries: int, max_retrieved: int) -> str:
     :returns: The harness guidance with its budgets filled in.
     """
     budgets = (
-        f"The budgets are {max_queries} queries and {max_retrieved} documents per case. The query budget counts "
+        f"The budgets are {max_queries} queries and {max_retrieved} documents per eval case. The query budget counts "
         f"the original question when the expansion keeps it, so an expansion count of {max_queries} overshoots."
     )
     return f"{_RETRIEVAL_OPTIMIZER_GUIDANCE}\n\n{budgets}"
@@ -298,13 +293,13 @@ def parse_args() -> argparse.Namespace:
         "--max-queries",
         type=int,
         default=6,
-        help="Per-case cap on issued queries. Without one, expanding without limit is the cheapest way to pass.",
+        help="Per-eval-case cap on issued queries. Without one, expanding without limit is the cheapest way to pass.",
     )
     parser.add_argument(
         "--max-retrieved",
         type=int,
         default=10,
-        help="Per-case cap on documents the pipeline may return. Recall on its own is maximized by returning most "
+        help="Per-eval-case cap on documents the pipeline may return. Recall on its own is maximized by returning most "
         "of the corpus, and this harness generates no answer, so nothing downstream makes that expensive. The cap "
         "applies to the pipeline's output rather than to its candidate set, so widening and then ranking down "
         "still satisfies it.",
@@ -381,12 +376,11 @@ def main() -> None:
     reference = build_reference_pipeline(store=store, model=arguments.expander_model)
     print(
         f"  reference: n_expansions={POOR_EXPANSIONS} top_k={POOR_TOP_K} model={arguments.expander_model}; "
-        f"budgets: {arguments.max_queries} queries and {arguments.max_retrieved} documents per case"
+        f"budgets: {arguments.max_queries} queries and {arguments.max_retrieved} documents per eval case"
     )
 
-    # A retrieval run replays only its question, so the store records that rather than a captured pipeline run:
-    # unlike an Agent harness, there is no tool trace worth keeping and nothing about the reference's behaviour
-    # that the measured baseline does not already report.
+    # A retrieval run replays only its question, so the store records that rather than a captured pipeline run.
+    # Nothing about the reference's behaviour is worth keeping that the measured baseline does not already report.
     print("\n=== 2. record the questions to replay ===")
     run_store = LocalRunStore(directory=arguments.workspace / "runs")
     run_store.clear()

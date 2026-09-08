@@ -11,7 +11,7 @@ from haystack import Document
 @dataclass(frozen=True, kw_only=True)
 class RetrievalEvaluationCase:
     """
-    Retrieval expectations for one labelled question.
+    Retrieval expectations for one labelled question, forming one eval case.
 
     :param question: The query to pose to the pipeline.
     :param expected_document_ids: The documents the answer needs. Recall is measured against these.
@@ -66,7 +66,7 @@ class RetrievalEvaluationCase:
 @dataclass(frozen=True, kw_only=True)
 class RetrievalCaseMetrics:
     """
-    Score for one retrieval case.
+    Score for one retrieval eval case.
 
     `queries` is the evidence an optimizer acts on: it is what the configuration actually asked the store, and a
     recall failure is usually explained by the wording of those queries rather than by the number of them.

@@ -160,7 +160,7 @@ def test_derived_cases_are_reported_as_unvalidated(document):
 
 
 def test_every_case_is_measured_once_and_latency_is_their_total(document):
-    """One measurement per case: quality is the fraction that passed, with no variance estimate to report."""
+    """One measurement per eval case: quality is the fraction that passed, with no variance estimate to report."""
     case = AdvancedRAGEvaluationCase(
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("CRISPR",)
     )
@@ -228,7 +228,7 @@ def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(documen
 
 
 def test_traces_are_dropped_from_passing_cases_before_failing_ones(document):
-    """Under a cap, the cases that need explaining keep their evidence, and every case is still reported."""
+    """Under a cap, the eval cases that need explaining keep their evidence, and every one is still reported."""
     failing = AdvancedRAGEvaluationCase(
         question=QUESTION, expected_document_ids=frozenset({document.id}), answer_must_mention=("absent term",)
     )

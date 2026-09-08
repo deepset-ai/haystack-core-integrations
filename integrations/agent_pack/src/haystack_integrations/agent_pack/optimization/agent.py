@@ -112,7 +112,7 @@ Limits along a path constrain each other, and what reaches the end of one is set
 a single stage measures as no change when a later stage still discards what it gained, and it can measure worse
 when the extra material only gives a later stage more to choose wrongly from. A ranker has two stages of its own,
 its limit and the allowance written into its prompt, and both sit downstream of whatever the retriever returned.
-Change a stage together with the ones that have to pass the difference through, and read the per-case counts to
+Change a stage together with the ones that have to pass the difference through, and read the per-eval-case counts to
 find where the path actually narrows rather than where you changed it.
 
 ## OpenAI generators
@@ -238,9 +238,9 @@ def create_harness_optimizer_agent(
     instructions = f"{instructions}\n\n## This environment\n\n{describe_environment()}"
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n## This harness\n\n{additional_instructions.strip()}"
-    # Measured on the retrieval harness over twenty labelled cases: this model reached a better configuration than
+    # Measured on the retrieval harness over twenty labelled eval cases: this model reached a better configuration than
     # one costing ten times as much, and a whole experiment on it costs less than a single one of the other's
-    # turns. The optimizer's turns are most of what an experiment costs once its cases are cheap, so what it is
+    # turns. The optimizer's turns are most of what an experiment costs once its eval cases are cheap, so what it is
     # worth paying for them is a question the harness can answer rather than assume.
     generator = chat_generator or OpenAIResponsesChatGenerator(
         model="gpt-5.6-luna",

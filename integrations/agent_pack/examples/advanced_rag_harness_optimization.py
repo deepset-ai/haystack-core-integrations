@@ -5,9 +5,9 @@
 # Run an Agent-configuration optimization experiment against a labelled RAG evaluation set.
 #
 # The corpus and cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives each case's
-# expected documents from which chunks contain its labelled evidence. The PoC records successful reference runs,
-# optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against those cases,
-# and feeds the measured outcome into the next choice. Nothing is deployed automatically.
+# expected documents from which chunks contain its labelled evidence. The run records successful reference runs,
+# lets an optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against
+# those eval cases, and feeds the measured outcome into the next choice. Nothing is deployed automatically.
 #
 # The reference Agent is deliberately badly configured, so the run shows whether the optimizer can build a better one
 # from measured evidence. See `POOR_RETRIEVER_TOP_K` and the constants next to it for what is wrong with it and why.
@@ -113,7 +113,7 @@ Whatever replaces the tool has to keep the outputs_to_state mappings and formatt
 #
 # The reference starts on the cheapest model, so the optimizer cannot buy its improvement by downgrading. A broken
 # configuration wastes money flailing — measured: a starved reference spent 19 retrieval calls and 37,011 input
-# tokens across its cases, and repairing it on the same model needed 3 calls and 24,955 tokens, 42% cheaper — so a
+# tokens across its eval cases, and repairing it on the same model needed 3 calls and 24,955 tokens, 42% cheaper — so a
 # quality repair still clears the cost objective here, and it has to come from the configuration rather than the
 # price list.
 POOR_RETRIEVER_TOP_K = 1
@@ -200,7 +200,7 @@ def capture_reference_runs(
     evidence of how the reference behaves.
 
     :param agent: The reference Agent to run.
-    :param cases: The cases whose questions to replay.
+    :param cases: The eval cases whose questions to replay.
     :param run_store: Store to record into. Cleared before recording.
     :param concurrency: How many questions to pose at once.
     :returns: The identifiers of the runs recorded here.
