@@ -2,6 +2,8 @@ loaders:
   - modules:
       - haystack_integrations.components.converters.twelvelabs.video_converter
       - haystack_integrations.components.embedders.twelvelabs.document_embedder
+      - haystack_integrations.components.embedders.twelvelabs.document_multimodal_embedder
+      - haystack_integrations.components.embedders.twelvelabs.multimodal_embedder
       - haystack_integrations.components.embedders.twelvelabs.text_embedder
     search_path: [../src]
 processors:
