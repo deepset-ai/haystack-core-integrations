@@ -726,7 +726,7 @@ class TestUtils:
         assert serialized_dict == expected
 
 
-class TestOllamaChatGeneratorInitSerializeDeserialize:
+class TestInitialization:
     def test_init_default(self):
         component = OllamaChatGenerator()
         assert component.model == "qwen3:0.6b"
@@ -778,6 +778,33 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
         generator = OllamaChatGenerator(model="llama3", tools=toolset)
         assert generator.tools == toolset
 
+    def test_init_with_mixed_tools(self, tools):
+        """Test that the OllamaChatGenerator can be initialized with mixed Tool and Toolset objects."""
+
+        @tool
+        def population(city: Annotated[str, "The city to get the population for"]) -> str:
+            """Get the population of a given city."""
+            return f"The population of {city} is 1 million"
+
+        population_toolset = Toolset([population])
+
+        # Mix individual Tool and Toolset
+        mixed_tools = [tools[0], population_toolset]
+        generator = OllamaChatGenerator(model="qwen3", tools=mixed_tools)
+
+        # The tools should be stored as the original ToolsType
+        assert isinstance(generator.tools, list)
+        assert len(generator.tools) == 2
+        # Check that we have a Tool and a Toolset
+        assert isinstance(generator.tools[0], Tool)
+        assert isinstance(generator.tools[1], Toolset)
+        assert generator.tools[0].name == "weather"
+        # Check that the Toolset contains the population tool
+        assert len(generator.tools[1]) == 1
+        assert generator.tools[1][0].name == "population"
+
+
+class TestSerialization:
     def test_to_dict_with_toolset(self, tools):
         """Test that the OllamaChatGenerator can be serialized to a dictionary with a Toolset."""
         toolset = Toolset(tools)
@@ -922,58 +949,6 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
             "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
         }
 
-    def test_init_with_mixed_tools(self, tools):
-        """Test that the OllamaChatGenerator can be initialized with mixed Tool and Toolset objects."""
-
-        @tool
-        def population(city: Annotated[str, "The city to get the population for"]) -> str:
-            """Get the population of a given city."""
-            return f"The population of {city} is 1 million"
-
-        population_toolset = Toolset([population])
-
-        # Mix individual Tool and Toolset
-        mixed_tools = [tools[0], population_toolset]
-        generator = OllamaChatGenerator(model="qwen3", tools=mixed_tools)
-
-        # The tools should be stored as the original ToolsType
-        assert isinstance(generator.tools, list)
-        assert len(generator.tools) == 2
-        # Check that we have a Tool and a Toolset
-        assert isinstance(generator.tools[0], Tool)
-        assert isinstance(generator.tools[1], Toolset)
-        assert generator.tools[0].name == "weather"
-        # Check that the Toolset contains the population tool
-        assert len(generator.tools[1]) == 1
-        assert generator.tools[1][0].name == "population"
-
-    def test_run_with_mixed_tools(self, tools):
-        """Test that the OllamaChatGenerator can run with mixed Tool and Toolset objects."""
-
-        @tool
-        def population(city: Annotated[str, "The city to get the population for"]) -> str:
-            """Get the population of a given city."""
-            return f"The population of {city} is 1 million"
-
-        population_toolset = Toolset([population])
-
-        # Mix individual Tool and Toolset
-        mixed_tools = [tools[0], population_toolset]
-        generator = OllamaChatGenerator(model="qwen3", tools=mixed_tools)
-
-        # Test that the tools are stored as the original ToolsType
-        tools_list = generator.tools
-        assert len(tools_list) == 2
-        # Check that we have a Tool and a Toolset
-        assert isinstance(tools_list[0], Tool)
-        assert isinstance(tools_list[1], Toolset)
-
-        # Verify tool names
-        assert tools_list[0].name == "weather"
-        # Check that the Toolset contains the population tool
-        assert len(tools_list[1]) == 1
-        assert tools_list[1][0].name == "population"
-
 
 class TestComponentLifecycle:
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
@@ -1047,7 +1022,7 @@ class TestComponentLifecycle:
         assert generator._async_client is None
 
 
-class TestOllamaChatGeneratorRun:
+class TestRun:
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run(self, mock_client):
         generator = OllamaChatGenerator()
@@ -1481,7 +1456,7 @@ class TestOllamaChatGeneratorRun:
 
 
 @pytest.mark.integration
-class TestOllamaChatGeneratorLiveInference:
+class TestIntegration:
     def test_live_run_model_unavailable(self):
         component = OllamaChatGenerator(model="unknown_model")
 
@@ -1723,7 +1698,7 @@ class TestOllamaChatGeneratorLiveInference:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-class TestOllamaChatGeneratorAsync:
+class TestAsyncIntegration:
     async def test_run_async_basic(self):
         """Test basic async functionality."""
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b")

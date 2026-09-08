@@ -8,7 +8,7 @@ from ollama._types import ResponseError
 from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 
 
-class TestOllamaTextEmbedder:
+class TestInitialization:
     def test_init_defaults(self):
         embedder = OllamaTextEmbedder()
 
@@ -35,36 +35,6 @@ class TestOllamaTextEmbedder:
         assert embedder.url == "http://my-custom-endpoint:11434"
         assert embedder.model == "llama2"
 
-    @pytest.mark.integration
-    def test_model_not_found(self):
-        embedder = OllamaTextEmbedder(model="cheese")
-
-        with pytest.raises(ResponseError):
-            embedder.run("hello")
-
-    @pytest.mark.integration
-    def test_run(self):
-        embedder = OllamaTextEmbedder(model="all-minilm")
-
-        text = "hello"
-        reply = embedder.run(text=text)
-
-        assert isinstance(reply, dict)
-        assert all(isinstance(element, float) for element in reply["embedding"])
-        assert reply["meta"]["model"] == "all-minilm"
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_run_async(self):
-        embedder = OllamaTextEmbedder(model="all-minilm")
-
-        text = "hello"
-        reply = await embedder.run_async(text=text)
-
-        assert isinstance(reply, dict)
-        assert all(isinstance(element, float) for element in reply["embedding"])
-        assert reply["meta"]["model"] == "all-minilm"
-
     def test_dimensions_default_is_none(self):
         embedder = OllamaTextEmbedder()
         assert embedder.dimensions is None
@@ -73,39 +43,8 @@ class TestOllamaTextEmbedder:
         embedder = OllamaTextEmbedder(dimensions=256)
         assert embedder.dimensions == 256
 
-    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
-    def test_dimensions_passed_to_embed_client(self, mock_client_cls):
-        embedder = OllamaTextEmbedder(dimensions=256)
-        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        mock_client_cls.return_value.embed.return_value = mock_response
 
-        embedder.run(text="hello world")
-
-        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
-        assert call_kwargs["dimensions"] == 256
-
-    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
-    def test_none_dimensions_passed_to_embed_client(self, mock_client_cls):
-        embedder = OllamaTextEmbedder(dimensions=None)
-        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        mock_client_cls.return_value.embed.return_value = mock_response
-
-        embedder.run(text="hello")
-
-        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
-        assert call_kwargs["dimensions"] is None
-
-    @patch("haystack_integrations.components.embedders.ollama.text_embedder.AsyncClient")
-    def test_dimensions_passed_to_async_embed_client(self, mock_client_cls):
-        embedder = OllamaTextEmbedder(dimensions=128)
-        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        mock_client_cls.return_value.embed = AsyncMock(return_value=mock_response)
-
-        asyncio.run(embedder.run_async(text="hello"))
-
-        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
-        assert call_kwargs["dimensions"] == 128
-
+class TestSerialization:
     def test_to_dict_contains_dimensions(self):
 
         embedder = OllamaTextEmbedder(dimensions=256)
@@ -218,3 +157,68 @@ class TestComponentLifecycle:
 
         await embedder.close_async()
         assert embedder._async_client is None
+
+
+class TestRun:
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    def test_dimensions_passed_to_embed_client(self, mock_client_cls):
+        embedder = OllamaTextEmbedder(dimensions=256)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        mock_client_cls.return_value.embed.return_value = mock_response
+
+        embedder.run(text="hello world")
+
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] == 256
+
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    def test_none_dimensions_passed_to_embed_client(self, mock_client_cls):
+        embedder = OllamaTextEmbedder(dimensions=None)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        mock_client_cls.return_value.embed.return_value = mock_response
+
+        embedder.run(text="hello")
+
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] is None
+
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.AsyncClient")
+    def test_dimensions_passed_to_async_embed_client(self, mock_client_cls):
+        embedder = OllamaTextEmbedder(dimensions=128)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        mock_client_cls.return_value.embed = AsyncMock(return_value=mock_response)
+
+        asyncio.run(embedder.run_async(text="hello"))
+
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] == 128
+
+
+@pytest.mark.integration
+class TestIntegration:
+    def test_model_not_found(self):
+        embedder = OllamaTextEmbedder(model="cheese")
+
+        with pytest.raises(ResponseError):
+            embedder.run("hello")
+
+    def test_run(self):
+        embedder = OllamaTextEmbedder(model="all-minilm")
+
+        text = "hello"
+        reply = embedder.run(text=text)
+
+        assert isinstance(reply, dict)
+        assert all(isinstance(element, float) for element in reply["embedding"])
+        assert reply["meta"]["model"] == "all-minilm"
+
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        embedder = OllamaTextEmbedder(model="all-minilm")
+
+        text = "hello"
+        reply = await embedder.run_async(text=text)
+
+        assert isinstance(reply, dict)
+        assert all(isinstance(element, float) for element in reply["embedding"])
+        assert reply["meta"]["model"] == "all-minilm"

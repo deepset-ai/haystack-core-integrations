@@ -8,7 +8,7 @@ from ollama._types import ResponseError
 from haystack_integrations.components.embedders.ollama import OllamaDocumentEmbedder
 
 
-class TestOllamaDocumentEmbedder:
+class TestInitialization:
     def test_init_defaults(self):
         embedder = OllamaDocumentEmbedder()
 
@@ -35,51 +35,6 @@ class TestOllamaDocumentEmbedder:
         assert embedder.url == "http://my-custom-endpoint:11434"
         assert embedder.model == "nomic-embed-text"
 
-    @pytest.mark.integration
-    def test_model_not_found(self):
-        embedder = OllamaDocumentEmbedder(model="cheese")
-
-        with pytest.raises(ResponseError):
-            embedder.run([Document("hello")])
-
-    @pytest.mark.integration
-    def import_text_in_embedder(self):
-        embedder = OllamaDocumentEmbedder(model="all-minilm")
-
-        with pytest.raises(TypeError):
-            embedder.run("This is a text string. This should not work.")
-
-    @pytest.mark.integration
-    def test_run(self):
-        embedder = OllamaDocumentEmbedder(model="all-minilm", batch_size=2)
-        list_of_docs = [
-            Document(content="Llamas are amazing animals known for their soft wool and gentle demeanor."),
-            Document(content="The Andes mountains are the natural habitat of many llamas."),
-            Document(content="Llamas have been used as pack animals for centuries, especially in South America."),
-        ]
-        result = embedder.run(list_of_docs)
-
-        assert result["meta"]["model"] == "all-minilm"
-        documents = result["documents"]
-        assert len(documents) == 3
-        assert all(isinstance(element, float) for document in documents for element in document.embedding)
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_run_async(self):
-        embedder = OllamaDocumentEmbedder(model="all-minilm", batch_size=2)
-        list_of_docs = [
-            Document(content="Llamas are amazing animals known for their soft wool and gentle demeanor."),
-            Document(content="The Andes mountains are the natural habitat of many llamas."),
-            Document(content="Llamas have been used as pack animals for centuries, especially in South America."),
-        ]
-        result = await embedder.run_async(list_of_docs)
-
-        assert result["meta"]["model"] == "all-minilm"
-        documents = result["documents"]
-        assert len(documents) == 3
-        assert all(isinstance(element, float) for document in documents for element in document.embedding)
-
     def test_dimensions_default_is_none(self):
         embedder = OllamaDocumentEmbedder()
         assert embedder.dimensions is None
@@ -88,43 +43,8 @@ class TestOllamaDocumentEmbedder:
         embedder = OllamaDocumentEmbedder(dimensions=512)
         assert embedder.dimensions == 512
 
-    @patch("haystack_integrations.components.embedders.ollama.document_embedder.Client")
-    def test_dimensions_passed_to_embed_client(self, mock_client_cls):
-        embedder = OllamaDocumentEmbedder(dimensions=512)
-        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        mock_client_cls.return_value.embed.return_value = mock_response
-        embedder.warm_up()
 
-        embedder._embed_batch(["hello world"], batch_size=32)
-
-        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
-        assert call_kwargs["dimensions"] == 512
-
-    @patch("haystack_integrations.components.embedders.ollama.document_embedder.Client")
-    def test_none_dimensions_passed_to_embed_client(self, mock_client_cls):
-        embedder = OllamaDocumentEmbedder(dimensions=None)
-        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        mock_client_cls.return_value.embed.return_value = mock_response
-        embedder.warm_up()
-
-        embedder._embed_batch(["hello"], batch_size=32)
-
-        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
-        assert call_kwargs["dimensions"] is None
-
-    @pytest.mark.asyncio
-    @patch("haystack_integrations.components.embedders.ollama.document_embedder.AsyncClient")
-    async def test_dimensions_passed_to_async_embed_client(self, mock_client_cls):
-        embedder = OllamaDocumentEmbedder(dimensions=256)
-        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        mock_client_cls.return_value.embed = AsyncMock(return_value=mock_response)
-        await embedder.warm_up_async()
-
-        await embedder._embed_batch_async(["hello"], batch_size=32)
-
-        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
-        assert call_kwargs["dimensions"] == 256
-
+class TestSerialization:
     def test_to_dict_contains_dimensions(self):
         embedder = OllamaDocumentEmbedder(dimensions=512)
         embedder_dict = default_to_dict(
@@ -246,3 +166,86 @@ class TestComponentLifecycle:
 
         await embedder.close_async()
         assert embedder._async_client is None
+
+
+class TestRun:
+    def test_rejects_string_input(self):
+        embedder = OllamaDocumentEmbedder(model="all-minilm")
+
+        with pytest.raises(TypeError):
+            embedder.run("This is a text string. This should not work.")
+
+    @patch("haystack_integrations.components.embedders.ollama.document_embedder.Client")
+    def test_dimensions_passed_to_embed_client(self, mock_client_cls):
+        embedder = OllamaDocumentEmbedder(dimensions=512)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        mock_client_cls.return_value.embed.return_value = mock_response
+        embedder.warm_up()
+
+        embedder._embed_batch(["hello world"], batch_size=32)
+
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] == 512
+
+    @patch("haystack_integrations.components.embedders.ollama.document_embedder.Client")
+    def test_none_dimensions_passed_to_embed_client(self, mock_client_cls):
+        embedder = OllamaDocumentEmbedder(dimensions=None)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        mock_client_cls.return_value.embed.return_value = mock_response
+        embedder.warm_up()
+
+        embedder._embed_batch(["hello"], batch_size=32)
+
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] is None
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.embedders.ollama.document_embedder.AsyncClient")
+    async def test_dimensions_passed_to_async_embed_client(self, mock_client_cls):
+        embedder = OllamaDocumentEmbedder(dimensions=256)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        mock_client_cls.return_value.embed = AsyncMock(return_value=mock_response)
+        await embedder.warm_up_async()
+
+        await embedder._embed_batch_async(["hello"], batch_size=32)
+
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] == 256
+
+
+@pytest.mark.integration
+class TestIntegration:
+    def test_model_not_found(self):
+        embedder = OllamaDocumentEmbedder(model="cheese")
+
+        with pytest.raises(ResponseError):
+            embedder.run([Document("hello")])
+
+    def test_run(self):
+        embedder = OllamaDocumentEmbedder(model="all-minilm", batch_size=2)
+        list_of_docs = [
+            Document(content="Llamas are amazing animals known for their soft wool and gentle demeanor."),
+            Document(content="The Andes mountains are the natural habitat of many llamas."),
+            Document(content="Llamas have been used as pack animals for centuries, especially in South America."),
+        ]
+        result = embedder.run(list_of_docs)
+
+        assert result["meta"]["model"] == "all-minilm"
+        documents = result["documents"]
+        assert len(documents) == 3
+        assert all(isinstance(element, float) for document in documents for element in document.embedding)
+
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        embedder = OllamaDocumentEmbedder(model="all-minilm", batch_size=2)
+        list_of_docs = [
+            Document(content="Llamas are amazing animals known for their soft wool and gentle demeanor."),
+            Document(content="The Andes mountains are the natural habitat of many llamas."),
+            Document(content="Llamas have been used as pack animals for centuries, especially in South America."),
+        ]
+        result = await embedder.run_async(list_of_docs)
+
+        assert result["meta"]["model"] == "all-minilm"
+        documents = result["documents"]
+        assert len(documents) == 3
+        assert all(isinstance(element, float) for document in documents for element in document.embedding)
