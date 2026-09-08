@@ -84,6 +84,7 @@ class RetrievalCaseMetrics:
     question: str
     passed: bool
     score: float
+    stage_outputs: dict[str, dict[str, int]]
     failures: tuple[str, ...]
     recall: float
     precision: float
@@ -109,7 +110,11 @@ class RetrievalOutcome:
 
 
 def score_retrieval_result(
-    outcome: RetrievalOutcome, case: RetrievalEvaluationCase, *, latency_ms: float
+    outcome: RetrievalOutcome,
+    case: RetrievalEvaluationCase,
+    *,
+    latency_ms: float,
+    stage_outputs: dict[str, dict[str, int]] | None = None,
 ) -> RetrievalCaseMetrics:
     """
     Score one retrieval run against its labelled evidence.
@@ -117,6 +122,7 @@ def score_retrieval_result(
     :param outcome: The documents the pipeline retrieved and the queries it issued.
     :param case: The expectations to score against.
     :param latency_ms: Measured wall-clock duration of the run.
+    :param stage_outputs: How many items each component emitted, by component name and output socket.
     :returns: The score, naming every expectation the run missed.
     """
     # Deduplicated in the order the pipeline returned them, since which documents fall past the limit depends on
@@ -142,6 +148,7 @@ def score_retrieval_result(
     return RetrievalCaseMetrics(
         question=case.question,
         passed=not failures,
+        stage_outputs=stage_outputs or {},
         score=0.0 if any(failure.startswith("queries_over_budget") for failure in failures) else recall,
         failures=tuple(failures),
         recall=recall,

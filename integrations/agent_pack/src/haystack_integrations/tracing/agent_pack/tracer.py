@@ -20,25 +20,51 @@ from haystack_integrations.agent_pack.dataclasses import ModelTokenUsage
 
 @dataclass
 class CaseUsage:
-    """Only usage totals are retained; prompts and replies are discarded."""
+    """
+    Only usage totals and output sizes are retained; prompts, replies and documents are discarded.
+
+    `outputs` is how many items each component emitted, by component name and output socket. A configuration is
+    a chain of stages, and what a score means depends on how much reached each of them: a pipeline pooling six
+    searches deduplicates them into a candidate set whose size no configuration value states, so widening the
+    search and widening what survives it cannot be told apart from the inputs and the final answer alone.
+    """
 
     models: dict[str, ModelTokenUsage] = field(default_factory=dict)
+    outputs: dict[str, dict[str, int]] = field(default_factory=dict)
     complete: bool = True
     calls: int = 0
     lock: LockType = field(default_factory=Lock, repr=False)
 
 
 class _UsageSpan(Span):
-    def __init__(self, usage: CaseUsage | None, generator: bool) -> None:
+    def __init__(self, usage: CaseUsage | None, generator: bool, component: str | None = None) -> None:
         self.usage = usage
         self.generator = generator
+        self.component = component
         self.recorded = False
 
     def set_tag(self, key: str, value: Any) -> None:
         """Discard ordinary trace tags."""
 
+    def _record_output_sizes(self, value: Any) -> None:
+        """
+        Count what one component emitted, keeping the sizes and discarding the items.
+
+        Generators are skipped: a reply count is always one and says nothing about how much reached the next
+        stage, and the generators held inside other components share the name their owner gave them, so counting
+        them would collide two stages under one entry.
+        """
+        if self.usage is None or self.component is None or self.generator or not isinstance(value, dict):
+            return
+        sizes = {socket: len(items) for socket, items in value.items() if isinstance(items, (list, tuple))}
+        if sizes:
+            with self.usage.lock:
+                self.usage.outputs[self.component] = sizes
+
     def set_content_tag(self, key: str, value: Any) -> None:
-        """Extract usage from one generator output without enabling content logging."""
+        """Extract usage and output sizes from one component output without enabling content logging."""
+        if key == "haystack.component.output":
+            self._record_output_sizes(value)
         if (
             not self.generator
             or self.usage is None
@@ -90,7 +116,7 @@ class UsageTracer(Tracer):
             operation_name == "haystack.component.run"
             and str((tags or {}).get("haystack.component.type", "")).endswith("ChatGenerator")
         )
-        span = _UsageSpan(usage, generator)
+        span = _UsageSpan(usage, generator, str((tags or {}).get("haystack.component.name") or "") or None)
         token = self._span.set(span)
         try:
             yield span

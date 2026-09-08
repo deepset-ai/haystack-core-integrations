@@ -85,6 +85,24 @@ def query_reporters(pipeline: Pipeline) -> set[str]:
     return reporters
 
 
+def _mean_stage_outputs(scored: list[RetrievalCaseMetrics]) -> dict[str, dict[str, float]]:
+    """
+    Average how many items each component emitted, over the eval cases that reached it.
+
+    :param scored: The measured eval cases.
+    :returns: Mean output size by component name and output socket.
+    """
+    totals: dict[str, dict[str, list[int]]] = {}
+    for metric in scored:
+        for component, sockets in metric.stage_outputs.items():
+            for socket, size in sockets.items():
+                totals.setdefault(component, {}).setdefault(socket, []).append(size)
+    return {
+        component: {socket: sum(sizes) / len(sizes) for socket, sizes in sockets.items()}
+        for component, sockets in totals.items()
+    }
+
+
 class RetrievalHarnessEvaluator:
     """
     Replay the recorded question of every eval case through a retrieval pipeline and score what came back.
@@ -196,7 +214,9 @@ class RetrievalHarnessEvaluator:
                     result = await target.run_async(data=data, include_outputs_from=reporters | {exit_point})
             latency_ms = (time.perf_counter() - started) * 1000
             outcome = self._outcome(result=result, exit_point=exit_point, reporters=reporters, question=case.question)
-            scored = score_retrieval_result(outcome=outcome, case=case, latency_ms=latency_ms)
+            scored = score_retrieval_result(
+                outcome=outcome, case=case, latency_ms=latency_ms, stage_outputs=dict(usage.outputs)
+            )
             logger.info(
                 "case {position}/{total} {verdict} in {latency:.0f}ms with {queries} queries: {question}",
                 position=position,
@@ -257,6 +277,10 @@ class RetrievalHarnessEvaluator:
                 "mean_precision": sum(metric.precision for metric in scored) / len(scored),
                 "mean_retrieved": sum(metric.retrieved for metric in scored) / len(scored),
                 "mean_queries": sum(len(metric.queries) for metric in scored) / len(scored),
+                # How much reached each stage. A candidate set is pooled from several searches and deduplicated,
+                # so its size follows from no configuration value and only measurement reports where the path
+                # actually narrows.
+                "mean_stage_outputs": _mean_stage_outputs(scored=scored),
                 # What the components said about themselves. A component that degrades rather than failing keeps
                 # the run alive and reports it only here, so a score with no explanation gets one.
                 "warnings": diagnostics.to_list(),

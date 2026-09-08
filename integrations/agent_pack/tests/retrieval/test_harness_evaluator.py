@@ -235,3 +235,31 @@ def test_partial_recall_scores_partially_but_a_broken_budget_scores_nothing(stor
     assert any(f.startswith("queries_over_budget") for f in overspent.details["cases"][0]["failures"])
     assert overspent.details["cases"][0]["recall"] > 0.0
     assert overspent.quality == 0.0
+
+
+def test_the_size_of_every_stage_is_reported_not_only_the_final_answer(store):
+    """
+    A candidate set is pooled from several searches and deduplicated, so its size follows from no configuration
+    value. Without it, widening the search and widening what survives it cannot be told apart.
+    """
+    pipeline = Pipeline()
+    pipeline.add_component("expander", QueryExpander(chat_generator=MockChatGenerator(EXPANSION), n_expansions=2))
+    pipeline.add_component(
+        "retriever", MultiQueryTextRetriever(retriever=InMemoryBM25Retriever(document_store=store, top_k=2))
+    )
+    pipeline.add_component(
+        "ranker", LLMRanker(chat_generator=MockChatGenerator('{"documents": [{"index": 1}]}'), top_k=1)
+    )
+    pipeline.connect("expander.queries", "retriever.queries")
+    pipeline.connect("retriever.documents", "ranker.documents")
+
+    metrics = RetrievalHarnessEvaluator(cases=[case(store)]).evaluate(target=pipeline, reference_runs=runs())
+
+    stages = metrics.details["mean_stage_outputs"]
+    # The retriever's pool is wider than what the ranker passes on, and both are now visible.
+    assert stages["retriever"]["documents"] > stages["ranker"]["documents"]
+    assert stages["ranker"]["documents"] == metrics.details["mean_retrieved"]
+    assert stages["expander"]["queries"] == metrics.details["mean_queries"]
+    # Generators are not stages in the document path, and the ones held inside components share a name.
+    assert "chat_generator" not in stages
+    assert metrics.details["cases"][0]["stage_outputs"]["retriever"]["documents"] >= 1

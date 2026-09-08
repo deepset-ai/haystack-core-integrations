@@ -343,6 +343,16 @@ def _headline(metrics: dict[str, Any] | None) -> str:
     for key in ("mean_recall", "mean_precision", "mean_retrieved", "mean_queries"):
         if key in details:
             parts.append(f"{key.removeprefix('mean_')} {details[key]:.2f}")
+    # In execution order, so the arrow shows where the path widened and where it narrowed again.
+    if stages := details.get("mean_stage_outputs"):
+        parts.append(
+            "stages "
+            + " -> ".join(
+                f"{component}.{socket} {size:.1f}"
+                for component, sockets in stages.items()
+                for socket, size in sockets.items()
+            )
+        )
     if (summary := details.get(CASE_SUMMARY_KEY)) is not None:
         parts.append(f"{summary.get('passed')}/{summary.get('cases')} cases clean")
         if failures := summary.get("failures"):
