@@ -100,6 +100,10 @@ candidate set and then rank it by something else. Retrieval that keeps failing o
 retriever's own limits have been tuned is evidence about that mechanism rather than about the wording of either,
 and the mechanism is then the variable worth a measurement. Confirm what such a pipeline serializes to, and which
 components this environment can actually import, before spending one on it.
+A tool wrapping a single component can become a tool wrapping a pipeline. To put a ranker behind this Agent's
+retrieval tool, build a PipelineTool: connect retriever.documents to ranker.documents, map the tool's query to
+both query inputs, map filters to the retriever, and expose ranker.documents as the tool's documents output.
+Whatever replaces the tool has to keep the outputs_to_state mappings and formatting handlers the harness reads.
 """.strip()
 
 # The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the

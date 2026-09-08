@@ -12,11 +12,12 @@ from dataclasses import dataclass
 from difflib import unified_diff
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
 from haystack import Pipeline
 from haystack.components.agents import Agent
+from haystack.core.errors import DeserializationError
 from haystack.core.serialization import import_class_by_name
 from haystack.marshal import YamlMarshaller
 from haystack.tools import Tool, flatten_tools_or_toolsets
@@ -174,14 +175,20 @@ class ConfigurationWorkspace:
             text = self._read()
             return {"yaml": text, "revision": content_digest(text), "parent_id": self.parent_id}
 
-    def edit_config(self, old: str, new: str, expected_revision: str) -> dict[str, str]:
-        """
-        Replace one exact text block. Use the entire current YAML as old for a full rewrite.
-
-        :param old: Nonempty text occurring exactly once in the current YAML.
-        :param new: Replacement text, or empty text to delete the block.
-        :param expected_revision: Revision returned by read_config or the preceding edit.
-        """
+    def edit_config(
+        self,
+        old: Annotated[
+            str,
+            "Nonempty text to replace, matched literally and occurring exactly once in the current YAML. Include "
+            "enough surrounding lines to be unique: a bare 'top_k: 2' or a type line repeated across components "
+            "matches more than once and is rejected. Pass the entire YAML to rewrite the whole file.",
+        ],
+        new: Annotated[str, "Text replacing that block verbatim, or empty text to delete it."],
+        expected_revision: Annotated[
+            str, "The revision returned by read_config or by the preceding edit, which must still be current."
+        ],
+    ) -> dict[str, str]:
+        """Replace one exact text block. Use the entire current YAML as old for a full rewrite."""
         with self._lock:
             text = self._read()
             if not old or text.count(old) != 1:
@@ -213,13 +220,18 @@ class ConfigurationWorkspace:
             self.validated_revision = revision
             return {"valid": True, "revision": revision, "tools": specs}
 
-    def submit_candidate(self, expected_revision: str, rationale: str) -> dict[str, str]:
-        """
-        Submit this validated revision for evaluation and end the proposal turn.
-
-        :param expected_revision: Revision returned by successful validation.
-        :param rationale: Hypothesis explaining why this change is worth measuring.
-        """
+    def submit_candidate(
+        self,
+        expected_revision: Annotated[
+            str, "The revision returned by a successful validate_config, which must still be current."
+        ],
+        rationale: Annotated[
+            str,
+            "The hypothesis this candidate tests: what was changed and what it is expected to move. Read back "
+            "alongside the score, so name the change rather than restating the goal.",
+        ],
+    ) -> dict[str, str]:
+        """Submit this validated revision for evaluation and end the proposal turn."""
         with self._lock:
             text = self._read()
             if self.finished or self.submitted is not None:
@@ -244,13 +256,14 @@ class ConfigurationWorkspace:
             self.snapshots[candidate_id] = text
             return {"candidate_id": candidate_id}
 
-    def restore_candidate(self, candidate_id: str, expected_revision: str) -> dict[str, str]:
-        """
-        Restore a submitted candidate or the reference as the base for further edits.
-
-        :param candidate_id: A candidate ID from history, or 'reference'.
-        :param expected_revision: Current workspace revision.
-        """
+    def restore_candidate(
+        self,
+        candidate_id: Annotated[
+            str, "A candidate ID from the outcomes so far, or 'reference' for the original configuration."
+        ],
+        expected_revision: Annotated[str, "The current workspace revision, from read_config or the last edit."],
+    ) -> dict[str, str]:
+        """Restore a submitted candidate or the reference as the base for further edits."""
         with self._lock:
             key = self.reference_id if candidate_id == "reference" else candidate_id
             if key not in self.snapshots:
@@ -260,14 +273,15 @@ class ConfigurationWorkspace:
             self.parent_id = key
             return result
 
-    def finish(self, reason: str) -> str:
-        """
-        End optimization when no hypothesis worth measuring remains.
-
-        :param reason: What was considered and rejected, and why nothing left is worth a measurement. Ending the
-            search is the one decision an experiment cannot revisit, and it is the only one that leaves no
-            artifact behind to explain itself.
-        """
+    def finish(
+        self,
+        reason: Annotated[
+            str,
+            "What was considered and why none of it is worth measuring. This ends the experiment with the "
+            "remaining evaluations unspent, and is the only record of why.",
+        ],
+    ) -> str:
+        """End optimization when no hypothesis worth measuring remains."""
         with self._lock:
             if self.submitted is None:
                 self.finished = True
@@ -310,14 +324,50 @@ class ConfigurationWorkspace:
         ]
 
 
-def inspect_component(type_name: str) -> dict[str, str]:
+def _installed_path(type_name: str) -> str:
     """
-    Inspect an installed class using the same namespace allowlist as deserialization.
+    Find where a class is really installed, given a plausible but wrong path to it.
 
-    :param type_name: Fully qualified class name from Haystack documentation or the YAML.
+    A configuration names every component by full path, so the obvious way to reach a new one is to keep the module
+    of a component already in the file and change the class on the end. That is how `OpenAIResponsesChatGenerator`
+    gets asked for at `...generators.chat.openai`, where only `OpenAIChatGenerator` lives. Left uncorrected the
+    same guess is written into the YAML, where it survives editing and fails deserialization several steps later.
+    A Haystack class is almost always re-exported from a package above the module defining it, so asking each
+    package above the one named finds it.
+
+    Every attempt goes back through `import_class_by_name` rather than importing anything directly, so the
+    deserialization allowlist still decides what may be imported at all: a name outside it is refused before its
+    module is executed, and searching for a class cannot reach further than deserializing one could.
+
+    :param type_name: A fully qualified class name that could not be imported.
+    :returns: The path the class is installed at, or the original name when nothing of that name is installed.
     """
-    cls = import_class_by_name(type_name)
+    parts = type_name.split(".")
+    for cut in range(len(parts) - 2, 0, -1):
+        try:
+            found = import_class_by_name(".".join([*parts[:cut], parts[-1]]))
+        except (DeserializationError, ImportError):
+            continue
+        return f"{found.__module__}.{found.__qualname__}"
+    return type_name
+
+
+def inspect_component(
+    type_name: Annotated[
+        str,
+        "Fully qualified class name, as written in a configuration's 'type' field, for example "
+        "'haystack.components.rankers.llm_ranker.LLMRanker'. A path that does not import is retried where the "
+        "class is installed, and the answer reports the path to use.",
+    ],
+) -> dict[str, str]:
+    """Inspect an installed class using the same namespace allowlist as deserialization."""
+    try:
+        cls = import_class_by_name(type_name)
+    except ImportError:
+        type_name = _installed_path(type_name)
+        cls = import_class_by_name(type_name)
     return {
+        "import_path": type_name,
         "constructor": str(inspect.signature(cls.__init__)),
         "documentation": inspect.getdoc(cls) or "",
         "run": str(inspect.signature(cls.run)) if hasattr(cls, "run") else "",

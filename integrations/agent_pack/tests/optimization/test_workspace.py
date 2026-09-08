@@ -1,3 +1,5 @@
+import importlib
+
 import pytest
 import yaml
 from haystack import Document, Pipeline
@@ -14,6 +16,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     ConfigurationWorkspace,
     configuration_id,
     dump_agent,
+    inspect_component,
     load_agent,
 )
 
@@ -201,3 +204,62 @@ def test_rebasing_on_an_unknown_candidate_falls_back_rather_than_failing(tmp_pat
     workspace.begin_turn(base_id="never-measured")
 
     assert workspace.read_config()["parent_id"] == workspace.reference_id
+
+
+def test_inspecting_a_component_reports_the_path_it_is_installed_at():
+    """The answer carries the string the YAML has to use, not the one that happened to be asked for."""
+    answer = inspect_component("haystack.components.rankers.llm_ranker.LLMRanker")
+
+    assert answer["import_path"] == "haystack.components.rankers.llm_ranker.LLMRanker"
+    assert "top_k" in answer["constructor"]
+
+
+def test_a_class_asked_for_beside_its_neighbour_is_found_where_it_really_lives():
+    """
+    The reference names its generator in `...chat.openai`, so reaching for the responses one by changing the class
+    on the end of that path is the natural mistake. Uncorrected it reaches the YAML and fails deserialization.
+    """
+    answer = inspect_component("haystack.components.generators.chat.openai.OpenAIResponsesChatGenerator")
+
+    assert answer["import_path"] == (
+        "haystack.components.generators.chat.openai_responses.OpenAIResponsesChatGenerator"
+    )
+
+
+def test_a_class_that_is_not_installed_still_fails():
+    with pytest.raises(ImportError):
+        inspect_component("haystack.components.nonsense.NoSuchComponent")
+
+
+def test_searching_for_a_class_cannot_import_outside_the_deserialization_allowlist(monkeypatch):
+    """
+    Recovering from a wrong path must not become a way to import anything: the search asks for shorter and
+    shorter paths, and a module off the allowlist has to be refused before it is executed rather than after.
+    """
+
+    def refuse(name, *_args, **_kwargs):
+        pytest.fail(f"searching for a class imported {name}")
+
+    monkeypatch.setattr(importlib, "import_module", refuse)
+
+    with pytest.raises(DeserializationError):
+        inspect_component("subprocess.check_output.Popen")
+
+
+def test_every_tool_parameter_describes_itself_to_the_model(tmp_path):
+    """
+    `create_tool_from_function` builds the schema from `Annotated` metadata and never reads `:param` lines, so a
+    parameter documented only in the docstring reaches the model as a bare string with no explanation of it.
+    """
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+
+    described = {
+        f"{tool.name}.{name}": specification.get("description")
+        for tool in workspace.tools()
+        for name, specification in tool.parameters.get("properties", {}).items()
+    }
+
+    assert described
+    assert [parameter for parameter, description in described.items() if not description] == []
+    # The constraint that actually fails at runtime has to be in the schema, not only in the error it raises.
+    assert "exactly once" in described["edit_config.old"]
