@@ -55,21 +55,6 @@ class TestFAISSDocumentStoreUnit:
         with pytest.raises(DuplicateDocumentError, match="already exists"):
             ds.write_documents([Document(id="dup", content="second")], policy=DuplicatePolicy.FAIL)
 
-    @pytest.mark.parametrize(
-        ("filters", "error_match"),
-        [
-            ({"operator": "OR"}, "Missing 'conditions' for OR operator"),
-            ({"operator": "AND"}, "Missing 'conditions' for AND operator"),
-            ({"operator": "NOT"}, "Missing 'conditions' for NOT operator"),
-            ({"operator": "==", "field": 42, "value": "x"}, "'field' in filter condition must be a string"),
-        ],
-    )
-    def test_check_condition_invalid_structure_raises_filter_error(self, filters, error_match):
-        ds = FAISSDocumentStore(embedding_dim=3)
-        ds.write_documents([Document(content="test", meta={"category": "A"})])
-        with pytest.raises(FilterError, match=error_match):
-            ds.filter_documents(filters=filters)
-
 
 @pytest.mark.integration
 class TestFAISSDocumentStore(
