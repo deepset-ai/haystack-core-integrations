@@ -519,7 +519,7 @@ class OllamaChatGenerator:
                     arg_by_index[key] = args
 
             if callback is not None:
-                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                # Sync callbacks are allowed in async contexts, so only await async ones.
                 callback_result = callback(chunk)
                 if inspect.isawaitable(callback_result):
                     await callback_result

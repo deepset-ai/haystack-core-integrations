@@ -4,11 +4,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -435,11 +430,8 @@ class TestUtils:
             "arguments": '{"expression": "7 * (4 + 2)"}',
             "id": None,
             "tool_name": "calculator",
+            "extra": None,
         }
-        # We add extra to the expected dict if it exists in the result for comparison
-        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
-        if "extra" in streaming_chunks[0].tool_calls[0].to_dict():
-            expected["extra"] = streaming_chunks[0].tool_calls[0].to_dict()["extra"]
         assert streaming_chunks[0].tool_calls[0].to_dict() == expected
 
         expected = {
@@ -447,11 +439,8 @@ class TestUtils:
             "tool_name": "factorial",
             "arguments": '{"n": 5}',
             "id": None,
+            "extra": None,
         }
-        # We add extra to the expected dict if it exists in the result for comparison
-        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
-        if "extra" in streaming_chunks[1].tool_calls[0].to_dict():
-            expected["extra"] = streaming_chunks[1].tool_calls[0].to_dict()["extra"]
         assert streaming_chunks[1].tool_calls[0].to_dict() == expected
         assert len(streaming_chunks[2].tool_calls) == 0
 
@@ -717,12 +706,9 @@ class TestUtils:
             "arguments": '{"a": 2, "b": 2}',
             "id": None,
             "tool_name": "add_two_numbers",
+            "extra": None,
         }
         serialized_dict = streaming_chunks[12].tool_calls[0].to_dict()
-        # We add extra to the expected dict if it exists in the result for comparison
-        # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
-        if "extra" in serialized_dict:
-            expected["extra"] = serialized_dict["extra"]
         assert serialized_dict == expected
 
 
@@ -1568,7 +1554,6 @@ class TestIntegration:
         if streaming_callback:
             streaming_callback.assert_called()
 
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_live_run_with_thinking_and_tools(self):
         @tool
         def add(a: int, b: int) -> int:
@@ -1581,7 +1566,6 @@ class TestIntegration:
             return a * b
 
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", think=True, tools=[add, multiply])
-        tool_invoker = ToolInvoker(tools=[add, multiply])
 
         sys_message = ChatMessage.from_system("Use the tools to answer the question.")
         message = ChatMessage.from_user("2+3?")
@@ -1594,7 +1578,8 @@ class TestIntegration:
         assert response.tool_calls[0].tool_name == "add"
         assert response.tool_calls[0].arguments == {"a": 2, "b": 3}
 
-        tool_result = tool_invoker.run(messages=[response])["tool_messages"][0]
+        tool_call = response.tool_calls[0]
+        tool_result = ChatMessage.from_tool(tool_result=str(add.invoke(**tool_call.arguments)), origin=tool_call)
 
         new_message = ChatMessage.from_user("Now multiply the result by 10.")
         new_response = chat_generator.run([sys_message, message, response, tool_result, new_message])["replies"][0]
@@ -1606,10 +1591,8 @@ class TestIntegration:
         assert new_response.tool_calls[0].arguments == {"a": 5, "b": 10}
 
     @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_live_run_with_repeated_tool_calls(self, tools, streaming_callback):
         component = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=streaming_callback)
-        tool_invoker = ToolInvoker(tools=tools)
 
         messages = [
             ChatMessage.from_system("Use the tools to answer the question."),
@@ -1631,7 +1614,13 @@ class TestIntegration:
         assert any("paris" in c for c in cities)
         assert any("london" in c for c in cities)
 
-        tool_messages = tool_invoker.run(messages=[assistant_msg])["tool_messages"]
+        tools_by_name = {tool.name: tool for tool in tools}
+        tool_messages = [
+            ChatMessage.from_tool(
+                tool_result=str(tools_by_name[tool_call.tool_name].invoke(**tool_call.arguments)), origin=tool_call
+            )
+            for tool_call in assistant_msg.tool_calls
+        ]
         final_response = component.run([*messages, assistant_msg, *tool_messages])
         assert len(final_response["replies"]) == 1
         assert final_response["replies"][0].text
