@@ -13,6 +13,8 @@ from .metrics import (
     METRIC_DESCRIPTORS,
     DeepEvalMetric,
     InputConverters,
+    MetricDescriptor,
+    _metric_name,
 )
 
 
@@ -22,7 +24,14 @@ class DeepEvalEvaluator:
     A component that uses DeepEval to evaluate inputs against a specific metric.
 
     Uses the [DeepEval framework](https://docs.confident-ai.com/docs/evaluation-introduction).
-    Supported metrics are defined by `DeepEvalMetric`.
+    Supported built-in metrics are defined by `DeepEvalMetric`. Alternatively, any
+    initialized DeepEval metric can be passed directly, which makes it possible to use
+    custom metrics that subclass `deepeval.metrics.BaseMetric`.
+
+    Note that a component configured with an already initialized metric cannot be
+    serialized: a metric instance carries runtime state that cannot be reliably
+    reconstructed. Use one of the `DeepEvalMetric` built-ins if the pipeline needs
+    to survive `to_dict`/`from_dict`.
 
     Usage example:
     ```python
@@ -46,30 +55,80 @@ class DeepEvalEvaluator:
     )
     print(output["results"])
     ```
+
+    Usage example with a custom metric:
+    ```python
+    from deepeval.metrics import BaseMetric
+    from deepeval.test_case import LLMTestCase, SingleTurnParams
+
+    class ResponseLengthMetric(BaseMetric):
+        _required_params = [SingleTurnParams.INPUT, SingleTurnParams.ACTUAL_OUTPUT]
+
+        def __init__(self, max_words: int = 20) -> None:
+            self.max_words = max_words
+
+        def measure(self, test_case: LLMTestCase) -> float:
+            words = len((test_case.actual_output or "").split())
+            self.score = min(1.0, words / self.max_words)
+            self.reason = f"The response contains {words} words"
+            return self.score
+
+        async def a_measure(self, test_case: LLMTestCase) -> float:
+            return self.measure(test_case)
+
+        @property
+        def __name__(self) -> str:
+            return "Response Length"
+
+    evaluator = DeepEvalEvaluator(metric=ResponseLengthMetric(max_words=10))
+    output = evaluator.run(
+        questions=["Which is the most popular global sport?"],
+        responses=["Football"],
+    )
+    print(output["results"])
+    ```
     """
 
+    metric: DeepEvalMetric | BaseMetric
+    descriptor: MetricDescriptor
     _backend_metric: BaseMetric
     # Wrapped for easy mocking.
     _backend_callable: Callable[[list[LLMTestCase], BaseMetric], EvaluationResult]
 
     def __init__(
         self,
-        metric: str | DeepEvalMetric,
+        metric: str | DeepEvalMetric | BaseMetric,
         metric_params: dict[str, Any] | None = None,
     ) -> None:
         """
         Construct a new DeepEval evaluator.
 
         :param metric:
-            The metric to use for evaluation.
+            The metric to use for evaluation. Either one of the built-in metrics
+            defined by `DeepEvalMetric` (or its string value), or an already
+            initialized DeepEval metric such as a custom subclass of
+            `deepeval.metrics.BaseMetric`. In the latter case, the inputs expected
+            by the component are derived from the test case parameters that the
+            metric declares as required.
         :param metric_params:
             Parameters to pass to the metric's constructor.
-            Refer to the `RagasMetric` class for more details
-            on required parameters.
+            Refer to the `DeepEvalMetric` class for more details
+            on required parameters. Not supported when `metric` is an
+            already initialized metric, which is expected to be fully configured.
         """
-        self.metric = metric if isinstance(metric, DeepEvalMetric) else DeepEvalMetric.from_str(metric)
+        if isinstance(metric, BaseMetric):
+            if metric_params is not None:
+                msg = (
+                    f"DeepEval metric '{_metric_name(metric)}' is already initialized, "
+                    f"'metric_params' must not be provided"
+                )
+                raise ValueError(msg)
+            self.metric = metric
+            self.descriptor = MetricDescriptor.for_custom_metric(metric)
+        else:
+            self.metric = metric if isinstance(metric, DeepEvalMetric) else DeepEvalMetric.from_str(metric)
+            self.descriptor = METRIC_DESCRIPTORS[self.metric]
         self.metric_params = metric_params
-        self.descriptor = METRIC_DESCRIPTORS[self.metric]
 
         self._init_backend()
         expected_inputs = self.descriptor.input_parameters
@@ -107,6 +166,9 @@ class DeepEvalEvaluator:
         """
         Serializes the component to a dictionary.
 
+        Only evaluators using a built-in metric can be serialized; metric instances
+        provided by the user cannot be reconstructed from a dictionary.
+
         :returns:
             Dictionary with serialized data.
         :raises DeserializationError:
@@ -119,6 +181,13 @@ class DeepEvalEvaluator:
                 return True
             except (TypeError, OverflowError):
                 return False
+
+        if isinstance(self.metric, BaseMetric):
+            msg = (
+                f"DeepEval evaluator cannot serialize the metric instance '{_metric_name(self.metric)}'. "
+                f"Use one of the built-in metrics defined by 'DeepEvalMetric' to serialize the component"
+            )
+            raise DeserializationError(msg)
 
         if not check_serializable(self.metric_params):
             msg = "DeepEval evaluator cannot serialize the metric parameters"
@@ -150,6 +219,14 @@ class DeepEvalEvaluator:
         """
         Initialize the DeepEval backend.
         """
+        self._backend_callable = DeepEvalEvaluator._invoke_deepeval
+
+        if isinstance(self.metric, BaseMetric):
+            # Metrics provided by the user are already initialized, so we use them as-is
+            # instead of instantiating the backend ourselves.
+            self._backend_metric = self.metric
+            return
+
         if self.descriptor.init_parameters is not None:
             if self.metric_params is None:
                 msg = f"DeepEval metric '{self.metric}' expected init parameters but got none"
@@ -166,4 +243,3 @@ class DeepEvalEvaluator:
         # This shouldn't matter at all as we aren't asserting the outputs, but just in case...
         backend_metric_params["threshold"] = 0.0
         self._backend_metric = self.descriptor.backend(**backend_metric_params)
-        self._backend_callable = DeepEvalEvaluator._invoke_deepeval
