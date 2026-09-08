@@ -4,7 +4,7 @@
 
 | Name                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/websearch/linkup/linkup\_websearch.py |       56 |        0 |       16 |        2 |     97% |77-\>exit, 179-\>172 |
+| src/haystack\_integrations/components/websearch/linkup/linkup\_websearch.py |       56 |        0 |       16 |        2 |     97% |77-\>exit, 181-\>174 |
 | **TOTAL**                                                                   |   **56** |    **0** |   **16** |    **2** | **97%** |           |
 
 
