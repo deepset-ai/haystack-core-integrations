@@ -87,6 +87,15 @@ class TestNimBackend:
         assert backend.session.headers["authorization"] == "Bearer fake-api-key"
         assert backend.timeout == REQUEST_TIMEOUT
 
+    def test_close(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        backend = NimBackend(model="custom-model", api_url="http://localhost:8000")
+
+        with patch.object(backend.session, "close") as mock_close:
+            backend.close()
+
+        mock_close.assert_called_once_with()
+
     def test_init_with_client_enum(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         backend = NimBackend(model="custom-model", api_url="http://localhost:8000", client=Client.NVIDIA_TEXT_EMBEDDER)

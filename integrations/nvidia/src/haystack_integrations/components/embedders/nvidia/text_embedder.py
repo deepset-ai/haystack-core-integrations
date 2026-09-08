@@ -80,8 +80,7 @@ class NvidiaTextEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Any | None = None
-        self._initialized = False
+        self.backend: NimBackend | None = None
 
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
@@ -123,7 +122,7 @@ class NvidiaTextEmbedder:
         """
         Initializes the component.
         """
-        if self._initialized:
+        if self.backend is not None:
             return
 
         model_kwargs = {"input_type": "query"}
@@ -138,13 +137,17 @@ class NvidiaTextEmbedder:
             timeout=self.timeout,
             client=Client.NVIDIA_TEXT_EMBEDDER,
         )
-        self._initialized = True
-
         if not self.model:
             if self.backend.model:
                 self.model = self.backend.model
             else:
                 self.default_model()
+
+    def close(self) -> None:
+        """Close the backend and release its resources."""
+        if self.backend is not None:
+            self.backend.close()
+            self.backend = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -202,8 +205,7 @@ class NvidiaTextEmbedder:
         :raises ValueError:
             If the input string is empty.
         """
-        if not self._initialized:
-            self.warm_up()
+        self.warm_up()
 
         if not isinstance(text, str):
             msg = (

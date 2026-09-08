@@ -97,8 +97,7 @@ class NvidiaDocumentEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Any | None = None
-        self._initialized = False
+        self.backend: NimBackend | None = None
 
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
@@ -134,7 +133,7 @@ class NvidiaDocumentEmbedder:
         """
         Initializes the component.
         """
-        if self._initialized:
+        if self.backend is not None:
             return
 
         model_kwargs = {"input_type": "passage"}
@@ -152,10 +151,14 @@ class NvidiaDocumentEmbedder:
         if not self.model and self.backend.model:
             self.model = self.backend.model
 
-        self._initialized = True
-
         if not self.model:
             self.default_model()
+
+    def close(self) -> None:
+        """Close the backend and release its resources."""
+        if self.backend is not None:
+            self.backend.close()
+            self.backend = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -250,8 +253,7 @@ class NvidiaDocumentEmbedder:
         :raises TypeError:
             If the input is not a list of Documents.
         """
-        if not self._initialized:
-            self.warm_up()
+        self.warm_up()
 
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (

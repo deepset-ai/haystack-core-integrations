@@ -13,7 +13,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
-from openai import AsyncOpenAI, OpenAIError
+from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
@@ -123,19 +123,8 @@ class TestNvidiaChatGenerator:
         assert component.model == "meta/llama-3.1-8b-instruct"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
-
-    def test_warm_up(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
-        component = NvidiaChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = NvidiaChatGenerator()
-            component.warm_up()
+        assert component.client is None
+        assert component.async_client is None
 
     def test_init_with_parameters(self):
         component = NvidiaChatGenerator(
@@ -174,6 +163,94 @@ class TestNvidiaChatGenerator:
         for key, value in expected_params.items():
             assert data["init_parameters"][key] == value
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_NVIDIA_API_KEY", raising=False)
+        component = NvidiaChatGenerator(api_key=Secret.from_env_var("MISSING_NVIDIA_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_NVIDIA_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack.components.generators.chat.openai.OpenAI")
+    def test_sync_lifecycle(self, mock_openai):
+        component = NvidiaChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_openai.return_value
+
+        component.warm_up()
+        assert component.client is client
+        assert component.async_client is None
+
+        component.close()
+        client.close.assert_called_once_with()
+        assert component.client is None
+
+        component.warm_up()
+        assert mock_openai.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("haystack.components.generators.chat.openai.AsyncOpenAI")
+    async def test_async_lifecycle(self, mock_async_openai):
+        component = NvidiaChatGenerator(api_key=Secret.from_token("test-api-key"))
+        client = mock_async_openai.return_value
+        client.close = AsyncMock()
+
+        await component.warm_up_async()
+        assert component.async_client is client
+        assert component.client is None
+
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component.async_client is None
+
+        await component.warm_up_async()
+        assert mock_async_openai.call_count == 2
+
+    @patch("haystack.components.generators.chat.openai.OpenAI")
+    def test_warm_up_is_idempotent(self, mock_openai):
+        component = NvidiaChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        component.warm_up()
+        mock_openai.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("haystack.components.generators.chat.openai.AsyncOpenAI")
+    async def test_warm_up_async_is_idempotent(self, mock_async_openai):
+        component = NvidiaChatGenerator(api_key=Secret.from_token("test-api-key"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_async_openai.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_is_safe_without_warm_up(self):
+        component = NvidiaChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.close()
+        await component.close_async()
+        assert component.client is None
+        assert component.async_client is None
+
+    @pytest.mark.asyncio
+    @patch("haystack.components.generators.chat.openai.AsyncOpenAI")
+    @patch("haystack.components.generators.chat.openai.OpenAI")
+    async def test_close_and_close_async_are_independent(self, mock_openai, mock_async_openai):
+        sync_client = mock_openai.return_value
+        async_client = mock_async_openai.return_value
+        async_client.close = AsyncMock()
+        component = NvidiaChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.warm_up()
+        await component.warm_up_async()
+
+        component.close()
+        assert component.client is None
+        assert component.async_client is async_client
+        async_client.close.assert_not_awaited()
+
+        await component.close_async()
+        assert component.async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestRun:
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         component = NvidiaChatGenerator()
@@ -470,18 +547,7 @@ class TestNvidiaChatGenerator:
         assert "Toolset" in tool_types
 
 
-class TestNvidiaChatGeneratorAsync:
-    @pytest.mark.asyncio
-    async def test_warm_up_async(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
-        component = NvidiaChatGenerator()
-        if hasattr(component, "warm_up_async"):
-            # haystack-ai >= 3.0 creates the async client during async warm-up
-            await component.warm_up_async()
-
-        assert isinstance(component.async_client, AsyncOpenAI)
-        assert component.async_client.api_key == "test-api-key"
-
+class TestAsyncRun:
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")

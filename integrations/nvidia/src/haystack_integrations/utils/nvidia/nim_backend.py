@@ -38,9 +38,6 @@ class NimBackend:
         if api_key:
             headers["authorization"] = f"Bearer {api_key.resolve_value()}"
 
-        self.session = requests.Session()
-        self.session.headers.update(headers)
-
         self.api_url = api_url
         # Hosted ranking models are assigned a per-model endpoint that already includes the
         # full path (e.g. ".../nv-rerankqa-mistral-4b-v3/reranking"), unlike other hosted
@@ -79,6 +76,12 @@ class NimBackend:
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", REQUEST_TIMEOUT))
         self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update(headers)
+
+    def close(self) -> None:
+        """Close the HTTP session owned by this backend."""
+        self.session.close()
 
     def embed(self, texts: list[str]) -> tuple[list[list[float]], dict[str, Any]]:
         """Compute embeddings for a list of texts via the NIM API."""
