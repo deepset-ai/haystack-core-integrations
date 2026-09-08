@@ -157,13 +157,16 @@ class ConfigurationWorkspace:
         if content_digest(self._read()) != expected_revision:
             msg = "Stale revision: read_config again before editing."
             raise ValueError(msg)
-        # Replace the directory entry atomically, rather than following a possible file symlink on write.
+        self._overwrite(text)
+        self.validated_revision = None
+        return {"revision": content_digest(text)}
+
+    def _overwrite(self, text: str) -> None:
+        """Replace the directory entry atomically, rather than following a possible file symlink on write."""
         temporary = self.path.with_suffix(".tmp")
         with temporary.open("x", encoding="utf-8") as stream:
             stream.write(text)
         os.replace(temporary, self.path)
-        self.validated_revision = None
-        return {"revision": content_digest(text)}
 
     def read_config(self) -> dict[str, str]:
         """Read the entire editable YAML and its revision for subsequent edits."""
@@ -271,12 +274,25 @@ class ConfigurationWorkspace:
                 self.finish_reason = reason
             return "Finished."
 
-    def begin_turn(self) -> None:
-        """Continue from the last submitted candidate while retaining all restore points."""
-        if self.submitted is not None:
-            self.parent_id = self.submitted.candidate_id
-        self.submitted = None
-        self.validated_revision = None
+    def begin_turn(self, base_id: str | None = None) -> None:
+        """
+        Continue from a chosen base, retaining every restore point.
+
+        :param base_id: Snapshot the next edits start from. Without one the turn continues from whatever was
+            submitted last, which makes a run that regresses carry the regression into everything after it: each
+            edit lands on the previous attempt rather than on the best one, so a search can spend its budget
+            walking away from a configuration it already found. Passing the best measured candidate makes the
+            default a climb instead.
+        """
+        with self._lock:
+            if base_id is not None and base_id in self.snapshots:
+                if self._read() != self.snapshots[base_id]:
+                    self._overwrite(self.snapshots[base_id])
+                self.parent_id = base_id
+            elif self.submitted is not None:
+                self.parent_id = self.submitted.candidate_id
+            self.submitted = None
+            self.validated_revision = None
 
     def tools(self) -> list[Tool]:
         """Build the small tool interface bound to this workspace."""

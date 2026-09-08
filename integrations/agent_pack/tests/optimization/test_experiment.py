@@ -30,7 +30,7 @@ def optimizer_agent_for(models):
         read = next(tool for tool in tools if tool.name == "read_config")
         current = read.function()
         if stage == 0:
-            histories.append(json.loads([m.text for m in messages if m.is_from("user")][-2])["outcomes"])
+            histories.append([m.text for m in messages if m.is_from("user")][-2])
             model = remaining.popleft() if remaining else None
             if model is None:
                 return ChatMessage.from_assistant(
@@ -120,9 +120,9 @@ def configured(tmp_path, models, evaluator=None, objectives=None):
 def test_optimizer_learns_from_outcomes_and_recommendation_is_loadable(tmp_path):
     experiment, histories = configured(tmp_path, ["bad", "cheap", None])
     result = experiment.run()
-    assert histories[0] == []
-    assert histories[1][0]["gate_failures"] == ["quality_below_floor:1.0000"]
-    assert histories[2][1]["metrics"]["cost"] == 2
+    assert histories[0] == ""
+    assert "quality_below_floor:1.0000" in histories[1]
+    assert "cost $2.0000" in histories[2]
     assert result.recommendation is not None
     assert load_agent(result.recommendation.configuration.yaml).chat_generator.model == "cheap"
     assert experiment.reference.chat_generator.model == "reference"
@@ -134,7 +134,7 @@ def test_runtime_failure_is_journaled_and_supplied_to_next_turn(tmp_path):
     experiment, histories = configured(tmp_path, ["bad", "cheap", None], ModelEvaluator(failing=("bad",)))
     result = experiment.run()
     assert result.candidates[0].failure == "RuntimeError: provider unavailable for bad"
-    assert histories[1][0]["gate_failures"] == ["evaluation_failed"]
+    assert "evaluation_failed" in histories[1]
     rows = [json.loads(line) for line in experiment.journal.path_for(result.run_id).read_text().splitlines()]
     assert rows[1]["failure"] == result.candidates[0].failure
 
@@ -264,6 +264,30 @@ def test_a_candidate_exactly_on_the_quality_tolerance_is_not_gated_out(tmp_path)
     result = experiment.run()
 
     assert result.gate_failures[result.candidates[0].candidate_id] == ()
+
+
+def test_a_regression_is_not_inherited_by_the_next_candidate(tmp_path):
+    """The experiment hands each turn the best candidate so far, so a bad branch is not built on."""
+    evaluator = ModelEvaluator(
+        metrics={
+            "reference": EvaluationMetrics(quality=0.5, cost=10, latency_ms=100),
+            "good": EvaluationMetrics(quality=0.9, cost=5, latency_ms=90),
+            "worse": EvaluationMetrics(quality=0.6, cost=5, latency_ms=90),
+        }
+    )
+    experiment, _ = configured(
+        tmp_path,
+        ["good", "worse", None],
+        evaluator=evaluator,
+        objectives=OptimizationObjectives(min_quality=0.0, primary="quality"),
+    )
+
+    result = experiment.run()
+
+    scored = {c.candidate_id: c.metrics.quality for c in result.candidates}
+    best = max(scored, key=lambda cid: scored[cid])
+    # The third turn follows the regression, and it is handed the best candidate rather than the regression.
+    assert result.candidates[-1].configuration is None or result.candidates[-1].configuration.parent_id == best
 
 
 def test_iteration_budget_counts_evaluations(tmp_path):

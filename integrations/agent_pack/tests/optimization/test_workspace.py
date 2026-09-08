@@ -164,3 +164,40 @@ def test_replace_retriever_with_bm25_ranker_pipeline_and_repair_connection(tmp_p
     tool = load_agent(workspace.submitted.yaml).tools[-1]
     assert tool.invoke(query="Berlin")["documents"][0].id == document.id
     assert tool.outputs_to_state["documents"]["source"] == "documents"
+
+
+def test_a_turn_can_rebase_on_the_best_candidate_rather_than_the_last(tmp_path):
+    """A search that always edits its last attempt carries a regression into everything after it."""
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+
+    current = workspace.read_config()
+    good = workspace.edit_config("model: reference", "model: good", current["revision"])
+    workspace.validate_config()
+    best = workspace.submit_candidate(good["revision"], "the one that scored well")["candidate_id"]
+
+    workspace.begin_turn()
+    current = workspace.read_config()
+    worse = workspace.edit_config("model: good", "model: worse", current["revision"])
+    workspace.validate_config()
+    workspace.submit_candidate(worse["revision"], "a regression")
+
+    # Without a base the next turn would continue from the regression.
+    workspace.begin_turn()
+    assert "model: worse" in workspace.read_config()["yaml"]
+
+    # Naming the best candidate rebases the file and the ancestry onto it.
+    workspace.begin_turn(base_id=best)
+    assert "model: good" in workspace.read_config()["yaml"]
+    assert workspace.read_config()["parent_id"] == best
+
+    # Every earlier snapshot is still reachable.
+    workspace.restore_candidate("reference", workspace.read_config()["revision"])
+    assert "model: reference" in workspace.read_config()["yaml"]
+
+
+def test_rebasing_on_an_unknown_candidate_falls_back_rather_than_failing(tmp_path):
+    workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+
+    workspace.begin_turn(base_id="never-measured")
+
+    assert workspace.read_config()["parent_id"] == workspace.reference_id

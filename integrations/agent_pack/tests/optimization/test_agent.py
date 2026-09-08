@@ -112,10 +112,10 @@ def test_optimizer_repairs_yaml_before_submitting(tmp_path):
 def test_the_optimizer_is_told_how_many_measurements_remain(tmp_path):
     """A submission costs a full pass over the evaluation set, so the budget has to be visible to economize."""
     workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
-    seen = {}
+    seen = []
 
     def respond(messages):
-        seen.update(json.loads(messages[1].text))
+        seen.append([message.text or "" for message in messages])
         return ChatMessage.from_assistant("done")
 
     propose_candidate(
@@ -132,7 +132,11 @@ def test_the_optimizer_is_told_how_many_measurements_remain(tmp_path):
         remaining_evaluations=3,
     )
 
-    assert seen["remaining_evaluations"] == 3
+    stable, _outcomes, volatile = seen[0][1], seen[0][2], seen[0][3]
+    # The budget changes every turn, so it belongs in the volatile message and not in the cacheable prefix.
+    assert "3 evaluations remain" in volatile
+    assert "3 evaluations remain" not in stable
+    assert "## Objectives" in stable
 
 
 def test_only_the_most_recently_measured_configuration_is_described_case_by_case(tmp_path):
@@ -149,7 +153,7 @@ def test_only_the_most_recently_measured_configuration_is_described_case_by_case
     seen = []
 
     def respond(messages):
-        seen.append(json.loads(messages[1].text)["baseline"]["details"])
+        seen.append(json.loads(messages[1].text.split("## Reference measurement")[1].strip()))
         return ChatMessage.from_assistant("done")
 
     def propose(history):
@@ -170,9 +174,9 @@ def test_only_the_most_recently_measured_configuration_is_described_case_by_case
     propose(history=[{"candidate_id": "c1", "metrics": None}])
 
     first, later = seen
-    assert [case["passed"] for case in first["cases"]] == [True, False]
-    assert "cases" not in later
-    assert later["case_summary"] == {"cases": 2, "passed": 1, "failures": {"r": 1}}
+    assert [case["passed"] for case in first["details"]["cases"]] == [True, False]
+    assert "cases" not in later["details"]
+    assert later["details"]["case_summary"] == {"cases": 2, "passed": 1, "failures": {"r": 1}}
     # The measurement itself is untouched; only what the request carries changes.
     assert baseline.details["cases"][0]["passed"] is True
 

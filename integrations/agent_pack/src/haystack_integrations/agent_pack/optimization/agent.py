@@ -5,6 +5,7 @@
 """The Agent that chooses optimization experiments and the requests made to it."""
 
 import json
+import re
 from importlib.metadata import distributions
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +17,6 @@ from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import Toolset, flatten_tools_or_toolsets, warm_up_tools
-from haystack.utils import _serialize_value_with_schema
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization.models import (
@@ -29,9 +29,9 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     Optimizable,
 )
 from haystack_integrations.agent_pack.run_digest import (
+    CASE_SUMMARY_KEY,
     RunDigestPolicy,
     digest_agent_run,
-    strip_run_digests,
     summarize_case_details,
 )
 
@@ -64,7 +64,13 @@ only when you can say what you considered and why none of it is worth measuring 
 argument, and ending the search is the one decision the experiment cannot revisit.
 Plain text does not submit a candidate. Invalid drafts and duplicates do not spend evaluation slots, but editing
 steps are bounded. Edits continue from the last submitted candidate. Use restore_candidate with a history ID or
-'reference' to start from a different base. Once a candidate passes the gates, vary one thing at a time against it.
+'reference' to start from a different base.
+
+Each turn starts from the best candidate measured so far, not from whatever was tried last, so a variation that
+regresses is not inherited by the next one and you are always varying against the best known configuration. Vary
+one thing at a time against it. Use restore_candidate to leave that base deliberately rather than to climb back
+to it: to retry a structural change whose parameters were wrong rather than its shape, or to return to
+'reference' and take a different direction entirely when a line of variations has stopped paying.
 Combine changes when they need to move together, and combine the change you are measuring with cleanups that cannot
 plausibly interact with it: `remaining_evaluations` counts submissions and each one costs a full pass over the
 evaluation set. Removing an unused tool also removes its schema from model input.
@@ -231,6 +237,77 @@ def _tool_specifications(reference: Optimizable) -> list[dict[str, Any]]:
         return []
 
 
+def _fenced(text: str, language: str = "") -> str:
+    """
+    Wrap text in a fence long enough that nothing inside can close it early.
+
+    :param text: Content to fence, reproduced exactly.
+    :param language: Optional language hint for the opening fence.
+    :returns: The fenced block.
+    """
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}{language}\n{text}\n{fence}"
+
+
+def _section(title: str, body: str) -> str:
+    """Render one titled section, or nothing when there is no body."""
+    return f"## {title}\n\n{body}\n\n" if body else ""
+
+
+def _headline(metrics: dict[str, Any] | None) -> str:
+    """
+    Reduce one outcome's measurement to what a reader compares across candidates.
+
+    An earlier candidate is read to decide what to try next, and that decision turns on how it scored and what it
+    failed, not on its token counts. The most recent outcome is sent separately in full.
+
+    :param metrics: The candidate's measurement, or None when it could not be measured.
+    :returns: A single line of headline numbers.
+    """
+    if metrics is None:
+        return "not measured"
+    details = metrics.get("details") or {}
+    parts = [f"quality {metrics.get('quality'):.3f}" if metrics.get("quality") is not None else "quality unknown"]
+    cost = metrics.get("cost")
+    parts.append("cost unpriced" if cost is None else f"cost ${cost:.4f}")
+    for key in ("mean_recall", "mean_precision", "mean_retrieved", "mean_queries"):
+        if key in details:
+            parts.append(f"{key.removeprefix('mean_')} {details[key]:.2f}")
+    if (summary := details.get(CASE_SUMMARY_KEY)) is not None:
+        parts.append(f"{summary.get('passed')}/{summary.get('cases')} cases clean")
+        if failures := summary.get("failures"):
+            parts.append("failures " + ", ".join(f"{name} x{count}" for name, count in failures.items()))
+    if details.get("usage_complete") is False:
+        parts.append("usage incomplete")
+    for warning in details.get("warnings") or []:
+        parts.append(f"warning x{warning['count']}: {warning['message']}")
+    return " | ".join(parts)
+
+
+def _render_outcomes(history: list[dict[str, Any]]) -> str:
+    """
+    Render every measured candidate as a readable entry, newest last.
+
+    :param history: Prior candidate outcomes.
+    :returns: One section per candidate.
+    """
+    entries = []
+    for position, entry in enumerate(history, start=1):
+        parent = (entry.get("parent_id") or "reference")[:12]
+        gates = ", ".join(entry.get("gate_failures") or ()) or "passed"
+        lines = [f"### {position}. `{entry['candidate_id'][:12]}` from `{parent}` — gates {gates}"]
+        lines.append(_headline(entry.get("metrics")))
+        if failure := entry.get("failure"):
+            lines.append(f"failed to evaluate: {failure}")
+        if rationale := entry.get("rationale"):
+            lines.append(f"hypothesis: {rationale}")
+        if diff := entry.get("diff"):
+            lines.append(_fenced(diff.rstrip(), "diff"))
+        entries.append("\n\n".join(lines))
+    return "\n\n".join(entries)
+
+
 def propose_candidate(
     optimizer_agent: Agent,
     workspace: ConfigurationWorkspace,
@@ -243,6 +320,7 @@ def propose_candidate(
     digest_policy: RunDigestPolicy | None = None,
     history_digest_window: int = 1,
     remaining_evaluations: int | None = None,
+    base_id: str | None = None,
 ) -> CandidateConfiguration | None:
     """
     Let the optimizer edit, validate and submit one YAML candidate.
@@ -260,29 +338,55 @@ def propose_candidate(
     :param remaining_evaluations: How many candidates, including this one, the experiment can still measure. A
         submission costs one pass over the whole evaluation set, so without this the optimizer cannot tell a
         measurement it can afford to spend on one small change from its last remaining one.
+    :param base_id: Candidate this turn's edits start from. Defaults to whatever was submitted last.
     :returns: Submitted snapshot, or None after finish or exhaustion of the proposal step budget.
     """
-    workspace.begin_turn()
-    request = {
-        "known_model_prices": pricing.to_dict(),
-        "objectives": objectives.to_dict(),
-        "remaining_evaluations": remaining_evaluations,
-        # Exactly one configuration is described case by case: the most recently measured one. On the first turn
-        # that is the reference, because nothing else has been measured yet. Afterwards it is the last candidate,
-        # which `recent_outcomes_in_detail` carries, and re-sending the reference's listing every turn would spend
-        # the budget describing a configuration that has since been superseded. How the reference behaved is not
-        # lost with it: `reference_runs` carries its recorded runs separately.
-        "baseline": baseline.to_dict() if not history else summarize_case_details(payload=baseline.to_dict()),
-        "available_tools": _tool_specifications(reference=reference),
-        "reference_runs": [
-            {
-                "inputs": _serialize_value_with_schema(payload=record.inputs)["serialized_data"],
-                "outputs": digest_agent_run(result=record.outputs, policy=digest_policy),
-            }
-            for record in reference_runs[:3]
-        ],
-    }
-    context_text = json.dumps(request, default=str)
+    workspace.begin_turn(base_id=base_id)
+    configuration = workspace.read_config()
+    # Three messages in order of how often they change, so the stable ones stay a reusable cached prefix: what is
+    # being optimized and how it is judged never changes, the outcomes only ever gain an entry, and everything
+    # that differs every turn is last.
+    context = "".join(
+        [
+            _section("Objectives", json.dumps(objectives.to_dict())),
+            _section("Known model prices", json.dumps(pricing.to_dict())),
+            _section("Tools available to the reference", json.dumps(_tool_specifications(reference=reference))),
+            _section(
+                "How the reference behaved",
+                "\n\n".join(
+                    _fenced(json.dumps(digest_agent_run(result=record.outputs, policy=digest_policy), default=str))
+                    for record in reference_runs[:3]
+                    if record.outputs
+                ),
+            ),
+            # Described case by case only while it is the only thing measured; once a candidate exists, the most
+            # recent one is the configuration worth reading in that much detail.
+            _section(
+                "Reference measurement",
+                json.dumps(baseline.to_dict() if not history else summarize_case_details(payload=baseline.to_dict())),
+            ),
+        ]
+    )
+    outcomes = _section("Outcomes so far", _render_outcomes(history=summarize_case_details(payload=history)))
+    recent = history[-history_digest_window:] if history_digest_window > 0 else []
+    current = "".join(
+        [
+            _section(
+                "Budget",
+                "unknown"
+                if remaining_evaluations is None
+                else f"{remaining_evaluations} evaluations remain, including this one.",
+            ),
+            _section("Most recent outcome in full", "\n\n".join(json.dumps(entry, default=str) for entry in recent)),
+            _section(
+                "candidate.yaml",
+                f"revision `{configuration['revision']}`, edited from `{configuration['parent_id'][:12]}`\n\n"
+                # Reproduced as a fenced block rather than a JSON string: this is the text the editing tools match
+                # against, and a JSON string would show it with its newlines and quotes escaped.
+                + _fenced(configuration["yaml"], "yaml"),
+            ),
+        ]
+    )
     # Avoid serializing file-bound callables or cloning generator clients.
     agent = Agent(
         chat_generator=optimizer_agent.chat_generator,
@@ -294,29 +398,11 @@ def propose_candidate(
     )
     result = agent.run(
         messages=[
-            ChatMessage.from_user(text=context_text),
-            ChatMessage.from_user(
-                text=json.dumps(
-                    {"outcomes": summarize_case_details(payload=strip_run_digests(payload=history))}, default=str
-                )
-            ),
-            ChatMessage.from_user(
-                text=json.dumps(
-                    {
-                        "recent_outcomes_in_detail": history[-history_digest_window:]
-                        if history_digest_window > 0
-                        else [],
-                        "workspace": workspace.read_config(),
-                    },
-                    default=str,
-                )
-            ),
+            ChatMessage.from_user(text=context),
+            ChatMessage.from_user(text=outcomes),
+            ChatMessage.from_user(text=current),
         ]
     )
-    # What the turn spent, and on what. The journal records the diff a turn produced but nothing about how it got
-    # there, so without this there is no way to tell an optimizer that considered a change and rejected it from one
-    # that never looked. `exit_reason` matters on its own: a turn that ends on max_agent_steps without submitting
-    # stops the whole experiment, not just itself.
     logger.info(
         "optimizer turn: steps={steps}/{budget} exit={exit_reason} calls={calls} usage={usage}",
         steps=result.get("step_count"),

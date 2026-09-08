@@ -271,6 +271,7 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg)
         outcomes: list[CandidateEvaluation] = []
         history: list[dict[str, Any]] = []
+        best_id: str | None = None
         optimizer_usage: dict[str, ModelTokenUsage] = {}
         optimizer_tracer = UsageTracer()
         while len(outcomes) < self.max_iterations:
@@ -289,6 +290,7 @@ class HarnessOptimizationExperiment:
                     digest_policy=self.digest_policy,
                     history_digest_window=self.history_digest_window,
                     remaining_evaluations=self.max_iterations - len(outcomes),
+                    base_id=best_id,
                 )
             for model, tokens in turn_usage.models.items():
                 current = optimizer_usage.get(model, ModelTokenUsage())
@@ -353,6 +355,10 @@ class HarnessOptimizationExperiment:
                     "gate_failures": self._gate_failures(priced, baseline),
                 }
             )
+            # The next turn edits the best configuration measured so far rather than the one just tried, so a
+            # regression is not inherited by everything after it.
+            eligible = [outcome for outcome in outcomes if not self._gate_failures(outcome, baseline)]
+            best_id = min(eligible, key=self._candidate_rank).candidate_id if eligible else None
             logger.info(
                 "candidate {position}/{total}: {candidate_id}, gates={gates}",
                 position=len(outcomes),
