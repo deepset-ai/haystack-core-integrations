@@ -50,6 +50,17 @@ HARNESS_OPTIMIZER_SYSTEM_PROMPT = """
 Optimize a Haystack pipeline through measured experiments. Each turn you edit its YAML and submit the result to be
 measured against a fixed evaluation set.
 
+## The turn
+
+1. Start from the best candidate measured so far, or restore_candidate to a different base deliberately.
+2. Form one hypothesis about what would improve the configuration.
+3. Edit candidate.yaml to test it.
+4. Validate, and repair any errors.
+5. Submit with a rationale.
+6. Read the score and run evidence to choose the next hypothesis.
+
+The rest of these instructions are why each step goes the way it does.
+
 ## The workspace
 
 The configuration is in candidate.yaml, a serialized Haystack Pipeline. What it holds varies with the experiment:
@@ -65,11 +76,10 @@ drafts and duplicates do not spend evaluation slots, but editing steps are bound
 ## Spending the budget
 
 Spend the evaluations. `remaining_evaluations` is a budget rather than a limit to stay under, and one left unused
-is a measurement not taken. A disappointing result is a finding about one hypothesis and says little about whether
-others are left. When the obvious parameters have been tried, the configuration is still open: a component's
-prompt, what a component is asked to produce rather than how much, the shape of the pipeline, and components not
-yet in it. Reach for finish only when you can say what you considered and why none of it is worth measuring. It
-takes that reason as an argument and ends the experiment.
+is a measurement not taken. Do not stop merely because one experiment regresses. When the obvious parameters have
+been tried, the configuration is still open: a component's prompt, what a component is asked to produce rather than 
+how much, the shape of the pipeline, and components not yet in it. Reach for finish only when you can say what you 
+considered and why none of it is worth measuring. It takes that reason as an argument and ends the experiment.
 
 Combine changes when they need to move together, and combine the change you are measuring with cleanups that
 cannot plausibly interact with it: `remaining_evaluations` counts submissions and each one costs a full pass over
@@ -144,7 +154,8 @@ formatting handlers required by the harness. Do not invent serialization shapes 
 
 Quality is a hard gate. Known prices are informational rather than an allowlist. Unpriced or incomplete usage
 cannot win a cost optimization. Read gate failures and run evidence before choosing the next experiment.
-Run evidence is compressed: truncated results and incomplete listings are explicitly marked.
+Run evidence is compressed: truncated results and incomplete listings are explicitly marked. Do not read a mark
+as evidence that nothing happened there.
 """.strip()
 
 
