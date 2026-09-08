@@ -67,6 +67,7 @@ def test_to_dict(monkeypatch):
                     }
                 ],
             },
+            "include_search_metadata": False,
         },
     }
 
@@ -130,8 +131,21 @@ def test_to_dict_with_params(monkeypatch):
                     }
                 ],
             },
+            "include_search_metadata": False,
         },
     }
+
+
+def test_to_dict_round_trip_preserves_include_search_metadata(monkeypatch):
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
+
+    document_store = AzureAISearchDocumentStore(include_search_metadata=True)
+
+    assert document_store.to_dict()["init_parameters"]["include_search_metadata"] is True
+
+    reloaded = AzureAISearchDocumentStore.from_dict(document_store.to_dict())
+    assert reloaded._include_search_metadata is True
 
 
 def test_to_dict_emits_warning_when_token_credential_is_used(
