@@ -230,7 +230,7 @@ class TestRun:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -266,7 +266,7 @@ class TestRun:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -531,7 +531,7 @@ class TestAsyncRun:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -557,7 +557,7 @@ class TestAsyncRun:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert counter > 1
