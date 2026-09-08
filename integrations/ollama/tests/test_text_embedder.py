@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -17,6 +17,8 @@ class TestOllamaTextEmbedder:
         assert embedder.generation_kwargs == {}
         assert embedder.url == "http://localhost:11434"
         assert embedder.model == "nomic-embed-text"
+        assert embedder._client is None
+        assert embedder._async_client is None
 
     def test_init(self):
         embedder = OllamaTextEmbedder(
@@ -71,37 +73,37 @@ class TestOllamaTextEmbedder:
         embedder = OllamaTextEmbedder(dimensions=256)
         assert embedder.dimensions == 256
 
-    def test_dimensions_passed_to_embed_client(self):
-
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    def test_dimensions_passed_to_embed_client(self, mock_client_cls):
         embedder = OllamaTextEmbedder(dimensions=256)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        embedder._client.embed = MagicMock(return_value=mock_response)
+        mock_client_cls.return_value.embed.return_value = mock_response
 
         embedder.run(text="hello world")
 
-        call_kwargs = embedder._client.embed.call_args.kwargs
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
         assert call_kwargs["dimensions"] == 256
 
-    def test_none_dimensions_passed_to_embed_client(self):
-
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    def test_none_dimensions_passed_to_embed_client(self, mock_client_cls):
         embedder = OllamaTextEmbedder(dimensions=None)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        embedder._client.embed = MagicMock(return_value=mock_response)
+        mock_client_cls.return_value.embed.return_value = mock_response
 
         embedder.run(text="hello")
 
-        call_kwargs = embedder._client.embed.call_args.kwargs
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
         assert call_kwargs["dimensions"] is None
 
-    def test_dimensions_passed_to_async_embed_client(self):
-
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.AsyncClient")
+    def test_dimensions_passed_to_async_embed_client(self, mock_client_cls):
         embedder = OllamaTextEmbedder(dimensions=128)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
-        embedder._async_client.embed = AsyncMock(return_value=mock_response)
+        mock_client_cls.return_value.embed = AsyncMock(return_value=mock_response)
 
         asyncio.run(embedder.run_async(text="hello"))
 
-        call_kwargs = embedder._async_client.embed.call_args.kwargs
+        call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
         assert call_kwargs["dimensions"] == 128
 
     def test_to_dict_contains_dimensions(self):
@@ -144,3 +146,75 @@ class TestOllamaTextEmbedder:
         }
         embedder = default_from_dict(OllamaTextEmbedder, embedder_dict)
         assert embedder.dimensions == 256
+
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    def test_sync_lifecycle(self, mock_client_cls):
+        embedder = OllamaTextEmbedder()
+        client = mock_client_cls.return_value
+
+        embedder.warm_up()
+        assert embedder._client is client
+        assert embedder._async_client is None
+
+        embedder.close()
+        client.close.assert_called_once_with()
+        assert embedder._client is None
+
+        embedder.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.AsyncClient")
+    async def test_async_lifecycle(self, mock_client_cls):
+        embedder = OllamaTextEmbedder()
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await embedder.warm_up_async()
+        assert embedder._async_client is client
+        assert embedder._client is None
+
+        await embedder.close_async()
+        client.close.assert_awaited_once_with()
+        assert embedder._async_client is None
+
+        await embedder.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        embedder = OllamaTextEmbedder()
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_client_cls.assert_called_once_with(host=embedder.url, timeout=embedder.timeout)
+
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.AsyncClient")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        embedder = OllamaTextEmbedder()
+        await embedder.warm_up_async()
+        await embedder.warm_up_async()
+        mock_client_cls.assert_called_once_with(host=embedder.url, timeout=embedder.timeout)
+
+    async def test_close_is_safe_without_warm_up(self):
+        embedder = OllamaTextEmbedder()
+        embedder.close()
+        await embedder.close_async()
+        assert embedder._client is None
+        assert embedder._async_client is None
+
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.AsyncClient")
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
+        embedder = OllamaTextEmbedder()
+        mock_async_cls.return_value.close = AsyncMock()
+        embedder.warm_up()
+        await embedder.warm_up_async()
+
+        embedder.close()
+        mock_sync_cls.return_value.close.assert_called_once_with()
+        assert embedder._client is None
+        assert embedder._async_client is mock_async_cls.return_value
+
+        await embedder.close_async()
+        assert embedder._async_client is None

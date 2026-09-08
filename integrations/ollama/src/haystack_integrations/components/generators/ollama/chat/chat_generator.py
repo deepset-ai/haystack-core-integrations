@@ -318,8 +318,30 @@ class OllamaChatGenerator:
         self.think = think
         self.response_format = response_format
 
-        self._client = Client(host=self.url, timeout=self.timeout)
-        self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
+        self._client: Client | None = None
+        self._async_client: AsyncClient | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Ollama client."""
+        if self._client is None:
+            self._client = Client(host=self.url, timeout=self.timeout)
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Ollama client."""
+        if self._async_client is None:
+            self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
+
+    def close(self) -> None:
+        """Close the synchronous Ollama client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Ollama client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -543,6 +565,7 @@ class OllamaChatGenerator:
         is_stream: bool,
         generation_kwargs: dict[str, Any],
     ) -> ChatResponse | Iterator[ChatResponse]:
+        assert self._client is not None  # noqa: S101
         return self._client.chat(
             model=self.model,
             messages=messages,
@@ -568,6 +591,7 @@ class OllamaChatGenerator:
         is_stream: bool,
         generation_kwargs: dict[str, Any],
     ) -> ChatResponse | AsyncIterator[ChatResponse]:
+        assert self._async_client is not None  # noqa: S101
         return await self._async_client.chat(
             model=self.model,
             messages=messages,
@@ -609,6 +633,9 @@ class OllamaChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list of ChatMessages containing the model's response
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
 
         # Validate and select the streaming callback
@@ -667,6 +694,9 @@ class OllamaChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list of ChatMessages containing the model's response
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
 
         # Validate and select the streaming callback

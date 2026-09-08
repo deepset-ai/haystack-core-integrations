@@ -738,6 +738,8 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
         assert component.tools is None
         assert component.keep_alive is None
         assert component.response_format is None
+        assert component._client is None
+        assert component._async_client is None
 
     def test_init(self, tools):
         component = OllamaChatGenerator(
@@ -971,6 +973,78 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
         # Check that the Toolset contains the population tool
         assert len(tools_list[1]) == 1
         assert tools_list[1][0].name == "population"
+
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_sync_lifecycle(self, mock_client_cls):
+        generator = OllamaChatGenerator()
+        client = mock_client_cls.return_value
+
+        generator.warm_up()
+        assert generator._client is client
+        assert generator._async_client is None
+
+        generator.close()
+        client.close.assert_called_once_with()
+        assert generator._client is None
+
+        generator.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_async_lifecycle(self, mock_client_cls):
+        generator = OllamaChatGenerator()
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await generator.warm_up_async()
+        assert generator._async_client is client
+        assert generator._client is None
+
+        await generator.close_async()
+        client.close.assert_awaited_once_with()
+        assert generator._async_client is None
+
+        await generator.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        generator = OllamaChatGenerator()
+        generator.warm_up()
+        generator.warm_up()
+        mock_client_cls.assert_called_once_with(host=generator.url, timeout=generator.timeout)
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        generator = OllamaChatGenerator()
+        await generator.warm_up_async()
+        await generator.warm_up_async()
+        mock_client_cls.assert_called_once_with(host=generator.url, timeout=generator.timeout)
+
+    async def test_close_is_safe_without_warm_up(self):
+        generator = OllamaChatGenerator()
+        generator.close()
+        await generator.close_async()
+        assert generator._client is None
+        assert generator._async_client is None
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
+        generator = OllamaChatGenerator()
+        mock_async_cls.return_value.close = AsyncMock()
+        generator.warm_up()
+        await generator.warm_up_async()
+
+        generator.close()
+        mock_sync_cls.return_value.close.assert_called_once_with()
+        assert generator._client is None
+        assert generator._async_client is mock_async_cls.return_value
+
+        await generator.close_async()
+        assert generator._async_client is None
 
 
 class TestOllamaChatGeneratorRun:
