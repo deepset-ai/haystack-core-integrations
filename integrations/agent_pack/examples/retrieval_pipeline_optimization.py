@@ -13,8 +13,6 @@
 # scored directly against those IDs. Quality is the mean of the per-eval-case recall, so a configuration that finds
 # more of the evidence measures as better even while no eval case yet finds all of it.
 #
-# Retrieval is the whole configuration, so improving quality means changing the expansion or the retrieval path.
-#
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
 #     hatch run test:python examples/retrieval_pipeline_optimization.py
@@ -46,7 +44,6 @@ from haystack_integrations.agent_pack.optimization import (
     ModelPriceCatalog,
     OptimizationObjectives,
     create_harness_optimizer_agent,
-    create_haystack_documentation_mcp_toolset,
 )
 from haystack_integrations.agent_pack.optimization.agent import OPTIMIZER_PROMPT_CACHE_KEY
 from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
@@ -60,17 +57,6 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
     "gpt-5.6-terra": (2.00, 12.00),
     "gpt-5.6-luna": (0.20, 1.20),
 }
-
-# The reference is under-configured in the two places this pipeline has. One expansion of a multi-hop question
-# still asks one thing, and a question whose evidence is spread over several articles needs the retriever to
-# surface more than a couple of chunks. Neither limit is where the fix has to be: which of them matters, and
-# whether the retrieval path should be reranked rather than widened, is what the experiment is for.
-#
-# It also expands through `OpenAIChatGenerator`, on the completions endpoint, where a reasoning model runs without
-# the control the responses endpoint gives. Nothing about that fails, so it is easy to leave in place, and a
-# candidate that inherits the class rather than choosing it inherits the defect too.
-POOR_EXPANSIONS = 1
-POOR_TOP_K = 2
 
 _RETRIEVAL_OPTIMIZER_GUIDANCE = """
 The configuration is a one-shot retrieval pipeline, and retrieval is all of it. A question enters at the `query`
@@ -158,6 +144,10 @@ environment can import it, before spending a measurement on it.
 """.strip()
 
 
+POOR_EXPANSIONS = 1
+POOR_TOP_K = 2
+
+
 def build_reference_pipeline(store: DocumentStore, model: str) -> Pipeline:
     """
     Build the under-configured retrieval pipeline whose complete configuration will be optimized.
@@ -167,10 +157,13 @@ def build_reference_pipeline(store: DocumentStore, model: str) -> Pipeline:
     :returns: The reference pipeline.
     """
     pipeline = Pipeline()
+    # We purposely poorly configure the query expander, to see whether the optimizer can find a better configuration.
+    # In this case we use OpenAIChatGenerator instead of OpenAIResponsesChatGenerator, and we set  n_expansions to 1.
     pipeline.add_component(
         "expander",
         QueryExpander(chat_generator=OpenAIChatGenerator(model=model), n_expansions=POOR_EXPANSIONS),
     )
+    # The retriever is also poorly configured, with a top_k of 2.
     pipeline.add_component(
         "retriever", MultiQueryTextRetriever(retriever=build_bm25_retriever(store=store, top_k=POOR_TOP_K))
     )
@@ -389,7 +382,6 @@ def main() -> None:
     print(f"  recorded {len(cases)} questions")
 
     print("\n=== 3. optimization experiment ===")
-    docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
     evaluator = RetrievalHarnessEvaluator(cases=cases, max_concurrent_cases=arguments.max_concurrent_cases)
     experiment = HarnessOptimizationExperiment(
         reference=reference,
@@ -404,7 +396,7 @@ def main() -> None:
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
         optimizer_agent=create_harness_optimizer_agent(
             chat_generator=build_optimizer_generator(model=arguments.optimizer_model),
-            docs_toolset=docs_toolset,
+            documentation_tools=arguments.docs_mcp,
             additional_instructions=retrieval_guidance(
                 max_queries=arguments.max_queries, max_retrieved=arguments.max_retrieved
             ),

@@ -14,7 +14,7 @@ from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
-from haystack.tools import Toolset, flatten_tools_or_toolsets, warm_up_tools
+from haystack.tools import flatten_tools_or_toolsets, warm_up_tools
 
 from haystack_integrations.agent_pack.dataclasses import AgentRunRecord, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization.models import (
@@ -214,7 +214,7 @@ def create_haystack_documentation_mcp_toolset(eager_connect: bool = False) -> "M
 
 def create_harness_optimizer_agent(
     chat_generator: ChatGenerator | None = None,
-    docs_toolset: Toolset | None = None,
+    documentation_tools: bool = False,
     system_prompt: str | None = None,
     additional_instructions: str | None = None,
     max_agent_steps: int = 24,
@@ -223,7 +223,9 @@ def create_harness_optimizer_agent(
     Create the Agent that chooses the next configuration experiment.
 
     :param chat_generator: Generator used to reason about experiment results and propose configuration changes.
-    :param docs_toolset: Optional Haystack documentation tools available to the Agent.
+    :param documentation_tools: Give the Agent read-only search over the public Haystack documentation, so it can
+        look up a component's parameters and serialized shape rather than guessing at them. Requires
+        `mcp-haystack`, and reaches the documentation server over the network.
     :param system_prompt: Optional replacement for the default optimizer instructions. What this environment has
         installed is appended either way, since it constrains every configuration the optimizer can propose.
     :param additional_instructions: Guidance appended to the instructions, for what a good configuration looks like
@@ -250,7 +252,7 @@ def create_harness_optimizer_agent(
     )
     return Agent(
         chat_generator=generator,
-        tools=[docs_toolset] if docs_toolset is not None else None,
+        tools=[create_haystack_documentation_mcp_toolset()] if documentation_tools else None,
         system_prompt=instructions,
         exit_conditions=["text"],
         max_agent_steps=max_agent_steps,
@@ -418,6 +420,7 @@ def propose_candidate(
         [
             _section("Objectives", json.dumps(objectives.to_dict())),
             _section("Known model prices", json.dumps(pricing.to_dict())),
+            # TODO The tools available section is worthless when the reference is not an Agent
             _section("Tools available to the reference", json.dumps(_tool_specifications(reference=reference))),
             _section(
                 "How the reference behaved",
@@ -455,12 +458,10 @@ def propose_candidate(
             ),
         ]
     )
-    # Avoid serializing file-bound callables or cloning generator clients.
-    agent = Agent(
-        chat_generator=optimizer_agent.chat_generator,
+    # We must create a new Agent for each turn, because the tools are bound to the workspace and the workspace is bound
+    # to the turn. So we clone the optimizer_agent and add the workspace tools to it and update its exit conditions.
+    agent = optimizer_agent.clone(
         tools=[*optimizer_agent.tools, *workspace.tools()],
-        system_prompt=optimizer_agent.system_prompt,
-        max_agent_steps=optimizer_agent.max_agent_steps,
         tool_concurrency_limit=1,
         exit_conditions=["submit_candidate", "finish"],
     )

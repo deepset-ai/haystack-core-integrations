@@ -98,8 +98,6 @@ class ExperimentResult:
     run_id: str
     artifact_directory: Path
     gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
-    # What the search itself spent. An experiment prices the configurations it measures; this is the other half of
-    # the bill, and on a harness whose cases are cheap it is most of it.
     optimizer_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
     optimizer_cost: float | None = None
 
@@ -173,14 +171,9 @@ class ExperimentJournal:
             stream.write(json.dumps(evaluation.to_dict()) + "\n")
 
 
-def _serialization(
-    reference: Optimizable,
-) -> tuple[Callable[[Any], str], Callable[[str], Optimizable]]:
+def _serialization(reference: Optimizable) -> tuple[Callable[[Any], str], Callable[[str], Optimizable]]:
     """
     Pick the pair that round-trips this reference through YAML.
-
-    Inferred rather than configured, because the two have to agree: a reference dumped as a bare Pipeline and
-    loaded under the Agent contract fails on every candidate, and nothing else in the experiment would say why.
 
     :param reference: What the experiment optimizes.
     :returns: The dump and load functions for it.
@@ -255,11 +248,10 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg)
         dump, load = _serialization(reference=self.reference)
         reference_yaml = dump(self.reference)
-        # What decides whether two measurements can be compared: the questions, the yardstick they are scored
-        # against, and the corpus behind them. Deliberately not the reference configuration — comparing a changed
-        # reference against an earlier run is the ordinary case, and its serialization carries incidental values
-        # such as an in-memory store's generated index that would mark every run as incomparable to every other.
-        # The configuration itself is still recorded, as `reference.yaml` and as the baseline's candidate ID.
+
+        # Fingerprint what makes two measurements comparable: the questions, the yardstick, and the corpus. Not
+        # the reference configuration, whose serialization carries incidental values such as an in-memory store's
+        # generated index; it is recorded separately as `reference.yaml` and as the baseline's candidate ID.
         payload = {
             "runs": sorted(record.fingerprint() for record in reference_runs),
             "evaluator": type(self.evaluator).__qualname__,
@@ -268,6 +260,8 @@ class HarnessOptimizationExperiment:
         if callable(fingerprint := getattr(self.evaluator, "fingerprint", None)):
             payload["evaluator_configuration"] = fingerprint()
         context = content_digest(json.dumps(payload, sort_keys=True, default=str))
+
+        # Claim a run directory and open the single file the optimizer is allowed to edit.
         run_id, artifacts = self.journal.claim_run()
         (artifacts / "reference.yaml").write_text(reference_yaml, encoding="utf-8")
         validator = getattr(self.evaluator, "validate_agent", None)
@@ -278,6 +272,8 @@ class HarnessOptimizationExperiment:
             validator=validator if callable(validator) else None,
             loader=load,
         )
+
+        # Measure the reference, which every candidate is ranked and gated against.
         baseline_target = load(reference_yaml)
         try:
             baseline_raw = self.evaluator.evaluate(target=baseline_target, reference_runs=reference_runs)
@@ -296,14 +292,15 @@ class HarnessOptimizationExperiment:
         if self.objectives.primary == "cost" and baseline.cost is None:
             msg = "The reference Agent has unavailable cost; supply pricing and complete usage."
             raise ValueError(msg)
+
+        # Search: propose one candidate, measure it, and feed the outcome into the next proposal.
         outcomes: list[CandidateEvaluation] = []
         history: list[dict[str, Any]] = []
         best_id: str | None = None
         optimizer_usage: dict[str, ModelTokenUsage] = {}
         optimizer_tracer = UsageTracer()
         while len(outcomes) < self.max_iterations:
-            # The optimizer's own calls are measured the same way a candidate's are, so the cost of searching is
-            # reported next to the cost of what the search found rather than left to the reader to guess.
+            # Measured like a candidate's calls, so the cost of searching is reported beside what it found.
             with optimizer_tracer.activate(), optimizer_tracer.case() as turn_usage:
                 proposed = propose_candidate(
                     optimizer_agent=self.optimizer_agent,
@@ -325,6 +322,8 @@ class HarnessOptimizationExperiment:
                     input_tokens=current.input_tokens + tokens.input_tokens,
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
+            # Drafts that failed validation cost editing steps rather than evaluations, and are journalled so
+            # the run shows what the optimizer had to repair.
             for failure in workspace.validation_failures:
                 self.journal.append(
                     CandidateEvaluation(
@@ -337,6 +336,7 @@ class HarnessOptimizationExperiment:
                     )
                 )
             workspace.validation_failures.clear()
+
             if proposed is None:
                 logger.info(
                     "optimizer ended the search with {remaining} of {total} evaluations unused: {reason}",
@@ -345,6 +345,8 @@ class HarnessOptimizationExperiment:
                     reason=workspace.finish_reason or "no reason recorded",
                 )
                 break
+
+            # Measure the proposal, recording a failure to build or run it rather than ending the experiment.
             (artifacts / f"{proposed.candidate_id}.yaml").write_text(proposed.yaml, encoding="utf-8")
             try:
                 candidate = load(proposed.yaml)
@@ -379,13 +381,15 @@ class HarnessOptimizationExperiment:
                     "diff": proposed.diff,
                     "metrics": priced.metrics.to_dict() if priced.metrics is not None else None,
                     "failure": priced.failure,
-                    "gate_failures": self._gate_failures(priced, baseline),
+                    "gate_failures": self._gate_failures(candidate=priced, baseline=baseline),
                 }
             )
-            # The next turn edits the best configuration measured so far rather than the one just tried, so a
-            # regression is not inherited by everything after it.
-            eligible = [outcome for outcome in outcomes if not self._gate_failures(outcome, baseline)]
+            # The next turn edits the best candidate so far, so a regression is not inherited by what follows.
+            eligible = [
+                outcome for outcome in outcomes if not self._gate_failures(candidate=outcome, baseline=baseline)
+            ]
             best_id = min(eligible, key=self._candidate_rank).candidate_id if eligible else None
+
             logger.info(
                 "candidate {position}/{total}: {candidate_id}, gates={gates}",
                 position=len(outcomes),
@@ -393,13 +397,17 @@ class HarnessOptimizationExperiment:
                 candidate_id=proposed.candidate_id,
                 gates=history[-1]["gate_failures"],
             )
-        gates = {outcome.candidate_id: self._gate_failures(outcome, baseline) for outcome in outcomes}
+
+        # Recommend the best candidate that clears every gate and actually beats the baseline.
+        gates = {
+            outcome.candidate_id: self._gate_failures(candidate=outcome, baseline=baseline) for outcome in outcomes
+        }
         eligible = sorted(
             (outcome for outcome in outcomes if not gates[outcome.candidate_id]), key=self._candidate_rank
         )
         recommendation = None
         for evaluated in eligible:
-            reasons = self._recommendation_reasons(evaluated, baseline)
+            reasons = self._recommendation_reasons(candidate=evaluated, baseline=baseline)
             if reasons is not None and evaluated.configuration is not None:
                 recommendation = ExperimentRecommendation(
                     configuration=evaluated.configuration,
@@ -408,6 +416,8 @@ class HarnessOptimizationExperiment:
                 )
                 (artifacts / "recommended.yaml").write_text(evaluated.configuration.yaml, encoding="utf-8")
                 break
+
+        # The optimizer is not a candidate, so its spend is priced and reported but never ranked or gated.
         optimizer_cost = self.pricing.cost_of(model_usage=optimizer_usage)
         logger.info(
             "optimizer spend across {turns} turns: {usage} ({cost})",
@@ -415,6 +425,8 @@ class HarnessOptimizationExperiment:
             usage={model: asdict(obj=tokens) for model, tokens in optimizer_usage.items()},
             cost="unpriced" if optimizer_cost is None else f"${optimizer_cost:.6f}",
         )
+
+        # One file per run naming what its measurements can be compared against.
         (artifacts / "context.json").write_text(
             json.dumps(
                 {
@@ -429,11 +441,11 @@ class HarnessOptimizationExperiment:
             ),
             encoding="utf-8",
         )
-        # Everything the run produced is in the snapshots and the journal; what is left in the editable file is
-        # whatever the last turn happened to leave there. It is kept while the run is in flight, so a crash leaves
-        # it to inspect, and removed once there is a complete record without it.
+
+        # A caller-supplied path is theirs to keep; the internal draft is not worth leaving behind.
         if self.config_path is None:
             draft.unlink(missing_ok=True)
+
         return ExperimentResult(
             baseline=baseline,
             candidates=tuple(outcomes),
@@ -450,15 +462,15 @@ class HarnessOptimizationExperiment:
         """Return the hard gates a candidate failed."""
         if candidate.metrics is None:
             return ("evaluation_failed",)
+
         failures: list[str] = []
         baseline_quality = baseline.quality
         candidate_quality = candidate.metrics.quality
         floor = max(self.objectives.min_quality, baseline_quality - self.objectives.max_quality_loss)
-        # Quality is a ratio of counted cases and the floor subtracts a tolerance from another such ratio, so a
-        # candidate sitting exactly on the tolerance can fall one representation step below it: 0.2 - 0.05 is
-        # 0.15000000000000002, which rejects a candidate measuring 0.15 while the report prints both as "0.1500".
+        # We check isclose to avoid floating-point precision issues where a candidate is effectively equal to the floor
         if candidate_quality < floor and not isclose(candidate_quality, floor, rel_tol=1e-9, abs_tol=1e-12):
             failures.append(f"quality_below_floor:{floor:.4f}")
+
         # Usage a harness could not account for means a model call was observed and produced nothing measurable,
         # which is what a silently swallowed component failure looks like from here. Such a candidate is not
         # describing its own behaviour, whatever it scored, so it cannot win on any objective.

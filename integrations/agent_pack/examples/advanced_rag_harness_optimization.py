@@ -58,7 +58,6 @@ from haystack_integrations.agent_pack.optimization import (
     ModelPriceCatalog,
     OptimizationObjectives,
     create_harness_optimizer_agent,
-    create_haystack_documentation_mcp_toolset,
 )
 from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
@@ -434,7 +433,6 @@ def main() -> None:
     pricing = build_pricing(models=(arguments.reference_model, *candidate_models))
 
     print("\n=== 3. optimization experiment ===")
-    docs_toolset = create_haystack_documentation_mcp_toolset() if arguments.docs_mcp else None
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         run_store=run_store,
@@ -450,7 +448,7 @@ def main() -> None:
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
         digest_policy=DIGEST_POLICY,
         optimizer_agent=create_harness_optimizer_agent(
-            docs_toolset=docs_toolset, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
+            documentation_tools=arguments.docs_mcp, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
         ),
         run_ids=selected_run_ids,
         max_iterations=arguments.max_iterations,
