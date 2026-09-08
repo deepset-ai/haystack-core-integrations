@@ -5,8 +5,7 @@
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/generators/llama\_cpp/chat/chat\_generator.py |      214 |       22 |       80 |       10 |     88% |92-93, 120-\>117, 154-155, 286-287, 292, 338, 407-410, 422-423, 505-\>542, 562-564, 578-586 |
-| src/haystack\_integrations/components/generators/llama\_cpp/generator.py            |       36 |        5 |        8 |        2 |     80% |83-84, 102, 112-113 |
-| **TOTAL**                                                                           |  **250** |   **27** |   **88** |   **12** | **87%** |           |
+| **TOTAL**                                                                           |  **214** |   **22** |   **80** |   **10** | **88%** |           |
 
 
 ## Setup coverage badge
