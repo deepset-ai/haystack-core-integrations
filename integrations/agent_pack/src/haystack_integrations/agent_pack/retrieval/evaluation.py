@@ -30,12 +30,13 @@ class RetrievalEvaluationCase:
     :param max_queries: Optional cap on how many queries the pipeline may issue for one question. Expanding a
         query buys recall with model calls, and without a cap the cheapest way to pass every case is to expand
         without limit.
-    :param max_retrieved: Optional cap on how many documents the pipeline may return for one question. Recall
+    :param max_retrieved: Optional limit on how many returned documents are scored for one question. Recall
         alone has a degenerate optimum: a pipeline that returns most of the corpus reaches it, and measuring a
         retrieval pipeline that generates no answer cannot see the cost of doing so, because nothing downstream
-        reads the documents. This cap is what makes the size of the answer set matter. It applies to what the
-        pipeline returns rather than to what it considers, so retrieving widely and then ranking the result down
-        satisfies it while retrieving widely alone does not.
+        reads the documents. Scoring only the first this-many documents is what makes the size of the answer set
+        matter, while leaving a run that returns one document too many worth almost exactly what it found. It
+        applies to what the pipeline returns rather than to what it considers, so retrieving widely and then
+        ranking the result down keeps every document scored while retrieving widely alone does not.
     """
 
     question: str
@@ -81,8 +82,11 @@ class RetrievalCaseMetrics:
     `score` is what quality aggregates, and it is the case's recall rather than whether it passed. Recall over a
     handful of expected documents moves in steps of a half or a third, so a threshold on it reports a
     configuration that went from finding none of the evidence to finding two thirds of it as no change at all.
-    A case that broke one of its budgets scores nothing, because a budget is a constraint on the answer rather
-    than a matter of degree, and partial credit for exceeding one would restore the incentive it exists to remove.
+    Returning more documents than the case scores is reported as a failure but is not itself scored as one: only
+    the first `max_retrieved` count towards recall, so overshooting costs whatever was pushed past the limit and
+    nothing more. A ranker that returns eleven documents where ten are scored has made a small mistake and should
+    measure as having made a small mistake. Issuing more queries than allowed still scores nothing, because a
+    query already cost what it cost and there is no equivalent of ignoring it.
     """
 
     question: str
@@ -123,10 +127,13 @@ def score_retrieval_result(
     :param latency_ms: Measured wall-clock duration of the run.
     :returns: The score, naming every expectation the run missed.
     """
-    retrieved_ids = {document.id for document in outcome.documents}
-    matched = retrieved_ids & case.expected_document_ids
+    # Deduplicated in the order the pipeline returned them, since which documents fall past the limit depends on
+    # how the run ranked them.
+    returned_ids = list(dict.fromkeys(document.id for document in outcome.documents))
+    scored_ids = set(returned_ids[: case.max_retrieved] if case.max_retrieved is not None else returned_ids)
+    matched = scored_ids & case.expected_document_ids
     recall = len(matched) / len(case.expected_document_ids)
-    precision = len(matched) / len(retrieved_ids) if retrieved_ids else 0.0
+    precision = len(matched) / len(scored_ids) if scored_ids else 0.0
 
     failures: list[str] = []
     if recall < case.min_recall:
@@ -135,19 +142,19 @@ def score_retrieval_result(
         failures.append(f"precision_below_{case.min_precision:g}")
     if case.max_queries is not None and len(outcome.queries) > case.max_queries:
         failures.append(f"queries_over_budget:{len(outcome.queries)}")
-    if case.max_retrieved is not None and len(retrieved_ids) > case.max_retrieved:
-        failures.append(f"retrieved_over_budget:{len(retrieved_ids)}")
+    if case.max_retrieved is not None and len(returned_ids) > case.max_retrieved:
+        failures.append(f"retrieved_over_budget:{len(returned_ids)}")
 
-    # Every failure except falling short on recall is a broken constraint rather than a partial result.
-    breached_budget = [failure for failure in failures if not failure.startswith("recall_below")]
+    # Returning too many documents is already paid for by the ones past the limit going unscored. Issuing too many
+    # queries is not recoverable that way, so it stays a constraint rather than a matter of degree.
     return RetrievalCaseMetrics(
         question=case.question,
         passed=not failures,
-        score=0.0 if breached_budget else recall,
+        score=0.0 if any(failure.startswith("queries_over_budget") for failure in failures) else recall,
         failures=tuple(failures),
         recall=recall,
         precision=precision,
-        retrieved=len(retrieved_ids),
+        retrieved=len(returned_ids),
         missed_document_ids=tuple(sorted(case.expected_document_ids - matched)),
         queries=outcome.queries,
         latency_ms=latency_ms,

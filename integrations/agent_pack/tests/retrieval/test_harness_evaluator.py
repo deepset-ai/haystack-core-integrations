@@ -135,14 +135,22 @@ def test_an_unlabelled_question_is_refused_rather_than_scored(store):
         RetrievalHarnessEvaluator(cases=[case(store)]).evaluate(target=retrieval_pipeline(store), reference_runs=other)
 
 
-def test_returning_most_of_the_corpus_is_charged_against_a_document_budget(store):
-    """Recall on its own is maximized by returning everything; the budget is what makes the answer set matter."""
-    metrics = RetrievalHarnessEvaluator(cases=[case(store, max_retrieved=1)]).evaluate(
+def test_returning_most_of_the_corpus_earns_nothing_for_the_documents_past_the_limit(store):
+    """
+    Recall on its own is maximized by returning everything, so only the first `max_retrieved` are scored. That
+    removes the degenerate optimum without turning one document too many into a total loss.
+    """
+    both = frozenset(document.id for document in store.filter_documents())
+    wide = RetrievalEvaluationCase(question=QUESTION, expected_document_ids=both, max_retrieved=1)
+    metrics = RetrievalHarnessEvaluator(cases=[wide]).evaluate(
         target=retrieval_pipeline(store, top_k=2), reference_runs=runs()
     )
 
-    assert metrics.quality == 0.0
-    assert any(f.startswith("retrieved_over_budget:") for f in metrics.details["cases"][0]["failures"])
+    scored_case = metrics.details["cases"][0]
+    assert any(f.startswith("retrieved_over_budget:") for f in scored_case["failures"])
+    # Both expected documents come back, but the second sits past the limit and earns nothing.
+    assert scored_case["retrieved"] == 2
+    assert metrics.quality == 0.5
 
 
 def test_ranking_a_wide_candidate_set_down_satisfies_the_document_budget(store):
@@ -210,11 +218,20 @@ def test_partial_recall_scores_partially_but_a_broken_budget_scores_nothing(stor
     assert 0.0 < scored.quality < 1.0
     assert scored.quality == scored.details["mean_recall"]
 
-    # A budget is a constraint on the answer rather than a matter of degree, so exceeding one earns no credit.
+    # Overshooting the document limit costs the documents past it and nothing else, so a ranker that returns one
+    # too many measures as having made a small mistake rather than as having found nothing.
     over = RetrievalEvaluationCase(question=QUESTION, expected_document_ids=both, max_retrieved=1)
     busted = RetrievalHarnessEvaluator(cases=[over]).evaluate(
         target=retrieval_pipeline(store, top_k=2), reference_runs=runs()
     )
     assert any(f.startswith("retrieved_over_budget") for f in busted.details["cases"][0]["failures"])
-    assert busted.details["cases"][0]["recall"] > 0.0
-    assert busted.quality == 0.0
+    assert busted.quality == busted.details["cases"][0]["recall"] > 0.0
+
+    # Issuing too many queries has no equivalent of ignoring the excess, so it still scores nothing.
+    talkative = RetrievalEvaluationCase(question=QUESTION, expected_document_ids=both, max_queries=1)
+    overspent = RetrievalHarnessEvaluator(cases=[talkative]).evaluate(
+        target=retrieval_pipeline(store, top_k=2), reference_runs=runs()
+    )
+    assert any(f.startswith("queries_over_budget") for f in overspent.details["cases"][0]["failures"])
+    assert overspent.details["cases"][0]["recall"] > 0.0
+    assert overspent.quality == 0.0

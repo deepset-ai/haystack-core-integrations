@@ -102,11 +102,14 @@ of this configuration and can be edited, so the count and the examples it shows 
 question is also appended unless the model already produced it, so the queries actually issued are usually one
 more than the count.
 
-Each case also limits how many documents the pipeline may return, and how many queries it may issue; the exact
+Each case also limits how many documents are scored, and how many queries the pipeline may issue; the exact
 numbers are stated below. The document limit is on what comes out, not on what the pipeline looks at, so past a
 certain point recall cannot be bought by widening: what is returned has to be the right subset of whatever was
-considered. A configuration that exceeds either limit scores nothing for that case however much it retrieved, so
-a ranker ceiling above the document limit cannot help and will cost the cases that reach it.
+considered. Only the first that-many documents count towards recall, in the order the pipeline returned them, so
+returning more than the limit wastes the places past it rather than voiding the case: set the final ranker's
+ceiling at the limit rather than above it, and a run that overshoots by one has lost one document's worth of
+credit. The query limit is not forgiving in the same way, since a query already cost what it cost: exceed it and
+the case scores nothing.
 
 Once that limit binds, the way past it is to stop treating those two things as the same. Retrieve a wide candidate
 set, then rank it and return only the best of it: the limit applies to the ranked output, while the candidate set
@@ -130,13 +133,16 @@ that is never retrieved cannot be recovered later. The ranker is what decides th
 selective matters. What the case scores in the end is recall, so a ranker that leaves a needed document out has
 lost something a narrower candidate set could never have given back.
 
-Its `top_k` is a ceiling on the answer, and the ceiling and the prompt do different jobs. Cases here need between
-two and four documents, so a ceiling of four leaves a four-document case no room to be wrong once, while a
-two-document case has nothing useful to do with the spare slots. Set the ceiling above the most any case needs and
-let the prompt decide how many actually come back — asking for the documents that together cover the question and
-no others, so the extra room is available when a question needs it and unused when it does not. A run reporting
-that fewer documents came back than the ceiling allows is not necessarily wasting it; a run reporting exactly the
-ceiling on every case is being truncated by it.
+Fill the allowance, and start there rather than working up to it. Only the documents inside the limit are scored,
+precision is not scored at all, and one more document inside the limit can either match a needed one or be
+ignored — it cannot cost anything. Returning fewer than the limit is giving those places away. Set the ranker's
+`top_k` at the limit and write its prompt to use it: ask for the most useful documents up to that many, ordered
+best first, rather than for the smallest set that looks sufficient. A question needing two documents loses nothing
+by coming back with the limit's worth, and a question needing four is what the other places were for. Asking for a
+minimal or "two to four" set has measured worse here more than once, and never better.
+
+Trimming what comes back is worth measuring only once recall has stopped moving, and then as a latency and cost
+question rather than a scoring one.
 
 Two things about running it. It calls a chat model once per case with every candidate's text in the prompt, so
 what it costs grows with the candidate set. And it must not be given a `temperature`; the models available here
@@ -194,8 +200,7 @@ def retrieval_guidance(max_queries: int, max_retrieved: int) -> str:
     State this harness's per-case budgets alongside the rest of what it knows about itself.
 
     The budgets are the harness's own settings, and an optimizer that is not told them has to find them by
-    exceeding them: a candidate that overshoots scores nothing and the run learns a number the harness could
-    simply have stated.
+    exceeding them, spending a measurement to learn a number the harness could simply have stated.
 
     :param max_queries: Queries a case allows, including the original question.
     :param max_retrieved: Documents a case allows the pipeline to return.
