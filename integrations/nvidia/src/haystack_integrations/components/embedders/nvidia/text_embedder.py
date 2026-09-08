@@ -29,7 +29,7 @@ class NvidiaTextEmbedder:
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = NvidiaTextEmbedder(model="nvidia/nv-embedqa-e5-v5", api_url="https://integrate.api.nvidia.com/v1")
+    text_embedder = NvidiaTextEmbedder(model="nvidia/nemotron-3-embed-1b", api_url="https://integrate.api.nvidia.com/v1")
     # Components warm up automatically on first run.
 
     print(text_embedder.run(text_to_embed))

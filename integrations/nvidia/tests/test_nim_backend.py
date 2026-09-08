@@ -76,10 +76,10 @@ def mock_rank_post_response(*args, **kwargs):  # noqa: ARG001
 class TestNimBackend:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+        backend = NimBackend(model="nvidia/nemotron-3-embed-1b", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
         assert backend.api_url == DEFAULT_API_URL
         assert backend.client == Client.NVIDIA_TEXT_EMBEDDER
-        assert backend.model == "nvidia/nv-embedqa-e5-v5"
+        assert backend.model == "nvidia/nemotron-3-embed-1b"
         assert backend.model_kwargs == {}
         assert backend.model_type is None
         assert backend.session.headers["Content-Type"] == "application/json"
@@ -125,12 +125,12 @@ class TestNimBackend:
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
 
         backend = NimBackend(
-            model="nvidia/nv-embedqa-e5-v5",  # This model has no custom endpoint
+            model="nvidia/nemotron-3-embed-1b",  # This model has no custom endpoint
             api_url=DEFAULT_API_URL,
             client="NvidiaTextEmbedder",
         )
         assert backend.api_url == DEFAULT_API_URL
-        assert backend.model == "nvidia/nv-embedqa-e5-v5"
+        assert backend.model == "nvidia/nemotron-3-embed-1b"
 
     def test_init_with_unknown_hosted_model_raises_error(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -141,9 +141,9 @@ class TestNimBackend:
     def test_init_with_incompatible_client_raises_error(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
 
-        with pytest.raises(ValueError, match="Model nvidia/nv-embedqa-e5-v5 is incompatible with client"):
+        with pytest.raises(ValueError, match="Model nvidia/nemotron-3-embed-1b is incompatible with client"):
             NimBackend(
-                model="nvidia/nv-embedqa-e5-v5",  # embedding model
+                model="nvidia/nemotron-3-embed-1b",  # embedding model
                 api_url=DEFAULT_API_URL,
                 client="NvidiaGenerator",  # chat client
             )
@@ -169,7 +169,9 @@ class TestNimBackend:
     def test_embed(self, monkeypatch):
         with patch("requests.sessions.Session.post", side_effect=mock_embed_post_response) as mock_post:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-            backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+            backend = NimBackend(
+                model="nvidia/nemotron-3-embed-1b", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder"
+            )
             texts = ["a", "b", "c"]
             embeddings, meta = backend.embed(texts=texts)
 
@@ -180,7 +182,7 @@ class TestNimBackend:
             mock_post.assert_called_once_with(
                 expected_url,
                 json={
-                    "model": "nvidia/nv-embedqa-e5-v5",
+                    "model": "nvidia/nemotron-3-embed-1b",
                     "input": texts,
                 },
                 timeout=60.0,
@@ -230,7 +232,7 @@ class TestNimBackend:
         with patch("requests.sessions.Session.get", side_effect=mock_models_get_response) as mock_get:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
             backend = NimBackend(
-                model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaDocumentEmbedder"
+                model="nvidia/nemotron-3-embed-1b", api_url=DEFAULT_API_URL, client="NvidiaDocumentEmbedder"
             )
             models = backend.models()
 
@@ -248,7 +250,9 @@ class TestNimBackend:
         error_response._content = b"server exploded"
         with patch("requests.sessions.Session.post", return_value=error_response):
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-            backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+            backend = NimBackend(
+                model="nvidia/nemotron-3-embed-1b", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder"
+            )
             with pytest.raises(ValueError, match="Failed to query embedding endpoint"):
                 backend.embed(texts=["a"])
 

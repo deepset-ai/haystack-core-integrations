@@ -430,8 +430,8 @@ EMBEDDING_MODEL_TABLE = {
         id="nvidia/nv-embedqa-mistral-7b-v2",
         model_type="embedding",
     ),
-    "nvidia/nv-embedqa-e5-v5": Model(
-        id="nvidia/nv-embedqa-e5-v5",
+    "nvidia/nemotron-3-embed-1b": Model(
+        id="nvidia/nemotron-3-embed-1b",
         model_type="embedding",
     ),
     "baai/bge-m3": Model(
@@ -480,7 +480,7 @@ RANKING_MODEL_TABLE = {
 }
 
 DEFAULT_MODELS = {
-    "embedding": "nvidia/nv-embedqa-e5-v5",
+    "embedding": "nvidia/nemotron-3-embed-1b",
     "ranking": "nv-rerank-qa-mistral-4b:1",
     "chat": "meta/llama3-8b-instruct",
 }

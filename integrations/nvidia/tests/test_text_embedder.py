@@ -184,10 +184,10 @@ class TestRun:
 
     def test_run(self):
         api_key = Secret.from_token("fake-api-key")
-        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key, prefix="prefix ", suffix=" suffix")
+        embedder = NvidiaTextEmbedder("nvidia/nemotron-3-embed-1b", api_key=api_key, prefix="prefix ", suffix=" suffix")
 
         embedder.warm_up()
-        embedder.backend = MockBackend(model="nvidia/nv-embedqa-e5-v5", api_key=api_key)
+        embedder.backend = MockBackend(model="nvidia/nemotron-3-embed-1b", api_key=api_key)
 
         result = embedder.run(text="The food was delicious")
 
@@ -199,9 +199,9 @@ class TestRun:
 
     def test_run_wrong_input_format(self):
         api_key = Secret.from_token("fake-api-key")
-        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key)
+        embedder = NvidiaTextEmbedder("nvidia/nemotron-3-embed-1b", api_key=api_key)
         embedder.warm_up()
-        embedder.backend = MockBackend(model="nvidia/nv-embedqa-e5-v5", api_key=api_key)
+        embedder.backend = MockBackend(model="nvidia/nemotron-3-embed-1b", api_key=api_key)
 
         list_integers_input = [1, 2, 3]
 
@@ -209,7 +209,7 @@ class TestRun:
             embedder.run(text=list_integers_input)
 
     def test_run_empty_string(self):
-        model = "nvidia/nv-embedqa-e5-v5"
+        model = "nvidia/nemotron-3-embed-1b"
         api_key = Secret.from_token("fake-api-key")
         embedder = NvidiaTextEmbedder(model, api_key=api_key)
 
@@ -221,14 +221,14 @@ class TestRun:
 
     def test_run_validates_input_without_prior_warm_up(self):
         api_key = Secret.from_token("fake-api-key")
-        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key)
+        embedder = NvidiaTextEmbedder("nvidia/nemotron-3-embed-1b", api_key=api_key)
 
         with pytest.raises(TypeError, match="NvidiaTextEmbedder expects a string as an input"):
             embedder.run(text=[1, 2, 3])
 
     def test_run_rejects_empty_string_without_prior_warm_up(self):
         api_key = Secret.from_token("fake-api-key")
-        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key)
+        embedder = NvidiaTextEmbedder("nvidia/nemotron-3-embed-1b", api_key=api_key)
 
         with pytest.raises(ValueError, match="empty string"):
             embedder.run(text="")
@@ -272,10 +272,10 @@ class TestRun:
     @pytest.mark.parametrize(
         "model, api_url",
         [
-            ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
+            ("nvidia/nemotron-3-embed-1b", "https://integrate.api.nvidia.com/v1"),
         ],
         ids=[
-            "nvidia/nv-embedqa-e5-v5",
+            "nvidia/nemotron-3-embed-1b",
         ],
     )
     @pytest.mark.skipif(
