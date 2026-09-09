@@ -17,7 +17,7 @@ COMPONENT_TYPE = (
 )
 
 
-class TestTransformersZeroShotDocumentClassifier:
+class TestInitializationAndSerialization:
     def test_init(self):
         component = TransformersZeroShotDocumentClassifier(
             model="cross-encoder/nli-deberta-v3-xsmall", labels=["positive", "negative"]
@@ -80,7 +80,6 @@ class TestTransformersZeroShotDocumentClassifier:
             "model": "cross-encoder/nli-deberta-v3-xsmall",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": component.token.resolve_value(),
         }
 
     def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
@@ -98,9 +97,46 @@ class TestTransformersZeroShotDocumentClassifier:
             "model": "cross-encoder/nli-deberta-v3-xsmall",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": component.token.resolve_value(),
         }
 
+    def test_serialization_and_deserialization_pipeline(self, in_memory_doc_store):
+        pipeline = Pipeline()
+        retriever = InMemoryBM25Retriever(document_store=in_memory_doc_store)
+        document_classifier = TransformersZeroShotDocumentClassifier(
+            model="cross-encoder/nli-deberta-v3-xsmall", labels=["positive", "negative"]
+        )
+
+        pipeline.add_component(instance=retriever, name="retriever")
+        pipeline.add_component(instance=document_classifier, name="document_classifier")
+        pipeline.connect("retriever", "document_classifier")
+        pipeline_dump = pipeline.dumps()
+
+        new_pipeline = Pipeline.loads(pipeline_dump)
+
+        assert new_pipeline == pipeline
+
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        component = TransformersZeroShotDocumentClassifier(
+            model="model", labels=["label"], token=Secret.from_env_var("MISSING_HF_TOKEN")
+        )
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.classifiers.transformers.zero_shot_document_classifier.pipeline")
+    def test_warm_up_is_idempotent(self, pipeline_mock):
+        component = TransformersZeroShotDocumentClassifier(model="model", labels=["label"], token=None)
+
+        component.warm_up()
+        component.warm_up()
+
+        pipeline_mock.assert_called_once()
+
+
+class TestRun:
     @patch("haystack_integrations.components.classifiers.transformers.zero_shot_document_classifier.pipeline")
     def test_warm_up(self, hf_pipeline_mock):
         component = TransformersZeroShotDocumentClassifier(
@@ -164,6 +200,8 @@ class TestTransformersZeroShotDocumentClassifier:
         with pytest.raises(ValueError, match="do not have the classification field 'title': 0"):
             component.run(documents=documents)
 
+
+class TestIntegration:
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars_if_empty):
         component = TransformersZeroShotDocumentClassifier(
@@ -179,19 +217,3 @@ class TestTransformersZeroShotDocumentClassifier:
         assert result["documents"][1].to_dict()["classification"]["label"] == "negative"
         assert "classification" not in positive_document.to_dict()
         assert "classification" not in negative_document.to_dict()
-
-    def test_serialization_and_deserialization_pipeline(self, in_memory_doc_store):
-        pipeline = Pipeline()
-        retriever = InMemoryBM25Retriever(document_store=in_memory_doc_store)
-        document_classifier = TransformersZeroShotDocumentClassifier(
-            model="cross-encoder/nli-deberta-v3-xsmall", labels=["positive", "negative"]
-        )
-
-        pipeline.add_component(instance=retriever, name="retriever")
-        pipeline.add_component(instance=document_classifier, name="document_classifier")
-        pipeline.connect("retriever", "document_classifier")
-        pipeline_dump = pipeline.dumps()
-
-        new_pipeline = Pipeline.loads(pipeline_dump)
-
-        assert new_pipeline == pipeline

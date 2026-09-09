@@ -125,7 +125,6 @@ class TransformersZeroShotDocumentClassifier:
             task="zero-shot-classification",
             supported_tasks=["zero-shot-classification"],
             device=device,
-            token=token,
         )
 
         self.huggingface_pipeline_kwargs = huggingface_pipeline_kwargs
@@ -144,7 +143,9 @@ class TransformersZeroShotDocumentClassifier:
         Initializes the component.
         """
         if self.pipeline is None:
-            self.pipeline = pipeline(**self.huggingface_pipeline_kwargs)
+            pipeline_kwargs = self.huggingface_pipeline_kwargs.copy()
+            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
+            self.pipeline = pipeline(**pipeline_kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -201,8 +202,8 @@ class TransformersZeroShotDocumentClassifier:
             - `documents`: A list of documents with an added metadata field called `classification`.
         """
 
-        if self.pipeline is None:
-            self.warm_up()
+        self.warm_up()
+        assert self.pipeline is not None  # noqa: S101
 
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
@@ -229,10 +230,7 @@ class TransformersZeroShotDocumentClassifier:
             for doc in documents
         ]
 
-        # mypy doesn't know this is set in warm_up
-        predictions = self.pipeline(  # type: ignore[misc]
-            texts, self.labels, multi_label=self.multi_label, batch_size=batch_size
-        )
+        predictions = self.pipeline(texts, self.labels, multi_label=self.multi_label, batch_size=batch_size)
 
         new_documents = []
         for prediction, document in zip(predictions, documents, strict=True):

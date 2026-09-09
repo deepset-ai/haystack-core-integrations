@@ -94,14 +94,13 @@ class TransformersTextRouter:
             task="text-classification",
             supported_tasks=["text-classification"],
             device=device,
-            token=token,
         )
         self.huggingface_pipeline_kwargs = huggingface_pipeline_kwargs
 
         if labels is None:
-            config = AutoConfig.from_pretrained(
-                huggingface_pipeline_kwargs["model"], token=huggingface_pipeline_kwargs["token"]
-            )
+            pipeline_kwargs = huggingface_pipeline_kwargs.copy()
+            pipeline_kwargs.setdefault("token", token.resolve_value() if token else None)
+            config = AutoConfig.from_pretrained(pipeline_kwargs["model"], token=pipeline_kwargs["token"])
             self.labels = list(config.label2id.keys())
         else:
             self.labels = labels
@@ -122,18 +121,21 @@ class TransformersTextRouter:
         Initializes the component.
         """
         if self.pipeline is None:
-            self.pipeline = pipeline(**self.huggingface_pipeline_kwargs)
+            pipeline_kwargs = self.huggingface_pipeline_kwargs.copy()
+            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
+            hf_pipeline = pipeline(**pipeline_kwargs)
 
-        # Verify labels from the model configuration file match provided labels
-        label2id = self.pipeline.model.config.label2id
-        if label2id is not None:
-            labels = set(label2id.keys())
-            if set(self.labels) != labels:
-                msg = (
-                    f"The provided labels do not match the labels in the model configuration file. "
-                    f"Provided labels: {self.labels}. Model labels: {labels}"
-                )
-                raise ValueError(msg)
+            # Verify labels from the model configuration file match provided labels
+            label2id = hf_pipeline.model.config.label2id
+            if label2id is not None:
+                labels = set(label2id.keys())
+                if set(self.labels) != labels:
+                    msg = (
+                        f"The provided labels do not match the labels in the model configuration file. "
+                        f"Provided labels: {self.labels}. Model labels: {labels}"
+                    )
+                    raise ValueError(msg)
+            self.pipeline = hf_pipeline
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -181,16 +183,13 @@ class TransformersTextRouter:
         :raises TypeError:
             If the input is not a str.
         """
-        if self.pipeline is None:
-            self.warm_up()
+        self.warm_up()
+        assert self.pipeline is not None  # noqa: S101
 
         if not isinstance(text, str):
             msg = "TransformersTextRouter expects a str as input."
             raise TypeError(msg)
 
-        # mypy doesn't know this is set in warm_up
-        prediction = self.pipeline(  # type: ignore[misc]
-            [text], return_all_scores=False, function_to_apply="none"
-        )
+        prediction = self.pipeline([text], return_all_scores=False, function_to_apply="none")
         label = prediction[0]["label"]
         return {label: text}

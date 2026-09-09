@@ -10,9 +10,7 @@ from typing import Any
 import torch
 from haystack import logging
 from haystack.dataclasses import ComponentInfo, StreamingCallbackT, StreamingChunk, SyncStreamingCallbackT
-from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
-from huggingface_hub import model_info
 
 from transformers import (
     PreTrainedTokenizer,
@@ -62,10 +60,9 @@ def _resolve_hf_device_map(device: ComponentDevice | None, model_kwargs: dict[st
 def _resolve_hf_pipeline_kwargs(
     huggingface_pipeline_kwargs: dict[str, Any],
     model: str,
-    task: str | None,
+    task: str,
     supported_tasks: list[str],
     device: ComponentDevice | None,
-    token: Secret | None,
 ) -> dict[str, Any]:
     """
     Resolve the HuggingFace pipeline keyword arguments based on explicit user inputs.
@@ -78,23 +75,15 @@ def _resolve_hf_pipeline_kwargs(
         is not present within this list then a ValueError is thrown.
     :param device: The device on which the model is loaded. If `None`, the default device is automatically
         selected. If a device/device map is specified in `huggingface_pipeline_kwargs`, it overrides this parameter.
-    :param token: The token to use as HTTP bearer authorization for remote files.
-        If the token is also specified in the `huggingface_pipeline_kwargs`, this parameter will be ignored.
     """
-    resolved_token = token.resolve_value() if token else None
     # check if the huggingface_pipeline_kwargs contain the essential parameters
     # otherwise, populate them with values from other init parameters
     huggingface_pipeline_kwargs.setdefault("model", model)
-    huggingface_pipeline_kwargs.setdefault("token", resolved_token)
 
     resolved_device = ComponentDevice.resolve_device(device)
     resolved_device.update_hf_kwargs(huggingface_pipeline_kwargs, overwrite=False)
 
-    # task identification and validation
-    task = task or huggingface_pipeline_kwargs.get("task")
-    if task is None and isinstance(huggingface_pipeline_kwargs["model"], str):
-        task = model_info(huggingface_pipeline_kwargs["model"], token=huggingface_pipeline_kwargs["token"]).pipeline_tag
-
+    # task validation
     if task not in supported_tasks:
         msg = f"Task '{task}' is not supported. The supported tasks are: {', '.join(supported_tasks)}."
         raise ValueError(msg)

@@ -28,9 +28,7 @@ from haystack.tools.utils import warm_up_tools
 from haystack.utils import ComponentDevice, Secret, deserialize_callable, serialize_callable
 from haystack.utils.hf import convert_message_to_hf_format, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 from huggingface_hub import model_info
-from packaging.version import Version
 
-import transformers
 from haystack_integrations.common.transformers.utils import (
     _AsyncHFTokenStreamingHandler,
     _HFTokenStreamingHandler,
@@ -41,7 +39,7 @@ from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast, StoppingC
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_SUPPORTED_TASKS = ["text-generation", "text2text-generation", "image-text-to-text"]
+PIPELINE_SUPPORTED_TASKS = ["text-generation", "image-text-to-text"]
 
 DEFAULT_TOOL_PATTERN = (
     r"(?:<tool_call>)?"
@@ -119,7 +117,7 @@ class TransformersChatGenerator:
     def __init__(
         self,
         model: str = "Qwen/Qwen3-0.6B",
-        task: Literal["text-generation", "text2text-generation", "image-text-to-text"] | None = None,
+        task: Literal["text-generation", "image-text-to-text"] | None = None,
         device: ComponentDevice | None = None,
         token: Secret | None = Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False),
         chat_template: str | None = None,
@@ -143,8 +141,6 @@ class TransformersChatGenerator:
             If the model is specified in `huggingface_pipeline_kwargs`, this parameter is ignored.
         :param task: The task for the Hugging Face pipeline. Possible options:
             - `text-generation`: Supported by decoder models, like GPT.
-            - `text2text-generation`: Deprecated as of Transformers v5; use `text-generation` instead.
-              Previously supported by encoder-decoder models such as T5.
             - `image-text-to-text`: Supported by vision-language models.
             If the task is specified in `huggingface_pipeline_kwargs`, this parameter is ignored.
             If not specified, the component calls the Hugging Face API to infer the task from the model name.
@@ -192,32 +188,18 @@ class TransformersChatGenerator:
         generation_kwargs = generation_kwargs or {}
 
         self.token = token
-        token = token.resolve_value() if token else None
 
         # check if the huggingface_pipeline_kwargs contain the essential parameters
         # otherwise, populate them with values from other init parameters
         huggingface_pipeline_kwargs.setdefault("model", model)
-        huggingface_pipeline_kwargs.setdefault("token", token)
 
         device = ComponentDevice.resolve_device(device)
         device.update_hf_kwargs(huggingface_pipeline_kwargs, overwrite=False)
 
-        # task identification and validation
-        if task is None:
-            if "task" in huggingface_pipeline_kwargs:
-                task = huggingface_pipeline_kwargs["task"]
-            elif isinstance(huggingface_pipeline_kwargs["model"], str):
-                task = model_info(
-                    huggingface_pipeline_kwargs["model"], token=huggingface_pipeline_kwargs["token"]
-                ).pipeline_tag  # type: ignore[assignment]  # we'll check below if task is in supported tasks
-
-        if task not in PIPELINE_SUPPORTED_TASKS:
-            msg = f"Task '{task}' is not supported. The supported tasks are: {', '.join(PIPELINE_SUPPORTED_TASKS)}."
-            raise ValueError(msg)
-        if task == "text2text-generation" and Version(transformers.__version__) >= Version("5.0.0"):
-            msg = "Task 'text2text-generation' is not supported with transformers v5 or higher."
-            raise ValueError(msg)
-        huggingface_pipeline_kwargs["task"] = task
+        task = task or huggingface_pipeline_kwargs.get("task")
+        if task is not None:
+            huggingface_pipeline_kwargs["task"] = task
+        self._task = task
 
         # if not specified, set return_full_text to False for text-generation
         # only generated text is returned (excluding prompt)
@@ -244,26 +226,7 @@ class TransformersChatGenerator:
         self.enable_thinking = enable_thinking
 
         self._owns_executor = async_executor is None
-        self.executor = (
-            ThreadPoolExecutor(thread_name_prefix=f"async-TransformersChatGenerator-executor-{id(self)}", max_workers=1)
-            if async_executor is None
-            else async_executor
-        )
-        self._is_warmed_up = False
-
-    def __del__(self) -> None:
-        """
-        Cleanup when the instance is being destroyed.
-        """
-        if hasattr(self, "_owns_executor") and self._owns_executor and hasattr(self, "executor"):
-            self.executor.shutdown(wait=True)
-
-    def shutdown(self) -> None:
-        """
-        Explicitly shutdown the executor if we own it.
-        """
-        if self._owns_executor:
-            self.executor.shutdown(wait=True)
+        self.executor = async_executor
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -277,18 +240,36 @@ class TransformersChatGenerator:
         """
         Initializes the component and warms up tools if provided.
         """
-        if self._is_warmed_up:
-            return
-
-        # Initialize the pipeline
         if self.pipeline is None:
-            self.pipeline = pipeline(**self.huggingface_pipeline_kwargs)
+            pipeline_kwargs = self.huggingface_pipeline_kwargs.copy()
+            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
+            task = pipeline_kwargs.get("task")
+            if task is None and isinstance(pipeline_kwargs["model"], str):
+                task = model_info(pipeline_kwargs["model"], token=pipeline_kwargs["token"]).pipeline_tag
 
-        # Warm up tools
-        if self.tools:
-            warm_up_tools(self.tools)
+            if task not in PIPELINE_SUPPORTED_TASKS:
+                msg = f"Task '{task}' is not supported. The supported tasks are: {', '.join(PIPELINE_SUPPORTED_TASKS)}."
+                raise ValueError(msg)
+            pipeline_kwargs["task"] = task
 
-        self._is_warmed_up = True
+            hf_pipeline = pipeline(**pipeline_kwargs)
+            if self.tools:
+                warm_up_tools(self.tools)
+            self.pipeline = hf_pipeline
+            self._task = task
+
+        if self._owns_executor and self.executor is None:
+            self.executor = ThreadPoolExecutor(
+                thread_name_prefix=f"async-TransformersChatGenerator-executor-{id(self)}", max_workers=1
+            )
+
+    def close(self) -> None:
+        """
+        Close the executor owned by the component.
+        """
+        if self._owns_executor and self.executor is not None:
+            self.executor.shutdown(wait=True)
+            self.executor = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -362,8 +343,8 @@ class TransformersChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
-        if self.pipeline is None:
-            self.warm_up()
+        self.warm_up()
+        assert self.pipeline is not None  # noqa: S101
 
         messages = _normalize_messages(messages)
 
@@ -483,8 +464,9 @@ class TransformersChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
-        if self.pipeline is None:
-            self.warm_up()
+        self.warm_up()
+        assert self.pipeline is not None  # noqa: S101
+        assert self.executor is not None  # noqa: S101
 
         messages = _normalize_messages(messages)
 
@@ -571,6 +553,8 @@ class TransformersChatGenerator:
 
         # Check and update generation parameters
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        if self._task == "text-generation":
+            generation_kwargs.setdefault("return_full_text", False)
 
         # If streaming_callback is provided, ensure that num_return_sequences is set to 1
         if streaming_callback:

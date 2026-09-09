@@ -99,13 +99,11 @@ class TransformersNamedEntityExtractor:
             task="ner",
             supported_tasks=["ner"],
             device=self.device,
-            token=token,
         )
 
         self.tokenizer: Any = None
         self.model: AutoModelForTokenClassification | None = None
         self.pipeline: HfPipeline | None = None
-        self._warmed_up: bool = False
 
     def warm_up(self) -> None:
         """
@@ -114,24 +112,28 @@ class TransformersNamedEntityExtractor:
         :raises ComponentError:
             If the component fails to initialize successfully.
         """
-        if self._warmed_up:
+        if self.pipeline is not None:
             return
 
         try:
-            token = self.pipeline_kwargs.get("token", None)
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, token=token)
-            self.model = AutoModelForTokenClassification.from_pretrained(self.model_name_or_path, token=token)
+            pipeline_kwargs = self.pipeline_kwargs.copy()
+            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
+            token = pipeline_kwargs["token"]
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, token=token)
+            model = AutoModelForTokenClassification.from_pretrained(self.model_name_or_path, token=token)
 
             pipeline_params: dict[str, Any] = {
                 "task": "ner",
-                "model": self.model,
-                "tokenizer": self.tokenizer,
+                "model": model,
+                "tokenizer": tokenizer,
                 "aggregation_strategy": "simple",
             }
-            pipeline_params.update({k: v for k, v in self.pipeline_kwargs.items() if k not in pipeline_params})
+            pipeline_params.update({k: v for k, v in pipeline_kwargs.items() if k not in pipeline_params})
             self.device.update_hf_kwargs(pipeline_params, overwrite=False)
-            self.pipeline = pipeline(**pipeline_params)
-            self._warmed_up = True
+            hf_pipeline = pipeline(**pipeline_params)
+            self.tokenizer = tokenizer
+            self.model = model
+            self.pipeline = hf_pipeline
         except Exception as e:
             msg = f"{self.__class__.__name__} failed to initialize."
             raise ComponentError(msg) from e
@@ -150,8 +152,8 @@ class TransformersNamedEntityExtractor:
         :raises ComponentError:
             If the model fails to process a document.
         """
-        if not self._warmed_up:
-            self.warm_up()
+        self.warm_up()
+        assert self.pipeline is not None  # noqa: S101
 
         texts = [doc.content if doc.content is not None else "" for doc in documents]
         annotations = self._annotate(texts, batch_size=batch_size)

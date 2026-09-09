@@ -12,7 +12,7 @@ from haystack_integrations.components.routers.transformers import TransformersTe
 COMPONENT_TYPE = "haystack_integrations.components.routers.transformers.text_router.TransformersTextRouter"
 
 
-class TestTransformersTextRouter:
+class TestSerialization:
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
     def test_to_dict(self, mock_auto_config_from_pretrained):
         mock_auto_config_from_pretrained.return_value = MagicMock(label2id={"en": 0, "de": 1})
@@ -79,7 +79,6 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "text-classification",
-            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
@@ -99,7 +98,6 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "text-classification",
-            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
@@ -128,9 +126,35 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.from_str("cpu").to_hf(),
             "task": "text-classification",
-            "token": component.token.resolve_value(),
         }
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_init_when_labels_are_inferred(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            TransformersTextRouter(model="model", token=Secret.from_env_var("MISSING_HF_TOKEN"))
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        router = TransformersTextRouter(model="model", labels=["label"], token=Secret.from_env_var("MISSING_HF_TOKEN"))
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            router.warm_up()
+
+    @patch("haystack_integrations.components.routers.transformers.text_router.pipeline")
+    def test_warm_up_is_idempotent(self, pipeline_mock):
+        pipeline_mock.return_value = MagicMock(model=MagicMock(config=MagicMock(label2id={"label": 0})))
+        router = TransformersTextRouter(model="model", labels=["label"], token=None)
+
+        router.warm_up()
+        router.warm_up()
+
+        pipeline_mock.assert_called_once()
+
+
+class TestRun:
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
     @patch("haystack_integrations.components.routers.transformers.text_router.pipeline")
     def test_warm_up(self, hf_pipeline_mock, mock_auto_config_from_pretrained):
@@ -171,6 +195,8 @@ class TestTransformersTextRouter:
         assert router.pipeline is not None
         assert out == {"en": "What is the color of the sky?"}
 
+
+class TestIntegration:
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars_if_empty):
         router = TransformersTextRouter(

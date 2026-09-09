@@ -17,6 +17,30 @@ from haystack.utils.device import ComponentDevice, DeviceMap
 from haystack_integrations.components.readers.transformers import TransformersExtractiveReader
 
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        reader = TransformersExtractiveReader(model="model", token=Secret.from_env_var("MISSING_HF_TOKEN"))
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            reader.warm_up()
+
+    @patch("haystack_integrations.components.readers.transformers.extractive_reader.AutoTokenizer.from_pretrained")
+    @patch(
+        "haystack_integrations.components.readers.transformers.extractive_reader."
+        "AutoModelForQuestionAnswering.from_pretrained"
+    )
+    def test_warm_up_is_idempotent(self, model_mock, tokenizer_mock):
+        model_mock.return_value.hf_device_map = {"": "cpu"}
+        reader = TransformersExtractiveReader(model="model", token=None)
+
+        reader.warm_up()
+        reader.warm_up()
+
+        model_mock.assert_called_once()
+        tokenizer_mock.assert_called_once()
+
+
 @pytest.fixture()
 def initialized_token(monkeypatch: MonkeyPatch) -> Secret:
     monkeypatch.setenv("HF_API_TOKEN", "secret-token")

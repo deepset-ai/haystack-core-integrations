@@ -583,8 +583,10 @@ class TransformersExtractiveReader:
         :returns:
             List of answers sorted by (desc.) answer score.
         """
-        if self.model is None:
-            self.warm_up()
+        self.warm_up()
+        assert self.model is not None  # noqa: S101
+        assert self.tokenizer is not None  # noqa: S101
+        assert self.device is not None  # noqa: S101
 
         if not documents:
             return {"answers": []}

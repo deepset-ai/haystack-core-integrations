@@ -6,14 +6,12 @@ import asyncio
 from unittest.mock import Mock, patch
 
 import pytest
-import transformers
 from haystack.dataclasses import ChatMessage, ChatRole, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool
 from haystack.tools.toolset import Toolset
 from haystack.utils import ComponentDevice
 from haystack.utils.auth import Secret
-from packaging.version import Version
 from transformers import PreTrainedTokenizer
 
 from haystack_integrations.components.generators.transformers import TransformersChatGenerator
@@ -80,7 +78,7 @@ def custom_tool_parser(text: str) -> list[ToolCall] | None:
     return [ToolCall(tool_name="weather", arguments={"city": "Berlin"})]
 
 
-class TestTransformersChatGenerator:
+class TestInitializationAndSerialization:
     def test_initialize_with_valid_model_and_generation_parameters(self, model_info_mock):
         model = "HuggingFaceH4/zephyr-7b-alpha"
         generation_kwargs = {"n": 1}
@@ -108,7 +106,6 @@ class TestTransformersChatGenerator:
         assert generator.huggingface_pipeline_kwargs == {
             "model": "mistralai/Mistral-7B-Instruct-v0.2",
             "task": "text-generation",
-            "token": "test-token",
             "device": "cpu",
         }
 
@@ -123,7 +120,6 @@ class TestTransformersChatGenerator:
         assert generator.huggingface_pipeline_kwargs == {
             "model": "mistralai/Mistral-7B-Instruct-v0.2",
             "task": "text-generation",
-            "token": None,
             "device": "cpu",
         }
 
@@ -135,7 +131,6 @@ class TestTransformersChatGenerator:
         assert generator.huggingface_pipeline_kwargs == {
             "model": "Qwen/Qwen3-0.6B",
             "task": "text-generation",
-            "token": None,
             "device": "cpu",
         }
 
@@ -147,35 +142,38 @@ class TestTransformersChatGenerator:
         assert generator.huggingface_pipeline_kwargs == {
             "model": "Qwen/Qwen3-0.6B",
             "task": "text-generation",
-            "token": None,
             "device": "cpu",
         }
 
-    def test_init_task_inferred_from_model_name(self, model_info_mock):
+    def test_transformers_chat_generator_with_toolset_initialization(
+        self, model_info_mock, mock_pipeline_with_tokenizer, tools
+    ):
+        """Test that the TransformersChatGenerator can be initialized with a Toolset."""
+        toolset = Toolset(tools)
+        generator = TransformersChatGenerator(model="irrelevant", tools=toolset)
+        generator.pipeline = mock_pipeline_with_tokenizer
+        assert generator.tools == toolset
+
+    def test_init_image_text_to_text(self, model_info_mock):
+        llm = TransformersChatGenerator(model="Qwen/Qwen2-VL-2B-Instruct")
+
+        assert llm
+        assert isinstance(llm, TransformersChatGenerator)
+        assert "model" in llm.huggingface_pipeline_kwargs
+
+    def test_init_image_text_to_text_task(self, model_info_mock):
         generator = TransformersChatGenerator(
-            model="mistralai/Mistral-7B-Instruct-v0.2", device=ComponentDevice.from_str("cpu"), token=None
+            model="Qwen/Qwen2-VL-2B-Instruct",
+            task="image-text-to-text",
+            device=ComponentDevice.from_str("cpu"),
+            token=None,
         )
 
         assert generator.huggingface_pipeline_kwargs == {
-            "model": "mistralai/Mistral-7B-Instruct-v0.2",
-            "task": "text-generation",
-            "token": None,
+            "model": "Qwen/Qwen2-VL-2B-Instruct",
+            "task": "image-text-to-text",
             "device": "cpu",
         }
-
-    def test_init_invalid_task(self):
-        with pytest.raises(ValueError, match=r"is not supported\."):
-            TransformersChatGenerator(task="text-classification")
-
-    @pytest.mark.skipif(
-        Version(transformers.__version__) < Version("5.0.0"),
-        reason="The task 'text2text-generation' is only rejected with transformers v5 or higher",
-    )
-    def test_init_text2text_generation_raises_error(self):
-        with pytest.raises(
-            ValueError, match=r"Task 'text2text-generation' is not supported with transformers v5 or higher\."
-        ):
-            TransformersChatGenerator(task="text2text-generation")
 
     def test_to_dict(self, model_info_mock, tools):
         generator = TransformersChatGenerator(
@@ -201,7 +199,6 @@ class TestTransformersChatGenerator:
             "max_new_tokens": 512,
             "n": 5,
             "stop_sequences": ["stop", "words"],
-            "return_full_text": False,
         }
         assert init_params["streaming_callback"] is None
         assert init_params["chat_template"] == "irrelevant"
@@ -231,7 +228,6 @@ class TestTransformersChatGenerator:
             "max_new_tokens": 512,
             "n": 5,
             "stop_sequences": ["stop", "words"],
-            "return_full_text": False,
         }
         assert generator_2.streaming_callback is None
         assert generator_2.chat_template == "irrelevant"
@@ -244,6 +240,115 @@ class TestTransformersChatGenerator:
             "properties": {"city": {"type": "string"}},
             "required": ["city"],
         }
+
+    def test_to_dict_with_toolset(self, model_info_mock, mock_pipeline_with_tokenizer, tools):
+        """Test that the TransformersChatGenerator can be serialized to a dictionary with a Toolset."""
+        toolset = Toolset(tools)
+        generator = TransformersChatGenerator(huggingface_pipeline_kwargs={"model": "irrelevant"}, tools=toolset)
+        generator.pipeline = mock_pipeline_with_tokenizer
+        data = generator.to_dict()
+
+        # deserializing the serialized component must reproduce the original toolset
+        loaded = TransformersChatGenerator.from_dict(data)
+        assert isinstance(loaded.tools, Toolset)
+        assert list(loaded.tools) == list(toolset)
+
+    def test_from_dict_with_toolset(self, model_info_mock, tools):
+        """Test that the TransformersChatGenerator can be deserialized from a dictionary with a Toolset."""
+        toolset = Toolset(tools)
+        component = TransformersChatGenerator(model="irrelevant", tools=toolset)
+        data = component.to_dict()
+
+        deserialized_component = TransformersChatGenerator.from_dict(data)
+
+        assert isinstance(deserialized_component.tools, Toolset)
+        assert len(deserialized_component.tools) == len(tools)
+        assert all(isinstance(tool, Tool) for tool in deserialized_component.tools)
+
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        generator = TransformersChatGenerator(task="text-generation", token=Secret.from_env_var("MISSING_HF_TOKEN"))
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            generator.warm_up()
+
+    @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.ThreadPoolExecutor")
+    @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
+    def test_sync_lifecycle(self, pipeline_mock, executor_cls_mock):
+        generator = TransformersChatGenerator(task="text-generation", token=None)
+        executor = executor_cls_mock.return_value
+
+        generator.warm_up()
+        assert generator.pipeline is pipeline_mock.return_value
+        assert generator.executor is executor
+
+        generator.close()
+        executor.shutdown.assert_called_once_with(wait=True)
+        assert generator.executor is None
+        assert generator.pipeline is pipeline_mock.return_value
+
+        generator.warm_up()
+        assert executor_cls_mock.call_count == 2
+        pipeline_mock.assert_called_once()
+
+    @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.ThreadPoolExecutor")
+    @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
+    def test_warm_up_is_idempotent(self, pipeline_mock, executor_cls_mock):
+        generator = TransformersChatGenerator(task="text-generation", token=None)
+
+        generator.warm_up()
+        generator.warm_up()
+
+        pipeline_mock.assert_called_once()
+        executor_cls_mock.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        generator = TransformersChatGenerator(task="text-generation", token=None)
+
+        generator.close()
+
+        assert generator.executor is None
+
+    @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
+    def test_close_does_not_shutdown_user_supplied_executor(self, pipeline_mock):
+        executor = Mock()
+        generator = TransformersChatGenerator(task="text-generation", token=None, async_executor=executor)
+        generator.warm_up()
+
+        generator.close()
+
+        executor.shutdown.assert_not_called()
+        assert generator.executor is executor
+
+    @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
+    def test_task_inferred_at_warm_up_not_init(self, pipeline_mock, model_info_mock):
+        generator = TransformersChatGenerator(
+            model="mistralai/Mistral-7B-Instruct-v0.2", device=ComponentDevice.from_str("cpu"), token=None
+        )
+
+        assert generator.huggingface_pipeline_kwargs == {
+            "model": "mistralai/Mistral-7B-Instruct-v0.2",
+            "device": "cpu",
+        }
+        generation_kwargs = generator.generation_kwargs.copy()
+        model_info_mock.assert_not_called()
+
+        generator.warm_up()
+
+        assert generator.generation_kwargs == generation_kwargs
+        model_info_mock.assert_called_once_with("mistralai/Mistral-7B-Instruct-v0.2", token=None)
+        pipeline_mock.assert_called_once_with(
+            model="mistralai/Mistral-7B-Instruct-v0.2", device="cpu", token=None, task="text-generation"
+        )
+        generator.close()
+
+    def test_warm_up_invalid_task(self):
+        generator = TransformersChatGenerator(task="text-classification")
+
+        with pytest.raises(ValueError, match=r"is not supported\."):
+            generator.warm_up()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
     def test_warm_up(self, pipeline_mock, del_hf_env_vars_if_empty):
@@ -295,14 +400,14 @@ class TestTransformersChatGenerator:
 
         # Verify initial state - warm_up not called yet
         assert MockTool.warm_up_call_count == 0
-        assert not generator._is_warmed_up
+        assert generator.pipeline is None
 
         # Call warm_up() on the generator
         generator.warm_up()
 
         # Assert that the tool's warm_up() was called
         assert MockTool.warm_up_call_count == 1
-        assert generator._is_warmed_up
+        assert generator.pipeline is not None
 
         # Verify pipeline was initialized
         pipeline_mock.assert_called_once()
@@ -312,7 +417,7 @@ class TestTransformersChatGenerator:
 
         # The tool's warm_up should still only have been called once
         assert MockTool.warm_up_call_count == 1
-        assert generator._is_warmed_up
+        assert generator.pipeline is not None
         # Pipeline should still only have been called once
         pipeline_mock.assert_called_once()
 
@@ -325,19 +430,19 @@ class TestTransformersChatGenerator:
         )
 
         # Verify initial state
-        assert not generator._is_warmed_up
+        assert generator.pipeline is None
         assert generator.tools is None
 
         # Call warm_up() - should not raise an error
         generator.warm_up()
 
         # Verify the component is warmed up
-        assert generator._is_warmed_up
+        assert generator.pipeline is not None
         pipeline_mock.assert_called_once()
 
         # Call warm_up() again - should be idempotent
         generator.warm_up()
-        assert generator._is_warmed_up
+        assert generator.pipeline is not None
         # Pipeline should still only have been called once
         pipeline_mock.assert_called_once()
 
@@ -377,7 +482,7 @@ class TestTransformersChatGenerator:
         # Assert that both tools' warm_up() were called
         assert "tool1" in warm_up_calls
         assert "tool2" in warm_up_calls
-        assert generator._is_warmed_up
+        assert generator.pipeline is not None
         pipeline_mock.assert_called_once()
 
         # Track count
@@ -389,6 +494,8 @@ class TestTransformersChatGenerator:
         # Pipeline should still only have been called once
         pipeline_mock.assert_called_once()
 
+
+class TestRun:
     def test_run(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
 
@@ -511,48 +618,8 @@ class TestTransformersChatGenerator:
         mock_convert.assert_any_call(messages[0])
         mock_convert.assert_any_call(messages[1])
 
-    @pytest.mark.integration
-    @pytest.mark.flaky(reruns=3, reruns_delay=10)
-    def test_live_run(self, del_hf_env_vars_if_empty):
-        """Test live run with default behavior (no thinking)."""
-        messages = [ChatMessage.from_user("Please create a summary about the following topic: Climate change")]
 
-        llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B",
-            generation_kwargs={"max_new_tokens": 50},
-            device=ComponentDevice.from_str("cpu"),
-        )
-
-        result = llm.run(messages)
-
-        assert "replies" in result
-        assert isinstance(result["replies"][0], ChatMessage)
-        assert "climate change" in result["replies"][0].text.lower()
-
-    @pytest.mark.integration
-    @pytest.mark.flaky(reruns=3, reruns_delay=10)
-    def test_live_run_thinking(self, del_hf_env_vars_if_empty):
-        """Test live run with enable_thinking=True."""
-        messages = [ChatMessage.from_user("What is 2+2?")]
-
-        llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B",
-            generation_kwargs={"max_new_tokens": 450},
-            enable_thinking=True,
-            device=ComponentDevice.from_str("cpu"),
-        )
-
-        result = llm.run(messages)
-
-        assert "replies" in result
-        assert isinstance(result["replies"][0], ChatMessage)
-        reply_text = result["replies"][0].text
-        assert reply_text is not None
-        assert "<think>" in reply_text
-        assert "</think>" in reply_text
-        assert len(reply_text) > 0
-        assert "4" in reply_text.lower()
-
+class TestValidationAndTools:
     @pytest.mark.parametrize(
         "generated_text",
         [
@@ -700,7 +767,7 @@ class TestTransformersChatGenerator:
         assert results["replies"][0].tool_calls[0].arguments == {"city": "Berlin"}
 
 
-class TestTransformersChatGeneratorAsync:
+class TestRunAsync:
     """Async tests for TransformersChatGenerator"""
 
     @pytest.mark.asyncio
@@ -716,7 +783,7 @@ class TestTransformersChatGeneratorAsync:
         chat_message = results["replies"][0]
         assert chat_message.is_from(ChatRole.ASSISTANT)
         assert chat_message.text == "Berlin is cool"
-        generator.shutdown()
+        generator.close()
 
     @pytest.mark.asyncio
     async def test_run_async_with_generation_kwargs(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
@@ -731,7 +798,7 @@ class TestTransformersChatGeneratorAsync:
         _, kwargs = generator.pipeline.call_args
         assert kwargs["max_new_tokens"] == 100
         assert kwargs["temperature"] == 0.9
-        generator.shutdown()
+        generator.close()
 
     @pytest.mark.asyncio
     async def test_run_async_with_string_input(self, model_info_mock, mock_pipeline_with_tokenizer):
@@ -746,7 +813,7 @@ class TestTransformersChatGeneratorAsync:
         assert "replies" in results
         assert isinstance(results["replies"][0], ChatMessage)
         assert results["replies"][0].is_from(ChatRole.ASSISTANT)
-        generator.shutdown()
+        generator.close()
 
     @pytest.mark.asyncio
     async def test_run_async_with_tools(self, model_info_mock, mock_pipeline_with_tokenizer, tools):
@@ -767,7 +834,7 @@ class TestTransformersChatGeneratorAsync:
         assert isinstance(tool_call, ToolCall)
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Berlin"}
-        generator.shutdown()
+        generator.close()
 
     @pytest.mark.asyncio
     async def test_concurrent_async_requests(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
@@ -783,7 +850,7 @@ class TestTransformersChatGeneratorAsync:
             assert "replies" in result
             assert isinstance(result["replies"][0], ChatMessage)
             assert result["replies"][0].text == "Berlin is cool"
-        generator.shutdown()
+        generator.close()
 
     @pytest.mark.asyncio
     async def test_async_error_handling(self, model_info_mock, mock_pipeline_with_tokenizer):
@@ -798,39 +865,6 @@ class TestTransformersChatGeneratorAsync:
                 streaming_callback=lambda _: None,
                 tools=[Tool(name="test", description="test", parameters={}, function=lambda: None)],
             )
-
-    def test_transformers_chat_generator_with_toolset_initialization(
-        self, model_info_mock, mock_pipeline_with_tokenizer, tools
-    ):
-        """Test that the TransformersChatGenerator can be initialized with a Toolset."""
-        toolset = Toolset(tools)
-        generator = TransformersChatGenerator(model="irrelevant", tools=toolset)
-        generator.pipeline = mock_pipeline_with_tokenizer
-        assert generator.tools == toolset
-
-    def test_from_dict_with_toolset(self, model_info_mock, tools):
-        """Test that the TransformersChatGenerator can be deserialized from a dictionary with a Toolset."""
-        toolset = Toolset(tools)
-        component = TransformersChatGenerator(model="irrelevant", tools=toolset)
-        data = component.to_dict()
-
-        deserialized_component = TransformersChatGenerator.from_dict(data)
-
-        assert isinstance(deserialized_component.tools, Toolset)
-        assert len(deserialized_component.tools) == len(tools)
-        assert all(isinstance(tool, Tool) for tool in deserialized_component.tools)
-
-    def test_to_dict_with_toolset(self, model_info_mock, mock_pipeline_with_tokenizer, tools):
-        """Test that the TransformersChatGenerator can be serialized to a dictionary with a Toolset."""
-        toolset = Toolset(tools)
-        generator = TransformersChatGenerator(huggingface_pipeline_kwargs={"model": "irrelevant"}, tools=toolset)
-        generator.pipeline = mock_pipeline_with_tokenizer
-        data = generator.to_dict()
-
-        # deserializing the serialized component must reproduce the original toolset
-        loaded = TransformersChatGenerator.from_dict(data)
-        assert isinstance(loaded.tools, Toolset)
-        assert list(loaded.tools) == list(toolset)
 
     @pytest.mark.asyncio
     async def test_run_async_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer):
@@ -868,8 +902,54 @@ class TestTransformersChatGeneratorAsync:
         assert len(response["replies"]) == 1
         assert isinstance(response["replies"][0], ChatMessage)
         assert response["replies"][0].text == "Berlin is cool"
-        generator.shutdown()
+        generator.close()
 
+
+class TestIntegration:
+    @pytest.mark.integration
+    @pytest.mark.flaky(reruns=3, reruns_delay=10)
+    def test_live_run(self, del_hf_env_vars_if_empty):
+        """Test live run with default behavior (no thinking)."""
+        messages = [ChatMessage.from_user("Please create a summary about the following topic: Climate change")]
+
+        llm = TransformersChatGenerator(
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 50},
+            device=ComponentDevice.from_str("cpu"),
+        )
+
+        result = llm.run(messages)
+
+        assert "replies" in result
+        assert isinstance(result["replies"][0], ChatMessage)
+        assert "climate change" in result["replies"][0].text.lower()
+
+    @pytest.mark.integration
+    @pytest.mark.flaky(reruns=3, reruns_delay=10)
+    def test_live_run_thinking(self, del_hf_env_vars_if_empty):
+        """Test live run with enable_thinking=True."""
+        messages = [ChatMessage.from_user("What is 2+2?")]
+
+        llm = TransformersChatGenerator(
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 450},
+            enable_thinking=True,
+            device=ComponentDevice.from_str("cpu"),
+        )
+
+        result = llm.run(messages)
+
+        assert "replies" in result
+        assert isinstance(result["replies"][0], ChatMessage)
+        reply_text = result["replies"][0].text
+        assert reply_text is not None
+        assert "<think>" in reply_text
+        assert "</think>" in reply_text
+        assert len(reply_text) > 0
+        assert "4" in reply_text.lower()
+
+
+class TestAsyncIntegration:
     @pytest.mark.integration
     @pytest.mark.flaky(reruns=3, reruns_delay=10)
     @pytest.mark.asyncio
@@ -904,25 +984,3 @@ class TestTransformersChatGeneratorAsync:
         total_streamed_content = "".join(chunk.content for chunk in streaming_chunks)
         assert len(total_streamed_content.strip()) > 0
         assert "Paris" in total_streamed_content
-
-    def test_init_image_text_to_text(self, model_info_mock):
-        llm = TransformersChatGenerator(model="Qwen/Qwen2-VL-2B-Instruct")
-
-        assert llm
-        assert isinstance(llm, TransformersChatGenerator)
-        assert "model" in llm.huggingface_pipeline_kwargs
-
-    def test_init_image_text_to_text_task(self, model_info_mock):
-        generator = TransformersChatGenerator(
-            model="Qwen/Qwen2-VL-2B-Instruct",
-            task="image-text-to-text",
-            device=ComponentDevice.from_str("cpu"),
-            token=None,
-        )
-
-        assert generator.huggingface_pipeline_kwargs == {
-            "model": "Qwen/Qwen2-VL-2B-Instruct",
-            "task": "image-text-to-text",
-            "token": None,
-            "device": "cpu",
-        }
