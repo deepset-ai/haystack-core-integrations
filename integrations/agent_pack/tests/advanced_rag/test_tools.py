@@ -191,7 +191,6 @@ class TestMetadataToolContract:
 
     @pytest.mark.parametrize("tool_cls", TOOL_CLASSES)
     def test_serialization_roundtrip(self, store, tool_cls):
-        # An overridden description, since the default would survive a `to_dict` that dropped the field entirely.
         tool = tool_cls(store, description="Call this one first.")
         data = tool.to_dict()
         assert data["type"].endswith(tool_cls.__name__)
