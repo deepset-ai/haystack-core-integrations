@@ -288,7 +288,10 @@ def main() -> None:
     agent = create_advanced_rag_agent(document_store=store, retriever=build_bm25_retriever(store=store))
 
     # Run the eval cases
-    results = [run_eval_case(agent=agent, case=case) for case in eval_cases]
+    results = [
+        run_eval_case(agent=agent, case=case, position=position, total=len(eval_cases))
+        for position, case in enumerate(eval_cases, start=1)
+    ]
 
     # Calculate total usage
     total_usage: dict[str, int] = {}
