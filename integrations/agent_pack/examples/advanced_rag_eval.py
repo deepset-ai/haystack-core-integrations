@@ -132,6 +132,18 @@ class ToolRunStats:
         return False
 
 
+def _preview(text: str, limit: int) -> str:
+    """
+    Collapse text to one line and cut it, marking the cut so a reader knows there is more.
+
+    :param text: The text to preview.
+    :param limit: How many characters to keep.
+    :returns: The preview, ending in an ellipsis when anything was cut.
+    """
+    collapsed = " ".join((text or "").split())
+    return collapsed if len(collapsed) <= limit else f"{collapsed[:limit]}..."
+
+
 def extract_tool_run_stats(messages: list[ChatMessage]) -> ToolRunStats:
     """
     Extract tool calls and error results from an agent run.
@@ -246,24 +258,30 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
     for document in retrieved_docs:
         by_article.setdefault(document.meta.get("title", ""), []).append(document)
 
-    print("\n  documents returned, and whether the answer needs them:")
+    print("\n  documents returned, grouped by article. -> marks one the answer needs:")
     for title, documents in by_article.items():
-        print(f"    {title}")
+        print(f"    Title: {title}")
         for document in sorted(documents, key=lambda chunk: chunk.meta.get("split_id", 0)):
-            label = "needed" if document.id in case.expected_document_ids else "not needed"
-            preview = " ".join((document.content or "").split())[:80]
-            print(f"      {label:>10}  chunk {document.meta.get('split_id'):>3}  [doc {document.id[:8]}]  {preview}")
+            needed_here = "-> " if document.id in case.expected_document_ids else "   "
+            preview = _preview(text=document.content or "", limit=80)
+            print(f"      {needed_here}chunk {document.meta.get('split_id'):>2}  [doc {document.id[:8]}]  {preview}")
     # Naming the quote, since the id alone says nothing about what the run failed to find or failed to use.
     print()
     for document_id in sorted(case.expected_document_ids - retrieved_ids):
-        print(f"  needed but never retrieved: [doc {document_id[:8]}] {case.evidence[document_id][:96]}")
+        print(
+            f"  needed but never retrieved: [doc {document_id[:8]}] "
+            f"{_preview(text=case.evidence[document_id], limit=96)}"
+        )
     for document_id in sorted(uncited & retrieved_ids):
-        print(f"  needed and retrieved but not cited: [doc {document_id[:8]}] {case.evidence[document_id][:96]}")
+        print(
+            f"  needed and retrieved but not cited: [doc {document_id[:8]}] "
+            f"{_preview(text=case.evidence[document_id], limit=96)}"
+        )
 
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for tool_name, message in tool_run_stats.errors:
-        print(f"  tool error: {tool_name} -> {message[:120]}")
+        print(f"  tool error: {tool_name} -> {_preview(text=message, limit=120)}")
     print("  answer:")
     for line in answer.splitlines():
         print(f"    {line}")
