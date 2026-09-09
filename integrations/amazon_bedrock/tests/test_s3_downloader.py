@@ -83,6 +83,7 @@ class TestS3Downloader:
                     "env_vars": ["AWS_PROFILE"],
                     "strict": False,
                 },
+                "boto3_config": boto3_config,
                 "file_root_path": str(tmp_path),
                 "file_extensions": None,
                 "max_cache_size": 100,
@@ -124,6 +125,7 @@ class TestS3Downloader:
                     "env_vars": ["AWS_PROFILE"],
                     "strict": False,
                 },
+                "boto3_config": boto3_config,
                 "file_root_path": str(tmp_path),
                 "s3_key_generation_function": None,
                 "s3_bucket_name_env": "S3_DOWNLOADER_BUCKET",
@@ -131,6 +133,7 @@ class TestS3Downloader:
         }
         d = S3Downloader.from_dict(data)
         assert Path(d.file_root_path) == tmp_path
+        assert d.boto3_config == boto3_config
 
     def test_to_dict_with_parameters(self, tmp_path):
         d = S3Downloader(
@@ -170,6 +173,7 @@ class TestS3Downloader:
                     "env_vars": ["AWS_PROFILE"],
                     "strict": False,
                 },
+                "boto3_config": None,
                 "file_root_path": str(tmp_path),
                 "file_extensions": [".txt"],
                 "max_cache_size": 400,
