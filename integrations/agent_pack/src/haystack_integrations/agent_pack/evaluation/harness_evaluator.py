@@ -18,12 +18,11 @@ class HarnessEvaluator(Protocol):
     An evaluator measures one kind of target — an Agent for one harness, a Pipeline for another — and says so in
     its own signatures. `target` is typed loosely here so an implementation can name the kind it measures.
 
-    Eval cases are independent and each spends its time waiting on a model, so an evaluator measures several at
-    once and `evaluate_async` is the one that does the work. `evaluate` runs it to completion for a caller that
-    has no event loop of its own.
+    Eval cases are independent and each spends its time waiting on a model, so an evaluator measures several at once
+    and `evaluate_async` is the one that does the work. `evaluate` runs it to completion for a caller that has no event
+    loop of its own.
 
-    Subclass it to inherit `fingerprint` and a `validate` that checks nothing; implement it structurally to
-    supply both.
+    Subclass it to inherit `fingerprint` and a `validate` that checks nothing; implement it structurally to supply both.
 
     :param eval_cases: The labelled expectations being scored, keyed by question.
     """
@@ -54,10 +53,6 @@ class HarnessEvaluator(Protocol):
         """
         Describe what this evaluator measures, so two measurements are comparable only when it matches.
 
-        Folded into the experiment's measurement context. The evaluator owns the eval cases, so nothing else is
-        in a position to report them: an evaluator that describes nothing distinguishing makes a run against a
-        different evaluation set look like a continuation of this one.
-
         :returns: Every configured eval case, ordered by question.
         """
         return {
@@ -69,10 +64,7 @@ class HarnessEvaluator(Protocol):
 
     def validate(self, target: Any) -> None:  # noqa: ARG002
         """
-        Reject a candidate this evaluator could not measure, before a measurement is spent on it.
-
-        Run as part of the optimizer's own validation step, so a rewiring the harness cannot drive comes back as
-        an error the optimizer can repair rather than as a failed measurement. Nothing is checked by default.
+        Validate a target configuration to catch errors before harness runs another evaluation.
 
         :param target: Candidate configuration deserialized from YAML.
         :raises ValueError: If the candidate is missing something the evaluator requires.
