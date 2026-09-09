@@ -34,6 +34,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
+from haystack import Document
 from haystack.components.agents import Agent
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage
@@ -49,7 +50,7 @@ with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSea
 
 RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
-_CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})\]")
+_CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})[^]]*\]")
 
 
 @dataclass
@@ -218,15 +219,15 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
 
     inspected_first = tool_run_stats.called_before(tools="list_metadata_fields", other=RETRIEVAL_TOOLS)
     counts = Counter(name for name, _ in tool_run_stats.calls)
-    filters_used = [
-        args["filters"] for name, args in tool_run_stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")
-    ]
+    filtered_retrievals = sum(
+        1 for name, args in tool_run_stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")
+    )
     needed = len(case.expected_document_ids)
     print(f"\n=== eval case {position}/{total}: {'PASS' if passed else 'FAIL'} ===")
     print(f"  question: {case.question}")
     print(f"  tools called: {dict(counts)}")
     print(
-        f"  inspected metadata first: {inspected_first}   retrievals with a filter: {len(filters_used)}   "
+        f"  inspected metadata first: {inspected_first}   retrievals with a filter: {filtered_retrievals}   "
         f"tool errors: {len(tool_run_stats.errors)}   steps: {result['step_count']}   time: {elapsed:.1f}s"
     )
     for tools, used in spent.items():
@@ -239,11 +240,21 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
         f"and {len(resolved)}/{len(cited_refs)} of the answer's references point at a returned document"
     )
 
-    print("  documents returned, and whether the answer needs them:")
+    # Chunks of one article all carry its title, so they are grouped under it and told apart by chunk number.
+    # Articles keep the order they were first returned in, which is the order the run ranked them.
+    by_article: dict[str, list[Document]] = {}
     for document in retrieved_docs:
-        label = "needed" if document.id in case.expected_document_ids else "not needed"
-        print(f"    {label:>10}  [doc {document.id[:8]}] {document.meta.get('title')}")
+        by_article.setdefault(document.meta.get("title", ""), []).append(document)
+
+    print("\n  documents returned, and whether the answer needs them:")
+    for title, documents in by_article.items():
+        print(f"    {title}")
+        for document in sorted(documents, key=lambda chunk: chunk.meta.get("split_id", 0)):
+            label = "needed" if document.id in case.expected_document_ids else "not needed"
+            preview = " ".join((document.content or "").split())[:80]
+            print(f"      {label:>10}  chunk {document.meta.get('split_id'):>3}  [doc {document.id[:8]}]  {preview}")
     # Naming the quote, since the id alone says nothing about what the run failed to find or failed to use.
+    print()
     for document_id in sorted(case.expected_document_ids - retrieved_ids):
         print(f"  needed but never retrieved: [doc {document_id[:8]}] {case.evidence[document_id][:96]}")
     for document_id in sorted(uncited & retrieved_ids):
@@ -253,8 +264,6 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for tool_name, message in tool_run_stats.errors:
         print(f"  tool error: {tool_name} -> {message[:120]}")
-    for filters in filters_used:
-        print(f"  retrieval filter: {filters}")
     print("  answer:")
     for line in answer.splitlines():
         print(f"    {line}")
@@ -277,12 +286,13 @@ def main() -> None:
         articles=articles, limit=arguments.max_cases, seed=arguments.case_seed
     )
     # Budgets for the tools this agent has. Lenient on purpose: too many retrievals is better than too few.
-    budgets: dict[str | tuple[str, ...], int] = {METADATA_TOOLS: 5, RETRIEVAL_TOOLS: 5}
+    # Generous on purpose: a MultiHopRAG question needs evidence from several articles, so several searches are
+    # the expected shape of a good run rather than a sign of floundering.
+    budgets: dict[str | tuple[str, ...], int] = {METADATA_TOOLS: 8, RETRIEVAL_TOOLS: 12}
     eval_cases = [
         EvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets) for question in labelled
     ]
-    expected = sum(len(case.expected_document_ids) for case in eval_cases)
-    print(f"eval cases: {len(eval_cases)} labelled from evidence, expecting {expected} documents in total")
+    print(f"eval cases: {len(eval_cases)} labelled from evidence")
 
     # Build the advanced rag agent
     agent = create_advanced_rag_agent(document_store=store, retriever=build_bm25_retriever(store=store))
