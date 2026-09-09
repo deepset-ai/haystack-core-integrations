@@ -235,12 +235,24 @@ class TestInitializationSerialization:
 
         embedder = OptimumDocumentEmbedder.from_dict(data)
 
+        assert embedder._params.model == "sentence-transformers/all-mpnet-base-v2"
+        assert embedder._params.token == Secret.from_env_var("HF_API_TOKEN", strict=False)
+        assert embedder._params.prefix == ""
+        assert embedder._params.suffix == ""
+        assert embedder._params.normalize_embeddings is True
+        assert embedder._params.onnx_execution_provider == "CPUExecutionProvider"
         assert embedder._params.pooling_mode == OptimumEmbedderPooling.MEAN
         assert embedder._params.model_kwargs == {
             "model_id": "sentence-transformers/all-mpnet-base-v2",
             "provider": "CPUExecutionProvider",
         }
         assert embedder._params.batch_size == 32
+        assert embedder._params.progress_bar is True
+        assert embedder._params.working_dir is None
+        assert embedder._params.optimizer_settings is None
+        assert embedder._params.quantizer_settings is None
+        assert embedder.meta_fields_to_embed == []
+        assert embedder.embedding_separator == "\n"
         assert embedder._backend is None
 
 
