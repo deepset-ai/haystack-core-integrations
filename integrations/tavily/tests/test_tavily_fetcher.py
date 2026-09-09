@@ -295,12 +295,14 @@ class TestRun:
 
         assert result["documents"] == []
 
-    def test_run_triggers_warm_up(self, extract_response):
-        with patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyClient") as mock_cls:
-            mock_cls.return_value.extract.return_value = extract_response
-            fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
+    def test_run_triggers_warm_up(self, mock_client):
+        fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        fetcher._tavily_client = mock_client
+
+        with patch.object(fetcher, "warm_up", wraps=fetcher.warm_up) as mock_warm_up:
             fetcher.run(urls=["https://example.com"])
-            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
+
+        mock_warm_up.assert_called_once_with()
 
     @pytest.mark.asyncio
     async def test_run_async(self, mock_async_client):
@@ -314,12 +316,14 @@ class TestRun:
         mock_async_client.extract.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_run_async_triggers_warm_up(self, extract_response):
-        with patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.AsyncTavilyClient") as mock_cls:
-            mock_cls.return_value.extract = AsyncMock(return_value=extract_response)
-            fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
+    async def test_run_async_triggers_warm_up(self, mock_async_client):
+        fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        fetcher._async_tavily_client = mock_async_client
+
+        with patch.object(fetcher, "warm_up_async", wraps=fetcher.warm_up_async) as mock_warm_up:
             await fetcher.run_async(urls=["https://example.com"])
-            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
+
+        mock_warm_up.assert_awaited_once_with()
 
     @pytest.mark.asyncio
     async def test_run_async_raises_on_error(self, mock_async_client):

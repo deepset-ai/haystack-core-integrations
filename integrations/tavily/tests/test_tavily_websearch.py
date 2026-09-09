@@ -214,20 +214,24 @@ class TestRun:
         with pytest.raises(Exception, match="API error"):
             await ws.run_async(query="test")
 
-    def test_run_triggers_warm_up(self, search_response):
-        with patch("haystack_integrations.components.websearch.tavily.tavily_websearch.TavilyClient") as mock_cls:
-            mock_cls.return_value.search.return_value = search_response
-            ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
+    def test_run_triggers_warm_up(self, mock_client):
+        ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
+        ws._tavily_client = mock_client
+
+        with patch.object(ws, "warm_up", wraps=ws.warm_up) as mock_warm_up:
             ws.run(query="test")
-            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
+
+        mock_warm_up.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_run_async_triggers_warm_up(self, search_response):
-        with patch("haystack_integrations.components.websearch.tavily.tavily_websearch.AsyncTavilyClient") as mock_cls:
-            mock_cls.return_value.search = AsyncMock(return_value=search_response)
-            ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
+    async def test_run_async_triggers_warm_up(self, mock_async_client):
+        ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
+        ws._async_tavily_client = mock_async_client
+
+        with patch.object(ws, "warm_up_async", wraps=ws.warm_up_async) as mock_warm_up:
             await ws.run_async(query="test")
-            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
+
+        mock_warm_up.assert_awaited_once_with()
 
     def test_run_empty_results(self, mock_client):
         mock_client.search.return_value = {"results": []}
