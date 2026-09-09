@@ -80,16 +80,16 @@ class TestPerplexityChatGenerator:
 
         assert chat_generator_module._attribution_header() == "haystack/unknown"
 
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
-
+    def test_init_default(self):
         component = PerplexityChatGenerator()
 
-        assert component.api_key.resolve_value() == "test-api-key"
+        assert component.api_key == Secret.from_env_var("PERPLEXITY_API_KEY")
         assert component.model == "openai/gpt-5.4"
         assert component.api_base_url == "https://api.perplexity.ai/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+        assert component.client is None
+        assert component.async_client is None
 
     def test_init_with_parameters(self):
         component = PerplexityChatGenerator(
@@ -126,12 +126,14 @@ class TestPerplexityChatGenerator:
     def test_warm_up(self, monkeypatch):
         monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
         component = PerplexityChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+
+        component.warm_up()
+
+        assert component.client is not None
         assert component.client.api_key == "test-api-key"
 
-    def test_to_dict_default_round_trip(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
 
+    def test_to_dict_default_round_trip(self):
         component = PerplexityChatGenerator()
         data = component.to_dict()
 
@@ -161,8 +163,7 @@ class TestPerplexityChatGenerator:
         assert deserialized.api_key == Secret.from_env_var("PERPLEXITY_API_KEY")
         assert deserialized.extra_headers is None
 
-    def test_to_dict_with_parameters_round_trip(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test-api-key")
+    def test_to_dict_with_parameters_round_trip(self):
         component = PerplexityChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="xai/grok-4-1",
