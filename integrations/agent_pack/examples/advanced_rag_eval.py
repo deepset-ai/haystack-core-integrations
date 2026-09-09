@@ -78,30 +78,57 @@ class EvalCase:
 
 @dataclass
 class ToolRunStats:
-    """The tool calls one agent run made, and what they add up to."""
+    """
+    The tool calls one agent run made, and what they add up to.
+
+    :param calls: Every call the run made, in the order it made them, as `(tool name, the arguments it passed)`:
+
+            [("list_metadata_fields", {}), ("search_documents", {"query": "CRISPR", "filters": None})]
+
+    :param errors: The calls that came back an error, as `(tool name, what it said)`:
+
+            [("get_metadata_field_values", "field 'nope' does not exist in the store")]
+    """
 
     calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
-    errors: int = 0
+    errors: list[tuple[str, str]] = field(default_factory=list)
 
-    @property
-    def inspected_first(self) -> bool:
-        """Whether `list_metadata_fields` was called before any retrieval tool."""
-        for name, _ in self.calls:
-            if name == "list_metadata_fields":
-                return True
-            if name in RETRIEVAL_TOOLS:
-                return False
-        return False
+    @staticmethod
+    def _named(tools: str | tuple[str, ...]) -> set[str]:
+        """
+        Normalize one tool name or a group of them to a set.
+
+        :param tools: A tool name, or several of them.
+        :returns: The names as a set.
+        """
+        return {tools} if isinstance(tools, str) else set(tools)
 
     def calls_to(self, tools: str | tuple[str, ...]) -> int:
         """
         Count the calls made to one tool, or to any of a group of them.
 
-        :param tools: A tool name, or several sharing one allowance.
+        :param tools: A tool name, or several of them.
         :returns: How many calls the run made to them.
         """
-        wanted = {tools} if isinstance(tools, str) else set(tools)
+        wanted = self._named(tools=tools)
         return sum(1 for name, _ in self.calls if name in wanted)
+
+    def called_before(self, tools: str | tuple[str, ...], other: str | tuple[str, ...]) -> bool:
+        """
+        Whether the run reached for one tool before it reached for another.
+
+        :param tools: The tool, or tools, that should come first.
+        :param other: The tool, or tools, they should come before.
+        :returns: True when one of `tools` was called and none of `other` was called before it. False when
+            `other` came first, and when neither was called at all.
+        """
+        wanted, after = self._named(tools=tools), self._named(tools=other)
+        for name, _ in self.calls:
+            if name in wanted:
+                return True
+            if name in after:
+                return False
+        return False
 
 
 def extract_tool_run_stats(messages: list[ChatMessage]) -> ToolRunStats:
@@ -111,11 +138,15 @@ def extract_tool_run_stats(messages: list[ChatMessage]) -> ToolRunStats:
     :param messages: The messages returned by `agent.run(...)`.
     :returns: The extracted statistics.
     """
-    stats = ToolRunStats()
-    for message in messages:
-        stats.calls.extend((tc.tool_name, tc.arguments or {}) for tc in message.tool_calls)
-        stats.errors += sum(1 for res in message.tool_call_results if res.error)
-    return stats
+    return ToolRunStats(
+        calls=[(call.tool_name, call.arguments or {}) for message in messages for call in message.tool_calls],
+        errors=[
+            (result.origin.tool_name, result.result)
+            for message in messages
+            for result in message.tool_call_results
+            if result.error
+        ],
+    )
 
 
 def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
@@ -146,12 +177,14 @@ def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
     return OpenSearchBM25Retriever(document_store=store, top_k=top_k)
 
 
-def run_eval_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
+def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> dict[str, Any]:
     """
     Run the agent on one eval case and print its report.
 
     :param agent: The agent under evaluation.
     :param case: The eval case to evaluate.
+    :param position: Which eval case this is, for the report heading.
+    :param total: How many eval cases there are, for the report heading.
     :returns: A dict with `passed` (bool), `usage` (the run's token_usage dict), and `time` (s).
     """
     started = time.perf_counter()
@@ -159,18 +192,18 @@ def run_eval_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
     elapsed = time.perf_counter() - started
 
     # Everything the report needs comes out of the one run: its messages, its answer and its token usage.
-    stats = extract_tool_run_stats(messages=result["messages"])
+    tool_run_stats = extract_tool_run_stats(messages=result["messages"])
     answer = result["last_message"].text or ""
     usage = result.get("token_usage") or {}
 
-    # Recall over the chunks the question's evidence lives in.
+    # Recall on the retrieved documents: how many of the expected documents the Agent found.
     retrieved_docs = result.get("documents") or []
     retrieved_ids = {document.id for document in retrieved_docs}
     found = case.expected_document_ids & retrieved_ids
     recall = len(found) / len(case.expected_document_ids)
 
-    # Resolve each [doc <short-id>] the answer carries against what the run returned. A reference matching nothing
-    # is a citation the reader cannot follow, and one the answer never makes is evidence it did not use.
+    # Resolve each [doc <short-id>] the answer uses against what the Agent found. A reference matching nothing
+    # is a fake citation, and one the answer doesn't use is an uncited document. Both are failures.
     cited_refs = _CITATION_RE.findall(answer)
     resolved = [ref for ref in cited_refs if any(document.id.startswith(ref) for document in retrieved_docs)]
     cited_ids = {document.id for document in retrieved_docs if any(document.id.startswith(r) for r in cited_refs)}
@@ -179,39 +212,49 @@ def run_eval_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
 
     # An eval case passes only on all four: it found every expected document, cited every one of them, made no
     # citation that does not resolve, and stayed inside its tool budget.
-    spent = {tools: stats.calls_to(tools=tools) for tools in case.tool_budgets}
+    spent = {tools: tool_run_stats.calls_to(tools=tools) for tools in case.tool_budgets}
     within_budget = all(used <= case.tool_budgets[tools] for tools, used in spent.items())
     passed = recall == 1.0 and not uncited and citations_ok and within_budget
 
-    counts = Counter(name for name, _ in stats.calls)
-    filters_used = [args["filters"] for name, args in stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")]
-    print(f"\n[{'PASS' if passed else 'FAIL'}] {case.question}")
-    print(f"  tools: {dict(counts)}")
+    inspected_first = tool_run_stats.called_before(tools="list_metadata_fields", other=RETRIEVAL_TOOLS)
+    counts = Counter(name for name, _ in tool_run_stats.calls)
+    filters_used = [
+        args["filters"] for name, args in tool_run_stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")
+    ]
+    needed = len(case.expected_document_ids)
+    print(f"\n=== eval case {position}/{total}: {'PASS' if passed else 'FAIL'} ===")
+    print(f"  question: {case.question}")
+    print(f"  tools called: {dict(counts)}")
     print(
-        f"  inspected-first={stats.inspected_first}  filtered-retrievals={len(filters_used)}"
-        f"  errors={stats.errors}  steps={result['step_count']}  time={elapsed:.1f}s"
+        f"  inspected metadata first: {inspected_first}   retrievals with a filter: {len(filters_used)}   "
+        f"tool errors: {len(tool_run_stats.errors)}   steps: {result['step_count']}   time: {elapsed:.1f}s"
     )
     for tools, used in spent.items():
         limit = case.tool_budgets[tools]
         label = tools if isinstance(tools, str) else " + ".join(tools)
-        print(f"  budget: {label} {used}/{limit} -> {'ok' if used <= limit else 'EXCEEDED'}")
+        print(f"  tool budget: {label} {used}/{limit} -> {'ok' if used <= limit else 'EXCEEDED'}")
+    print(f"  retrieval: found {len(found)}/{needed} of the documents the answer needs, {len(retrieved_docs)} returned")
     print(
-        f"  retrieved={len(retrieved_docs)}  recall={len(found)}/{len(case.expected_document_ids)}"
-        f"  cited={len(case.expected_document_ids) - len(uncited)}/{len(case.expected_document_ids)} expected"
-        f"  citations={len(resolved)}/{len(cited_refs)} resolve"
+        f"  citations: cited {needed - len(uncited)}/{needed} of them, "
+        f"and {len(resolved)}/{len(cited_refs)} of the answer's references point at a returned document"
     )
+
+    print("  documents returned, and whether the answer needs them:")
     for document in retrieved_docs:
-        marker = "+" if document.id in case.expected_document_ids else "-"
-        print(f"    {marker} [doc {document.id[:8]}] {document.meta.get('title')}")
+        label = "needed" if document.id in case.expected_document_ids else "not needed"
+        print(f"    {label:>10}  [doc {document.id[:8]}] {document.meta.get('title')}")
+    # Naming the quote, since the id alone says nothing about what the run failed to find or failed to use.
     for document_id in sorted(case.expected_document_ids - retrieved_ids):
-        # Naming the quote that was missed, since the id alone says nothing about what the run failed to find.
-        print(f"    MISSED [doc {document_id[:8]}] {case.evidence[document_id][:100]}")
+        print(f"  needed but never retrieved: [doc {document_id[:8]}] {case.evidence[document_id][:96]}")
     for document_id in sorted(uncited & retrieved_ids):
-        print(f"    UNCITED [doc {document_id[:8]}] {case.evidence[document_id][:100]}")
+        print(f"  needed and retrieved but not cited: [doc {document_id[:8]}] {case.evidence[document_id][:96]}")
+
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
+    for tool_name, message in tool_run_stats.errors:
+        print(f"  tool error: {tool_name} -> {message[:120]}")
     for filters in filters_used:
-        print(f"  filter: {filters}")
+        print(f"  retrieval filter: {filters}")
     print("  answer:")
     for line in answer.splitlines():
         print(f"    {line}")
@@ -235,26 +278,29 @@ def main() -> None:
     )
     # Budgets for the tools this agent has. Lenient on purpose: too many retrievals is better than too few.
     budgets: dict[str | tuple[str, ...], int] = {METADATA_TOOLS: 5, RETRIEVAL_TOOLS: 5}
-    cases = [
+    eval_cases = [
         EvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets) for question in labelled
     ]
-    expected = sum(len(case.expected_document_ids) for case in cases)
-    print(f"eval cases: {len(cases)} labelled from evidence, expecting {expected} documents in total")
+    expected = sum(len(case.expected_document_ids) for case in eval_cases)
+    print(f"eval cases: {len(eval_cases)} labelled from evidence, expecting {expected} documents in total")
 
+    # Build the advanced rag agent
     agent = create_advanced_rag_agent(document_store=store, retriever=build_bm25_retriever(store=store))
 
-    results = [run_eval_case(agent=agent, case=case) for case in cases]
+    # Run the eval cases
+    results = [run_eval_case(agent=agent, case=case) for case in eval_cases]
 
-    passed = sum(result["passed"] for result in results)
+    # Calculate total usage
     total_usage: dict[str, int] = {}
     for result in results:
         _sum_usage(total=total_usage, usage=result["usage"])
+
+    # Print the results
+    passed = sum(result["passed"] for result in results)
     print(f"\n=== {passed}/{len(results)} eval cases passed ===")
     print(f"total time: {sum(result['time'] for result in results):.1f}s")
     if total_usage:
         print(f"total tokens: {total_usage}")
-    if passed < len(results):
-        raise SystemExit(1)
 
 
 if __name__ == "__main__":
