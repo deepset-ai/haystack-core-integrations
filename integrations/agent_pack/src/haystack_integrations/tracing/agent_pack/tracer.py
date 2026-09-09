@@ -17,20 +17,44 @@ from haystack.tracing import Span, Tracer
 
 from haystack_integrations.agent_pack.dataclasses import ModelTokenUsage
 
+# How many of a socket's strings to keep, and how much of each. A query expansion is worth reading back; an
+# unbounded one, or a socket carrying document text, must not reach whoever reads the measurement.
+MAX_RECORDED_TEXTS = 8
+MAX_RECORDED_TEXT_CHARS = 120
+
+
+def _capped(text: str) -> str:
+    """
+    Cut one recorded string to its allowance, marking the cut so a reader knows there was more.
+
+    :param text: The string a component emitted.
+    :returns: The string, ending in an ellipsis when anything was dropped.
+    """
+    return text if len(text) <= MAX_RECORDED_TEXT_CHARS else f"{text[:MAX_RECORDED_TEXT_CHARS]}..."
+
 
 @dataclass
 class EvalCaseUsage:
     """
-    Only usage totals and output sizes are retained; prompts, replies and documents are discarded.
+    What one eval case spent and what reached each of its stages.
+
+    Usage totals, output sizes, and a capped sample of short strings are retained; prompts, replies and
+    documents are discarded.
 
     `outputs` is how many items each component emitted, by component name and output socket. A configuration is
     a chain of stages, and what a score means depends on how much reached each of them: a pipeline pooling six
     searches deduplicates them into a candidate set whose size no configuration value states, so widening the
     search and widening what survives it cannot be told apart from the inputs and the final answer alone.
+
+    `texts` samples the sockets that emitted short strings, capped at `MAX_RECORDED_TEXTS` entries of
+    `MAX_RECORDED_TEXT_CHARS` each. It is the one thing kept verbatim, because a count cannot say it: a stage
+    that rewrites the question decides what the search can possibly find, and whether four rewrites decomposed
+    the question or restated it is the difference between a configuration worth keeping and one worth undoing.
     """
 
     models: dict[str, ModelTokenUsage] = field(default_factory=dict)
     outputs: dict[str, dict[str, int]] = field(default_factory=dict)
+    texts: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     complete: bool = True
     calls: int = 0
     hook_calls: int = 0
@@ -50,9 +74,9 @@ class _HarnessSpan(Span):
     def set_tag(self, key: str, value: Any) -> None:
         """Discard ordinary trace tags."""
 
-    def _record_output_sizes(self, value: Any) -> None:
+    def _record_outputs(self, value: Any) -> None:
         """
-        Count what one component emitted, keeping the sizes and discarding the items.
+        Record how much one component emitted, and a capped sample of whatever it emitted as text.
 
         Generators are skipped: a reply count is always one and says nothing about how much reached the next
         stage, and the generators held inside other components share the name their owner gave them, so counting
@@ -60,15 +84,26 @@ class _HarnessSpan(Span):
         """
         if self.usage is None or self.component is None or self.generator or not isinstance(value, dict):
             return
-        sizes = {socket: len(items) for socket, items in value.items() if isinstance(items, (list, tuple))}
-        if sizes:
-            with self.usage.lock:
-                self.usage.outputs[self.component] = sizes
+        # Only sequences are measurable, and only a sequence of nothing but strings is worth sampling. Documents
+        # and messages are counted and dropped, so nothing long is retained by accident.
+        emitted = {socket: items for socket, items in value.items() if isinstance(items, (list, tuple))}
+        sizes = {socket: len(items) for socket, items in emitted.items()}
+        texts = {
+            socket: [_capped(text=item) for item in items[:MAX_RECORDED_TEXTS]]
+            for socket, items in emitted.items()
+            if items and all(isinstance(item, str) for item in items)
+        }
+        if not sizes:
+            return
+        with self.usage.lock:
+            self.usage.outputs[self.component] = sizes
+            if texts:
+                self.usage.texts[self.component] = texts
 
     def set_content_tag(self, key: str, value: Any) -> None:
         """Extract usage and output sizes from one component output without enabling content logging."""
         if key == "haystack.component.output":
-            self._record_output_sizes(value)
+            self._record_outputs(value)
         if (
             not self.generator
             or self.usage is None
@@ -108,9 +143,10 @@ class HarnessTracer(Tracer):
     """
     Collect what one eval case spent and how much reached each of its stages.
 
-    Two things are taken from the spans a run emits and nothing else is kept: the token usage a generator
-    reports, and how many items every other component emitted. Prompts, replies and documents are discarded as
-    they pass, so no content is retained and content tracing never has to be enabled.
+    Three things are taken from the spans a run emits and nothing else is kept: the token usage a generator
+    reports, how many items every other component emitted, and a capped sample of the sockets that emitted
+    short strings. Prompts, replies and documents are discarded as they pass, so the only content retained is
+    that sample and content tracing never has to be enabled.
     """
 
     def __init__(self) -> None:

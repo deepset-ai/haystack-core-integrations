@@ -229,7 +229,6 @@ def _headline(metrics: dict[str, Any] | None) -> str:
         "mean_recall_at_k",
         "mean_precision_at_k",
         "mean_retrieved",
-        "mean_queries",
     ):
         if key in details:
             parts.append(f"{key.removeprefix('mean_')} {details[key]:.2f}")

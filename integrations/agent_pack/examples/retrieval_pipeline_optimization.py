@@ -32,11 +32,11 @@ from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
-from retrieval.dataclasses import RetrievalEvalCase
 from retrieval.harness_evaluator import RetrievalHarnessEvaluator
 from util import build_bm25_retriever
 
 from haystack_integrations.agent_pack.dataclasses import RunRecord
+from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -226,6 +226,20 @@ def format_cost(cost: float | None) -> str:
     return "unpriced" if cost is None else f"${cost:.6f}"
 
 
+def _stages(details: dict) -> str:
+    """
+    Render how much each component emitted, in execution order.
+
+    :param details: One measurement's details, carrying `mean_stage_outputs`.
+    :returns: One `component.socket count` entry per stage, or a note when nothing was recorded.
+    """
+    stages = details.get("mean_stage_outputs") or {}
+    entries = [
+        f"{component}.{socket} {size:.1f}" for component, sockets in stages.items() for socket, size in sockets.items()
+    ]
+    return " -> ".join(entries) if entries else "not recorded"
+
+
 def report(result: ExperimentResult) -> None:
     """Print baseline, candidate, gate, and recommendation details."""
     baseline = result.baseline
@@ -233,8 +247,9 @@ def report(result: ExperimentResult) -> None:
     print(
         f"  quality={baseline.quality:.2f} cost={format_cost(cost=baseline.cost)} "
         f"latency={baseline.latency_ms:.0f}ms recall@k={baseline.details['mean_recall_at_k']:.2f} "
-        f"queries={baseline.details['mean_queries']:.1f} retrieved={baseline.details['mean_retrieved']:.1f}"
+        f"retrieved={baseline.details['mean_retrieved']:.1f}"
     )
+    print(f"  stages: {_stages(details=baseline.details)}")
 
     print("\n--- candidates ---")
     for candidate in result.candidates:
@@ -246,8 +261,9 @@ def report(result: ExperimentResult) -> None:
         print(
             f"  {candidate.candidate_id} -> quality={candidate.metrics.quality:.2f} "
             f"cost={format_cost(cost=candidate.metrics.cost)} recall@k={details['mean_recall_at_k']:.2f} "
-            f"queries={details['mean_queries']:.1f} retrieved={details['mean_retrieved']:.1f}"
+            f"retrieved={details['mean_retrieved']:.1f}"
         )
+        print(f"    stages: {_stages(details=details)}")
         print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
 
     print("\n--- what the search itself cost ---")
@@ -351,14 +367,7 @@ def main() -> None:
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks")
 
     labelled = build_eval_cases(articles=articles, limit=arguments.max_eval_cases, seed=arguments.eval_case_seed)
-    eval_cases = [
-        RetrievalEvalCase(
-            question=eval_case.question,
-            evidence=eval_case.evidence,
-            k=arguments.k,
-        )
-        for eval_case in labelled
-    ]
+    eval_cases = [RetrievalEvalCase(question=eval_case.question, evidence=eval_case.evidence) for eval_case in labelled]
     expected = sum(len(eval_case.expected_document_ids) for eval_case in eval_cases)
     print(f"  cases: {len(eval_cases)} labelled from evidence, expecting {expected} documents in total")
 
@@ -379,7 +388,7 @@ def main() -> None:
 
     print("\n=== 3. optimization experiment ===")
     evaluator = RetrievalHarnessEvaluator(
-        eval_cases=eval_cases, max_concurrent_eval_cases=arguments.max_concurrent_eval_cases
+        eval_cases=eval_cases, k=arguments.k, max_concurrent_eval_cases=arguments.max_concurrent_eval_cases
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,

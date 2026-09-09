@@ -115,10 +115,10 @@ def score_advanced_rag_result(
     last_message = result.get("last_message")
     answer = (getattr(last_message, "text", None) or "") if last_message is not None else ""
     retrieved_documents = result.get("documents") or []
-    retrieved_ids = {document.id for document in retrieved_documents}
-    matched_ids = retrieved_ids & eval_case.expected_document_ids
-    recall = len(matched_ids) / len(eval_case.expected_document_ids) if eval_case.expected_document_ids else 0.0
-    precision = len(matched_ids) / len(retrieved_ids) if retrieved_ids else 0.0
+    # An Agent accumulates documents over several searches rather than ranking one list, so nothing is cut off.
+    retrieved_ids = [document.id for document in retrieved_documents]
+    recall = eval_case.recall_at(document_ids=retrieved_ids)
+    precision = eval_case.precision_at(document_ids=retrieved_ids)
 
     cited_refs = tuple(CITATION_PATTERN.findall(answer))
     citations_resolved = all(

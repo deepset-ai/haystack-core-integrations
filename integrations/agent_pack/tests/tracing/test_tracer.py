@@ -6,7 +6,11 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.tracing.agent_pack.tracer import HarnessTracer
+from haystack_integrations.tracing.agent_pack.tracer import (
+    MAX_RECORDED_TEXT_CHARS,
+    MAX_RECORDED_TEXTS,
+    HarnessTracer,
+)
 
 
 def test_ranker_and_agent_usage_counted_once_without_content_tracing():
@@ -91,3 +95,46 @@ def test_missing_usage_is_unavailable_and_tracer_is_disabled_after_failure():
         pass
     assert not usage.complete
     assert tracing.tracer.actual_tracer is not tracer
+
+
+def emit(tracer, component, output):
+    """Emit one component's output the way Haystack's component tracing does."""
+    with tracer.trace("haystack.component.run", tags={"haystack.component.name": component}) as span:
+        span.set_content_tag("haystack.component.output", output)
+
+
+def test_a_stage_that_rewrites_the_question_records_what_it_asked():
+    """A count says four queries were issued; only the text says whether they decomposed or restated."""
+    tracer = HarnessTracer()
+
+    with tracer.eval_case() as usage:
+        emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
+
+    assert usage.outputs["expander"] == {"queries": 2}
+    assert usage.texts["expander"] == {"queries": ["who owns it", "when was it sold"]}
+
+
+def test_an_unbounded_expansion_cannot_fill_the_readers_context():
+    tracer = HarnessTracer()
+    long_query = "x" * (MAX_RECORDED_TEXT_CHARS + 50)
+
+    with tracer.eval_case() as usage:
+        emit(tracer, "expander", {"queries": [long_query] * (MAX_RECORDED_TEXTS + 20)})
+
+    kept = usage.texts["expander"]["queries"]
+    assert len(kept) == MAX_RECORDED_TEXTS
+    assert all(entry == "x" * MAX_RECORDED_TEXT_CHARS + "..." for entry in kept)
+    # The count is not capped, so the sample being short never hides how much was really emitted.
+    assert usage.outputs["expander"]["queries"] == MAX_RECORDED_TEXTS + 20
+
+
+def test_documents_are_counted_and_never_sampled():
+    """Sampling is for sockets that are nothing but short strings, so document text is not retained."""
+    tracer = HarnessTracer()
+
+    with tracer.eval_case() as usage:
+        emit(tracer, "retriever", {"documents": [Document(content="a long article body")]})
+        emit(tracer, "mixed", {"things": ["a string", 7]})
+
+    assert usage.outputs == {"retriever": {"documents": 1}, "mixed": {"things": 2}}
+    assert usage.texts == {}

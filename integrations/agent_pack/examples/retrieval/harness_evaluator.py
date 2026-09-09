@@ -9,19 +9,15 @@ from typing import Any
 from haystack import Document, Pipeline, logging
 
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
+from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
-from retrieval.dataclasses import (
-    RetrievalEvalCase,
-    RetrievalEvalCaseMetrics,
-    RetrievalOutcome,
-)
+from retrieval.dataclasses import RetrievalEvalCaseMetrics, RetrievalOutcome
 
 logger = logging.getLogger(__name__)
 
 QUERY_SOCKET = "query"
 DOCUMENTS_SOCKET = "documents"
-QUERIES_SOCKET = "queries"
 
 
 def question_from_run(record: RunRecord) -> str:
@@ -67,23 +63,6 @@ def documents_exit_point(pipeline: Pipeline) -> str:
     return producers[0]
 
 
-def query_reporters(pipeline: Pipeline) -> set[str]:
-    """
-    Find components whose `queries` output records what was actually asked.
-
-    These are read for evidence only. A pipeline that expands nothing simply reports the original question.
-
-    :param pipeline: The pipeline to inspect.
-    :returns: The names of components producing a `queries` output.
-    """
-    reporters = set()
-    for name in pipeline.graph.nodes:
-        sockets = getattr(pipeline.get_component(name), "__haystack_output__", None)
-        if sockets is not None and QUERIES_SOCKET in sockets._sockets_dict:
-            reporters.add(name)
-    return reporters
-
-
 def _mean_stage_outputs(scored: list[RetrievalEvalCaseMetrics]) -> dict[str, dict[str, float]]:
     """
     Average how many items each component emitted, over the eval cases that reached it.
@@ -106,25 +85,26 @@ def score_retrieval_result(
     outcome: RetrievalOutcome,
     eval_case: RetrievalEvalCase,
     *,
+    k: int | None = None,
     latency_ms: float,
     stage_outputs: dict[str, dict[str, int]] | None = None,
+    stage_texts: dict[str, dict[str, list[str]]] | None = None,
 ) -> RetrievalEvalCaseMetrics:
     """
     Score one retrieval run against its labelled evidence.
 
-    :param outcome: The documents the pipeline retrieved and the queries it issued.
+    :param outcome: The question posed and the documents the pipeline retrieved.
     :param eval_case: The expectations to score against.
+    :param k: Rank cutoff the run is scored at, or `None` to score everything it returned.
     :param latency_ms: Measured wall-clock duration of the run.
     :param stage_outputs: How many items each component emitted, by component name and output socket.
+    :param stage_texts: A capped sample of whatever each component emitted as text.
     :returns: The score, naming every expectation the run missed.
     """
-    # Deduplicated in the order the run returned them, since which documents fall past the cutoff depends on
-    # how it ranked them.
-    returned_ids = list(dict.fromkeys(document.id for document in outcome.documents))
-    scored_ids = set(returned_ids[: eval_case.k] if eval_case.k is not None else returned_ids)
-    matched = scored_ids & eval_case.expected_document_ids
-    recall_at_k = len(matched) / len(eval_case.expected_document_ids)
-    precision_at_k = len(matched) / len(scored_ids) if scored_ids else 0.0
+    returned_ids = [document.id for document in outcome.documents]
+    found = eval_case.found_at(document_ids=returned_ids, k=k)
+    recall_at_k = eval_case.recall_at(document_ids=returned_ids, k=k)
+    precision_at_k = eval_case.precision_at(document_ids=returned_ids, k=k)
 
     failures: list[str] = []
     if recall_at_k < eval_case.min_recall:
@@ -136,13 +116,13 @@ def score_retrieval_result(
         question=eval_case.question,
         passed=not failures,
         stage_outputs=stage_outputs or {},
+        stage_texts=stage_texts or {},
         score=recall_at_k,
         failures=tuple(failures),
         recall_at_k=recall_at_k,
         precision_at_k=precision_at_k,
-        retrieved=len(returned_ids),
-        missed_document_ids=tuple(sorted(eval_case.expected_document_ids - matched)),
-        queries=outcome.queries,
+        retrieved=len(set(returned_ids)),
+        missed_document_ids=tuple(sorted(eval_case.expected_document_ids - found)),
         latency_ms=latency_ms,
     )
 
@@ -166,19 +146,20 @@ class RetrievalHarnessEvaluator:
         self,
         *,
         eval_cases: list[RetrievalEvalCase],
+        k: int | None = None,
         max_concurrent_eval_cases: int = 1,
-        max_reported_queries: int = 8,
     ) -> None:
         """
         Create an evaluator.
 
         :param eval_cases: Labelled expectations, keyed internally by question.
+        :param k: Rank cutoff every eval case is scored at, giving recall@k and precision@k. Only the first
+            `k` documents a run returns count, in the order it ranked them, so a pipeline is measured on what
+            it put at the top rather than on how much it returned. `None` scores everything returned.
         :param max_concurrent_eval_cases: How many eval cases to measure at once. Eval cases are independent and each
         spends its
             time waiting on a model, so this decides wall-clock time rather than cost. Leave it at 1 when ranking
             by latency, or the objective measures contention rather than the configuration.
-        :param max_reported_queries: How many issued queries to report per eval case. A configuration that expands
-            without limit would otherwise put its whole expansion into the optimizer's context.
         :raises ValueError: If `eval cases` is empty or `max_concurrent_eval_cases` is below one.
         """
         if not eval_cases:
@@ -188,8 +169,8 @@ class RetrievalHarnessEvaluator:
             msg = "max_concurrent_eval_cases must be at least 1."
             raise ValueError(msg)
         self.eval_cases = {eval_case.question: eval_case for eval_case in eval_cases}
+        self.k = k
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
-        self.max_reported_queries = max_reported_queries
 
     def validate_pipeline(self, target: Pipeline) -> None:
         """
@@ -218,14 +199,16 @@ class RetrievalHarnessEvaluator:
             )
         }
 
-    def _outcome(self, result: dict[str, Any], exit_point: str, reporters: set[str], question: str) -> RetrievalOutcome:
+    def _outcome(self, result: dict[str, Any], exit_point: str, question: str) -> RetrievalOutcome:
         """
-        Read the documents and the issued queries out of one pipeline result.
+        Read what the pipeline retrieved out of one result.
+
+        How the documents were fetched does not matter here: one query or twenty, the run is scored on what
+        reached the end. What each stage in between emitted is counted by the tracer instead.
 
         :param result: What `Pipeline.run_async` returned.
         :param exit_point: Component whose documents were retrieved.
-        :param reporters: Components that report the queries they issued.
-        :param question: The original question, reported when nothing expanded it.
+        :param question: The question that was posed.
         :returns: The run outcome.
         """
         documents = [
@@ -233,10 +216,7 @@ class RetrievalHarnessEvaluator:
             for document in (result.get(exit_point) or {}).get(DOCUMENTS_SOCKET) or []
             if isinstance(document, Document)
         ]
-        issued: list[str] = []
-        for name in sorted(reporters):
-            issued.extend(str(query) for query in (result.get(name) or {}).get(QUERIES_SOCKET) or [])
-        return RetrievalOutcome(documents=documents, queries=tuple(issued or [question]))
+        return RetrievalOutcome(question=question, documents=documents)
 
     async def _measure(
         self, target: Pipeline, resolved: list[RetrievalEvalCase], tracer: HarnessTracer
@@ -251,7 +231,6 @@ class RetrievalHarnessEvaluator:
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_eval_cases)
         exit_point = documents_exit_point(pipeline=target)
-        reporters = query_reporters(pipeline=target)
         entry_points = query_entry_points(pipeline=target)
 
         async def measure(
@@ -262,21 +241,23 @@ class RetrievalHarnessEvaluator:
             async with semaphore:
                 started = time.perf_counter()
                 with tracer.eval_case() as usage:
-                    result = await target.run_async(data=data, include_outputs_from=reporters | {exit_point})
+                    result = await target.run_async(data=data)
             latency_ms = (time.perf_counter() - started) * 1000
-            outcome = self._outcome(
-                result=result, exit_point=exit_point, reporters=reporters, question=eval_case.question
-            )
+            outcome = self._outcome(result=result, exit_point=exit_point, question=eval_case.question)
             scored = score_retrieval_result(
-                outcome=outcome, eval_case=eval_case, latency_ms=latency_ms, stage_outputs=dict(usage.outputs)
+                outcome=outcome,
+                eval_case=eval_case,
+                k=self.k,
+                latency_ms=latency_ms,
+                stage_outputs=dict(usage.outputs),
+                stage_texts=dict(usage.texts),
             )
             logger.info(
-                "eval case {position}/{total} {verdict} in {latency:.0f}ms with {queries} queries: {question}",
+                "eval case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
                 position=position,
                 total=len(resolved),
                 verdict="passed" if scored.passed else f"FAILED ({', '.join(scored.failures)})",
                 latency=latency_ms,
-                queries=len(outcome.queries),
                 question=eval_case.question[:80],
             )
             return scored, usage
@@ -329,8 +310,6 @@ class RetrievalHarnessEvaluator:
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
         eval_cases = [metric.to_dict() for metric in scored]
-        for case_detail in eval_cases:
-            case_detail["queries"] = case_detail["queries"][: self.max_reported_queries]
         return EvaluationMetrics(
             quality=sum(metric.score for metric in scored) / len(scored),
             latency_ms=sum(metric.latency_ms for metric in scored) / len(scored),
@@ -342,7 +321,6 @@ class RetrievalHarnessEvaluator:
                 "mean_recall_at_k": sum(metric.recall_at_k for metric in scored) / len(scored),
                 "mean_precision_at_k": sum(metric.precision_at_k for metric in scored) / len(scored),
                 "mean_retrieved": sum(metric.retrieved for metric in scored) / len(scored),
-                "mean_queries": sum(len(metric.queries) for metric in scored) / len(scored),
                 # How much reached each stage. A candidate set is pooled from several searches and deduplicated,
                 # so its size follows from no configuration value and only measurement reports where the path
                 # actually narrows.

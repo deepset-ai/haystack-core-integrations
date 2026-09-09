@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -99,11 +100,9 @@ class ToolRunStats:
 
 
 @dataclass(kw_only=True)
-class EvalCase:
+class RetrievalEvalCase:
     """
-    What every harness needs to score one labelled question: the question, and the documents that answer it.
-
-    Harnesses subclass this and add what only they can measure.
+    One labelled question and the documents an answer to it needs.
 
     :param question: The question to put to whatever is under evaluation.
     :param evidence: Ground truth, as `{document id: the quote found in that document}`. The keys are the
@@ -134,17 +133,58 @@ class EvalCase:
         """The documents an answer needs, which are the ones its evidence was found in."""
         return frozenset(self.evidence)
 
+    def found_at(self, document_ids: Sequence[str], k: int | None = None) -> frozenset[str]:
+        """
+        Return which of the needed documents a run returned within its first `k`.
+
+        :param document_ids: What the run returned, in the order it ranked them.
+        :param k: Rank cutoff, or `None` to count everything returned.
+        :returns: The needed documents that were found.
+        """
+        # Deduplicated in the returned order first, since which documents fall past the cutoff depends on how
+        # the run ranked them rather than on how many times each was returned.
+        ranked = list(dict.fromkeys(document_ids))
+        return self.expected_document_ids & set(ranked[:k] if k is not None else ranked)
+
+    def recall_at(self, document_ids: Sequence[str], k: int | None = None) -> float:
+        """
+        Return the share of the needed documents a run found within its first `k`.
+
+        :param document_ids: What the run returned, in the order it ranked them.
+        :param k: Rank cutoff, or `None` to count everything returned.
+        :returns: Recall@k, or 0.0 when the eval case names no documents.
+        """
+        if not self.evidence:
+            return 0.0
+        return len(self.found_at(document_ids=document_ids, k=k)) / len(self.evidence)
+
+    def precision_at(self, document_ids: Sequence[str], k: int | None = None) -> float:
+        """
+        Return the share of a run's first `k` documents that were needed.
+
+        :param document_ids: What the run returned, in the order it ranked them.
+        :param k: Rank cutoff, or `None` to count everything returned.
+        :returns: Precision@k, or 0.0 when the run returned nothing.
+        """
+        ranked = list(dict.fromkeys(document_ids))
+        scored = ranked[:k] if k is not None else ranked
+        if not scored:
+            return 0.0
+        return len(self.found_at(document_ids=document_ids, k=k)) / len(scored)
+
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the eval case into a dictionary.
 
-        :returns: A dictionary with one key per field, JSON compatible and stable enough to identify an
-            evaluation set.
+        :returns: A dictionary with one key per field, JSON compatible and with the evidence in a stable order,
+            so an evaluation set is identified the same way whichever order it was built in.
         """
-        return asdict(self)
+        data = asdict(self)
+        data["evidence"] = dict(sorted(self.evidence.items()))
+        return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EvalCase":
+    def from_dict(cls, data: dict[str, Any]) -> "RetrievalEvalCase":
         """
         Create a new eval case from a dictionary.
 
@@ -155,7 +195,7 @@ class EvalCase:
 
 
 @dataclass(kw_only=True)
-class RAGEvalCase(EvalCase):
+class RAGEvalCase(RetrievalEvalCase):
     """
     One eval case for a RAG agent, which answers using tools and so has budgets for them.
 
