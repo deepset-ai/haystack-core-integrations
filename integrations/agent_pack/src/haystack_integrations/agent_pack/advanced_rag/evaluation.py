@@ -11,9 +11,9 @@ from typing import Any
 
 from haystack import Document
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
-from haystack.dataclasses import ChatMessage
 from haystack.utils.filters import document_matches_filter
 
+from haystack_integrations.agent_pack.evaluation.tool_run_stats import extract_tool_run_stats
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run
 
 RETRIEVAL_TOOLS = frozenset({"search_documents", "fetch_documents_by_filter"})
@@ -21,91 +21,6 @@ METADATA_TOOLS = frozenset({"list_metadata_fields", "get_metadata_field_values",
 
 # Citation format produced by the Advanced RAG toolset: the first eight characters of a document ID.
 CITATION_PATTERN = re.compile(r"\[doc ([0-9a-fA-F]{8})\]")
-
-# A tool's own explanation of a refusal is the most useful part of a failing run, and the useful part comes first.
-_MAX_TRACE_ERROR_CHARS = 200
-
-
-@dataclass
-class RunStats:
-    """Tool-level process statistics extracted from an Agent conversation."""
-
-    calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
-    error_messages: list[str] = field(default_factory=list)
-    retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS
-    metadata_tools: frozenset[str] = METADATA_TOOLS
-
-    @property
-    def errors(self) -> int:
-        """
-        Return how many tool results reported an error.
-
-        :returns: The number of failing tool calls.
-        """
-        return len(self.error_messages)
-
-    @property
-    def inspected_first(self) -> bool:
-        """
-        Return whether metadata inspection preceded the first retrieval.
-
-        :returns: True if a metadata tool was called before any retrieval tool.
-        """
-        for name, _ in self.calls:
-            if name in self.metadata_tools:
-                return True
-            if name in self.retrieval_tools:
-                return False
-        return False
-
-    @property
-    def metadata_calls(self) -> int:
-        """
-        Return the number of metadata-inspection calls.
-
-        :returns: How many calls targeted a metadata tool.
-        """
-        return sum(1 for name, _ in self.calls if name in self.metadata_tools)
-
-    @property
-    def filtered_retrieval_calls(self) -> int:
-        """
-        Return the number of retrieval calls carrying a metadata filter.
-
-        :returns: How many retrieval calls passed a non-empty `filters` argument.
-        """
-        return sum(1 for name, arguments in self.calls if name in self.retrieval_tools and arguments.get("filters"))
-
-    @property
-    def retrieval_calls(self) -> int:
-        """
-        Return the number of retrieval calls.
-
-        :returns: How many calls targeted a retrieval tool.
-        """
-        return sum(1 for name, _ in self.calls if name in self.retrieval_tools)
-
-
-def extract_run_stats(
-    messages: list[ChatMessage],
-    retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
-    metadata_tools: frozenset[str] = METADATA_TOOLS,
-) -> RunStats:
-    """
-    Extract tool calls and error results from one Agent run.
-
-    :param messages: The messages an Agent run produced.
-    :param retrieval_tools: Resolved retrieval tool names.
-    :param metadata_tools: Resolved metadata tool names.
-    :returns: The tool calls made, in order, and the message of every tool result that reported an error.
-    """
-    stats = RunStats(retrieval_tools=retrieval_tools, metadata_tools=metadata_tools)
-    for message in messages:
-        stats.calls.extend((call.tool_name, call.arguments or {}) for call in message.tool_calls)
-        stats.error_messages.extend(
-            str(result.result)[:_MAX_TRACE_ERROR_CHARS] for result in message.tool_call_results if result.error
-        )
-    return stats
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -270,7 +185,12 @@ def score_advanced_rag_result(
     :returns: The score, naming every expectation the run missed, and the trace explaining why.
     """
     messages = result.get("messages") or []
-    stats = extract_run_stats(messages=messages, retrieval_tools=retrieval_tools, metadata_tools=metadata_tools)
+    stats = extract_tool_run_stats(messages=messages)
+    retrieval_names, metadata_names = tuple(retrieval_tools), tuple(metadata_tools)
+    inspected_first = stats.called_before(tools=metadata_names, other=retrieval_names)
+    metadata_calls = stats.calls_to(tools=metadata_names)
+    retrieval_calls = stats.calls_to(tools=retrieval_names)
+    filtered_retrieval_calls = stats.calls_with_argument(tools=retrieval_names, argument="filters")
     last_message = result.get("last_message")
     answer = (getattr(last_message, "text", None) or "") if last_message is not None else ""
     lowered = answer.lower()
@@ -318,14 +238,14 @@ def score_advanced_rag_result(
     if forbidden_terms:
         failures.append(f"answer_mentions_forbidden:{','.join(forbidden_terms)}")
 
-    if case.require_metadata_inspection and not stats.inspected_first:
+    if case.require_metadata_inspection and not inspected_first:
         failures.append("metadata_not_inspected_first")
-    if stats.metadata_calls > case.max_metadata_calls:
-        failures.append(f"metadata_calls_over_budget:{stats.metadata_calls}")
-    if stats.retrieval_calls > case.max_retrieval_calls:
-        failures.append(f"retrieval_calls_over_budget:{stats.retrieval_calls}")
-    if stats.errors > case.max_tool_errors:
-        failures.append(f"tool_errors:{stats.errors}")
+    if metadata_calls > case.max_metadata_calls:
+        failures.append(f"metadata_calls_over_budget:{metadata_calls}")
+    if retrieval_calls > case.max_retrieval_calls:
+        failures.append(f"retrieval_calls_over_budget:{retrieval_calls}")
+    if len(stats.errors) > case.max_tool_errors:
+        failures.append(f"tool_errors:{len(stats.errors)}")
 
     steps = int(result.get("step_count") or 0)
     if case.max_steps is not None and steps > case.max_steps:
@@ -341,11 +261,11 @@ def score_advanced_rag_result(
         citations_resolved=citations_resolved,
         cited_document_ids=cited_refs,
         answer_requirements_met=not missing_terms and not forbidden_terms,
-        inspected_first=stats.inspected_first,
-        metadata_calls=stats.metadata_calls,
-        retrieval_calls=stats.retrieval_calls,
-        filtered_retrieval_calls=stats.filtered_retrieval_calls,
-        tool_errors=stats.errors,
+        inspected_first=inspected_first,
+        metadata_calls=metadata_calls,
+        retrieval_calls=retrieval_calls,
+        filtered_retrieval_calls=filtered_retrieval_calls,
+        tool_errors=len(stats.errors),
         steps=steps,
         latency_ms=latency_ms,
         backup_answer_used=backup_answer_used,

@@ -6,8 +6,6 @@ from .agent import create_advanced_rag_agent
 from .evaluation import (
     AdvancedRAGCaseMetrics,
     AdvancedRAGEvaluationCase,
-    RunStats,
-    extract_run_stats,
     score_advanced_rag_result,
 )
 from .tools import (
@@ -26,8 +24,6 @@ __all__ = [
     "GetMetadataFieldRangeTool",
     "GetMetadataFieldValuesTool",
     "ListMetadataFieldsTool",
-    "RunStats",
     "create_advanced_rag_agent",
-    "extract_run_stats",
     "score_advanced_rag_result",
 ]

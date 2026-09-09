@@ -4,7 +4,6 @@ from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import (
     AdvancedRAGEvaluationCase,
-    extract_run_stats,
     score_advanced_rag_result,
 )
 
@@ -172,8 +171,17 @@ def test_metadata_filter_case_roundtrips():
     assert AdvancedRAGEvaluationCase.from_dict(data=original.to_dict()) == original
 
 
-def test_run_stats_count_filtered_retrieval_calls():
-    call = ToolCall("search_documents", {"query": "x", "filters": {"field": "meta.year"}}, id="1")
-    stats = extract_run_stats(messages=[ChatMessage.from_assistant(tool_calls=[call])])
-    assert stats.retrieval_calls == 1
-    assert stats.filtered_retrieval_calls == 1
+def test_a_retrieval_carrying_a_filter_is_reported_as_one(document):
+    """The filtered count is what shows whether metadata inspection changed how the Agent retrieved."""
+    case = AdvancedRAGEvaluationCase(question="q", expected_document_ids=frozenset({document.id}))
+    result = result_for("answer", [document])
+    result["messages"].append(
+        ChatMessage.from_assistant(
+            tool_calls=[ToolCall("search_documents", {"query": "x", "filters": {"field": "meta.year"}}, id="filtered")]
+        )
+    )
+
+    metrics = score_advanced_rag_result(result=result, case=case, latency_ms=1)
+
+    assert metrics.retrieval_calls == 2
+    assert metrics.filtered_retrieval_calls == 1

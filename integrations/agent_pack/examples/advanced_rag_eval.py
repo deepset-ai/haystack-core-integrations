@@ -31,7 +31,7 @@ import argparse
 import re
 import time
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from eval_case import EvalCase
@@ -45,6 +45,7 @@ from haystack.lazy_imports import LazyImport
 from multihop_rag import CORPUS_KEY, LabelledQuestion, build_eval_cases, prepare_corpus
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
+from haystack_integrations.agent_pack.evaluation import extract_tool_run_stats
 
 with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
     from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever
@@ -67,61 +68,6 @@ class RAGEvalCase(EvalCase):
     tool_budgets: dict[str | tuple[str, ...], int]
 
 
-@dataclass
-class ToolRunStats:
-    """
-    The tool calls one agent run made, and what they add up to.
-
-    :param calls: Every call the run made, in the order it made them, as `(tool name, the arguments it passed)`:
-
-            [("list_metadata_fields", {}), ("search_documents", {"query": "CRISPR", "filters": None})]
-
-    :param errors: The calls that came back an error, as `(tool name, what it said)`:
-
-            [("get_metadata_field_values", "field 'nope' does not exist in the store")]
-    """
-
-    calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
-    errors: list[tuple[str, str]] = field(default_factory=list)
-
-    @staticmethod
-    def _named(tools: str | tuple[str, ...]) -> set[str]:
-        """
-        Normalize one tool name or a group of them to a set.
-
-        :param tools: A tool name, or several of them.
-        :returns: The names as a set.
-        """
-        return {tools} if isinstance(tools, str) else set(tools)
-
-    def calls_to(self, tools: str | tuple[str, ...]) -> int:
-        """
-        Count the calls made to one tool, or to any of a group of them.
-
-        :param tools: A tool name, or several of them.
-        :returns: How many calls the run made to them.
-        """
-        wanted = self._named(tools=tools)
-        return sum(1 for name, _ in self.calls if name in wanted)
-
-    def called_before(self, tools: str | tuple[str, ...], other: str | tuple[str, ...]) -> bool:
-        """
-        Whether the run reached for one tool before it reached for another.
-
-        :param tools: The tool, or tools, that should come first.
-        :param other: The tool, or tools, they should come before.
-        :returns: True when one of `tools` was called and none of `other` was called before it. False when
-            `other` came first, and when neither was called at all.
-        """
-        wanted, after = self._named(tools=tools), self._named(tools=other)
-        for name, _ in self.calls:
-            if name in wanted:
-                return True
-            if name in after:
-                return False
-        return False
-
-
 def _preview(text: str, limit: int) -> str:
     """
     Collapse text to one line and cut it, marking the cut so a reader knows there is more.
@@ -132,24 +78,6 @@ def _preview(text: str, limit: int) -> str:
     """
     collapsed = " ".join((text or "").split())
     return collapsed if len(collapsed) <= limit else f"{collapsed[:limit]}..."
-
-
-def extract_tool_run_stats(messages: list[ChatMessage]) -> ToolRunStats:
-    """
-    Extract tool calls and error results from an agent run.
-
-    :param messages: The messages returned by `agent.run(...)`.
-    :returns: The extracted statistics.
-    """
-    return ToolRunStats(
-        calls=[(call.tool_name, call.arguments or {}) for message in messages for call in message.tool_calls],
-        errors=[
-            (result.origin.tool_name, result.result)
-            for message in messages
-            for result in message.tool_call_results
-            if result.error
-        ],
-    )
 
 
 def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
@@ -221,9 +149,7 @@ def run_eval_case(agent: Agent, case: RAGEvalCase, position: int, total: int) ->
 
     inspected_first = tool_run_stats.called_before(tools="list_metadata_fields", other=RETRIEVAL_TOOLS)
     counts = Counter(name for name, _ in tool_run_stats.calls)
-    filtered_retrievals = sum(
-        1 for name, args in tool_run_stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")
-    )
+    filtered_retrievals = tool_run_stats.calls_with_argument(tools=RETRIEVAL_TOOLS, argument="filters")
     needed = len(case.expected_document_ids)
     print(f"\n=== eval case {position}/{total}: {'PASS' if passed else 'FAIL'} ===")
     print(f"  question: {case.question}")
