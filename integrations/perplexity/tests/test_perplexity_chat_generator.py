@@ -132,7 +132,6 @@ class TestPerplexityChatGenerator:
         assert component.client is not None
         assert component.client.api_key == "test-api-key"
 
-
     def test_to_dict_default_round_trip(self):
         component = PerplexityChatGenerator()
         data = component.to_dict()
