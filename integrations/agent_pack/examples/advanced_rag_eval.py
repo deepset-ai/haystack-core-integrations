@@ -56,13 +56,18 @@ class EvalCase:
     """One evaluation case: a question, the documents that answer it, and the budgets the run may spend."""
 
     question: str
-    # Ground truth: the chunks the question's quoted evidence was found in.
-    expected_document_ids: frozenset[str]
+    # Ground truth: the quoted evidence an answer needs, by the chunk it was found in.
+    evidence: dict[str, str]
     # The ground-truth answer, checked case-insensitively when a substring check on it means anything.
     answer_must_mention: tuple[str, ...] = ()
     # Efficiency budgets. Lenient on purpose — too many retrievals is better than too few.
     max_metadata_calls: int = 5
     max_retrieval_calls: int = 5
+
+    @property
+    def expected_document_ids(self) -> frozenset[str]:
+        """The chunks an answer needs, which are the ones its evidence was found in."""
+        return frozenset(self.evidence)
 
 
 @dataclass
@@ -193,7 +198,8 @@ def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
         marker = "+" if document.id in case.expected_document_ids else "-"
         print(f"    {marker} [doc {document.id[:8]}] {document.meta.get('title')}")
     for document_id in sorted(case.expected_document_ids - retrieved_ids):
-        print(f"    MISSED [doc {document_id[:8]}]")
+        # Naming the quote that was missed, since the id alone says nothing about what the run failed to find.
+        print(f"    MISSED [doc {document_id[:8]}] {case.evidence[document_id][:100]}")
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for filters in filters_used:
@@ -222,8 +228,8 @@ def main() -> None:
     cases = [
         EvalCase(
             question=question.question,
-            expected_document_ids=question.expected_document_ids,
-            answer_must_mention=question.answer_must_mention,
+            evidence=question.evidence,
+            answer_must_mention=(question.answer,) if question.answer else (),
         )
         for question in labelled
     ]
