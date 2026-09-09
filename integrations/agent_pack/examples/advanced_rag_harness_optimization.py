@@ -416,9 +416,19 @@ def main() -> None:
     document_count = store.count_documents()
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks from {len(articles)} articles")
 
-    cases = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
-    expected_documents = sum(len(case.expected_document_ids) for case in cases)
-    print(f"  cases: {len(cases)} labelled from evidence, expecting {expected_documents} documents in total")
+    # The dataset reports what it labels; turning that into what this harness scores is the harness's own call.
+    # The ground-truth answer is left out: many are short words like "Yes", where a substring check on a reply
+    # can match for reasons unrelated to the answer being right.
+    labelled = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
+    cases = [
+        AdvancedRAGEvaluationCase(
+            question=question.question,
+            expected_document_ids=question.expected_document_ids,
+            require_metadata_inspection=False,
+        )
+        for question in labelled
+    ]
+    print(f"  eval cases: {len(cases)} labelled from evidence")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
     reference_agent = build_reference_agent(store=store, model=arguments.reference_model)
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference_agent.tools))

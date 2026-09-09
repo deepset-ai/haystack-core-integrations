@@ -29,48 +29,58 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.lazy_imports import LazyImport
 
-from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
-
 with LazyImport(message='Run "pip install datasets" to build the MultiHopRAG evaluation set.') as datasets_import:
     from datasets import load_dataset
 
 with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
     from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
+
+@dataclass(frozen=True)
+class LabelledQuestion:
+    """
+    One question the dataset labels, with the evidence an answer needs.
+
+    :param question: The question as the dataset asks it.
+    :param evidence: The quoted evidence the answer is built from, by the chunk it was found in.
+    :param answer: The ground-truth answer, verbatim. How to check a reply against it is the harness's call: most
+        are a name or a number, but some are short words like "Yes", where a substring check may match for
+        reasons unrelated to the answer being right.
+    """
+
+    question: str
+    evidence: dict[str, str]
+    answer: str = ""
+
+    @property
+    def expected_document_ids(self) -> frozenset[str]:
+        """The chunks an answer needs, which are the ones its evidence was found in."""
+        return frozenset(self.evidence)
+
+
 DATASET_ID = "yixuantt/MultiHopRAG"
 CORPUS_KEY = "multihop-rag"
 
 # Word-based splitting with overlap. Measured over the whole dataset at this setting: no evidence fact is split
-# across a chunk boundary, so every one of the 6,084 is contained wholly within a chunk. Overlap is what costs:
-# 926 of them sit in the region two adjacent chunks share, and a query touching one of those cannot name a single
-# expected document, so it is dropped rather than scored loosely. 1,432 of the 2,255 queries survive that.
+# across a chunk boundary, so every one of the 6,084 is contained wholly within a chunk. However, the overlap
+# means 926 of them are present in two adjacent chunks, so a query can no longer retrieve just a single expected
+# document, so the query is dropped rather than scored loosely. So we end up with 1,432 of the 2,255 queries as
+# valid eval points.
 SPLIT_BY = "word"
 SPLIT_LENGTH = 350
 SPLIT_OVERLAP = 90
 
-# Carried from the article onto each of its chunks, so the metadata tools see the same fields whichever chunk is
-# retrieved.
+# Carried from the article onto each of its chunks
 ARTICLE_METADATA = ("title", "category", "source", "author", "published_at", "url")
 
 # Queries whose evidence is present in the corpus. The dataset's fourth type, `null_query`, is deliberately
-# excluded: its answer is "Insufficient information." while topically related articles do exist, so scoring it
-# needs an expectation this harness does not have yet — retrieval is appropriate, but the answer must decline.
+# excluded for now to focus on answerable question types.
 ANSWERABLE_QUESTION_TYPES = ("comparison_query", "inference_query", "temporal_query")
-
-# A ground-truth answer is asserted only when a substring check means something. Most answers are a name or a
-# number, but many comparison answers are "Yes" or "No", where finding the word in a sentence proves nothing.
-_UNASSERTABLE_ANSWERS = frozenset({"yes", "no", "true", "false", "insufficient information."})
-_MIN_ASSERTABLE_ANSWER_CHARS = 5
 
 
 @dataclass(frozen=True)
 class Article:
-    """
-    One article's body alongside the chunks covering it, ordered by where each chunk starts.
-
-    An evidence quote is a span of the body, so which chunks hold it follows from arithmetic on the offsets
-    `DocumentSplitter` records rather than from searching each chunk for the text.
-    """
+    """One article's body and its chunks, in the order they appear in it."""
 
     body: str
     chunks: tuple[Document, ...]
@@ -122,7 +132,7 @@ def prepare_corpus(
     if store.count_documents() != len(chunks):
         store.write_documents(documents=chunks, policy=DuplicatePolicy.OVERWRITE)
 
-    # Grouped on the id the splitter records, rather than on the title, so the mapping holds whatever the titles do.
+    # Group the chunks under the article they were split from, using the id the splitter records on each.
     by_source: dict[str, list[Document]] = {}
     for chunk in chunks:
         by_source.setdefault(chunk.meta["source_id"], []).append(chunk)
@@ -140,22 +150,28 @@ def _covering_chunks(article: Article, fact: str) -> list[Document] | None:
     """
     Find the chunks a quoted evidence fact is contained in.
 
-    The quote is located in the article first, and every place it occurs is located, not just the first. A quote
-    appearing twice is ambiguous evidence, and resolving it to whichever copy came first would silently attach
-    the case to an arbitrary one of them.
+    A quote appearing more than once is ambiguous evidence, so if this occurs an empty list is returned to indicate
+    that this datapoint should be excluded.
 
     :param article: The article the fact is attributed to.
     :param fact: The quoted evidence.
-    :returns: The chunks containing every occurrence of the fact, or None when the quote is not in the article at
-        all. A quote that occurs but spans a chunk boundary is contained in no chunk, and returns an empty list.
+    :returns: The chunks holding every occurrence of the fact, or None when the quote is not in the article at
+        all. An empty list when the quote is there but no single chunk holds all of it: it either spans a chunk boundary
+        or is repeated in multiple chunks.
     """
+    # Find all occurrences of the fact in the article.
     occurrences = []
     position = article.body.find(fact)
     while position != -1:
         occurrences.append(position)
         position = article.body.find(fact, position + 1)
+
+    # If no occurrences we return None
     if not occurrences:
         return None
+
+    # Return all chunks that cover all occurrences of the fact. If a fact is split across two chunks, an empty list is
+    # returned.
     return [
         chunk
         for chunk in article.chunks
@@ -167,62 +183,43 @@ def _covering_chunks(article: Article, fact: str) -> list[Document] | None:
     ]
 
 
-def _answer_terms(answer: str) -> tuple[str, ...]:
-    """Return the ground-truth answer as an assertable term, or nothing when a substring check proves nothing."""
-    cleaned = (answer or "").strip()
-    if len(cleaned) < _MIN_ASSERTABLE_ANSWER_CHARS or cleaned.lower() in _UNASSERTABLE_ANSWERS:
-        return ()
-    return (cleaned,)
-
-
-def exact_eval_case_candidates(articles: dict[str, Article]) -> dict[str, list[AdvancedRAGEvaluationCase]]:
+def exact_eval_case_candidates(articles: dict[str, Article]) -> dict[str, list[LabelledQuestion]]:
     """
     Build every eval case whose expected documents can be stated exactly, grouped by question type.
 
-    A query qualifies when each of its evidence facts is contained in exactly one chunk. Facts sitting in two
-    adjacent chunks are the price of overlap, and a case naming both would fail an Agent that retrieved either,
-    so those queries are left out rather than scored loosely.
+    A query is kept when each of its evidence facts is contained in exactly one chunk. Overlap puts some facts in
+    two adjacent chunks, and those queries are dropped.
 
     :param articles: The corpus the eval cases will be scored against, by article title.
     :returns: Eval cases per question type, ordered by question for reproducibility.
-    :raises ValueError: If any evidence fact is missing from the article it is attributed to, or is present but
-        split across chunks, since either means the corpus and the labels no longer correspond.
+    :raises ValueError: If any evidence fact is split across chunks, since no single chunk then holds it.
     """
     datasets_import.check()
-    candidates: dict[str, list[AdvancedRAGEvaluationCase]] = {name: [] for name in ANSWERABLE_QUESTION_TYPES}
-    missing = 0
+    candidates: dict[str, list[LabelledQuestion]] = {name: [] for name in ANSWERABLE_QUESTION_TYPES}
     split_across_chunks = 0
     for row in load_dataset(DATASET_ID, "MultiHopRAG", split="train"):
         if row["question_type"] not in candidates:
             continue
-        expected: set[str] = set()
-        exact = bool(row["evidence_list"])
+
+        # Locate every fact this query cites. One chunk per fact keeps the query; anything else drops it.
+        evidence: dict[str, str] = {}
+        exact = True
         for entry in row["evidence_list"]:
-            article = articles.get(entry["title"])
-            holders = (
-                None if article is None else _covering_chunks(article=article, fact=(entry.get("fact") or "").strip())
-            )
-            missing += holders is None
+            fact = entry["fact"]
+            holders = _covering_chunks(article=articles[entry["title"]], fact=fact)
+            # holders is [] when the fact is in the article but split across chunks, or present in several
             split_across_chunks += holders == []
             if holders is None or len(holders) != 1:
                 exact = False
                 continue
-            expected.add(holders[0].id)
-        if exact and expected:
+            evidence[holders[0].id] = fact
+
+        if exact and evidence:
             candidates[row["question_type"]].append(
-                AdvancedRAGEvaluationCase(
-                    question=row["query"],
-                    expected_document_ids=frozenset(expected),
-                    answer_must_mention=_answer_terms(answer=row["answer"]),
-                    require_metadata_inspection=False,
-                )
+                LabelledQuestion(question=row["query"], evidence=evidence, answer=row["answer"])
             )
-    if missing:
-        msg = (
-            f"{missing} evidence facts are not present in the article they are attributed to, so eval cases "
-            f"cannot be scored against this corpus. The dataset changed."
-        )
-        raise ValueError(msg)
+
+    # The splitting settings decide this, so it is reachable by editing them.
     if split_across_chunks:
         msg = (
             f"{split_across_chunks} evidence facts are present but split across chunks, so no single chunk holds "
@@ -232,7 +229,7 @@ def exact_eval_case_candidates(articles: dict[str, Article]) -> dict[str, list[A
     return {name: sorted(cases, key=lambda case: case.question) for name, cases in candidates.items()}
 
 
-def build_eval_cases(articles: dict[str, Article], limit: int, seed: int = 0) -> list[AdvancedRAGEvaluationCase]:
+def build_eval_cases(articles: dict[str, Article], limit: int, seed: int = 0) -> list[LabelledQuestion]:
     """
     Build a reproducible set of eval cases, spread evenly across the question types.
 
@@ -247,15 +244,16 @@ def build_eval_cases(articles: dict[str, Article], limit: int, seed: int = 0) ->
         raise ValueError(msg)
     candidates = exact_eval_case_candidates(articles=articles)
 
-    def rank(case: AdvancedRAGEvaluationCase) -> str:
-        """Order eval cases by a hash of the seed and the question."""
+    def rank(case: LabelledQuestion) -> str:
+        """Order eval cases by a hash of the seed and the question, which the same seed reproduces exactly."""
         return hashlib.sha256(f"{seed}:{case.question}".encode()).hexdigest()
 
-    # Hashed rather than shuffled: the same seed has to rebuild the same evaluation set, and the ordering `random`
-    # produces for a given seed is not guaranteed to hold across Python versions.
+    # Sorted by a hash rather than seeded with `random`, whose ordering for a given seed can change between Python
+    # versions.
     ordered = {name: sorted(cases, key=rank) for name, cases in candidates.items()}
 
-    selected: list[AdvancedRAGEvaluationCase] = []
+    # Take one eval case per question type in turn, so stopping at the limit still leaves the types balanced.
+    selected: list[LabelledQuestion] = []
     for position in range(max(len(pool) for pool in ordered.values())):
         for name in ANSWERABLE_QUESTION_TYPES:
             if position < len(ordered[name]):
@@ -265,7 +263,7 @@ def build_eval_cases(articles: dict[str, Article], limit: int, seed: int = 0) ->
     return selected
 
 
-def _report(store: DocumentStore, articles: dict[str, Article], cases: list[AdvancedRAGEvaluationCase]) -> None:
+def _report(store: DocumentStore, articles: dict[str, Article], cases: list[LabelledQuestion]) -> None:
     """Describe what was built, including the checks that make the eval cases scoreable."""
     chunks = [chunk for article in articles.values() for chunk in article.chunks]
     lengths = sorted(len(chunk.content or "") for chunk in chunks)
@@ -277,11 +275,15 @@ def _report(store: DocumentStore, articles: dict[str, Article], cases: list[Adva
         f"author={len(metadata['author'])} distinct values"
     )
     print(f"  published: {min(metadata['published_at'])} .. {max(metadata['published_at'])}")
-    print(f"\n  cases selected: {len(cases)}")
-    print(f"    expected documents per eval case: {sorted({len(case.expected_document_ids) for case in cases})}")
-    print(f"    with an assertable answer:   {sum(1 for case in cases if case.answer_must_mention)}")
+    print(f"\n  eval cases selected: {len(cases)}")
+    # Listed rather than given as a range, since the sizes present need not be contiguous.
+    sizes = sorted({len(case.expected_document_ids) for case in cases})
+    listed = str(sizes[0]) if len(sizes) == 1 else f"{', '.join(str(size) for size in sizes[:-1])} or {sizes[-1]}"
+    print(f"    expected documents per eval case: {listed}")
+    print(f"    with a ground-truth answer:  {sum(1 for case in cases if case.answer)}")
+    print("    example questions:")
     for case in cases[:3]:
-        print(f"    - {case.question[:96]}")
+        print(f"      - {case.question[:96]}")
 
 
 def main() -> None:
@@ -298,7 +300,7 @@ def main() -> None:
     _report(store=store, articles=articles, cases=cases)
 
     available = exact_eval_case_candidates(articles=articles)
-    print(f"\n  cases available in total: {sum(len(pool) for pool in available.values())}")
+    print(f"\n  eval cases available in total: {sum(len(pool) for pool in available.values())}")
     for name, pool in available.items():
         print(f"    {name:<20} {len(pool)}")
 
