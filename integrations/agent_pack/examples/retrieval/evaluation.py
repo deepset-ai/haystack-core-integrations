@@ -5,54 +5,37 @@
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from eval_case import EvalCase
 from haystack import Document
 
 
-@dataclass(frozen=True, kw_only=True)
-class RetrievalEvaluationCase:
+@dataclass(kw_only=True)
+class RetrievalEvalCase(EvalCase):
     """
-    Retrieval expectations for one labelled question, forming one eval case.
+    One eval case for a retrieval pipeline, which is scored at a rank cutoff.
 
-    :param question: The query to pose to the pipeline.
-    :param expected_document_ids: The documents the answer needs. Recall is measured against these.
-    :param min_recall: Minimum share of `expected_document_ids` that must be retrieved.
-    :param min_precision: Minimum share of retrieved documents that must be expected. Left at 0 by default,
-        because a pipeline that widens its candidate set on purpose is not thereby worse; raise it to make
-        over-retrieval cost something.
     :param k: The rank cutoff the case is scored at, giving recall@k and precision@k. Only the first `k` returned
         documents count, in the order the run returned them, so a pipeline is measured on what it put at the top
         rather than on how much it returned.
     """
 
-    question: str
-    expected_document_ids: frozenset[str]
-    min_recall: float = 1.0
-    min_precision: float = 0.0
     k: int | None = None
 
-    def __post_init__(self) -> None:
-        """Require ground truth to score against."""
-        if not self.expected_document_ids:
-            msg = f"Case {self.question!r} needs expected document IDs."
-            raise ValueError(msg)
-
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-compatible representation with a stable document-ID order."""
+        """Return a JSON-compatible representation with a stable document order."""
         data = asdict(self)
-        data["expected_document_ids"] = sorted(self.expected_document_ids)
+        data["evidence"] = dict(sorted(self.evidence.items()))
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RetrievalEvaluationCase":
+    def from_dict(cls, data: dict[str, Any]) -> "RetrievalEvalCase":
         """
         Create a case from its serialized representation.
 
         :param data: The dictionary to build the case from.
         :returns: The created case.
         """
-        arguments = dict(data)
-        arguments["expected_document_ids"] = frozenset(arguments.get("expected_document_ids") or ())
-        return cls(**arguments)
+        return cls(**data)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -100,7 +83,7 @@ class RetrievalOutcome:
 
 def score_retrieval_result(
     outcome: RetrievalOutcome,
-    case: RetrievalEvaluationCase,
+    case: RetrievalEvalCase,
     *,
     latency_ms: float,
     stage_outputs: dict[str, dict[str, int]] | None = None,

@@ -32,7 +32,7 @@ from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
-from retrieval.evaluation import RetrievalEvaluationCase
+from retrieval.evaluation import RetrievalEvalCase
 from retrieval.harness_evaluator import RetrievalHarnessEvaluator
 from util import build_bm25_retriever
 
@@ -350,9 +350,9 @@ def main() -> None:
 
     labelled = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
     cases = [
-        RetrievalEvaluationCase(
+        RetrievalEvalCase(
             question=case.question,
-            expected_document_ids=case.expected_document_ids,
+            evidence=case.evidence,
             k=arguments.k,
         )
         for case in labelled

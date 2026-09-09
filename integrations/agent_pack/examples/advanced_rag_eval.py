@@ -34,6 +34,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
+from eval_case import EvalCase
 from haystack import Document
 from haystack.components.agents import Agent
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
@@ -53,28 +54,17 @@ METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_meta
 _CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})[^]]*\]")
 
 
-@dataclass
-class EvalCase:
+@dataclass(kw_only=True)
+class RAGEvalCase(EvalCase):
     """
-    One eval case: a question, the documents that answer it, and the budgets the run may spend.
+    One eval case for a RAG agent, which answers using tools and so has a budget for them.
 
-    :param question: The question to put to the agent.
-    :param evidence: Ground truth, as `{chunk id: the quote found in that chunk}`. The keys are the documents the
-        answer needs, and the values are what the answer should be based on. For example,
-        {"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}
     :param tool_budgets: How many times the run may call a tool, or a group of tools sharing one allowance, as
         `{tool name or names: limit}`. Exceeding any of them fails the eval case. Which tools these are depends
         on the agent under evaluation, so the caller supplies them.
     """
 
-    question: str
-    evidence: dict[str, str]
     tool_budgets: dict[str | tuple[str, ...], int]
-
-    @property
-    def expected_document_ids(self) -> frozenset[str]:
-        """The chunks an answer needs, which are the ones its evidence was found in."""
-        return frozenset(self.evidence)
 
 
 @dataclass
@@ -190,7 +180,7 @@ def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
     return OpenSearchBM25Retriever(document_store=store, top_k=top_k)
 
 
-def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> dict[str, Any]:
+def run_eval_case(agent: Agent, case: RAGEvalCase, position: int, total: int) -> dict[str, Any]:
     """
     Run the agent on one eval case and print its report.
 
@@ -227,7 +217,7 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
     # citation that does not resolve, and stayed inside its tool budget.
     spent = {tools: tool_run_stats.calls_to(tools=tools) for tools in case.tool_budgets}
     within_budget = all(used <= case.tool_budgets[tools] for tools, used in spent.items())
-    passed = recall == 1.0 and not uncited and citations_ok and within_budget
+    passed = recall >= case.min_recall and not uncited and citations_ok and within_budget
 
     inspected_first = tool_run_stats.called_before(tools="list_metadata_fields", other=RETRIEVAL_TOOLS)
     counts = Counter(name for name, _ in tool_run_stats.calls)
@@ -308,7 +298,8 @@ def main() -> None:
     # the expected shape of a good run rather than a sign of floundering.
     budgets: dict[str | tuple[str, ...], int] = {METADATA_TOOLS: 8, RETRIEVAL_TOOLS: 12}
     eval_cases = [
-        EvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets) for question in labelled
+        RAGEvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets)
+        for question in labelled
     ]
     print(f"eval cases: {len(eval_cases)} labelled from evidence")
 
