@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v8.1.0] - 2026-09-04
+
+### 🚀 Features
+
+- Add AmazonBedrockTokenCounter to amazon-bedrock integration (#3865)
+
+
 ## [integrations/amazon_bedrock-v8.0.0] - 2026-09-03
 
 ### 🚀 Features

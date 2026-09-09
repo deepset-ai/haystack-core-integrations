@@ -59,6 +59,7 @@ def test_to_dict():
                             }
                         ],
                     },
+                    "include_search_metadata": False,
                     "hosts": "some fake host",
                 },
             },

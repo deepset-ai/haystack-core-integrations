@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/nvidia-v2.0.0] - 2026-09-08
+
+### 🚀 Features
+
+- [**breaking**] Nvidia - add `close` method; change the default models (#3930)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- [**breaking**] Remove deprecated `NvidiaGenerator` (use `NvidiaChatGenerator` instead) (#3891)
+
+
 ## [integrations/nvidia-v1.4.0] - 2026-08-11
 
 ### 🐛 Bug Fixes
