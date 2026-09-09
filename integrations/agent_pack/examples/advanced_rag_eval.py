@@ -42,8 +42,8 @@ from util import build_bm25_retriever
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.evaluation import (
     RAGEvalCase,
+    ToolRunStats,
     budgets_exceeded,
-    extract_tool_run_stats,
     resolve_tool_budgets,
 )
 
@@ -93,7 +93,7 @@ def run_eval_case(agent: Agent, eval_case: RAGEvalCase, position: int, total: in
     elapsed = time.perf_counter() - started
 
     # Everything the report needs comes out of the one run: its messages, its answer and its token usage.
-    tool_run_stats = extract_tool_run_stats(messages=result["messages"])
+    tool_run_stats = ToolRunStats.from_messages(messages=result["messages"])
     answer = result["last_message"].text or ""
     usage = result.get("token_usage") or {}
 

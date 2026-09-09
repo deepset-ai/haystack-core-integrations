@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .tool_run_stats import ToolNames, ToolRunStats
+from .dataclasses import ToolNames, ToolRunStats
 
 # The key an eval case uses to budget every tool it did not name.
 ANY_TOOL = "*"

@@ -11,9 +11,8 @@ from typing import Any
 
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 
-from haystack_integrations.agent_pack.evaluation.dataclasses import RAGEvalCase
+from haystack_integrations.agent_pack.evaluation.dataclasses import RAGEvalCase, ToolRunStats
 from haystack_integrations.agent_pack.evaluation.tool_budgets import budgets_exceeded, resolve_tool_budgets
-from haystack_integrations.agent_pack.evaluation.tool_run_stats import extract_tool_run_stats
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run
 
 RETRIEVAL_TOOLS = frozenset({"search_documents", "fetch_documents_by_filter"})
@@ -106,7 +105,7 @@ def score_advanced_rag_result(
     :returns: The score, naming every expectation the run missed, and the trace explaining why.
     """
     messages = result.get("messages") or []
-    stats = extract_tool_run_stats(messages=messages)
+    stats = ToolRunStats.from_messages(messages=messages)
     retrieval_names, metadata_names = tuple(retrieval_tools), tuple(metadata_tools)
     # Reported rather than required: inspecting metadata first is good practice, not a correct answer.
     inspected_first = stats.called_before(tools=metadata_names, other=retrieval_names)

@@ -4,7 +4,8 @@ loaders:
       - haystack_integrations.agent_pack.run_digest
       - haystack_integrations.agent_pack.evaluation.harness_evaluator
       - haystack_integrations.agent_pack.evaluation.component_logs
-      - haystack_integrations.agent_pack.evaluation.tool_run_stats
+      - haystack_integrations.agent_pack.evaluation.dataclasses
+      - haystack_integrations.agent_pack.evaluation.tool_budgets
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
