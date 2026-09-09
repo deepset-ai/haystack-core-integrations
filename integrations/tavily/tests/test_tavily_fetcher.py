@@ -13,7 +13,137 @@ from haystack.utils import Secret
 from haystack_integrations.components.fetchers.tavily import TavilyFetcher
 
 
-class TestTavilyFetcher:
+class TestInitializationAndSerialization:
+    def test_init_default(self):
+        fetcher = TavilyFetcher()
+        assert fetcher.extract_depth == "basic"
+        assert fetcher.include_images is False
+        assert fetcher.extract_params is None
+        assert fetcher.api_key == Secret.from_env_var("TAVILY_API_KEY")
+        assert fetcher._tavily_client is None
+        assert fetcher._async_tavily_client is None
+
+    def test_init_with_params(self):
+        fetcher = TavilyFetcher(
+            api_key=Secret.from_token("custom-key"),
+            extract_depth="advanced",
+            include_images=True,
+            extract_params={"format": "text"},
+        )
+        assert fetcher.extract_depth == "advanced"
+        assert fetcher.include_images is True
+        assert fetcher.extract_params == {"format": "text"}
+
+    def test_to_dict(self):
+        fetcher = TavilyFetcher(extract_depth="advanced", extract_params={"format": "text"})
+        data = component_to_dict(fetcher, "TavilyFetcher")
+        assert data["type"] == "haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyFetcher"
+        assert data["init_parameters"]["extract_depth"] == "advanced"
+        assert data["init_parameters"]["extract_params"] == {"format": "text"}
+
+    def test_from_dict(self):
+        data = {
+            "type": "haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyFetcher",
+            "init_parameters": {
+                "extract_depth": "advanced",
+                "include_images": True,
+                "extract_params": {"format": "text"},
+                "api_key": {"env_vars": ["TAVILY_API_KEY"], "strict": True, "type": "env_var"},
+            },
+        }
+        fetcher = component_from_dict(TavilyFetcher, data, "TavilyFetcher")
+        assert fetcher.extract_depth == "advanced"
+        assert fetcher.include_images is True
+        assert fetcher.extract_params == {"format": "text"}
+
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+        component = TavilyFetcher()
+
+        with pytest.raises(ValueError, match="TAVILY_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyClient")
+    def test_sync_lifecycle(self, mock_client_cls):
+        component = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        client = mock_client_cls.return_value
+
+        component.warm_up()
+        assert component._tavily_client is client
+        assert component._async_tavily_client is None
+
+        component.close()
+        client.close.assert_called_once_with()
+        assert component._tavily_client is None
+
+        component.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.AsyncTavilyClient")
+    @pytest.mark.asyncio
+    async def test_async_lifecycle(self, mock_client_cls):
+        component = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await component.warm_up_async()
+        assert component._async_tavily_client is client
+        assert component._tavily_client is None
+
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component._async_tavily_client is None
+
+        await component.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyClient")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        component.warm_up()
+        component.warm_up()
+        mock_client_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
+
+    @patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.AsyncTavilyClient")
+    @pytest.mark.asyncio
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_client_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
+
+    @pytest.mark.asyncio
+    async def test_close_is_safe_without_warm_up(self):
+        component = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        component.close()
+        await component.close_async()
+        assert component._tavily_client is None
+        assert component._async_tavily_client is None
+
+    @patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.AsyncTavilyClient")
+    @patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyClient")
+    @pytest.mark.asyncio
+    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
+        component = TavilyFetcher(api_key=Secret.from_token("test-key"))
+        sync_client = mock_sync_cls.return_value
+        async_client = mock_async_cls.return_value
+        async_client.close = AsyncMock()
+        component.warm_up()
+        await component.warm_up_async()
+
+        component.close()
+        assert component._tavily_client is None
+        assert component._async_tavily_client is async_client
+        async_client.close.assert_not_awaited()
+
+        await component.close_async()
+        assert component._async_tavily_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestRun:
     @pytest.fixture
     def extract_response(self):
         return {
@@ -41,49 +171,6 @@ class TestTavilyFetcher:
         client = MagicMock()
         client.extract = AsyncMock(return_value=extract_response)
         return client
-
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("TAVILY_API_KEY", "test-key")
-        fetcher = TavilyFetcher()
-        assert fetcher.extract_depth == "basic"
-        assert fetcher.include_images is False
-        assert fetcher.extract_params is None
-        assert fetcher.api_key.resolve_value() == "test-key"
-
-    def test_init_with_params(self):
-        fetcher = TavilyFetcher(
-            api_key=Secret.from_token("custom-key"),
-            extract_depth="advanced",
-            include_images=True,
-            extract_params={"format": "text"},
-        )
-        assert fetcher.extract_depth == "advanced"
-        assert fetcher.include_images is True
-        assert fetcher.extract_params == {"format": "text"}
-
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("TAVILY_API_KEY", "test-key")
-        fetcher = TavilyFetcher(extract_depth="advanced", extract_params={"format": "text"})
-        data = component_to_dict(fetcher, "TavilyFetcher")
-        assert data["type"] == "haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyFetcher"
-        assert data["init_parameters"]["extract_depth"] == "advanced"
-        assert data["init_parameters"]["extract_params"] == {"format": "text"}
-
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("TAVILY_API_KEY", "test-key")
-        data = {
-            "type": "haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyFetcher",
-            "init_parameters": {
-                "extract_depth": "advanced",
-                "include_images": True,
-                "extract_params": {"format": "text"},
-                "api_key": {"env_vars": ["TAVILY_API_KEY"], "strict": True, "type": "env_var"},
-            },
-        }
-        fetcher = component_from_dict(TavilyFetcher, data, "TavilyFetcher")
-        assert fetcher.extract_depth == "advanced"
-        assert fetcher.include_images is True
-        assert fetcher.extract_params == {"format": "text"}
 
     def test_run_returns_documents_and_meta(self, mock_client):
         fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
@@ -208,19 +295,8 @@ class TestTavilyFetcher:
 
         assert result["documents"] == []
 
-    def test_warm_up_initializes_clients(self):
-        fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
-        assert fetcher._tavily_client is None
-        assert fetcher._async_tavily_client is None
-        fetcher.warm_up()
-        assert fetcher._tavily_client is not None
-        assert fetcher._async_tavily_client is not None
-
     def test_run_triggers_warm_up(self, extract_response):
-        with (
-            patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyClient") as mock_cls,
-            patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.AsyncTavilyClient"),
-        ):
+        with patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyClient") as mock_cls:
             mock_cls.return_value.extract.return_value = extract_response
             fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
             fetcher.run(urls=["https://example.com"])
@@ -239,10 +315,7 @@ class TestTavilyFetcher:
 
     @pytest.mark.asyncio
     async def test_run_async_triggers_warm_up(self, extract_response):
-        with (
-            patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.TavilyClient"),
-            patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.AsyncTavilyClient") as mock_cls,
-        ):
+        with patch("haystack_integrations.components.fetchers.tavily.tavily_fetcher.AsyncTavilyClient") as mock_cls:
             mock_cls.return_value.extract = AsyncMock(return_value=extract_response)
             fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
             await fetcher.run_async(urls=["https://example.com"])
@@ -257,11 +330,13 @@ class TestTavilyFetcher:
         with pytest.raises(Exception, match="API error"):
             await fetcher.run_async(urls=["https://example.com"])
 
-    @pytest.mark.skipif(
-        not os.environ.get("TAVILY_API_KEY"),
-        reason="Export TAVILY_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
+
+@pytest.mark.skipif(
+    not os.environ.get("TAVILY_API_KEY"),
+    reason="Export TAVILY_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
+class TestIntegration:
     def test_run_integration(self):
         fetcher = TavilyFetcher(api_key=Secret.from_env_var("TAVILY_API_KEY"))
         result = fetcher.run(urls=["https://haystack.deepset.ai"])
@@ -270,11 +345,6 @@ class TestTavilyFetcher:
         assert result["documents"][0].content
         assert result["meta"]["response_time"] is not None
 
-    @pytest.mark.skipif(
-        not os.environ.get("TAVILY_API_KEY"),
-        reason="Export TAVILY_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     def test_run_integration_pdf(self):
         # Attention Is All You Need — stable public arXiv PDF
         fetcher = TavilyFetcher(api_key=Secret.from_env_var("TAVILY_API_KEY"))
@@ -284,11 +354,6 @@ class TestTavilyFetcher:
         assert result["documents"][0].content
         assert result["meta"]["response_time"] is not None
 
-    @pytest.mark.skipif(
-        not os.environ.get("TAVILY_API_KEY"),
-        reason="Export TAVILY_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_run_async_integration(self):
         fetcher = TavilyFetcher(api_key=Secret.from_env_var("TAVILY_API_KEY"))
