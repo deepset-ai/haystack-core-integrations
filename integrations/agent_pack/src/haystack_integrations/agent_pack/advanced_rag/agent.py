@@ -106,8 +106,7 @@ def create_advanced_rag_agent(
         `agent.run(messages=[ChatMessage.from_user(question)])`; the answer is in `last_message` (a `ChatMessage`) and
         `documents` carries every document the agent retrieved during the run (deduplicated by id, in first-retrieved
         order) — the answer cites them by the first 8 characters of their id, e.g. `[doc a1b2c3d4]`. The standard Agent
-        outputs `messages`, `step_count`, `token_usage` and `tool_call_counts` are also returned. If the backup-answer
-        LLM runs, its token usage is returned separately in `additional_model_usage`.
+        outputs `messages`, `step_count`, `token_usage` and `tool_call_counts` are also returned.
     """
     if system_prompt is None:
         # Only the default system prompt requires the `{% now %}` Jinja tag (and thus `arrow`).
@@ -135,11 +134,6 @@ def create_advanced_rag_agent(
 
     llm = llm or _default_llm("gpt-5.4")
     backup_answer_llm = backup_answer_llm or _default_llm("gpt-5.4")
-
-    # The store tools are listed individually rather than bundled in a `DocumentStoreToolset`, so that each one
-    # occupies its own place in the serialized configuration: its name, its description, and its own limits are then
-    # reachable, and a tool can be dropped by removing one entry. Each holds the same store, so they deserialize into
-    # one store instance per tool.
     tools: list[Tool | Toolset] = [
         ListMetadataFieldsTool(document_store),
         GetMetadataFieldValuesTool(document_store),
@@ -154,11 +148,6 @@ def create_advanced_rag_agent(
         tools=tools,
         exit_conditions=["text"],
         max_agent_steps=max_agent_steps,
-        state_schema={
-            "documents": {"type": list[Document]},
-            # The backup-answer hook runs its own LLM, so its usage is reported here rather than folded into the
-            # agent's own token count.
-            "additional_model_usage": {"type": dict[str, dict[str, int]]},
-        },
+        state_schema={"documents": {"type": list[Document]}},
         hooks={"after_run": [BackupAnswerHook(chat_generator=backup_answer_llm)]},
     )

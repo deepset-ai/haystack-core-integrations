@@ -110,7 +110,7 @@ class TestCreateAdvancedRagAgent:
         assert agent.tools[3].max_docs == 4
         assert agent.exit_conditions == ["text"]
         assert agent.max_agent_steps == 7
-        assert set(agent.state_schema) >= {"documents", "additional_model_usage"}
+        assert set(agent.state_schema) >= {"documents"}
         assert [type(h) for h in agent.hooks["after_run"]] == [BackupAnswerHook]
         assert "list_metadata_fields" in agent.system_prompt
 
@@ -167,7 +167,7 @@ class TestCreateAdvancedRagAgent:
         assert isinstance(restored.tools[0], ListMetadataFieldsTool)
         assert isinstance(restored.tools[3], FetchDocumentsByFilterTool)
         assert [type(h) for h in restored.hooks["after_run"]] == [BackupAnswerHook]
-        assert set(restored.state_schema) >= {"documents", "additional_model_usage"}
+        assert set(restored.state_schema) >= {"documents"}
 
 
 class TestAdvancedRagAgentRun:

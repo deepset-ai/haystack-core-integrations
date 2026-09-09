@@ -1,9 +1,12 @@
 import os
+from contextlib import contextmanager
 
 import pytest
+from haystack import tracing
 from haystack.components.agents.state import State
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
 from haystack.dataclasses import ChatMessage, ChatRole, ToolCall
+from haystack.tracing import Span, Tracer
 
 from haystack_integrations.agent_pack.advanced_rag.agent import _default_llm
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
@@ -62,15 +65,44 @@ class TestBackupAnswerHook:
         assert "interrupted document-search session" in system_messages[0].text
         assert "agent system prompt" not in system_messages[0].text
 
-    def test_records_backup_generator_usage_when_the_agent_exposes_it(self):
+    def test_the_backup_generator_call_is_traced_so_its_usage_is_not_invisible(self):
+        """
+        The backup LLM runs outside the agent's own step loop, so its tokens are not in the agent's usage. The
+        call is wrapped in a generator span instead, which is where a tracer reads it from.
+        """
+        seen = []
+
+        class RecordingSpan(Span):
+            def __init__(self, name, tags):
+                self.name, self.tags = name, tags or {}
+
+            def set_tag(self, key, value):
+                self.tags[key] = value
+
+            def set_content_tag(self, key, value):
+                if key == "haystack.component.output":
+                    seen.extend((self.name, reply.meta.get("usage")) for reply in value["replies"])
+
+        class RecordingTracer(Tracer):
+            @contextmanager
+            def trace(self, operation_name, tags=None, parent_span=None):  # noqa: ARG002
+                yield RecordingSpan(operation_name, tags)
+
+            def current_span(self):
+                return None
+
         reply = ChatMessage.from_assistant("backup", meta={"usage": {"input_tokens": 11, "output_tokens": 4}})
         hook = BackupAnswerHook(chat_generator=MockChatGenerator(reply, model="backup-model"))
-        state = State(schema={"additional_model_usage": {"type": dict[str, dict[str, int]]}})
+        state = State(schema={})
         state.set("messages", [ChatMessage.from_user("q"), ChatMessage.from_assistant(tool_calls=[SEARCH_CALL])])
 
-        hook.run(state)
+        tracing.enable_tracing(RecordingTracer())
+        try:
+            hook.run(state)
+        finally:
+            tracing.disable_tracing()
 
-        assert state.get("additional_model_usage") == {"backup-model": {"input_tokens": 11, "output_tokens": 4}}
+        assert seen == [("haystack.chat_generator.run", {"input_tokens": 11, "output_tokens": 4})]
 
     def test_is_a_noop_when_the_run_answered(self):
         generator = MockChatGenerator("should not run")
