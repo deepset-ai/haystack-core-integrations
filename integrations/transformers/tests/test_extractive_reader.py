@@ -126,6 +126,7 @@ def test_to_dict(initialized_token: Secret):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {
                 "torch_dtype": "torch.float16",
                 "device_map": ComponentDevice.resolve_device(None).to_hf(),
@@ -154,6 +155,7 @@ def test_to_dict_no_token():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {
                 "torch_dtype": "torch.float16",
                 "device_map": ComponentDevice.resolve_device(None).to_hf(),
@@ -182,6 +184,7 @@ def test_to_dict_empty_model_kwargs(initialized_token: Secret):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"device_map": ComponentDevice.resolve_device(None).to_hf()},
         },
     }
@@ -215,6 +218,7 @@ def test_to_dict_device_map(device_map, expected):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"device_map": expected},
         },
     }
@@ -237,6 +241,7 @@ def test_from_dict():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"torch_dtype": "torch.float16"},
         },
     }
@@ -253,11 +258,22 @@ def test_from_dict():
     assert component.answers_per_seq is None
     assert component.no_answer
     assert component.calibration_factor == 0.1
+    assert component.overlap_threshold == 0.01
     # torch_dtype is correctly deserialized
     assert component.model_kwargs == {
         "torch_dtype": torch.float16,
         "device_map": ComponentDevice.resolve_device(None).to_hf(),
     }
+
+
+def test_to_dict_from_dict_roundtrip_preserves_non_default_overlap_threshold():
+    component = TransformersExtractiveReader("my-model", token=None, overlap_threshold=0.5)
+
+    data = component.to_dict()
+    assert data["init_parameters"]["overlap_threshold"] == 0.5
+
+    restored = TransformersExtractiveReader.from_dict(data)
+    assert restored.overlap_threshold == 0.5
 
 
 def test_from_dict_no_default_parameters():
@@ -301,6 +317,7 @@ def test_from_dict_no_token():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"torch_dtype": "torch.float16"},
         },
     }
