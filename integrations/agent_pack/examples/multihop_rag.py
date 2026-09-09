@@ -36,7 +36,7 @@ with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSea
     from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
-@dataclass(frozen=True)
+@dataclass
 class LabelledQuestion:
     """
     One question the dataset labels, with the evidence an answer needs.
@@ -78,7 +78,7 @@ ARTICLE_METADATA = ("title", "category", "source", "author", "published_at", "ur
 ANSWERABLE_QUESTION_TYPES = ("comparison_query", "inference_query", "temporal_query")
 
 
-@dataclass(frozen=True)
+@dataclass
 class Article:
     """One article's body and its chunks, in the order they appear in it."""
 

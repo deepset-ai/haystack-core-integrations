@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -150,6 +151,27 @@ def test_unpriced_models_are_reported_without_restricting_evaluation(document):
     priced = catalog().price(metrics=metrics)
     assert priced.cost is None
     assert priced.details["unpriced_models"] == ["unknown"]
+
+
+@pytest.mark.asyncio
+async def test_evaluating_from_inside_a_running_loop_measures_what_the_sync_call_does(document):
+    """The sync entry point cannot run under a loop, so an async caller has to reach the same work directly."""
+    eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
+    runs = [reference_run(document=document)]
+
+    awaited = await AdvancedRAGHarnessEvaluator(eval_cases=[eval_case]).evaluate_async(
+        target=FakeAgent(document), reference_runs=runs
+    )
+    # The sync entry point needs a thread of its own here, since it starts a loop and one is already running.
+    blocking = await asyncio.to_thread(
+        AdvancedRAGHarnessEvaluator(eval_cases=[eval_case]).evaluate,
+        target=FakeAgent(document),
+        reference_runs=runs,
+    )
+
+    assert awaited.quality == blocking.quality == 1.0
+    assert awaited.model_usage == blocking.model_usage
+    assert [entry["failures"] for entry in awaited.details["eval_cases"]] == [[]]
 
 
 def test_derived_eval_cases_are_reported_as_unvalidated(document):

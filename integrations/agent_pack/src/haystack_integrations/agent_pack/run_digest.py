@@ -14,7 +14,7 @@ EVAL_CASES_KEY = "eval_cases"
 EVAL_CASE_SUMMARY_KEY = "eval_case_summary"
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class RunDigestPolicy:
     """
     Caps applied while compressing one Agent run.

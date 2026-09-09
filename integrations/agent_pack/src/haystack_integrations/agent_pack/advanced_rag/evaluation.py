@@ -22,7 +22,7 @@ METADATA_TOOLS = frozenset({"list_metadata_fields", "get_metadata_field_values",
 CITATION_PATTERN = re.compile(r"\[doc ([0-9a-fA-F]{8})\]")
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class AdvancedRAGEvalCaseMetrics:
     """
     Detailed score for one Advanced RAG evaluation case.

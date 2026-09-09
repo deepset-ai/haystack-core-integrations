@@ -37,7 +37,7 @@ from haystack_integrations.tracing.agent_pack.tracer import HarnessTracer
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class CandidateEvaluation:
     """Journaled raw measurement or failure for one complete YAML configuration."""
 
@@ -77,7 +77,7 @@ class CandidateEvaluation:
         )
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class ExperimentRecommendation:
     """The measured configuration that passed its gates and outranked the reference."""
 
@@ -86,7 +86,7 @@ class ExperimentRecommendation:
     reasons: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class ExperimentResult:
     """Priced baseline, candidate outcomes, and the optional best recommendation."""
 

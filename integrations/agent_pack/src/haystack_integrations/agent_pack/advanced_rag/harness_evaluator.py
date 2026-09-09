@@ -324,6 +324,17 @@ class AdvancedRAGHarnessEvaluator:
 
     def evaluate(self, target: Agent, reference_runs: list[RunRecord]) -> EvaluationMetrics:
         """
+        Replay every selected run and return raw experiment metrics, from synchronous code.
+
+        :param target: The materialized candidate Agent to score.
+        :param reference_runs: The successful runs supplying the questions to replay.
+        :returns: What `evaluate_async` measured.
+        :raises RuntimeError: If an event loop is already running; await `evaluate_async` from inside one.
+        """
+        return asyncio.run(self.evaluate_async(target=target, reference_runs=reference_runs))
+
+    async def evaluate_async(self, target: Agent, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+        """
         Replay every selected run and return raw experiment metrics.
 
         :param target: The materialized candidate Agent to score.
@@ -340,7 +351,7 @@ class AdvancedRAGHarnessEvaluator:
         tracer = HarnessTracer()
         target.warm_up()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = asyncio.run(self._measure(agent=target, resolved=resolved, tracer=tracer))
+            measured = await self._measure(agent=target, resolved=resolved, tracer=tracer)
 
         flattened = [scored for scored, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}

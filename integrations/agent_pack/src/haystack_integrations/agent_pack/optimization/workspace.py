@@ -89,7 +89,7 @@ def load_agent(text: str) -> Agent:
     return agent
 
 
-@dataclass(frozen=True)
+@dataclass
 class CandidateConfiguration:
     """A complete submitted configuration, independent of subsequent workspace edits."""
 

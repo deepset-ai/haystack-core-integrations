@@ -20,7 +20,7 @@ def content_digest(payload: str) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class RunRecord:
     """
     Inputs and outputs of one successful run of an Agent or a Pipeline.
@@ -66,7 +66,7 @@ class RunRecord:
         return content_digest(payload=payload)
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class ModelTokenUsage:
     """
     Raw token usage attributable to one model deployment.
@@ -79,7 +79,7 @@ class ModelTokenUsage:
     output_tokens: int = 0
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class EvaluationMetrics:
     """
     Measurements produced by a harness evaluator for one Agent configuration.

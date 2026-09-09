@@ -11,11 +11,10 @@ from haystack import Document, Pipeline, logging
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
-from retrieval.evaluation import (
+from retrieval.dataclasses import (
     RetrievalEvalCase,
     RetrievalEvalCaseMetrics,
     RetrievalOutcome,
-    score_retrieval_result,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,6 +100,51 @@ def _mean_stage_outputs(scored: list[RetrievalEvalCaseMetrics]) -> dict[str, dic
         component: {socket: sum(sizes) / len(sizes) for socket, sizes in sockets.items()}
         for component, sockets in totals.items()
     }
+
+
+def score_retrieval_result(
+    outcome: RetrievalOutcome,
+    eval_case: RetrievalEvalCase,
+    *,
+    latency_ms: float,
+    stage_outputs: dict[str, dict[str, int]] | None = None,
+) -> RetrievalEvalCaseMetrics:
+    """
+    Score one retrieval run against its labelled evidence.
+
+    :param outcome: The documents the pipeline retrieved and the queries it issued.
+    :param eval_case: The expectations to score against.
+    :param latency_ms: Measured wall-clock duration of the run.
+    :param stage_outputs: How many items each component emitted, by component name and output socket.
+    :returns: The score, naming every expectation the run missed.
+    """
+    # Deduplicated in the order the run returned them, since which documents fall past the cutoff depends on
+    # how it ranked them.
+    returned_ids = list(dict.fromkeys(document.id for document in outcome.documents))
+    scored_ids = set(returned_ids[: eval_case.k] if eval_case.k is not None else returned_ids)
+    matched = scored_ids & eval_case.expected_document_ids
+    recall_at_k = len(matched) / len(eval_case.expected_document_ids)
+    precision_at_k = len(matched) / len(scored_ids) if scored_ids else 0.0
+
+    failures: list[str] = []
+    if recall_at_k < eval_case.min_recall:
+        failures.append(f"recall_below_{eval_case.min_recall:g}")
+    if precision_at_k < eval_case.min_precision:
+        failures.append(f"precision_below_{eval_case.min_precision:g}")
+
+    return RetrievalEvalCaseMetrics(
+        question=eval_case.question,
+        passed=not failures,
+        stage_outputs=stage_outputs or {},
+        score=recall_at_k,
+        failures=tuple(failures),
+        recall_at_k=recall_at_k,
+        precision_at_k=precision_at_k,
+        retrieved=len(returned_ids),
+        missed_document_ids=tuple(sorted(eval_case.expected_document_ids - matched)),
+        queries=outcome.queries,
+        latency_ms=latency_ms,
+    )
 
 
 class RetrievalHarnessEvaluator:
@@ -243,6 +287,17 @@ class RetrievalHarnessEvaluator:
 
     def evaluate(self, target: Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
         """
+        Replay every selected run through the pipeline and return raw experiment metrics, from sync code.
+
+        :param target: The materialized candidate pipeline to score.
+        :param reference_runs: The successful runs supplying the questions to replay.
+        :returns: What `evaluate_async` measured.
+        :raises RuntimeError: If an event loop is already running; await `evaluate_async` from inside one.
+        """
+        return asyncio.run(self.evaluate_async(target=target, reference_runs=reference_runs))
+
+    async def evaluate_async(self, target: Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+        """
         Replay every selected run through the pipeline and return raw experiment metrics.
 
         :param target: The materialized candidate pipeline to score.
@@ -262,7 +317,7 @@ class RetrievalHarnessEvaluator:
         tracer = HarnessTracer()
         target.warm_up()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = asyncio.run(self._measure(target=target, resolved=resolved, tracer=tracer))
+            measured = await self._measure(target=target, resolved=resolved, tracer=tracer)
 
         scored = [metric for metric, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}

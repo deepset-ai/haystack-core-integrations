@@ -8,7 +8,7 @@ from typing import Any, Literal
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class ModelPrice:
     """Informational token prices for one model deployment."""
 
@@ -80,7 +80,7 @@ class ModelPriceCatalog:
         return [asdict(obj=price) for price in self.prices.values()]
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class OptimizationObjectives:
     """
     Hard quality gates and the primary ranking measurement.
