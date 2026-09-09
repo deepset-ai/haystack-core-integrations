@@ -103,8 +103,6 @@ class TestCreateAdvancedRagAgent:
         )
         assert isinstance(agent, Agent)
         assert _flat_tool_names(agent.tools) == EXPECTED_TOOL_NAMES
-        # Each store tool sits directly in the tool list, so its own name, description and limits are reachable
-        # in the serialized configuration and it can be dropped on its own.
         assert isinstance(agent.tools[0], ListMetadataFieldsTool)
         assert isinstance(agent.tools[3], FetchDocumentsByFilterTool)
         assert agent.tools[3].max_docs == 4

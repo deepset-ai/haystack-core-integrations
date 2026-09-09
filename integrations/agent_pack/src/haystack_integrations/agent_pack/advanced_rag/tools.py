@@ -738,16 +738,7 @@ class DocumentStoreToolset(Toolset):
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize the toolset to a dictionary.
-
-        Only the descriptor is serialized — the store and the fetch ceiling — so the tools deserialize against one
-        store instance rather than one apiece. That leaves each tool's own name, description and limits out of the
-        serialized form; a caller who needs those reachable, as configuration optimization does, lists the tools
-        individually instead of bundling them here.
-
-        :returns: A dictionary representation of the toolset.
-        """
+        """Serialize the toolset to a dictionary."""
         return {
             "type": generate_qualified_class_name(type(self)),
             "data": {"document_store": self.document_store.to_dict(), "max_fetched_docs": self.max_fetched_docs},
