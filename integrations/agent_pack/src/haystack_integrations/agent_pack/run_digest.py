@@ -10,8 +10,8 @@ from typing import Any
 from haystack.dataclasses import ChatMessage, ToolCall
 
 RUN_DIGEST_KEY = "run_digest"
-CASES_KEY = "cases"
-CASE_SUMMARY_KEY = "case_summary"
+EVAL_CASES_KEY = "eval_cases"
+EVAL_CASE_SUMMARY_KEY = "eval_case_summary"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -130,7 +130,7 @@ def strip_run_digests(payload: Any) -> Any:
     return payload
 
 
-def _is_case_listing(value: Any) -> bool:
+def _is_eval_case_listing(value: Any) -> bool:
     """Recognize a harness evaluator's per-eval-case listing by the two keys every one of them reports."""
     return (
         isinstance(value, list)
@@ -139,38 +139,38 @@ def _is_case_listing(value: Any) -> bool:
     )
 
 
-def _summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
+def _summarize_eval_cases(eval_cases: list[dict[str, Any]]) -> dict[str, Any]:
     """Reduce a per-eval-case listing to how many passed and which kinds of failure occurred."""
     failures: Counter[str] = Counter()
-    for case in cases:
-        failures.update(str(label) for label in case.get("failures") or ())
+    for eval_case in eval_cases:
+        failures.update(str(label) for label in eval_case.get("failures") or ())
     return {
-        "cases": len(cases),
-        "passed": sum(1 for case in cases if case.get("passed")),
+        "eval_cases": len(eval_cases),
+        "passed": sum(1 for eval_case in eval_cases if eval_case.get("passed")),
         "failures": dict(failures.most_common()),
     }
 
 
-def summarize_case_details(payload: Any) -> Any:
+def summarize_eval_case_details(payload: Any) -> Any:
     """
     Replace every per-eval-case listing with a count of how the eval cases ended.
 
     A listing carries one rich record per eval case, and an experiment history holds one listing per candidate, so the
     listings grow as the square of what an experiment learns while saying the same thing repeatedly. What survives
-    is what a reader compares across candidates: how many cases passed, and which failures accounted for the rest.
+    is what a reader compares across candidates: how many eval cases passed, and which failures accounted for the rest.
     The candidate whose detail is still worth reading is the most recent one, and it is sent separately in full.
 
     :param payload: Any JSON-compatible structure.
-    :returns: The same structure with every case listing replaced by a `CASE_SUMMARY_KEY` summary.
+    :returns: The same structure with every eval case listing replaced by a `EVAL_CASE_SUMMARY_KEY` summary.
     """
     if isinstance(payload, list):
-        return [summarize_case_details(payload=item) for item in payload]
+        return [summarize_eval_case_details(payload=item) for item in payload]
     if isinstance(payload, dict):
         summarized: dict[str, Any] = {}
         for key, value in payload.items():
-            if key == CASES_KEY and _is_case_listing(value):
-                summarized[CASE_SUMMARY_KEY] = _summarize_cases(cases=value)
+            if key == EVAL_CASES_KEY and _is_eval_case_listing(value):
+                summarized[EVAL_CASE_SUMMARY_KEY] = _summarize_eval_cases(eval_cases=value)
             else:
-                summarized[key] = summarize_case_details(payload=value)
+                summarized[key] = summarize_eval_case_details(payload=value)
         return summarized
     return payload

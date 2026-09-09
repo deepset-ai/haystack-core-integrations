@@ -4,9 +4,10 @@
 
 # Run an Agent-configuration optimization experiment against a labelled RAG evaluation set.
 #
-# The corpus and cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives each case's
-# expected documents from which chunks contain its labelled evidence. The run records successful reference runs,
-# lets an optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against
+# The corpus and eval cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives
+# each eval case's expected documents from which chunks contain its labelled evidence. The run records
+# successful reference runs, lets an optimizer Agent edit the complete serialized candidate configuration,
+# evaluates each choice against
 # those eval cases, and feeds the measured outcome into the next choice. Nothing is deployed automatically.
 #
 # The reference Agent is deliberately badly configured, so the run shows whether the optimizer can build a better one
@@ -15,13 +16,13 @@
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
 #     hatch run test:python examples/advanced_rag_harness_optimization.py
-#     hatch run test:python examples/advanced_rag_harness_optimization.py --max-cases 1 --max-iterations 1
+#     hatch run test:python examples/advanced_rag_harness_optimization.py --max-eval-cases 1 --max-iterations 1
 #     hatch run test:python examples/advanced_rag_harness_optimization.py --primary quality --max-quality-loss 0.05
 #     hatch run test:python examples/advanced_rag_harness_optimization.py --store opensearch
 #     hatch run test:python examples/advanced_rag_harness_optimization.py --docs-mcp
 #
-# Every case is evaluated once per candidate, so a candidate costs `--max-cases` Agent runs and quality is the
-# fraction of cases it passed. A persistent OpenSearch store avoids rebuilding the corpus between invocations.
+# Every eval case is evaluated once per candidate, so a candidate costs `--max-eval-cases` Agent runs and quality is the
+# fraction of eval cases it passed. A persistent OpenSearch store avoids rebuilding the corpus between invocations.
 # Each invocation measures its own reference and its own candidates, and records them to the journal; nothing is
 # carried over from an earlier one.
 
@@ -45,11 +46,11 @@ from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cas
 from util import build_bm25_retriever
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent, prompts
-from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
 )
 from haystack_integrations.agent_pack.dataclasses import RunRecord
+from haystack_integrations.agent_pack.evaluation import RAGEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -83,12 +84,12 @@ filter from what it finds, retrieves with that filter, and cites the documents i
 Retrieval has two independent paths with separate limits. `search_documents` ranks by relevance and returns at most
 the retriever's own `top_k`. `fetch_documents_by_filter` returns an exact filtered set and refuses outright when the
 filter matches more documents than its own per-fetch limit allows. Evaluation cases state how many matching documents
-an answer needs, some require the complete filtered set, and each case budgets its metadata and retrieval calls.
+an answer needs, some require the complete filtered set, and each eval case budgets its metadata and retrieval calls.
 
-A case can require evidence that is spread across several documents, and one query phrased for the whole question
+An eval case can require evidence that is spread across several documents, and one query phrased for the whole question
 will tend to surface the documents that share its wording and miss the rest. A retrieval budget therefore does not
 have to be spent on one broad search: it can be spent on one search per piece of evidence the question asks for,
-each phrased for that piece. Retrieving too little and retrieving loosely are separate failures, and the case
+each phrased for that piece. Retrieving too little and retrieving loosely are separate failures, and the eval case
 reports which one occurred.
 
 The retrieval tool itself is part of the configuration and can be replaced, not only retuned. It is a single
@@ -105,10 +106,11 @@ Whatever replaces the tool has to keep the outputs_to_state mappings and formatt
 
 # The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the
 # optimizer to gain. Quality: retrieval is starved from both sides, because `search_documents` returns a single
-# document and a filter fetch shows two, while every case demands at least three matching documents; the loop is then
-# cut off after a few steps, so a run that does retrieve is liable to be summarized by the backup-answer hook without
-# citations. Cost: it reasons at high effort over a task that does not need it, and carries a leftover retrieval tool
-# whose schema is sent to the model on every step and which can never return anything (see `build_leftover_tool`).
+# document and a filter fetch shows two, while every eval case demands at least three matching documents; the
+# loop is then cut off after a few steps, so a run that does retrieve is liable to be summarized by the
+# backup-answer hook without citations. Cost: it reasons at high effort over a task that does not need it, and
+# carries a leftover retrieval tool whose schema is sent to the model on every step and which can never return
+# anything (see `build_leftover_tool`).
 #
 # The reference starts on the cheapest model, so the optimizer cannot buy its improvement by downgrading. A broken
 # configuration wastes money flailing — measured: a starved reference spent 19 retrieval calls and 37,011 input
@@ -189,10 +191,10 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
 
 
 def capture_reference_runs(
-    agent: Agent, cases: list[AdvancedRAGEvaluationCase], run_store: LocalRunStore, concurrency: int
+    agent: Agent, eval_cases: list[RAGEvalCase], run_store: LocalRunStore, concurrency: int
 ) -> frozenset[str]:
     """
-    Record one reference input/output pair for every selected case, replacing anything stored before.
+    Record one reference input/output pair for every selected eval case, replacing anything stored before.
 
     The store is cleared first because a record carries no trace of which Agent produced it: keeping earlier runs
     would describe a reference that has since been reconfigured, and those runs are what the optimizer reads as
@@ -206,23 +208,25 @@ def capture_reference_runs(
     """
     run_store.clear()
 
-    async def capture_all() -> list[tuple[AdvancedRAGEvaluationCase, dict]]:
+    async def capture_all() -> list[tuple[RAGEvalCase, dict]]:
         """Pose every question, running several at once."""
         semaphore = asyncio.Semaphore(concurrency)
 
-        async def capture(position: int, case: AdvancedRAGEvaluationCase) -> tuple[AdvancedRAGEvaluationCase, dict]:
+        async def capture(position: int, eval_case: RAGEvalCase) -> tuple[RAGEvalCase, dict]:
             """Pose one question once a slot is free."""
             async with semaphore:
-                result = await agent.run_async(messages=[ChatMessage.from_user(text=case.question)])
+                result = await agent.run_async(messages=[ChatMessage.from_user(text=eval_case.question)])
             answer = result["last_message"].text or ""
-            print(f"  captured {position}/{len(cases)}: {answer[:70]!r} <- {case.question[:60]}")
-            return case, result
+            print(f"  captured {position}/{len(eval_cases)}: {answer[:70]!r} <- {eval_case.question[:60]}")
+            return eval_case, result
 
-        return list(await asyncio.gather(*(capture(index, case) for index, case in enumerate(cases, start=1))))
+        return list(
+            await asyncio.gather(*(capture(index, eval_case) for index, eval_case in enumerate(eval_cases, start=1)))
+        )
 
     selected_ids: set[str] = set()
-    for case, result in asyncio.run(capture_all()):
-        messages = [ChatMessage.from_user(text=case.question)]
+    for eval_case, result in asyncio.run(capture_all()):
+        messages = [ChatMessage.from_user(text=eval_case.question)]
         record = RunRecord(run_id=str(uuid4()), inputs={"messages": messages}, outputs=result)
         run_store.add(record=record)
         selected_ids.add(record.run_id)
@@ -259,9 +263,9 @@ def report(result: ExperimentResult) -> None:
         f"  quality={baseline.quality:.2f} cost={format_cost(cost=baseline.cost)} "
         f"latency={baseline.latency_ms:.0f}ms model={baseline.details.get('model')}"
     )
-    for case_metrics in baseline.details.get("cases", []):
-        verdict = "pass" if case_metrics["passed"] else "FAIL " + ",".join(case_metrics["failures"])
-        print(f"    [{verdict}] {case_metrics['question']}")
+    for eval_case_metrics in baseline.details.get("eval_cases", []):
+        verdict = "pass" if eval_case_metrics["passed"] else "FAIL " + ",".join(eval_case_metrics["failures"])
+        print(f"    [{verdict}] {eval_case_metrics['question']}")
 
     print("\n--- candidates ---")
     for candidate in result.candidates:
@@ -274,9 +278,11 @@ def report(result: ExperimentResult) -> None:
             f"cost={format_cost(cost=candidate.metrics.cost)} latency={candidate.metrics.latency_ms:.0f}ms"
         )
         print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
-        for case_metrics in candidate.metrics.details.get("cases", []):
-            if not case_metrics["passed"]:
-                print(f"      regression on {case_metrics['question']!r}: {','.join(case_metrics['failures'])}")
+        for eval_case_metrics in candidate.metrics.details.get("eval_cases", []):
+            if not eval_case_metrics["passed"]:
+                print(
+                    f"      regression on {eval_case_metrics['question']!r}: {','.join(eval_case_metrics['failures'])}"
+                )
 
     print("\n--- what the search itself cost ---")
     usage = ", ".join(
@@ -311,23 +317,23 @@ def parse_args() -> argparse.Namespace:
         "--config", type=Path, help="Optional editable YAML file; created from the reference if absent."
     )
     parser.add_argument(
-        "--max-cases",
+        "--max-eval-cases",
         type=int,
         default=20,
-        help="Cases to evaluate. Quality is a fraction of these, so fewer cases make it a coarser measurement, "
-        "while each one costs an Agent run for every candidate measured.",
+        help="Eval cases to evaluate. Quality is a fraction of these, so fewer of them make it a coarser "
+        "measurement, while each one costs an Agent run for every candidate measured.",
     )
     parser.add_argument(
-        "--case-seed",
+        "--eval-case-seed",
         type=int,
         default=0,
-        help="Selects which cases are drawn from the dataset. The same seed rebuilds the same evaluation set.",
+        help="Selects which eval cases are drawn from the dataset. The same seed rebuilds the same evaluation set.",
     )
     parser.add_argument(
         "--min-quality",
         type=float,
         default=1.0,
-        help="Minimum candidate case pass rate in the inclusive range 0.0 to 1.0.",
+        help="Minimum candidate eval case pass rate in the inclusive range 0.0 to 1.0.",
     )
     parser.add_argument(
         "--max-quality-loss",
@@ -344,12 +350,12 @@ def parse_args() -> argparse.Namespace:
         "be chosen in advance.",
     )
     parser.add_argument(
-        "--max-concurrent-cases",
+        "--max-concurrent-eval-cases",
         type=int,
         default=4,
-        help="How many cases to measure at once. Cases are independent and spend their time waiting on a model, so "
-        "this is what decides how long an experiment takes. It does not change token usage, but concurrent runs "
-        "contend for rate limits, so it must be 1 when ranking by latency.",
+        help="How many eval cases to measure at once. They are independent and spend their time waiting on a "
+        "model, so this is what decides how long an experiment takes. It does not change token usage, but "
+        "concurrent runs contend for rate limits, so it must be 1 when ranking by latency.",
     )
     parser.add_argument(
         "--max-iterations",
@@ -376,7 +382,7 @@ def enable_progress_reporting() -> None:
 
     A run spends most of its time inside Agent calls, and its own output is a few lines per phase, so a redirected
     stdout would otherwise stay empty for the length of an experiment: line buffering makes each line appear as it
-    is written. The library reports each case and each candidate through its logger, which is routed here so that
+    is written. The library reports each eval case and each candidate through its logger, which is routed here so that
     progress and phases arrive on the same stream in order.
     """
     sys.stdout.reconfigure(line_buffering=True)
@@ -396,15 +402,15 @@ def main() -> None:
     if not os.environ.get("OPENAI_API_KEY"):
         message = "OPENAI_API_KEY must be set to run this walkthrough."
         raise SystemExit(message)
-    if arguments.max_cases < 1:
-        message = "--max-cases must be at least 1."
+    if arguments.max_eval_cases < 1:
+        message = "--max-eval-cases must be at least 1."
         raise SystemExit(message)
-    if arguments.max_concurrent_cases < 1:
-        message = "--max-concurrent-cases must be at least 1."
+    if arguments.max_concurrent_eval_cases < 1:
+        message = "--max-concurrent-eval-cases must be at least 1."
         raise SystemExit(message)
-    if arguments.primary == "latency" and arguments.max_concurrent_cases > 1:
+    if arguments.primary == "latency" and arguments.max_concurrent_eval_cases > 1:
         message = (
-            "Ranking by latency requires --max-concurrent-cases 1: concurrent runs contend for the same rate "
+            "Ranking by latency requires --max-concurrent-eval-cases 1: concurrent runs contend for the same rate "
             "limits, so the measurement would describe that contention rather than the configuration."
         )
         raise SystemExit(message)
@@ -419,16 +425,9 @@ def main() -> None:
     # The dataset reports what it labels; turning that into what this harness scores is the harness's own call.
     # The ground-truth answer is left out: many are short words like "Yes", where a substring check on a reply
     # can match for reasons unrelated to the answer being right.
-    labelled = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
-    cases = [
-        AdvancedRAGEvaluationCase(
-            question=question.question,
-            expected_document_ids=question.expected_document_ids,
-            require_metadata_inspection=False,
-        )
-        for question in labelled
-    ]
-    print(f"  eval cases: {len(cases)} labelled from evidence")
+    labelled = build_eval_cases(articles=articles, limit=arguments.max_eval_cases, seed=arguments.eval_case_seed)
+    eval_cases = [RAGEvalCase(question=question.question, evidence=question.evidence) for question in labelled]
+    print(f"  eval cases: {len(eval_cases)} labelled from evidence")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
     reference_agent = build_reference_agent(store=store, model=arguments.reference_model)
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference_agent.tools))
@@ -437,7 +436,10 @@ def main() -> None:
     print("\n=== 2. execute and store reference runs ===")
     run_store = LocalRunStore(directory=arguments.workspace / "runs")
     selected_run_ids = capture_reference_runs(
-        agent=reference_agent, cases=cases, run_store=run_store, concurrency=arguments.max_concurrent_cases
+        agent=reference_agent,
+        eval_cases=eval_cases,
+        run_store=run_store,
+        concurrency=arguments.max_concurrent_eval_cases,
     )
 
     pricing = build_pricing(models=(arguments.reference_model, *candidate_models))
@@ -447,7 +449,9 @@ def main() -> None:
         reference=reference_agent,
         run_store=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(
-            cases=cases, digest_policy=DIGEST_POLICY, max_concurrent_cases=arguments.max_concurrent_cases
+            eval_cases=eval_cases,
+            digest_policy=DIGEST_POLICY,
+            max_concurrent_eval_cases=arguments.max_concurrent_eval_cases,
         ),
         pricing=pricing,
         objectives=OptimizationObjectives(

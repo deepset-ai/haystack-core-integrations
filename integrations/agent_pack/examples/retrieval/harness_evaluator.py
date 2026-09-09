@@ -12,8 +12,8 @@ from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, Mode
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
 from retrieval.evaluation import (
-    RetrievalCaseMetrics,
     RetrievalEvalCase,
+    RetrievalEvalCaseMetrics,
     RetrievalOutcome,
     score_retrieval_result,
 )
@@ -85,7 +85,7 @@ def query_reporters(pipeline: Pipeline) -> set[str]:
     return reporters
 
 
-def _mean_stage_outputs(scored: list[RetrievalCaseMetrics]) -> dict[str, dict[str, float]]:
+def _mean_stage_outputs(scored: list[RetrievalEvalCaseMetrics]) -> dict[str, dict[str, float]]:
     """
     Average how many items each component emitted, over the eval cases that reached it.
 
@@ -111,39 +111,40 @@ class RetrievalHarnessEvaluator:
     free to rename `retriever`, insert a ranker, or replace the retrieval path entirely; this finds where to put the
     question and where to read documents by socket name, and says so at validation time when it cannot.
 
-    Quality is the mean of the per-eval-case scores, normalized to `[0.0, 1.0]`. A case scores its recall@k, so a
-    configuration that finds more of the evidence is measured as better even while no case yet finds all of it.
+    Quality is the mean of the per-eval-case scores, normalized to `[0.0, 1.0]`. An eval case scores its recall@k, so a
+    configuration that finds more of the evidence is measured as better even while no eval case yet finds all of it.
     `passed` is still reported per eval case, and remains the stricter reading.
     No answer is generated: the labelled evidence names the documents an answer needs, which is what makes one
-    case cost a single model call rather than an agent loop.
+    eval case cost a single model call rather than an agent loop.
     """
 
     def __init__(
         self,
         *,
-        cases: list[RetrievalEvalCase],
-        max_concurrent_cases: int = 1,
+        eval_cases: list[RetrievalEvalCase],
+        max_concurrent_eval_cases: int = 1,
         max_reported_queries: int = 8,
     ) -> None:
         """
         Create an evaluator.
 
-        :param cases: Labelled expectations, keyed internally by question.
-        :param max_concurrent_cases: How many cases to measure at once. Cases are independent and each spends its
+        :param eval_cases: Labelled expectations, keyed internally by question.
+        :param max_concurrent_eval_cases: How many eval cases to measure at once. Eval cases are independent and each
+        spends its
             time waiting on a model, so this decides wall-clock time rather than cost. Leave it at 1 when ranking
             by latency, or the objective measures contention rather than the configuration.
         :param max_reported_queries: How many issued queries to report per eval case. A configuration that expands
             without limit would otherwise put its whole expansion into the optimizer's context.
-        :raises ValueError: If `cases` is empty or `max_concurrent_cases` is below one.
+        :raises ValueError: If `eval cases` is empty or `max_concurrent_eval_cases` is below one.
         """
-        if not cases:
-            msg = "The retrieval evaluator needs at least one labelled case."
+        if not eval_cases:
+            msg = "The retrieval evaluator needs at least one labelled eval case."
             raise ValueError(msg)
-        if max_concurrent_cases < 1:
-            msg = "max_concurrent_cases must be at least 1."
+        if max_concurrent_eval_cases < 1:
+            msg = "max_concurrent_eval_cases must be at least 1."
             raise ValueError(msg)
-        self.cases = {case.question: case for case in cases}
-        self.max_concurrent_cases = max_concurrent_cases
+        self.eval_cases = {eval_case.question: eval_case for eval_case in eval_cases}
+        self.max_concurrent_eval_cases = max_concurrent_eval_cases
         self.max_reported_queries = max_reported_queries
 
     def validate_pipeline(self, target: Pipeline) -> None:
@@ -165,9 +166,13 @@ class RetrievalHarnessEvaluator:
         """
         Describe the evaluation set so an experiment journal is invalidated when it changes.
 
-        :returns: Every configured case, ordered by question.
+        :returns: Every configured eval case, ordered by question.
         """
-        return {"cases": sorted((case.to_dict() for case in self.cases.values()), key=lambda entry: entry["question"])}
+        return {
+            "eval_cases": sorted(
+                (eval_case.to_dict() for eval_case in self.eval_cases.values()), key=lambda entry: entry["question"]
+            )
+        }
 
     def _outcome(self, result: dict[str, Any], exit_point: str, reporters: set[str], question: str) -> RetrievalOutcome:
         """
@@ -191,44 +196,50 @@ class RetrievalHarnessEvaluator:
 
     async def _measure(
         self, target: Pipeline, resolved: list[RetrievalEvalCase], tracer: HarnessTracer
-    ) -> list[tuple[RetrievalCaseMetrics, EvalCaseUsage]]:
+    ) -> list[tuple[RetrievalEvalCaseMetrics, EvalCaseUsage]]:
         """
-        Measure every case, running up to `max_concurrent_cases` of them at once.
+        Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
         :param target: The candidate pipeline to measure.
         :param resolved: The eval cases to pose.
         :param tracer: Collector for per-eval-case generator usage.
         :returns: One result per eval case, in the order the eval cases were given.
         """
-        semaphore = asyncio.Semaphore(self.max_concurrent_cases)
+        semaphore = asyncio.Semaphore(self.max_concurrent_eval_cases)
         exit_point = documents_exit_point(pipeline=target)
         reporters = query_reporters(pipeline=target)
         entry_points = query_entry_points(pipeline=target)
 
-        async def measure(position: int, case: RetrievalEvalCase) -> tuple[RetrievalCaseMetrics, EvalCaseUsage]:
+        async def measure(
+            position: int, eval_case: RetrievalEvalCase
+        ) -> tuple[RetrievalEvalCaseMetrics, EvalCaseUsage]:
             """Pose one question once a slot is free."""
-            data = {name: {QUERY_SOCKET: case.question} for name in entry_points}
+            data = {name: {QUERY_SOCKET: eval_case.question} for name in entry_points}
             async with semaphore:
                 started = time.perf_counter()
-                with tracer.case() as usage:
+                with tracer.eval_case() as usage:
                     result = await target.run_async(data=data, include_outputs_from=reporters | {exit_point})
             latency_ms = (time.perf_counter() - started) * 1000
-            outcome = self._outcome(result=result, exit_point=exit_point, reporters=reporters, question=case.question)
+            outcome = self._outcome(
+                result=result, exit_point=exit_point, reporters=reporters, question=eval_case.question
+            )
             scored = score_retrieval_result(
-                outcome=outcome, case=case, latency_ms=latency_ms, stage_outputs=dict(usage.outputs)
+                outcome=outcome, eval_case=eval_case, latency_ms=latency_ms, stage_outputs=dict(usage.outputs)
             )
             logger.info(
-                "case {position}/{total} {verdict} in {latency:.0f}ms with {queries} queries: {question}",
+                "eval case {position}/{total} {verdict} in {latency:.0f}ms with {queries} queries: {question}",
                 position=position,
                 total=len(resolved),
                 verdict="passed" if scored.passed else f"FAILED ({', '.join(scored.failures)})",
                 latency=latency_ms,
                 queries=len(outcome.queries),
-                question=case.question[:80],
+                question=eval_case.question[:80],
             )
             return scored, usage
 
-        return list(await asyncio.gather(*(measure(index, case) for index, case in enumerate(resolved, start=1))))
+        return list(
+            await asyncio.gather(*(measure(index, eval_case) for index, eval_case in enumerate(resolved, start=1)))
+        )
 
     def evaluate(self, target: Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
         """
@@ -236,17 +247,17 @@ class RetrievalHarnessEvaluator:
 
         :param target: The materialized candidate pipeline to score.
         :param reference_runs: The successful runs supplying the questions to replay.
-        :returns: Fraction of cases passed, raw model usage, and mean latency, with per-eval-case detail.
-        :raises ValueError: If a recorded question has no labelled case.
+        :returns: Fraction of eval cases passed, raw model usage, and mean latency, with per-eval-case detail.
+        :raises ValueError: If a recorded question has no labelled eval case.
         """
         resolved = []
         for record in reference_runs:
             question = question_from_run(record=record)
-            case = self.cases.get(question)
-            if case is None:
+            eval_case = self.eval_cases.get(question)
+            if eval_case is None:
                 msg = f"No labelled retrieval case for question {question!r}."
                 raise ValueError(msg)
-            resolved.append(case)
+            resolved.append(eval_case)
 
         tracer = HarnessTracer()
         target.warm_up()
@@ -262,8 +273,8 @@ class RetrievalHarnessEvaluator:
                     input_tokens=current.input_tokens + tokens.input_tokens,
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
-        cases = [metric.to_dict() for metric in scored]
-        for case_detail in cases:
+        eval_cases = [metric.to_dict() for metric in scored]
+        for case_detail in eval_cases:
             case_detail["queries"] = case_detail["queries"][: self.max_reported_queries]
         return EvaluationMetrics(
             quality=sum(metric.score for metric in scored) / len(scored),
@@ -284,6 +295,6 @@ class RetrievalHarnessEvaluator:
                 # What the components said about themselves. A component that degrades rather than failing keeps
                 # the run alive and reports it only here, so a score with no explanation gets one.
                 "warnings": diagnostics.to_list(),
-                "cases": cases,
+                "eval_cases": eval_cases,
             },
         )

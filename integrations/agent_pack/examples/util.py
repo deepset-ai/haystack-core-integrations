@@ -12,7 +12,13 @@ with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSea
 
 
 def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
-    """Build the matching BM25 retriever for a document store."""
+    """
+    Build the matching BM25 retriever for a document store.
+
+    :param store: The store to retrieve from.
+    :param top_k: How many documents one retrieval returns.
+    :returns: The retriever.
+    """
     if isinstance(store, InMemoryDocumentStore):
         return InMemoryBM25Retriever(document_store=store, top_k=top_k)
     opensearch_import.check()

@@ -6,9 +6,9 @@ from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
-from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.dataclasses import RunRecord
+from haystack_integrations.agent_pack.evaluation import RAGEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -19,6 +19,8 @@ from haystack_integrations.agent_pack.optimization import (
     load_agent,
 )
 from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
+
+EVIDENCE = "CRISPR gene editing can correct hereditary blindness mutations."
 
 QUESTION = "What is CRISPR used for?"
 
@@ -113,11 +115,10 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
         ],
     )
     evaluator = AdvancedRAGHarnessEvaluator(
-        cases=[
-            AdvancedRAGEvaluationCase(
+        eval_cases=[
+            RAGEvalCase(
                 question=QUESTION,
-                expected_document_ids=frozenset({document.id}),
-                answer_must_mention=("CRISPR", "blindness"),
+                evidence={document.id: EVIDENCE},
             )
         ]
     )
@@ -149,7 +150,7 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
 
 
 def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
-    """The cheaper model is only recommended while it still answers the labelled case."""
+    """The cheaper model is only recommended while it still answers the labelled eval case."""
     document = Document(content="CRISPR gene editing can correct hereditary blindness mutations.")
     store = InMemoryDocumentStore()
     store.write_documents([document])
@@ -174,11 +175,10 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
         reference=reference,
         run_store=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(
-            cases=[
-                AdvancedRAGEvaluationCase(
+            eval_cases=[
+                RAGEvalCase(
                     question=QUESTION,
-                    expected_document_ids=frozenset({document.id}),
-                    answer_must_mention=("CRISPR", "blindness"),
+                    evidence={document.id: EVIDENCE},
                 )
             ]
         ),
@@ -195,4 +195,4 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     candidate = result.candidates[0]
     assert candidate.metrics.quality == 0.0
     assert result.gate_failures[candidate.candidate_id] == ("quality_below_floor:1.0000",)
-    assert "recall_below_1" in candidate.metrics.details["cases"][0]["failures"]
+    assert "recall_below_1" in candidate.metrics.details["eval_cases"][0]["failures"]

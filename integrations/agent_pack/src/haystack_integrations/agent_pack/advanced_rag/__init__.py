@@ -4,8 +4,7 @@
 
 from .agent import create_advanced_rag_agent
 from .evaluation import (
-    AdvancedRAGCaseMetrics,
-    AdvancedRAGEvaluationCase,
+    AdvancedRAGEvalCaseMetrics,
     score_advanced_rag_result,
 )
 from .tools import (
@@ -17,8 +16,7 @@ from .tools import (
 )
 
 __all__ = [
-    "AdvancedRAGCaseMetrics",
-    "AdvancedRAGEvaluationCase",
+    "AdvancedRAGEvalCaseMetrics",
     "DocumentStoreToolset",
     "FetchDocumentsByFilterTool",
     "GetMetadataFieldRangeTool",

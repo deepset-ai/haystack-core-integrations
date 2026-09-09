@@ -27,10 +27,10 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     ConfigurationWorkspace,
 )
 from haystack_integrations.agent_pack.run_digest import (
-    CASE_SUMMARY_KEY,
+    EVAL_CASE_SUMMARY_KEY,
     RunDigestPolicy,
     digest_agent_run,
-    summarize_case_details,
+    summarize_eval_case_details,
 )
 
 if TYPE_CHECKING:
@@ -243,8 +243,8 @@ def _headline(metrics: dict[str, Any] | None) -> str:
                 for socket, size in sockets.items()
             )
         )
-    if (summary := details.get(CASE_SUMMARY_KEY)) is not None:
-        parts.append(f"{summary.get('passed')}/{summary.get('cases')} cases clean")
+    if (summary := details.get(EVAL_CASE_SUMMARY_KEY)) is not None:
+        parts.append(f"{summary.get('passed')}/{summary.get('eval_cases')} eval cases clean")
         if failures := summary.get("failures"):
             parts.append("failures " + ", ".join(f"{name} x{count}" for name, count in failures.items()))
     if details.get("usage_complete") is False:
@@ -331,19 +331,21 @@ def propose_candidate(
                     if record.outputs
                 ),
             ),
-            # Described case by case only while it is the only thing measured; once a candidate exists, the most
-            # recent one is the configuration worth reading in that much detail.
+            # Described eval case by eval case only while it is the only thing measured; once a candidate exists, the
+            # most recent one is the configuration worth reading in that much detail.
             _section(
                 title="Reference measurement",
                 body=json.dumps(
-                    baseline.to_dict() if not history else summarize_case_details(payload=baseline.to_dict())
+                    baseline.to_dict() if not history else summarize_eval_case_details(payload=baseline.to_dict())
                 ),
             ),
         ]
     )
 
     # Second message: append-only, so every turn re-reads all but the newest entry from cache.
-    outcomes = _section(title="Outcomes so far", body=_render_outcomes(history=summarize_case_details(payload=history)))
+    outcomes = _section(
+        title="Outcomes so far", body=_render_outcomes(history=summarize_eval_case_details(payload=history))
+    )
 
     # Third message: rewritten every turn, so none of it is cacheable and all of it goes last.
     recent = history[-history_digest_window:] if history_digest_window > 0 else []

@@ -30,7 +30,7 @@ def test_ranker_and_agent_usage_counted_once_without_content_tracing():
         )
     )
     try:
-        with tracer.activate(), tracer.case() as usage:
+        with tracer.activate(), tracer.eval_case() as usage:
             pipeline.run({"ranker": {"query": "Berlin", "documents": [Document(content="Berlin")]}})
             agent.run(messages=[ChatMessage.from_user("q")])
         assert usage.complete
@@ -41,11 +41,11 @@ def test_ranker_and_agent_usage_counted_once_without_content_tracing():
         tracing.tracer.is_content_tracing_enabled = old_content
 
 
-def test_concurrent_cases_and_threaded_parents_keep_usage_separate():
+def test_concurrent_eval_cases_and_threaded_parents_keep_usage_separate():
     tracer = HarnessTracer()
 
     async def run_case(index):
-        with tracer.case() as usage:
+        with tracer.eval_case() as usage:
             with tracer.trace("parent") as parent:
                 await asyncio.sleep(0)
 
@@ -82,7 +82,7 @@ def test_concurrent_cases_and_threaded_parents_keep_usage_separate():
 def test_missing_usage_is_unavailable_and_tracer_is_disabled_after_failure():
     tracer = HarnessTracer()
     try:
-        with tracer.activate(), tracer.case() as usage:
+        with tracer.activate(), tracer.eval_case() as usage:
             with tracer.trace("haystack.chat_generator.run") as span:
                 span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("no usage")]})
             msg = "evaluation failed"

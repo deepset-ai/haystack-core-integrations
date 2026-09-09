@@ -300,7 +300,7 @@ class HarnessOptimizationExperiment:
         optimizer_tracer = HarnessTracer()
         while len(outcomes) < self.max_iterations:
             # Measured like a candidate's calls, so the cost of searching is reported beside what it found.
-            with optimizer_tracer.activate(), optimizer_tracer.case() as turn_usage:
+            with optimizer_tracer.activate(), optimizer_tracer.eval_case() as turn_usage:
                 proposed = propose_candidate(
                     optimizer_agent=self.optimizer_agent,
                     workspace=workspace,

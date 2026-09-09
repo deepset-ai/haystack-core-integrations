@@ -226,7 +226,7 @@ def test_runs_measuring_the_same_thing_share_a_measurement_context(tmp_path):
     """The context answers whether two runs' numbers can be compared, and a changed reference does not break that."""
     first, _ = configured(tmp_path, ["cheap", None])
     second, _ = configured(tmp_path, ["cheap", None])
-    # A different reference configuration, measured against the same runs, cases and evaluator.
+    # A different reference configuration, measured against the same runs, eval cases and evaluator.
     second.reference = Agent(chat_generator=MockChatGenerator(model="reference"), max_agent_steps=7)
 
     one = first.run()
@@ -242,7 +242,7 @@ def test_runs_measuring_the_same_thing_share_a_measurement_context(tmp_path):
 def test_a_different_evaluation_set_is_not_comparable(tmp_path):
     class OtherCases(ModelEvaluator):
         def fingerprint(self):
-            return {"kind": "different-cases"}
+            return {"kind": "different-eval cases"}
 
     first, _ = configured(tmp_path, ["cheap", None])
     second, _ = configured(tmp_path, ["cheap", None], evaluator=OtherCases())
@@ -306,7 +306,7 @@ def test_the_search_reports_what_it_spent_on_itself(tmp_path):
 
 
 def test_a_candidate_exactly_on_the_quality_tolerance_is_not_gated_out(tmp_path):
-    """A tolerance of one case in twenty is 0.05, and 0.2 - 0.05 is 0.15000000000000002 in binary floating point."""
+    """A tolerance of one eval case in twenty is 0.05, and 0.2 - 0.05 is 0.15000000000000002 in binary float."""
     experiment, _ = configured(
         tmp_path,
         ["cheap", None],

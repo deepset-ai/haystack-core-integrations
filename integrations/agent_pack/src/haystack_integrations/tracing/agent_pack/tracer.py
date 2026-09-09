@@ -114,7 +114,7 @@ class HarnessTracer(Tracer):
     """
 
     def __init__(self) -> None:
-        """Initialize task-local case and span context."""
+        """Initialize task-local eval case and span context."""
         self._case: ContextVar[EvalCaseUsage | None] = ContextVar("harness_usage", default=None)
         self._span: ContextVar[_HarnessSpan | None] = ContextVar("harness_span", default=None)
 
@@ -151,8 +151,8 @@ class HarnessTracer(Tracer):
         return self._span.get()
 
     @contextmanager
-    def case(self) -> Iterator[EvalCaseUsage]:
-        """Collect one eval case independently of concurrently running cases."""
+    def eval_case(self) -> Iterator[EvalCaseUsage]:
+        """Collect one eval case independently of concurrently running eval cases."""
         usage = EvalCaseUsage()
         token = self._case.set(usage)
         try:

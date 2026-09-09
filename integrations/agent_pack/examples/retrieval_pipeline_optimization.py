@@ -16,7 +16,7 @@
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
 #     hatch run test:python examples/retrieval_pipeline_optimization.py
-#     hatch run test:python examples/retrieval_pipeline_optimization.py --max-cases 5 --max-iterations 2
+#     hatch run test:python examples/retrieval_pipeline_optimization.py --max-eval-cases 5 --max-iterations 2
 #     hatch run test:python examples/retrieval_pipeline_optimization.py --docs-mcp
 
 import argparse
@@ -64,13 +64,13 @@ The configuration is a one-shot retrieval pipeline, and retrieval is all of it. 
 input, whatever the pipeline does with it must end at exactly one unconnected `documents` output, and that output
 is scored against the documents the answer needed.
 Quality is the mean recall over the eval cases, so retrieving more
-of what a question needs registers even when no single case is yet complete; a case that breaks one of its
+of what a question needs registers even when no single eval case is yet complete; an eval case that breaks one of its
 budgets contributes nothing at all, however much of the evidence it found. Nothing writes an answer, so nothing is
 gained by adding a generator.
 
 Eval cases require evidence spread across several documents, and one query phrased for the whole question tends to
 surface only the documents that share its wording. Expansion buys recall with model calls, and a wider candidate
-set buys it with precision; the case reports recall and precision separately, and names the documents that were
+set buys it with precision; the eval case reports recall and precision separately, and names the documents that were
 missed, so the two are distinguishable.
 
 One property of the expander is worth knowing before a measurement is spent discovering it. Its expansion count is
@@ -82,14 +82,14 @@ of this configuration and can be edited, so the count and the examples it shows 
 question is also appended unless the model already produced it, so the queries actually issued are usually one
 more than the count.
 
-Each case also limits how many documents are scored, and how many queries the pipeline may issue; the exact
+Each eval case also limits how many documents are scored, and how many queries the pipeline may issue; the exact
 numbers are stated below. The document limit is on what comes out, not on what the pipeline looks at, so past a
 certain point recall cannot be bought by widening: what is returned has to be the right subset of whatever was
 considered. Only the first that-many documents count towards recall, in the order the pipeline returned them, so
-returning more than the limit wastes the places past it rather than voiding the case: set the final ranker's
+returning more than the limit wastes the places past it rather than voiding the eval case: set the final ranker's
 ceiling at the limit rather than above it, and a run that overshoots by one has lost one document's worth of
 credit. The query limit is not forgiving in the same way, since a query already cost what it cost: exceed it and
-the case scores nothing.
+the eval case scores nothing.
 
 Once that limit binds, the way past it is to stop treating those two things as the same. Retrieve a wide candidate
 set, then rank it and return only the best of it: the limit applies to the ranked output, while the candidate set
@@ -110,7 +110,7 @@ to twice the evidence that scoring them one at a time did.
 The two stages are answerable to different things. Retrieval before the ranker is judged only on whether the
 evidence is somewhere in the candidate set, so widening it costs nothing that is measured and a candidate document
 that is never retrieved cannot be recovered later. The ranker is what decides the answer, so it is where being
-selective matters. What the case scores in the end is recall, so a ranker that leaves a needed document out has
+selective matters. What the eval case scores in the end is recall, so a ranker that leaves a needed document out has
 lost something a narrower candidate set could never have given back.
 
 Fill the allowance, and start there rather than working up to it. Only the documents inside the limit are scored,
@@ -277,18 +277,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workspace", type=Path, default=WORKSPACE, help="Directory for runs and YAML artifacts.")
     parser.add_argument("--config", type=Path, help="Optional editable YAML file; created from the reference.")
     parser.add_argument(
-        "--max-cases",
+        "--max-eval-cases",
         type=int,
         default=20,
-        help="Cases to evaluate. Quality averages their recall, so more cases make the measurement finer as well "
-        "as less noisy; each one costs a model call per candidate.",
+        help="Eval cases to evaluate. Quality averages their recall, so more of them make the measurement finer "
+        "as well as less noisy; each one costs a model call per candidate.",
     )
-    parser.add_argument("--case-seed", type=int, default=0, help="Selects which cases are drawn from the dataset.")
+    parser.add_argument(
+        "--eval-case-seed", type=int, default=0, help="Selects which eval cases are drawn from the dataset."
+    )
     parser.add_argument(
         "--k",
         type=int,
         default=10,
-        help="Rank cutoff cases are scored at, giving recall@k. Only the first k documents returned count, so a "
+        help="Rank cutoff eval cases are scored at, giving recall@k. Only the first k documents returned count, so a "
         "pipeline is measured on what it put at the top rather than on how much it returned. Recall with no "
         "cutoff is maximized by returning most of the corpus.",
     )
@@ -297,17 +299,17 @@ def parse_args() -> argparse.Namespace:
         "--max-quality-loss",
         type=float,
         default=0.05,
-        help="Maximum absolute pass-rate loss from the reference. Keep it at no less than one case, or single-case "
-        "measurement noise gates out real improvements.",
+        help="Maximum absolute pass-rate loss from the reference. Keep it at no less than one eval case, or the "
+        "measurement noise of a single eval case gates out real improvements.",
     )
     parser.add_argument("--primary", choices=("cost", "latency", "quality"), default="quality")
-    parser.add_argument("--max-concurrent-cases", type=int, default=6)
+    parser.add_argument("--max-concurrent-eval-cases", type=int, default=6)
     parser.add_argument("--max-iterations", type=int, default=8)
     parser.add_argument("--optimizer-steps", type=int, default=24, help="Editing steps per optimizer turn.")
     parser.add_argument(
         "--optimizer-model",
         help="Model the optimizer itself reasons with. Its turns are most of what an experiment costs on a harness "
-        "whose cases are cheap, so what it is worth paying for them is itself a measurable question. Defaults to "
+        "whose eval cases are cheap, so what it is worth paying for them is itself a measurable question. Defaults to "
         "whatever `create_harness_optimizer_agent` chooses.",
     )
     parser.add_argument("--docs-mcp", action="store_true", help="Give the optimizer the Haystack documentation MCP.")
@@ -334,11 +336,11 @@ def main() -> None:
     if not os.environ.get("OPENAI_API_KEY"):
         message = "OPENAI_API_KEY must be set to run this walkthrough."
         raise SystemExit(message)
-    if arguments.max_cases < 1:
-        message = "--max-cases must be at least 1."
+    if arguments.max_eval_cases < 1:
+        message = "--max-eval-cases must be at least 1."
         raise SystemExit(message)
-    if arguments.primary == "latency" and arguments.max_concurrent_cases > 1:
-        message = "Ranking by latency requires --max-concurrent-cases 1."
+    if arguments.primary == "latency" and arguments.max_concurrent_eval_cases > 1:
+        message = "Ranking by latency requires --max-concurrent-eval-cases 1."
         raise SystemExit(message)
     if arguments.fresh and arguments.workspace.exists():
         shutil.rmtree(path=arguments.workspace)
@@ -348,17 +350,17 @@ def main() -> None:
     document_count = store.count_documents()
     print(f"  {CORPUS_KEY} on {arguments.store}: {document_count} chunks")
 
-    labelled = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
-    cases = [
+    labelled = build_eval_cases(articles=articles, limit=arguments.max_eval_cases, seed=arguments.eval_case_seed)
+    eval_cases = [
         RetrievalEvalCase(
-            question=case.question,
-            evidence=case.evidence,
+            question=eval_case.question,
+            evidence=eval_case.evidence,
             k=arguments.k,
         )
-        for case in labelled
+        for eval_case in labelled
     ]
-    expected = sum(len(case.expected_document_ids) for case in cases)
-    print(f"  cases: {len(cases)} labelled from evidence, expecting {expected} documents in total")
+    expected = sum(len(eval_case.expected_document_ids) for eval_case in eval_cases)
+    print(f"  cases: {len(eval_cases)} labelled from evidence, expecting {expected} documents in total")
 
     reference = build_reference_pipeline(store=store, model=arguments.expander_model)
     print(
@@ -371,12 +373,14 @@ def main() -> None:
     print("\n=== 2. record the questions to replay ===")
     run_store = LocalRunStore(directory=arguments.workspace / "runs")
     run_store.clear()
-    for index, case in enumerate(cases):
-        run_store.add(record=RunRecord(run_id=f"case-{index}", inputs={"query": case.question}, outputs={}))
-    print(f"  recorded {len(cases)} questions")
+    for index, eval_case in enumerate(eval_cases):
+        run_store.add(record=RunRecord(run_id=f"case-{index}", inputs={"query": eval_case.question}, outputs={}))
+    print(f"  recorded {len(eval_cases)} questions")
 
     print("\n=== 3. optimization experiment ===")
-    evaluator = RetrievalHarnessEvaluator(cases=cases, max_concurrent_cases=arguments.max_concurrent_cases)
+    evaluator = RetrievalHarnessEvaluator(
+        eval_cases=eval_cases, max_concurrent_eval_cases=arguments.max_concurrent_eval_cases
+    )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
         run_store=run_store,

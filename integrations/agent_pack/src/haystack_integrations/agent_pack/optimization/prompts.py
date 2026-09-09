@@ -67,7 +67,7 @@ mismatches the task costs quality without ever failing: read the prompt in the Y
 
 Read a limit against what the run actually did with it. A component producing less than its own limit allows is
 leaving that room unspent, and the reason is usually in its prompt rather than in the number. A limit reached on
-every case is the opposite: it is binding, and what it truncates is invisible until it is raised.
+every one of them is the opposite: it is binding, and what it truncates is invisible until it is raised.
 
 Limits along a path constrain each other, and what reaches the end of one is set by its narrowest stage. Widening
 a single stage measures as no change when a later stage still discards what it gained, and it can measure worse

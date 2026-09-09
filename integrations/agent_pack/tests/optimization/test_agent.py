@@ -144,7 +144,7 @@ def test_the_optimizer_is_told_how_many_measurements_remain(tmp_path):
     assert "## Objectives" in stable
 
 
-def test_only_the_most_recently_measured_configuration_is_described_case_by_case(tmp_path):
+def test_only_the_most_recently_measured_configuration_is_described_eval_case_by_eval_case(tmp_path):
     """On the first turn that is the reference; once a candidate has been measured, the reference is summarized."""
     workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
     baseline = EvaluationMetrics(
@@ -152,7 +152,7 @@ def test_only_the_most_recently_measured_configuration_is_described_case_by_case
         latency_ms=1,
         details={
             "model": "reference",
-            "cases": [{"passed": True, "failures": []}, {"passed": False, "failures": ["r"]}],
+            "eval_cases": [{"passed": True, "failures": []}, {"passed": False, "failures": ["r"]}],
         },
     )
     seen = []
@@ -179,11 +179,11 @@ def test_only_the_most_recently_measured_configuration_is_described_case_by_case
     propose(history=[{"candidate_id": "c1", "metrics": None}])
 
     first, later = seen
-    assert [case["passed"] for case in first["details"]["cases"]] == [True, False]
-    assert "cases" not in later["details"]
-    assert later["details"]["case_summary"] == {"cases": 2, "passed": 1, "failures": {"r": 1}}
+    assert [eval_case["passed"] for eval_case in first["details"]["eval_cases"]] == [True, False]
+    assert "eval_cases" not in later["details"]
+    assert later["details"]["eval_case_summary"] == {"eval_cases": 2, "passed": 1, "failures": {"r": 1}}
     # The measurement itself is untouched; only what the request carries changes.
-    assert baseline.details["cases"][0]["passed"] is True
+    assert baseline.details["eval_cases"][0]["passed"] is True
 
 
 def test_plain_text_does_not_submit_or_run_forever(tmp_path):

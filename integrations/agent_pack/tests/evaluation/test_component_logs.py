@@ -29,7 +29,7 @@ def test_a_swallowed_component_failure_is_reported_with_its_remedy():
     ]
 
 
-def test_a_warning_repeated_across_cases_is_counted_once():
+def test_a_warning_repeated_across_eval_cases_is_counted_once():
     with ComponentLogCollector().collect() as logs:
         for _ in range(20):
             logging.getLogger("haystack.components.query.query_expander").warning("Generated 4 but 1 requested.")
