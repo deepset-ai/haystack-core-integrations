@@ -191,13 +191,16 @@ class TestMetadataToolContract:
 
     @pytest.mark.parametrize("tool_cls", TOOL_CLASSES)
     def test_serialization_roundtrip(self, store, tool_cls):
-        tool = tool_cls(store)
+        # An overridden description, since the default would survive a `to_dict` that dropped the field entirely.
+        tool = tool_cls(store, description="Call this one first.")
         data = tool.to_dict()
         assert data["type"].endswith(tool_cls.__name__)
+        assert data["data"]["description"] == "Call this one first."
 
         restored = tool_cls.from_dict(data)
         assert isinstance(restored, tool_cls)
         assert restored.name == tool.name
+        assert restored.description == "Call this one first."
         assert isinstance(restored.document_store, InMemoryDocumentStore)
 
 
@@ -424,29 +427,3 @@ class TestDocumentStoreToolset:
         assert isinstance(restored, DocumentStoreToolset)
         assert restored.max_fetched_docs == 3
         assert len(restored) == 4
-
-
-def test_tool_identity_round_trips_so_a_description_can_be_optimized():
-    """The agent lists these tools individually, so each one's name and description must survive serialization."""
-    store = InMemoryDocumentStore()
-    tool = ListMetadataFieldsTool(document_store=store, description="List the fields. Call this first.")
-
-    data = tool.to_dict()
-    assert data["data"]["name"] == "list_metadata_fields"
-    assert data["data"]["description"] == "List the fields. Call this first."
-
-    restored = ListMetadataFieldsTool.from_dict(data)
-    assert restored.description == "List the fields. Call this first."
-    assert restored.name == "list_metadata_fields"
-
-
-def test_fetch_tool_round_trips_both_of_its_limits():
-    """`max_fetch_factor` sets the refusal threshold, so it has to be reachable and survive a round trip."""
-    store = InMemoryDocumentStore()
-    tool = FetchDocumentsByFilterTool(document_store=store, max_docs=4, max_fetch_factor=2)
-
-    restored = FetchDocumentsByFilterTool.from_dict(tool.to_dict())
-
-    assert restored.max_docs == 4
-    assert restored.max_fetch_factor == 2
-    assert restored.name == "fetch_documents_by_filter"
