@@ -14,6 +14,38 @@ from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 SEARCH_CALL = ToolCall(tool_name="search_documents", arguments={"query": "x"})
 
 
+class RecordingSpan(Span):
+    """Span that appends the name and reply usage of every output it is given to a shared list."""
+
+    def __init__(self, name: str, tags: dict | None, seen: list) -> None:
+        self.name, self.tags, self.seen = name, tags or {}, seen
+
+    def set_tag(self, key: str, value: object) -> None:
+        """Keep ordinary tags on the span."""
+        self.tags[key] = value
+
+    def set_content_tag(self, key: str, value: object) -> None:
+        """Record what a generator replied, so a test can assert its usage was reported."""
+        if key == "haystack.component.output":
+            self.seen.extend((self.name, reply.meta.get("usage")) for reply in value["replies"])
+
+
+class RecordingTracer(Tracer):
+    """Tracer that collects every span into one list."""
+
+    def __init__(self, seen: list) -> None:
+        self.seen = seen
+
+    @contextmanager
+    def trace(self, operation_name: str, tags: dict | None = None, parent_span: Span | None = None):  # noqa: ARG002
+        """Open a recording span."""
+        yield RecordingSpan(operation_name, tags, self.seen)
+
+    def current_span(self) -> Span | None:
+        """No nesting is needed for these tests."""
+        return None
+
+
 class TestBackupAnswerHook:
     def test_needs_backup_detects_runs_without_a_text_answer(self):
         assert BackupAnswerHook._needs_backup([ChatMessage.from_assistant(tool_calls=[SEARCH_CALL])])
@@ -65,38 +97,14 @@ class TestBackupAnswerHook:
         assert "interrupted document-search session" in system_messages[0].text
         assert "agent system prompt" not in system_messages[0].text
 
-    def test_the_backup_generator_call_is_traced_so_its_usage_is_not_invisible(self):
-        """
-        The backup LLM runs outside the agent's own step loop, so its tokens are not in the agent's usage. The
-        call is wrapped in a generator span instead, which is where a tracer reads it from.
-        """
+    def test_tracing(self):
         seen = []
-
-        class RecordingSpan(Span):
-            def __init__(self, name, tags):
-                self.name, self.tags = name, tags or {}
-
-            def set_tag(self, key, value):
-                self.tags[key] = value
-
-            def set_content_tag(self, key, value):
-                if key == "haystack.component.output":
-                    seen.extend((self.name, reply.meta.get("usage")) for reply in value["replies"])
-
-        class RecordingTracer(Tracer):
-            @contextmanager
-            def trace(self, operation_name, tags=None, parent_span=None):  # noqa: ARG002
-                yield RecordingSpan(operation_name, tags)
-
-            def current_span(self):
-                return None
-
         reply = ChatMessage.from_assistant("backup", meta={"usage": {"input_tokens": 11, "output_tokens": 4}})
         hook = BackupAnswerHook(chat_generator=MockChatGenerator(reply, model="backup-model"))
         state = State(schema={})
         state.set("messages", [ChatMessage.from_user("q"), ChatMessage.from_assistant(tool_calls=[SEARCH_CALL])])
 
-        tracing.enable_tracing(RecordingTracer())
+        tracing.enable_tracing(RecordingTracer(seen=seen))
         try:
             hook.run(state)
         finally:
