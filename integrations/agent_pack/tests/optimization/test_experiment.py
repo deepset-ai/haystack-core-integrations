@@ -119,6 +119,29 @@ def configured(tmp_path, models, evaluator=None, objectives=None):
     return experiment, histories
 
 
+def test_the_evaluators_own_validation_runs_before_a_measurement_is_spent(tmp_path):
+    """The experiment finds this hook by name, so a validator it does not find is silently never run."""
+
+    class RejectingEvaluator(ModelEvaluator):
+        def __init__(self):
+            super().__init__()
+            self.seen = []
+
+        def validate(self, target: Agent) -> None:
+            self.seen.append(target.chat_generator.model)
+            msg = "this evaluator cannot measure that configuration"
+            raise ValueError(msg)
+
+    evaluator = RejectingEvaluator()
+    experiment, _ = configured(tmp_path, ["cheap", None], evaluator=evaluator)
+
+    result = experiment.run()
+
+    # Reached during the optimizer's validate_config step, so the candidate never costs a measurement.
+    assert evaluator.seen == ["cheap"]
+    assert result.recommendation is None
+
+
 def test_optimizer_learns_from_outcomes_and_recommendation_is_loadable(tmp_path):
     experiment, histories = configured(tmp_path, ["bad", "cheap", None])
     result = experiment.run()
@@ -368,6 +391,9 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
     class PipelineEvaluator:
         def __init__(self):
             self.measured = []
+
+        def fingerprint(self):
+            return {"kind": "pipeline-evaluator"}
 
         def evaluate(self, target, reference_runs):
             assert reference_runs

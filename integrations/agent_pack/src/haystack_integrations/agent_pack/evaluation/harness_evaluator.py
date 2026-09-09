@@ -2,39 +2,79 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Protocol
-
-from haystack import Pipeline
-from haystack.components.agents import Agent
+from collections.abc import Mapping
+from typing import Any, Protocol
 
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, RunRecord
+from haystack_integrations.agent_pack.run_digest import EVAL_CASES_KEY
+
+from .dataclasses import RetrievalEvalCase
 
 
 class HarnessEvaluator(Protocol):
     """
     Measure materialized configurations over reference runs using normalized quality scores.
 
+    An evaluator measures one kind of target — an Agent for one harness, a Pipeline for another — and says so in
+    its own signatures. `target` is typed loosely here so an implementation can name the kind it measures.
+
     Eval cases are independent and each spends its time waiting on a model, so an evaluator measures several at
     once and `evaluate_async` is the one that does the work. `evaluate` runs it to completion for a caller that
     has no event loop of its own.
+
+    Subclass it to inherit `fingerprint` and a `validate` that checks nothing; implement it structurally to
+    supply both.
+
+    :param eval_cases: The labelled expectations being scored, keyed by question.
     """
 
-    def evaluate(self, target: Agent | Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
-        """
-        Measure an Agent or Pipeline over the supplied reference runs, from synchronous code.
+    eval_cases: Mapping[str, RetrievalEvalCase]
 
-        :param target: Materialized configuration to evaluate.
+    def evaluate(self, target: Any, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+        """
+        Measure a materialized configuration over the supplied reference runs, from synchronous code.
+
+        :param target: Materialized configuration to evaluate, of whatever kind this evaluator measures.
         :param reference_runs: Successful runs supplying inputs and optional evaluator-specific reference outputs.
         :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
         """
         ...
 
-    async def evaluate_async(self, target: Agent | Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Any, reference_runs: list[RunRecord]) -> EvaluationMetrics:
         """
-        Measure an Agent or Pipeline over the supplied reference runs.
+        Measure a materialized configuration over the supplied reference runs.
 
-        :param target: Materialized configuration to evaluate.
+        :param target: Materialized configuration to evaluate, of whatever kind this evaluator measures.
         :param reference_runs: Successful runs supplying inputs and optional evaluator-specific reference outputs.
         :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
         """
         ...
+
+    def fingerprint(self) -> dict[str, Any]:
+        """
+        Describe what this evaluator measures, so two measurements are comparable only when it matches.
+
+        Folded into the experiment's measurement context. The evaluator owns the eval cases, so nothing else is
+        in a position to report them: an evaluator that describes nothing distinguishing makes a run against a
+        different evaluation set look like a continuation of this one.
+
+        :returns: Every configured eval case, ordered by question.
+        """
+        return {
+            EVAL_CASES_KEY: sorted(
+                (eval_case.to_dict() for eval_case in self.eval_cases.values()),
+                key=lambda entry: str(entry["question"]),
+            )
+        }
+
+    def validate(self, target: Any) -> None:  # noqa: ARG002
+        """
+        Reject a candidate this evaluator could not measure, before a measurement is spent on it.
+
+        Run as part of the optimizer's own validation step, so a rewiring the harness cannot drive comes back as
+        an error the optimizer can repair rather than as a failed measurement. Nothing is checked by default.
+
+        :param target: Candidate configuration deserialized from YAML.
+        :raises ValueError: If the candidate is missing something the evaluator requires.
+        """
+        return None

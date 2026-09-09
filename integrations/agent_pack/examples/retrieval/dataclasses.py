@@ -2,10 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
-
-from haystack import Document
 
 
 @dataclass(kw_only=True)
@@ -50,16 +48,3 @@ class RetrievalEvalCaseMetrics:
         for key in ("failures", "missed_document_ids"):
             data[key] = list(getattr(self, key))
         return data
-
-
-@dataclass
-class RetrievalOutcome:
-    """
-    What one pipeline run produced, independent of how the pipeline was wired.
-
-    :param question: The question that was posed, as it was posed.
-    :param documents: Everything the run retrieved, however it went about fetching it.
-    """
-
-    question: str
-    documents: list[Document] = field(default_factory=list)

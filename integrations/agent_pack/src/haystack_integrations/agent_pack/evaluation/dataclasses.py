@@ -17,15 +17,9 @@ class ToolRunStats:
     """
     The tool calls one agent run made, and what they add up to.
 
-    Which tools an agent has is up to the agent, so nothing here names one. A harness asks its questions by
-    passing the names it cares about, which lets the same statistics score any agent's run.
-
     :param calls: Every call the run made, in the order it made them, as `(tool name, the arguments it passed)`:
-
             [("list_metadata_fields", {}), ("search_documents", {"query": "CRISPR", "filters": None})]
-
     :param errors: The calls that came back an error, as `(tool name, what it said)`:
-
             [("get_metadata_field_values", "field 'nope' does not exist in the store")]
     """
 
@@ -107,11 +101,8 @@ class RetrievalEvalCase:
     :param question: The question to put to whatever is under evaluation.
     :param evidence: Ground truth, as `{document id: the quote found in that document}`. The keys are the
         documents recall is measured against, and the values say what each one was needed for:
-
             {"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}
-
         A harness that knows which documents are needed but not what they were needed for leaves the values empty.
-
     :param min_recall: Minimum share of the needed documents that must be found.
     :param min_precision: Minimum share of what came back that must be needed. Left at 0 by default, because
         returning more than was asked for is not itself a fault; raise it to make over-retrieval cost something.

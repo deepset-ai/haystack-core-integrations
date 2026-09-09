@@ -4,6 +4,7 @@
 
 import asyncio
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from haystack import Document, logging
@@ -25,6 +26,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.evaluation.dataclasses import RAGEvalCase, ToolNames
+from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.evaluation.tool_budgets import resolve_tool_budgets
 from haystack_integrations.agent_pack.run_digest import EVAL_CASES_KEY, RUN_DIGEST_KEY, RunDigestPolicy
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
@@ -116,7 +118,7 @@ def widen_tool_budgets(
     return widened
 
 
-class AdvancedRAGHarnessEvaluator:
+class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
     """
     Replay recorded questions and score Advanced RAG candidates.
 
@@ -125,6 +127,9 @@ class AdvancedRAGHarnessEvaluator:
     once, so breadth across eval cases, rather than repeated measurement of a few, is what makes that fraction
     discriminating.
     """
+
+    # Narrowed from the protocol's declaration, so the harness reads back the eval case type it stores.
+    eval_cases: Mapping[str, RAGEvalCase]
 
     def __init__(
         self,
@@ -161,13 +166,14 @@ class AdvancedRAGHarnessEvaluator:
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
         self.max_traced_eval_cases = max_traced_eval_cases
 
-    def validate_agent(self, agent: Agent) -> None:
+    def validate(self, target: Agent) -> None:
         """
         Require document state used for retrieval and citation scoring.
 
-        :param agent: Candidate Agent deserialized from YAML.
+        :param target: Candidate Agent deserialized from YAML.
+        :raises ValueError: If the Agent reports no documents for the harness to score.
         """
-        if "documents" not in agent.resolved_state_schema:
+        if "documents" not in target.resolved_state_schema:
             msg = "The RAG evaluator requires a documents state output."
             raise ValueError(msg)
 
@@ -185,19 +191,6 @@ class AdvancedRAGHarnessEvaluator:
         for index in ranked[self.max_traced_eval_cases :]:
             eval_cases[index].pop(RUN_DIGEST_KEY, None)
         return eval_cases
-
-    def fingerprint(self) -> dict[str, Any]:
-        """
-        Describe the evaluation set so an experiment journal is invalidated when it changes.
-
-        :returns: Every configured eval case, ordered by question.
-        """
-        return {
-            EVAL_CASES_KEY: sorted(
-                (eval_case.to_dict() for eval_case in self.eval_cases.values()),
-                key=lambda entry: str(entry["question"]),
-            ),
-        }
 
     def _resolve(
         self, reference_runs: list[RunRecord]

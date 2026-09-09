@@ -254,16 +254,15 @@ class HarnessOptimizationExperiment:
         payload = {
             "runs": sorted(record.fingerprint() for record in reference_runs),
             "evaluator": type(self.evaluator).__qualname__,
+            "evaluator_configuration": self.evaluator.fingerprint(),
             "configuration_key": self.configuration_key,
         }
-        if callable(fingerprint := getattr(self.evaluator, "fingerprint", None)):
-            payload["evaluator_configuration"] = fingerprint()
         context = content_digest(json.dumps(payload, sort_keys=True, default=str))
 
         # Claim a run directory and open the single file the optimizer is allowed to edit.
         run_id, artifacts = self.journal.claim_run()
         (artifacts / "reference.yaml").write_text(reference_yaml, encoding="utf-8")
-        validator = getattr(self.evaluator, "validate_agent", None)
+        validator = getattr(self.evaluator, "validate", None)
         draft = artifacts / "candidate.yaml"
         workspace = ConfigurationWorkspace(
             self.config_path or draft,

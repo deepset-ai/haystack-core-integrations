@@ -11,8 +11,9 @@ from haystack import Document, Pipeline, logging
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
+from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
-from retrieval.dataclasses import RetrievalEvalCaseMetrics, RetrievalOutcome
+from retrieval.dataclasses import RetrievalEvalCaseMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +82,11 @@ def _mean_stage_outputs(scored: list[RetrievalEvalCaseMetrics]) -> dict[str, dic
     }
 
 
-def score_retrieval_result(
-    outcome: RetrievalOutcome,
+def _score_retrieval_result(
+    result: dict[str, Any],
     eval_case: RetrievalEvalCase,
     *,
+    exit_point: str,
     k: int | None = None,
     latency_ms: float,
     stage_outputs: dict[str, dict[str, int]] | None = None,
@@ -93,15 +95,20 @@ def score_retrieval_result(
     """
     Score one retrieval run against its labelled evidence.
 
-    :param outcome: The question posed and the documents the pipeline retrieved.
+    How the documents were fetched does not matter here: one query or twenty, the run is scored on what reached
+    the end. What each stage in between emitted is counted by the tracer instead.
+
+    :param result: What `Pipeline.run_async` returned.
     :param eval_case: The expectations to score against.
+    :param exit_point: Component whose documents are what the pipeline retrieved.
     :param k: Rank cutoff the run is scored at, or `None` to score everything it returned.
     :param latency_ms: Measured wall-clock duration of the run.
     :param stage_outputs: How many items each component emitted, by component name and output socket.
     :param stage_texts: A capped sample of whatever each component emitted as text.
     :returns: The score, naming every expectation the run missed.
     """
-    returned_ids = [document.id for document in outcome.documents]
+    retrieved = (result.get(exit_point) or {}).get(DOCUMENTS_SOCKET) or []
+    returned_ids = [document.id for document in retrieved if isinstance(document, Document)]
     found = eval_case.found_at(document_ids=returned_ids, k=k)
     recall_at_k = eval_case.recall_at(document_ids=returned_ids, k=k)
     precision_at_k = eval_case.precision_at(document_ids=returned_ids, k=k)
@@ -127,7 +134,7 @@ def score_retrieval_result(
     )
 
 
-class RetrievalHarnessEvaluator:
+class RetrievalHarnessEvaluator(HarnessEvaluator):
     """
     Replay the recorded question of every eval case through a retrieval pipeline and score what came back.
 
@@ -172,7 +179,7 @@ class RetrievalHarnessEvaluator:
         self.k = k
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
 
-    def validate_pipeline(self, target: Pipeline) -> None:
+    def validate(self, target: Pipeline) -> None:
         """
         Require the sockets the harness poses questions to and reads documents from.
 
@@ -186,37 +193,6 @@ class RetrievalHarnessEvaluator:
             msg = f"The pipeline must expose at least one unconnected {QUERY_SOCKET!r} input to receive the question."
             raise ValueError(msg)
         documents_exit_point(pipeline=target)
-
-    def fingerprint(self) -> dict[str, Any]:
-        """
-        Describe the evaluation set so an experiment journal is invalidated when it changes.
-
-        :returns: Every configured eval case, ordered by question.
-        """
-        return {
-            "eval_cases": sorted(
-                (eval_case.to_dict() for eval_case in self.eval_cases.values()), key=lambda entry: entry["question"]
-            )
-        }
-
-    def _outcome(self, result: dict[str, Any], exit_point: str, question: str) -> RetrievalOutcome:
-        """
-        Read what the pipeline retrieved out of one result.
-
-        How the documents were fetched does not matter here: one query or twenty, the run is scored on what
-        reached the end. What each stage in between emitted is counted by the tracer instead.
-
-        :param result: What `Pipeline.run_async` returned.
-        :param exit_point: Component whose documents were retrieved.
-        :param question: The question that was posed.
-        :returns: The run outcome.
-        """
-        documents = [
-            document
-            for document in (result.get(exit_point) or {}).get(DOCUMENTS_SOCKET) or []
-            if isinstance(document, Document)
-        ]
-        return RetrievalOutcome(question=question, documents=documents)
 
     async def _measure(
         self, target: Pipeline, resolved: list[RetrievalEvalCase], tracer: HarnessTracer
@@ -243,10 +219,10 @@ class RetrievalHarnessEvaluator:
                 with tracer.eval_case() as usage:
                     result = await target.run_async(data=data)
             latency_ms = (time.perf_counter() - started) * 1000
-            outcome = self._outcome(result=result, exit_point=exit_point, question=eval_case.question)
-            scored = score_retrieval_result(
-                outcome=outcome,
+            scored = _score_retrieval_result(
+                result=result,
                 eval_case=eval_case,
+                exit_point=exit_point,
                 k=self.k,
                 latency_ms=latency_ms,
                 stage_outputs=dict(usage.outputs),
