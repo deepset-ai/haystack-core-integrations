@@ -33,14 +33,18 @@ class EvalCaseUsage:
     outputs: dict[str, dict[str, int]] = field(default_factory=dict)
     complete: bool = True
     calls: int = 0
+    hook_calls: int = 0
     lock: LockType = field(default_factory=Lock, repr=False)
 
 
 class _HarnessSpan(Span):
-    def __init__(self, usage: EvalCaseUsage | None, generator: bool, component: str | None = None) -> None:
+    def __init__(
+        self, usage: EvalCaseUsage | None, generator: bool, component: str | None = None, hook: bool = False
+    ) -> None:
         self.usage = usage
         self.generator = generator
         self.component = component
+        self.hook = hook
         self.recorded = False
 
     def set_tag(self, key: str, value: Any) -> None:
@@ -75,6 +79,9 @@ class _HarnessSpan(Span):
         self.recorded = True
         with self.usage.lock:
             self.usage.calls += 1
+            # A hook's own model call is not one of the Agent's steps and leaves nothing in its output, so the
+            # span it runs under is the only record that it happened.
+            self.usage.hook_calls += self.hook
             replies = value.get("replies", []) if isinstance(value, dict) else []
             if not replies:
                 self.usage.complete = False
@@ -118,11 +125,19 @@ class HarnessTracer(Tracer):
         """Follow explicit parents as well as context propagated into async worker threads."""
         parent = parent_span if isinstance(parent_span, _HarnessSpan) else self.current_span()
         usage = parent.usage if parent is not None else self._case.get()
-        generator = operation_name in ("haystack.chat_generator.run", "haystack.agent.step.llm") or (
-            operation_name == "haystack.component.run"
-            and str((tags or {}).get("haystack.component.type", "")).endswith("ChatGenerator")
+        agent_step = operation_name == "haystack.agent.step.llm"
+        generator = (
+            agent_step
+            or operation_name == "haystack.chat_generator.run"
+            or (
+                operation_name == "haystack.component.run"
+                and str((tags or {}).get("haystack.component.type", "")).endswith("ChatGenerator")
+            )
         )
-        span = _HarnessSpan(usage, generator, str((tags or {}).get("haystack.component.name") or "") or None)
+        # Hooks run their own models outside the step loop, and the flag descends so a generator nested under
+        # a hook span is recognized as the hook's own call.
+        hook = operation_name == "haystack.agent.hook" or (parent.hook if parent is not None else False)
+        span = _HarnessSpan(usage, generator, str((tags or {}).get("haystack.component.name") or "") or None, hook)
         token = self._span.set(span)
         try:
             yield span

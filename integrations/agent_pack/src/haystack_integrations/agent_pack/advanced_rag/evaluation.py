@@ -256,6 +256,7 @@ def score_advanced_rag_result(
     digest_policy: RunDigestPolicy | None = None,
     retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
     metadata_tools: frozenset[str] = METADATA_TOOLS,
+    backup_answer_used: bool = False,
 ) -> AdvancedRAGCaseMetrics:
     """
     Score retrieval grounding, answer behaviour, and process budgets for one Agent result.
@@ -264,6 +265,8 @@ def score_advanced_rag_result(
     :param case: The expectations to score the result against.
     :param latency_ms: Measured wall-clock duration of the run.
     :param digest_policy: Caps applied to the recorded tool trace.
+    :param backup_answer_used: Whether the backup LLM wrote the answer, which the caller observes rather than
+        the result reporting: the backup runs outside the Agent's step loop and leaves nothing in its output.
     :returns: The score, naming every expectation the run missed, and the trace explaining why.
     """
     messages = result.get("messages") or []
@@ -345,8 +348,7 @@ def score_advanced_rag_result(
         tool_errors=stats.errors,
         steps=steps,
         latency_ms=latency_ms,
-        backup_answer_used=result.get("exit_reason") == "max_agent_steps"
-        and bool(result.get("additional_model_usage")),
+        backup_answer_used=backup_answer_used,
         run_digest=digest_agent_run(result=result, policy=digest_policy),
         input_tokens=_first_numeric(usage, _INPUT_TOKEN_KEYS),
         output_tokens=_first_numeric(usage, _OUTPUT_TOKEN_KEYS),

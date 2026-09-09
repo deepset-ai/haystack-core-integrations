@@ -193,6 +193,7 @@ class AdvancedRAGHarnessEvaluator:
         started: float,
         position: int,
         total: int,
+        usage: EvalCaseUsage,
         retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
         metadata_tools: frozenset[str] = METADATA_TOOLS,
     ) -> AdvancedRAGCaseMetrics:
@@ -204,6 +205,7 @@ class AdvancedRAGHarnessEvaluator:
         :param started: The `perf_counter` reading from before the run.
         :param position: Which case this is, for reporting.
         :param total: How many cases there are, for reporting.
+        :param usage: What the tracer collected while the run happened.
         :param retrieval_tools: Names resolved from candidate document outputs.
         :param metadata_tools: Names resolved from metadata tool classes.
         :returns: The case score.
@@ -216,6 +218,9 @@ class AdvancedRAGHarnessEvaluator:
             digest_policy=self.digest_policy,
             retrieval_tools=retrieval_tools,
             metadata_tools=metadata_tools,
+            # The backup LLM runs inside an after_run hook, so a model call made under a hook span is what
+            # says it ran; the Agent's own output reports nothing about it.
+            backup_answer_used=result.get("exit_reason") == "max_agent_steps" and usage.hook_calls > 0,
         )
         logger.info(
             "case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
@@ -263,6 +268,7 @@ class AdvancedRAGHarnessEvaluator:
                 started=started,
                 position=position,
                 total=len(resolved),
+                usage=usage,
                 retrieval_tools=retrieval_tools,
                 metadata_tools=metadata_tools,
             )

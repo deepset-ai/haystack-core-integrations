@@ -9,6 +9,7 @@ from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
+from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.evaluation import AdvancedRAGEvaluationCase
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
@@ -207,24 +208,34 @@ def test_case_details_carry_the_tool_trace(document):
 
 
 def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(document):
-    """`answer_cites_nothing` on a truncated run is the backup hook's doing, not a retrieval fault."""
-
-    class CutOffAgent(FakeAgent):
-        """Return a run that ended on the step budget with the backup hook's usage attached."""
-
-        def run(self, **kwargs):  # noqa: ARG002
-            """Report the shape a cut-off run has."""
-            result = successful_result(self.document)
-            result["exit_reason"] = "max_agent_steps"
-            result["additional_model_usage"] = {"backup": {"input_tokens": 10, "output_tokens": 5}}
-            return result
-
+    """
+    The backup LLM is called by an after_run hook, so it is absent from what the Agent returns. A real Agent is
+    driven to step exhaustion here rather than a fabricated result, since the hook running is the thing measured.
+    """
+    store = InMemoryDocumentStore()
+    store.write_documents([document])
+    searching = ChatMessage.from_assistant(tool_calls=[ToolCall("search_documents", {"query": "CRISPR"}, id="s")])
+    agent = create_advanced_rag_agent(
+        document_store=store,
+        retriever=InMemoryBM25Retriever(document_store=store),
+        # Never answers in text, so the run is cut off and the hook fires.
+        llm=MockChatGenerator(response_fn=lambda *_args, **_kwargs: searching, model="main"),
+        backup_answer_llm=MockChatGenerator(
+            f"backup answer [doc {document.id[:8]}]",
+            model="backup",
+            meta={"usage": {"prompt_tokens": 10, "completion_tokens": 5}},
+        ),
+        max_agent_steps=2,
+    )
     case = AdvancedRAGEvaluationCase(question=QUESTION, expected_document_ids=frozenset({document.id}))
-    evaluator = AdvancedRAGHarnessEvaluator(cases=[case])
 
-    metrics = evaluator.evaluate(target=CutOffAgent(document), reference_runs=[reference_run(document=document)])
+    metrics = AdvancedRAGHarnessEvaluator(cases=[case]).evaluate(
+        target=agent, reference_runs=[reference_run(document=document)]
+    )
 
     assert metrics.details["cases"][0]["backup_answer_used"] is True
+    # The backup model is priced alongside the Agent's own, which is what the hook span also makes visible.
+    assert "backup" in metrics.model_usage
 
 
 def test_traces_are_dropped_from_passing_cases_before_failing_ones(document):
