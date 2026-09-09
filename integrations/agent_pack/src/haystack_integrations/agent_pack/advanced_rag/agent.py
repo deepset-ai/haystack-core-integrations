@@ -14,7 +14,10 @@ from haystack.tools import Tool, Toolset
 from haystack_integrations.agent_pack.advanced_rag import prompts
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 from haystack_integrations.agent_pack.advanced_rag.tools import (
-    DocumentStoreToolset,
+    FetchDocumentsByFilterTool,
+    GetMetadataFieldRangeTool,
+    GetMetadataFieldValuesTool,
+    ListMetadataFieldsTool,
     _make_retrieval_pipeline_tool,
     _make_retriever_tool,
 )
@@ -131,9 +134,11 @@ def create_advanced_rag_agent(
 
     llm = llm or _default_llm("gpt-5.4")
     backup_answer_llm = backup_answer_llm or _default_llm("gpt-5.4")
-
     tools: list[Tool | Toolset] = [
-        DocumentStoreToolset(document_store, max_fetched_docs=max_fetched_docs),
+        ListMetadataFieldsTool(document_store),
+        GetMetadataFieldValuesTool(document_store),
+        GetMetadataFieldRangeTool(document_store),
+        FetchDocumentsByFilterTool(document_store, max_docs=max_fetched_docs),
         retrieval_tool,
     ]
 
