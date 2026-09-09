@@ -2,22 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
-
 from haystack import Document, Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.components.retrievers.types import TextRetriever
 from haystack.document_stores.types import DocumentStore
-from haystack.hooks import Hook, HookPoint
 from haystack.lazy_imports import LazyImport
-from haystack.tools import Tool, Toolset, ToolsType
+from haystack.tools import Tool, Toolset
 
 from haystack_integrations.agent_pack.advanced_rag import prompts
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 from haystack_integrations.agent_pack.advanced_rag.tools import (
-    DocumentStoreToolset,
+    FetchDocumentsByFilterTool,
+    GetMetadataFieldRangeTool,
+    GetMetadataFieldValuesTool,
+    ListMetadataFieldsTool,
     _make_retrieval_pipeline_tool,
     _make_retriever_tool,
 )
@@ -61,11 +61,6 @@ def create_advanced_rag_agent(
     system_prompt: str | None = None,
     max_agent_steps: int = 20,
     max_fetched_docs: int = 10,
-    extra_tools: ToolsType | None = None,
-    state_schema: dict[str, Any] | None = None,
-    hooks: dict[HookPoint, list[Hook]] | None = None,
-    raise_on_tool_invocation_failure: bool = False,
-    tool_concurrency_limit: int = 4,
 ) -> Agent:
     """
     Create the advanced RAG agent.
@@ -78,6 +73,9 @@ def create_advanced_rag_agent(
     The required `retriever` becomes the `search_documents` tool; `document_store` additionally feeds the three
     metadata inspection tools and must implement the metadata introspection methods (`get_metadata_fields_info`,
     `get_metadata_field_unique_values`, `get_metadata_field_min_max`).
+
+    To customize the returned agent further (e.g. add tools or hooks), use `Agent.clone`:
+    `agent = agent.clone(tools=[*agent.tools, my_tool])`.
 
     :param document_store: The document store the metadata inspection tools and the `fetch_documents_by_filter` tool
         run against.
@@ -104,20 +102,12 @@ def create_advanced_rag_agent(
     :param max_fetched_docs: Maximum number of documents `fetch_documents_by_filter` shows per fetch. A filter fetch is
         not bounded by a retriever's `top_k`, so this caps the tool result instead; the scored `search_documents` tool
         is bounded by the `top_k` configured on your retrieval components.
-    :param extra_tools: Additional tools (or toolsets) for the agent, appended after the built-in document-store
-        toolset and the retrieval tool.
-    :param state_schema: Additional entries merged into the agent's state schema. The built-in `documents` entry
-        (the accumulated retrieved documents) always takes precedence.
-    :param hooks: Additional hooks per hook point, merged with the built-in hooks. For `after_run`, the built-in
-        backup-answer hook runs first, so custom hooks see the final answer.
-    :param raise_on_tool_invocation_failure: If True, a failing tool call raises instead of being returned to the LLM
-        as an error message it can recover from (the default).
-    :param tool_concurrency_limit: Maximum number of tool calls executed in parallel within one agent step.
     :returns: The advanced RAG `Agent`. Call it with the question as a user message,
         `agent.run(messages=[ChatMessage.from_user(question)])`; the answer is in `last_message` (a `ChatMessage`) and
         `documents` carries every document the agent retrieved during the run (deduplicated by id, in first-retrieved
         order) — the answer cites them by the first 8 characters of their id, e.g. `[doc a1b2c3d4]`. The standard Agent
-        outputs `messages`, `step_count`, `token_usage` and `tool_call_counts` are also returned.
+        outputs `messages`, `step_count`, `token_usage` and `tool_call_counts` are also returned. If the backup-answer
+        LLM runs, its token usage is returned separately in `additional_model_usage`.
     """
     if system_prompt is None:
         # Only the default system prompt requires the `{% now %}` Jinja tag (and thus `arrow`).
@@ -146,16 +136,17 @@ def create_advanced_rag_agent(
     llm = llm or _default_llm("gpt-5.4")
     backup_answer_llm = backup_answer_llm or _default_llm("gpt-5.4")
 
+    # The store tools are listed individually rather than bundled in a `DocumentStoreToolset`, so that each one
+    # occupies its own place in the serialized configuration: its name, its description, and its own limits are then
+    # reachable, and a tool can be dropped by removing one entry. Each holds the same store, so they deserialize into
+    # one store instance per tool.
     tools: list[Tool | Toolset] = [
-        DocumentStoreToolset(document_store, max_fetched_docs=max_fetched_docs),
+        ListMetadataFieldsTool(document_store),
+        GetMetadataFieldValuesTool(document_store),
+        GetMetadataFieldRangeTool(document_store),
+        FetchDocumentsByFilterTool(document_store, max_docs=max_fetched_docs),
         retrieval_tool,
     ]
-    if extra_tools is not None:
-        tools.extend([extra_tools] if isinstance(extra_tools, Toolset) else list(extra_tools))
-
-    merged_hooks: dict[HookPoint, list[Hook]] = {"after_run": [BackupAnswerHook(chat_generator=backup_answer_llm)]}
-    for hook_point, point_hooks in (hooks or {}).items():
-        merged_hooks.setdefault(hook_point, []).extend(point_hooks)
 
     return Agent(
         chat_generator=llm,
@@ -163,8 +154,10 @@ def create_advanced_rag_agent(
         tools=tools,
         exit_conditions=["text"],
         max_agent_steps=max_agent_steps,
-        state_schema={**(state_schema or {}), "documents": {"type": list[Document]}},
-        hooks=merged_hooks,
-        raise_on_tool_invocation_failure=raise_on_tool_invocation_failure,
-        tool_concurrency_limit=tool_concurrency_limit,
+        state_schema={
+            "documents": {"type": list[Document]},
+            # The backup-answer hook reports its own token usage here, and the harness evaluator prices it.
+            "additional_model_usage": {"type": dict[str, dict[str, int]]},
+        },
+        hooks={"after_run": [BackupAnswerHook(chat_generator=backup_answer_llm)]},
     )

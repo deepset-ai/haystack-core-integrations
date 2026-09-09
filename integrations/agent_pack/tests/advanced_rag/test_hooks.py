@@ -62,6 +62,16 @@ class TestBackupAnswerHook:
         assert "interrupted document-search session" in system_messages[0].text
         assert "agent system prompt" not in system_messages[0].text
 
+    def test_records_backup_generator_usage_when_the_agent_exposes_it(self):
+        reply = ChatMessage.from_assistant("backup", meta={"usage": {"input_tokens": 11, "output_tokens": 4}})
+        hook = BackupAnswerHook(chat_generator=MockChatGenerator(reply, model="backup-model"))
+        state = State(schema={"additional_model_usage": {"type": dict[str, dict[str, int]]}})
+        state.set("messages", [ChatMessage.from_user("q"), ChatMessage.from_assistant(tool_calls=[SEARCH_CALL])])
+
+        hook.run(state)
+
+        assert state.get("additional_model_usage") == {"backup-model": {"input_tokens": 11, "output_tokens": 4}}
+
     def test_is_a_noop_when_the_run_answered(self):
         generator = MockChatGenerator("should not run")
         hook = BackupAnswerHook(chat_generator=generator)

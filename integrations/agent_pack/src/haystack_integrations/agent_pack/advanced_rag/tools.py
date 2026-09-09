@@ -199,23 +199,26 @@ def _require_store_method(document_store: DocumentStore, method: str) -> None:
 class ListMetadataFieldsTool(Tool):
     """Tool that lists all metadata fields and their types from a document store."""
 
-    def __init__(self, document_store: DocumentStore) -> None:
+    def __init__(
+        self,
+        document_store: DocumentStore,
+        *,
+        name: str = "list_metadata_fields",
+        description: str = prompts.LIST_METADATA_FIELDS_TOOL_DESCRIPTION,
+    ) -> None:
         """
         Create the tool.
 
         :param document_store: The document store to inspect. Must implement `get_metadata_fields_info`.
+        :param name: Overrides the tool name the LLM selects by.
+        :param description: Overrides the tool description the LLM reads when choosing between tools.
         :raises ValueError: If the store does not implement `get_metadata_fields_info`.
         """
         _require_store_method(document_store, "get_metadata_fields_info")
         self.document_store = document_store
         super().__init__(
-            name="list_metadata_fields",
-            description=(
-                "Returns all metadata fields available on the documents and their types "
-                "(e.g. keyword, int, float). Call this FIRST to learn what fields you can filter on. "
-                "Returned field names do NOT include the 'meta.' prefix — add it when building a "
-                "filter (field 'year' becomes 'meta.year')."
-            ),
+            name=name,
+            description=description,
             parameters={"type": "object", "properties": {}},
             function=self._list_metadata_fields,
         )
@@ -236,7 +239,11 @@ class ListMetadataFieldsTool(Tool):
         """Serialize the tool to a dictionary."""
         return {
             "type": generate_qualified_class_name(type(self)),
-            "data": {"document_store": self.document_store.to_dict()},
+            "data": {
+                "document_store": self.document_store.to_dict(),
+                "name": self.name,
+                "description": self.description,
+            },
         }
 
     @classmethod
@@ -259,22 +266,26 @@ class GetMetadataFieldValuesTool(Tool):
     # (the total count is reported alongside when the store provides one).
     _MAX_LISTED_VALUES = 100
 
-    def __init__(self, document_store: DocumentStore) -> None:
+    def __init__(
+        self,
+        document_store: DocumentStore,
+        *,
+        name: str = "get_metadata_field_values",
+        description: str = prompts.GET_METADATA_FIELD_VALUES_TOOL_DESCRIPTION,
+    ) -> None:
         """
         Create the tool.
 
         :param document_store: The document store to inspect. Must implement `get_metadata_field_unique_values`.
+        :param name: Overrides the tool name the LLM selects by.
+        :param description: Overrides the tool description the LLM reads when choosing between tools.
         :raises ValueError: If the store does not implement `get_metadata_field_unique_values`.
         """
         _require_store_method(document_store, "get_metadata_field_unique_values")
         self.document_store = document_store
         super().__init__(
-            name="get_metadata_field_values",
-            description=(
-                "Returns the distinct values of a metadata field. Use it before filtering on a "
-                "keyword or boolean field, so your filter uses values that actually exist "
-                "(filter values are matched exactly)."
-            ),
+            name=name,
+            description=description,
             parameters={
                 "type": "object",
                 "properties": {
@@ -373,7 +384,11 @@ class GetMetadataFieldValuesTool(Tool):
         """Serialize the tool to a dictionary."""
         return {
             "type": generate_qualified_class_name(type(self)),
-            "data": {"document_store": self.document_store.to_dict()},
+            "data": {
+                "document_store": self.document_store.to_dict(),
+                "name": self.name,
+                "description": self.description,
+            },
         }
 
     @classmethod
@@ -392,21 +407,26 @@ class GetMetadataFieldValuesTool(Tool):
 class GetMetadataFieldRangeTool(Tool):
     """Tool that returns the minimum and maximum values of a metadata field from a document store."""
 
-    def __init__(self, document_store: DocumentStore) -> None:
+    def __init__(
+        self,
+        document_store: DocumentStore,
+        *,
+        name: str = "get_metadata_field_range",
+        description: str = prompts.GET_METADATA_FIELD_RANGE_TOOL_DESCRIPTION,
+    ) -> None:
         """
         Create the tool.
 
         :param document_store: The document store to inspect. Must implement `get_metadata_field_min_max`.
+        :param name: Overrides the tool name the LLM selects by.
+        :param description: Overrides the tool description the LLM reads when choosing between tools.
         :raises ValueError: If the store does not implement `get_metadata_field_min_max`.
         """
         _require_store_method(document_store, "get_metadata_field_min_max")
         self.document_store = document_store
         super().__init__(
-            name="get_metadata_field_range",
-            description=(
-                "Returns the minimum and maximum values of a metadata field. Use it before "
-                "filtering on numeric fields (int, float) or orderable ones such as ISO dates."
-            ),
+            name=name,
+            description=description,
             parameters={
                 "type": "object",
                 "properties": {
@@ -436,7 +456,11 @@ class GetMetadataFieldRangeTool(Tool):
         """Serialize the tool to a dictionary."""
         return {
             "type": generate_qualified_class_name(type(self)),
-            "data": {"document_store": self.document_store.to_dict()},
+            "data": {
+                "document_store": self.document_store.to_dict(),
+                "name": self.name,
+                "description": self.description,
+            },
         }
 
     @classmethod
@@ -577,7 +601,15 @@ class FetchDocumentsByFilterTool(Tool):
     count, and the tool's `offset` input continues where the previous page ended.
     """
 
-    def __init__(self, document_store: DocumentStore, max_docs: int = 10, max_fetch_factor: int = 10) -> None:
+    def __init__(
+        self,
+        document_store: DocumentStore,
+        max_docs: int = 10,
+        max_fetch_factor: int = 10,
+        *,
+        name: str = "fetch_documents_by_filter",
+        description: str = prompts.FILTER_RETRIEVER_TOOL_DESCRIPTION,
+    ) -> None:
         """
         Create the tool.
 
@@ -588,13 +620,15 @@ class FetchDocumentsByFilterTool(Tool):
         :param max_fetch_factor: How many times the `max_docs` ceiling a filter may match before the fetch is
             refused outright (when the store supports `count_documents_by_filter`) — the refusal is surfaced to the
             LLM as an error it can recover from by narrowing the filter.
+        :param name: Overrides the tool name the LLM selects by.
+        :param description: Overrides the tool description the LLM reads when choosing between tools.
         """
         self.document_store = document_store
         self.max_docs = max_docs
         self.max_fetch_factor = max_fetch_factor
         super().__init__(
-            name="fetch_documents_by_filter",
-            description=prompts.FILTER_RETRIEVER_TOOL_DESCRIPTION,
+            name=name,
+            description=description,
             parameters=_fetch_documents_tool_params(max_docs),
             # We purposefully return a dict with `documents`, `total_matched` and `offset`
             function=self._fetch_documents,
@@ -656,6 +690,8 @@ class FetchDocumentsByFilterTool(Tool):
                 "document_store": self.document_store.to_dict(),
                 "max_docs": self.max_docs,
                 "max_fetch_factor": self.max_fetch_factor,
+                "name": self.name,
+                "description": self.description,
             },
         }
 
@@ -702,7 +738,16 @@ class DocumentStoreToolset(Toolset):
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the toolset to a dictionary."""
+        """
+        Serialize the toolset to a dictionary.
+
+        Only the descriptor is serialized — the store and the fetch ceiling — so the tools deserialize against one
+        store instance rather than one apiece. That leaves each tool's own name, description and limits out of the
+        serialized form; a caller who needs those reachable, as configuration optimization does, lists the tools
+        individually instead of bundling them here.
+
+        :returns: A dictionary representation of the toolset.
+        """
         return {
             "type": generate_qualified_class_name(type(self)),
             "data": {"document_store": self.document_store.to_dict(), "max_fetched_docs": self.max_fetched_docs},
