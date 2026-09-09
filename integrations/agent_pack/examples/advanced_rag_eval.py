@@ -5,17 +5,17 @@
 # Mini evaluation harness for the Advanced RAG agent, run against the MultiHopRAG corpus.
 #
 # The corpus and its labelled questions come from `multihop_rag`, which chunks the news articles and works out
-# which chunks hold each question's quoted evidence. That gives exact ground truth: a case names the documents
-# an answer needs, so retrieval is scored as recall over those IDs rather than against a metadata predicate.
+# which chunks hold each question's quoted evidence. That gives exact ground truth: an eval case names the
+# documents an answer needs, so retrieval is scored as recall over those IDs rather than a metadata predicate.
 #
-# Reported per case:
+# Reported per eval case:
 #
 # - Retrieval: recall over the documents the question's evidence lives in, from the run's accumulated `documents`.
 # - Process: whether metadata was inspected before any retrieval, per-tool call counts, how many retrievals used
-#   a filter, tool errors, steps, and wall-clock time. A case fails when it exceeds its per-case tool budget.
+#   a filter, tool errors, steps, and wall-clock time. An eval case fails when it exceeds its tool budget.
 # - Answer: the ground-truth answer must be mentioned when a substring check on it means anything, and every
 #   `[doc <short-id>]` citation must resolve to a document the run returned.
-# - Token usage, per case and totalled, for comparing models and reasoning efforts.
+# - Token usage, per eval case and totalled, for comparing models and reasoning efforts.
 #
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
@@ -50,17 +50,20 @@ RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
 _CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})\]")
 
+# Answers shorter than this are words like "Yes" or "No", which a reply can contain by coincidence.
+MIN_ASSERTABLE_ANSWER_CHARS = 5
+
 
 @dataclass
 class EvalCase:
-    """One evaluation case: a question, the documents that answer it, and the budgets the run may spend."""
+    """One eval case: a question, the documents that answer it, and the budgets the run may spend."""
 
     question: str
     # Ground truth: the quoted evidence an answer needs, by the chunk it was found in.
     evidence: dict[str, str]
     # The ground-truth answer, checked case-insensitively when a substring check on it means anything.
     answer_must_mention: tuple[str, ...] = ()
-    # Efficiency budgets. Lenient on purpose — too many retrievals is better than too few.
+    # Tool budgets. Exceeding either fails the eval case.
     max_metadata_calls: int = 5
     max_retrieval_calls: int = 5
 
@@ -147,31 +150,35 @@ def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
 
 def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
     """
-    Run the agent on one case and print its report.
+    Run the agent on one eval case and print its report.
 
     :param agent: The agent under evaluation.
-    :param case: The case to evaluate.
+    :param case: The eval case to evaluate.
     :returns: A dict with `passed` (bool), `usage` (the run's token_usage dict), and `time` (s).
     """
     started = time.perf_counter()
     result = agent.run(messages=[ChatMessage.from_user(case.question)])
     elapsed = time.perf_counter() - started
 
+    # Everything the report needs comes out of the one run: its messages, its answer and its token usage.
     stats = extract_run_stats(result["messages"])
     answer = result["last_message"].text or ""
     usage = result.get("token_usage") or {}
 
+    # Recall over the chunks the question's evidence lives in.
     retrieved_docs = result.get("documents") or []
     retrieved_ids = {document.id for document in retrieved_docs}
     found = case.expected_document_ids & retrieved_ids
     recall = len(found) / len(case.expected_document_ids)
     mentions_ok = all(term.lower() in answer.lower() for term in case.answer_must_mention)
 
-    # Every [doc <short-id>] reference in the answer must resolve to a returned document.
+    # A [doc <short-id>] reference that matches nothing the run returned is a citation the reader cannot follow.
     cited_refs = _CITATION_RE.findall(answer)
     resolved = [ref for ref in cited_refs if any(document.id.startswith(ref) for document in retrieved_docs)]
     citations_ok = len(resolved) == len(cited_refs)
 
+    # An eval case passes only on all four: it found every expected document, said the answer, cited documents it
+    # actually returned, and stayed inside its tool budget.
     within_budget = (
         stats.metadata_calls <= case.max_metadata_calls and stats.retrieval_calls <= case.max_retrieval_calls
     )
@@ -211,11 +218,11 @@ def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
 
 
 def main() -> None:
-    """Run the eval set and print per-case reports plus a summary."""
+    """Run the eval set and print per-eval-case reports plus a summary."""
     parser = argparse.ArgumentParser(description="Mini evaluation harness for the Advanced RAG agent.")
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
     parser.add_argument("--max-cases", type=int, default=10, help="How many labelled questions to evaluate.")
-    parser.add_argument("--case-seed", type=int, default=0, help="Selects which cases are drawn from the dataset.")
+    parser.add_argument("--case-seed", type=int, default=0, help="Selects which eval cases are drawn from the dataset.")
     arguments = parser.parse_args()
 
     store, articles = prepare_corpus(backend=arguments.store)
@@ -225,16 +232,18 @@ def main() -> None:
     labelled: list[LabelledQuestion] = build_eval_cases(
         articles=articles, limit=arguments.max_cases, seed=arguments.case_seed
     )
+    # The dataset reports its answer verbatim; asserting on it is this harness's decision. A short answer like
+    # "Yes" is skipped, since finding that word in a reply can happen for reasons unrelated to being right.
     cases = [
         EvalCase(
             question=question.question,
             evidence=question.evidence,
-            answer_must_mention=(question.answer,) if question.answer else (),
+            answer_must_mention=(question.answer,) if len(question.answer) >= MIN_ASSERTABLE_ANSWER_CHARS else (),
         )
         for question in labelled
     ]
     expected = sum(len(case.expected_document_ids) for case in cases)
-    print(f"cases: {len(cases)} labelled from evidence, expecting {expected} documents in total")
+    print(f"eval cases: {len(cases)} labelled from evidence, expecting {expected} documents in total")
 
     agent = create_advanced_rag_agent(document_store=store, retriever=build_bm25_retriever(store=store))
 
@@ -244,7 +253,7 @@ def main() -> None:
     total_usage: dict[str, int] = {}
     for result in results:
         _sum_usage(total_usage, result["usage"])
-    print(f"\n=== {passed}/{len(results)} cases passed ===")
+    print(f"\n=== {passed}/{len(results)} eval cases passed ===")
     print(f"total time: {sum(result['time'] for result in results):.1f}s")
     if total_usage:
         print(f"total tokens: {total_usage}")
