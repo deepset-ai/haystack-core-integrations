@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/arcadedb-v1.6.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
 

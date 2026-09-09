@@ -38,9 +38,6 @@ class NimBackend:
         if api_key:
             headers["authorization"] = f"Bearer {api_key.resolve_value()}"
 
-        self.session = requests.Session()
-        self.session.headers.update(headers)
-
         self.api_url = api_url
         # Hosted ranking models are assigned a per-model endpoint that already includes the
         # full path (e.g. ".../nv-rerankqa-mistral-4b-v3/reranking"), unlike other hosted
@@ -79,6 +76,12 @@ class NimBackend:
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", REQUEST_TIMEOUT))
         self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers.update(headers)
+
+    def close(self) -> None:
+        """Close the HTTP session owned by this backend."""
+        self.session.close()
 
     def embed(self, texts: list[str]) -> tuple[list[list[float]], dict[str, Any]]:
         """Compute embeddings for a list of texts via the NIM API."""
@@ -110,65 +113,6 @@ class NimBackend:
         embeddings = [e["embedding"] for e in sorted(data["data"], key=lambda e: e["index"])]
 
         return embeddings, {"usage": data["usage"]}
-
-    def generate(self, prompt: str) -> tuple[list[str], list[dict[str, Any]]]:
-        """Generate text completions for a prompt via the NIM API."""
-        # We're using the chat completion endpoint as the NIM API doesn't support
-        # the /completions endpoint. So both the non-chat and chat generator will use this.
-        # This is the same for local containers and the cloud API.
-        url = f"{self.api_url}/chat/completions"
-
-        try:
-            res = self.session.post(
-                url,
-                json={
-                    "model": self.model,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": prompt,
-                        },
-                    ],
-                    **self.model_kwargs,
-                },
-                timeout=self.timeout,
-            )
-            res.raise_for_status()
-        except requests.HTTPError as e:
-            response_text = e.response.text.strip() if e.response is not None else ""
-            error_details = f": {response_text}" if response_text else ""
-            logger.error(
-                "Error when calling NIM chat completion endpoint{error}",
-                error=error_details,
-            )
-            msg = f"Failed to query chat completion endpoint{error_details}"
-            raise ValueError(msg) from e
-
-        completions = res.json()
-        choices = completions["choices"]
-        # Sort the choices by index, we don't know whether they're out of order or not
-        choices.sort(key=lambda c: c["index"])
-        replies = []
-        meta = []
-        for choice in choices:
-            message = choice["message"]
-            replies.append(message["content"])
-            choice_meta = {
-                "role": message["role"],
-                "usage": {
-                    "prompt_tokens": completions["usage"]["prompt_tokens"],
-                    "total_tokens": completions["usage"]["total_tokens"],
-                },
-            }
-            # These fields could be null, the others will always be present
-            if "finish_reason" in choice:
-                choice_meta["finish_reason"] = choice["finish_reason"]
-            if "completion_tokens" in completions["usage"]:
-                choice_meta["usage"]["completion_tokens"] = completions["usage"]["completion_tokens"]
-
-            meta.append(choice_meta)
-
-        return replies, meta
 
     def models(self) -> list[Model]:
         """Retrieve available models from the NIM API."""

@@ -156,7 +156,8 @@ def create_advanced_rag_agent(
         max_agent_steps=max_agent_steps,
         state_schema={
             "documents": {"type": list[Document]},
-            # The backup-answer hook reports its own token usage here, and the harness evaluator prices it.
+            # The backup-answer hook runs its own LLM, so its usage is reported here rather than folded into the
+            # agent's own token count.
             "additional_model_usage": {"type": dict[str, dict[str, int]]},
         },
         hooks={"after_run": [BackupAnswerHook(chat_generator=backup_answer_llm)]},

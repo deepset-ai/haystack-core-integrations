@@ -193,20 +193,45 @@ class AnthropicChatGenerator:
         self.timeout = timeout
         self.max_retries = max_retries
 
-        client_kwargs: dict[str, Any] = {"api_key": api_key.resolve_value()}
-        # We do this since timeout=None is not the same as not setting it in Anthropic
-        if timeout is not None:
-            client_kwargs["timeout"] = timeout
-        # We do this since max_retries must be an int when passing to Anthropic
-        if max_retries is not None:
-            client_kwargs["max_retries"] = max_retries
-
-        self.client = Anthropic(**client_kwargs)
-        self.async_client = AsyncAnthropic(**client_kwargs)
+        self.client: Anthropic | None = None
+        self.async_client: AsyncAnthropic | None = None
 
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
         self.anthropic_server_tools = anthropic_server_tools
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Anthropic clients."""
+        client_kwargs: dict[str, Any] = {"api_key": self.api_key.resolve_value()}
+        # We do this since timeout=None is not the same as not setting it in Anthropic
+        if self.timeout is not None:
+            client_kwargs["timeout"] = self.timeout
+        # We do this since max_retries must be an int when passing to Anthropic
+        if self.max_retries is not None:
+            client_kwargs["max_retries"] = self.max_retries
+        return client_kwargs
+
+    def warm_up(self) -> None:
+        """Create the synchronous Anthropic client."""
+        if self.client is None:
+            self.client = Anthropic(**self._client_kwargs())
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Anthropic client."""
+        if self.async_client is None:
+            self.async_client = AsyncAnthropic(**self._client_kwargs())
+
+    def close(self) -> None:
+        """Close the synchronous Anthropic client."""
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Anthropic client."""
+        if self.async_client is not None:
+            await self.async_client.close()
+            self.async_client = None
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -542,6 +567,9 @@ class AnthropicChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
+        self.warm_up()
+        assert self.client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
         system_messages, non_system_messages, generation_kwargs, anthropic_tools = self._prepare_request_params(
             messages, generation_kwargs, tools
@@ -588,6 +616,9 @@ class AnthropicChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
+        await self.warm_up_async()
+        assert self.async_client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
         system_messages, non_system_messages, generation_kwargs, anthropic_tools = self._prepare_request_params(
             messages, generation_kwargs, tools

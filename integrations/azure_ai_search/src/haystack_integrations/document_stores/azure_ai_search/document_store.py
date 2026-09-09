@@ -421,14 +421,20 @@ class AzureAISearchDocumentStore:
         index_fields = self._index_client.get_index(self._index_name).fields
         return {field.name: field for field in index_fields}
 
-    def _validate_index_fields(self, field_names: list[str]) -> None:
+    def _is_index_field(self, field_name: str) -> bool:
         """
-        Validates that all provided field names exist in the index schema.
+        Returns whether the given field name is defined in the index schema.
         """
         if not self._index_fields:
             self._index_fields = list(self._get_index_schema_fields().keys())
 
-        missing_fields = [field for field in field_names if field not in self._index_fields]
+        return field_name in self._index_fields
+
+    def _validate_index_fields(self, field_names: list[str]) -> None:
+        """
+        Validates that all provided field names exist in the index schema.
+        """
+        missing_fields = [field for field in field_names if not self._is_index_field(field)]
         if missing_fields:
             msg = f"Fields {missing_fields} are not defined in index schema. Available fields: {self._index_fields}"
             raise ValueError(msg)
@@ -576,9 +582,15 @@ class AzureAISearchDocumentStore:
         :param size: Number of values to return.
         :param filters: Optional filters to restrict the documents considered.
         :returns: Tuple of (list of unique values in their original type, total count of matching values).
+            A field that is not defined in the index schema has no values, so it returns `([], 0)`.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
-        self._validate_index_fields([field_name])
+        # Azure AI Search fixes the index schema at creation time, so a metadata field that is not part
+        # of it can never hold values, and selecting it would be rejected by the service. Return an
+        # empty result rather than raising, which is how the other document stores answer for a field
+        # no document has.
+        if not self._is_index_field(field_name):
+            return [], 0
 
         documents = self._fetch_raw_documents(filters=filters, select=[field_name])
         unique_values = sorted(self._collect_unique_values(documents, field_name))

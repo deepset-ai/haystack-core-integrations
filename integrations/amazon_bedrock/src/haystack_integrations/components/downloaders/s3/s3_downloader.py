@@ -118,20 +118,6 @@ class S3Downloader:
 
         self._storage: S3Storage | None = None
 
-        def resolve_secret(secret: Secret | str | None) -> str | None:
-            return secret.resolve_value() if isinstance(secret, Secret) else secret
-
-        self._session = get_aws_session(
-            aws_access_key_id=resolve_secret(aws_access_key_id),
-            aws_secret_access_key=resolve_secret(aws_secret_access_key),
-            aws_session_token=resolve_secret(aws_session_token),
-            aws_region_name=resolve_secret(aws_region_name),
-            aws_profile_name=resolve_secret(aws_profile_name),
-        )
-        self._config = Config(
-            user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
-        )
-
     def warm_up(self) -> None:
         """
         Warm up the component by initializing the settings and storage.
@@ -140,11 +126,30 @@ class S3Downloader:
             `S3_DOWNLOADER_BUCKET`) is not set.
         :raises S3ConfigurationError: If the S3 client cannot be created.
         """
-        if self._storage is None:
-            self.file_root_path.mkdir(parents=True, exist_ok=True)
-            self._storage = S3Storage.from_env(
-                session=self._session, config=self._config, s3_bucket_name_env=self.s3_bucket_name_env
-            )
+        if self._storage is not None:
+            return
+
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
+
+        session = get_aws_session(
+            aws_access_key_id=resolve_secret(self.aws_access_key_id),
+            aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+            aws_session_token=resolve_secret(self.aws_session_token),
+            aws_region_name=resolve_secret(self.aws_region_name),
+            aws_profile_name=resolve_secret(self.aws_profile_name),
+        )
+        config = Config(
+            user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+        )
+        self.file_root_path.mkdir(parents=True, exist_ok=True)
+        self._storage = S3Storage.from_env(session=session, config=config, s3_bucket_name_env=self.s3_bucket_name_env)
+
+    def close(self) -> None:
+        """Close the owned S3 client."""
+        if self._storage is not None:
+            self._storage.close()
+            self._storage = None
 
     @component.output_types(documents=list[Document])
     def run(
@@ -162,8 +167,7 @@ class S3Downloader:
         :raises S3Error: If a download attempt fails or the file does not exist in the S3 bucket.
         """
 
-        if self._storage is None:
-            self.warm_up()
+        self.warm_up()
 
         filtered_documents = self._filter_documents_by_extensions(documents) if self.file_extensions else documents
 

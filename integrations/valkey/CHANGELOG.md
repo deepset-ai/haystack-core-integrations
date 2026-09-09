@@ -1,6 +1,6 @@
 # Changelog
 
-## [unreleased]
+## [integrations/valkey-v0.4.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
 

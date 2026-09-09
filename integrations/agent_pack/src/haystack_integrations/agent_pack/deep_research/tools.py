@@ -65,14 +65,14 @@ def _read_url_result(result: dict) -> str:
     return "Page not read: the page returned no readable text."
 
 
-def make_read_url_tool(*, summarizer_llm: ChatGenerator, max_content_length: int) -> PipelineTool:
+def make_read_url_tool(*, page_summary_llm: ChatGenerator, max_page_chars: int) -> PipelineTool:
     """
     `read_url` = PipelineTool over a fetch -> convert to text -> summarize-based-on-question pipeline.
 
-    :param summarizer_llm: LLM that summarizes the fetched page toward the agent's question.
-    :param max_content_length: Raw page chars fed to the summarizer (pre-summarization cap).
+    :param page_summary_llm: LLM that summarizes the fetched page toward the agent's question.
+    :param max_page_chars: Raw page chars fed to the summarizer (pre-summarization cap).
     """
-    template = prompts.SUMMARIZE_TEMPLATE.replace("__MAXLEN__", str(max_content_length))
+    template = prompts.SUMMARIZE_TEMPLATE.replace("__MAXLEN__", str(max_page_chars))
 
     pipe = Pipeline()
     pipe.add_component("fetcher", LinkContentFetcher(raise_on_failure=True, retry_attempts=2, timeout=10))
@@ -82,7 +82,7 @@ def make_read_url_tool(*, summarizer_llm: ChatGenerator, max_content_length: int
     pipe.add_component("joiner", DocumentJoiner())
     pipe.add_component("content_gate", ContentGate())
     pipe.add_component("builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
-    pipe.add_component("summarizer", summarizer_llm)
+    pipe.add_component("summarizer", page_summary_llm)
     pipe.connect("fetcher.streams", "router.sources")
     pipe.connect("router.text/html", "html.sources")
     pipe.connect("router.application/pdf", "pdf.sources")
