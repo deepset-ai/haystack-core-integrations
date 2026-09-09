@@ -4,10 +4,10 @@
 
 | Name                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/openapi/openapi.py            |       21 |        0 |        0 |        0 |    100% |           |
+| src/haystack\_integrations/components/connectors/openapi/openapi.py            |       26 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/connectors/openapi/openapi\_service.py   |      143 |        6 |       78 |        8 |     93% |62-64, 66-\>71, 76, 94, 328-\>330, 335, 386-\>381, 397-\>393 |
 | src/haystack\_integrations/components/converters/openapi/openapi\_functions.py |      114 |       11 |       52 |        7 |     89% |81-82, 95-98, 106-107, 148-\>146, 154-155, 175-\>174, 181-\>174, 187-190, 245 |
-| **TOTAL**                                                                      |  **278** |   **17** |  **130** |   **15** | **92%** |           |
+| **TOTAL**                                                                      |  **283** |   **17** |  **132** |   **15** | **92%** |           |
 
 
 ## Setup coverage badge
