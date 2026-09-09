@@ -2,104 +2,65 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Mini evaluation harness for the advanced RAG agent.
-
-Runs the agent on questions with known ground truth and reports, per case:
-
-- **Retrieval correctness**: the documents the agent saw (the run's accumulated `documents`
-  output) are checked against a ground-truth predicate over document metadata — full recall on
-  the small corpus (its expected sets are enumerable), constraint precision on the large one
-  (every retrieved doc must satisfy the constraints the question implies).
-- **Process metrics and budgets**: whether metadata was inspected before any retrieval, per-tool
-  call counts, how many retrievals used a filter, error tool results, steps, and wall-clock
-  time; a case fails when it exceeds its (deliberately lenient) per-case budget of
-  metadata-inspection or retrieval calls, even if the answer is right.
-- **Adversarial cases**: questions about fields/values absent from the corpus must be answered
-  by acknowledging the absence, not by hallucinating.
-- **Answer checks**: optional keywords the answer must mention, and every `[doc <short-id>]`
-  citation must resolve to a document in the run's returned `documents` list.
-- **Token usage**: per case and totalled, for comparing models/reasoning efforts.
-
-Run from the integration directory (`integrations/agent_pack`) with `OPENAI_API_KEY` set. In a
-fresh environment, install `agent-pack-haystack` and `arrow`; the `large` corpus additionally
-needs `datasets` (streams reviews from Hugging Face) and `--store opensearch` needs
-`opensearch-haystack`.
-
-    hatch run test:python examples/advanced_rag_eval.py small
-    hatch run test:python examples/advanced_rag_eval.py large
-
-To validate against a real database instead of `InMemoryDocumentStore`, pass `--store opensearch`
-(OpenSearch 2.x and 3.x both work). Set `OPENSEARCH_URL` if not
-http://localhost:9200, and `OPENSEARCH_USERNAME` / `OPENSEARCH_PASSWORD` for a security-enabled
-instance (use an https:// URL then). Start one locally with e.g.
-`docker run -p 9200:9200 -e discovery.type=single-node -e DISABLE_SECURITY_PLUGIN=true opensearchproject/opensearch:3`.
-An already-populated OpenSearch index is reused, so repeat runs skip re-indexing.
-"""
+# Mini evaluation harness for the Advanced RAG agent, run against the MultiHopRAG corpus.
+#
+# The corpus and its labelled questions come from `multihop_rag`, which chunks the news articles and works out
+# which chunks hold each question's quoted evidence. That gives exact ground truth: a case names the documents
+# an answer needs, so retrieval is scored as recall over those IDs rather than against a metadata predicate.
+#
+# Reported per case:
+#
+# - Retrieval: recall over the documents the question's evidence lives in, from the run's accumulated `documents`.
+# - Process: whether metadata was inspected before any retrieval, per-tool call counts, how many retrievals used
+#   a filter, tool errors, steps, and wall-clock time. A case fails when it exceeds its per-case tool budget.
+# - Answer: the ground-truth answer must be mentioned when a substring check on it means anything, and every
+#   `[doc <short-id>]` citation must resolve to a document the run returned.
+# - Token usage, per case and totalled, for comparing models and reasoning efforts.
+#
+# Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
+#
+#     hatch run test:python examples/advanced_rag_eval.py
+#     hatch run test:python examples/advanced_rag_eval.py --max-cases 5
+#     hatch run test:python examples/advanced_rag_eval.py --store opensearch
+#
+# `--store opensearch` reuses a populated index across runs, so repeat runs skip re-indexing. Set `OPENSEARCH_URL`
+# if it is not http://localhost:9200, and `OPENSEARCH_USERNAME` / `OPENSEARCH_PASSWORD` for a secured instance.
 
 import argparse
-import itertools
-import os
 import re
 import time
 from collections import Counter
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from haystack import Document
 from haystack.components.agents import Agent
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.document_stores.types import DocumentStore, DuplicatePolicy
+from haystack.document_stores.types import DocumentStore
+from haystack.lazy_imports import LazyImport
+from multihop_rag import CORPUS_KEY, LabelledQuestion, build_eval_cases, prepare_corpus
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
+
+with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
+    from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever
 
 RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
 _CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})\]")
-# The system prompt instructs the agent to begin with this phrase when nothing matches; the regex
-# is a crude fallback for non-compliant answers (an LLM judge would do this properly).
-_ABSENCE_PHRASE = "no matching information was found"
-_ABSENCE_RE = re.compile(
-    r"\b(no|not|none|nothing|cannot|can't|couldn't|don't|doesn't|isn't|aren't|unable|unfortunately|missing|absent)\b"
-)
-
-
-def _acknowledges_absence(answer: str) -> bool:
-    """
-    Whether the answer acknowledges that the requested information is absent from the corpus.
-
-    :param answer: The agent's final answer.
-    :returns: True if the canonical absence phrase (or, as a fallback, a negation word) is present.
-    """
-    lowered = answer.lower()
-    return _ABSENCE_PHRASE in lowered or bool(_ABSENCE_RE.search(lowered))
 
 
 @dataclass
 class EvalCase:
-    """One evaluation case: a question plus ground truth."""
+    """One evaluation case: a question, the documents that answer it, and the budgets the run may spend."""
 
     question: str
-    # Ground truth: which documents answer the question, as a predicate over `Document.meta`.
-    predicate: Callable[[dict[str, Any]], bool]
-    # Check recall of the full expected set (small corpora only — the expected set must be enumerable).
-    check_recall: bool = True
-    # Minimum number of ground-truth-matching documents the agent must have retrieved.
-    min_docs: int = 1
-    # Keywords (case-insensitive) the final answer must mention.
+    # Ground truth: the chunks the question's quoted evidence was found in.
+    expected_document_ids: frozenset[str]
+    # The ground-truth answer, checked case-insensitively when a substring check on it means anything.
     answer_must_mention: tuple[str, ...] = ()
-    # Minimum constraint precision, gated only when `check_recall` is False (large corpora).
-    # Below 1.0 by design: extra broader retrievals are acceptable as long as the constrained
-    # documents dominate what the agent saw.
-    min_precision: float = 0.5
-    # Adversarial: the question asks about fields/values absent from the corpus; pass = the answer
-    # acknowledges the absence (retrieval metrics are skipped, the predicate matches nothing).
-    expect_absent: bool = False
-    # Efficiency budgets: maximum metadata-inspection and retrieval tool calls per run. Lenient on
-    # purpose — too many retrievals is better than too few.
+    # Efficiency budgets. Lenient on purpose — too many retrievals is better than too few.
     max_metadata_calls: int = 5
     max_retrieval_calls: int = 5
 
@@ -137,95 +98,6 @@ class RunStats:
         return sum(1 for name, _ in self.calls if name in RETRIEVAL_TOOLS)
 
 
-SMALL_CASES = [
-    EvalCase(
-        question="What scientific breakthroughs happened after 2015, according to the documents?",
-        predicate=lambda m: m.get("category") == "science" and m.get("year", 0) > 2015,
-        answer_must_mention=("quantum", "CRISPR"),
-    ),
-    EvalCase(
-        question="Which historical events in the documents happened before 1990?",
-        predicate=lambda m: m.get("category") == "history" and m.get("year", 9999) < 1990,
-        answer_must_mention=("Berlin", "Apollo"),
-    ),
-    EvalCase(
-        question="What does the German-language document describe?",
-        predicate=lambda m: m.get("language") == "de",
-        answer_must_mention=("Champions League",),
-    ),
-    EvalCase(
-        question="What does the single highest-rated document describe?",
-        predicate=lambda m: m.get("rating") == 5.0,
-        answer_must_mention=("Apollo",),
-    ),
-    EvalCase(
-        question="What do the documents say about sports events from 2020 onwards?",
-        predicate=lambda m: m.get("category") == "sports" and m.get("year", 0) >= 2020,
-        answer_must_mention=("Argentina",),
-    ),
-    EvalCase(
-        question="What is CRISPR used for according to the documents?",
-        predicate=lambda m: m.get("category") == "science" and m.get("year") == 2021,
-        answer_must_mention=("blindness",),
-    ),
-    # Adversarial: nonexistent category / language value — the agent should discover the absence.
-    EvalCase(
-        question="What do the documents in the 'food' category say about cooking?",
-        predicate=lambda _m: False,
-        expect_absent=True,
-    ),
-    EvalCase(question="Which of the documents are written in French?", predicate=lambda _m: False, expect_absent=True),
-]
-
-LARGE_CASES = [
-    EvalCase(
-        question=(
-            "What do verified purchasers complain about in low-rated (1-2 star) "
-            "beauty product reviews from 2022 or later?"
-        ),
-        predicate=lambda m: (
-            m.get("category") == "All_Beauty"
-            and m.get("rating", 5.0) <= 2.0
-            and m.get("year", 0) >= 2022
-            and m.get("verified_purchase") is True
-        ),
-        check_recall=False,
-        min_docs=3,
-    ),
-    EvalCase(
-        question="What did reviewers think of digital music purchases before 2010?",
-        predicate=lambda m: m.get("category") == "Digital_Music" and m.get("year", 9999) < 2010,
-        check_recall=False,
-        min_docs=3,
-    ),
-    EvalCase(
-        question="Summarize what the most helpful health product reviews (10 or more helpful votes) say.",
-        predicate=lambda m: m.get("category") == "Health_and_Personal_Care" and m.get("helpful_vote", 0) >= 10,
-        check_recall=False,
-        min_docs=3,
-    ),
-    EvalCase(
-        question="What are common themes in 5-star beauty product reviews from 2020?",
-        predicate=lambda m: m.get("category") == "All_Beauty" and m.get("rating") == 5.0 and m.get("year") == 2020,
-        check_recall=False,
-        min_docs=3,
-    ),
-    # Adversarial: nonexistent category / future year — the agent should discover the absence.
-    EvalCase(
-        question="What do reviews in the Electronics category say about laptop battery life?",
-        predicate=lambda _m: False,
-        check_recall=False,
-        expect_absent=True,
-    ),
-    EvalCase(
-        question="What do beauty product reviews from 2030 or later say?",
-        predicate=lambda _m: False,
-        check_recall=False,
-        expect_absent=True,
-    ),
-]
-
-
 def extract_run_stats(messages: list[ChatMessage]) -> RunStats:
     """
     Extract tool calls and error results from an agent run.
@@ -254,12 +126,25 @@ def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
     return total
 
 
-def evaluate_case(agent: Agent, documents_by_id: dict[str, Any], case: EvalCase) -> dict[str, Any]:
+def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
+    """
+    Build the matching BM25 retriever for a document store.
+
+    :param store: The store to retrieve from.
+    :param top_k: How many documents one retrieval returns.
+    :returns: The retriever.
+    """
+    if isinstance(store, InMemoryDocumentStore):
+        return InMemoryBM25Retriever(document_store=store, top_k=top_k)
+    opensearch_import.check()
+    return OpenSearchBM25Retriever(document_store=store, top_k=top_k)
+
+
+def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
     """
     Run the agent on one case and print its report.
 
     :param agent: The agent under evaluation.
-    :param documents_by_id: All documents in the store, keyed by id (the ground-truth universe).
     :param case: The case to evaluate.
     :returns: A dict with `passed` (bool), `usage` (the run's token_usage dict), and `time` (s).
     """
@@ -271,33 +156,21 @@ def evaluate_case(agent: Agent, documents_by_id: dict[str, Any], case: EvalCase)
     answer = result["last_message"].text or ""
     usage = result.get("token_usage") or {}
 
-    expected_ids = {doc_id for doc_id, doc in documents_by_id.items() if case.predicate(doc.meta)}
     retrieved_docs = result.get("documents") or []
-    retrieved_ids = {d.id for d in retrieved_docs}
-    matching = [d for d in retrieved_docs if case.predicate(d.meta)]
-
-    recall = len(expected_ids & retrieved_ids) / len(expected_ids) if expected_ids else 0.0
-    precision = len(matching) / len(retrieved_docs) if retrieved_docs else 0.0
-    mentions_ok = all(kw.lower() in answer.lower() for kw in case.answer_must_mention)
+    retrieved_ids = {document.id for document in retrieved_docs}
+    found = case.expected_document_ids & retrieved_ids
+    recall = len(found) / len(case.expected_document_ids)
+    mentions_ok = all(term.lower() in answer.lower() for term in case.answer_must_mention)
 
     # Every [doc <short-id>] reference in the answer must resolve to a returned document.
     cited_refs = _CITATION_RE.findall(answer)
-    resolved = [ref for ref in cited_refs if any(d.id.startswith(ref) for d in retrieved_docs)]
+    resolved = [ref for ref in cited_refs if any(document.id.startswith(ref) for document in retrieved_docs)]
     citations_ok = len(resolved) == len(cited_refs)
 
     within_budget = (
         stats.metadata_calls <= case.max_metadata_calls and stats.retrieval_calls <= case.max_retrieval_calls
     )
-    if case.expect_absent:
-        correct = _acknowledges_absence(answer)
-    else:
-        correct = (
-            len(matching) >= case.min_docs
-            and (recall == 1.0 if case.check_recall else precision >= case.min_precision)
-            and mentions_ok
-            and citations_ok
-        )
-    passed = stats.inspected_first and within_budget and correct
+    passed = recall == 1.0 and mentions_ok and citations_ok and within_budget
 
     counts = Counter(name for name, _ in stats.calls)
     filters_used = [args["filters"] for name, args in stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")]
@@ -311,18 +184,16 @@ def evaluate_case(agent: Agent, documents_by_id: dict[str, Any], case: EvalCase)
         f"  budget: metadata {stats.metadata_calls}/{case.max_metadata_calls}, "
         f"retrieval {stats.retrieval_calls}/{case.max_retrieval_calls} -> {'ok' if within_budget else 'EXCEEDED'}"
     )
-    if case.expect_absent:
-        print(f"  expect-absent: acknowledged={correct}")
-    else:
-        print(
-            f"  retrieved={len(retrieved_docs)}  constraint-precision={precision:.2f}"
-            + (f"  recall={len(expected_ids & retrieved_ids)}/{len(expected_ids)}" if case.check_recall else "")
-            + (f"  answer-mentions-ok={mentions_ok}" if case.answer_must_mention else "")
-            + f"  citations={len(resolved)}/{len(cited_refs)} resolve"
-        )
-        for doc in retrieved_docs:
-            marker = "+" if case.predicate(doc.meta) else "-"
-            print(f"    {marker} [doc {doc.id[:8]}] {doc.meta}")
+    print(
+        f"  retrieved={len(retrieved_docs)}  recall={len(found)}/{len(case.expected_document_ids)}"
+        + (f"  answer-mentions-ok={mentions_ok}" if case.answer_must_mention else "")
+        + f"  citations={len(resolved)}/{len(cited_refs)} resolve"
+    )
+    for document in retrieved_docs:
+        marker = "+" if document.id in case.expected_document_ids else "-"
+        print(f"    {marker} [doc {document.id[:8]}] {document.meta.get('title')}")
+    for document_id in sorted(case.expected_document_ids - retrieved_ids):
+        print(f"    MISSED [doc {document_id[:8]}]")
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for filters in filters_used:
@@ -333,187 +204,42 @@ def evaluate_case(agent: Agent, documents_by_id: dict[str, Any], case: EvalCase)
     return {"passed": passed, "usage": usage, "time": elapsed}
 
 
-# The small corpus: handcrafted documents with varied metadata (keyword, int, float, ISO date,
-# language), small enough that every case's expected document set is enumerable.
-SMALL_CORPUS = [
-    Document(
-        content="CRISPR-based gene editing was used to correct a hereditary blindness mutation in a clinical trial.",
-        meta={"category": "science", "year": 2021, "rating": 4.6, "date": "2021-03-11", "language": "en"},
-    ),
-    Document(
-        content="A quantum computer demonstrated error-corrected logical qubits outperforming physical qubits.",
-        meta={"category": "science", "year": 2023, "rating": 4.8, "date": "2023-12-06", "language": "en"},
-    ),
-    Document(
-        content="The LIGO observatory detected gravitational waves from two merging black holes for the first time.",
-        meta={"category": "science", "year": 2016, "rating": 4.9, "date": "2016-02-11", "language": "en"},
-    ),
-    Document(
-        content="Dolly the sheep became the first mammal cloned from an adult somatic cell.",
-        meta={"category": "science", "year": 1996, "rating": 4.2, "date": "1996-07-05", "language": "en"},
-    ),
-    Document(
-        content="The Berlin Wall fell, marking a decisive moment in the end of the Cold War.",
-        meta={"category": "history", "year": 1989, "rating": 4.7, "date": "1989-11-09", "language": "en"},
-    ),
-    Document(
-        content="The Apollo 11 mission landed the first humans on the Moon.",
-        meta={"category": "history", "year": 1969, "rating": 5.0, "date": "1969-07-20", "language": "en"},
-    ),
-    Document(
-        content="The Maastricht Treaty was signed, founding the European Union.",
-        meta={"category": "history", "year": 1992, "rating": 3.9, "date": "1992-02-07", "language": "en"},
-    ),
-    Document(
-        content="Leicester City won the Premier League despite 5000-1 preseason odds.",
-        meta={"category": "sports", "year": 2016, "rating": 4.8, "date": "2016-05-02", "language": "en"},
-    ),
-    Document(
-        content="Argentina won the FIFA World Cup final against France on penalties.",
-        meta={"category": "sports", "year": 2022, "rating": 4.9, "date": "2022-12-18", "language": "en"},
-    ),
-    Document(
-        content="Ein deutsches Team gewann die Champions League nach einem dramatischen Finale.",
-        meta={"category": "sports", "year": 2013, "rating": 4.1, "date": "2013-05-25", "language": "de"},
-    ),
-]
-
-# The large corpus: ~150k Amazon-Reviews-2023 reviews streamed from Hugging Face.
-LARGE_CORPUS_CATEGORIES = ("All_Beauty", "Digital_Music", "Health_and_Personal_Care")
-LARGE_CORPUS_DOCS_PER_CATEGORY = 50_000
-_WRITE_BATCH_SIZE = 10_000
-
-
-def build_document_store(backend: str, corpus: str) -> DocumentStore:
-    """
-    Build the (empty) document store for the chosen backend.
-
-    :param backend: "in_memory" or "opensearch" (requires the `opensearch-haystack` package and a
-        running OpenSearch, `OPENSEARCH_URL` or http://localhost:9200).
-    :param corpus: The corpus name, used as part of the OpenSearch index name.
-    :returns: The document store.
-    """
-    if backend == "opensearch":
-        from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore  # noqa: PLC0415
-
-        url = os.environ.get("OPENSEARCH_URL", "http://localhost:9200")
-        return OpenSearchDocumentStore(
-            hosts=url,
-            index=f"advanced-rag-eval-{corpus}",
-            # Credentials are read from OPENSEARCH_USERNAME / OPENSEARCH_PASSWORD by the store itself.
-            use_ssl=url.startswith("https"),
-            # Local docker instances use a self-signed certificate.
-            verify_certs=not url.startswith("https://localhost"),
-        )
-    return InMemoryDocumentStore()
-
-
-def build_retriever(store: DocumentStore):  # noqa: ANN201  (retriever type depends on the backend)
-    """
-    Build the matching BM25 retriever for the store.
-
-    :param store: The document store.
-    :returns: The retriever component.
-    """
-    if isinstance(store, InMemoryDocumentStore):
-        return InMemoryBM25Retriever(document_store=store, top_k=5)
-    from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever  # noqa: PLC0415
-
-    return OpenSearchBM25Retriever(document_store=store, top_k=5)
-
-
-def populate_small_corpus(store: DocumentStore) -> None:
-    """
-    Write the small handcrafted corpus into the store.
-
-    :param store: The document store to populate.
-    """
-    store.write_documents(SMALL_CORPUS, policy=DuplicatePolicy.OVERWRITE)
-
-
-def _load_review_documents(category: str) -> list[Document]:
-    """
-    Stream one Amazon-Reviews-2023 category from Hugging Face and convert it to documents.
-
-    :param category: The review category subset to load.
-    :returns: Up to `LARGE_CORPUS_DOCS_PER_CATEGORY` documents with metadata for filtering.
-    """
-    from datasets import load_dataset  # noqa: PLC0415  (only needed for the `large` corpus)
-
-    # The dataset repo is script-based (unsupported by datasets>=3), so stream its raw JSONL directly.
-    dataset = load_dataset(
-        "json",
-        data_files=f"hf://datasets/McAuley-Lab/Amazon-Reviews-2023/raw/review_categories/{category}.jsonl",
-        split="train",
-        streaming=True,
-    )
-    documents = []
-    for row in itertools.islice(dataset, LARGE_CORPUS_DOCS_PER_CATEGORY):
-        text = (row.get("text") or "").strip()
-        if not text:
-            continue
-        documents.append(
-            Document(
-                content=f"{row.get('title') or ''}. {text}"[:5_000],
-                meta={
-                    "category": category,
-                    "rating": float(row["rating"]),
-                    "helpful_vote": int(row["helpful_vote"]),
-                    "verified_purchase": bool(row["verified_purchase"]),
-                    "year": time.gmtime(row["timestamp"] / 1000).tm_year,
-                    "asin": row["asin"],
-                },
-            )
-        )
-    return documents
-
-
-def populate_large_corpus(store: DocumentStore) -> None:
-    """
-    Write the large review corpus into the store (streams from Hugging Face; requires `datasets`).
-
-    :param store: The document store to populate.
-    """
-    for category in LARGE_CORPUS_CATEGORIES:
-        documents = _load_review_documents(category)
-        for batch_start in range(0, len(documents), _WRITE_BATCH_SIZE):
-            store.write_documents(
-                documents[batch_start : batch_start + _WRITE_BATCH_SIZE], policy=DuplicatePolicy.OVERWRITE
-            )
-        print(f"indexed {category}: {len(documents)} docs")
-
-
 def main() -> None:
-    """Run the selected eval set and print per-case reports plus a summary."""
-    parser = argparse.ArgumentParser(description="Mini evaluation harness for the advanced RAG agent.")
-    parser.add_argument("corpus", nargs="?", choices=("small", "large"), default="small")
+    """Run the eval set and print per-case reports plus a summary."""
+    parser = argparse.ArgumentParser(description="Mini evaluation harness for the Advanced RAG agent.")
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
-    args = parser.parse_args()
-    corpus = args.corpus
+    parser.add_argument("--max-cases", type=int, default=10, help="How many labelled questions to evaluate.")
+    parser.add_argument("--case-seed", type=int, default=0, help="Selects which cases are drawn from the dataset.")
+    arguments = parser.parse_args()
 
-    store = build_document_store(args.store, corpus)
-    # A persistent store (OpenSearch) keeps its index across runs — skip re-indexing when populated.
-    if store.count_documents() == 0:
-        populate_small_corpus(store) if corpus == "small" else populate_large_corpus(store)
-    else:
-        print("store already populated, skipping indexing")
-    print(f"corpus '{corpus}' on {args.store}: {store.count_documents()} docs")
+    store, articles = prepare_corpus(backend=arguments.store)
+    chunks = sum(len(article.chunks) for article in articles.values())
+    print(f"{CORPUS_KEY} on {arguments.store}: {chunks} chunks from {len(articles)} articles")
 
-    cases = SMALL_CASES if corpus == "small" else LARGE_CASES
-    # The full id -> document map is only needed for recall (small corpus); a persistent store's
-    # filter_documents() is capped (~10k on OpenSearch), so don't build it for the large corpus.
-    documents_by_id = {doc.id: doc for doc in store.filter_documents()} if corpus == "small" else {}
+    labelled: list[LabelledQuestion] = build_eval_cases(
+        articles=articles, limit=arguments.max_cases, seed=arguments.case_seed
+    )
+    cases = [
+        EvalCase(
+            question=question.question,
+            expected_document_ids=question.expected_document_ids,
+            answer_must_mention=question.answer_must_mention,
+        )
+        for question in labelled
+    ]
+    expected = sum(len(case.expected_document_ids) for case in cases)
+    print(f"cases: {len(cases)} labelled from evidence, expecting {expected} documents in total")
 
-    agent = create_advanced_rag_agent(document_store=store, retriever=build_retriever(store))
+    agent = create_advanced_rag_agent(document_store=store, retriever=build_bm25_retriever(store=store))
 
-    results = [evaluate_case(agent, documents_by_id, case) for case in cases]
+    results = [evaluate_case(agent=agent, case=case) for case in cases]
 
-    passed = sum(r["passed"] for r in results)
+    passed = sum(result["passed"] for result in results)
     total_usage: dict[str, int] = {}
-    for r in results:
-        _sum_usage(total_usage, r["usage"])
+    for result in results:
+        _sum_usage(total_usage, result["usage"])
     print(f"\n=== {passed}/{len(results)} cases passed ===")
-    print(f"total time: {sum(r['time'] for r in results):.1f}s")
+    print(f"total time: {sum(result['time'] for result in results):.1f}s")
     if total_usage:
         print(f"total tokens: {total_usage}")
     if passed < len(results):
