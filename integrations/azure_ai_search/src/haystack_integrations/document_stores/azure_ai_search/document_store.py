@@ -356,6 +356,7 @@ class AzureAISearchDocumentStore:
             embedding_dimension=self._embedding_dimension,
             metadata_fields={key: value.as_dict() for key, value in self._metadata_fields.items()},
             vector_search_configuration=self._vector_search_configuration.as_dict(),
+            include_search_metadata=self._include_search_metadata,
             **self._serialize_index_creation_kwargs(self._index_creation_kwargs),
         )
 
