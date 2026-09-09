@@ -13,8 +13,9 @@
 # - Retrieval: recall over the documents the question's evidence lives in, from the run's accumulated `documents`.
 # - Process: whether metadata was inspected before any retrieval, per-tool call counts, how many retrievals used
 #   a filter, tool errors, steps, and wall-clock time. An eval case fails when it exceeds its tool budget.
-# - Answer: the ground-truth answer must be mentioned when a substring check on it means anything, and every
-#   `[doc <short-id>]` citation must resolve to a document the run returned.
+# - Citations: the answer must cite every document the question's evidence lives in, and every
+#   `[doc <short-id>]` it carries must resolve to a document the run returned. Whether the answer is *right* is
+#   not checked; that needs a judge this harness does not have yet.
 # - Token usage, per eval case and totalled, for comparing models and reasoning efforts.
 #
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
@@ -50,22 +51,24 @@ RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
 _CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})\]")
 
-# Answers shorter than this are words like "Yes" or "No", which a reply can contain by coincidence.
-MIN_ASSERTABLE_ANSWER_CHARS = 5
-
 
 @dataclass
 class EvalCase:
-    """One eval case: a question, the documents that answer it, and the budgets the run may spend."""
+    """
+    One eval case: a question, the documents that answer it, and the budgets the run may spend.
+
+    :param question: The question to put to the agent.
+    :param evidence: Ground truth, as `{chunk id: the quote found in that chunk}`. The keys are the documents the
+        answer needs, and the values are what the answer should be based on. For example,
+        {"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}
+    :param tool_budgets: How many times the run may call a tool, or a group of tools sharing one allowance, as
+        `{tool name or names: limit}`. Exceeding any of them fails the eval case. Which tools these are depends
+        on the agent under evaluation, so the caller supplies them.
+    """
 
     question: str
-    # Ground truth: the quoted evidence an answer needs, by the chunk it was found in.
     evidence: dict[str, str]
-    # The ground-truth answer, checked case-insensitively when a substring check on it means anything.
-    answer_must_mention: tuple[str, ...] = ()
-    # Tool budgets. Exceeding either fails the eval case.
-    max_metadata_calls: int = 5
-    max_retrieval_calls: int = 5
+    tool_budgets: dict[str | tuple[str, ...], int]
 
     @property
     def expected_document_ids(self) -> frozenset[str]:
@@ -74,8 +77,8 @@ class EvalCase:
 
 
 @dataclass
-class RunStats:
-    """Tool-level statistics extracted from one agent run."""
+class ToolRunStats:
+    """The tool calls one agent run made, and what they add up to."""
 
     calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     errors: int = 0
@@ -90,30 +93,25 @@ class RunStats:
                 return False
         return False
 
-    @property
-    def filtered_retrieval_calls(self) -> int:
-        """Number of retrieval tool calls that included a metadata filter."""
-        return sum(1 for name, args in self.calls if name in RETRIEVAL_TOOLS and args.get("filters"))
+    def calls_to(self, tools: str | tuple[str, ...]) -> int:
+        """
+        Count the calls made to one tool, or to any of a group of them.
 
-    @property
-    def metadata_calls(self) -> int:
-        """Number of metadata-inspection tool calls."""
-        return sum(1 for name, _ in self.calls if name in METADATA_TOOLS)
-
-    @property
-    def retrieval_calls(self) -> int:
-        """Number of retrieval tool calls."""
-        return sum(1 for name, _ in self.calls if name in RETRIEVAL_TOOLS)
+        :param tools: A tool name, or several sharing one allowance.
+        :returns: How many calls the run made to them.
+        """
+        wanted = {tools} if isinstance(tools, str) else set(tools)
+        return sum(1 for name, _ in self.calls if name in wanted)
 
 
-def extract_run_stats(messages: list[ChatMessage]) -> RunStats:
+def extract_tool_run_stats(messages: list[ChatMessage]) -> ToolRunStats:
     """
     Extract tool calls and error results from an agent run.
 
     :param messages: The messages returned by `agent.run(...)`.
     :returns: The extracted statistics.
     """
-    stats = RunStats()
+    stats = ToolRunStats()
     for message in messages:
         stats.calls.extend((tc.tool_name, tc.arguments or {}) for tc in message.tool_calls)
         stats.errors += sum(1 for res in message.tool_call_results if res.error)
@@ -148,7 +146,7 @@ def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
     return OpenSearchBM25Retriever(document_store=store, top_k=top_k)
 
 
-def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
+def run_eval_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
     """
     Run the agent on one eval case and print its report.
 
@@ -161,7 +159,7 @@ def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
     elapsed = time.perf_counter() - started
 
     # Everything the report needs comes out of the one run: its messages, its answer and its token usage.
-    stats = extract_run_stats(result["messages"])
+    stats = extract_tool_run_stats(messages=result["messages"])
     answer = result["last_message"].text or ""
     usage = result.get("token_usage") or {}
 
@@ -170,36 +168,37 @@ def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
     retrieved_ids = {document.id for document in retrieved_docs}
     found = case.expected_document_ids & retrieved_ids
     recall = len(found) / len(case.expected_document_ids)
-    mentions_ok = all(term.lower() in answer.lower() for term in case.answer_must_mention)
 
-    # A [doc <short-id>] reference that matches nothing the run returned is a citation the reader cannot follow.
+    # Resolve each [doc <short-id>] the answer carries against what the run returned. A reference matching nothing
+    # is a citation the reader cannot follow, and one the answer never makes is evidence it did not use.
     cited_refs = _CITATION_RE.findall(answer)
     resolved = [ref for ref in cited_refs if any(document.id.startswith(ref) for document in retrieved_docs)]
+    cited_ids = {document.id for document in retrieved_docs if any(document.id.startswith(r) for r in cited_refs)}
     citations_ok = len(resolved) == len(cited_refs)
+    uncited = case.expected_document_ids - cited_ids
 
-    # An eval case passes only on all four: it found every expected document, said the answer, cited documents it
-    # actually returned, and stayed inside its tool budget.
-    within_budget = (
-        stats.metadata_calls <= case.max_metadata_calls and stats.retrieval_calls <= case.max_retrieval_calls
-    )
-    passed = recall == 1.0 and mentions_ok and citations_ok and within_budget
+    # An eval case passes only on all four: it found every expected document, cited every one of them, made no
+    # citation that does not resolve, and stayed inside its tool budget.
+    spent = {tools: stats.calls_to(tools=tools) for tools in case.tool_budgets}
+    within_budget = all(used <= case.tool_budgets[tools] for tools, used in spent.items())
+    passed = recall == 1.0 and not uncited and citations_ok and within_budget
 
     counts = Counter(name for name, _ in stats.calls)
     filters_used = [args["filters"] for name, args in stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")]
     print(f"\n[{'PASS' if passed else 'FAIL'}] {case.question}")
     print(f"  tools: {dict(counts)}")
     print(
-        f"  inspected-first={stats.inspected_first}  filtered-retrievals={stats.filtered_retrieval_calls}"
+        f"  inspected-first={stats.inspected_first}  filtered-retrievals={len(filters_used)}"
         f"  errors={stats.errors}  steps={result['step_count']}  time={elapsed:.1f}s"
     )
-    print(
-        f"  budget: metadata {stats.metadata_calls}/{case.max_metadata_calls}, "
-        f"retrieval {stats.retrieval_calls}/{case.max_retrieval_calls} -> {'ok' if within_budget else 'EXCEEDED'}"
-    )
+    for tools, used in spent.items():
+        limit = case.tool_budgets[tools]
+        label = tools if isinstance(tools, str) else " + ".join(tools)
+        print(f"  budget: {label} {used}/{limit} -> {'ok' if used <= limit else 'EXCEEDED'}")
     print(
         f"  retrieved={len(retrieved_docs)}  recall={len(found)}/{len(case.expected_document_ids)}"
-        + (f"  answer-mentions-ok={mentions_ok}" if case.answer_must_mention else "")
-        + f"  citations={len(resolved)}/{len(cited_refs)} resolve"
+        f"  cited={len(case.expected_document_ids) - len(uncited)}/{len(case.expected_document_ids)} expected"
+        f"  citations={len(resolved)}/{len(cited_refs)} resolve"
     )
     for document in retrieved_docs:
         marker = "+" if document.id in case.expected_document_ids else "-"
@@ -207,6 +206,8 @@ def evaluate_case(agent: Agent, case: EvalCase) -> dict[str, Any]:
     for document_id in sorted(case.expected_document_ids - retrieved_ids):
         # Naming the quote that was missed, since the id alone says nothing about what the run failed to find.
         print(f"    MISSED [doc {document_id[:8]}] {case.evidence[document_id][:100]}")
+    for document_id in sorted(uncited & retrieved_ids):
+        print(f"    UNCITED [doc {document_id[:8]}] {case.evidence[document_id][:100]}")
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for filters in filters_used:
@@ -232,27 +233,22 @@ def main() -> None:
     labelled: list[LabelledQuestion] = build_eval_cases(
         articles=articles, limit=arguments.max_cases, seed=arguments.case_seed
     )
-    # The dataset reports its answer verbatim; asserting on it is this harness's decision. A short answer like
-    # "Yes" is skipped, since finding that word in a reply can happen for reasons unrelated to being right.
+    # Budgets for the tools this agent has. Lenient on purpose: too many retrievals is better than too few.
+    budgets: dict[str | tuple[str, ...], int] = {METADATA_TOOLS: 5, RETRIEVAL_TOOLS: 5}
     cases = [
-        EvalCase(
-            question=question.question,
-            evidence=question.evidence,
-            answer_must_mention=(question.answer,) if len(question.answer) >= MIN_ASSERTABLE_ANSWER_CHARS else (),
-        )
-        for question in labelled
+        EvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets) for question in labelled
     ]
     expected = sum(len(case.expected_document_ids) for case in cases)
     print(f"eval cases: {len(cases)} labelled from evidence, expecting {expected} documents in total")
 
     agent = create_advanced_rag_agent(document_store=store, retriever=build_bm25_retriever(store=store))
 
-    results = [evaluate_case(agent=agent, case=case) for case in cases]
+    results = [run_eval_case(agent=agent, case=case) for case in cases]
 
     passed = sum(result["passed"] for result in results)
     total_usage: dict[str, int] = {}
     for result in results:
-        _sum_usage(total_usage, result["usage"])
+        _sum_usage(total=total_usage, usage=result["usage"])
     print(f"\n=== {passed}/{len(results)} eval cases passed ===")
     print(f"total time: {sum(result['time'] for result in results):.1f}s")
     if total_usage:

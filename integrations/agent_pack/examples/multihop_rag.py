@@ -276,10 +276,14 @@ def _report(store: DocumentStore, articles: dict[str, Article], cases: list[Labe
     )
     print(f"  published: {min(metadata['published_at'])} .. {max(metadata['published_at'])}")
     print(f"\n  eval cases selected: {len(cases)}")
-    print(f"    expected documents per eval case: {sorted({len(case.expected_document_ids) for case in cases})}")
+    # Listed rather than given as a range, since the sizes present need not be contiguous.
+    sizes = sorted({len(case.expected_document_ids) for case in cases})
+    listed = str(sizes[0]) if len(sizes) == 1 else f"{', '.join(str(size) for size in sizes[:-1])} or {sizes[-1]}"
+    print(f"    expected documents per eval case: {listed}")
     print(f"    with a ground-truth answer:  {sum(1 for case in cases if case.answer)}")
+    print("    example questions:")
     for case in cases[:3]:
-        print(f"    - {case.question[:96]}")
+        print(f"      - {case.question[:96]}")
 
 
 def main() -> None:
