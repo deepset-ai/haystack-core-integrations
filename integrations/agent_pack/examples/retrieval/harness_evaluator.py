@@ -111,9 +111,9 @@ class RetrievalHarnessEvaluator:
     free to rename `retriever`, insert a ranker, or replace the retrieval path entirely; this finds where to put the
     question and where to read documents by socket name, and says so at validation time when it cannot.
 
-    Quality is the mean of the per-eval-case scores, normalized to `[0.0, 1.0]`. A case scores its recall, or nothing
-    when it broke one of its budgets, so a configuration that finds more of the evidence is measured as better
-    even while no case yet finds all of it. `passed` is still reported per eval case, and remains the stricter reading.
+    Quality is the mean of the per-eval-case scores, normalized to `[0.0, 1.0]`. A case scores its recall@k, so a
+    configuration that finds more of the evidence is measured as better even while no case yet finds all of it.
+    `passed` is still reported per eval case, and remains the stricter reading.
     No answer is generated: the labelled evidence names the documents an answer needs, which is what makes one
     case cost a single model call rather than an agent loop.
     """
@@ -273,8 +273,8 @@ class RetrievalHarnessEvaluator:
                 # A pipeline whose only model call is an expansion reports no usage at all when nothing expands,
                 # which is a legitimate configuration rather than a broken measurement.
                 "usage_complete": all(usage.complete for _, usage in measured),
-                "mean_recall": sum(metric.recall for metric in scored) / len(scored),
-                "mean_precision": sum(metric.precision for metric in scored) / len(scored),
+                "mean_recall_at_k": sum(metric.recall_at_k for metric in scored) / len(scored),
+                "mean_precision_at_k": sum(metric.precision_at_k for metric in scored) / len(scored),
                 "mean_retrieved": sum(metric.retrieved for metric in scored) / len(scored),
                 "mean_queries": sum(len(metric.queries) for metric in scored) / len(scored),
                 # How much reached each stage. A candidate set is pooled from several searches and deduplicated,

@@ -19,24 +19,16 @@ class RetrievalEvaluationCase:
     :param min_precision: Minimum share of retrieved documents that must be expected. Left at 0 by default,
         because a pipeline that widens its candidate set on purpose is not thereby worse; raise it to make
         over-retrieval cost something.
-    :param max_queries: Optional cap on how many queries the pipeline may issue for one question. Expanding a
-        query buys recall with model calls, and without a cap the cheapest way to pass every case is to expand
-        without limit.
-    :param max_retrieved: Optional limit on how many returned documents are scored for one question. Recall
-        alone has a degenerate optimum: a pipeline that returns most of the corpus reaches it, and measuring a
-        retrieval pipeline that generates no answer cannot see the cost of doing so, because nothing downstream
-        reads the documents. Scoring only the first this-many documents is what makes the size of the answer set
-        matter, while leaving a run that returns one document too many worth almost exactly what it found. It
-        applies to what the pipeline returns rather than to what it considers, so retrieving widely and then
-        ranking the result down keeps every document scored while retrieving widely alone does not.
+    :param k: The rank cutoff the case is scored at, giving recall@k and precision@k. Only the first `k` returned
+        documents count, in the order the run returned them, so a pipeline is measured on what it put at the top
+        rather than on how much it returned.
     """
 
     question: str
     expected_document_ids: frozenset[str]
     min_recall: float = 1.0
     min_precision: float = 0.0
-    max_queries: int | None = None
-    max_retrieved: int | None = None
+    k: int | None = None
 
     def __post_init__(self) -> None:
         """Require ground truth to score against."""
@@ -71,14 +63,11 @@ class RetrievalCaseMetrics:
     `queries` is the evidence an optimizer acts on: it is what the configuration actually asked the store, and a
     recall failure is usually explained by the wording of those queries rather than by the number of them.
 
-    `score` is what quality aggregates, and it is the case's recall rather than whether it passed. Recall over a
+    `score` is what quality aggregates, and it is recall@k rather than whether the case passed. Recall over a
     handful of expected documents moves in steps of a half or a third, so a threshold on it reports a
     configuration that went from finding none of the evidence to finding two thirds of it as no change at all.
-    Returning more documents than the case scores is reported as a failure but is not itself scored as one: only
-    the first `max_retrieved` count towards recall, so overshooting costs whatever was pushed past the limit and
-    nothing more. A ranker that returns eleven documents where ten are scored has made a small mistake and should
-    measure as having made a small mistake. Issuing more queries than allowed still scores nothing, because a
-    query already cost what it cost and there is no equivalent of ignoring it.
+    `retrieved` counts everything the run returned, which is separate from how deep it was scored: returning more
+    than `k` is not a fault, it simply earns nothing for the documents past the cutoff.
     """
 
     question: str
@@ -86,8 +75,8 @@ class RetrievalCaseMetrics:
     score: float
     stage_outputs: dict[str, dict[str, int]]
     failures: tuple[str, ...]
-    recall: float
-    precision: float
+    recall_at_k: float
+    precision_at_k: float
     retrieved: int
     missed_document_ids: tuple[str, ...]
     queries: tuple[str, ...]
@@ -125,34 +114,28 @@ def score_retrieval_result(
     :param stage_outputs: How many items each component emitted, by component name and output socket.
     :returns: The score, naming every expectation the run missed.
     """
-    # Deduplicated in the order the pipeline returned them, since which documents fall past the limit depends on
-    # how the run ranked them.
+    # Deduplicated in the order the run returned them, since which documents fall past the cutoff depends on
+    # how it ranked them.
     returned_ids = list(dict.fromkeys(document.id for document in outcome.documents))
-    scored_ids = set(returned_ids[: case.max_retrieved] if case.max_retrieved is not None else returned_ids)
+    scored_ids = set(returned_ids[: case.k] if case.k is not None else returned_ids)
     matched = scored_ids & case.expected_document_ids
-    recall = len(matched) / len(case.expected_document_ids)
-    precision = len(matched) / len(scored_ids) if scored_ids else 0.0
+    recall_at_k = len(matched) / len(case.expected_document_ids)
+    precision_at_k = len(matched) / len(scored_ids) if scored_ids else 0.0
 
     failures: list[str] = []
-    if recall < case.min_recall:
+    if recall_at_k < case.min_recall:
         failures.append(f"recall_below_{case.min_recall:g}")
-    if precision < case.min_precision:
+    if precision_at_k < case.min_precision:
         failures.append(f"precision_below_{case.min_precision:g}")
-    if case.max_queries is not None and len(outcome.queries) > case.max_queries:
-        failures.append(f"queries_over_budget:{len(outcome.queries)}")
-    if case.max_retrieved is not None and len(returned_ids) > case.max_retrieved:
-        failures.append(f"retrieved_over_budget:{len(returned_ids)}")
 
-    # Returning too many documents is already paid for by the ones past the limit going unscored. Issuing too many
-    # queries is not recoverable that way, so it stays a constraint rather than a matter of degree.
     return RetrievalCaseMetrics(
         question=case.question,
         passed=not failures,
         stage_outputs=stage_outputs or {},
-        score=0.0 if any(failure.startswith("queries_over_budget") for failure in failures) else recall,
+        score=recall_at_k,
         failures=tuple(failures),
-        recall=recall,
-        precision=precision,
+        recall_at_k=recall_at_k,
+        precision_at_k=precision_at_k,
         retrieved=len(returned_ids),
         missed_document_ids=tuple(sorted(case.expected_document_ids - matched)),
         queries=outcome.queries,

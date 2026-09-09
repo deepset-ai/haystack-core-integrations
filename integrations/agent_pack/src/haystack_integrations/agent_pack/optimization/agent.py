@@ -223,7 +223,14 @@ def _headline(metrics: dict[str, Any] | None) -> str:
     parts = [f"quality {metrics.get('quality'):.3f}" if metrics.get("quality") is not None else "quality unknown"]
     cost = metrics.get("cost")
     parts.append("cost unpriced" if cost is None else f"cost ${cost:.4f}")
-    for key in ("mean_recall", "mean_precision", "mean_retrieved", "mean_queries"):
+    for key in (
+        "mean_recall",
+        "mean_precision",
+        "mean_recall_at_k",
+        "mean_precision_at_k",
+        "mean_retrieved",
+        "mean_queries",
+    ):
         if key in details:
             parts.append(f"{key.removeprefix('mean_')} {details[key]:.2f}")
     # In execution order, so the arrow shows where the path widened and where it narrowed again.

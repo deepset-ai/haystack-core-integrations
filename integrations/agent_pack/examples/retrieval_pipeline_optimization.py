@@ -182,22 +182,23 @@ def build_pricing() -> ModelPriceCatalog:
     )
 
 
-def retrieval_guidance(max_queries: int, max_retrieved: int) -> str:
+def retrieval_guidance(k: int) -> str:
     """
-    State this harness's per-eval-case budgets alongside the rest of what it knows about itself.
+    State the rank cutoff the harness scores at, alongside the rest of what it knows about itself.
 
-    The budgets are the harness's own settings, and an optimizer that is not told them has to find them by
-    exceeding them, spending a measurement to learn a number the harness could simply have stated.
+    The cutoff is the harness's own setting, and an optimizer that is not told it has to find it by measurement,
+    spending an evaluation to learn a number the harness could simply have stated.
 
-    :param max_queries: Queries a case allows, including the original question.
-    :param max_retrieved: Documents a case allows the pipeline to return.
-    :returns: The harness guidance with its budgets filled in.
+    :param k: The rank cutoff cases are scored at.
+    :returns: The harness guidance with its cutoff filled in.
     """
-    budgets = (
-        f"The budgets are {max_queries} queries and {max_retrieved} documents per eval case. The query budget counts "
-        f"the original question when the expansion keeps it, so an expansion count of {max_queries} overshoots."
+    cutoff = (
+        f"Each eval case is scored at recall@{k}: only the first {k} documents the pipeline returns count towards "
+        f"its score, in the order it returned them. Returning more than {k} is not penalized, it simply earns "
+        f"nothing for the documents past the cutoff. Nothing caps how many queries the pipeline may issue, but "
+        f"every query costs a model call and wall-clock time, and both are measured."
     )
-    return f"{_RETRIEVAL_OPTIMIZER_GUIDANCE}\n\n{budgets}"
+    return f"{_RETRIEVAL_OPTIMIZER_GUIDANCE}\n\n{cutoff}"
 
 
 def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator | None:
@@ -231,7 +232,7 @@ def report(result: ExperimentResult) -> None:
     print("\n--- baseline (reference pipeline) ---")
     print(
         f"  quality={baseline.quality:.2f} cost={format_cost(cost=baseline.cost)} "
-        f"latency={baseline.latency_ms:.0f}ms recall={baseline.details['mean_recall']:.2f} "
+        f"latency={baseline.latency_ms:.0f}ms recall@k={baseline.details['mean_recall_at_k']:.2f} "
         f"queries={baseline.details['mean_queries']:.1f} retrieved={baseline.details['mean_retrieved']:.1f}"
     )
 
@@ -244,7 +245,7 @@ def report(result: ExperimentResult) -> None:
         details = candidate.metrics.details
         print(
             f"  {candidate.candidate_id} -> quality={candidate.metrics.quality:.2f} "
-            f"cost={format_cost(cost=candidate.metrics.cost)} recall={details['mean_recall']:.2f} "
+            f"cost={format_cost(cost=candidate.metrics.cost)} recall@k={details['mean_recall_at_k']:.2f} "
             f"queries={details['mean_queries']:.1f} retrieved={details['mean_retrieved']:.1f}"
         )
         print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
@@ -284,19 +285,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--case-seed", type=int, default=0, help="Selects which cases are drawn from the dataset.")
     parser.add_argument(
-        "--max-queries",
-        type=int,
-        default=6,
-        help="Per-eval-case cap on issued queries. Without one, expanding without limit is the cheapest way to pass.",
-    )
-    parser.add_argument(
-        "--max-retrieved",
+        "--k",
         type=int,
         default=10,
-        help="Per-eval-case cap on documents the pipeline may return. Recall on its own is maximized by returning most "
-        "of the corpus, and this harness generates no answer, so nothing downstream makes that expensive. The cap "
-        "applies to the pipeline's output rather than to its candidate set, so widening and then ranking down "
-        "still satisfies it.",
+        help="Rank cutoff cases are scored at, giving recall@k. Only the first k documents returned count, so a "
+        "pipeline is measured on what it put at the top rather than on how much it returned. Recall with no "
+        "cutoff is maximized by returning most of the corpus.",
     )
     parser.add_argument("--min-quality", type=float, default=0.0)
     parser.add_argument(
@@ -359,8 +353,7 @@ def main() -> None:
         RetrievalEvaluationCase(
             question=case.question,
             expected_document_ids=case.expected_document_ids,
-            max_queries=arguments.max_queries,
-            max_retrieved=arguments.max_retrieved,
+            k=arguments.k,
         )
         for case in labelled
     ]
@@ -370,7 +363,7 @@ def main() -> None:
     reference = build_reference_pipeline(store=store, model=arguments.expander_model)
     print(
         f"  reference: n_expansions={POOR_EXPANSIONS} top_k={POOR_TOP_K} model={arguments.expander_model}; "
-        f"budgets: {arguments.max_queries} queries and {arguments.max_retrieved} documents per eval case"
+        f"scored at recall@{arguments.k}"
     )
 
     # A retrieval run replays only its question, so the store records that rather than a captured pipeline run.
@@ -398,9 +391,7 @@ def main() -> None:
         optimizer_agent=create_harness_optimizer_agent(
             chat_generator=build_optimizer_generator(model=arguments.optimizer_model),
             documentation_tools=arguments.docs_mcp,
-            additional_instructions=retrieval_guidance(
-                max_queries=arguments.max_queries, max_retrieved=arguments.max_retrieved
-            ),
+            additional_instructions=retrieval_guidance(k=arguments.k),
             max_agent_steps=arguments.optimizer_steps,
         ),
         max_iterations=arguments.max_iterations,
