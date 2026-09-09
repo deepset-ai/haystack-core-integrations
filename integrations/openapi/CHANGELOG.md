@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/openapi-v1.0.0] - 2026-09-09
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🚜 Refactor
+
+- [**breaking**] OpenAPIConnector - move client creation to `warm_up` (#3933)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/openapi-v0.1.0] - 2026-06-22
 
 ### 🚀 Features
