@@ -8,7 +8,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs, _with_hf_token
 from transformers import AutoConfig, Pipeline, pipeline
 
 
@@ -98,8 +98,7 @@ class TransformersTextRouter:
         self.huggingface_pipeline_kwargs = huggingface_pipeline_kwargs
 
         if labels is None:
-            pipeline_kwargs = huggingface_pipeline_kwargs.copy()
-            pipeline_kwargs.setdefault("token", token.resolve_value() if token else None)
+            pipeline_kwargs = _with_hf_token(huggingface_pipeline_kwargs, token)
             config = AutoConfig.from_pretrained(pipeline_kwargs["model"], token=pipeline_kwargs["token"])
             self.labels = list(config.label2id.keys())
         else:
@@ -121,8 +120,7 @@ class TransformersTextRouter:
         Initializes the component.
         """
         if self.pipeline is None:
-            pipeline_kwargs = self.huggingface_pipeline_kwargs.copy()
-            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
+            pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
             hf_pipeline = pipeline(**pipeline_kwargs)
 
             # Verify labels from the model configuration file match provided labels

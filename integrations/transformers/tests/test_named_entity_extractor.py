@@ -31,21 +31,12 @@ class TestComponentLifecycle:
         assert "MISSING_HF_TOKEN" in str(exc_info.value.__cause__)
 
     @patch("haystack_integrations.components.extractors.transformers.named_entity_extractor.pipeline")
-    @patch(
-        "haystack_integrations.components.extractors.transformers.named_entity_extractor."
-        "AutoModelForTokenClassification.from_pretrained"
-    )
-    @patch(
-        "haystack_integrations.components.extractors.transformers.named_entity_extractor.AutoTokenizer.from_pretrained"
-    )
-    def test_warm_up_is_idempotent(self, tokenizer_mock, model_mock, pipeline_mock):
+    def test_warm_up_is_idempotent(self, pipeline_mock):
         extractor = TransformersNamedEntityExtractor(model="model", token=None)
 
         extractor.warm_up()
         extractor.warm_up()
 
-        tokenizer_mock.assert_called_once()
-        model_mock.assert_called_once()
         pipeline_mock.assert_called_once()
 
 

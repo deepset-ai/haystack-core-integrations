@@ -9,7 +9,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs, _with_hf_token
 from transformers import Pipeline as HfPipeline
 from transformers import pipeline
 
@@ -143,8 +143,7 @@ class TransformersZeroShotDocumentClassifier:
         Initializes the component.
         """
         if self.pipeline is None:
-            pipeline_kwargs = self.huggingface_pipeline_kwargs.copy()
-            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
+            pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
             self.pipeline = pipeline(**pipeline_kwargs)
 
     def to_dict(self) -> dict[str, Any]:

@@ -33,6 +33,7 @@ from haystack_integrations.common.transformers.utils import (
     _AsyncHFTokenStreamingHandler,
     _HFTokenStreamingHandler,
     _StopWordsCriteria,
+    _with_hf_token,
 )
 from transformers import Pipeline as HfPipeline
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast, StoppingCriteriaList, pipeline
@@ -241,8 +242,7 @@ class TransformersChatGenerator:
         Initializes the component and warms up tools if provided.
         """
         if self.pipeline is None:
-            pipeline_kwargs = self.huggingface_pipeline_kwargs.copy()
-            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
+            pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
             task = pipeline_kwargs.get("task")
             if task is None and isinstance(pipeline_kwargs["model"], str):
                 task = model_info(pipeline_kwargs["model"], token=pipeline_kwargs["token"]).pipeline_tag

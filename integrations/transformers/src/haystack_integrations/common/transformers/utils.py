@@ -10,6 +10,7 @@ from typing import Any
 import torch
 from haystack import logging
 from haystack.dataclasses import ComponentInfo, StreamingCallbackT, StreamingChunk, SyncStreamingCallbackT
+from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
 
 from transformers import (
@@ -21,6 +22,21 @@ from transformers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _with_hf_token(hf_kwargs: dict[str, Any], token: Secret | None) -> dict[str, Any]:
+    """
+    Return a copy of Hugging Face keyword arguments with a resolved token.
+
+    An explicitly provided `token` in `hf_kwargs` takes precedence over the `Secret`.
+
+    :param hf_kwargs: Keyword arguments passed to a Hugging Face API.
+    :param token: The token to resolve when `hf_kwargs` does not already contain one.
+    """
+    resolved_kwargs = hf_kwargs.copy()
+    if "token" not in resolved_kwargs:
+        resolved_kwargs["token"] = token.resolve_value() if token else None
+    return resolved_kwargs
 
 
 def _resolve_hf_device_map(device: ComponentDevice | None, model_kwargs: dict[str, Any] | None) -> dict[str, Any]:

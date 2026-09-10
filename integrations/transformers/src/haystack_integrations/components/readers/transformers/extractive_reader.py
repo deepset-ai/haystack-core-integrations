@@ -178,19 +178,21 @@ class TransformersExtractiveReader:
         """
         # Take the first device used by `accelerate`. Needed to pass inputs from the tokenizer to the correct device.
         if self.model is None:
-            self.model = AutoModelForQuestionAnswering.from_pretrained(
-                self.model_name_or_path, token=self.token.resolve_value() if self.token else None, **self.model_kwargs
+            token = self.token.resolve_value() if self.token else None
+            model = AutoModelForQuestionAnswering.from_pretrained(
+                self.model_name_or_path, token=token, **self.model_kwargs
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name_or_path, token=self.token.resolve_value() if self.token else None
-            )
-            assert self.model is not None  # noqa: S101 # mypy doesn't know this is set in the line above
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, token=token)
             # hf_device_map appears to only be set now when mixed devices are actually used.
             # So if it's missing then we can use the device attribute which is set even for single-device models.
-            if hf_device_map := getattr(self.model, "hf_device_map", None):
-                self.device = ComponentDevice.from_multiple(device_map=DeviceMap.from_hf(hf_device_map))
+            if hf_device_map := getattr(model, "hf_device_map", None):
+                device = ComponentDevice.from_multiple(device_map=DeviceMap.from_hf(hf_device_map))
             else:
-                self.device = ComponentDevice.from_single(Device.from_str(str(self.model.device)))
+                device = ComponentDevice.from_single(Device.from_str(str(model.device)))
+
+            self.model = model
+            self.tokenizer = tokenizer
+            self.device = device
 
     @staticmethod
     def _flatten_documents(

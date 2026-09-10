@@ -10,9 +10,9 @@ from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
-from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs, _with_hf_token
 from transformers import Pipeline as HfPipeline
+from transformers import pipeline
 
 
 @dataclass
@@ -101,8 +101,6 @@ class TransformersNamedEntityExtractor:
             device=self.device,
         )
 
-        self.tokenizer: Any = None
-        self.model: AutoModelForTokenClassification | None = None
         self.pipeline: HfPipeline | None = None
 
     def warm_up(self) -> None:
@@ -116,24 +114,9 @@ class TransformersNamedEntityExtractor:
             return
 
         try:
-            pipeline_kwargs = self.pipeline_kwargs.copy()
-            pipeline_kwargs.setdefault("token", self.token.resolve_value() if self.token else None)
-            token = pipeline_kwargs["token"]
-            tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, token=token)
-            model = AutoModelForTokenClassification.from_pretrained(self.model_name_or_path, token=token)
-
-            pipeline_params: dict[str, Any] = {
-                "task": "ner",
-                "model": model,
-                "tokenizer": tokenizer,
-                "aggregation_strategy": "simple",
-            }
-            pipeline_params.update({k: v for k, v in pipeline_kwargs.items() if k not in pipeline_params})
-            self.device.update_hf_kwargs(pipeline_params, overwrite=False)
-            hf_pipeline = pipeline(**pipeline_params)
-            self.tokenizer = tokenizer
-            self.model = model
-            self.pipeline = hf_pipeline
+            pipeline_kwargs = _with_hf_token(self.pipeline_kwargs, self.token)
+            pipeline_kwargs.setdefault("aggregation_strategy", "simple")
+            self.pipeline = pipeline(**pipeline_kwargs)
         except Exception as e:
             msg = f"{self.__class__.__name__} failed to initialize."
             raise ComponentError(msg) from e
@@ -248,7 +231,7 @@ class TransformersNamedEntityExtractor:
         """
         Returns if the extractor is ready to annotate text.
         """
-        return (self.tokenizer is not None and self.model is not None) or self.pipeline is not None
+        return self.pipeline is not None
 
     @classmethod
     def get_stored_annotations(cls, document: Document) -> list[NamedEntityAnnotation] | None:
