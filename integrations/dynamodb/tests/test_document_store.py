@@ -4,6 +4,7 @@
 
 import contextlib
 import dataclasses
+import json
 import os
 import time
 import uuid
@@ -16,7 +17,7 @@ from botocore.exceptions import ClientError
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.dynamodb import DynamoDBDocumentStore
@@ -254,34 +255,134 @@ class TestDynamoDBDocumentStore:
         store = _make_store()
         assert store.write_documents([]) == 0
 
-    def test_write_documents_fail_policy_raises_on_duplicate(self) -> None:
+    @pytest.mark.parametrize("policy", [DuplicatePolicy.FAIL, DuplicatePolicy.NONE])
+    def test_write_documents_fail_policy_raises_on_duplicate(self, policy: DuplicatePolicy) -> None:
         store = _make_store()
         mock_client = MagicMock()
-        mock_client.get_item.return_value = {"Item": {"id": {"S": "1"}}}
+        mock_client.put_item.side_effect = _client_error("ConditionalCheckFailedException", "PutItem")
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
             with pytest.raises(DuplicateDocumentError):
-                store.write_documents([Document(id="1", content="hello")], policy=DuplicatePolicy.FAIL)
+                store.write_documents([Document(id="1", content="hello")], policy=policy)
+        _, kwargs = mock_client.put_item.call_args
+        assert kwargs["ConditionExpression"] == "attribute_not_exists(#id)"
+        assert kwargs["ExpressionAttributeNames"] == {"#id": "id"}
+        # no separate existence check: the conditional write is the duplicate check
+        mock_client.get_item.assert_not_called()
+
+    def test_write_documents_fail_policy_keeps_documents_written_before_the_duplicate(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.put_item.side_effect = [{}, _client_error("ConditionalCheckFailedException", "PutItem")]
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            with pytest.raises(DuplicateDocumentError, match="id '2' already exists"):
+                store.write_documents([Document(id="1", content="a"), Document(id="2", content="b")])
+        assert mock_client.put_item.call_count == 2
 
     def test_write_documents_skip_policy_skips_duplicate(self) -> None:
         store = _make_store()
         mock_client = MagicMock()
-        mock_client.get_item.return_value = {"Item": {"id": {"S": "1"}}}
+        mock_client.put_item.side_effect = [_client_error("ConditionalCheckFailedException", "PutItem"), {}]
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
-            written = store.write_documents([Document(id="1", content="hello")], policy=DuplicatePolicy.SKIP)
-            assert written == 0
-            mock_client.put_item.assert_not_called()
+            written = store.write_documents(
+                [Document(id="1", content="dup"), Document(id="2", content="new")], policy=DuplicatePolicy.SKIP
+            )
+        assert written == 1
+        assert mock_client.put_item.call_count == 2
 
-    def test_write_documents_overwrite_policy_writes_regardless(self) -> None:
+    def test_write_documents_overwrite_policy_writes_unconditionally(self) -> None:
         store = _make_store()
         mock_client = MagicMock()
-        mock_client.get_item.return_value = {"Item": {"id": {"S": "1"}}}
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
             written = store.write_documents([Document(id="1", content="hello")], policy=DuplicatePolicy.OVERWRITE)
-            assert written == 1
-            mock_client.put_item.assert_called_once()
+        assert written == 1
+        _, kwargs = mock_client.put_item.call_args
+        assert "ConditionExpression" not in kwargs
+        assert kwargs["Item"]["id"] == {"S": "1"}
+
+    def test_write_documents_reraises_unexpected_put_errors(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.put_item.side_effect = _client_error("ProvisionedThroughputExceededException", "PutItem")
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            with pytest.raises(ClientError):
+                store.write_documents([Document(id="1", content="hello")], policy=DuplicatePolicy.SKIP)
+
+    def test_delete_all_documents_deletes_every_scanned_id(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [{"Items": [{"id": {"S": "1"}}]}, {"Items": [{"id": {"S": "2"}}]}]
+        mock_client.get_paginator.return_value = mock_paginator
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            store.delete_all_documents()
+        _, scan_kwargs = mock_paginator.paginate.call_args
+        assert scan_kwargs["ProjectionExpression"] == "#id"
+        assert scan_kwargs["ConsistentRead"] is True
+        assert [c.kwargs["Key"] for c in mock_client.delete_item.call_args_list] == [
+            {"id": {"S": "1"}},
+            {"id": {"S": "2"}},
+        ]
+
+    def test_delete_by_filter_deletes_only_matching_documents(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {
+                "Items": [
+                    {"id": {"S": "1"}, "payload": {"S": '{"content": "a", "meta": {"topic": "ai"}}'}},
+                    {"id": {"S": "2"}, "payload": {"S": '{"content": "b", "meta": {"topic": "db"}}'}},
+                    {"id": {"S": "3"}, "payload": {"S": '{"content": "c", "meta": {"topic": "ai"}}'}},
+                ]
+            }
+        ]
+        mock_client.get_paginator.return_value = mock_paginator
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            deleted = store.delete_by_filter({"field": "meta.topic", "operator": "==", "value": "ai"})
+        assert deleted == 2
+        assert [c.kwargs["Key"]["id"]["S"] for c in mock_client.delete_item.call_args_list] == ["1", "3"]
+
+    def test_delete_by_filter_rejects_empty_filters(self) -> None:
+        store = _make_store()
+        with pytest.raises(ValueError, match="use delete_all_documents"):
+            store.delete_by_filter({})
+
+    def test_update_by_filter_merges_meta_into_matching_documents(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {
+                "Items": [
+                    {"id": {"S": "1"}, "payload": {"S": '{"content": "a", "meta": {"topic": "ai", "year": 2024}}'}},
+                    {"id": {"S": "2"}, "payload": {"S": '{"content": "b", "meta": {"topic": "db"}}'}},
+                ]
+            }
+        ]
+        mock_client.get_paginator.return_value = mock_paginator
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            updated = store.update_by_filter(
+                {"field": "meta.topic", "operator": "==", "value": "ai"}, meta={"reviewed": True, "year": 2025}
+            )
+        assert updated == 1
+        mock_client.put_item.assert_called_once()
+        _, kwargs = mock_client.put_item.call_args
+        assert "ConditionExpression" not in kwargs
+        written = json.loads(kwargs["Item"]["payload"]["S"])
+        assert written["meta"] == {"topic": "ai", "year": 2025, "reviewed": True}
+
+    def test_update_by_filter_rejects_empty_filters(self) -> None:
+        store = _make_store()
+        with pytest.raises(ValueError, match="filters must not be empty"):
+            store.update_by_filter({}, meta={"x": 1})
 
     def test_delete_documents_empty_list_is_noop(self) -> None:
         store = _make_store()
@@ -449,7 +550,7 @@ class TestDynamoDBDocumentStore:
 
 
 @pytest.mark.integration
-class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseTests):
+class TestDynamoDBDocumentStoreIntegration(DocumentStoreBaseExtendedTests):
     """
     Runs against a real DynamoDB table in AWS. Skipped by default; requires
     AWS_DEFAULT_REGION and HAYSTACK_DYNAMODB_INTEGRATION_TESTS=1, plus real AWS

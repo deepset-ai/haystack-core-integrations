@@ -5,6 +5,7 @@
 import dataclasses
 import json
 import time
+from collections.abc import Iterator
 from typing import Any
 
 import boto3
@@ -30,6 +31,8 @@ _COSINE_MAX_DISTANCE = 2.0
 # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html
 SEARCH_VECTORS_MAX_TOP_K = 100
 _VECTOR_ATTRIBUTE = "embedding"
+# `id` is referenced through a placeholder in expressions so it can never clash with DynamoDB reserved words.
+_ID_PLACEHOLDER = {"#id": "id"}
 
 
 class DynamoDBDocumentStore:
@@ -338,73 +341,94 @@ class DynamoDBDocumentStore:
             total += page.get("Count", 0)
         return total
 
+    def _scan_documents(self, client: Any, filters: dict[str, Any] | None = None) -> Iterator[Document]:
+        """
+        Yields every stored document matching `filters` via a consistent full-table `Scan`.
+
+        A `Scan` is eventually consistent by default, which surfaced as read-after-write races
+        right after `write_documents` during real-AWS validation, hence `ConsistentRead=True`.
+
+        :param client: The DynamoDB client to scan with.
+        :param filters: Haystack metadata filters applied client-side; `None` or `{}` matches everything.
+        """
+        paginator = client.get_paginator("scan")
+        for page in paginator.paginate(TableName=self.table_name, ConsistentRead=True):
+            for raw_item in page.get("Items", []):
+                doc = self._item_to_doc(_from_dynamodb_item(raw_item))
+                if not filters or document_matches_filter(filters, doc):
+                    yield doc
+
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns documents matching the provided filters.
 
         DynamoDB's `SearchVectors`/`Query` filter expressions can only reference attributes
-        declared in the index's `SearchSchema` at index-creation time (the same constraint
-        that broke a naive mock-only implementation of this pattern on a sibling project).
-        Since Haystack's metadata filters are arbitrary and not known at index-creation time,
-        filtering here is applied client-side after a full table scan.
-
-        Uses `ConsistentRead=True`: a `Scan` is eventually consistent by default, which
-        surfaced as real test failures immediately after `write_documents` in real-AWS
-        validation — a plain-read-after-write race, not a filter-logic bug.
+        declared in the index's `SearchSchema` at index-creation time. Since Haystack's metadata
+        filters are arbitrary and not known at index-creation time, filtering here is applied
+        client-side after a consistent full-table scan, so the cost grows with the table size.
 
         :param filters: Haystack metadata filters. If `None`, all documents are returned.
         :returns: List of matching `Document` objects.
         """
         self._ensure_table()
-        client = self._get_client()
-        docs: list[Document] = []
-        paginator = client.get_paginator("scan")
-        for page in paginator.paginate(TableName=self.table_name, ConsistentRead=True):
-            for raw_item in page.get("Items", []):
-                item = _from_dynamodb_item(raw_item)
-                doc = self._item_to_doc(item)
-                if not filters or document_matches_filter(filters, doc):
-                    docs.append(doc)
-        return docs
+        return list(self._scan_documents(self._get_client(), filters))
+
+    @staticmethod
+    def _validate_documents(documents: list[Document]) -> None:
+        if not isinstance(documents, list) or any(not isinstance(doc, Document) for doc in documents):
+            msg = "param 'documents' must contain a list of objects of type Document"
+            raise ValueError(msg)
+
+    def _put_item_kwargs(self, doc: Document, policy: DuplicatePolicy) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"TableName": self.table_name, "Item": _to_dynamodb_item(self._doc_to_item(doc))}
+        if policy != DuplicatePolicy.OVERWRITE:
+            # A conditional write makes FAIL and SKIP atomic and saves a separate GetItem per document.
+            kwargs["ConditionExpression"] = "attribute_not_exists(#id)"
+            kwargs["ExpressionAttributeNames"] = _ID_PLACEHOLDER
+        return kwargs
+
+    @staticmethod
+    def _handle_put_error(error: ClientError, doc: Document, policy: DuplicatePolicy) -> None:
+        """
+        Re-raises `error` unless it is the conditional-check failure that signals a duplicate.
+
+        For a duplicate, raises `DuplicateDocumentError` under `FAIL` and returns under `SKIP`.
+        """
+        if error.response["Error"]["Code"] != "ConditionalCheckFailedException":
+            raise error
+        if policy == DuplicatePolicy.FAIL:
+            msg = f"Document with id '{doc.id}' already exists."
+            raise DuplicateDocumentError(msg) from error
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to the store.
 
+        Documents are written one by one. With `FAIL`, documents preceding the first duplicate
+        stay written.
+
         :param documents: Documents to write.
-        :param policy: How to handle duplicates — `OVERWRITE`, `SKIP`, or `FAIL` (default).
+        :param policy: How to handle duplicates: `OVERWRITE`, `SKIP`, or `FAIL`. `NONE` (the
+            default) behaves like `FAIL`.
         :raises ValueError: If `documents` contains non-`Document` objects.
         :raises DuplicateDocumentError: If a duplicate is found and policy is `FAIL`.
         :returns: Number of documents written.
         """
+        self._validate_documents(documents)
         if not documents:
             return 0
-        if not isinstance(documents[0], Document):
-            msg = "param 'documents' must contain a list of objects of type Document"
-            raise ValueError(msg)
-
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
         self._ensure_table()
         client = self._get_client()
-
-        existing_ids: set[str] = set()
-        if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
-            for doc in documents:
-                response = client.get_item(TableName=self.table_name, Key={"id": {"S": doc.id}}, ConsistentRead=True)
-                if "Item" in response:
-                    existing_ids.add(doc.id)
-
         written = 0
         for doc in documents:
-            if doc.id in existing_ids:
-                if policy == DuplicatePolicy.FAIL:
-                    msg = f"Document with id '{doc.id}' already exists."
-                    raise DuplicateDocumentError(msg)
-                continue  # SKIP
-            item = self._doc_to_item(doc)
-            client.put_item(TableName=self.table_name, Item=_to_dynamodb_item(item))
+            try:
+                client.put_item(**self._put_item_kwargs(doc, policy))
+            except ClientError as e:
+                self._handle_put_error(e, doc, policy)
+                continue
             written += 1
         return written
 
@@ -420,6 +444,68 @@ class DynamoDBDocumentStore:
         client = self._get_client()
         for doc_id in document_ids:
             client.delete_item(TableName=self.table_name, Key={"id": {"S": doc_id}})
+
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the store.
+
+        Items are deleted one by one after a consistent scan; the table and its vector index are kept.
+        """
+        self._ensure_table()
+        client = self._get_client()
+        paginator = client.get_paginator("scan")
+        pages = paginator.paginate(
+            TableName=self.table_name,
+            ConsistentRead=True,
+            ProjectionExpression="#id",
+            ExpressionAttributeNames=_ID_PLACEHOLDER,
+        )
+        for page in pages:
+            for raw_item in page.get("Items", []):
+                client.delete_item(TableName=self.table_name, Key={"id": raw_item["id"]})
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents matching the filters.
+
+        :param filters: Haystack metadata filters selecting the documents to delete. Must not be
+            empty; use `delete_all_documents` to clear the store.
+        :returns: The number of documents deleted.
+        :raises ValueError: If `filters` is empty.
+        """
+        if not filters:
+            msg = "filters must not be empty; use delete_all_documents() to delete every document."
+            raise ValueError(msg)
+        self._ensure_table()
+        client = self._get_client()
+        deleted = 0
+        for doc in self._scan_documents(client, filters):
+            client.delete_item(TableName=self.table_name, Key={"id": {"S": doc.id}})
+            deleted += 1
+        return deleted
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Merges `meta` into the metadata of all documents matching the filters.
+
+        Existing metadata keys not present in `meta` are kept; matching keys are overwritten.
+
+        :param filters: Haystack metadata filters selecting the documents to update. Must not be empty.
+        :param meta: The metadata fields to set on each matching document.
+        :returns: The number of documents updated.
+        :raises ValueError: If `filters` is empty.
+        """
+        if not filters:
+            msg = "filters must not be empty when updating documents by filter."
+            raise ValueError(msg)
+        self._ensure_table()
+        client = self._get_client()
+        updated = 0
+        for doc in self._scan_documents(client, filters):
+            updated_doc = dataclasses.replace(doc, meta={**doc.meta, **meta})
+            client.put_item(**self._put_item_kwargs(updated_doc, DuplicatePolicy.OVERWRITE))
+            updated += 1
+        return updated
 
     def _embedding_retrieval(
         self,
