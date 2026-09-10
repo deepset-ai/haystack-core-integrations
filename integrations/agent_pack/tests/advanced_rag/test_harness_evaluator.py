@@ -16,7 +16,7 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
 )
 from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_pipeline_tool
 from haystack_integrations.agent_pack.optimization import ModelPrice, ModelPriceCatalog
-from haystack_integrations.evaluation.agent_pack import RAGEvalCase
+from haystack_integrations.evaluation import RAGEvalCase
 
 EVIDENCE = "CRISPR is used for gene editing"
 

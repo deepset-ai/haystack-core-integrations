@@ -30,7 +30,7 @@ from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.lazy_imports import LazyImport
 
 with LazyImport(message='Run "pip install datasets" to build the MultiHopRAG evaluation set.') as datasets_import:
-    from datasets import load_dataset
+    from datasets import load_dataset  # type: ignore[import-untyped]
 
 with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
     from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -66,7 +66,7 @@ CORPUS_KEY = "multihop-rag"
 # means 926 of them are present in two adjacent chunks, so a query can no longer retrieve just a single expected
 # document, so the query is dropped rather than scored loosely. So we end up with 1,432 of the 2,255 queries as
 # valid eval points.
-SPLIT_BY = "word"
+SPLIT_BY: Literal["word"] = "word"
 SPLIT_LENGTH = 350
 SPLIT_OVERLAP = 90
 

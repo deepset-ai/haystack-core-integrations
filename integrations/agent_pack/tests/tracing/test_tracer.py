@@ -6,7 +6,7 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.evaluation.agent_pack.dataclasses import ModelTokenUsage
+from haystack_integrations.evaluation.dataclasses import ModelTokenUsage
 from haystack_integrations.tracing.agent_pack import (
     EVAL_CASE_SPAN,
     HarnessTracer,

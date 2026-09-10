@@ -1,4 +1,4 @@
-from haystack_integrations.evaluation.agent_pack import (
+from haystack_integrations.evaluation import (
     DEFAULT_TOOL_BUDGET,
     ToolRunStats,
     budgets_exceeded,

@@ -36,12 +36,14 @@ from typing import Any
 from haystack import Document
 from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
+from haystack.tools import flatten_tools_or_toolsets
 from multihop_rag import CORPUS_KEY, LabelledQuestion, build_eval_cases, prepare_corpus
 from util import build_bm25_retriever
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
-from haystack_integrations.evaluation.agent_pack import (
+from haystack_integrations.evaluation import (
     RAGEvalCase,
+    ToolNames,
     ToolRunStats,
     budgets_exceeded,
     resolve_tool_budgets,
@@ -113,7 +115,9 @@ def run_eval_case(agent: Agent, eval_case: RAGEvalCase, position: int, total: in
 
     # An eval case passes only on all four: it found every expected document, cited every one of them, made no
     # citation that does not resolve, and stayed inside its tool budget.
-    budgets = resolve_tool_budgets(budgets=eval_case.tool_budgets, tool_names=[tool.name for tool in agent.tools])
+    budgets = resolve_tool_budgets(
+        budgets=eval_case.tool_budgets, tool_names=[tool.name for tool in flatten_tools_or_toolsets(tools=agent.tools)]
+    )
     over_budget = budgets_exceeded(stats=tool_run_stats, budgets=budgets)
     passed = recall >= eval_case.min_recall and not uncited and citations_ok and not over_budget
 
@@ -193,7 +197,7 @@ def main() -> None:
     # Budgets for the tools this agent has. Lenient on purpose: too many retrievals is better than too few.
     # Generous on purpose: a MultiHopRAG question needs evidence from several articles, so several searches are
     # the expected shape of a good run rather than a sign of floundering.
-    budgets: dict[str | tuple[str, ...], int] = {METADATA_TOOLS: 8, RETRIEVAL_TOOLS: 12}
+    budgets: dict[ToolNames, int] = {METADATA_TOOLS: 8, RETRIEVAL_TOOLS: 12}
     eval_cases = [
         RAGEvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets)
         for question in labelled

@@ -20,7 +20,7 @@ from haystack_integrations.agent_pack.optimization import (
     load_pipeline,
 )
 from haystack_integrations.agent_pack.optimization.experiment import _fingerprint_eval_cases
-from haystack_integrations.evaluation.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
 
 
 def optimizer_agent_for(models):

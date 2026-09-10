@@ -2,7 +2,7 @@ import json
 
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.evaluation.agent_pack.agent_run_digest import (
+from haystack_integrations.evaluation.agent_run_digest import (
     AgentRunDigestPolicy,
     digest_agent_run,
 )

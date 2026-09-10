@@ -3,7 +3,7 @@ import json
 import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.evaluation.agent_pack import (
+from haystack_integrations.evaluation import (
     EvaluationMetrics,
     ModelTokenUsage,
     RAGEvalCase,

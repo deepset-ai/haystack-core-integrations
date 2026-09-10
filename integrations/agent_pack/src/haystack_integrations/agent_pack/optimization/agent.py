@@ -26,7 +26,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
 )
-from haystack_integrations.evaluation.agent_pack.dataclasses import EVAL_CASES_KEY, EvaluationMetrics
+from haystack_integrations.evaluation.dataclasses import EVAL_CASES_KEY, EvaluationMetrics
 
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset

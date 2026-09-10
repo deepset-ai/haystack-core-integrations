@@ -23,7 +23,7 @@ from haystack_integrations.agent_pack.optimization.agent import (
     _documentation_result,
     _summarize_eval_case_details,
 )
-from haystack_integrations.evaluation.agent_pack.dataclasses import EvaluationMetrics
+from haystack_integrations.evaluation.dataclasses import EvaluationMetrics
 
 from .test_workspace import agent_yaml
 

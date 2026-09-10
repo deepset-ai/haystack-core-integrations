@@ -29,12 +29,12 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_agent,
     load_pipeline,
 )
-from haystack_integrations.evaluation.agent_pack.dataclasses import (
+from haystack_integrations.evaluation.dataclasses import (
     EVAL_CASES_KEY,
     EvaluationMetrics,
     ModelTokenUsage,
 )
-from haystack_integrations.evaluation.agent_pack.harness_evaluator import HarnessEvaluator
+from haystack_integrations.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessTracer, usage_from_span
 
 logger = logging.getLogger(__name__)

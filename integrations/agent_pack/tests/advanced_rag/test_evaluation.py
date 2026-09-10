@@ -3,7 +3,7 @@ from haystack import Document
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.advanced_rag.evaluation import score_advanced_rag_result
-from haystack_integrations.evaluation.agent_pack import RAGEvalCase
+from haystack_integrations.evaluation import RAGEvalCase
 
 # What the labelled document was needed for; the quote itself is not scored, only which document holds it.
 EVIDENCE = "CRISPR is used for gene editing"

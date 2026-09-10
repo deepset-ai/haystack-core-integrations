@@ -22,16 +22,16 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     GetMetadataFieldValuesTool,
     ListMetadataFieldsTool,
 )
-from haystack_integrations.evaluation.agent_pack.agent_run_digest import AGENT_RUN_DIGEST_KEY, AgentRunDigestPolicy
-from haystack_integrations.evaluation.agent_pack.component_logs import ComponentLogCollector
-from haystack_integrations.evaluation.agent_pack.dataclasses import (
+from haystack_integrations.evaluation.agent_run_digest import AGENT_RUN_DIGEST_KEY, AgentRunDigestPolicy
+from haystack_integrations.evaluation.component_logs import ComponentLogCollector
+from haystack_integrations.evaluation.dataclasses import (
     EVAL_CASES_KEY,
     EvaluationMetrics,
     ModelTokenUsage,
     RAGEvalCase,
     ToolNames,
 )
-from haystack_integrations.evaluation.agent_pack.tool_budgets import resolve_tool_budgets
+from haystack_integrations.evaluation.tool_budgets import resolve_tool_budgets
 from haystack_integrations.tracing.agent_pack import (
     EVAL_CASE_SPAN,
     EvalCaseUsage,

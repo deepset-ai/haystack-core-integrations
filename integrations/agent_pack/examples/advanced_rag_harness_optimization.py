@@ -54,8 +54,8 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
 )
-from haystack_integrations.evaluation.agent_pack import RAGEvalCase
-from haystack_integrations.evaluation.agent_pack.agent_run_digest import AgentRunDigestPolicy
+from haystack_integrations.evaluation import RAGEvalCase
+from haystack_integrations.evaluation.agent_run_digest import AgentRunDigestPolicy
 
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-luna"
@@ -336,7 +336,7 @@ def enable_progress_reporting() -> None:
     is written. The library reports each eval case and each candidate through its logger, which is routed here so that
     progress and phases arrive on the same stream in order.
     """
-    sys.stdout.reconfigure(line_buffering=True)
+    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
     handler = logging.StreamHandler(stream=sys.stdout)
     handler.setFormatter(logging.Formatter("  %(message)s"))
     progress = logging.getLogger("haystack_integrations.agent_pack")

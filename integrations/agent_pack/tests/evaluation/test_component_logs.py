@@ -4,7 +4,7 @@ from haystack import Document, Pipeline
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 
-from haystack_integrations.evaluation.agent_pack.component_logs import (
+from haystack_integrations.evaluation.component_logs import (
     MAX_DISTINCT_MESSAGES,
     MAX_MESSAGE_CHARS,
     ComponentLogCollector,

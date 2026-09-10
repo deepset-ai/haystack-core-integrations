@@ -32,7 +32,6 @@ from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
-from retrieval.harness_evaluator import RetrievalHarnessEvaluator
 from util import build_bm25_retriever
 
 from haystack_integrations.agent_pack.optimization import (
@@ -45,7 +44,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
-from haystack_integrations.evaluation.agent_pack import RetrievalEvalCase
+from haystack_integrations.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
 EXPANDER_MODEL = "gpt-5.6-luna"
@@ -333,7 +332,7 @@ def parse_args() -> argparse.Namespace:
 
 def enable_progress_reporting() -> None:
     """Route library progress to stdout, line buffered, so a redirected run reports as it goes."""
-    sys.stdout.reconfigure(line_buffering=True)
+    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
     handler = logging.StreamHandler(stream=sys.stdout)
     handler.setFormatter(logging.Formatter("  %(message)s"))
     progress = logging.getLogger("haystack_integrations.agent_pack")

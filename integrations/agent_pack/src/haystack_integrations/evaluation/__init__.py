@@ -4,8 +4,16 @@
 
 from .agent_run_digest import AGENT_RUN_DIGEST_KEY, AgentRunDigestPolicy, digest_agent_run
 from .component_logs import CollectedLogs, ComponentLogCollector
-from .dataclasses import EvaluationMetrics, ModelTokenUsage, RAGEvalCase, RetrievalEvalCase, ToolRunStats
+from .dataclasses import (
+    EvaluationMetrics,
+    ModelTokenUsage,
+    RAGEvalCase,
+    RetrievalEvalCase,
+    ToolNames,
+    ToolRunStats,
+)
 from .harness_evaluator import HarnessEvaluator
+from .retrieval_harness_evaluator import RetrievalEvalCaseMetrics, RetrievalHarnessEvaluator
 from .tool_budgets import ANY_TOOL, DEFAULT_TOOL_BUDGET, budgets_exceeded, resolve_tool_budgets
 
 __all__ = [
@@ -20,6 +28,9 @@ __all__ = [
     "ModelTokenUsage",
     "RAGEvalCase",
     "RetrievalEvalCase",
+    "RetrievalEvalCaseMetrics",
+    "RetrievalHarnessEvaluator",
+    "ToolNames",
     "ToolRunStats",
     "budgets_exceeded",
     "digest_agent_run",
