@@ -4,12 +4,12 @@
 
 | Name                                                                          |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/common/vllm/utils.py                               |       18 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/vllm/document\_embedder.py    |      122 |        7 |       30 |        1 |     93% |221-226, 281 |
-| src/haystack\_integrations/components/embedders/vllm/text\_embedder.py        |       56 |        0 |       12 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/vllm/chat/chat\_generator.py |      161 |        4 |       48 |        5 |     96% |60, 308-\>310, 355-\>358, 400-\>403, 428-\>396, 430-432 |
-| src/haystack\_integrations/components/rankers/vllm/ranker.py                  |       92 |        1 |       28 |        1 |     98% |       245 |
-| **TOTAL**                                                                     |  **449** |   **12** |  **124** |    **7** | **96%** |           |
+| src/haystack\_integrations/common/vllm/utils.py                               |       22 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/vllm/document\_embedder.py    |      130 |        7 |       32 |        1 |     94% |241-246, 301 |
+| src/haystack\_integrations/components/embedders/vllm/text\_embedder.py        |       62 |        0 |       14 |        0 |    100% |           |
+| src/haystack\_integrations/components/generators/vllm/chat/chat\_generator.py |      173 |        4 |       52 |        5 |     96% |60, 334-\>336, 381-\>384, 426-\>429, 454-\>422, 456-458 |
+| src/haystack\_integrations/components/rankers/vllm/ranker.py                  |      104 |        1 |       30 |        1 |     99% |       265 |
+| **TOTAL**                                                                     |  **491** |   **12** |  **134** |    **7** | **97%** |           |
 
 
 ## Setup coverage badge
