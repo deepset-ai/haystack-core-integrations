@@ -121,7 +121,7 @@ def test_named_entity_extractor_serde():
         _ = TransformersNamedEntityExtractor.from_dict(serde_data)
 
 
-def test_to_dict_default(del_hf_env_vars_if_empty):
+def test_to_dict_default():
     component = TransformersNamedEntityExtractor(
         model="dslim/bert-base-NER",
         device=ComponentDevice.from_str("mps"),
@@ -164,7 +164,7 @@ def test_to_dict_with_parameters():
     }
 
 
-def test_named_entity_extractor_from_dict_no_default_parameters(del_hf_env_vars_if_empty):
+def test_named_entity_extractor_from_dict_no_default_parameters():
     data = {
         "type": COMPONENT_TYPE,
         "init_parameters": {"model": "dslim/bert-base-NER"},

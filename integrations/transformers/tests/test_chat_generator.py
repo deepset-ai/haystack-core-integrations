@@ -79,7 +79,7 @@ def custom_tool_parser(text: str) -> list[ToolCall] | None:
 
 
 class TestInitializationAndSerialization:
-    def test_initialize_with_valid_model_and_generation_parameters(self, model_info_mock):
+    def test_initialize_with_valid_model_and_generation_parameters(self):
         model = "HuggingFaceH4/zephyr-7b-alpha"
         generation_kwargs = {"n": 1}
         stop_words = ["stop"]
@@ -95,7 +95,7 @@ class TestInitializationAndSerialization:
         assert generator.generation_kwargs == {**generation_kwargs, "stop_sequences": ["stop"]}
         assert generator.streaming_callback == streaming_callback
 
-    def test_init_custom_token(self, model_info_mock):
+    def test_init_custom_token(self):
         generator = TransformersChatGenerator(
             model="mistralai/Mistral-7B-Instruct-v0.2",
             task="text-generation",
@@ -109,7 +109,7 @@ class TestInitializationAndSerialization:
             "device": "cpu",
         }
 
-    def test_init_custom_device(self, model_info_mock):
+    def test_init_custom_device(self):
         generator = TransformersChatGenerator(
             model="mistralai/Mistral-7B-Instruct-v0.2",
             task="text-generation",
@@ -123,7 +123,7 @@ class TestInitializationAndSerialization:
             "device": "cpu",
         }
 
-    def test_init_task_parameter(self, model_info_mock):
+    def test_init_task_parameter(self):
         generator = TransformersChatGenerator(
             task="text-generation", device=ComponentDevice.from_str("cpu"), token=None
         )
@@ -134,7 +134,7 @@ class TestInitializationAndSerialization:
             "device": "cpu",
         }
 
-    def test_init_task_in_huggingface_pipeline_kwargs(self, model_info_mock):
+    def test_init_task_in_huggingface_pipeline_kwargs(self):
         generator = TransformersChatGenerator(
             huggingface_pipeline_kwargs={"task": "text-generation"}, device=ComponentDevice.from_str("cpu"), token=None
         )
@@ -145,23 +145,21 @@ class TestInitializationAndSerialization:
             "device": "cpu",
         }
 
-    def test_transformers_chat_generator_with_toolset_initialization(
-        self, model_info_mock, mock_pipeline_with_tokenizer, tools
-    ):
+    def test_transformers_chat_generator_with_toolset_initialization(self, mock_pipeline_with_tokenizer, tools):
         """Test that the TransformersChatGenerator can be initialized with a Toolset."""
         toolset = Toolset(tools)
         generator = TransformersChatGenerator(model="irrelevant", tools=toolset)
         generator.pipeline = mock_pipeline_with_tokenizer
         assert generator.tools == toolset
 
-    def test_init_image_text_to_text(self, model_info_mock):
+    def test_init_image_text_to_text(self):
         llm = TransformersChatGenerator(model="Qwen/Qwen2-VL-2B-Instruct")
 
         assert llm
         assert isinstance(llm, TransformersChatGenerator)
         assert "model" in llm.huggingface_pipeline_kwargs
 
-    def test_init_image_text_to_text_task(self, model_info_mock):
+    def test_init_image_text_to_text_task(self):
         generator = TransformersChatGenerator(
             model="Qwen/Qwen2-VL-2B-Instruct",
             task="image-text-to-text",
@@ -175,7 +173,7 @@ class TestInitializationAndSerialization:
             "device": "cpu",
         }
 
-    def test_to_dict(self, model_info_mock, tools):
+    def test_to_dict(self, tools):
         generator = TransformersChatGenerator(
             model="NousResearch/Llama-2-7b-chat-hf",
             token=Secret.from_env_var("ENV_VAR", strict=False),
@@ -208,7 +206,7 @@ class TestInitializationAndSerialization:
         loaded = TransformersChatGenerator.from_dict(result)
         assert loaded.tools == tools
 
-    def test_from_dict(self, model_info_mock, tools):
+    def test_from_dict(self, tools):
         generator = TransformersChatGenerator(
             model="NousResearch/Llama-2-7b-chat-hf",
             generation_kwargs={"n": 5},
@@ -241,7 +239,7 @@ class TestInitializationAndSerialization:
             "required": ["city"],
         }
 
-    def test_to_dict_with_toolset(self, model_info_mock, mock_pipeline_with_tokenizer, tools):
+    def test_to_dict_with_toolset(self, mock_pipeline_with_tokenizer, tools):
         """Test that the TransformersChatGenerator can be serialized to a dictionary with a Toolset."""
         toolset = Toolset(tools)
         generator = TransformersChatGenerator(huggingface_pipeline_kwargs={"model": "irrelevant"}, tools=toolset)
@@ -253,7 +251,7 @@ class TestInitializationAndSerialization:
         assert isinstance(loaded.tools, Toolset)
         assert list(loaded.tools) == list(toolset)
 
-    def test_from_dict_with_toolset(self, model_info_mock, tools):
+    def test_from_dict_with_toolset(self, tools):
         """Test that the TransformersChatGenerator can be deserialized from a dictionary with a Toolset."""
         toolset = Toolset(tools)
         component = TransformersChatGenerator(model="irrelevant", tools=toolset)
@@ -351,7 +349,7 @@ class TestComponentLifecycle:
             generator.warm_up()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up(self, pipeline_mock, del_hf_env_vars_if_empty):
+    def test_warm_up(self, pipeline_mock):
         generator = TransformersChatGenerator(
             model="mistralai/Mistral-7B-Instruct-v0.2", task="text-generation", device=ComponentDevice.from_str("cpu")
         )
@@ -368,7 +366,7 @@ class TestComponentLifecycle:
         )
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
+    def test_warm_up_with_tools(self, pipeline_mock):
         """Test that warm_up() calls warm_up on tools and is idempotent."""
 
         # Create a mock tool that tracks if warm_up() was called
@@ -422,7 +420,7 @@ class TestComponentLifecycle:
         pipeline_mock.assert_called_once()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_no_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
+    def test_warm_up_with_no_tools(self, pipeline_mock):
         """Test that warm_up() works when no tools are provided."""
 
         generator = TransformersChatGenerator(
@@ -447,7 +445,7 @@ class TestComponentLifecycle:
         pipeline_mock.assert_called_once()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_multiple_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
+    def test_warm_up_with_multiple_tools(self, pipeline_mock):
         """Test that warm_up() works with multiple tools."""
 
         # Track warm_up calls
@@ -496,7 +494,7 @@ class TestComponentLifecycle:
 
 
 class TestRun:
-    def test_run(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+    def test_run(self, mock_pipeline_with_tokenizer, chat_messages):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
 
         # Use the mocked pipeline from the fixture and simulate warm_up
@@ -510,7 +508,7 @@ class TestRun:
         assert chat_message.is_from(ChatRole.ASSISTANT)
         assert chat_message.text == "Berlin is cool"
 
-    def test_run_with_string_input(self, model_info_mock, mock_pipeline_with_tokenizer):
+    def test_run_with_string_input(self, mock_pipeline_with_tokenizer):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
         generator.pipeline = mock_pipeline_with_tokenizer
 
@@ -523,7 +521,7 @@ class TestRun:
         assert isinstance(results["replies"][0], ChatMessage)
         assert results["replies"][0].is_from(ChatRole.ASSISTANT)
 
-    def test_run_with_custom_generation_parameters(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+    def test_run_with_custom_generation_parameters(self, mock_pipeline_with_tokenizer, chat_messages):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
 
         # Use the mocked pipeline from the fixture and simulate warm_up
@@ -547,7 +545,7 @@ class TestRun:
         assert chat_message.is_from(ChatRole.ASSISTANT)
         assert chat_message.text == "Berlin is cool"
 
-    def test_run_with_generation_kwargs(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+    def test_run_with_generation_kwargs(self, mock_pipeline_with_tokenizer, chat_messages):
         generator = TransformersChatGenerator(
             model="meta-llama/Llama-2-13b-chat-hf",
             generation_kwargs={"max_new_tokens": 100, "temperature": 0.5},
@@ -560,7 +558,7 @@ class TestRun:
         assert kwargs["max_new_tokens"] == 100
         assert kwargs["temperature"] == 0.9
 
-    def test_run_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+    def test_run_with_streaming_callback(self, mock_pipeline_with_tokenizer, chat_messages):
         # Define the streaming callback function
         def streaming_callback_fn(chunk: StreamingChunk): ...
 
@@ -581,9 +579,7 @@ class TestRun:
         generator.pipeline.assert_called_once()
         assert generator.pipeline.call_args[1]["streamer"].token_handler == streaming_callback_fn
 
-    def test_run_with_streaming_callback_in_run_method(
-        self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages
-    ):
+    def test_run_with_streaming_callback_in_run_method(self, mock_pipeline_with_tokenizer, chat_messages):
         # Define the streaming callback function
         def streaming_callback_fn(chunk: StreamingChunk): ...
 
@@ -603,7 +599,7 @@ class TestRun:
         assert generator.pipeline.call_args[1]["streamer"].token_handler == streaming_callback_fn
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.convert_message_to_hf_format")
-    def test_messages_conversion_is_called(self, mock_convert, model_info_mock):
+    def test_messages_conversion_is_called(self, mock_convert):
         generator = TransformersChatGenerator(model="fake-model")
 
         messages = [ChatMessage.from_user("Hello"), ChatMessage.from_assistant("Hi there")]
@@ -630,13 +626,13 @@ class TestValidationAndTools:
     def test_default_tool_parser_returns_none_for_invalid_input(self, generated_text):
         assert default_tool_parser(generated_text) is None
 
-    def test_init_fail_with_stop_words_and_stopping_criteria(self, model_info_mock):
+    def test_init_fail_with_stop_words_and_stopping_criteria(self):
         with pytest.raises(ValueError, match="Found both the `stop_words` init parameter"):
             TransformersChatGenerator(
                 model="irrelevant", stop_words=["stop"], generation_kwargs={"stopping_criteria": "fake-criteria"}
             )
 
-    def test_run_with_stop_words_removed_from_replies(self, model_info_mock, mock_pipeline_with_tokenizer):
+    def test_run_with_stop_words_removed_from_replies(self, mock_pipeline_with_tokenizer):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf", stop_words=["unambiguously"])
         mock_pipeline_with_tokenizer.return_value = [{"generated_text": "Berlin is cool unambiguously"}]
         # tokenizer without a pad token: _StopWordsCriteria falls back to the eos token
@@ -649,16 +645,16 @@ class TestValidationAndTools:
         assert results["replies"][0].text == "Berlin is cool"
         assert "stopping_criteria" in generator.pipeline.call_args[1]
 
-    def test_init_fail_with_duplicate_tool_names(self, model_info_mock, tools):
+    def test_init_fail_with_duplicate_tool_names(self, tools):
         duplicate_tools = [tools[0], tools[0]]
         with pytest.raises(ValueError, match="Duplicate tool names found"):
             TransformersChatGenerator(model="irrelevant", tools=duplicate_tools)
 
-    def test_init_fail_with_tools_and_streaming(self, model_info_mock, tools):
+    def test_init_fail_with_tools_and_streaming(self, tools):
         with pytest.raises(ValueError, match="Using tools and streaming at the same time is not supported"):
             TransformersChatGenerator(model="irrelevant", tools=tools, streaming_callback=streaming_callback_handler)
 
-    def test_run_with_tools(self, model_info_mock, tools):
+    def test_run_with_tools(self, tools):
         generator = TransformersChatGenerator(model="Qwen/Qwen3-0.6B", tools=tools)
 
         # Mock pipeline and tokenizer
@@ -682,7 +678,7 @@ class TestValidationAndTools:
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
 
-    def test_run_with_tools_in_run_method(self, model_info_mock, tools):
+    def test_run_with_tools_in_run_method(self, tools):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
 
         # Mock pipeline and tokenizer
@@ -706,7 +702,7 @@ class TestValidationAndTools:
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
 
-    def test_run_with_tools_and_tool_response(self, model_info_mock, tools):
+    def test_run_with_tools_and_tool_response(self):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
 
         # Mock pipeline and tokenizer
@@ -732,7 +728,7 @@ class TestValidationAndTools:
         assert "22°C" in message.text
         assert message.meta["finish_reason"] == "stop"
 
-    def test_run_with_custom_tool_parser(self, model_info_mock, mock_pipeline_with_tokenizer, tools):
+    def test_run_with_custom_tool_parser(self, mock_pipeline_with_tokenizer, tools):
         """Test that a custom tool parsing function works correctly."""
         generator = TransformersChatGenerator(
             model="meta-llama/Llama-2-13b-chat-hf", tools=tools, tool_parsing_function=custom_tool_parser
@@ -747,7 +743,7 @@ class TestValidationAndTools:
         assert results["replies"][0].tool_calls[0].tool_name == "weather"
         assert results["replies"][0].tool_calls[0].arguments == {"city": "Berlin"}
 
-    def test_default_tool_parser(self, model_info_mock, tools):
+    def test_default_tool_parser(self, tools):
         """Test that the default tool parser works correctly with valid tool call format."""
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf", tools=tools)
         generator.pipeline = Mock(
@@ -771,7 +767,7 @@ class TestRunAsync:
     """Async tests for TransformersChatGenerator"""
 
     @pytest.mark.asyncio
-    async def test_run_async(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+    async def test_run_async(self, mock_pipeline_with_tokenizer, chat_messages):
         """Test basic async functionality"""
         generator = TransformersChatGenerator(model="mocked-model")
         generator.pipeline = mock_pipeline_with_tokenizer
@@ -786,7 +782,7 @@ class TestRunAsync:
         generator.close()
 
     @pytest.mark.asyncio
-    async def test_run_async_with_generation_kwargs(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+    async def test_run_async_with_generation_kwargs(self, mock_pipeline_with_tokenizer, chat_messages):
         generator = TransformersChatGenerator(
             model="meta-llama/Llama-2-13b-chat-hf",
             generation_kwargs={"max_new_tokens": 100, "temperature": 0.5},
@@ -801,7 +797,7 @@ class TestRunAsync:
         generator.close()
 
     @pytest.mark.asyncio
-    async def test_run_async_with_string_input(self, model_info_mock, mock_pipeline_with_tokenizer):
+    async def test_run_async_with_string_input(self, mock_pipeline_with_tokenizer):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
         generator.pipeline = mock_pipeline_with_tokenizer
 
@@ -816,7 +812,7 @@ class TestRunAsync:
         generator.close()
 
     @pytest.mark.asyncio
-    async def test_run_async_with_tools(self, model_info_mock, mock_pipeline_with_tokenizer, tools):
+    async def test_run_async_with_tools(self, mock_pipeline_with_tokenizer, tools):
         """Test async functionality with tools"""
         generator = TransformersChatGenerator(model="mocked-model", tools=tools)
         # Create a new mock with return_value set in constructor to avoid thread-safety issues
@@ -837,7 +833,7 @@ class TestRunAsync:
         generator.close()
 
     @pytest.mark.asyncio
-    async def test_concurrent_async_requests(self, model_info_mock, mock_pipeline_with_tokenizer, chat_messages):
+    async def test_concurrent_async_requests(self, mock_pipeline_with_tokenizer, chat_messages):
         """Test handling of multiple concurrent async requests"""
         generator = TransformersChatGenerator(model="mocked-model")
         generator.pipeline = mock_pipeline_with_tokenizer
@@ -853,7 +849,7 @@ class TestRunAsync:
         generator.close()
 
     @pytest.mark.asyncio
-    async def test_async_error_handling(self, model_info_mock, mock_pipeline_with_tokenizer):
+    async def test_async_error_handling(self, mock_pipeline_with_tokenizer):
         """Test error handling in async context"""
         generator = TransformersChatGenerator(model="mocked-model")
 
@@ -867,7 +863,7 @@ class TestRunAsync:
             )
 
     @pytest.mark.asyncio
-    async def test_run_async_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer):
+    async def test_run_async_with_streaming_callback(self, mock_pipeline_with_tokenizer):
         streaming_chunks = []
 
         async def streaming_callback(chunk: StreamingChunk) -> None:

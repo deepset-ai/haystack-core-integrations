@@ -32,7 +32,7 @@ class TestSerialization:
             },
         }
 
-    def test_multi_label_survives_a_serialization_round_trip(self, del_hf_env_vars_if_empty):
+    def test_multi_label_survives_a_serialization_round_trip(self):
         """`multi_label` changes how the pipeline normalizes scores, so losing it changes routing decisions."""
         router = TransformersZeroShotTextRouter(labels=["query", "passage"], multi_label=True)
 
@@ -40,7 +40,7 @@ class TestSerialization:
 
         assert restored.multi_label is True
 
-    def test_from_dict(self, del_hf_env_vars_if_empty):
+    def test_from_dict(self):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {
@@ -66,7 +66,7 @@ class TestSerialization:
             "task": "zero-shot-classification",
         }
 
-    def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
+    def test_from_dict_no_default_parameters(self):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {"labels": ["query", "passage"]},

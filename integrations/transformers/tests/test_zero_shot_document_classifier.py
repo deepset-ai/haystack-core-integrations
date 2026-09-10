@@ -52,7 +52,7 @@ class TestInitializationAndSerialization:
             },
         }
 
-    def test_from_dict(self, del_hf_env_vars_if_empty):
+    def test_from_dict(self):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {
@@ -82,7 +82,7 @@ class TestInitializationAndSerialization:
             "task": "zero-shot-classification",
         }
 
-    def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
+    def test_from_dict_no_default_parameters(self):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {"model": "cross-encoder/nli-deberta-v3-xsmall", "labels": ["positive", "negative"]},
