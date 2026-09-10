@@ -32,7 +32,7 @@ from haystack_integrations.agent_pack.evaluation.dataclasses import (
 )
 from haystack_integrations.agent_pack.evaluation.tool_budgets import resolve_tool_budgets
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
-from haystack_integrations.tracing.agent_pack.tracer import (
+from haystack_integrations.tracing.agent_pack import (
     EVAL_CASE_SPAN,
     EvalCaseUsage,
     HarnessTracer,

@@ -11,7 +11,7 @@ from haystack import Document, Pipeline, logging, tracing
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.evaluation.dataclasses import EVAL_CASES_KEY, EvaluationMetrics, ModelTokenUsage
-from haystack_integrations.tracing.agent_pack.tracer import (
+from haystack_integrations.tracing.agent_pack import (
     EVAL_CASE_SPAN,
     EvalCaseUsage,
     HarnessTracer,

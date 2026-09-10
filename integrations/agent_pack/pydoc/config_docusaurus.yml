@@ -15,6 +15,7 @@ loaders:
       - haystack_integrations.agent_pack.optimization.workspace
       - haystack_integrations.agent_pack.optimization.agent
       - haystack_integrations.agent_pack.optimization.experiment
+      - haystack_integrations.tracing.agent_pack.span_records
       - haystack_integrations.tracing.agent_pack.tracer
     search_path: [../src]
 processors:

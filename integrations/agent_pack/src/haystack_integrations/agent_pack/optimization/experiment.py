@@ -36,7 +36,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_pipeline,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
-from haystack_integrations.tracing.agent_pack.tracer import EVAL_CASE_SPAN, HarnessTracer, usage_from_span
+from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessTracer, usage_from_span
 
 logger = logging.getLogger(__name__)
 
