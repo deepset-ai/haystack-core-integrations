@@ -54,21 +54,33 @@ def capped(text: str) -> str:
 
 def measure_output(value: dict[str, Any]) -> tuple[dict[str, int], dict[str, list[str]]]:
     """
-    Measure how much a component emitted, and sample whatever it emitted as short strings.
+    Measure how much a component emitted on each socket, and sample whatever it emitted as short strings.
 
     :param value: The component's output, by socket.
     :returns: How many items each socket carried, and a capped sample of the sockets carrying only strings.
     """
-    # Only sequences are measurable, and only a sequence of nothing but strings is worth sampling. Documents
-    # and messages are counted and dropped, so nothing long is retained by accident.
-    emitted = {socket: items for socket, items in value.items() if isinstance(items, (list, tuple))}
-    sizes = {socket: len(items) for socket, items in emitted.items()}
-    texts = {
-        socket: [capped(text=item) for item in items[:MAX_RECORDED_TEXTS]]
-        for socket, items in emitted.items()
-        if items and all(isinstance(item, str) for item in items)
-    }
+    sizes: dict[str, int] = {}
+    texts: dict[str, list[str]] = {}
+    for socket, emitted in value.items():
+        # A socket carrying one string or one object emits one item, not none: a router or a prompt builder
+        # belongs in the chain as much as a retriever does. A string is characters, not items, so it counts once.
+        items = list(emitted) if isinstance(emitted, (list, tuple)) else [emitted]
+        sizes[socket] = len(items)
+        # Documents and messages are counted and dropped, so nothing long is retained by accident.
+        if items and all(isinstance(item, str) for item in items):
+            texts[socket] = [capped(text=item) for item in items[:MAX_RECORDED_TEXTS]]
     return sizes, texts
+
+
+@dataclass
+class ReportedUsage:
+    """
+    :param model: The model identifier the call reported, or `None` when it reported none.
+    :param tokens: The token counts the call reported, under whatever keys it used.
+    """
+
+    model: Any = None
+    tokens: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -82,7 +94,7 @@ class SpanRecord:
     :param is_generator_span: Whether the span is a model call.
     :param output_sizes: How many items the component emitted, by output socket.
     :param output_texts: A capped sample of the sockets that emitted nothing but short strings.
-    :param replies: One `(model, token usage)` pair per reply a generator returned, exactly as it reported them.
+    :param reported_usage: What each of a generator's replies said it spent.
     :param reported_output: Whether an output tag arrived at all. A generator span without one made a model call
         that nobody can account for.
     """
@@ -93,7 +105,7 @@ class SpanRecord:
     is_generator_span: bool = False
     output_sizes: dict[str, int] = field(default_factory=dict)
     output_texts: dict[str, list[str]] = field(default_factory=dict)
-    replies: list[tuple[Any, dict[str, Any]]] = field(default_factory=list)
+    reported_usage: list[ReportedUsage] = field(default_factory=list)
     reported_output: bool = False
 
 
@@ -141,9 +153,9 @@ def eval_case_usage_from_records(records: list[SpanRecord]) -> EvalCaseUsage:
             usage.complete = False
             continue
         usage.calls += 1
-        if not record.replies:
+        if not record.reported_usage:
             usage.complete = False
-        for model, tokens in record.replies:
+        for model, tokens in ((entry.model, entry.tokens) for entry in record.reported_usage):
             if not isinstance(model, str) or not all(
                 any(isinstance(tokens.get(key), (int, float)) for key in keys)
                 for keys in (_INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS)

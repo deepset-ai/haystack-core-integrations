@@ -16,6 +16,7 @@ from haystack.tracing import Span, Tracer
 from .span_records import (
     EVAL_CASE_SPAN,
     EvalCaseUsage,
+    ReportedUsage,
     SpanRecord,
     eval_case_usage_from_records,
     get_component_name,
@@ -68,11 +69,15 @@ class _HarnessSpan(Span):
         """Measure one component output and discard it, so no content is retained and none has to be enabled."""
         if self.collected is None or key not in USAGE_OUTPUT_TAGS or not isinstance(value, dict):
             return
-        self.record.output_sizes, self.record.output_texts = measure_output(value=value)
-        if self.record.is_generator_span:
+        if not self.record.is_generator_span:
+            # A generator reports what it spent, not how much reached the next stage, so measuring its
+            # replies would only produce a size the measurement throws away.
+            self.record.output_sizes, self.record.output_texts = measure_output(value=value)
+        else:
             self.record.reported_output = True
-            self.record.replies = [
-                (reply.meta.get("model"), reply.meta.get("usage") or {}) for reply in value.get("replies") or []
+            self.record.reported_usage = [
+                ReportedUsage(model=reply.meta.get("model"), tokens=reply.meta.get("usage") or {})
+                for reply in value.get("replies") or []
             ]
 
 

@@ -10,6 +10,7 @@ from haystack_integrations.agent_pack.evaluation.dataclasses import ModelTokenUs
 from haystack_integrations.tracing.agent_pack import (
     EVAL_CASE_SPAN,
     HarnessTracer,
+    ReportedUsage,
     SpanRecord,
     eval_case_usage_from_records,
     usage_from_span,
@@ -153,7 +154,9 @@ def generator_record(model="m", tokens=None, **overrides):
     return SpanRecord(
         is_generator_span=True,
         reported_output=True,
-        replies=[(model, tokens if tokens is not None else {"input_tokens": 3, "output_tokens": 1})],
+        reported_usage=[
+            ReportedUsage(model=model, tokens=tokens if tokens is not None else {"input_tokens": 3, "output_tokens": 1})
+        ],
         **overrides,
     )
 
