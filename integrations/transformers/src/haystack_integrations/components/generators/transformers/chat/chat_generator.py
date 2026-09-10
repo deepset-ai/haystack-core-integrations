@@ -200,7 +200,6 @@ class TransformersChatGenerator:
         task = task or huggingface_pipeline_kwargs.get("task")
         if task is not None:
             huggingface_pipeline_kwargs["task"] = task
-        self._task = task
 
         # if not specified, set return_full_text to False for text-generation
         # only generated text is returned (excluding prompt)
@@ -256,7 +255,6 @@ class TransformersChatGenerator:
             if self.tools:
                 warm_up_tools(self.tools)
             self.pipeline = hf_pipeline
-            self._task = task
 
         if self._owns_executor and self.executor is None:
             self.executor = ThreadPoolExecutor(
@@ -364,8 +362,6 @@ class TransformersChatGenerator:
                 component_info=ComponentInfo.from_component(self),
             )
 
-        # We know it's not None because we check it in _prepare_inputs
-        assert self.pipeline is not None  # noqa: S101
         # Generate responses
         output = self.pipeline(prepared_inputs["prepared_prompt"], **prepared_inputs["generation_kwargs"])
 
@@ -541,6 +537,8 @@ class TransformersChatGenerator:
         :returns: A dictionary containing the prepared prompt, tokenizer, generation kwargs, and tools.
         :raises ValueError: If both tools and streaming_callback are provided.
         """
+        assert self.pipeline is not None  # noqa: S101
+
         tools = tools or self.tools
         if tools and streaming_callback is not None:
             msg = "Using tools and streaming at the same time is not supported. Please choose one."
@@ -548,12 +546,11 @@ class TransformersChatGenerator:
         flat_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flat_tools)
 
-        # mypy doesn't know this is set in warm_up
-        tokenizer = self.pipeline.tokenizer  # type: ignore[union-attr]
+        tokenizer = self.pipeline.tokenizer
 
         # Check and update generation parameters
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        if self._task == "text-generation":
+        if self.pipeline.task == "text-generation":
             generation_kwargs.setdefault("return_full_text", False)
 
         # If streaming_callback is provided, ensure that num_return_sequences is set to 1
@@ -576,7 +573,7 @@ class TransformersChatGenerator:
             _StopWordsCriteria(
                 tokenizer,  # type: ignore[arg-type]
                 stop_words,
-                self.pipeline.device,  # type: ignore[union-attr]
+                self.pipeline.device,
             )
             if stop_words
             else None

@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
-import copy
 import inspect
 from typing import Any
 
@@ -54,7 +53,7 @@ def _resolve_hf_device_map(device: ComponentDevice | None, model_kwargs: dict[st
     :param model_kwargs: Additional HF keyword arguments passed to `AutoModel.from_pretrained`.
         For details on what kwargs you can pass, see the model's documentation.
     """
-    model_kwargs = copy.copy(model_kwargs) or {}
+    model_kwargs = dict(model_kwargs or {})
     if model_kwargs.get("device_map"):
         if device is not None:
             logger.warning(
@@ -77,7 +76,6 @@ def _resolve_hf_pipeline_kwargs(
     huggingface_pipeline_kwargs: dict[str, Any],
     model: str,
     task: str,
-    supported_tasks: list[str],
     device: ComponentDevice | None,
 ) -> dict[str, Any]:
     """
@@ -87,11 +85,11 @@ def _resolve_hf_pipeline_kwargs(
         Hugging Face pipeline.
     :param model: The name or path of a Hugging Face model for on the HuggingFace Hub.
     :param task: The task for the Hugging Face pipeline.
-    :param supported_tasks: The list of supported tasks to check the task of the model against. If the task of the model
-        is not present within this list then a ValueError is thrown.
     :param device: The device on which the model is loaded. If `None`, the default device is automatically
         selected. If a device/device map is specified in `huggingface_pipeline_kwargs`, it overrides this parameter.
     """
+    huggingface_pipeline_kwargs = huggingface_pipeline_kwargs.copy()
+
     # check if the huggingface_pipeline_kwargs contain the essential parameters
     # otherwise, populate them with values from other init parameters
     huggingface_pipeline_kwargs.setdefault("model", model)
@@ -99,10 +97,6 @@ def _resolve_hf_pipeline_kwargs(
     resolved_device = ComponentDevice.resolve_device(device)
     resolved_device.update_hf_kwargs(huggingface_pipeline_kwargs, overwrite=False)
 
-    # task validation
-    if task not in supported_tasks:
-        msg = f"Task '{task}' is not supported. The supported tasks are: {', '.join(supported_tasks)}."
-        raise ValueError(msg)
     huggingface_pipeline_kwargs["task"] = task
     return huggingface_pipeline_kwargs
 

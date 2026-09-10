@@ -126,7 +126,6 @@ class TransformersZeroShotTextRouter:
             huggingface_pipeline_kwargs=huggingface_pipeline_kwargs or {},
             model=model,
             task="zero-shot-classification",
-            supported_tasks=["zero-shot-classification"],
             device=device,
         )
         self.huggingface_pipeline_kwargs = huggingface_pipeline_kwargs
@@ -144,9 +143,11 @@ class TransformersZeroShotTextRouter:
         """
         Initializes the component.
         """
-        if self.pipeline is None:
-            pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
-            self.pipeline = pipeline(**pipeline_kwargs)
+        if self.pipeline is not None:
+            return
+
+        pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
+        self.pipeline = pipeline(**pipeline_kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """

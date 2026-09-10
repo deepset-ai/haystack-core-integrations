@@ -97,7 +97,6 @@ class TransformersNamedEntityExtractor:
             huggingface_pipeline_kwargs=pipeline_kwargs or {},
             model=model,
             task="ner",
-            supported_tasks=["ner"],
             device=self.device,
         )
 
@@ -167,11 +166,10 @@ class TransformersNamedEntityExtractor:
         :returns:
             NER annotations.
         """
-        if not self.initialized:
+        if self.pipeline is None:
             msg = "NER model was not initialized - Did you call `warm_up()`?"
             raise ComponentError(msg)
 
-        assert self.pipeline is not None  # noqa: S101
         outputs = self.pipeline(texts, batch_size=batch_size)
         return [
             [

@@ -907,7 +907,6 @@ class TestRunAsync:
 
 class TestIntegration:
     @pytest.mark.integration
-    @pytest.mark.flaky(reruns=3, reruns_delay=10)
     def test_live_run(self, del_hf_env_vars_if_empty):
         """Test live run with default behavior (no thinking)."""
         messages = [ChatMessage.from_user("Please create a summary about the following topic: Climate change")]
@@ -925,7 +924,6 @@ class TestIntegration:
         assert "climate change" in result["replies"][0].text.lower()
 
     @pytest.mark.integration
-    @pytest.mark.flaky(reruns=3, reruns_delay=10)
     def test_live_run_thinking(self, del_hf_env_vars_if_empty):
         """Test live run with enable_thinking=True."""
         messages = [ChatMessage.from_user("What is 2+2?")]
@@ -951,7 +949,6 @@ class TestIntegration:
 
 class TestAsyncIntegration:
     @pytest.mark.integration
-    @pytest.mark.flaky(reruns=3, reruns_delay=10)
     @pytest.mark.asyncio
     async def test_live_run_async_with_streaming(self, del_hf_env_vars_if_empty):
         """Test async streaming with a live model."""

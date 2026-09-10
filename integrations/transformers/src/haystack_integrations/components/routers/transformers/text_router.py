@@ -92,7 +92,6 @@ class TransformersTextRouter:
             huggingface_pipeline_kwargs=huggingface_pipeline_kwargs or {},
             model=model,
             task="text-classification",
-            supported_tasks=["text-classification"],
             device=device,
         )
         self.huggingface_pipeline_kwargs = huggingface_pipeline_kwargs
@@ -119,21 +118,23 @@ class TransformersTextRouter:
         """
         Initializes the component.
         """
-        if self.pipeline is None:
-            pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
-            hf_pipeline = pipeline(**pipeline_kwargs)
+        if self.pipeline is not None:
+            return
 
-            # Verify labels from the model configuration file match provided labels
-            label2id = hf_pipeline.model.config.label2id
-            if label2id is not None:
-                labels = set(label2id.keys())
-                if set(self.labels) != labels:
-                    msg = (
-                        f"The provided labels do not match the labels in the model configuration file. "
-                        f"Provided labels: {self.labels}. Model labels: {labels}"
-                    )
-                    raise ValueError(msg)
-            self.pipeline = hf_pipeline
+        pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
+        hf_pipeline = pipeline(**pipeline_kwargs)
+
+        # Verify labels from the model configuration file match provided labels
+        label2id = hf_pipeline.model.config.label2id
+        if label2id is not None:
+            labels = set(label2id.keys())
+            if set(self.labels) != labels:
+                msg = (
+                    f"The provided labels do not match the labels in the model configuration file. "
+                    f"Provided labels: {self.labels}. Model labels: {labels}"
+                )
+                raise ValueError(msg)
+        self.pipeline = hf_pipeline
 
     def to_dict(self) -> dict[str, Any]:
         """
