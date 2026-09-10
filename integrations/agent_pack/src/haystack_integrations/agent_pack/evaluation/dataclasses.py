@@ -8,6 +8,7 @@ from typing import Any
 
 from haystack.dataclasses import ChatMessage
 
+EVAL_CASES_KEY = "eval_cases"
 ToolNames = str | tuple[str, ...] | list[str]
 
 

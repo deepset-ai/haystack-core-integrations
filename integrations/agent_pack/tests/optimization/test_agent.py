@@ -14,12 +14,16 @@ from haystack_integrations.agent_pack.optimization import (
     ModelPriceCatalog,
     OptimizationObjectives,
     create_harness_optimizer_agent,
-    create_haystack_documentation_mcp_toolset,
+    _create_haystack_documentation_mcp_toolset,
     dump_pipeline,
     load_pipeline,
     propose_candidate,
 )
-from haystack_integrations.agent_pack.optimization.agent import _documentation_result, describe_environment
+from haystack_integrations.agent_pack.optimization.agent import (
+    _documentation_result,
+    _summarize_eval_case_details,
+    describe_environment,
+)
 
 from .test_workspace import agent_yaml
 
@@ -37,7 +41,7 @@ def test_defaults_and_environment(monkeypatch):
 
 def test_documentation_toolset_is_optional_and_read_only():
     pytest.importorskip("haystack_integrations.tools.mcp")
-    docs = create_haystack_documentation_mcp_toolset()
+    docs = _create_haystack_documentation_mcp_toolset()
     assert docs.tool_names == ["search_haystack_docs"]
     assert docs.eager_connect is False
 
@@ -178,7 +182,7 @@ def test_only_the_most_recently_measured_configuration_is_described_eval_case_by
     first, later = seen
     assert [eval_case["passed"] for eval_case in first["details"]["eval_cases"]] == [True, False]
     assert "eval_cases" not in later["details"]
-    assert later["details"]["eval_case_summary"] == {"eval_cases": 2, "passed": 1, "failures": {"r": 1}}
+    assert later["details"]["eval_case_summary"] == {"total": 2, "passed": 1, "failures": {"r": 1}}
     # The measurement itself is untouched; only what the request carries changes.
     assert baseline.details["eval_cases"][0]["passed"] is True
 
@@ -254,3 +258,39 @@ def test_a_reference_without_tools_gets_no_tools_section(tmp_path):
 
     assert "## Tools available to the reference" not in seen[0]
     assert "## Objectives" in seen[0]
+
+
+def outcome(passed, failures):
+    return {"question": "q", "passed": passed, "failures": failures, "recall": 1.0, "run_digest": {"tool_steps": []}}
+
+
+def test_old_eval_case_listings_become_a_count_of_how_they_ended():
+    history = [
+        {"metrics": {"details": {"model": "m", "eval_cases": [outcome(True, []), outcome(False, ["recall_below_1"])]}}}
+    ]
+
+    summarized = _summarize_eval_case_details(payload=history)
+
+    assert summarized[0]["metrics"]["details"]["eval_case_summary"] == {
+        "total": 2,
+        "passed": 1,
+        "failures": {"recall_below_1": 1},
+    }
+    # Everything that is not the listing survives untouched.
+    assert summarized[0]["metrics"]["details"]["model"] == "m"
+    assert "eval_cases" not in summarized[0]["metrics"]["details"]
+
+
+def test_summarizing_is_safe_on_a_failed_candidate_with_no_metrics():
+    history = [{"metrics": None, "failure": "boom"}]
+
+    assert _summarize_eval_case_details(payload=history) == history
+
+
+def test_a_failure_hit_by_several_eval_cases_is_counted_once_per_eval_case():
+    """The summary is what tells an optimizer which failure is worth attacking, so the counts have to add up."""
+    history = [{"metrics": {"details": {"eval_cases": [outcome(False, ["a", "b"]), outcome(False, ["a"])]}}}]
+
+    summarized = _summarize_eval_case_details(payload=history)
+
+    assert summarized[0]["metrics"]["details"]["eval_case_summary"]["failures"] == {"a": 2, "b": 1}

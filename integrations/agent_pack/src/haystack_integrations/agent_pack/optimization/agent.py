@@ -4,6 +4,7 @@
 
 import json
 import re
+from collections import Counter
 from importlib.metadata import distributions
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +17,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import flatten_tools_or_toolsets, warm_up_tools
 
-from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.evaluation.dataclasses import EVAL_CASES_KEY, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import prompts
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
@@ -25,10 +26,6 @@ from haystack_integrations.agent_pack.optimization.models import (
 from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
-)
-from haystack_integrations.agent_pack.run_digest import (
-    EVAL_CASE_SUMMARY_KEY,
-    summarize_eval_case_details,
 )
 
 if TYPE_CHECKING:
@@ -40,21 +37,13 @@ with LazyImport(message="Install 'mcp-haystack' to use the Haystack documentatio
 logger = logging.getLogger(__name__)
 
 
-DOCS_SEARCH_TOOL = "search_haystack_docs"
-
-# Documentation the search actually found, per result. Enough for a class signature or a serialization example,
-# which is what the optimizer asks this tool for; a whole page is not needed to learn a component's shape.
 MAX_DOCUMENTATION_CHARS = 4000
+EVAL_CASE_SUMMARY_KEY = "eval_case_summary"
 
 
 def _documentation_result(payload: Any) -> str:
     """
     Keep the documentation a search found and drop the search engine's own bookkeeping.
-
-    The server answers with its full pipeline debug output, and measured against the live server that is 94% of
-    the payload: 183,000 characters of `_debug` around 10,700 characters of documentation. A tool result stays in
-    the conversation and is resent on every later step of the turn, so an unfiltered answer costs more context
-    than the entire experiment history it is meant to inform.
 
     :param payload: Whatever the MCP server returned.
     :returns: The retrieved documentation, or the raw answer when it does not have the expected shape.
@@ -76,19 +65,13 @@ def _documentation_result(payload: Any) -> str:
     return "\n\n".join(sections) or "No documentation matched."
 
 
-def create_haystack_documentation_mcp_toolset(eager_connect: bool = False) -> "MCPToolset":
-    """
-    Create the optional read-only public Haystack documentation toolset.
-
-    :param eager_connect: Connect to the documentation server immediately instead of on first use.
-    :returns: A toolset exposing Haystack documentation search, reporting only the documentation it found.
-    """
+def _create_haystack_documentation_mcp_toolset() -> "MCPToolset":
+    """Create the optional read-only public Haystack documentation toolset."""
     mcp_import.check()
     return MCPToolset(
         server_info=StreamableHttpServerInfo(url="https://docs.haystack.deepset.ai/api/mcp"),
-        tool_names=[DOCS_SEARCH_TOOL],
-        eager_connect=eager_connect,
-        outputs_to_string={DOCS_SEARCH_TOOL: {"handler": _documentation_result}},
+        tool_names=["search_haystack_docs"],
+        outputs_to_string={"search_haystack_docs": {"handler": _documentation_result}},
     )
 
 
@@ -132,7 +115,7 @@ def create_harness_optimizer_agent(
     )
     return Agent(
         chat_generator=generator,
-        tools=[create_haystack_documentation_mcp_toolset()] if documentation_tools else None,
+        tools=[_create_haystack_documentation_mcp_toolset()] if documentation_tools else None,
         system_prompt=instructions,
         exit_conditions=["text"],
         max_agent_steps=max_agent_steps,
@@ -142,11 +125,6 @@ def create_harness_optimizer_agent(
 def describe_environment() -> str:
     """
     Describe what an experiment can actually import, as a line for the optimizer's instructions.
-
-    A configuration is only worth measuring if it can be rebuilt, and whether it can depends on what is installed
-    here rather than on what exists. Naming the Haystack version and the integrations present turns a guess about
-    availability into a fact the optimizer already has, and a candidate that cannot be constructed costs a whole
-    measurement to discover.
 
     :returns: A sentence naming the Haystack version and every installed Haystack integration.
     """
@@ -167,11 +145,6 @@ def describe_environment() -> str:
 def _tool_specifications(reference: Agent | Pipeline) -> list[dict[str, Any]]:
     """
     Describe the tools the reference Agent can call.
-
-    A serialized Agent does not reliably carry this: a `ComponentTool` serializes its parameter schema as null
-    whenever the schema is derived from the wrapped component, and a `Toolset` that serializes a descriptor of
-    itself carries no tool names at all. Without this, the only way to learn what a tool is called and what it
-    accepts is to find one already invoked in a measured run.
 
     :param reference: The configuration whose tools to describe. A Pipeline that is not an Agent has none.
     :returns: One `{name, description, parameters}` entry per tool, or an empty list when they cannot be read.
@@ -209,9 +182,6 @@ def _headline(metrics: dict[str, Any] | None) -> str:
     """
     Reduce one outcome's measurement to what a reader compares across candidates.
 
-    An earlier candidate is read to decide what to try next, and that decision turns on how it scored and what it
-    failed, not on its token counts. The most recent outcome is sent separately in full.
-
     :param metrics: The candidate's measurement, or None when it could not be measured.
     :returns: A single line of headline numbers.
     """
@@ -241,7 +211,7 @@ def _headline(metrics: dict[str, Any] | None) -> str:
             )
         )
     if (summary := details.get(EVAL_CASE_SUMMARY_KEY)) is not None:
-        parts.append(f"{summary.get('passed')}/{summary.get('eval_cases')} eval cases clean")
+        parts.append(f"{summary.get('passed')}/{summary.get('total')} eval cases clean")
         if failures := summary.get("failures"):
             parts.append("failures " + ", ".join(f"{name} x{count}" for name, count in failures.items()))
     if details.get("usage_complete") is False:
@@ -249,6 +219,38 @@ def _headline(metrics: dict[str, Any] | None) -> str:
     for warning in details.get("warnings") or []:
         parts.append(f"warning x{warning['count']}: {warning['message']}")
     return " | ".join(parts)
+
+
+def _summarize_eval_cases(eval_cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Reduce a per-eval-case listing to how many passed and which kinds of failure occurred."""
+    failures: Counter[str] = Counter()
+    for eval_case in eval_cases:
+        failures.update(str(label) for label in eval_case.get("failures") or ())
+    return {
+        "total": len(eval_cases),
+        "passed": sum(1 for eval_case in eval_cases if eval_case.get("passed")),
+        "failures": dict(failures.most_common()),
+    }
+
+
+def _summarize_eval_case_details(payload: Any) -> Any:
+    """
+    Replace every per-eval-case listing with a count of how the eval cases ended.
+
+    :param payload: Any JSON-compatible structure.
+    :returns: The same structure with every eval case listing replaced by a `EVAL_CASE_SUMMARY_KEY` summary.
+    """
+    if isinstance(payload, list):
+        return [_summarize_eval_case_details(payload=item) for item in payload]
+    if isinstance(payload, dict):
+        summarized: dict[str, Any] = {}
+        for key, value in payload.items():
+            if key == EVAL_CASES_KEY:
+                summarized[EVAL_CASE_SUMMARY_KEY] = _summarize_eval_cases(eval_cases=value)
+            else:
+                summarized[key] = _summarize_eval_case_details(payload=value)
+        return summarized
+    return payload
 
 
 def _render_outcomes(history: list[dict[str, Any]]) -> str:
@@ -321,7 +323,7 @@ def propose_candidate(
             _section(
                 title="Reference measurement",
                 body=json.dumps(
-                    baseline.to_dict() if not history else summarize_eval_case_details(payload=baseline.to_dict())
+                    baseline.to_dict() if not history else _summarize_eval_case_details(payload=baseline.to_dict())
                 ),
             ),
         ]
@@ -329,7 +331,7 @@ def propose_candidate(
 
     # Second message: append-only, so every turn re-reads all but the newest entry from cache.
     outcomes = _section(
-        title="Outcomes so far", body=_render_outcomes(history=summarize_eval_case_details(payload=history))
+        title="Outcomes so far", body=_render_outcomes(history=_summarize_eval_case_details(payload=history))
     )
 
     # Third message: rewritten every turn, so none of it is cacheable and all of it goes last.

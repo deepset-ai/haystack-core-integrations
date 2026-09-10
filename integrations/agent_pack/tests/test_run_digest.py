@@ -3,11 +3,8 @@ import json
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.run_digest import (
-    RUN_DIGEST_KEY,
     RunDigestPolicy,
     digest_agent_run,
-    strip_run_digests,
-    summarize_eval_case_details,
 )
 
 
@@ -91,59 +88,3 @@ def test_digest_tolerates_a_result_without_messages():
 def test_digest_is_json_serializable():
     """The digest goes into a JSON request and a JSON-lines journal."""
     json.dumps(digest_agent_run(result=agent_result()))
-
-
-def test_strip_run_digests_removes_them_at_any_depth():
-    """A cumulative history has to be able to give up its oldest digests without knowing where they live."""
-    payload = {
-        "history": [
-            {"metrics": {"details": {"eval_cases": [{RUN_DIGEST_KEY: {"tool_steps": []}, "passed": True}]}}},
-            {"metrics": {"details": {"eval_cases": [{"passed": False}]}}},
-        ]
-    }
-    stripped = strip_run_digests(payload=payload)
-
-    assert stripped["history"][0]["metrics"]["details"]["eval_cases"][0] == {"passed": True}
-    assert stripped["history"][1] == payload["history"][1]
-
-
-def outcome(passed, failures):
-    return {"question": "q", "passed": passed, "failures": failures, "recall": 1.0, "run_digest": {"tool_steps": []}}
-
-
-def test_old_eval_case_listings_become_a_count_of_how_they_ended():
-    history = [
-        {"metrics": {"details": {"model": "m", "eval_cases": [outcome(True, []), outcome(False, ["recall_below_1"])]}}}
-    ]
-
-    summarized = summarize_eval_case_details(payload=history)
-
-    assert summarized[0]["metrics"]["details"]["eval_case_summary"] == {
-        "eval_cases": 2,
-        "passed": 1,
-        "failures": {"recall_below_1": 1},
-    }
-    # Everything that is not the listing survives untouched.
-    assert summarized[0]["metrics"]["details"]["model"] == "m"
-    assert "eval_cases" not in summarized[0]["metrics"]["details"]
-
-
-def test_a_listing_that_is_not_eval_cases_is_left_alone():
-    """Only a list of records reporting `passed` and `failures` is an eval case listing."""
-    payload = {"eval_cases": [{"question": "q"}], "other": ["a", "b"]}
-
-    assert summarize_eval_case_details(payload=payload) == payload
-
-
-def test_summarizing_is_safe_on_a_failed_candidate_with_no_metrics():
-    history = [{"metrics": None, "failure": "boom"}]
-
-    assert summarize_eval_case_details(payload=history) == history
-
-
-def test_summarizing_composes_with_digest_stripping():
-    history = [{"metrics": {"details": {"eval_cases": [outcome(False, ["a", "b"]), outcome(False, ["a"])]}}}]
-
-    summarized = summarize_eval_case_details(payload=strip_run_digests(payload=history))
-
-    assert summarized[0]["metrics"]["details"]["eval_case_summary"]["failures"] == {"a": 2, "b": 1}

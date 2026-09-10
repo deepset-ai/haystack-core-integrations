@@ -25,6 +25,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
 )
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.evaluation.dataclasses import (
+    EVAL_CASES_KEY,
     EvaluationMetrics,
     ModelTokenUsage,
     RAGEvalCase,
@@ -32,7 +33,7 @@ from haystack_integrations.agent_pack.evaluation.dataclasses import (
 )
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.evaluation.tool_budgets import resolve_tool_budgets
-from haystack_integrations.agent_pack.run_digest import EVAL_CASES_KEY, RUN_DIGEST_KEY, RunDigestPolicy
+from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
 
 logger = logging.getLogger(__name__)

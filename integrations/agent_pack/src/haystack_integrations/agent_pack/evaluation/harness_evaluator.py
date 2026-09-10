@@ -5,9 +5,7 @@
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-from haystack_integrations.agent_pack.run_digest import EVAL_CASES_KEY
-
-from .dataclasses import EvaluationMetrics, RetrievalEvalCase
+from .dataclasses import EVAL_CASES_KEY, EvaluationMetrics, RetrievalEvalCase
 
 
 class HarnessEvaluator(Protocol):

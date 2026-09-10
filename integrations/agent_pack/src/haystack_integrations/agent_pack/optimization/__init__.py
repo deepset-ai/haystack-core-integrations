@@ -4,7 +4,6 @@
 
 from haystack_integrations.agent_pack.optimization.agent import (
     create_harness_optimizer_agent,
-    create_haystack_documentation_mcp_toolset,
     propose_candidate,
 )
 from haystack_integrations.agent_pack.optimization.experiment import (
@@ -40,7 +39,6 @@ __all__ = [
     "ModelPriceCatalog",
     "OptimizationObjectives",
     "create_harness_optimizer_agent",
-    "create_haystack_documentation_mcp_toolset",
     "dump_agent",
     "dump_pipeline",
     "load_agent",
