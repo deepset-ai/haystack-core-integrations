@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/ollama-v7.0.0] - 2026-09-10
+
+### 🚀 Features
+
+- [**breaking**] Ollama - add lifecycle handling (#3931)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- [**breaking**] Remove deprecated `OllamaGenerator` (use `OllamaChatGenerator` instead) (#3886)
+
+
 ## [integrations/ollama-v6.8.0] - 2026-07-09
 
 ### 🐛 Bug Fixes
