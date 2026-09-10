@@ -71,6 +71,13 @@ def _parse_logical_condition(condition: dict[str, Any]) -> tuple[Composed, list[
         msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR'"
         raise FilterError(msg)
 
+    # an empty list of conditions has no unambiguous meaning: an empty 'AND' matches every document
+    # while an empty 'OR' matches none, so the same filter would mean opposite things depending on the
+    # operator. Callers building conditions dynamically should omit the group instead.
+    if not condition["conditions"]:
+        msg = f"'conditions' must not be empty in {condition}"
+        raise FilterError(msg)
+
     # logical conditions can be nested, so we need to parse them recursively
     conditions = []
     for c in condition["conditions"]:
