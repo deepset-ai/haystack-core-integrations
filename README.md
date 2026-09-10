@@ -7,8 +7,7 @@
 | src/haystack\_integrations/components/embedders/watsonx/document\_embedder.py    |       54 |        1 |        8 |        0 |     98% |       129 |
 | src/haystack\_integrations/components/embedders/watsonx/text\_embedder.py        |       40 |        3 |        4 |        0 |     93% |111, 166-167 |
 | src/haystack\_integrations/components/generators/watsonx/chat/chat\_generator.py |      167 |       15 |       54 |       10 |     87% |334, 366-367, 390-\>387, 403, 410, 482, 526, 532-\>524, 561-566, 571, 580 |
-| src/haystack\_integrations/components/generators/watsonx/generator.py            |       49 |        0 |        4 |        0 |    100% |           |
-| **TOTAL**                                                                        |  **310** |   **19** |   **70** |   **10** | **91%** |           |
+| **TOTAL**                                                                        |  **261** |   **19** |   **66** |   **10** | **90%** |           |
 
 
 ## Setup coverage badge
