@@ -15,6 +15,7 @@ import dataclasses
 import os
 import time
 import uuid
+import warnings
 from collections.abc import Iterator
 
 import boto3
@@ -167,6 +168,9 @@ def _sweep_test_tables() -> Iterator[None]:
     Safety net: after the whole session, delete any table of this run whose per-class delete was
     rejected while its index was still settling. Retries for a few minutes to ride out tables
     that are still transitioning. Only tables carrying this run's prefix are touched.
+
+    Never fails the session: a sweep that cannot run (for example because the credentials lack
+    `ListTables`) is reported as a warning so the test results stay readable.
     """
     yield
     region = live_aws_region()
@@ -174,18 +178,20 @@ def _sweep_test_tables() -> Iterator[None]:
         return
     client = boto3.client("dynamodb", region_name=region)
     deadline = time.monotonic() + 300.0
-    while time.monotonic() < deadline:
-        leftovers = [t for t in client.list_tables().get("TableNames", []) if t.startswith(TABLE_PREFIX)]
-        still_pending = False
-        for table_name in leftovers:
-            try:
-                client.delete_table(TableName=table_name)
-            except ClientError as e:
-                code = e.response["Error"]["Code"]
-                if code == "ResourceInUseException":
-                    still_pending = True
-                elif code != "ResourceNotFoundException":
-                    raise
-        if not still_pending:
-            return
-        time.sleep(10)
+    try:
+        while time.monotonic() < deadline:
+            leftovers = [t for t in client.list_tables().get("TableNames", []) if t.startswith(TABLE_PREFIX)]
+            still_pending = False
+            for table_name in leftovers:
+                try:
+                    client.delete_table(TableName=table_name)
+                except ClientError as e:
+                    if e.response["Error"]["Code"] == "ResourceInUseException":
+                        still_pending = True
+                    elif e.response["Error"]["Code"] != "ResourceNotFoundException":
+                        raise
+            if not still_pending:
+                return
+            time.sleep(10)
+    except ClientError as e:
+        warnings.warn(f"Could not sweep leftover {TABLE_PREFIX}* tables: {e}", stacklevel=1)
