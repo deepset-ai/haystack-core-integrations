@@ -178,6 +178,17 @@ def _section(title: str, body: str) -> str:
     return f"## {title}\n\n{body}\n\n" if body else ""
 
 
+def _stage_size(sizes: dict[str, int]) -> str:
+    """
+    Render one stage's output size, naming the bounds only when it varied across eval cases.
+
+    :param sizes: The stage's smallest, typical and largest output size.
+    :returns: The typical size, followed by the bounds when they differ from it.
+    """
+    low, high = sizes["min"], sizes["max"]
+    return f"{sizes['median']}" if low == high else f"{sizes['median']} ({low}-{high})"
+
+
 def _headline(metrics: dict[str, Any] | None) -> str:
     """
     Reduce one outcome's measurement to what a reader compares across candidates.
@@ -201,13 +212,13 @@ def _headline(metrics: dict[str, Any] | None) -> str:
         if key in details:
             parts.append(f"{key.removeprefix('mean_')} {details[key]:.2f}")
     # In execution order, so the arrow shows where the path widened and where it narrowed again.
-    if stages := details.get("mean_stage_outputs"):
+    if stages := details.get("stage_output_sizes"):
         parts.append(
             "stages "
             + " -> ".join(
-                f"{component}.{socket} {size:.1f}"
+                f"{component}.{socket} {_stage_size(sizes=sizes)}"
                 for component, sockets in stages.items()
-                for socket, size in sockets.items()
+                for socket, sizes in sockets.items()
             )
         )
     if (summary := details.get(EVAL_CASE_SUMMARY_KEY)) is not None:

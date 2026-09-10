@@ -4,6 +4,8 @@
 
 import asyncio
 import time
+from dataclasses import asdict, dataclass
+from statistics import median_low
 from typing import Any
 
 from haystack import Document, Pipeline, logging, tracing
@@ -17,12 +19,56 @@ from haystack_integrations.tracing.agent_pack import (
     HarnessTracer,
     usage_from_span,
 )
-from retrieval.dataclasses import RetrievalEvalCaseMetrics
 
 logger = logging.getLogger(__name__)
 
+
 QUERY_SOCKET = "query"
 DOCUMENTS_SOCKET = "documents"
+
+
+@dataclass(kw_only=True)
+class RetrievalEvalCaseMetrics:
+    """
+    Score for one retrieval eval case.
+
+    :param question: The question that was posed.
+    :param passed: Whether the run met every expectation, which is true exactly when `failures` is empty.
+    :param score: What quality aggregates over eval cases, which is recall@k rather than whether the eval case
+        passed. Recall over a handful of expected documents moves in steps of a half or a third, so a threshold
+        on it reports a configuration that went from finding none of the evidence to two thirds of it as no
+        change at all.
+    :param stage_outputs: How many items each component emitted, by component name and output socket.
+    :param stage_texts: A capped sample of whatever each component emitted as text, by component name and
+        output socket. For a pipeline that rewrites the question, this is what it actually asked the store,
+        which is usually what explains a recall failure rather than how many queries there were.
+    :param failures: Every expectation the run missed, named.
+    :param recall_at_k: The share of the expected documents found within the first `k` returned.
+    :param precision_at_k: The share of the first `k` returned that were expected.
+    :param retrieved: Everything the run returned, which is separate from how deep it was scored: returning more
+        than `k` is not a fault, it simply earns nothing for the documents past the cutoff.
+    :param missed_document_ids: The expected documents the run did not return, sorted.
+    :param latency_ms: Measured wall-clock duration of the run.
+    """
+
+    question: str
+    passed: bool
+    score: float
+    stage_outputs: dict[str, dict[str, int]]
+    stage_texts: dict[str, dict[str, list[str]]]
+    failures: tuple[str, ...]
+    recall_at_k: float
+    precision_at_k: float
+    retrieved: int
+    missed_document_ids: tuple[str, ...]
+    latency_ms: float
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-compatible representation."""
+        data = asdict(self)
+        for key in ("failures", "missed_document_ids"):
+            data[key] = list(getattr(self, key))
+        return data
 
 
 def _query_entry_points(pipeline: Pipeline) -> set[str]:
@@ -53,21 +99,26 @@ def _documents_exit_point(pipeline: Pipeline) -> str:
     return producers[0]
 
 
-def _mean_stage_outputs(scored: list[RetrievalEvalCaseMetrics]) -> dict[str, dict[str, float]]:
+def _stage_output_sizes(eval_metrics: list[RetrievalEvalCaseMetrics]) -> dict[str, dict[str, dict[str, int]]]:
     """
-    Average how many items each component emitted, over the eval cases that reached it.
+    Summarize how many items each component emitted.
 
-    :param scored: The measured eval cases.
-    :returns: Mean output size by component name and output socket.
+    We report the range of output sizes from a component's output socket and the "low median" of the sizes it produced.
+    We chose to use the low median since it's a better summarizing measure on non-normal distributions.
+
+    :param eval_metrics: List of `RetrievalEvalCaseMetrics` objects to summarize.
+    :returns: The smallest, typical and largest output size, by component name and output socket.
     """
-    totals: dict[str, dict[str, list[int]]] = {}
-    for metric in scored:
+    sizes: dict[str, dict[str, list[int]]] = {}
+    for metric in eval_metrics:
         for component, sockets in metric.stage_outputs.items():
             for socket, size in sockets.items():
-                totals.setdefault(component, {}).setdefault(socket, []).append(size)
+                sizes.setdefault(component, {}).setdefault(socket, []).append(size)
     return {
-        component: {socket: sum(sizes) / len(sizes) for socket, sizes in sockets.items()}
-        for component, sockets in totals.items()
+        component: {
+            socket: {"min": min(seen), "median": median_low(seen), "max": max(seen)} for socket, seen in sockets.items()
+        }
+        for component, sockets in sizes.items()
     }
 
 
@@ -179,26 +230,26 @@ class RetrievalHarnessEvaluator:
                     EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
                 ) as span:
                     result = await target.run_async(data=data)
-                usage = usage_from_span(span=span)
+                eval_case_usage = usage_from_span(span=span)
             latency_ms = (time.perf_counter() - started) * 1000
-            scored = _score_retrieval_result(
+            eval_case_metrics = _score_retrieval_result(
                 result=result,
                 eval_case=eval_case,
                 exit_point=exit_point,
                 k=self.k,
                 latency_ms=latency_ms,
-                stage_outputs=dict(usage.outputs),
-                stage_texts=dict(usage.texts),
+                stage_outputs=dict(eval_case_usage.outputs),
+                stage_texts=dict(eval_case_usage.texts),
             )
             logger.info(
                 "eval case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
                 position=position,
                 total=len(eval_cases),
-                verdict="passed" if scored.passed else f"FAILED ({', '.join(scored.failures)})",
+                verdict="passed" if eval_case_metrics.passed else f"FAILED ({', '.join(eval_case_metrics.failures)})",
                 latency=latency_ms,
                 question=eval_case.question[:80],
             )
-            return scored, usage
+            return eval_case_metrics, eval_case_usage
 
         return list(
             await asyncio.gather(*(measure(index, eval_case) for index, eval_case in enumerate(eval_cases, start=1)))
@@ -228,12 +279,18 @@ class RetrievalHarnessEvaluator:
             msg = "The retrieval evaluator was given no eval cases to score."
             raise ValueError(msg)
 
-        tracer = HarnessTracer()
+        # Pre-warm up the pipeline to avoid cold-start latency
         await target.warm_up_async()
+
+        # Run the evaluation with a HarnessTracer and log collector to capture diagnostics and run-time information
+        tracer = HarnessTracer()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
             measured = await self._measure(target=target, eval_cases=eval_cases)
 
-        scored = [metric for metric, _ in measured]
+        # Extract the evaluation metrics
+        eval_metrics = [metric for metric, _ in measured]
+
+        # Aggregate model usage across all measured eval cases
         model_usage: dict[str, ModelTokenUsage] = {}
         for _, usage in measured:
             for model, tokens in usage.models.items():
@@ -242,25 +299,21 @@ class RetrievalHarnessEvaluator:
                     input_tokens=current.input_tokens + tokens.input_tokens,
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
-        reported = [metric.to_dict() for metric in scored]
+
         return EvaluationMetrics(
-            quality=sum(metric.score for metric in scored) / len(scored),
-            latency_ms=sum(metric.latency_ms for metric in scored) / len(scored),
+            quality=sum(metric.score for metric in eval_metrics) / len(eval_metrics),
+            latency_ms=sum(metric.latency_ms for metric in eval_metrics) / len(eval_metrics),
             model_usage=model_usage,
             details={
-                # A pipeline whose only model call is an expansion reports no usage at all when nothing expands,
-                # which is a legitimate configuration rather than a broken measurement.
                 "usage_complete": all(usage.complete for _, usage in measured),
-                "mean_recall_at_k": sum(metric.recall_at_k for metric in scored) / len(scored),
-                "mean_precision_at_k": sum(metric.precision_at_k for metric in scored) / len(scored),
-                "mean_retrieved": sum(metric.retrieved for metric in scored) / len(scored),
-                # How much reached each stage. A candidate set is pooled from several searches and deduplicated,
-                # so its size follows from no configuration value and only measurement reports where the path
-                # actually narrows.
-                "mean_stage_outputs": _mean_stage_outputs(scored=scored),
-                # What the components said about themselves. A component that degrades rather than failing keeps
-                # the run alive and reports it only here, so a score with no explanation gets one.
+                "mean_recall_at_k": sum(metric.recall_at_k for metric in eval_metrics) / len(eval_metrics),
+                "mean_precision_at_k": sum(metric.precision_at_k for metric in eval_metrics) / len(eval_metrics),
+                "mean_retrieved": sum(metric.retrieved for metric in eval_metrics) / len(eval_metrics),
+                # Report the range and low median of the output sizes each component produced. Useful for understanding
+                # intermediate stages of a pipeline.
+                "stage_output_sizes": _stage_output_sizes(eval_metrics=eval_metrics),
+                # Report any warnings from the logger that were emitted during the evaluation
                 "warnings": diagnostics.to_list(),
-                EVAL_CASES_KEY: reported,
+                EVAL_CASES_KEY: [metric.to_dict() for metric in eval_metrics],
             },
         )

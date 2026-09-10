@@ -9,6 +9,36 @@ from haystack_integrations.evaluation.agent_pack.dataclasses import EvaluationMe
 
 
 @dataclass(kw_only=True)
+class OptimizationObjectives:
+    """
+    Hard quality gates and the primary ranking measurement.
+
+    :param min_quality: Absolute minimum normalized quality in `[0.0, 1.0]` required of a candidate.
+    :param max_quality_loss: Maximum absolute quality-point decrease from the reference, in `[0.0, 1.0]`.
+    :param primary: What candidates are ranked by. "cost" and "latency" are minimized among candidates that clear
+        the quality gates; "quality" is maximized directly, with cost breaking ties, which needs no quality
+        threshold to be chosen in advance and cannot prefer a cheaper configuration that answers worse.
+    """
+
+    min_quality: float = 0.0
+    max_quality_loss: float = 0.0
+    primary: Literal["cost", "latency", "quality"] = "cost"
+
+    def __post_init__(self) -> None:
+        """Validate normalized quality thresholds."""
+        if not 0.0 <= self.min_quality <= 1.0:
+            msg = "min_quality must be between 0.0 and 1.0."
+            raise ValueError(msg)
+        if not 0.0 <= self.max_quality_loss <= 1.0:
+            msg = "max_quality_loss must be between 0.0 and 1.0."
+            raise ValueError(msg)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-compatible representation."""
+        return asdict(obj=self)
+
+
+@dataclass(kw_only=True)
 class ModelPrice:
     """Informational token prices for one model deployment."""
 
@@ -78,33 +108,3 @@ class ModelPriceCatalog:
     def to_dict(self) -> list[dict[str, Any]]:
         """Return a JSON-compatible representation for the optimizer Agent."""
         return [asdict(obj=price) for price in self.prices.values()]
-
-
-@dataclass(kw_only=True)
-class OptimizationObjectives:
-    """
-    Hard quality gates and the primary ranking measurement.
-
-    :param min_quality: Absolute minimum normalized quality in `[0.0, 1.0]` required of a candidate.
-    :param max_quality_loss: Maximum absolute quality-point decrease from the reference, in `[0.0, 1.0]`.
-    :param primary: What candidates are ranked by. "cost" and "latency" are minimized among candidates that clear
-        the quality gates; "quality" is maximized directly, with cost breaking ties, which needs no quality
-        threshold to be chosen in advance and cannot prefer a cheaper configuration that answers worse.
-    """
-
-    min_quality: float = 0.0
-    max_quality_loss: float = 0.0
-    primary: Literal["cost", "latency", "quality"] = "cost"
-
-    def __post_init__(self) -> None:
-        """Validate normalized quality thresholds."""
-        if not 0.0 <= self.min_quality <= 1.0:
-            msg = "min_quality must be between 0.0 and 1.0."
-            raise ValueError(msg)
-        if not 0.0 <= self.max_quality_loss <= 1.0:
-            msg = "max_quality_loss must be between 0.0 and 1.0."
-            raise ValueError(msg)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-compatible representation."""
-        return asdict(obj=self)

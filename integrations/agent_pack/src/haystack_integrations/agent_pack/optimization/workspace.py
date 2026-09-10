@@ -327,18 +327,7 @@ class ConfigurationWorkspace:
 
 def _installed_path(type_name: str) -> str:
     """
-    Find where a class is really installed, given a plausible but wrong path to it.
-
-    A configuration names every component by full path, so the obvious way to reach a new one is to keep the module
-    of a component already in the file and change the class on the end. That is how `OpenAIResponsesChatGenerator`
-    gets asked for at `...generators.chat.openai`, where only `OpenAIChatGenerator` lives. Left uncorrected the
-    same guess is written into the YAML, where it survives editing and fails deserialization several steps later.
-    A Haystack class is almost always re-exported from a package above the module defining it, so asking each
-    package above the one named finds it.
-
-    Every attempt goes back through `import_class_by_name` rather than importing anything directly, so the
-    deserialization allowlist still decides what may be imported at all: a name outside it is refused before its
-    module is executed, and searching for a class cannot reach further than deserializing one could.
+    Try to find the import path of a class, given a plausible but wrong path to it.
 
     :param type_name: A fully qualified class name that could not be imported.
     :returns: The path the class is installed at, or the original name when nothing of that name is installed.
@@ -346,6 +335,7 @@ def _installed_path(type_name: str) -> str:
     parts = type_name.split(".")
     for cut in range(len(parts) - 2, 0, -1):
         try:
+            # We make sure to use import_class_by_name to respect the deserialization allowlist
             found = import_class_by_name(".".join([*parts[:cut], parts[-1]]))
         except (DeserializationError, ImportError):
             continue
