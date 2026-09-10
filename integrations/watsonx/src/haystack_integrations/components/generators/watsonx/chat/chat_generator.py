@@ -201,12 +201,14 @@ class WatsonxChatGenerator:
         self.streaming_callback = streaming_callback
         self.tools = tools
 
-        self._initialize_client()
+        self.client: ModelInference | None = None
 
-    def _initialize_client(self) -> None:
-        """Initialize the Watsonx client with configured credentials."""
+    def warm_up(self) -> None:
+        """Create the Watsonx client."""
+        if self.client is not None:
+            return
+
         credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
-
         self.client = ModelInference(
             model_id=self.model,
             credentials=credentials,
@@ -289,6 +291,9 @@ class WatsonxChatGenerator:
         if not messages:
             return {"replies": []}
 
+        self.warm_up()
+        assert self.client is not None  # noqa: S101
+
         resolved_streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
@@ -332,6 +337,9 @@ class WatsonxChatGenerator:
         messages = _normalize_messages(messages)
         if not messages:
             return {"replies": []}
+
+        self.warm_up()
+        assert self.client is not None  # noqa: S101
 
         resolved_streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
@@ -471,6 +479,7 @@ class WatsonxChatGenerator:
         :returns:
             A dictionary with the generated responses as ChatMessage instances.
         """
+        assert self.client is not None  # noqa: S101
         chunks: list[StreamingChunk] = []
         stream = self.client.chat_stream(
             messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
@@ -503,6 +512,7 @@ class WatsonxChatGenerator:
 
     def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle synchronous standard response."""
+        assert self.client is not None  # noqa: S101
         response = self.client.chat(
             messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
         )
@@ -515,6 +525,7 @@ class WatsonxChatGenerator:
         callback: StreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous streaming response."""
+        assert self.client is not None  # noqa: S101
         chunks: list[StreamingChunk] = []
         stream_generator = await self.client.achat_stream(
             messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
@@ -550,6 +561,7 @@ class WatsonxChatGenerator:
 
     async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous standard response."""
+        assert self.client is not None  # noqa: S101
         response = await self.client.achat(
             messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
         )
