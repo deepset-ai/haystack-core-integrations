@@ -17,7 +17,6 @@ from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import flatten_tools_or_toolsets, warm_up_tools
 
-from haystack_integrations.agent_pack.evaluation.dataclasses import EVAL_CASES_KEY, EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import prompts
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
@@ -27,6 +26,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
 )
+from haystack_integrations.evaluation.agent_pack.dataclasses import EVAL_CASES_KEY, EvaluationMetrics
 
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset

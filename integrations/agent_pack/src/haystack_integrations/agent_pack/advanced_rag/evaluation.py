@@ -11,9 +11,9 @@ from typing import Any
 
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 
-from haystack_integrations.agent_pack.evaluation.agent_run_digest import AgentRunDigestPolicy, digest_agent_run
-from haystack_integrations.agent_pack.evaluation.dataclasses import RAGEvalCase, ToolRunStats
-from haystack_integrations.agent_pack.evaluation.tool_budgets import budgets_exceeded, resolve_tool_budgets
+from haystack_integrations.evaluation.agent_pack.agent_run_digest import AgentRunDigestPolicy, digest_agent_run
+from haystack_integrations.evaluation.agent_pack.dataclasses import RAGEvalCase, ToolRunStats
+from haystack_integrations.evaluation.agent_pack.tool_budgets import budgets_exceeded, resolve_tool_budgets
 
 RETRIEVAL_TOOLS = frozenset({"search_documents", "fetch_documents_by_filter"})
 METADATA_TOOLS = frozenset({"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"})

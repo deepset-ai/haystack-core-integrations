@@ -1,10 +1,10 @@
 loaders:
   - modules:
-      - haystack_integrations.agent_pack.evaluation.harness_evaluator
-      - haystack_integrations.agent_pack.evaluation.component_logs
-      - haystack_integrations.agent_pack.evaluation.dataclasses
-      - haystack_integrations.agent_pack.evaluation.agent_run_digest
-      - haystack_integrations.agent_pack.evaluation.tool_budgets
+      - haystack_integrations.evaluation.agent_pack.harness_evaluator
+      - haystack_integrations.evaluation.agent_pack.component_logs
+      - haystack_integrations.evaluation.agent_pack.dataclasses
+      - haystack_integrations.evaluation.agent_pack.agent_run_digest
+      - haystack_integrations.evaluation.agent_pack.tool_budgets
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks

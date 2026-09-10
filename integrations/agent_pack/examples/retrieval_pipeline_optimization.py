@@ -35,7 +35,6 @@ from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cas
 from retrieval.harness_evaluator import RetrievalHarnessEvaluator
 from util import build_bm25_retriever
 
-from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -46,6 +45,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
+from haystack_integrations.evaluation.agent_pack import RetrievalEvalCase
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
 EXPANDER_MODEL = "gpt-5.6-luna"

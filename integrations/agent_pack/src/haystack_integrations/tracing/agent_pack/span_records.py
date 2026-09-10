@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 
-from haystack_integrations.agent_pack.evaluation.dataclasses import ModelTokenUsage
+from haystack_integrations.evaluation.agent_pack.dataclasses import ModelTokenUsage
 
 # The span a harness opens around one eval case. Everything traced under it belongs to that eval case.
 EVAL_CASE_SPAN = "haystack.harness.eval_case"

@@ -40,7 +40,7 @@ from multihop_rag import CORPUS_KEY, LabelledQuestion, build_eval_cases, prepare
 from util import build_bm25_retriever
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
-from haystack_integrations.agent_pack.evaluation import (
+from haystack_integrations.evaluation.agent_pack import (
     RAGEvalCase,
     ToolRunStats,
     budgets_exceeded,

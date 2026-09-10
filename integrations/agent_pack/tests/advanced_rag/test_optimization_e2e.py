@@ -7,7 +7,6 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
-from haystack_integrations.agent_pack.evaluation import RAGEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -17,6 +16,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     load_agent,
 )
+from haystack_integrations.evaluation.agent_pack import RAGEvalCase
 
 EVIDENCE = "CRISPR gene editing can correct hereditary blindness mutations."
 

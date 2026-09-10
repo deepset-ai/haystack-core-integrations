@@ -45,8 +45,6 @@ from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_ag
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
 )
-from haystack_integrations.agent_pack.evaluation import RAGEvalCase
-from haystack_integrations.agent_pack.evaluation.agent_run_digest import AgentRunDigestPolicy
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -56,6 +54,8 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
 )
+from haystack_integrations.evaluation.agent_pack import RAGEvalCase
+from haystack_integrations.evaluation.agent_pack.agent_run_digest import AgentRunDigestPolicy
 
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-luna"

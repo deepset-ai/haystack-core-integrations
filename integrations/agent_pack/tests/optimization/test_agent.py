@@ -8,7 +8,6 @@ from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
-from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import (
     ConfigurationWorkspace,
     ModelPriceCatalog,
@@ -24,6 +23,7 @@ from haystack_integrations.agent_pack.optimization.agent import (
     _documentation_result,
     _summarize_eval_case_details,
 )
+from haystack_integrations.evaluation.agent_pack.dataclasses import EvaluationMetrics
 
 from .test_workspace import agent_yaml
 

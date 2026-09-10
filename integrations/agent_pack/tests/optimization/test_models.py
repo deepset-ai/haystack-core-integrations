@@ -1,7 +1,7 @@
 import pytest
 
-from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.optimization import ModelPrice, ModelPriceCatalog, OptimizationObjectives
+from haystack_integrations.evaluation.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 
 
 def pricing():
