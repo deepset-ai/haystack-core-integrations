@@ -121,8 +121,12 @@ jobs:
 
       - name: Run integration tests
         # Integration tests hit real AWS DynamoDB, so run them only when AWS auth succeeded
-        # (skipped on fork/dependabot PRs that can't assume the CI role).
+        # (skipped on fork/dependabot PRs that can't assume the CI role). The tests themselves
+        # skip unless HAYSTACK_DYNAMODB_INTEGRATION_TESTS is set, so it must be set here.
         if: success() && steps.aws-auth.outcome == 'success'
+        env:
+          HAYSTACK_DYNAMODB_INTEGRATION_TESTS: "1"
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

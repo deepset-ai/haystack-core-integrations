@@ -26,9 +26,10 @@ hatch run test:integration
 
 You also need credentials (any standard boto3 credential source) with permission to
 `CreateTable`, `DeleteTable`, `DescribeTable`, `ListTables`, the item-level operations, and
-`SearchVectors`. Each test creates a uniquely-named `haystack_test_*` table and deletes it
-afterwards; a class-scoped safety net sweeps any table whose delete was rejected while its
-index was still settling. Expect the suite to create and destroy real, billable tables.
+`SearchVectors`. Each test class creates one table named `haystack_test_<run id>_<class>` and
+deletes it afterwards; a session-scoped safety net sweeps any table of the same run whose delete
+was rejected while its index was still settling. Expect the suite to create and destroy real,
+billable tables.
 
 ## Contributing
 

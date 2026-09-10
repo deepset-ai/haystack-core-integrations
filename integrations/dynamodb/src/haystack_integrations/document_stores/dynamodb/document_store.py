@@ -111,6 +111,9 @@ class DynamoDBDocumentStore:
         # stays generous to tolerate a slower region or a pre-existing table still backfilling.
         self.index_ready_timeout = 900.0
         self.index_ready_poll_interval = 5.0
+        # `SearchVectors` availability probe after creating a table (see `_wait_for_vector_search_available`).
+        self.search_available_timeout = 60.0
+        self.search_available_poll_interval = 2.0
         self._client: Any | None = None
         self._table_ready = False
 
@@ -144,8 +147,12 @@ class DynamoDBDocumentStore:
             self._create_table(client)
             client.get_waiter("table_exists").wait(TableName=self.table_name)
             description = client.describe_table(TableName=self.table_name)["Table"]
-        self._validate_table(description)
-        self._wait_for_vector_index_ready(client, description)
+            self._validate_table(description)
+            self._wait_for_vector_index_ready(client, description)
+            self._wait_for_vector_search_available(client)
+        else:
+            self._validate_table(description)
+            self._wait_for_vector_index_ready(client, description)
         self._table_ready = True
 
     def _describe_table(self, client: Any) -> dict[str, Any] | None:
@@ -280,6 +287,39 @@ class DynamoDBDocumentStore:
                 raise TimeoutError(msg)
             time.sleep(self.index_ready_poll_interval)
             description = client.describe_table(TableName=self.table_name)["Table"]
+
+    def _probe_search_kwargs(self) -> dict[str, Any]:
+        # A unit vector keeps the probe valid for a COSINE index (a zero vector has no direction).
+        probe = [1.0] + [0.0] * (self.embedding_dimension - 1)
+        return self._search_vectors_kwargs(probe, top_k=1)
+
+    def _wait_for_vector_search_available(self, client: Any) -> None:
+        """
+        Blocks until `SearchVectors` accepts requests for a freshly created index.
+
+        After the index reports `ACTIVE`, the vector-search endpoint can still answer
+        `ResourceNotFoundException` for a few seconds while it catches up. Probing here means
+        a store that just created its table is immediately usable for retrieval. Any other
+        error is left to the real calls, which report it in context.
+
+        :param client: The DynamoDB client to probe with.
+        """
+        deadline = time.monotonic() + self.search_available_timeout
+        while True:
+            try:
+                client.search_vectors(**self._probe_search_kwargs())
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "ResourceNotFoundException" and time.monotonic() < deadline:
+                    time.sleep(self.search_available_poll_interval)
+                    continue
+                logger.warning(
+                    "SearchVectors probe on '{table}'/'{index}' failed with {code}; continuing without confirmation "
+                    "that the index is queryable.",
+                    table=self.table_name,
+                    index=self.index_name,
+                    code=e.response["Error"]["Code"],
+                )
+            return
 
     @staticmethod
     def _sanitize_metadata_value(value: Any) -> Any:
@@ -543,12 +583,7 @@ class DynamoDBDocumentStore:
         client = self._get_client()
 
         fetch_k = SEARCH_VECTORS_MAX_TOP_K if filters else top_k
-        response = client.search_vectors(
-            TableName=self.table_name,
-            IndexName=self.index_name,
-            SearchVector=[{"N": str(v)} for v in query_embedding],
-            TopK=fetch_k,
-        )
+        response = client.search_vectors(**self._search_vectors_kwargs(query_embedding, top_k=fetch_k))
 
         docs = []
         for match in response.get("SearchResults", []):
@@ -560,6 +595,14 @@ class DynamoDBDocumentStore:
             if len(docs) >= top_k:
                 break
         return docs
+
+    def _search_vectors_kwargs(self, query_embedding: list[float], *, top_k: int) -> dict[str, Any]:
+        return {
+            "TableName": self.table_name,
+            "IndexName": self.index_name,
+            "SearchVector": [{"N": str(v)} for v in query_embedding],
+            "TopK": top_k,
+        }
 
     @staticmethod
     def _distance_to_similarity(score: float | None) -> float | None:
