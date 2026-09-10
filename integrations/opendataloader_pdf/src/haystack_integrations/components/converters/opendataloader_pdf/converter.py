@@ -8,13 +8,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Literal
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
 
 import opendataloader_pdf  # type: ignore[import-untyped]
 
 OutputFormat = Literal["markdown", "text", "json", "html"]
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -23,7 +25,8 @@ class OpenDataLoaderConverter:
     OpenDataLoader PDF converter component.
 
     The component accepts PDF file paths and Haystack ByteStream objects, runs OpenDataLoader PDF extraction, and
-    returns Haystack Document objects.
+    returns Haystack Document objects. It can also extract images to a persistent directory and return one image
+    Document per extracted file.
 
     Java 11 or newer must be installed and available on PATH.
 
@@ -31,16 +34,25 @@ class OpenDataLoaderConverter:
     ```python
     from haystack_integrations.components.converters.opendataloader_pdf import OpenDataLoaderConverter
 
-    converter = OpenDataLoaderConverter(output_format="markdown")
+    converter = OpenDataLoaderConverter(
+        output_format="markdown", extract_images=True, image_output_dir="extracted_images"
+    )
     result = converter.run(sources=["report.pdf"], meta={"source": "annual-report"})
 
     documents = result["documents"]
+    image_documents = result["image_documents"]
     print(documents[0].content)
+    print(documents[0].meta["file_path"])
     ```
     """
 
     def __init__(
-        self, *, output_format: OutputFormat = "markdown", convert_kwargs: dict[str, Any] | None = None
+        self,
+        *,
+        output_format: OutputFormat = "markdown",
+        convert_kwargs: dict[str, Any] | None = None,
+        extract_images: bool = False,
+        image_output_dir: str | Path | None = None,
     ) -> None:
         """
         Initialize the OpenDataLoader converter.
@@ -48,9 +60,28 @@ class OpenDataLoaderConverter:
         :param output_format: Format OpenDataLoader should produce.
         :param convert_kwargs: Additional arguments passed to `opendataloader_pdf.convert`. See the
             [OpenDataLoader PDF Python options](https://opendataloader.org/docs/quick-start-python#convert-options).
+            The `image_output` and `image_dir` arguments are managed by this component; supplied values are ignored.
+        :param extract_images: Whether to extract images and return them through the `image_documents` output.
+        :param image_output_dir: Persistent directory for extracted image files. Required when `extract_images` is
+            `True`.
+        :raises ValueError: If image extraction is enabled without an output directory.
         """
+        conversion_options = convert_kwargs.copy() if convert_kwargs else {}
+        if managed_options := {"image_dir", "image_output"}.intersection(conversion_options):
+            message = (
+                f"Ignoring component-managed image options in convert_kwargs: {', '.join(sorted(managed_options))}"
+            )
+            logger.warning(message)
+            for option in managed_options:
+                conversion_options.pop(option)
+        if extract_images and image_output_dir is None:
+            message = "image_output_dir is required when extract_images is enabled"
+            raise ValueError(message)
+
         self.output_format = output_format
-        self.convert_kwargs = convert_kwargs or {}
+        self.convert_kwargs = conversion_options
+        self.extract_images = extract_images
+        self.image_output_dir = Path(image_output_dir) if image_output_dir is not None else None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -59,7 +90,13 @@ class OpenDataLoaderConverter:
         :returns:
             Dictionary representation of the converter.
         """
-        return default_to_dict(self, output_format=self.output_format, convert_kwargs=self.convert_kwargs)
+        return default_to_dict(
+            self,
+            output_format=self.output_format,
+            convert_kwargs=self.convert_kwargs,
+            extract_images=self.extract_images,
+            image_output_dir=str(self.image_output_dir) if self.image_output_dir is not None else None,
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OpenDataLoaderConverter":
@@ -150,7 +187,26 @@ class OpenDataLoaderConverter:
             raise RuntimeError(message)
         return output_file.read_text(encoding="utf-8")
 
-    @component.output_types(documents=list[Document])
+    @staticmethod
+    def _file_state(directory: Path) -> dict[Path, tuple[int, int, int]]:
+        """
+        Capture the state of files in an image output directory.
+
+        The state is used to distinguish files extracted by the current conversion from unrelated files already in
+        the user-provided directory.
+
+        :param directory: Directory whose files should be captured recursively.
+        :returns:
+            Mapping of file paths to their size, modification time, and change time.
+        """
+        state: dict[Path, tuple[int, int, int]] = {}
+        for path in directory.rglob("*"):
+            if path.is_file():
+                stat = path.stat()
+                state[path] = (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+        return state
+
+    @component.output_types(documents=list[Document], image_documents=list[Document])
     def run(
         self,
         sources: list[str | Path | ByteStream],
@@ -163,15 +219,21 @@ class OpenDataLoaderConverter:
         :param meta: Optional metadata attached to the generated Documents. A single dictionary is applied to every
             source. A list must contain one dictionary per source. ByteStream metadata is also preserved.
         :returns:
-            Dictionary containing the converted Documents.
+            Dictionary containing the converted text Documents and image Documents. Each image Document has the
+            persistent extracted image path in its `file_path` metadata field.
         """
         if not sources:
-            return {"documents": []}
+            return {"documents": [], "image_documents": []}
 
         self._check_java_available()
         metadata = normalize_metadata(meta=meta, sources_count=len(sources))
 
         documents: list[Document] = []
+        image_documents: list[Document] = []
+        if self.image_output_dir is not None:
+            self.image_output_dir.mkdir(parents=True, exist_ok=True)
+            image_files_before = self._file_state(self.image_output_dir)
+
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             input_dir = tmp_path / "input"
@@ -181,6 +243,9 @@ class OpenDataLoaderConverter:
             prepared_sources = self._prepare_sources(sources=sources, metadata=metadata, input_dir=input_dir)
 
             conversion_kwargs = {"image_output": "off", **self.convert_kwargs}
+            if self.image_output_dir is not None:
+                conversion_kwargs.update(image_output="external", image_dir=str(self.image_output_dir))
+
             opendataloader_pdf.convert(
                 input_path=[str(pdf_path) for pdf_path, _ in prepared_sources],
                 output_dir=str(output_dir),
@@ -190,4 +255,13 @@ class OpenDataLoaderConverter:
             for pdf_path, document_meta in prepared_sources:
                 content = self._read_output(output_dir=output_dir, pdf_path=pdf_path)
                 documents.append(Document(content=content, meta={**document_meta, "output_format": self.output_format}))
-        return {"documents": documents}
+
+        if self.image_output_dir is not None:
+            image_files_after = self._file_state(self.image_output_dir)
+            image_documents = [
+                Document(meta={"file_path": str(path)})
+                for path, state in image_files_after.items()
+                if image_files_before.get(path) != state
+            ]
+
+        return {"documents": documents, "image_documents": image_documents}
