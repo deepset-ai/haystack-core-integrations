@@ -20,9 +20,9 @@ from haystack_integrations.agent_pack.optimization import (
 )
 from haystack_integrations.agent_pack.optimization.agent import (
     _create_haystack_documentation_mcp_toolset,
+    _describe_environment,
     _documentation_result,
     _summarize_eval_case_details,
-    describe_environment,
 )
 
 from .test_workspace import agent_yaml
@@ -34,7 +34,7 @@ def test_defaults_and_environment(monkeypatch):
     assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
     # Pinned so that changing what the search itself costs stays a deliberate decision.
     assert agent.chat_generator.model == "gpt-5.6-luna"
-    assert describe_environment() in agent.system_prompt
+    assert _describe_environment() in agent.system_prompt
     assert agent.system_prompt.endswith("Keep the corpus.")
     assert agent.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}
 

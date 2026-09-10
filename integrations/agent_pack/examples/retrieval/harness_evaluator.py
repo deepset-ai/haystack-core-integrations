@@ -10,8 +10,7 @@ from haystack import Document, Pipeline, logging
 
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
-from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
-from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
+from haystack_integrations.agent_pack.evaluation.dataclasses import EVAL_CASES_KEY, EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
 from retrieval.dataclasses import RetrievalEvalCaseMetrics
 
@@ -116,15 +115,10 @@ def _score_retrieval_result(
     )
 
 
-class RetrievalHarnessEvaluator(HarnessEvaluator):
+class RetrievalHarnessEvaluator:
     """Pose every eval case's question to a retrieval pipeline and score what came back."""
 
-    def __init__(
-        self,
-        *,
-        k: int | None = None,
-        max_concurrent_eval_cases: int = 1,
-    ) -> None:
+    def __init__(self, *, k: int | None = None, max_concurrent_eval_cases: int = 1) -> None:
         """
         Create an evaluator.
 
@@ -241,7 +235,7 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
                     input_tokens=current.input_tokens + tokens.input_tokens,
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
-        eval_cases = [metric.to_dict() for metric in scored]
+        reported = [metric.to_dict() for metric in scored]
         return EvaluationMetrics(
             quality=sum(metric.score for metric in scored) / len(scored),
             latency_ms=sum(metric.latency_ms for metric in scored) / len(scored),
@@ -260,6 +254,6 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
                 # What the components said about themselves. A component that degrades rather than failing keeps
                 # the run alive and reports it only here, so a score with no explanation gets one.
                 "warnings": diagnostics.to_list(),
-                "eval_cases": eval_cases,
+                EVAL_CASES_KEY: reported,
             },
         )

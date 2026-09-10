@@ -250,7 +250,7 @@ class ModelTokenUsage:
 @dataclass(kw_only=True)
 class EvaluationMetrics:
     """
-    Measurements produced by a harness evaluator for one Agent configuration.
+    Measurements produced by a harness evaluator for one target configuration.
 
     :param quality: Normalized aggregate quality score in the inclusive range `[0.0, 1.0]`. Each harness evaluator
         defines which checks contribute to this score.

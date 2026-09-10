@@ -15,7 +15,11 @@ from typing import Any
 from haystack import Pipeline, logging
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.evaluation.dataclasses import (
+    EVAL_CASES_KEY,
+    EvaluationMetrics,
+    ModelTokenUsage,
+)
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.optimization.agent import propose_candidate
 from haystack_integrations.agent_pack.optimization.models import (
@@ -170,6 +174,16 @@ class ExperimentJournal:
             stream.write(json.dumps(evaluation.to_dict()) + "\n")
 
 
+def _fingerprint_eval_cases(eval_cases: list[Any]) -> list[dict[str, Any]]:
+    """
+    Describe the evaluation set, so two measurements are comparable only when it matches.
+
+    :param eval_cases: The labelled expectations every configuration is measured against.
+    :returns: Every eval case as a dictionary, ordered by question.
+    """
+    return sorted((eval_case.to_dict() for eval_case in eval_cases), key=lambda entry: str(entry["question"]))
+
+
 def _serialization(reference: Agent | Pipeline) -> tuple[Callable[[Any], str], Callable[[str], Agent | Pipeline]]:
     """
     Pick the pair that round-trips this reference through YAML.
@@ -246,7 +260,7 @@ class HarnessOptimizationExperiment:
         # generated index; it is recorded separately as `reference.yaml` and as the baseline's candidate ID.
         payload = {
             "evaluator": type(self.evaluator).__qualname__,
-            "evaluator_configuration": self.evaluator.fingerprint(eval_cases=self.eval_cases),
+            EVAL_CASES_KEY: _fingerprint_eval_cases(eval_cases=self.eval_cases),
             "configuration_key": self.configuration_key,
         }
         context = content_digest(json.dumps(payload, sort_keys=True, default=str))

@@ -100,7 +100,7 @@ def create_harness_optimizer_agent(
     instructions = system_prompt or prompts.HARNESS_OPTIMIZER_SYSTEM_PROMPT
     # Headed like the sections above them, so an appended block reads as its own section rather than as a
     # continuation of whatever the instructions happened to end on.
-    instructions = f"{instructions}\n\n## This environment\n\n{describe_environment()}"
+    instructions = f"{instructions}\n\n## This environment\n\n{_describe_environment()}"
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n## This harness\n\n{additional_instructions.strip()}"
     # Measured on the retrieval harness over twenty labelled eval cases: this model reached a better configuration than
@@ -122,7 +122,7 @@ def create_harness_optimizer_agent(
     )
 
 
-def describe_environment() -> str:
+def _describe_environment() -> str:
     """
     Describe what an experiment can actually import, as a line for the optimizer's instructions.
 

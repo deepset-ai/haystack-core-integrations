@@ -38,18 +38,14 @@ class EvalCaseUsage:
     """
     What one eval case spent and what reached each of its stages.
 
-    Usage totals, output sizes, and a capped sample of short strings are retained; prompts, replies and
-    documents are discarded.
-
-    `outputs` is how many items each component emitted, by component name and output socket. A configuration is
-    a chain of stages, and what a score means depends on how much reached each of them: a pipeline pooling six
-    searches deduplicates them into a candidate set whose size no configuration value states, so widening the
-    search and widening what survives it cannot be told apart from the inputs and the final answer alone.
-
-    `texts` samples the sockets that emitted short strings, capped at `MAX_RECORDED_TEXTS` entries of
-    `MAX_RECORDED_TEXT_CHARS` each. It is the one thing kept verbatim, because a count cannot say it: a stage
-    that rewrites the question decides what the search can possibly find, and whether four rewrites decomposed
-    the question or restated it is the difference between a configuration worth keeping and one worth undoing.
+    :param models: Token usage attributed to each model the eval case called, keyed by model identifier.
+    :param outputs: How many items each component emitted, by component name and output socket.
+    :param texts: A sample of whatever each component emitted as text, by component name and output socket,
+        capped at `MAX_RECORDED_TEXTS` entries of `MAX_RECORDED_TEXT_CHARS`.
+    :param complete: Whether every model call reported token usage. False means the total token usage is underestimated.
+    :param calls: How many model calls the eval case made.
+    :param hook_calls: How many of those calls a hook made, outside the agent's own step loop.
+    :param lock: Guards the counters, since eval cases can be run in parallel.
     """
 
     models: dict[str, ModelTokenUsage] = field(default_factory=dict)
@@ -65,10 +61,23 @@ class _HarnessSpan(Span):
     def __init__(
         self, usage: EvalCaseUsage | None, generator: bool, component: str | None = None, hook: bool = False
     ) -> None:
+        """
+        Create a span that records into one eval case.
+
+        :param usage: Where this span records, or `None` when the span happened outside any eval case and
+            nothing it reports is kept.
+        :param generator: Whether this span is a model call, whose token usage is recorded. Every other span is
+            measured by how much it emitted instead.
+        :param component: The component the span belongs to, which names its entry in `outputs` and `texts`.
+            `None` for a span that is not a component run, such as an agent step or a hook.
+        :param hook: Whether the span is a hook, or runs under one. A hook's model call is not one of the
+            agent's steps, so this is what tells them apart.
+        """
         self.usage = usage
         self.generator = generator
         self.component = component
         self.hook = hook
+        # A generator emits its output more than once per span; only the first is counted.
         self.recorded = False
 
     def set_tag(self, key: str, value: Any) -> None:
@@ -145,8 +154,7 @@ class HarnessTracer(Tracer):
 
     Three things are taken from the spans a run emits and nothing else is kept: the token usage a generator
     reports, how many items every other component emitted, and a capped sample of the sockets that emitted
-    short strings. Prompts, replies and documents are discarded as they pass, so the only content retained is
-    that sample and content tracing never has to be enabled.
+    short strings.
     """
 
     def __init__(self) -> None:
@@ -170,10 +178,13 @@ class HarnessTracer(Tracer):
                 and str((tags or {}).get("haystack.component.type", "")).endswith("ChatGenerator")
             )
         )
-        # Hooks run their own models outside the step loop, and the flag descends so a generator nested under
-        # a hook span is recognized as the hook's own call.
         hook = operation_name == "haystack.agent.hook" or (parent.hook if parent is not None else False)
-        span = _HarnessSpan(usage, generator, str((tags or {}).get("haystack.component.name") or "") or None, hook)
+        span = _HarnessSpan(
+            usage=usage,
+            generator=generator,
+            component=str((tags or {}).get("haystack.component.name") or "") or None,
+            hook=hook
+        )
         token = self._span.set(span)
         try:
             yield span

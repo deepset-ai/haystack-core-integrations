@@ -4,7 +4,7 @@
 
 from typing import Any, Protocol
 
-from .dataclasses import EVAL_CASES_KEY, EvaluationMetrics
+from .dataclasses import EvaluationMetrics
 
 
 class HarnessEvaluator(Protocol):
@@ -30,24 +30,11 @@ class HarnessEvaluator(Protocol):
         """
         ...
 
-    def fingerprint(self, eval_cases: list[Any]) -> dict[str, Any]:
-        """
-        Describe what this evaluator measures, so two measurements are comparable only when it matches.
-
-        :param eval_cases: The labelled expectations being scored.
-        :returns: Every eval case, ordered by question.
-        """
-        return {
-            EVAL_CASES_KEY: sorted(
-                (eval_case.to_dict() for eval_case in eval_cases), key=lambda entry: str(entry["question"])
-            )
-        }
-
-    def validate(self, target: Any) -> None:  # noqa: ARG002
+    def validate(self, target: Any) -> None:
         """
         Validate a target configuration to catch errors before harness runs another evaluation.
 
         :param target: Candidate configuration deserialized from YAML.
         :raises ValueError: If the candidate is missing something the evaluator requires.
         """
-        return None
+        ...

@@ -30,7 +30,6 @@ from haystack_integrations.agent_pack.evaluation.dataclasses import (
     RAGEvalCase,
     ToolNames,
 )
-from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.evaluation.tool_budgets import resolve_tool_budgets
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
@@ -64,7 +63,7 @@ def widen_tool_budgets(
     return widened
 
 
-class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
+class AdvancedRAGHarnessEvaluator:
     """
     Pose every labelled question to an Advanced RAG candidate and score what came back.
 

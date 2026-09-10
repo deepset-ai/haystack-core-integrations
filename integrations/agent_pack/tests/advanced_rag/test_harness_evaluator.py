@@ -163,29 +163,17 @@ def test_every_eval_case_is_measured_once_and_latency_is_their_total(document):
     )
 
 
-def test_evaluator_fingerprint_changes_with_the_evaluation_set(document):
-    evaluator = AdvancedRAGHarnessEvaluator()
-    first = [RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})]
-    second = [RAGEvalCase(question=QUESTION, evidence={"other": EVIDENCE})]
-    assert evaluator.fingerprint(eval_cases=first) != evaluator.fingerprint(eval_cases=second)
-    assert evaluator.fingerprint(eval_cases=first) == evaluator.fingerprint(eval_cases=list(first))
-
-
 def test_eval_case_details_carry_the_tool_trace(document):
-    """A trace explains a result, and the digest must not become part of what identifies a measurement."""
+    """A trace is what explains a result, so a passing eval case still reports what the run actually did."""
     eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
-    evaluator = AdvancedRAGHarnessEvaluator()
-    fingerprint = evaluator.fingerprint(eval_cases=[eval_case])
 
-    metrics = evaluator.evaluate(target=FakeAgent(document), eval_cases=[eval_case])
+    metrics = AdvancedRAGHarnessEvaluator().evaluate(target=FakeAgent(document), eval_cases=[eval_case])
 
     trace = metrics.details["eval_cases"][0]["run_digest"]
     assert [step["tool"] for step in trace["tool_steps"]] == ["list_metadata_fields", "search_documents"]
     assert trace["tool_steps"][1]["arguments"] == '{"query": "CRISPR"}'
     assert trace["tool_steps"][0]["result"] == "fields"
     assert metrics.details["eval_cases"][0]["backup_answer_used"] is False
-    assert evaluator.fingerprint(eval_cases=[eval_case]) == fingerprint
-    assert set(fingerprint) == {"eval_cases"}
 
 
 def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(document):

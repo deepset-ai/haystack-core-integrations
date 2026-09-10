@@ -1,5 +1,6 @@
 import json
 from collections import deque
+from dataclasses import dataclass
 
 import pytest
 from haystack import Pipeline
@@ -19,6 +20,7 @@ from haystack_integrations.agent_pack.optimization import (
     load_agent,
     load_pipeline,
 )
+from haystack_integrations.agent_pack.optimization.experiment import _fingerprint_eval_cases
 
 
 def optimizer_agent_for(models):
@@ -68,6 +70,16 @@ def optimizer_agent_for(models):
     return create_harness_optimizer_agent(chat_generator=generator), histories
 
 
+@dataclass
+class StubEvalCase:
+    """The least an eval case has to be for the experiment to fingerprint the set."""
+
+    question: str
+
+    def to_dict(self):
+        return {"question": self.question}
+
+
 class ModelEvaluator:
     def __init__(self, metrics=None, failing=()):
         self.metrics = metrics or {
@@ -87,15 +99,12 @@ class ModelEvaluator:
             raise RuntimeError(msg)
         return self.metrics[model]
 
-    def fingerprint(self, eval_cases):  # noqa: ARG002
-        return {"kind": "model-evaluator"}
 
-
-def configured(tmp_path, models, evaluator=None, objectives=None):
+def configured(tmp_path, models, evaluator=None, objectives=None, eval_cases=None):
     optimizer, histories = optimizer_agent_for(models)
     experiment = HarnessOptimizationExperiment(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        eval_cases=["one eval case"],
+        eval_cases=eval_cases or [StubEvalCase("a question")],
         evaluator=evaluator or ModelEvaluator(),
         pricing=ModelPriceCatalog(
             [
@@ -254,13 +263,20 @@ def test_runs_measuring_the_same_thing_share_a_measurement_context(tmp_path):
     ).read_text()
 
 
-def test_a_different_evaluation_set_is_not_comparable(tmp_path):
-    class OtherCases(ModelEvaluator):
-        def fingerprint(self, eval_cases):  # noqa: ARG002
-            return {"kind": "different-eval cases"}
+def test_the_evaluation_set_fingerprint_ignores_the_order_it_was_built_in():
+    """Two callers listing the same questions differently are measuring the same thing."""
+    one = [StubEvalCase("zeta"), StubEvalCase("alpha")]
+    other = [StubEvalCase("alpha"), StubEvalCase("zeta")]
 
+    assert _fingerprint_eval_cases(eval_cases=one) == _fingerprint_eval_cases(eval_cases=other)
+    assert [entry["question"] for entry in _fingerprint_eval_cases(eval_cases=one)] == ["alpha", "zeta"]
+    assert _fingerprint_eval_cases(eval_cases=one) != _fingerprint_eval_cases(eval_cases=[StubEvalCase("alpha")])
+
+
+def test_a_different_evaluation_set_is_not_comparable(tmp_path):
+    """Measurements only compare when they were taken against the same questions."""
     first, _ = configured(tmp_path, ["cheap", None])
-    second, _ = configured(tmp_path, ["cheap", None], evaluator=OtherCases())
+    second, _ = configured(tmp_path, ["cheap", None], eval_cases=[StubEvalCase("a different question")])
 
     assert first.run().measurement_context != second.run().measurement_context
 
@@ -383,9 +399,6 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
         def __init__(self):
             self.measured = []
 
-        def fingerprint(self, eval_cases):  # noqa: ARG002
-            return {"kind": "pipeline-evaluator"}
-
         def evaluate(self, target, eval_cases):
             assert eval_cases
             # A Pipeline reference must arrive as a Pipeline, not wrapped in an Agent.
@@ -421,7 +434,7 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
     evaluator = PipelineEvaluator()
     result = HarnessOptimizationExperiment(
         reference=reference,
-        eval_cases=["one eval case"],
+        eval_cases=[StubEvalCase("a question")],
         evaluator=evaluator,
         pricing=ModelPriceCatalog([]),
         # Ranked on quality: both configurations cost the same, so only the better answer can win.
