@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/transformers-v1.0.0] - 2026-09-10
+
+### 🐛 Bug Fixes
+
+- Fix (transformers): fix linting errors in transformers integration (#3867)
+
+### 🚜 Refactor
+
+- [**breaking**] Transformers - lifecycle refactor (#3939)
+
+
 ## [integrations/transformers-v0.3.0] - 2026-08-24
 
 ### 🐛 Bug Fixes
