@@ -1,6 +1,5 @@
 loaders:
   - modules:
-      - haystack_integrations.agent_pack.dataclasses
       - haystack_integrations.agent_pack.run_digest
       - haystack_integrations.agent_pack.evaluation.harness_evaluator
       - haystack_integrations.agent_pack.evaluation.component_logs

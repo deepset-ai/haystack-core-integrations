@@ -8,9 +8,9 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
+from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
 from retrieval.dataclasses import RetrievalEvalCaseMetrics

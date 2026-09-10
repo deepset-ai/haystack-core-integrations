@@ -15,7 +15,7 @@ from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KE
 from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 
-from haystack_integrations.agent_pack.dataclasses import ModelTokenUsage
+from haystack_integrations.agent_pack.evaluation.dataclasses import ModelTokenUsage
 
 # How many of a socket's strings to keep, and how much of each. A query expansion is worth reading back; an
 # unbounded one, or a socket carrying document text, must not reach whoever reads the measurement.

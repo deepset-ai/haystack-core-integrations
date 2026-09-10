@@ -5,7 +5,7 @@
 from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
 
 
 @dataclass(kw_only=True)

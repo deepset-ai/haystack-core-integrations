@@ -15,7 +15,7 @@ from typing import Any
 from haystack import Pipeline, logging
 from haystack.components.agents import Agent
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, content_digest
+from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.optimization.agent import propose_candidate
 from haystack_integrations.agent_pack.optimization.models import (
@@ -25,6 +25,7 @@ from haystack_integrations.agent_pack.optimization.models import (
 from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
+    content_digest,
     dump_agent,
     dump_pipeline,
     load_agent,

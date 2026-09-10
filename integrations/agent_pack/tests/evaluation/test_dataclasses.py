@@ -3,7 +3,13 @@ import json
 import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.agent_pack.evaluation import RAGEvalCase, RetrievalEvalCase, ToolRunStats
+from haystack_integrations.agent_pack.evaluation import (
+    EvaluationMetrics,
+    ModelTokenUsage,
+    RAGEvalCase,
+    RetrievalEvalCase,
+    ToolRunStats,
+)
 
 
 def test_the_documents_an_answer_needs_are_the_ones_its_evidence_is_in():
@@ -124,3 +130,22 @@ def test_ordering_holds_only_when_the_first_tool_actually_ran_first():
     assert retrieved.called_before(tools=metadata, other=retrieval) is False
     # Neither ran, so nothing came first and the expectation is not met.
     assert ToolRunStats().called_before(tools=metadata, other=retrieval) is False
+
+
+def test_evaluation_metrics_roundtrip() -> None:
+    """Shared harness measurements retain raw usage and evaluator-specific details when serialized."""
+    metrics = EvaluationMetrics(
+        quality=0.75,
+        latency_ms=12.5,
+        model_usage={"model": ModelTokenUsage(input_tokens=100, output_tokens=20)},
+        details={"mean_recall": 0.5},
+    )
+
+    assert EvaluationMetrics.from_dict(data=metrics.to_dict()) == metrics
+
+
+@pytest.mark.parametrize("quality", [-0.01, 1.01])
+def test_evaluation_metrics_reject_quality_outside_normalized_range(quality: float) -> None:
+    """Every harness evaluator must use the shared normalized quality scale."""
+    with pytest.raises(ValueError, match="quality must be between"):
+        EvaluationMetrics(quality=quality, latency_ms=1.0)

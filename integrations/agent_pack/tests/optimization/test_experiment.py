@@ -8,7 +8,7 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,

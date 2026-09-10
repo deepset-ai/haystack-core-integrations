@@ -16,7 +16,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import flatten_tools_or_toolsets, warm_up_tools
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
+from haystack_integrations.agent_pack.evaluation.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import prompts
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,

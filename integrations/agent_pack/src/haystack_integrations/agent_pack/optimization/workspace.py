@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import hashlib
 import inspect
 import json
 import os
@@ -21,11 +22,19 @@ from haystack.marshal import YamlMarshaller
 from haystack.tools import Tool, flatten_tools_or_toolsets
 from haystack.tools.from_function import create_tool_from_function
 
-from haystack_integrations.agent_pack.dataclasses import content_digest
-
 
 class _ReadableDumper(yaml.SafeDumper):
     pass
+
+
+def content_digest(payload: str) -> str:
+    """
+    Return a short, stable digest of serialized content.
+
+    :param payload: The serialized content to identify.
+    :returns: A twelve-character hexadecimal digest.
+    """
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
 def _represent_string(dumper: yaml.SafeDumper, value: str) -> yaml.ScalarNode:
