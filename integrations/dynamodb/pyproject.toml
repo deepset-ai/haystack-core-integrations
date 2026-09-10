@@ -25,7 +25,8 @@ classifiers = [
 ]
 # DynamoDB native vector search (SearchVectors, VectorIndexes) is only available in
 # boto3 >= 1.43.66; earlier SDKs silently lack these operations entirely.
-dependencies = ["haystack-ai", "boto3>=1.43.66"]
+# aiobotocore pins a narrow botocore range; 3.9.1 is the first release compatible with the SearchVectors SDK.
+dependencies = ["haystack-ai", "boto3>=1.43.66", "aiobotocore>=3.9.1,<4"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/dynamodb#readme"
@@ -83,6 +84,7 @@ disallow_incomplete_defs = true
 module = [
 "botocore.*",
 "boto3.*",
+"aiobotocore.*",
 ]
 ignore_missing_imports = true
 
@@ -171,4 +173,5 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
+asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

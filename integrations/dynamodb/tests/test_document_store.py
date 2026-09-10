@@ -11,58 +11,17 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseExtendedTests
-from haystack.utils import Secret
 
 from haystack_integrations.document_stores.dynamodb import DynamoDBDocumentStore
 from haystack_integrations.document_stores.dynamodb.document_store import SEARCH_VECTORS_MAX_TOP_K
 
-from .conftest import EMBEDDING_DIMENSION, assert_documents_equal_ignoring_order
-
-
-def _make_store(**kwargs) -> DynamoDBDocumentStore:
-    return DynamoDBDocumentStore(
-        table_name="test_docs",
-        index_name="test_index",
-        embedding_dimension=3,
-        region_name="us-east-1",
-        aws_access_key_id=Secret.from_token("test-key"),
-        aws_secret_access_key=Secret.from_token("test-secret"),
-        **kwargs,
-    )
-
-
-def _table_description(
-    *,
-    index_name: str = "test_index",
-    dimensions: int = 3,
-    distance_function: str = "COSINE",
-    vector_attribute: str = "embedding",
-    index_status: str = "ACTIVE",
-    backfilling: bool | None = None,
-    key_schema: list[dict[str, str]] | None = None,
-) -> dict:
-    """Builds a `DescribeTable` payload shaped like the one for a table created by the store."""
-    index: dict = {
-        "IndexName": index_name,
-        "Dimensions": dimensions,
-        "DistanceFunction": distance_function,
-        "VectorAttribute": {"AttributeName": vector_attribute},
-        "IndexStatus": index_status,
-    }
-    if backfilling is not None:
-        index["Backfilling"] = backfilling
-    return {
-        "Table": {
-            "TableName": "test_docs",
-            "TableStatus": "ACTIVE",
-            "KeySchema": key_schema if key_schema is not None else [{"AttributeName": "id", "KeyType": "HASH"}],
-            "VectorIndexes": [index],
-        }
-    }
-
-
-def _client_error(code: str, operation: str) -> ClientError:
-    return ClientError({"Error": {"Code": code, "Message": code}}, operation)
+from .conftest import (
+    EMBEDDING_DIMENSION,
+    assert_documents_equal_ignoring_order,
+    client_error,
+    make_store,
+    table_description,
+)
 
 
 class TestDynamoDBDocumentStore:
@@ -78,18 +37,18 @@ class TestDynamoDBDocumentStore:
             DynamoDBDocumentStore(similarity_function="dot_product")
 
     def test_ensure_table_uses_compatible_existing_table(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.describe_table.return_value = _table_description()
+        mock_client.describe_table.return_value = table_description()
         with patch.object(store, "_get_client", return_value=mock_client):
             store._ensure_table()
         assert store._table_ready is True
         mock_client.create_table.assert_not_called()
 
     def test_ensure_table_rejects_existing_table_without_vector_index(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.describe_table.return_value = _table_description(index_name="some_other_index")
+        mock_client.describe_table.return_value = table_description(index_name="some_other_index")
         with (
             patch.object(store, "_get_client", return_value=mock_client),
             pytest.raises(ValueError, match="has no vector index named 'test_index'"),
@@ -106,9 +65,9 @@ class TestDynamoDBDocumentStore:
         ],
     )
     def test_ensure_table_rejects_incompatible_vector_index(self, overrides: dict, expected_message: str) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.describe_table.return_value = _table_description(**overrides)
+        mock_client.describe_table.return_value = table_description(**overrides)
         with (
             patch.object(store, "_get_client", return_value=mock_client),
             pytest.raises(ValueError, match=expected_message),
@@ -116,9 +75,9 @@ class TestDynamoDBDocumentStore:
             store._ensure_table()
 
     def test_ensure_table_rejects_existing_table_with_sort_key(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.describe_table.return_value = _table_description(
+        mock_client.describe_table.return_value = table_description(
             key_schema=[{"AttributeName": "id", "KeyType": "HASH"}, {"AttributeName": "ts", "KeyType": "RANGE"}]
         )
         with (
@@ -128,11 +87,11 @@ class TestDynamoDBDocumentStore:
             store._ensure_table()
 
     def test_ensure_table_creates_missing_table_with_inline_vector_index(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.describe_table.side_effect = [
-            _client_error("ResourceNotFoundException", "DescribeTable"),
-            _table_description(),
+            client_error("ResourceNotFoundException", "DescribeTable"),
+            table_description(),
         ]
         with patch.object(store, "_get_client", return_value=mock_client):
             store._ensure_table()
@@ -159,16 +118,16 @@ class TestDynamoDBDocumentStore:
         ResourceNotFoundException for a few seconds; a freshly created table must not be
         reported ready before that window has passed.
         """
-        store = _make_store()
+        store = make_store()
         store.search_available_poll_interval = 0.0
         mock_client = MagicMock()
         mock_client.describe_table.side_effect = [
-            _client_error("ResourceNotFoundException", "DescribeTable"),
-            _table_description(),
+            client_error("ResourceNotFoundException", "DescribeTable"),
+            table_description(),
         ]
         mock_client.search_vectors.side_effect = [
-            _client_error("ResourceNotFoundException", "SearchVectors"),
-            _client_error("ResourceNotFoundException", "SearchVectors"),
+            client_error("ResourceNotFoundException", "SearchVectors"),
+            client_error("ResourceNotFoundException", "SearchVectors"),
             {"SearchResults": []},
         ]
         with patch.object(store, "_get_client", return_value=mock_client):
@@ -180,42 +139,42 @@ class TestDynamoDBDocumentStore:
         assert store._table_ready is True
 
     def test_ensure_table_probe_gives_up_on_unexpected_errors(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.describe_table.side_effect = [
-            _client_error("ResourceNotFoundException", "DescribeTable"),
-            _table_description(),
+            client_error("ResourceNotFoundException", "DescribeTable"),
+            table_description(),
         ]
-        mock_client.search_vectors.side_effect = _client_error("ValidationException", "SearchVectors")
+        mock_client.search_vectors.side_effect = client_error("ValidationException", "SearchVectors")
         with patch.object(store, "_get_client", return_value=mock_client):
             store._ensure_table()
         assert mock_client.search_vectors.call_count == 1
         assert store._table_ready is True
 
     def test_ensure_table_does_not_probe_pre_existing_tables(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.describe_table.return_value = _table_description()
+        mock_client.describe_table.return_value = table_description()
         with patch.object(store, "_get_client", return_value=mock_client):
             store._ensure_table()
         mock_client.search_vectors.assert_not_called()
 
     def test_ensure_table_tolerates_concurrent_creation(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.describe_table.side_effect = [
-            _client_error("ResourceNotFoundException", "DescribeTable"),
-            _table_description(),
+            client_error("ResourceNotFoundException", "DescribeTable"),
+            table_description(),
         ]
-        mock_client.create_table.side_effect = _client_error("ResourceInUseException", "CreateTable")
+        mock_client.create_table.side_effect = client_error("ResourceInUseException", "CreateTable")
         with patch.object(store, "_get_client", return_value=mock_client):
             store._ensure_table()
         assert store._table_ready is True
 
     def test_ensure_table_raises_when_missing_and_creation_disabled(self) -> None:
-        store = _make_store(create_table_if_not_exists=False)
+        store = make_store(create_table_if_not_exists=False)
         mock_client = MagicMock()
-        mock_client.describe_table.side_effect = _client_error("ResourceNotFoundException", "DescribeTable")
+        mock_client.describe_table.side_effect = client_error("ResourceNotFoundException", "DescribeTable")
         with (
             patch.object(store, "_get_client", return_value=mock_client),
             pytest.raises(ValueError, match="does not exist and create_table_if_not_exists is False"),
@@ -224,20 +183,20 @@ class TestDynamoDBDocumentStore:
         mock_client.create_table.assert_not_called()
 
     def test_ensure_table_reraises_unexpected_describe_errors(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.describe_table.side_effect = _client_error("AccessDeniedException", "DescribeTable")
+        mock_client.describe_table.side_effect = client_error("AccessDeniedException", "DescribeTable")
         with patch.object(store, "_get_client", return_value=mock_client), pytest.raises(ClientError):
             store._ensure_table()
 
     def test_ensure_table_waits_for_backfilling_index(self) -> None:
-        store = _make_store()
+        store = make_store()
         store.index_ready_poll_interval = 0.0
         mock_client = MagicMock()
         mock_client.describe_table.side_effect = [
-            _table_description(index_status="CREATING", backfilling=True),
-            _table_description(index_status="ACTIVE", backfilling=True),
-            _table_description(index_status="ACTIVE"),
+            table_description(index_status="CREATING", backfilling=True),
+            table_description(index_status="ACTIVE", backfilling=True),
+            table_description(index_status="ACTIVE"),
         ]
         with patch.object(store, "_get_client", return_value=mock_client):
             store._ensure_table()
@@ -245,10 +204,10 @@ class TestDynamoDBDocumentStore:
         assert store._table_ready is True
 
     def test_ensure_table_times_out_when_index_never_becomes_ready(self) -> None:
-        store = _make_store()
+        store = make_store()
         store.index_ready_timeout = 0.0
         mock_client = MagicMock()
-        mock_client.describe_table.return_value = _table_description(index_status="CREATING")
+        mock_client.describe_table.return_value = table_description(index_status="CREATING")
         with (
             patch.object(store, "_get_client", return_value=mock_client),
             pytest.raises(TimeoutError, match="did not become queryable"),
@@ -256,7 +215,7 @@ class TestDynamoDBDocumentStore:
             store._ensure_table()
 
     def test_count_documents(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [{"Count": 5}]
@@ -266,19 +225,19 @@ class TestDynamoDBDocumentStore:
             assert store.count_documents() == 5
 
     def test_write_documents_rejects_non_document(self) -> None:
-        store = _make_store()
+        store = make_store()
         with pytest.raises(ValueError, match="must contain a list of objects of type Document"):
             store.write_documents([{"not": "a document"}])  # type: ignore[list-item]
 
     def test_write_documents_empty_list(self) -> None:
-        store = _make_store()
+        store = make_store()
         assert store.write_documents([]) == 0
 
     @pytest.mark.parametrize("policy", [DuplicatePolicy.FAIL, DuplicatePolicy.NONE])
     def test_write_documents_fail_policy_raises_on_duplicate(self, policy: DuplicatePolicy) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.put_item.side_effect = _client_error("ConditionalCheckFailedException", "PutItem")
+        mock_client.put_item.side_effect = client_error("ConditionalCheckFailedException", "PutItem")
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
             with pytest.raises(DuplicateDocumentError):
@@ -290,9 +249,9 @@ class TestDynamoDBDocumentStore:
         mock_client.get_item.assert_not_called()
 
     def test_write_documents_fail_policy_keeps_documents_written_before_the_duplicate(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.put_item.side_effect = [{}, _client_error("ConditionalCheckFailedException", "PutItem")]
+        mock_client.put_item.side_effect = [{}, client_error("ConditionalCheckFailedException", "PutItem")]
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
             with pytest.raises(DuplicateDocumentError, match="id '2' already exists"):
@@ -300,9 +259,9 @@ class TestDynamoDBDocumentStore:
         assert mock_client.put_item.call_count == 2
 
     def test_write_documents_skip_policy_skips_duplicate(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.put_item.side_effect = [_client_error("ConditionalCheckFailedException", "PutItem"), {}]
+        mock_client.put_item.side_effect = [client_error("ConditionalCheckFailedException", "PutItem"), {}]
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
             written = store.write_documents(
@@ -312,7 +271,7 @@ class TestDynamoDBDocumentStore:
         assert mock_client.put_item.call_count == 2
 
     def test_write_documents_overwrite_policy_writes_unconditionally(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
@@ -323,16 +282,16 @@ class TestDynamoDBDocumentStore:
         assert kwargs["Item"]["id"] == {"S": "1"}
 
     def test_write_documents_reraises_unexpected_put_errors(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
-        mock_client.put_item.side_effect = _client_error("ProvisionedThroughputExceededException", "PutItem")
+        mock_client.put_item.side_effect = client_error("ProvisionedThroughputExceededException", "PutItem")
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
             with pytest.raises(ClientError):
                 store.write_documents([Document(id="1", content="hello")], policy=DuplicatePolicy.SKIP)
 
     def test_delete_all_documents_deletes_every_scanned_id(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [{"Items": [{"id": {"S": "1"}}]}, {"Items": [{"id": {"S": "2"}}]}]
@@ -349,7 +308,7 @@ class TestDynamoDBDocumentStore:
         ]
 
     def test_delete_by_filter_deletes_only_matching_documents(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [
@@ -369,12 +328,12 @@ class TestDynamoDBDocumentStore:
         assert [c.kwargs["Key"]["id"]["S"] for c in mock_client.delete_item.call_args_list] == ["1", "3"]
 
     def test_delete_by_filter_rejects_empty_filters(self) -> None:
-        store = _make_store()
+        store = make_store()
         with pytest.raises(ValueError, match="use delete_all_documents"):
             store.delete_by_filter({})
 
     def test_update_by_filter_merges_meta_into_matching_documents(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [
@@ -399,19 +358,19 @@ class TestDynamoDBDocumentStore:
         assert written["meta"] == {"topic": "ai", "year": 2025, "reviewed": True}
 
     def test_update_by_filter_rejects_empty_filters(self) -> None:
-        store = _make_store()
+        store = make_store()
         with pytest.raises(ValueError, match="filters must not be empty"):
             store.update_by_filter({}, meta={"x": 1})
 
     def test_delete_documents_empty_list_is_noop(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         with patch.object(store, "_get_client", return_value=mock_client):
             store.delete_documents([])
             mock_client.delete_item.assert_not_called()
 
     def test_delete_documents_calls_delete_item_per_id(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
@@ -419,7 +378,7 @@ class TestDynamoDBDocumentStore:
             assert mock_client.delete_item.call_count == 2
 
     def test_filter_documents_no_filter_returns_all(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_paginator = MagicMock()
         item = {"id": {"S": "1"}, "payload": {"S": '{"content": "hello"}'}}
@@ -433,7 +392,7 @@ class TestDynamoDBDocumentStore:
             assert docs[0].content == "hello"
 
     def test_filter_documents_applies_metadata_filter(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_paginator = MagicMock()
         items = [
@@ -448,13 +407,31 @@ class TestDynamoDBDocumentStore:
             assert [d.id for d in docs] == ["1"]
 
     def test_embedding_retrieval_rejects_empty_query(self) -> None:
-        store = _make_store()
+        store = make_store()
         with pytest.raises(ValueError, match="non-empty list of floats"):
             store._embedding_retrieval(query_embedding=[])
 
+    def test_embedding_retrieval_rejects_wrong_dimensionality(self) -> None:
+        store = make_store()
+        with pytest.raises(ValueError, match="has 2 dimensions, but the store is configured for 3"):
+            store._embedding_retrieval(query_embedding=[0.1, 0.2])
+
+    def test_client_kwargs_forward_region_and_resolved_credentials(self) -> None:
+        store = make_store()
+        assert store._client_kwargs() == {
+            "region_name": "us-east-1",
+            "aws_access_key_id": "test-key",
+            "aws_secret_access_key": "test-secret",
+        }
+
+    def test_init_does_not_create_a_client(self) -> None:
+        store = make_store()
+        assert store._client is None
+        assert store._async_session is None
+
     @pytest.mark.parametrize("top_k", [0, -1, SEARCH_VECTORS_MAX_TOP_K + 1])
     def test_embedding_retrieval_rejects_top_k_outside_dynamodb_limit(self, top_k: int) -> None:
-        store = _make_store()
+        store = make_store()
         with pytest.raises(ValueError, match="top_k must be between 1 and 100"):
             store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=top_k)
 
@@ -463,7 +440,7 @@ class TestDynamoDBDocumentStore:
         `TopK` is capped at 100 by a non-adjustable DynamoDB quota, so over-fetching for
         client-side filtering must never exceed it.
         """
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.search_vectors.return_value = {"SearchResults": []}
         with patch.object(store, "_get_client", return_value=mock_client):
@@ -477,7 +454,7 @@ class TestDynamoDBDocumentStore:
             assert kwargs["TopK"] == SEARCH_VECTORS_MAX_TOP_K
 
     def test_embedding_retrieval_without_filters_fetches_exactly_top_k(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.search_vectors.return_value = {"SearchResults": []}
         with patch.object(store, "_get_client", return_value=mock_client):
@@ -487,7 +464,7 @@ class TestDynamoDBDocumentStore:
             assert kwargs["TopK"] == 7
 
     def test_embedding_retrieval_returns_scored_documents(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.search_vectors.return_value = {
             "SearchResults": [
@@ -512,7 +489,7 @@ class TestDynamoDBDocumentStore:
 
     def test_embedding_retrieval_converts_cosine_distance_to_similarity(self) -> None:
         """An identical vector (distance 0) must score 1.0 and an opposite one (distance 2) 0.0."""
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.search_vectors.return_value = {
             "SearchResults": [
@@ -523,7 +500,7 @@ class TestDynamoDBDocumentStore:
         }
         with patch.object(store, "_get_client", return_value=mock_client):
             store._table_ready = True
-            docs = store._embedding_retrieval(query_embedding=[1.0, 0.0], top_k=3)
+            docs = store._embedding_retrieval(query_embedding=[1.0, 0.0, 0.0], top_k=3)
             assert [d.score for d in docs] == [
                 pytest.approx(1.0),
                 pytest.approx(0.5),
@@ -531,7 +508,7 @@ class TestDynamoDBDocumentStore:
             ]
 
     def test_embedding_retrieval_applies_client_side_filter(self) -> None:
-        store = _make_store()
+        store = make_store()
         mock_client = MagicMock()
         mock_client.search_vectors.return_value = {
             "SearchResults": [

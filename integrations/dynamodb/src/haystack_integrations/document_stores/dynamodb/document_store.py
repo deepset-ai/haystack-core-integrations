@@ -2,12 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import dataclasses
 import json
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from typing import Any
 
+import aiobotocore.session
 import boto3
 from botocore.exceptions import ClientError
 from haystack import default_from_dict, default_to_dict, logging
@@ -115,11 +118,12 @@ class DynamoDBDocumentStore:
         self.search_available_timeout = 60.0
         self.search_available_poll_interval = 2.0
         self._client: Any | None = None
+        self._async_session: Any | None = None
         self._table_ready = False
 
-    def _get_client(self) -> Any:
-        if self._client is not None:
-            return self._client
+    # ------------------------------------------------------------------ clients
+
+    def _client_kwargs(self) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
         if self.region_name:
             kwargs["region_name"] = self.region_name
@@ -132,8 +136,27 @@ class DynamoDBDocumentStore:
             kwargs["aws_secret_access_key"] = secret_key
         if session_token:
             kwargs["aws_session_token"] = session_token
-        self._client = boto3.client("dynamodb", **kwargs)
+        return kwargs
+
+    def _get_client(self) -> Any:
+        if self._client is None:
+            self._client = boto3.client("dynamodb", **self._client_kwargs())
         return self._client
+
+    @asynccontextmanager
+    async def _async_client(self) -> AsyncIterator[Any]:
+        """
+        Yields an aiobotocore DynamoDB client for the duration of one operation.
+
+        aiobotocore clients are async context managers bound to the running event loop, so one
+        is created per call instead of being cached like the sync client.
+        """
+        if self._async_session is None:
+            self._async_session = aiobotocore.session.AioSession()
+        async with self._async_session.create_client("dynamodb", **self._client_kwargs()) as client:
+            yield client
+
+    # ------------------------------------------------------------------ table lifecycle
 
     def _ensure_table(self) -> None:
         if self._table_ready:
@@ -142,8 +165,7 @@ class DynamoDBDocumentStore:
         description = self._describe_table(client)
         if description is None:
             if not self.create_table_if_not_exists:
-                msg = f"Table '{self.table_name}' does not exist and create_table_if_not_exists is False."
-                raise ValueError(msg)
+                raise self._missing_table_error()
             self._create_table(client)
             client.get_waiter("table_exists").wait(TableName=self.table_name)
             description = client.describe_table(TableName=self.table_name)["Table"]
@@ -155,28 +177,74 @@ class DynamoDBDocumentStore:
             self._wait_for_vector_index_ready(client, description)
         self._table_ready = True
 
+    async def _ensure_table_async(self) -> None:
+        if self._table_ready:
+            return
+        async with self._async_client() as client:
+            description = await self._describe_table_async(client)
+            if description is None:
+                if not self.create_table_if_not_exists:
+                    raise self._missing_table_error()
+                await self._create_table_async(client)
+                await client.get_waiter("table_exists").wait(TableName=self.table_name)
+                description = (await client.describe_table(TableName=self.table_name))["Table"]
+                self._validate_table(description)
+                await self._wait_for_vector_index_ready_async(client, description)
+                await self._wait_for_vector_search_available_async(client)
+            else:
+                self._validate_table(description)
+                await self._wait_for_vector_index_ready_async(client, description)
+        self._table_ready = True
+
+    def _missing_table_error(self) -> ValueError:
+        msg = f"Table '{self.table_name}' does not exist and create_table_if_not_exists is False."
+        return ValueError(msg)
+
+    @staticmethod
+    def _error_code(error: ClientError) -> str:
+        return error.response["Error"]["Code"]
+
     def _describe_table(self, client: Any) -> dict[str, Any] | None:
         """Returns the `DescribeTable` payload for this store's table, or `None` if it does not exist."""
         try:
             return client.describe_table(TableName=self.table_name)["Table"]
         except ClientError as e:
-            if e.response["Error"]["Code"] != "ResourceNotFoundException":
+            if self._error_code(e) != "ResourceNotFoundException":
+                raise
+            return None
+
+    async def _describe_table_async(self, client: Any) -> dict[str, Any] | None:
+        try:
+            return (await client.describe_table(TableName=self.table_name))["Table"]
+        except ClientError as e:
+            if self._error_code(e) != "ResourceNotFoundException":
                 raise
             return None
 
     def _create_table(self, client: Any) -> None:
-        logger.info(
-            "Creating DynamoDB table '{table}' with vector index '{index}'",
-            table=self.table_name,
-            index=self.index_name,
-        )
+        self._log_table_creation()
         try:
             client.create_table(**self._create_table_params())
         except ClientError as e:
             # Another process created the table between our DescribeTable and CreateTable; the
             # caller waits for it to become active just like for a table we created ourselves.
-            if e.response["Error"]["Code"] != "ResourceInUseException":
+            if self._error_code(e) != "ResourceInUseException":
                 raise
+
+    async def _create_table_async(self, client: Any) -> None:
+        self._log_table_creation()
+        try:
+            await client.create_table(**self._create_table_params())
+        except ClientError as e:
+            if self._error_code(e) != "ResourceInUseException":
+                raise
+
+    def _log_table_creation(self) -> None:
+        logger.info(
+            "Creating DynamoDB table '{table}' with vector index '{index}'",
+            table=self.table_name,
+            index=self.index_name,
+        )
 
     def _create_table_params(self) -> dict[str, Any]:
         # Declare the vector index inline on `CreateTable` rather than adding it afterwards with
@@ -259,6 +327,14 @@ class DynamoDBDocumentStore:
         backfilling = index.get("Backfilling", False)
         return status == "ACTIVE" and not backfilling, status, backfilling
 
+    def _index_not_ready_error(self, status: str, backfilling: Any) -> TimeoutError:
+        msg = (
+            f"Vector index '{self.index_name}' on table '{self.table_name}' did not become "
+            f"queryable within {self.index_ready_timeout}s "
+            f"(last status: {status}, backfilling: {backfilling})."
+        )
+        return TimeoutError(msg)
+
     def _wait_for_vector_index_ready(self, client: Any, description: dict[str, Any]) -> None:
         """
         Blocks until the vector index is queryable.
@@ -267,7 +343,7 @@ class DynamoDBDocumentStore:
         ``table_exists`` waiter, and there is no dedicated boto3 waiter for it, so we poll
         ``DescribeTable`` until the index reports ``IndexStatus=ACTIVE`` and is not backfilling.
         ``SearchVectors`` may still return ``ResourceNotFoundException`` for a few seconds after
-        that while the vector-search endpoint catches up.
+        that while the vector-search endpoint catches up; see `_wait_for_vector_search_available`.
 
         :param client: The DynamoDB client to poll with.
         :param description: The most recent `Table` payload from `DescribeTable`.
@@ -279,19 +355,34 @@ class DynamoDBDocumentStore:
             if ready:
                 return
             if time.monotonic() >= deadline:
-                msg = (
-                    f"Vector index '{self.index_name}' on table '{self.table_name}' did not become "
-                    f"queryable within {self.index_ready_timeout}s "
-                    f"(last status: {status}, backfilling: {backfilling})."
-                )
-                raise TimeoutError(msg)
+                raise self._index_not_ready_error(status, backfilling)
             time.sleep(self.index_ready_poll_interval)
             description = client.describe_table(TableName=self.table_name)["Table"]
+
+    async def _wait_for_vector_index_ready_async(self, client: Any, description: dict[str, Any]) -> None:
+        deadline = time.monotonic() + self.index_ready_timeout
+        while True:
+            ready, status, backfilling = self._index_readiness(description)
+            if ready:
+                return
+            if time.monotonic() >= deadline:
+                raise self._index_not_ready_error(status, backfilling)
+            await asyncio.sleep(self.index_ready_poll_interval)
+            description = (await client.describe_table(TableName=self.table_name))["Table"]
 
     def _probe_search_kwargs(self) -> dict[str, Any]:
         # A unit vector keeps the probe valid for a COSINE index (a zero vector has no direction).
         probe = [1.0] + [0.0] * (self.embedding_dimension - 1)
         return self._search_vectors_kwargs(probe, top_k=1)
+
+    def _log_probe_failure(self, error: ClientError) -> None:
+        logger.warning(
+            "SearchVectors probe on '{table}'/'{index}' failed with {code}; continuing without confirmation "
+            "that the index is queryable.",
+            table=self.table_name,
+            index=self.index_name,
+            code=self._error_code(error),
+        )
 
     def _wait_for_vector_search_available(self, client: Any) -> None:
         """
@@ -309,26 +400,33 @@ class DynamoDBDocumentStore:
             try:
                 client.search_vectors(**self._probe_search_kwargs())
             except ClientError as e:
-                if e.response["Error"]["Code"] == "ResourceNotFoundException" and time.monotonic() < deadline:
+                if self._error_code(e) == "ResourceNotFoundException" and time.monotonic() < deadline:
                     time.sleep(self.search_available_poll_interval)
                     continue
-                logger.warning(
-                    "SearchVectors probe on '{table}'/'{index}' failed with {code}; continuing without confirmation "
-                    "that the index is queryable.",
-                    table=self.table_name,
-                    index=self.index_name,
-                    code=e.response["Error"]["Code"],
-                )
+                self._log_probe_failure(e)
             return
+
+    async def _wait_for_vector_search_available_async(self, client: Any) -> None:
+        deadline = time.monotonic() + self.search_available_timeout
+        while True:
+            try:
+                await client.search_vectors(**self._probe_search_kwargs())
+            except ClientError as e:
+                if self._error_code(e) == "ResourceNotFoundException" and time.monotonic() < deadline:
+                    await asyncio.sleep(self.search_available_poll_interval)
+                    continue
+                self._log_probe_failure(e)
+            return
+
+    # ------------------------------------------------------------------ item conversion
 
     @staticmethod
     def _sanitize_metadata_value(value: Any) -> Any:
         """
-        Recursively coerces a metadata value into a DynamoDB-attribute-safe shape.
+        Recursively coerces a metadata value into a JSON-serializable shape.
 
-        DynamoDB's item API rejects raw Python objects it doesn't natively map (e.g. `UUID`);
-        this mirrors the same coercion needed for S3 Vectors metadata, applied here defensively
-        even though DynamoDB item attributes are more permissive than S3 Vectors' flat model.
+        Values DynamoDB and JSON cannot represent natively (e.g. `UUID`, `datetime`) are stored
+        as their string form.
         """
         if isinstance(value, dict):
             return {k: DynamoDBDocumentStore._sanitize_metadata_value(v) for k, v in value.items()}
@@ -342,9 +440,8 @@ class DynamoDBDocumentStore:
         d = doc.to_dict(flatten=False)
         doc_id = d.pop("id")
         embedding = d.pop("embedding", None)
-        # DynamoDB has no native nested-document metadata concept comparable to S3 Vectors'
-        # flat-only constraint, but we still JSON-serialize the payload for a stable,
-        # order-independent round trip and to keep parity with the sibling S3 Vectors adapter.
+        # Everything except the key and the vector is stored as one JSON payload attribute, which
+        # gives a stable, order-independent round trip of arbitrary nested metadata.
         payload = self._sanitize_metadata_value(d)
         item: dict[str, Any] = {
             "id": doc_id,
@@ -362,14 +459,145 @@ class DynamoDBDocumentStore:
             payload["embedding"] = item[_VECTOR_ATTRIBUTE]
         return Document.from_dict(payload)
 
+    # ------------------------------------------------------------------ request shapes
+
+    def _scan_kwargs(self) -> dict[str, Any]:
+        # A `Scan` is eventually consistent by default, which surfaced as read-after-write races
+        # right after `write_documents` during real-AWS validation, hence `ConsistentRead=True`.
+        return {"TableName": self.table_name, "ConsistentRead": True}
+
+    def _count_scan_kwargs(self) -> dict[str, Any]:
+        # `describe_table`'s `ItemCount` is only refreshed about every six hours, so count with a
+        # consistent `Scan` to reflect a just-completed write immediately.
+        return {**self._scan_kwargs(), "Select": "COUNT"}
+
+    def _id_scan_kwargs(self) -> dict[str, Any]:
+        return {**self._scan_kwargs(), "ProjectionExpression": "#id", "ExpressionAttributeNames": _ID_PLACEHOLDER}
+
+    def _delete_kwargs(self, doc_id: str) -> dict[str, Any]:
+        return {"TableName": self.table_name, "Key": {"id": {"S": doc_id}}}
+
+    def _put_item_kwargs(self, doc: Document, policy: DuplicatePolicy) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"TableName": self.table_name, "Item": _to_dynamodb_item(self._doc_to_item(doc))}
+        if policy != DuplicatePolicy.OVERWRITE:
+            # A conditional write makes FAIL and SKIP atomic and saves a separate GetItem per document.
+            kwargs["ConditionExpression"] = "attribute_not_exists(#id)"
+            kwargs["ExpressionAttributeNames"] = _ID_PLACEHOLDER
+        return kwargs
+
+    def _search_vectors_kwargs(self, query_embedding: list[float], *, top_k: int) -> dict[str, Any]:
+        return {
+            "TableName": self.table_name,
+            "IndexName": self.index_name,
+            "SearchVector": [{"N": str(v)} for v in query_embedding],
+            "TopK": top_k,
+        }
+
+    # ------------------------------------------------------------------ shared logic
+
+    @staticmethod
+    def _matches(filters: dict[str, Any] | None, doc: Document) -> bool:
+        return not filters or document_matches_filter(filters, doc)
+
+    @staticmethod
+    def _validate_documents(documents: list[Document]) -> None:
+        if not isinstance(documents, list) or any(not isinstance(doc, Document) for doc in documents):
+            msg = "param 'documents' must contain a list of objects of type Document"
+            raise ValueError(msg)
+
+    @staticmethod
+    def _resolve_policy(policy: DuplicatePolicy) -> DuplicatePolicy:
+        return DuplicatePolicy.FAIL if policy == DuplicatePolicy.NONE else policy
+
+    def _handle_put_error(self, error: ClientError, doc: Document, policy: DuplicatePolicy) -> None:
+        """
+        Re-raises `error` unless it is the conditional-check failure that signals a duplicate.
+
+        For a duplicate, raises `DuplicateDocumentError` under `FAIL` and returns under `SKIP`.
+        """
+        if self._error_code(error) != "ConditionalCheckFailedException":
+            raise error
+        if policy == DuplicatePolicy.FAIL:
+            msg = f"Document with id '{doc.id}' already exists."
+            raise DuplicateDocumentError(msg) from error
+
+    @staticmethod
+    def _require_filters(filters: dict[str, Any] | None, purpose: str) -> None:
+        if not filters:
+            msg = f"filters must not be empty when {purpose}."
+            raise ValueError(msg)
+
+    def _validate_embedding_query(self, query_embedding: list[float], top_k: int) -> None:
+        if not query_embedding:
+            msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+        if len(query_embedding) != self.embedding_dimension:
+            msg = (
+                f"query_embedding has {len(query_embedding)} dimensions, but the store is configured for "
+                f"{self.embedding_dimension}."
+            )
+            raise ValueError(msg)
+        if not 1 <= top_k <= SEARCH_VECTORS_MAX_TOP_K:
+            msg = f"top_k must be between 1 and {SEARCH_VECTORS_MAX_TOP_K} (DynamoDB SearchVectors limit), got {top_k}."
+            raise ValueError(msg)
+
+    @staticmethod
+    def _fetch_k(top_k: int, filters: dict[str, Any] | None) -> int:
+        # Over-fetch up to the service limit when filtering client-side, so that a selective filter
+        # can still fill `top_k` from the candidates DynamoDB is able to return.
+        return SEARCH_VECTORS_MAX_TOP_K if filters else top_k
+
+    def _search_results_to_documents(
+        self, response: dict[str, Any], filters: dict[str, Any] | None, top_k: int
+    ) -> list[Document]:
+        docs: list[Document] = []
+        for match in response.get("SearchResults", []):
+            doc = self._item_to_doc(_from_dynamodb_item(match["Item"]))
+            scored = dataclasses.replace(doc, score=self._distance_to_similarity(match.get("Score")))
+            if self._matches(filters, scored):
+                docs.append(scored)
+            if len(docs) >= top_k:
+                break
+        return docs
+
+    @staticmethod
+    def _distance_to_similarity(score: float | None) -> float | None:
+        """
+        Converts a DynamoDB COSINE distance into a Haystack similarity score.
+
+        DynamoDB returns a cosine *distance* in ``[0, 2]`` where 0 is identical, while Haystack's
+        `Document.score` convention is higher-is-more-relevant. Mapping to ``1 - distance / 2``
+        yields ``1.0`` for an identical vector and ``0.0`` for an opposite one, preserving
+        DynamoDB's ordering while matching Haystack's semantics.
+
+        :param score: The raw `Score` returned by `SearchVectors`, if any.
+        :returns: The corresponding similarity in ``[0, 1]``, or `None` if no score was returned.
+        """
+        if score is None:
+            return None
+        return 1.0 - (float(score) / _COSINE_MAX_DISTANCE)
+
+    # ------------------------------------------------------------------ sync API
+
+    def _scan_documents(self, client: Any, filters: dict[str, Any] | None = None) -> Iterator[Document]:
+        """
+        Yields every stored document matching `filters` via a consistent full-table `Scan`.
+
+        :param client: The DynamoDB client to scan with.
+        :param filters: Haystack metadata filters applied client-side; `None` or `{}` matches everything.
+        """
+        paginator = client.get_paginator("scan")
+        for page in paginator.paginate(**self._scan_kwargs()):
+            for raw_item in page.get("Items", []):
+                doc = self._item_to_doc(_from_dynamodb_item(raw_item))
+                if self._matches(filters, doc):
+                    yield doc
+
     def count_documents(self) -> int:
         """
         Returns the number of documents in the store.
 
-        Uses a consistent `Scan` with `Select="COUNT"` rather than `describe_table`'s
-        `ItemCount`, which is only updated roughly every six hours by DynamoDB and would
-        fail the base test contract's expectation that a count reflects a just-completed
-        write immediately.
+        Counts with a consistent `Scan`, so the cost grows with the table size.
 
         :returns: Exact document count.
         """
@@ -377,26 +605,9 @@ class DynamoDBDocumentStore:
         client = self._get_client()
         total = 0
         paginator = client.get_paginator("scan")
-        for page in paginator.paginate(TableName=self.table_name, Select="COUNT", ConsistentRead=True):
+        for page in paginator.paginate(**self._count_scan_kwargs()):
             total += page.get("Count", 0)
         return total
-
-    def _scan_documents(self, client: Any, filters: dict[str, Any] | None = None) -> Iterator[Document]:
-        """
-        Yields every stored document matching `filters` via a consistent full-table `Scan`.
-
-        A `Scan` is eventually consistent by default, which surfaced as read-after-write races
-        right after `write_documents` during real-AWS validation, hence `ConsistentRead=True`.
-
-        :param client: The DynamoDB client to scan with.
-        :param filters: Haystack metadata filters applied client-side; `None` or `{}` matches everything.
-        """
-        paginator = client.get_paginator("scan")
-        for page in paginator.paginate(TableName=self.table_name, ConsistentRead=True):
-            for raw_item in page.get("Items", []):
-                doc = self._item_to_doc(_from_dynamodb_item(raw_item))
-                if not filters or document_matches_filter(filters, doc):
-                    yield doc
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -412,33 +623,6 @@ class DynamoDBDocumentStore:
         """
         self._ensure_table()
         return list(self._scan_documents(self._get_client(), filters))
-
-    @staticmethod
-    def _validate_documents(documents: list[Document]) -> None:
-        if not isinstance(documents, list) or any(not isinstance(doc, Document) for doc in documents):
-            msg = "param 'documents' must contain a list of objects of type Document"
-            raise ValueError(msg)
-
-    def _put_item_kwargs(self, doc: Document, policy: DuplicatePolicy) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {"TableName": self.table_name, "Item": _to_dynamodb_item(self._doc_to_item(doc))}
-        if policy != DuplicatePolicy.OVERWRITE:
-            # A conditional write makes FAIL and SKIP atomic and saves a separate GetItem per document.
-            kwargs["ConditionExpression"] = "attribute_not_exists(#id)"
-            kwargs["ExpressionAttributeNames"] = _ID_PLACEHOLDER
-        return kwargs
-
-    @staticmethod
-    def _handle_put_error(error: ClientError, doc: Document, policy: DuplicatePolicy) -> None:
-        """
-        Re-raises `error` unless it is the conditional-check failure that signals a duplicate.
-
-        For a duplicate, raises `DuplicateDocumentError` under `FAIL` and returns under `SKIP`.
-        """
-        if error.response["Error"]["Code"] != "ConditionalCheckFailedException":
-            raise error
-        if policy == DuplicatePolicy.FAIL:
-            msg = f"Document with id '{doc.id}' already exists."
-            raise DuplicateDocumentError(msg) from error
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
@@ -457,8 +641,7 @@ class DynamoDBDocumentStore:
         self._validate_documents(documents)
         if not documents:
             return 0
-        if policy == DuplicatePolicy.NONE:
-            policy = DuplicatePolicy.FAIL
+        policy = self._resolve_policy(policy)
 
         self._ensure_table()
         client = self._get_client()
@@ -483,7 +666,7 @@ class DynamoDBDocumentStore:
         self._ensure_table()
         client = self._get_client()
         for doc_id in document_ids:
-            client.delete_item(TableName=self.table_name, Key={"id": {"S": doc_id}})
+            client.delete_item(**self._delete_kwargs(doc_id))
 
     def delete_all_documents(self) -> None:
         """
@@ -494,13 +677,7 @@ class DynamoDBDocumentStore:
         self._ensure_table()
         client = self._get_client()
         paginator = client.get_paginator("scan")
-        pages = paginator.paginate(
-            TableName=self.table_name,
-            ConsistentRead=True,
-            ProjectionExpression="#id",
-            ExpressionAttributeNames=_ID_PLACEHOLDER,
-        )
-        for page in pages:
+        for page in paginator.paginate(**self._id_scan_kwargs()):
             for raw_item in page.get("Items", []):
                 client.delete_item(TableName=self.table_name, Key={"id": raw_item["id"]})
 
@@ -513,14 +690,12 @@ class DynamoDBDocumentStore:
         :returns: The number of documents deleted.
         :raises ValueError: If `filters` is empty.
         """
-        if not filters:
-            msg = "filters must not be empty; use delete_all_documents() to delete every document."
-            raise ValueError(msg)
+        self._require_filters(filters, "deleting by filter; use delete_all_documents() to delete every document")
         self._ensure_table()
         client = self._get_client()
         deleted = 0
         for doc in self._scan_documents(client, filters):
-            client.delete_item(TableName=self.table_name, Key={"id": {"S": doc.id}})
+            client.delete_item(**self._delete_kwargs(doc.id))
             deleted += 1
         return deleted
 
@@ -535,9 +710,7 @@ class DynamoDBDocumentStore:
         :returns: The number of documents updated.
         :raises ValueError: If `filters` is empty.
         """
-        if not filters:
-            msg = "filters must not be empty when updating documents by filter."
-            raise ValueError(msg)
+        self._require_filters(filters, "updating documents by filter")
         self._ensure_table()
         client = self._get_client()
         updated = 0
@@ -565,61 +738,185 @@ class DynamoDBDocumentStore:
         `top_k`. Matches ranked below those candidates are not reachable, so a selective filter
         can return fewer than `top_k` documents even when more matching documents exist.
 
-        :param query_embedding: The query vector.
+        :param query_embedding: The query vector; must have `embedding_dimension` entries.
         :param top_k: Number of top results to return, between 1 and `SEARCH_VECTORS_MAX_TOP_K`.
         :param filters: Optional metadata filters, applied client-side.
         :returns: List of `Document` objects ordered most-similar-first, with `score` set to a
             similarity in ``[0, 1]`` (converted from DynamoDB's cosine distance).
-        :raises ValueError: If `query_embedding` is empty or `top_k` is outside the allowed range.
+        :raises ValueError: If `query_embedding` is empty or has the wrong dimensionality, or if
+            `top_k` is outside the allowed range.
         """
-        if not query_embedding:
-            msg = "query_embedding must be a non-empty list of floats"
-            raise ValueError(msg)
-        if not 1 <= top_k <= SEARCH_VECTORS_MAX_TOP_K:
-            msg = f"top_k must be between 1 and {SEARCH_VECTORS_MAX_TOP_K} (DynamoDB SearchVectors limit), got {top_k}."
-            raise ValueError(msg)
-
+        self._validate_embedding_query(query_embedding, top_k)
         self._ensure_table()
         client = self._get_client()
+        response = client.search_vectors(
+            **self._search_vectors_kwargs(query_embedding, top_k=self._fetch_k(top_k, filters))
+        )
+        return self._search_results_to_documents(response, filters, top_k)
 
-        fetch_k = SEARCH_VECTORS_MAX_TOP_K if filters else top_k
-        response = client.search_vectors(**self._search_vectors_kwargs(query_embedding, top_k=fetch_k))
+    # ------------------------------------------------------------------ async API
 
-        docs = []
-        for match in response.get("SearchResults", []):
-            item = _from_dynamodb_item(match["Item"])
-            doc = self._item_to_doc(item)
-            doc = dataclasses.replace(doc, score=self._distance_to_similarity(match.get("Score")))
-            if not filters or document_matches_filter(filters, doc):
-                docs.append(doc)
-            if len(docs) >= top_k:
-                break
-        return docs
+    async def _scan_documents_async(
+        self, client: Any, filters: dict[str, Any] | None = None
+    ) -> AsyncIterator[Document]:
+        paginator = client.get_paginator("scan")
+        async for page in paginator.paginate(**self._scan_kwargs()):
+            for raw_item in page.get("Items", []):
+                doc = self._item_to_doc(_from_dynamodb_item(raw_item))
+                if self._matches(filters, doc):
+                    yield doc
 
-    def _search_vectors_kwargs(self, query_embedding: list[float], *, top_k: int) -> dict[str, Any]:
-        return {
-            "TableName": self.table_name,
-            "IndexName": self.index_name,
-            "SearchVector": [{"N": str(v)} for v in query_embedding],
-            "TopK": top_k,
-        }
-
-    @staticmethod
-    def _distance_to_similarity(score: float | None) -> float | None:
+    async def count_documents_async(self) -> int:
         """
-        Converts a DynamoDB COSINE distance into a Haystack similarity score.
+        Asynchronously returns the number of documents in the store.
 
-        DynamoDB returns a cosine *distance* in ``[0, 2]`` where 0 is identical, while Haystack's
-        `Document.score` convention is higher-is-more-relevant. Mapping to ``1 - distance / 2``
-        yields ``1.0`` for an identical vector and ``0.0`` for an opposite one, preserving
-        DynamoDB's ordering while matching Haystack's semantics.
-
-        :param score: The raw `Score` returned by `SearchVectors`, if any.
-        :returns: The corresponding similarity in ``[0, 1]``, or `None` if no score was returned.
+        :returns: Exact document count.
         """
-        if score is None:
-            return None
-        return 1.0 - (float(score) / _COSINE_MAX_DISTANCE)
+        await self._ensure_table_async()
+        total = 0
+        async with self._async_client() as client:
+            paginator = client.get_paginator("scan")
+            async for page in paginator.paginate(**self._count_scan_kwargs()):
+                total += page.get("Count", 0)
+        return total
+
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Asynchronously returns documents matching the provided filters.
+
+        See `filter_documents` for how filters are evaluated.
+
+        :param filters: Haystack metadata filters. If `None`, all documents are returned.
+        :returns: List of matching `Document` objects.
+        """
+        await self._ensure_table_async()
+        async with self._async_client() as client:
+            return [doc async for doc in self._scan_documents_async(client, filters)]
+
+    async def write_documents_async(
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+    ) -> int:
+        """
+        Asynchronously writes documents to the store.
+
+        See `write_documents` for the duplicate handling semantics.
+
+        :param documents: Documents to write.
+        :param policy: How to handle duplicates: `OVERWRITE`, `SKIP`, or `FAIL`. `NONE` (the
+            default) behaves like `FAIL`.
+        :raises ValueError: If `documents` contains non-`Document` objects.
+        :raises DuplicateDocumentError: If a duplicate is found and policy is `FAIL`.
+        :returns: Number of documents written.
+        """
+        self._validate_documents(documents)
+        if not documents:
+            return 0
+        policy = self._resolve_policy(policy)
+
+        await self._ensure_table_async()
+        written = 0
+        async with self._async_client() as client:
+            for doc in documents:
+                try:
+                    await client.put_item(**self._put_item_kwargs(doc, policy))
+                except ClientError as e:
+                    self._handle_put_error(e, doc, policy)
+                    continue
+                written += 1
+        return written
+
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
+        """
+        Asynchronously deletes documents by their IDs.
+
+        :param document_ids: List of document IDs to delete.
+        """
+        if not document_ids:
+            return
+        await self._ensure_table_async()
+        async with self._async_client() as client:
+            for doc_id in document_ids:
+                await client.delete_item(**self._delete_kwargs(doc_id))
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Asynchronously deletes all documents in the store.
+
+        Items are deleted one by one after a consistent scan; the table and its vector index are kept.
+        """
+        await self._ensure_table_async()
+        async with self._async_client() as client:
+            paginator = client.get_paginator("scan")
+            async for page in paginator.paginate(**self._id_scan_kwargs()):
+                for raw_item in page.get("Items", []):
+                    await client.delete_item(TableName=self.table_name, Key={"id": raw_item["id"]})
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents matching the filters.
+
+        :param filters: Haystack metadata filters selecting the documents to delete. Must not be
+            empty; use `delete_all_documents_async` to clear the store.
+        :returns: The number of documents deleted.
+        :raises ValueError: If `filters` is empty.
+        """
+        self._require_filters(filters, "deleting by filter; use delete_all_documents_async() to delete every document")
+        await self._ensure_table_async()
+        deleted = 0
+        async with self._async_client() as client:
+            async for doc in self._scan_documents_async(client, filters):
+                await client.delete_item(**self._delete_kwargs(doc.id))
+                deleted += 1
+        return deleted
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously merges `meta` into the metadata of all documents matching the filters.
+
+        :param filters: Haystack metadata filters selecting the documents to update. Must not be empty.
+        :param meta: The metadata fields to set on each matching document.
+        :returns: The number of documents updated.
+        :raises ValueError: If `filters` is empty.
+        """
+        self._require_filters(filters, "updating documents by filter")
+        await self._ensure_table_async()
+        updated = 0
+        async with self._async_client() as client:
+            async for doc in self._scan_documents_async(client, filters):
+                updated_doc = dataclasses.replace(doc, meta={**doc.meta, **meta})
+                await client.put_item(**self._put_item_kwargs(updated_doc, DuplicatePolicy.OVERWRITE))
+                updated += 1
+        return updated
+
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: list[float],
+        *,
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieves documents most similar to the query embedding.
+
+        See `_embedding_retrieval` for the candidate limit that applies when filters are set.
+
+        :param query_embedding: The query vector; must have `embedding_dimension` entries.
+        :param top_k: Number of top results to return, between 1 and `SEARCH_VECTORS_MAX_TOP_K`.
+        :param filters: Optional metadata filters, applied client-side.
+        :returns: List of `Document` objects ordered most-similar-first, with `score` set to a
+            similarity in ``[0, 1]``.
+        :raises ValueError: If `query_embedding` is empty or has the wrong dimensionality, or if
+            `top_k` is outside the allowed range.
+        """
+        self._validate_embedding_query(query_embedding, top_k)
+        await self._ensure_table_async()
+        async with self._async_client() as client:
+            response = await client.search_vectors(
+                **self._search_vectors_kwargs(query_embedding, top_k=self._fetch_k(top_k, filters))
+            )
+        return self._search_results_to_documents(response, filters, top_k)
+
+    # ------------------------------------------------------------------ serialization
 
     def to_dict(self) -> dict[str, Any]:
         """

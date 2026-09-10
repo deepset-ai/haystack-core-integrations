@@ -21,6 +21,7 @@ import boto3
 import pytest
 from botocore.exceptions import ClientError
 from haystack.dataclasses import Document
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.dynamodb import DynamoDBDocumentStore
 
@@ -30,6 +31,53 @@ EMBEDDING_DIMENSION = 768
 # One prefix per test process. Several CI matrix jobs share the AWS account and run concurrently,
 # so the final sweep must only ever touch tables created by this very run.
 TABLE_PREFIX = f"haystack_test_{uuid.uuid4().hex[:8]}_"
+
+
+def make_store(**kwargs) -> DynamoDBDocumentStore:
+    """A store with static credentials for unit tests; never talks to AWS unless a client is used."""
+    return DynamoDBDocumentStore(
+        table_name="test_docs",
+        index_name="test_index",
+        embedding_dimension=3,
+        region_name="us-east-1",
+        aws_access_key_id=Secret.from_token("test-key"),
+        aws_secret_access_key=Secret.from_token("test-secret"),
+        **kwargs,
+    )
+
+
+def table_description(
+    *,
+    index_name: str = "test_index",
+    dimensions: int = 3,
+    distance_function: str = "COSINE",
+    vector_attribute: str = "embedding",
+    index_status: str = "ACTIVE",
+    backfilling: bool | None = None,
+    key_schema: list[dict[str, str]] | None = None,
+) -> dict:
+    """Builds a `DescribeTable` payload shaped like the one for a table created by the store."""
+    index: dict = {
+        "IndexName": index_name,
+        "Dimensions": dimensions,
+        "DistanceFunction": distance_function,
+        "VectorAttribute": {"AttributeName": vector_attribute},
+        "IndexStatus": index_status,
+    }
+    if backfilling is not None:
+        index["Backfilling"] = backfilling
+    return {
+        "Table": {
+            "TableName": "test_docs",
+            "TableStatus": "ACTIVE",
+            "KeySchema": key_schema if key_schema is not None else [{"AttributeName": "id", "KeyType": "HASH"}],
+            "VectorIndexes": [index],
+        }
+    }
+
+
+def client_error(code: str, operation: str) -> ClientError:
+    return ClientError({"Error": {"Code": code, "Message": code}}, operation)
 
 
 def live_aws_region() -> str | None:
