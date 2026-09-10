@@ -30,9 +30,9 @@ class AdvancedRAGEvalCaseMetrics:
     `failures` names every expectation the run missed, so a regression report says what broke rather than only that
     something did. `passed` is true exactly when `failures` is empty. `run_digest` records what the Agent actually
     did — every tool call with its arguments and result — so a failure can be diagnosed rather than only counted.
-    `backup_answer_used` names one chain the counts hide: a run cut off by its step budget is answered by the
-    backup-answer hook, which does not cite, so it fails a citation expectation for a reason that has nothing to do
-    with retrieval.
+    `exit_reason` is what the counts hide: a run cut off by its step budget is answered by the backup-answer
+    hook, which does not cite, so it fails a citation expectation for a reason that has nothing to do with
+    retrieval.
     """
 
     question: str
@@ -52,7 +52,7 @@ class AdvancedRAGEvalCaseMetrics:
     input_tokens: int
     output_tokens: int
     token_usage: dict[str, Any]
-    backup_answer_used: bool = False
+    exit_reason: str | None = None
     run_digest: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,7 +89,6 @@ def score_advanced_rag_result(
     retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
     metadata_tools: frozenset[str] = METADATA_TOOLS,
     tool_budgets: dict[tuple[str, ...], int] | None = None,
-    backup_answer_used: bool = False,
 ) -> AdvancedRAGEvalCaseMetrics:
     """
     Score retrieval grounding, answer behaviour, and process budgets for one Agent result.
@@ -100,8 +99,6 @@ def score_advanced_rag_result(
     :param digest_policy: Caps applied to the recorded tool trace.
     :param tool_budgets: Allowances already resolved against the tools the candidate has. Defaults to what the
         eval case names, which is all a caller scoring a single result knows.
-    :param backup_answer_used: Whether the backup LLM wrote the answer, which the caller observes rather than
-        the result reporting: the backup runs outside the Agent's step loop and leaves nothing in its output.
     :returns: The score, naming every expectation the run missed, and the trace explaining why.
     """
     messages = result.get("messages") or []
@@ -163,7 +160,7 @@ def score_advanced_rag_result(
         tool_errors=len(stats.errors),
         steps=steps,
         latency_ms=latency_ms,
-        backup_answer_used=backup_answer_used,
+        exit_reason=result.get("exit_reason"),
         run_digest=digest_agent_run(result=result, policy=digest_policy),
         input_tokens=_first_numeric(usage, _INPUT_TOKEN_KEYS),
         output_tokens=_first_numeric(usage, _OUTPUT_TOKEN_KEYS),

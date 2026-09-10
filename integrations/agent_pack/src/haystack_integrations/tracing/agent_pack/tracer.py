@@ -12,11 +12,9 @@ from typing import Any
 
 from haystack import tracing
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
-from haystack.dataclasses import ChatMessage
 from haystack.tracing import Span, Tracer
 
 from haystack_integrations.agent_pack.evaluation.dataclasses import ModelTokenUsage
-
 
 EVAL_CASE_SPAN = "haystack.harness.eval_case"
 MAX_RECORDED_TEXTS = 8
@@ -44,7 +42,6 @@ class EvalCaseUsage:
         capped at `MAX_RECORDED_TEXTS` entries of `MAX_RECORDED_TEXT_CHARS`.
     :param complete: Whether every model call reported token usage. False means the total token usage is underestimated.
     :param calls: How many model calls the eval case made.
-    :param hook_calls: How many of those calls a hook made, outside the agent's own step loop.
     :param lock: Guards the counters, since eval cases can be run in parallel.
     """
 
@@ -53,31 +50,27 @@ class EvalCaseUsage:
     texts: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     complete: bool = True
     calls: int = 0
-    hook_calls: int = 0
     lock: LockType = field(default_factory=Lock, repr=False)
 
 
 class _HarnessSpan(Span):
     def __init__(
-        self, usage: EvalCaseUsage | None, generator: bool, component: str | None = None, hook: bool = False
+        self, eval_case_usage: EvalCaseUsage | None, is_generator_span: bool, component_name: str | None = None
     ) -> None:
         """
         Create a span that records into one eval case.
 
-        :param usage: Where this span records, or `None` when the span happened outside any eval case and
+        :param eval_case_usage: Where this span records, or `None` when the span happened outside any eval case and
             nothing it reports is kept.
-        :param generator: Whether this span is a model call, whose token usage is recorded. Every other span is
+        :param is_generator_span: Whether this span is a model call, whose token usage is recorded. Every other span is
             measured by how much it emitted instead.
-        :param component: The component the span belongs to, which names its entry in `outputs` and `texts`.
+        :param component_name: The component the span belongs to, which names its entry in `outputs` and `texts`.
             `None` for a span that is not a component run, such as an agent step or a hook.
-        :param hook: Whether the span is a hook, or runs under one. A hook's model call is not one of the
-            agent's steps, so this is what tells them apart.
         """
-        self.usage = usage
-        self.generator = generator
-        self.component = component
-        self.hook = hook
-        # A generator emits its output more than once per span; only the first is counted.
+        self.eval_case_usage = eval_case_usage
+        self.is_generator_span = is_generator_span
+        self.component_name = component_name
+        # Set once this span reports its token usage.
         self.recorded = False
 
     def set_tag(self, key: str, value: Any) -> None:
@@ -91,7 +84,12 @@ class _HarnessSpan(Span):
         stage, and the generators held inside other components share the name their owner gave them, so counting
         them would collide two stages under one entry.
         """
-        if self.usage is None or self.component is None or self.generator or not isinstance(value, dict):
+        if (
+            self.eval_case_usage is None
+            or self.component_name is None
+            or self.is_generator_span
+            or not isinstance(value, dict)
+        ):
             return
         # Only sequences are measurable, and only a sequence of nothing but strings is worth sampling. Documents
         # and messages are counted and dropped, so nothing long is retained by accident.
@@ -104,47 +102,47 @@ class _HarnessSpan(Span):
         }
         if not sizes:
             return
-        with self.usage.lock:
-            self.usage.outputs[self.component] = sizes
+        with self.eval_case_usage.lock:
+            self.eval_case_usage.outputs[self.component_name] = sizes
             if texts:
-                self.usage.texts[self.component] = texts
+                self.eval_case_usage.texts[self.component_name] = texts
 
     def set_content_tag(self, key: str, value: Any) -> None:
         """Extract usage and output sizes from one component output without enabling content logging."""
+        # Record output lengths and truncated text samples for every component
         if key == "haystack.component.output":
             self._record_outputs(value)
+
         if (
-            not self.generator
-            or self.usage is None
-            or self.recorded
+            # We only care if a generator was detected
+            not self.is_generator_span
+            # Empty eval_case_usage means the span is outside any eval case
+            or self.eval_case_usage is None
+            # Only these operation names are known to report token usage in their output
             or key not in ("haystack.component.output", "haystack.agent.step.llm.output")
         ):
             return
+
+        # Record token usage from every generator that reports it
         self.recorded = True
-        with self.usage.lock:
-            self.usage.calls += 1
-            # A hook's own model call is not one of the Agent's steps and leaves nothing in its output, so the
-            # span it runs under is the only record that it happened.
-            self.usage.hook_calls += self.hook
+        with self.eval_case_usage.lock:
+            self.eval_case_usage.calls += 1
             replies = value.get("replies", []) if isinstance(value, dict) else []
             if not replies:
-                self.usage.complete = False
+                self.eval_case_usage.complete = False
             for reply in replies:
-                if not isinstance(reply, ChatMessage):
-                    self.usage.complete = False
-                    continue
                 model = reply.meta.get("model")
                 tokens = reply.meta.get("usage") or {}
                 if not isinstance(model, str) or not all(
                     any(isinstance(tokens.get(key), (int, float)) for key in keys)
                     for keys in (_INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS)
                 ):
-                    self.usage.complete = False
+                    self.eval_case_usage.complete = False
                     continue
-                current = self.usage.models.get(model, ModelTokenUsage())
-                self.usage.models[model] = ModelTokenUsage(
-                    input_tokens=current.input_tokens + _first_numeric(tokens, _INPUT_TOKEN_KEYS),
-                    output_tokens=current.output_tokens + _first_numeric(tokens, _OUTPUT_TOKEN_KEYS),
+                current = self.eval_case_usage.models.get(model, ModelTokenUsage())
+                self.eval_case_usage.models[model] = ModelTokenUsage(
+                    input_tokens=current.input_tokens + _first_numeric(usage=tokens, keys=_INPUT_TOKEN_KEYS),
+                    output_tokens=current.output_tokens + _first_numeric(usage=tokens, keys=_OUTPUT_TOKEN_KEYS),
                 )
 
 
@@ -168,29 +166,23 @@ class HarnessTracer(Tracer):
         """Follow explicit parents as well as context propagated into async worker threads."""
         parent = parent_span if isinstance(parent_span, _HarnessSpan) else self.current_span()
         # An eval case span opens a fresh collection; every span under it records into that one.
-        usage = EvalCaseUsage() if operation_name == EVAL_CASE_SPAN else (parent.usage if parent is not None else None)
-        agent_step = operation_name == "haystack.agent.step.llm"
-        generator = (
-            agent_step
-            or operation_name == "haystack.chat_generator.run"
-            or (
-                operation_name == "haystack.component.run"
-                and str((tags or {}).get("haystack.component.type", "")).endswith("ChatGenerator")
-            )
+        inherited = parent.eval_case_usage if parent is not None else None
+        eval_case_usage = EvalCaseUsage() if operation_name == EVAL_CASE_SPAN else inherited
+        is_generator_span = operation_name in ("haystack.agent.step.llm", "haystack.chat_generator.run") or (
+            operation_name == "haystack.component.run"
+            and str((tags or {}).get("haystack.component.type", "")).endswith("ChatGenerator")
         )
-        hook = operation_name == "haystack.agent.hook" or (parent.hook if parent is not None else False)
         span = _HarnessSpan(
-            usage=usage,
-            generator=generator,
-            component=str((tags or {}).get("haystack.component.name") or "") or None,
-            hook=hook,
+            eval_case_usage=eval_case_usage,
+            is_generator_span=is_generator_span,
+            component_name=str((tags or {}).get("haystack.component.name") or "") or None,
         )
         token = self._span.set(span)
         try:
             yield span
         finally:
-            if generator and not span.recorded and usage is not None:
-                usage.complete = False
+            if is_generator_span and not span.recorded and eval_case_usage is not None:
+                eval_case_usage.complete = False
             self._span.reset(token)
 
     def current_span(self) -> _HarnessSpan | None:
@@ -214,4 +206,6 @@ def usage_from_span(span: Span) -> EvalCaseUsage:
     :param span: The span a harness opened with `EVAL_CASE_SPAN`.
     :returns: What was recorded, or an empty record when a HarnessTracer was not the active tracer.
     """
-    return span.usage if isinstance(span, _HarnessSpan) and span.usage is not None else EvalCaseUsage()
+    if isinstance(span, _HarnessSpan) and span.eval_case_usage is not None:
+        return span.eval_case_usage
+    return EvalCaseUsage()

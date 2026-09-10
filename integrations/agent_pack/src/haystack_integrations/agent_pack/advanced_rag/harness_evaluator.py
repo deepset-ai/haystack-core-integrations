@@ -141,7 +141,6 @@ class AdvancedRAGHarnessEvaluator:
         started: float,
         position: int,
         total: int,
-        usage: EvalCaseUsage,
         retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
         metadata_tools: frozenset[str] = METADATA_TOOLS,
         tool_budgets: dict[tuple[str, ...], int] | None = None,
@@ -154,7 +153,6 @@ class AdvancedRAGHarnessEvaluator:
         :param started: The `perf_counter` reading from before the run.
         :param position: Which eval case this is, for reporting.
         :param total: How many eval cases there are, for reporting.
-        :param usage: What the tracer collected while the run happened.
         :param retrieval_tools: Names resolved from candidate document outputs.
         :param metadata_tools: Names resolved from metadata tool classes.
         :param tool_budgets: The eval case's allowances, resolved against the tools the candidate has.
@@ -169,9 +167,6 @@ class AdvancedRAGHarnessEvaluator:
             retrieval_tools=retrieval_tools,
             metadata_tools=metadata_tools,
             tool_budgets=tool_budgets,
-            # The backup LLM runs inside an after_run hook, so a model call made under a hook span is what
-            # says it ran; the Agent's own output reports nothing about it.
-            backup_answer_used=result.get("exit_reason") == "max_agent_steps" and usage.hook_calls > 0,
         )
         logger.info(
             "eval case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
@@ -220,7 +215,6 @@ class AdvancedRAGHarnessEvaluator:
                 started=started,
                 position=position,
                 total=len(eval_cases),
-                usage=usage,
                 retrieval_tools=retrieval_tools,
                 metadata_tools=metadata_tools,
                 tool_budgets=resolve_tool_budgets(

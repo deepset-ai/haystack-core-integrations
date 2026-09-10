@@ -38,6 +38,7 @@ def successful_result(document):
         "last_message": ChatMessage.from_assistant(answer),
         "documents": [document],
         "step_count": 3,
+        "exit_reason": "text",
         "token_usage": {"input_tokens": 100, "output_tokens": 20},
     }
 
@@ -173,13 +174,13 @@ def test_eval_case_details_carry_the_tool_trace(document):
     assert [step["tool"] for step in trace["tool_steps"]] == ["list_metadata_fields", "search_documents"]
     assert trace["tool_steps"][1]["arguments"] == '{"query": "CRISPR"}'
     assert trace["tool_steps"][0]["result"] == "fields"
-    assert metrics.details["eval_cases"][0]["backup_answer_used"] is False
+    assert metrics.details["eval_cases"][0]["exit_reason"] == "text"
 
 
-def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(document):
+def test_a_run_cut_off_by_its_step_budget_reports_why_it_stopped(document):
     """
-    The backup LLM is called by an after_run hook, so it is absent from what the Agent returns. A real Agent is
-    driven to step exhaustion here rather than a fabricated result, since the hook running is the thing measured.
+    A citation failure means something different when the step budget ran out: the backup LLM wrote the answer
+    and does not cite. A real Agent is driven to exhaustion here, so the hook's own model call is measured too.
     """
     store = InMemoryDocumentStore()
     store.write_documents([document])
@@ -200,7 +201,7 @@ def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(documen
 
     metrics = AdvancedRAGHarnessEvaluator().evaluate(target=agent, eval_cases=[eval_case])
 
-    assert metrics.details["eval_cases"][0]["backup_answer_used"] is True
+    assert metrics.details["eval_cases"][0]["exit_reason"] == "max_agent_steps"
     # The backup model is priced alongside the Agent's own, which is what the hook span also makes visible.
     assert "backup" in metrics.model_usage
 
