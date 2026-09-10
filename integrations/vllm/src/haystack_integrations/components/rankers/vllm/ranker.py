@@ -127,14 +127,14 @@ class VLLMRanker:
         """Create the synchronous HTTP client."""
         if self._client is None:
             client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=False)
-            assert isinstance(client, httpx.Client)  # noqa: S101
+            assert client is not None  # noqa: S101
             self._client = client
 
     async def warm_up_async(self) -> None:
         """Create the asynchronous HTTP client."""
         if self._async_client is None:
             client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=True)
-            assert isinstance(client, httpx.AsyncClient)  # noqa: S101
+            assert client is not None  # noqa: S101
             self._async_client = client
 
     def close(self) -> None:
