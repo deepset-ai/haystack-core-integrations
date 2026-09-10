@@ -75,6 +75,8 @@ def measure_output(value: dict[str, Any]) -> tuple[dict[str, int], dict[str, lis
 @dataclass
 class ReportedUsage:
     """
+    Token usage reported by a generator.
+
     :param model: The model identifier the call reported, or `None` when it reported none.
     :param tokens: The token counts the call reported, under whatever keys it used.
     """
@@ -86,7 +88,7 @@ class ReportedUsage:
 @dataclass
 class SpanRecord:
     """
-    What one span reported, kept small enough that a whole eval case's worth can be held until it ends.
+    A span record which contains reduced information about a span that ran under an eval case.
 
     :param span_id: Identifies this span among the records of one eval case.
     :param parent_span_id: The span this one ran under, or `None` for the root of a collection.
@@ -112,7 +114,7 @@ class SpanRecord:
 @dataclass
 class EvalCaseUsage:
     """
-    What one eval case spent and what reached each of its stages.
+    Summarizes what an eval case's spans reported about its token usage and per-stage outputs.
 
     :param models: Token usage attributed to each model the eval case called, keyed by model identifier.
     :param outputs: How many items each component emitted, by component name and output socket.

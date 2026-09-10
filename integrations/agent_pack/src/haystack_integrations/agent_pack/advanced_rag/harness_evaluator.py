@@ -22,6 +22,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     GetMetadataFieldValuesTool,
     ListMetadataFieldsTool,
 )
+from haystack_integrations.agent_pack.evaluation.agent_run_digest import AGENT_RUN_DIGEST_KEY, AgentRunDigestPolicy
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.evaluation.dataclasses import (
     EVAL_CASES_KEY,
@@ -31,7 +32,6 @@ from haystack_integrations.agent_pack.evaluation.dataclasses import (
     ToolNames,
 )
 from haystack_integrations.agent_pack.evaluation.tool_budgets import resolve_tool_budgets
-from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
 from haystack_integrations.tracing.agent_pack import (
     EVAL_CASE_SPAN,
     EvalCaseUsage,
@@ -81,7 +81,7 @@ class AdvancedRAGHarnessEvaluator:
     def __init__(
         self,
         *,
-        digest_policy: RunDigestPolicy | None = None,
+        digest_policy: AgentRunDigestPolicy | None = None,
         max_traced_eval_cases: int | None = 6,
         max_concurrent_eval_cases: int = 1,
     ) -> None:
@@ -131,7 +131,7 @@ class AdvancedRAGHarnessEvaluator:
             return eval_cases
         ranked = sorted(range(len(metrics)), key=lambda index: (metrics[index].passed, index))
         for index in ranked[self.max_traced_eval_cases :]:
-            eval_cases[index].pop(RUN_DIGEST_KEY, None)
+            eval_cases[index].pop(AGENT_RUN_DIGEST_KEY, None)
         return eval_cases
 
     def _score(

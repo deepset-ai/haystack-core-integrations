@@ -11,9 +11,9 @@ from typing import Any
 
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 
+from haystack_integrations.agent_pack.evaluation.agent_run_digest import AgentRunDigestPolicy, digest_agent_run
 from haystack_integrations.agent_pack.evaluation.dataclasses import RAGEvalCase, ToolRunStats
 from haystack_integrations.agent_pack.evaluation.tool_budgets import budgets_exceeded, resolve_tool_budgets
-from haystack_integrations.agent_pack.run_digest import RunDigestPolicy, digest_agent_run
 
 RETRIEVAL_TOOLS = frozenset({"search_documents", "fetch_documents_by_filter"})
 METADATA_TOOLS = frozenset({"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"})
@@ -28,7 +28,7 @@ class AdvancedRAGEvalCaseMetrics:
     Detailed score for one Advanced RAG evaluation case.
 
     `failures` names every expectation the run missed, so a regression report says what broke rather than only that
-    something did. `passed` is true exactly when `failures` is empty. `run_digest` records what the Agent actually
+    something did. `passed` is true exactly when `failures` is empty. `agent_run_digest` records what the Agent actually
     did — every tool call with its arguments and result — so a failure can be diagnosed rather than only counted.
     `exit_reason` is what the counts hide: a run cut off by its step budget is answered by the backup-answer
     hook, which does not cite, so it fails a citation expectation for a reason that has nothing to do with
@@ -53,7 +53,7 @@ class AdvancedRAGEvalCaseMetrics:
     output_tokens: int
     token_usage: dict[str, Any]
     exit_reason: str | None = None
-    run_digest: dict[str, Any] = field(default_factory=dict)
+    agent_run_digest: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -85,7 +85,7 @@ def score_advanced_rag_result(
     eval_case: RAGEvalCase,
     *,
     latency_ms: float,
-    digest_policy: RunDigestPolicy | None = None,
+    digest_policy: AgentRunDigestPolicy | None = None,
     retrieval_tools: frozenset[str] = RETRIEVAL_TOOLS,
     metadata_tools: frozenset[str] = METADATA_TOOLS,
     tool_budgets: dict[tuple[str, ...], int] | None = None,
@@ -161,7 +161,7 @@ def score_advanced_rag_result(
         steps=steps,
         latency_ms=latency_ms,
         exit_reason=result.get("exit_reason"),
-        run_digest=digest_agent_run(result=result, policy=digest_policy),
+        agent_run_digest=digest_agent_run(result=result, policy=digest_policy),
         input_tokens=_first_numeric(usage, _INPUT_TOKEN_KEYS),
         output_tokens=_first_numeric(usage, _OUTPUT_TOKEN_KEYS),
         token_usage=dict(usage),

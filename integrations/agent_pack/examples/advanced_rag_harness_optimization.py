@@ -46,6 +46,7 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
 )
 from haystack_integrations.agent_pack.evaluation import RAGEvalCase
+from haystack_integrations.agent_pack.evaluation.agent_run_digest import AgentRunDigestPolicy
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     ExperimentResult,
@@ -55,7 +56,6 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
 )
-from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-luna"
@@ -67,7 +67,7 @@ CANDIDATE_MODELS = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")
 # discipline is not repeated here — it belongs to every harness and lives in the optimizer instructions.
 # A metadata listing is only usable as evidence when the optimizer knows it is complete: these three tools answer
 # "what values exist", and a truncated answer invites a candidate that hard-codes an incomplete set.
-DIGEST_POLICY = RunDigestPolicy(
+DIGEST_POLICY = AgentRunDigestPolicy(
     keep_full_results_for=frozenset({"list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"})
 )
 
@@ -401,7 +401,6 @@ def main() -> None:
             primary=arguments.primary,
         ),
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
-        digest_policy=DIGEST_POLICY,
         optimizer_agent=create_harness_optimizer_agent(
             documentation_tools=arguments.docs_mcp, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
         ),

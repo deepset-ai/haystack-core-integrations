@@ -170,7 +170,7 @@ def test_eval_case_details_carry_the_tool_trace(document):
 
     metrics = AdvancedRAGHarnessEvaluator().evaluate(target=FakeAgent(document), eval_cases=[eval_case])
 
-    trace = metrics.details["eval_cases"][0]["run_digest"]
+    trace = metrics.details["eval_cases"][0]["agent_run_digest"]
     assert [step["tool"] for step in trace["tool_steps"]] == ["list_metadata_fields", "search_documents"]
     assert trace["tool_steps"][1]["arguments"] == '{"query": "CRISPR"}'
     assert trace["tool_steps"][0]["result"] == "fields"
@@ -217,10 +217,10 @@ def test_traces_are_dropped_from_passing_eval_cases_before_failing_ones(document
     )
 
     assert failing_metrics.details["eval_cases"][0]["passed"] is False
-    assert "run_digest" in failing_metrics.details["eval_cases"][0]
+    assert "agent_run_digest" in failing_metrics.details["eval_cases"][0]
     # The trace is withheld past the cap, but the eval case is still reported.
     assert passing_metrics.details["eval_cases"][0]["passed"] is True
-    assert "run_digest" not in passing_metrics.details["eval_cases"][0]
+    assert "agent_run_digest" not in passing_metrics.details["eval_cases"][0]
 
 
 def test_eval_cases_measured_concurrently_are_reported_in_order(document):

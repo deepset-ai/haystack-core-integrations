@@ -2,8 +2,8 @@ import json
 
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.agent_pack.run_digest import (
-    RunDigestPolicy,
+from haystack_integrations.agent_pack.evaluation.agent_run_digest import (
+    AgentRunDigestPolicy,
     digest_agent_run,
 )
 
@@ -49,7 +49,7 @@ def test_digest_reports_tool_errors_verbatim():
 
 def test_truncation_announces_itself_so_a_prefix_is_not_read_as_the_whole():
     """A reader that cannot tell a prefix from a complete listing will treat a partial one as exhaustive."""
-    policy = RunDigestPolicy(max_result_chars=10, max_answer_chars=6)
+    policy = AgentRunDigestPolicy(max_result_chars=10, max_answer_chars=6)
     digest = digest_agent_run(result=agent_result(result_text="x" * 30, answer="y" * 20), policy=policy)
 
     step = digest["tool_steps"][0]
@@ -61,7 +61,7 @@ def test_truncation_announces_itself_so_a_prefix_is_not_read_as_the_whole():
 
 def test_full_results_are_kept_for_tools_whose_listings_must_stay_complete():
     """An introspection listing is only usable as evidence when it is known to be complete."""
-    policy = RunDigestPolicy(max_result_chars=10, keep_full_results_for=frozenset({"search_documents"}))
+    policy = AgentRunDigestPolicy(max_result_chars=10, keep_full_results_for=frozenset({"search_documents"}))
     digest = digest_agent_run(result=agent_result(result_text="x" * 30), policy=policy)
 
     assert digest["tool_steps"][0]["result"] == "x" * 30
@@ -70,7 +70,7 @@ def test_full_results_are_kept_for_tools_whose_listings_must_stay_complete():
 
 def test_call_cap_reports_how_many_calls_it_dropped():
     """A capped trace still has to say that the run was longer than what it shows."""
-    digest = digest_agent_run(result=agent_result(calls=5), policy=RunDigestPolicy(max_tool_calls=2))
+    digest = digest_agent_run(result=agent_result(calls=5), policy=AgentRunDigestPolicy(max_tool_calls=2))
 
     assert len(digest["tool_steps"]) == 2
     assert digest["omitted_tool_calls"] == 3

@@ -35,7 +35,6 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_agent,
     load_pipeline,
 )
-from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessTracer, usage_from_span
 
 logger = logging.getLogger(__name__)
@@ -210,7 +209,6 @@ class HarnessOptimizationExperiment:
         optimizer_agent: Agent,
         configuration_key: str | None = None,
         max_iterations: int = 8,
-        digest_policy: RunDigestPolicy | None = None,
         history_digest_window: int = 1,
         config_path: str | Path | None = None,
     ) -> None:
@@ -230,7 +228,6 @@ class HarnessOptimizationExperiment:
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
-        :param digest_policy: Caps applied to the tool trace each measured eval case carries.
         :param history_digest_window: How many recent outcomes retain detailed traces in optimizer context.
         :param config_path: Optional editable YAML draft, created if absent. Defaults to the artifact directory.
         """
@@ -247,7 +244,6 @@ class HarnessOptimizationExperiment:
         self.optimizer_agent = optimizer_agent
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
-        self.digest_policy = digest_policy
         self.history_digest_window = history_digest_window
 
     def run(self) -> ExperimentResult:

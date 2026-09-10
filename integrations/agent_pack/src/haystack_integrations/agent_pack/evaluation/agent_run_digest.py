@@ -8,11 +8,11 @@ from typing import Any
 
 from haystack.dataclasses import ChatMessage, ToolCall
 
-RUN_DIGEST_KEY = "run_digest"
+AGENT_RUN_DIGEST_KEY = "agent_run_digest"
 
 
 @dataclass(kw_only=True)
-class RunDigestPolicy:
+class AgentRunDigestPolicy:
     """
     Caps applied while compressing one Agent run.
 
@@ -40,7 +40,7 @@ def _truncate(text: str, limit: int) -> tuple[str, bool]:
     return f"{text[:limit]}… [{len(text) - limit} more characters omitted]", True
 
 
-def _tool_steps(messages: list[ChatMessage], policy: RunDigestPolicy) -> tuple[list[dict[str, Any]], int]:
+def _tool_steps(messages: list[ChatMessage], policy: AgentRunDigestPolicy) -> tuple[list[dict[str, Any]], int]:
     """Pair each tool call with its result, in call order."""
     results: dict[str, Any] = {}
     for message in messages:
@@ -72,17 +72,17 @@ def _tool_steps(messages: list[ChatMessage], policy: RunDigestPolicy) -> tuple[l
     return steps, max(len(calls) - policy.max_tool_calls, 0)
 
 
-def digest_agent_run(result: dict[str, Any], policy: RunDigestPolicy | None = None) -> dict[str, Any]:
+def digest_agent_run(result: dict[str, Any], policy: AgentRunDigestPolicy | None = None) -> dict[str, Any]:
     """
     Compress one Agent run to its tool behaviour and outcome.
 
     :param result: The dictionary returned by `Agent.run`.
-    :param policy: Caps to apply. Defaults to `RunDigestPolicy()`.
+    :param policy: Caps to apply. Defaults to `AgentRunDigestPolicy()`.
     :returns: A JSON-compatible digest: how the run ended, the tools it called with their arguments and results,
         and an excerpt of its answer. `tool_call_counts` is kept verbatim because it names every tool available to
         the Agent, including tools it never called.
     """
-    policy = policy or RunDigestPolicy()
+    policy = policy or AgentRunDigestPolicy()
     messages: list[ChatMessage] = result.get("messages") or []
     steps, omitted = _tool_steps(messages=messages, policy=policy)
     answers = [message.text for message in messages if message.is_from("assistant") and message.text]

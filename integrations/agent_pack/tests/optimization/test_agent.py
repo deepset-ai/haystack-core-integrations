@@ -261,7 +261,13 @@ def test_a_reference_without_tools_gets_no_tools_section(tmp_path):
 
 
 def outcome(passed, failures):
-    return {"question": "q", "passed": passed, "failures": failures, "recall": 1.0, "run_digest": {"tool_steps": []}}
+    return {
+        "question": "q",
+        "passed": passed,
+        "failures": failures,
+        "recall": 1.0,
+        "agent_run_digest": {"tool_steps": []},
+    }
 
 
 def test_old_eval_case_listings_become_a_count_of_how_they_ended():
