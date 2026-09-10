@@ -29,6 +29,7 @@ _COSINE_MAX_DISTANCE = 2.0
 # Hard, non-adjustable service quota on `TopK` per `SearchVectors` request; see "Vector indexes" in
 # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html
 SEARCH_VECTORS_MAX_TOP_K = 100
+_VECTOR_ATTRIBUTE = "embedding"
 
 
 class DynamoDBDocumentStore:
@@ -81,12 +82,16 @@ class DynamoDBDocumentStore:
             Defaults to `AWS_SESSION_TOKEN` env var.
         :param create_table_if_not_exists: If `True`, create the table and vector index on
             first use if they don't already exist.
-        :param similarity_function: Vector similarity function. Only `"cosine"` is currently
-            supported by DynamoDB's `SearchVectors` API.
+        :param similarity_function: Vector similarity function. This integration currently supports
+            only `"cosine"`. DynamoDB itself also offers `DOT_PRODUCT` and `EUCLIDEAN` indexes, but
+            their score conversion is not implemented yet.
         :raises ValueError: If `similarity_function` is not `"cosine"`.
         """
         if similarity_function != "cosine":
-            msg = f"Only 'cosine' is supported by DynamoDB SearchVectors, got {similarity_function!r}."
+            msg = (
+                f"This integration currently supports only 'cosine', got {similarity_function!r}. "
+                "DynamoDB also offers DOT_PRODUCT and EUCLIDEAN vector indexes, but they are not wired up yet."
+            )
             raise ValueError(msg)
 
         self.table_name = table_name
@@ -128,85 +133,150 @@ class DynamoDBDocumentStore:
         if self._table_ready:
             return
         client = self._get_client()
+        description = self._describe_table(client)
+        if description is None:
+            if not self.create_table_if_not_exists:
+                msg = f"Table '{self.table_name}' does not exist and create_table_if_not_exists is False."
+                raise ValueError(msg)
+            self._create_table(client)
+            client.get_waiter("table_exists").wait(TableName=self.table_name)
+            description = client.describe_table(TableName=self.table_name)["Table"]
+        self._validate_table(description)
+        self._wait_for_vector_index_ready(client, description)
+        self._table_ready = True
+
+    def _describe_table(self, client: Any) -> dict[str, Any] | None:
+        """Returns the `DescribeTable` payload for this store's table, or `None` if it does not exist."""
         try:
-            client.describe_table(TableName=self.table_name)
-            self._table_ready = True
-            return
+            return client.describe_table(TableName=self.table_name)["Table"]
         except ClientError as e:
             if e.response["Error"]["Code"] != "ResourceNotFoundException":
                 raise
-            if not self.create_table_if_not_exists:
-                msg = f"Table '{self.table_name}' does not exist and create_table_if_not_exists is False."
-                raise ValueError(msg) from e
+            return None
 
+    def _create_table(self, client: Any) -> None:
+        logger.info(
+            "Creating DynamoDB table '{table}' with vector index '{index}'",
+            table=self.table_name,
+            index=self.index_name,
+        )
+        try:
+            client.create_table(**self._create_table_params())
+        except ClientError as e:
+            # Another process created the table between our DescribeTable and CreateTable; the
+            # caller waits for it to become active just like for a table we created ourselves.
+            if e.response["Error"]["Code"] != "ResourceInUseException":
+                raise
+
+    def _create_table_params(self) -> dict[str, Any]:
         # Declare the vector index inline on `CreateTable` rather than adding it afterwards with
-        # `UpdateTable(VectorIndexUpdates=...)`. Both work, but adding an index to an existing
-        # table triggers a *backfill* of that index, which on a real account keeps it in
-        # `IndexStatus=CREATING`/`Backfilling=True` — and therefore unqueryable — for many minutes
-        # (measured: >6 min even for an empty table). Creating the index as part of the table has
-        # nothing to backfill, so it reaches `ACTIVE` with the table: measured queryable ~20s.
-        # Vector indexes are a distinct index type from GSIs/LSIs, hence `VectorIndexes` here and
-        # `VectorIndexUpdates` on `UpdateTable` — never `GlobalSecondaryIndexes`.
-        client.create_table(
-            TableName=self.table_name,
-            AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}],
-            KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
-            BillingMode="PAY_PER_REQUEST",
-            VectorIndexes=[
+        # `UpdateTable(VectorIndexUpdates=...)`. Adding an index to an existing table triggers a
+        # *backfill* that keeps it in `IndexStatus=CREATING`/`Backfilling=True`, and therefore
+        # unqueryable, for many minutes (measured: >6 min even for an empty table). An index
+        # created with the table has nothing to backfill and is queryable in ~20s.
+        # Vector indexes are a distinct index type from GSIs/LSIs, hence `VectorIndexes` here.
+        return {
+            "TableName": self.table_name,
+            "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+            "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+            "BillingMode": "PAY_PER_REQUEST",
+            "VectorIndexes": [
                 {
                     "IndexName": self.index_name,
-                    "VectorAttribute": {"AttributeName": "embedding"},
+                    "VectorAttribute": {"AttributeName": _VECTOR_ATTRIBUTE},
                     "Dimensions": self.embedding_dimension,
                     "DistanceFunction": "COSINE",
                     "Projection": {"ProjectionType": "ALL"},
                 }
             ],
-        )
-        client.get_waiter("table_exists").wait(TableName=self.table_name)
-        self._wait_for_vector_index_ready(client)
-        self._table_ready = True
+        }
 
-    def _wait_for_vector_index_ready(self, client: Any) -> None:
+    def _find_vector_index(self, description: dict[str, Any]) -> dict[str, Any] | None:
+        indexes = description.get("VectorIndexes") or []
+        return next((idx for idx in indexes if idx.get("IndexName") == self.index_name), None)
+
+    def _validate_table(self, description: dict[str, Any]) -> None:
+        """
+        Checks that an existing table matches this store's configuration.
+
+        Without this check a mismatched table only fails later, on the first `SearchVectors` or
+        `PutItem` call, with an opaque service error.
+
+        :param description: The `Table` payload returned by `DescribeTable`.
+        :raises ValueError: If the key schema or the vector index is incompatible with this store.
+        """
+        key_schema = description.get("KeySchema", [])
+        if [(k.get("AttributeName"), k.get("KeyType")) for k in key_schema] != [("id", "HASH")]:
+            msg = (
+                f"Table '{self.table_name}' must have a single partition key named 'id' and no sort key, "
+                f"found key schema {key_schema}."
+            )
+            raise ValueError(msg)
+
+        index = self._find_vector_index(description)
+        if index is None:
+            existing = [idx.get("IndexName") for idx in description.get("VectorIndexes") or []]
+            msg = (
+                f"Table '{self.table_name}' has no vector index named '{self.index_name}' "
+                f"(existing vector indexes: {existing}). Create one with DistanceFunction=COSINE, "
+                f"Dimensions={self.embedding_dimension} on attribute '{_VECTOR_ATTRIBUTE}', "
+                "or point the store at a different table."
+            )
+            raise ValueError(msg)
+
+        problems = []
+        if index.get("Dimensions") != self.embedding_dimension:
+            problems.append(f"Dimensions={index.get('Dimensions')} (expected {self.embedding_dimension})")
+        if index.get("DistanceFunction") != "COSINE":
+            problems.append(f"DistanceFunction={index.get('DistanceFunction')} (expected COSINE)")
+        vector_attribute = (index.get("VectorAttribute") or {}).get("AttributeName")
+        if vector_attribute != _VECTOR_ATTRIBUTE:
+            problems.append(f"VectorAttribute={vector_attribute!r} (expected {_VECTOR_ATTRIBUTE!r})")
+        if problems:
+            msg = (
+                f"Vector index '{self.index_name}' on table '{self.table_name}' does not match this store's "
+                f"configuration: {', '.join(problems)}."
+            )
+            raise ValueError(msg)
+
+    def _index_readiness(self, description: dict[str, Any]) -> tuple[bool, str, Any]:
+        """Returns `(ready, status, backfilling)` for this store's vector index from a `DescribeTable` payload."""
+        index = self._find_vector_index(description)
+        if index is None:
+            return False, "not reported", "n/a"
+        status = index.get("IndexStatus", "unknown")
+        # `Backfilling` is absent entirely for an index that never had to backfill.
+        backfilling = index.get("Backfilling", False)
+        return status == "ACTIVE" and not backfilling, status, backfilling
+
+    def _wait_for_vector_index_ready(self, client: Any, description: dict[str, Any]) -> None:
         """
         Blocks until the vector index is queryable.
 
-        A vector index has its own lifecycle that is *not* captured by the table's status or
-        the ``table_exists`` waiter, so we poll ``DescribeTable`` until the index reports
-        ``IndexStatus=ACTIVE`` and is not backfilling. There is no dedicated boto3 waiter for
-        vector indexes.
-
-        Measured against real AWS: for an index created inline with the table the index reaches
-        ``ACTIVE`` alongside the table (no ``Backfilling`` key at all) and becomes queryable in
-        ~20s. Note ``SearchVectors`` may briefly return ``ResourceNotFoundException`` for a few
-        seconds after the index is ``ACTIVE`` while the dedicated vector-search endpoint catches
-        up; callers retry rather than treating that as fatal. An index *added to an existing
-        table* instead backfills and can stay unqueryable for many minutes, which is why
-        `_ensure_table` declares the index at table-creation time.
+        A vector index has its own lifecycle that is *not* captured by the table's status or the
+        ``table_exists`` waiter, and there is no dedicated boto3 waiter for it, so we poll
+        ``DescribeTable`` until the index reports ``IndexStatus=ACTIVE`` and is not backfilling.
+        ``SearchVectors`` may still return ``ResourceNotFoundException`` for a few seconds after
+        that while the vector-search endpoint catches up.
 
         :param client: The DynamoDB client to poll with.
-        :raises TimeoutError: If the index does not become queryable within the timeout budget.
+        :param description: The most recent `Table` payload from `DescribeTable`.
+        :raises TimeoutError: If the index does not become queryable within `index_ready_timeout`.
         """
         deadline = time.monotonic() + self.index_ready_timeout
-        last_status = "not reported"
-        last_backfilling: Any = "n/a"
         while True:
-            description = client.describe_table(TableName=self.table_name)["Table"]
-            indexes = description.get("VectorIndexes") or []
-            index = next((idx for idx in indexes if idx.get("IndexName") == self.index_name), None)
-            if index is not None:
-                last_status = index.get("IndexStatus", "unknown")
-                # `Backfilling` is absent entirely for an index that never had to backfill.
-                last_backfilling = index.get("Backfilling", False)
-                if last_status == "ACTIVE" and not last_backfilling:
-                    return
+            ready, status, backfilling = self._index_readiness(description)
+            if ready:
+                return
             if time.monotonic() >= deadline:
                 msg = (
                     f"Vector index '{self.index_name}' on table '{self.table_name}' did not become "
                     f"queryable within {self.index_ready_timeout}s "
-                    f"(last status: {last_status}, backfilling: {last_backfilling})."
+                    f"(last status: {status}, backfilling: {backfilling})."
                 )
                 raise TimeoutError(msg)
             time.sleep(self.index_ready_poll_interval)
+            description = client.describe_table(TableName=self.table_name)["Table"]
 
     @staticmethod
     def _sanitize_metadata_value(value: Any) -> Any:
@@ -238,15 +308,15 @@ class DynamoDBDocumentStore:
             "payload": json.dumps(payload),
         }
         if embedding is not None:
-            item["embedding"] = embedding
+            item[_VECTOR_ATTRIBUTE] = embedding
         return item
 
     @staticmethod
     def _item_to_doc(item: dict[str, Any]) -> Document:
         payload = json.loads(item["payload"]) if "payload" in item else {}
         payload["id"] = item["id"]
-        if "embedding" in item:
-            payload["embedding"] = item["embedding"]
+        if _VECTOR_ATTRIBUTE in item:
+            payload["embedding"] = item[_VECTOR_ATTRIBUTE]
         return Document.from_dict(payload)
 
     def count_documents(self) -> int:
@@ -460,7 +530,7 @@ def _to_dynamodb_item(item: dict[str, Any]) -> dict[str, Any]:
     """Converts a plain-Python item dict into DynamoDB's typed attribute-value format."""
     out: dict[str, Any] = {}
     for key, value in item.items():
-        if key == "embedding" and isinstance(value, list):
+        if key == _VECTOR_ATTRIBUTE and isinstance(value, list):
             out[key] = {"L": [{"N": str(v)} for v in value]}
         elif isinstance(value, str):
             out[key] = {"S": value}
@@ -481,6 +551,6 @@ def _from_dynamodb_item(item: dict[str, Any]) -> dict[str, Any]:
             out[key] = float(value["N"]) if "." in value["N"] else int(value["N"])
         elif "BOOL" in value:
             out[key] = value["BOOL"]
-        elif "L" in value and key == "embedding":
+        elif "L" in value and key == _VECTOR_ATTRIBUTE:
             out[key] = [float(v["N"]) for v in value["L"]]
     return out

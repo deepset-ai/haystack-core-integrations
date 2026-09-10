@@ -37,6 +37,40 @@ def _make_store(**kwargs) -> DynamoDBDocumentStore:
     )
 
 
+def _table_description(
+    *,
+    index_name: str = "test_index",
+    dimensions: int = 3,
+    distance_function: str = "COSINE",
+    vector_attribute: str = "embedding",
+    index_status: str = "ACTIVE",
+    backfilling: bool | None = None,
+    key_schema: list[dict[str, str]] | None = None,
+) -> dict:
+    """Builds a `DescribeTable` payload shaped like the one for a table created by the store."""
+    index: dict = {
+        "IndexName": index_name,
+        "Dimensions": dimensions,
+        "DistanceFunction": distance_function,
+        "VectorAttribute": {"AttributeName": vector_attribute},
+        "IndexStatus": index_status,
+    }
+    if backfilling is not None:
+        index["Backfilling"] = backfilling
+    return {
+        "Table": {
+            "TableName": "test_docs",
+            "TableStatus": "ACTIVE",
+            "KeySchema": key_schema if key_schema is not None else [{"AttributeName": "id", "KeyType": "HASH"}],
+            "VectorIndexes": [index],
+        }
+    }
+
+
+def _client_error(code: str, operation: str) -> ClientError:
+    return ClientError({"Error": {"Code": code, "Message": code}}, operation)
+
+
 def _require_live_aws() -> str:
     region = os.environ.get("AWS_DEFAULT_REGION")
     if not region or not os.environ.get("HAYSTACK_DYNAMODB_INTEGRATION_TESTS"):
@@ -67,8 +101,139 @@ class TestDynamoDBDocumentStore:
         assert store.similarity_function == "cosine"
 
     def test_init_rejects_non_cosine_similarity(self) -> None:
-        with pytest.raises(ValueError, match="Only 'cosine' is supported"):
+        with pytest.raises(ValueError, match="supports only 'cosine'"):
             DynamoDBDocumentStore(similarity_function="dot_product")
+
+    def test_ensure_table_uses_compatible_existing_table(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.describe_table.return_value = _table_description()
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._ensure_table()
+        assert store._table_ready is True
+        mock_client.create_table.assert_not_called()
+
+    def test_ensure_table_rejects_existing_table_without_vector_index(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.describe_table.return_value = _table_description(index_name="some_other_index")
+        with (
+            patch.object(store, "_get_client", return_value=mock_client),
+            pytest.raises(ValueError, match="has no vector index named 'test_index'"),
+        ):
+            store._ensure_table()
+        assert store._table_ready is False
+
+    @pytest.mark.parametrize(
+        ("overrides", "expected_message"),
+        [
+            ({"dimensions": 768}, r"Dimensions=768 \(expected 3\)"),
+            ({"distance_function": "EUCLIDEAN"}, r"DistanceFunction=EUCLIDEAN \(expected COSINE\)"),
+            ({"vector_attribute": "vec"}, r"VectorAttribute='vec' \(expected 'embedding'\)"),
+        ],
+    )
+    def test_ensure_table_rejects_incompatible_vector_index(self, overrides: dict, expected_message: str) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.describe_table.return_value = _table_description(**overrides)
+        with (
+            patch.object(store, "_get_client", return_value=mock_client),
+            pytest.raises(ValueError, match=expected_message),
+        ):
+            store._ensure_table()
+
+    def test_ensure_table_rejects_existing_table_with_sort_key(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.describe_table.return_value = _table_description(
+            key_schema=[{"AttributeName": "id", "KeyType": "HASH"}, {"AttributeName": "ts", "KeyType": "RANGE"}]
+        )
+        with (
+            patch.object(store, "_get_client", return_value=mock_client),
+            pytest.raises(ValueError, match="single partition key named 'id' and no sort key"),
+        ):
+            store._ensure_table()
+
+    def test_ensure_table_creates_missing_table_with_inline_vector_index(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.describe_table.side_effect = [
+            _client_error("ResourceNotFoundException", "DescribeTable"),
+            _table_description(),
+        ]
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._ensure_table()
+        _, kwargs = mock_client.create_table.call_args
+        assert kwargs["TableName"] == "test_docs"
+        assert kwargs["KeySchema"] == [{"AttributeName": "id", "KeyType": "HASH"}]
+        assert "GlobalSecondaryIndexes" not in kwargs
+        assert kwargs["VectorIndexes"] == [
+            {
+                "IndexName": "test_index",
+                "VectorAttribute": {"AttributeName": "embedding"},
+                "Dimensions": 3,
+                "DistanceFunction": "COSINE",
+                "Projection": {"ProjectionType": "ALL"},
+            }
+        ]
+        mock_client.get_waiter.assert_called_once_with("table_exists")
+        mock_client.get_waiter.return_value.wait.assert_called_once_with(TableName="test_docs")
+        assert store._table_ready is True
+
+    def test_ensure_table_tolerates_concurrent_creation(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.describe_table.side_effect = [
+            _client_error("ResourceNotFoundException", "DescribeTable"),
+            _table_description(),
+        ]
+        mock_client.create_table.side_effect = _client_error("ResourceInUseException", "CreateTable")
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._ensure_table()
+        assert store._table_ready is True
+
+    def test_ensure_table_raises_when_missing_and_creation_disabled(self) -> None:
+        store = _make_store(create_table_if_not_exists=False)
+        mock_client = MagicMock()
+        mock_client.describe_table.side_effect = _client_error("ResourceNotFoundException", "DescribeTable")
+        with (
+            patch.object(store, "_get_client", return_value=mock_client),
+            pytest.raises(ValueError, match="does not exist and create_table_if_not_exists is False"),
+        ):
+            store._ensure_table()
+        mock_client.create_table.assert_not_called()
+
+    def test_ensure_table_reraises_unexpected_describe_errors(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.describe_table.side_effect = _client_error("AccessDeniedException", "DescribeTable")
+        with patch.object(store, "_get_client", return_value=mock_client), pytest.raises(ClientError):
+            store._ensure_table()
+
+    def test_ensure_table_waits_for_backfilling_index(self) -> None:
+        store = _make_store()
+        store.index_ready_poll_interval = 0.0
+        mock_client = MagicMock()
+        mock_client.describe_table.side_effect = [
+            _table_description(index_status="CREATING", backfilling=True),
+            _table_description(index_status="ACTIVE", backfilling=True),
+            _table_description(index_status="ACTIVE"),
+        ]
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._ensure_table()
+        assert mock_client.describe_table.call_count == 3
+        assert store._table_ready is True
+
+    def test_ensure_table_times_out_when_index_never_becomes_ready(self) -> None:
+        store = _make_store()
+        store.index_ready_timeout = 0.0
+        mock_client = MagicMock()
+        mock_client.describe_table.return_value = _table_description(index_status="CREATING")
+        with (
+            patch.object(store, "_get_client", return_value=mock_client),
+            pytest.raises(TimeoutError, match="did not become queryable"),
+        ):
+            store._ensure_table()
 
     def test_count_documents(self) -> None:
         store = _make_store()
