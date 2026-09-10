@@ -78,7 +78,8 @@ class ModelEvaluator:
         self.failing = failing
         self.calls = []
 
-    def evaluate(self, target):
+    def evaluate(self, target, eval_cases):
+        assert eval_cases
         model = target.chat_generator.model
         self.calls.append(model)
         if model in self.failing:
@@ -86,7 +87,7 @@ class ModelEvaluator:
             raise RuntimeError(msg)
         return self.metrics[model]
 
-    def fingerprint(self):
+    def fingerprint(self, eval_cases):  # noqa: ARG002
         return {"kind": "model-evaluator"}
 
 
@@ -94,6 +95,7 @@ def configured(tmp_path, models, evaluator=None, objectives=None):
     optimizer, histories = optimizer_agent_for(models)
     experiment = HarnessOptimizationExperiment(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
+        eval_cases=["one eval case"],
         evaluator=evaluator or ModelEvaluator(),
         pricing=ModelPriceCatalog(
             [
@@ -254,7 +256,7 @@ def test_runs_measuring_the_same_thing_share_a_measurement_context(tmp_path):
 
 def test_a_different_evaluation_set_is_not_comparable(tmp_path):
     class OtherCases(ModelEvaluator):
-        def fingerprint(self):
+        def fingerprint(self, eval_cases):  # noqa: ARG002
             return {"kind": "different-eval cases"}
 
     first, _ = configured(tmp_path, ["cheap", None])
@@ -273,10 +275,10 @@ def test_repeated_experiments_have_separate_journals(tmp_path):
     assert second.journal.path_for(b.run_id).exists()
 
 
-def test_an_evaluator_with_no_eval_cases_is_rejected_when_it_is_built():
-    """Nothing to measure is caught at construction, not as a divide by zero part-way through an experiment."""
-    with pytest.raises(ValueError, match="at least one labelled eval case"):
-        AdvancedRAGHarnessEvaluator(eval_cases=[])
+def test_measuring_nothing_is_rejected_rather_than_dividing_by_zero():
+    """Quality is a fraction over the eval cases, so an empty set has to be refused before it is computed."""
+    with pytest.raises(ValueError, match="no eval cases to score"):
+        AdvancedRAGHarnessEvaluator().evaluate(target=Agent(chat_generator=MockChatGenerator()), eval_cases=[])
 
 
 def test_quality_objective_prefers_better_answers(tmp_path):
@@ -381,10 +383,11 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
         def __init__(self):
             self.measured = []
 
-        def fingerprint(self):
+        def fingerprint(self, eval_cases):  # noqa: ARG002
             return {"kind": "pipeline-evaluator"}
 
-        def evaluate(self, target):
+        def evaluate(self, target, eval_cases):
+            assert eval_cases
             # A Pipeline reference must arrive as a Pipeline, not wrapped in an Agent.
             assert isinstance(target, Pipeline)
             model = target.get_component("generator").model
@@ -418,6 +421,7 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
     evaluator = PipelineEvaluator()
     result = HarnessOptimizationExperiment(
         reference=reference,
+        eval_cases=["one eval case"],
         evaluator=evaluator,
         pricing=ModelPriceCatalog([]),
         # Ranked on quality: both configurations cost the same, so only the better answer can win.

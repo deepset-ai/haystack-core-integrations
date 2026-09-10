@@ -376,11 +376,10 @@ def main() -> None:
     )
 
     print("\n=== 2. optimization experiment ===")
-    evaluator = RetrievalHarnessEvaluator(
-        eval_cases=eval_cases, k=arguments.k, max_concurrent_eval_cases=arguments.max_concurrent_eval_cases
-    )
+    evaluator = RetrievalHarnessEvaluator(k=arguments.k, max_concurrent_eval_cases=arguments.max_concurrent_eval_cases)
     experiment = HarnessOptimizationExperiment(
         reference=reference,
+        eval_cases=eval_cases,
         evaluator=evaluator,
         pricing=build_pricing(),
         objectives=OptimizationObjectives(

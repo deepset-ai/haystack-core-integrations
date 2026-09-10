@@ -122,14 +122,12 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
     def __init__(
         self,
         *,
-        eval_cases: list[RetrievalEvalCase],
         k: int | None = None,
         max_concurrent_eval_cases: int = 1,
     ) -> None:
         """
         Create an evaluator.
 
-        :param eval_cases: Labelled expectations, keyed internally by question.
         :param k: Rank cutoff every eval case is scored at, giving recall@k and precision@k. Only the first
             `k` documents a run returns count, in the order it ranked them, so a pipeline is measured on what
             it put at the top rather than on how much it returned. `None` scores everything returned.
@@ -137,15 +135,11 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
         spends its
             time waiting on a model, so this decides wall-clock time rather than cost. Leave it at 1 when ranking
             by latency, or the objective measures contention rather than the configuration.
-        :raises ValueError: If `eval cases` is empty or `max_concurrent_eval_cases` is below one.
+        :raises ValueError: If `max_concurrent_eval_cases` is below one.
         """
-        if not eval_cases:
-            msg = "The retrieval evaluator needs at least one labelled eval case."
-            raise ValueError(msg)
         if max_concurrent_eval_cases < 1:
             msg = "max_concurrent_eval_cases must be at least 1."
             raise ValueError(msg)
-        self.eval_cases = {eval_case.question: eval_case for eval_case in eval_cases}
         self.k = k
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
 
@@ -162,19 +156,19 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
         _documents_exit_point(pipeline=target)
 
     async def _measure(
-        self, target: Pipeline, tracer: HarnessTracer
+        self, target: Pipeline, eval_cases: list[RetrievalEvalCase], tracer: HarnessTracer
     ) -> list[tuple[RetrievalEvalCaseMetrics, EvalCaseUsage]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
         :param target: The candidate pipeline to measure.
+        :param eval_cases: The labelled expectations to pose.
         :param tracer: Collector for per-eval-case generator usage.
         :returns: One result per eval case, in the order the eval cases were given.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_eval_cases)
         exit_point = _documents_exit_point(pipeline=target)
         entry_points = _query_entry_points(pipeline=target)
-        eval_cases = list(self.eval_cases.values())
 
         async def measure(
             position: int, eval_case: RetrievalEvalCase
@@ -209,27 +203,34 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
             await asyncio.gather(*(measure(index, eval_case) for index, eval_case in enumerate(eval_cases, start=1)))
         )
 
-    def evaluate(self, target: Pipeline) -> EvaluationMetrics:
+    def evaluate(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvaluationMetrics:
         """
         Pose every eval case to the pipeline and return raw experiment metrics, from synchronous code.
 
         :param target: The materialized candidate pipeline to score.
+        :param eval_cases: The labelled expectations to score it against.
         :returns: What `evaluate_async` measured.
         :raises RuntimeError: If an event loop is already running; await `evaluate_async` from inside one.
         """
-        return asyncio.run(self.evaluate_async(target=target))
+        return asyncio.run(self.evaluate_async(target=target, eval_cases=eval_cases))
 
-    async def evaluate_async(self, target: Pipeline) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvaluationMetrics:
         """
         Pose every eval case to the pipeline and return raw experiment metrics.
 
         :param target: The materialized candidate pipeline to score.
+        :param eval_cases: The labelled expectations to score it against.
         :returns: Fraction of eval cases passed, raw model usage, and mean latency, with per-eval-case detail.
+        :raises ValueError: If no eval cases were supplied, leaving nothing to score.
         """
+        if not eval_cases:
+            msg = "The retrieval evaluator was given no eval cases to score."
+            raise ValueError(msg)
+
         tracer = HarnessTracer()
         await target.warm_up_async()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = await self._measure(target=target, tracer=tracer)
+            measured = await self._measure(target=target, eval_cases=eval_cases, tracer=tracer)
 
         scored = [metric for metric, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}

@@ -4,7 +4,6 @@
 
 import asyncio
 import time
-from collections.abc import Mapping
 from typing import Any
 
 from haystack import logging
@@ -75,13 +74,9 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
     discriminating.
     """
 
-    # Narrowed from the protocol's declaration, so the harness reads back the eval case type it stores.
-    eval_cases: Mapping[str, RAGEvalCase]
-
     def __init__(
         self,
         *,
-        eval_cases: list[RAGEvalCase],
         digest_policy: RunDigestPolicy | None = None,
         max_traced_eval_cases: int | None = 6,
         max_concurrent_eval_cases: int = 1,
@@ -89,7 +84,6 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
         """
         Create an evaluator.
 
-        :param eval_cases: Labelled expectations, keyed internally by question.
         :param digest_policy: Caps applied to the tool trace recorded for each eval case.
         :param max_traced_eval_cases: How many eval case traces to keep, or `None` to keep every one. A trace explains a
             result but a reader's history of them is cumulative, so failing eval cases keep theirs first: a passing eval
@@ -101,15 +95,11 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
             not: concurrent runs contend for the same rate limits, so leave this at 1 when ranking by latency, or
             the objective measures this setting rather than the configuration. Eval cases are driven through
             `Agent.run_async` whatever this is set to, so one at a time is simply a concurrency of one.
-        :raises ValueError: If `eval_cases` is empty or `max_concurrent_eval_cases` is below one.
+        :raises ValueError: If `max_concurrent_eval_cases` is below one.
         """
-        if not eval_cases:
-            msg = "The Advanced RAG evaluator needs at least one labelled eval case."
-            raise ValueError(msg)
         if max_concurrent_eval_cases < 1:
             msg = "max_concurrent_eval_cases must be at least 1."
             raise ValueError(msg)
-        self.eval_cases = {eval_case.question: eval_case for eval_case in eval_cases}
         self.digest_policy = digest_policy
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
         self.max_traced_eval_cases = max_traced_eval_cases
@@ -190,12 +180,13 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
         return scored
 
     async def _measure(
-        self, agent: Agent, tracer: HarnessTracer
+        self, agent: Agent, eval_cases: list[RAGEvalCase], tracer: HarnessTracer
     ) -> list[tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
         :param agent: The candidate to measure.
+        :param eval_cases: The labelled expectations to pose.
         :param tracer: Collector for per-eval-case generator usage.
         :returns: One result per eval case, in the order the eval cases were given.
         """
@@ -210,8 +201,6 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
             if isinstance(tool, (ListMetadataFieldsTool, GetMetadataFieldValuesTool, GetMetadataFieldRangeTool))
         )
         tool_names = [tool.name for tool in tools]
-
-        eval_cases = list(self.eval_cases.values())
 
         async def measure(position: int, eval_case: RAGEvalCase) -> tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]:
             """Run one eval case, waiting for a slot first."""
@@ -241,28 +230,35 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
             await asyncio.gather(*(measure(position, eval_case) for position, eval_case in enumerate(eval_cases, 1)))
         )
 
-    def evaluate(self, target: Agent) -> EvaluationMetrics:
+    def evaluate(self, target: Agent, eval_cases: list[RAGEvalCase]) -> EvaluationMetrics:
         """
         Pose every eval case and return raw experiment metrics, from synchronous code.
 
         :param target: The materialized candidate Agent to score.
+        :param eval_cases: The labelled expectations to score it against.
         :returns: What `evaluate_async` measured.
         :raises RuntimeError: If an event loop is already running; await `evaluate_async` from inside one.
         """
-        return asyncio.run(self.evaluate_async(target=target))
+        return asyncio.run(self.evaluate_async(target=target, eval_cases=eval_cases))
 
-    async def evaluate_async(self, target: Agent) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Agent, eval_cases: list[RAGEvalCase]) -> EvaluationMetrics:
         """
         Pose every eval case and return raw experiment metrics.
 
         :param target: The materialized candidate Agent to score.
+        :param eval_cases: The labelled expectations to score it against.
         :returns: Fraction of eval cases passed, raw model usage, and mean latency for the candidate, with
             per-eval-case detail.
+        :raises ValueError: If no eval cases were supplied, leaving nothing to score.
         """
+        if not eval_cases:
+            msg = "The Advanced RAG evaluator was given no eval cases to score."
+            raise ValueError(msg)
+
         tracer = HarnessTracer()
         await target.warm_up_async()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = await self._measure(agent=target, tracer=tracer)
+            measured = await self._measure(agent=target, eval_cases=eval_cases, tracer=tracer)
 
         flattened = [scored for scored, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}

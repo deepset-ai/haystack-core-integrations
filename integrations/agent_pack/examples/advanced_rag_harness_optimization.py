@@ -389,8 +389,8 @@ def main() -> None:
     print("\n=== 2. optimization experiment ===")
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
+        eval_cases=eval_cases,
         evaluator=AdvancedRAGHarnessEvaluator(
-            eval_cases=eval_cases,
             digest_policy=DIGEST_POLICY,
             max_concurrent_eval_cases=arguments.max_concurrent_eval_cases,
         ),

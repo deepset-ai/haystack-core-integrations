@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -124,7 +123,7 @@ class RetrievalEvalCase:
         """The documents an answer needs, which are the ones its evidence was found in."""
         return frozenset(self.evidence)
 
-    def found_at(self, document_ids: Sequence[str], k: int | None = None) -> frozenset[str]:
+    def found_at(self, document_ids: list[str], k: int | None = None) -> frozenset[str]:
         """
         Return which of the needed documents a run returned within its first `k`.
 
@@ -137,7 +136,7 @@ class RetrievalEvalCase:
         ranked = list(dict.fromkeys(document_ids))
         return self.expected_document_ids & set(ranked[:k] if k is not None else ranked)
 
-    def recall_at(self, document_ids: Sequence[str], k: int | None = None) -> float:
+    def recall_at(self, document_ids: list[str], k: int | None = None) -> float:
         """
         Return the share of the needed documents a run found within its first `k`.
 
@@ -149,7 +148,7 @@ class RetrievalEvalCase:
             return 0.0
         return len(self.found_at(document_ids=document_ids, k=k)) / len(self.evidence)
 
-    def precision_at(self, document_ids: Sequence[str], k: int | None = None) -> float:
+    def precision_at(self, document_ids: list[str], k: int | None = None) -> float:
         """
         Return the share of a run's first `k` documents that were needed.
 

@@ -14,12 +14,12 @@ from haystack_integrations.agent_pack.optimization import (
     ModelPriceCatalog,
     OptimizationObjectives,
     create_harness_optimizer_agent,
-    _create_haystack_documentation_mcp_toolset,
     dump_pipeline,
     load_pipeline,
     propose_candidate,
 )
 from haystack_integrations.agent_pack.optimization.agent import (
+    _create_haystack_documentation_mcp_toolset,
     _documentation_result,
     _summarize_eval_case_details,
     describe_environment,

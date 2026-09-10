@@ -93,9 +93,9 @@ def catalog():
 def test_evaluator_prices_the_run_from_the_price_catalog(document):
     """Cost must come from the catalog the experiment ranks against, not a second price table."""
     eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
-    evaluator = AdvancedRAGHarnessEvaluator(eval_cases=[eval_case])
+    evaluator = AdvancedRAGHarnessEvaluator()
 
-    metrics = catalog().price(metrics=evaluator.evaluate(target=FakeAgent(document)))
+    metrics = catalog().price(metrics=evaluator.evaluate(target=FakeAgent(document), eval_cases=[eval_case]))
 
     assert metrics.quality == 1.0
     assert metrics.cost == (100 * 2.0 + 20 * 4.0) / 1_000_000
@@ -110,10 +110,10 @@ def test_evaluator_includes_secondary_model_usage(document):
             result["additional_model_usage"] = {"backup": {"input_tokens": 7, "output_tokens": 2}}
             return result
 
-    evaluator = AdvancedRAGHarnessEvaluator(
-        eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})]
-    )
-    metrics = catalog().price(metrics=evaluator.evaluate(target=BackupAgent(document)))
+    eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
+    evaluator = AdvancedRAGHarnessEvaluator()
+
+    metrics = catalog().price(metrics=evaluator.evaluate(target=BackupAgent(document), eval_cases=[eval_case]))
 
     assert metrics.model_usage["backup"].input_tokens == 7
     assert metrics.cost == pytest.approx((100 * 2.0 + 20 * 4.0 + 7 * 3.0 + 2 * 5.0) / 1_000_000)
@@ -121,10 +121,10 @@ def test_evaluator_includes_secondary_model_usage(document):
 
 def test_unpriced_models_are_reported_without_restricting_evaluation(document):
     """Unknown model usage remains a valid measurement with unavailable cost."""
-    evaluator = AdvancedRAGHarnessEvaluator(
-        eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})]
-    )
-    metrics = evaluator.evaluate(target=FakeAgent(document, model="unknown"))
+    eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
+    evaluator = AdvancedRAGHarnessEvaluator()
+
+    metrics = evaluator.evaluate(target=FakeAgent(document, model="unknown"), eval_cases=[eval_case])
     priced = catalog().price(metrics=metrics)
     assert priced.cost is None
     assert priced.details["unpriced_models"] == ["unknown"]
@@ -135,11 +135,12 @@ async def test_evaluating_from_inside_a_running_loop_measures_what_the_sync_call
     """The sync entry point cannot run under a loop, so an async caller has to reach the same work directly."""
     eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
 
-    awaited = await AdvancedRAGHarnessEvaluator(eval_cases=[eval_case]).evaluate_async(target=FakeAgent(document))
+    awaited = await AdvancedRAGHarnessEvaluator().evaluate_async(target=FakeAgent(document), eval_cases=[eval_case])
     # The sync entry point needs a thread of its own here, since it starts a loop and one is already running.
     blocking = await asyncio.to_thread(
-        AdvancedRAGHarnessEvaluator(eval_cases=[eval_case]).evaluate,
+        AdvancedRAGHarnessEvaluator().evaluate,
         target=FakeAgent(document),
+        eval_cases=[eval_case],
     )
 
     assert awaited.quality == blocking.quality == 1.0
@@ -152,7 +153,7 @@ def test_every_eval_case_is_measured_once_and_latency_is_their_total(document):
     eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
     agent = FakeAgent(document)
 
-    metrics = AdvancedRAGHarnessEvaluator(eval_cases=[eval_case]).evaluate(target=agent)
+    metrics = AdvancedRAGHarnessEvaluator().evaluate(target=agent, eval_cases=[eval_case])
 
     assert agent.runs == 1
     assert agent.warmups == 1
@@ -163,26 +164,27 @@ def test_every_eval_case_is_measured_once_and_latency_is_their_total(document):
 
 
 def test_evaluator_fingerprint_changes_with_the_evaluation_set(document):
-    first = AdvancedRAGHarnessEvaluator(eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})])
-    second = AdvancedRAGHarnessEvaluator(eval_cases=[RAGEvalCase(question=QUESTION, evidence={"other": EVIDENCE})])
-    assert first.fingerprint() != second.fingerprint()
-    assert first.fingerprint() == AdvancedRAGHarnessEvaluator(eval_cases=list(first.eval_cases.values())).fingerprint()
+    evaluator = AdvancedRAGHarnessEvaluator()
+    first = [RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})]
+    second = [RAGEvalCase(question=QUESTION, evidence={"other": EVIDENCE})]
+    assert evaluator.fingerprint(eval_cases=first) != evaluator.fingerprint(eval_cases=second)
+    assert evaluator.fingerprint(eval_cases=first) == evaluator.fingerprint(eval_cases=list(first))
 
 
 def test_eval_case_details_carry_the_tool_trace(document):
     """A trace explains a result, and the digest must not become part of what identifies a measurement."""
     eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
-    evaluator = AdvancedRAGHarnessEvaluator(eval_cases=[eval_case])
-    fingerprint = evaluator.fingerprint()
+    evaluator = AdvancedRAGHarnessEvaluator()
+    fingerprint = evaluator.fingerprint(eval_cases=[eval_case])
 
-    metrics = evaluator.evaluate(target=FakeAgent(document))
+    metrics = evaluator.evaluate(target=FakeAgent(document), eval_cases=[eval_case])
 
     trace = metrics.details["eval_cases"][0]["run_digest"]
     assert [step["tool"] for step in trace["tool_steps"]] == ["list_metadata_fields", "search_documents"]
     assert trace["tool_steps"][1]["arguments"] == '{"query": "CRISPR"}'
     assert trace["tool_steps"][0]["result"] == "fields"
     assert metrics.details["eval_cases"][0]["backup_answer_used"] is False
-    assert evaluator.fingerprint() == fingerprint
+    assert evaluator.fingerprint(eval_cases=[eval_case]) == fingerprint
     assert set(fingerprint) == {"eval_cases"}
 
 
@@ -208,7 +210,7 @@ def test_a_run_cut_off_by_its_step_budget_is_reported_as_backup_answered(documen
     )
     eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
 
-    metrics = AdvancedRAGHarnessEvaluator(eval_cases=[eval_case]).evaluate(target=agent)
+    metrics = AdvancedRAGHarnessEvaluator().evaluate(target=agent, eval_cases=[eval_case])
 
     assert metrics.details["eval_cases"][0]["backup_answer_used"] is True
     # The backup model is priced alongside the Agent's own, which is what the hook span also makes visible.
@@ -220,9 +222,9 @@ def test_traces_are_dropped_from_passing_eval_cases_before_failing_ones(document
     failing = RAGEvalCase(question=QUESTION, evidence={"never retrieved": EVIDENCE})
     passing = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
 
-    failing_metrics = AdvancedRAGHarnessEvaluator(eval_cases=[failing]).evaluate(target=FakeAgent(document))
-    passing_metrics = AdvancedRAGHarnessEvaluator(eval_cases=[passing], max_traced_eval_cases=0).evaluate(
-        target=FakeAgent(document)
+    failing_metrics = AdvancedRAGHarnessEvaluator().evaluate(target=FakeAgent(document), eval_cases=[failing])
+    passing_metrics = AdvancedRAGHarnessEvaluator(max_traced_eval_cases=0).evaluate(
+        target=FakeAgent(document), eval_cases=[passing]
     )
 
     assert failing_metrics.details["eval_cases"][0]["passed"] is False
@@ -246,11 +248,11 @@ def test_eval_cases_measured_concurrently_are_reported_in_order(document):
 
     eval_cases = [RAGEvalCase(question=q, evidence={document.id: EVIDENCE}) for q in questions]
 
-    sequential = AdvancedRAGHarnessEvaluator(eval_cases=eval_cases, max_concurrent_eval_cases=1).evaluate(
-        target=MultiQuestionAgent(document)
+    sequential = AdvancedRAGHarnessEvaluator(max_concurrent_eval_cases=1).evaluate(
+        target=MultiQuestionAgent(document), eval_cases=eval_cases
     )
-    concurrent = AdvancedRAGHarnessEvaluator(eval_cases=eval_cases, max_concurrent_eval_cases=4).evaluate(
-        target=MultiQuestionAgent(document)
+    concurrent = AdvancedRAGHarnessEvaluator(max_concurrent_eval_cases=4).evaluate(
+        target=MultiQuestionAgent(document), eval_cases=eval_cases
     )
 
     assert concurrent.quality == sequential.quality
@@ -260,11 +262,10 @@ def test_eval_cases_measured_concurrently_are_reported_in_order(document):
     assert concurrent.model_usage == sequential.model_usage
 
 
-def test_concurrency_must_be_positive(document):
+def test_concurrency_must_be_positive():
     """A concurrency of zero would measure nothing at all."""
-    eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
     with pytest.raises(ValueError, match="at least 1"):
-        AdvancedRAGHarnessEvaluator(eval_cases=[eval_case], max_concurrent_eval_cases=0)
+        AdvancedRAGHarnessEvaluator(max_concurrent_eval_cases=0)
 
 
 def test_renamed_pipeline_tool_keeps_budget_and_nested_ranker_usage(document):
@@ -303,7 +304,7 @@ def test_renamed_pipeline_tool_keeps_budget_and_nested_ranker_usage(document):
     )
     # The eval case budgets the tool the reference had. The candidate renamed it, and the budget still binds.
     eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE}, tool_budgets={"search_documents": 0})
-    metrics = AdvancedRAGHarnessEvaluator(eval_cases=[eval_case]).evaluate(agent)
+    metrics = AdvancedRAGHarnessEvaluator().evaluate(agent, eval_cases=[eval_case])
     assert metrics.details["usage_complete"]
     assert metrics.model_usage["ranker"].input_tokens == 7
     assert metrics.model_usage["cheap"].input_tokens == 20

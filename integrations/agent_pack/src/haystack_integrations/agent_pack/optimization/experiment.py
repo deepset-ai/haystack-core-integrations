@@ -189,6 +189,7 @@ class HarnessOptimizationExperiment:
         self,
         reference: Agent | Pipeline,
         evaluator: HarnessEvaluator,
+        eval_cases: list[Any],
         pricing: ModelPriceCatalog,
         objectives: OptimizationObjectives,
         journal: ExperimentJournal,
@@ -204,8 +205,9 @@ class HarnessOptimizationExperiment:
 
         :param reference: Agent or Pipeline used to generate the initial pipeline YAML and baseline. An Agent is
             serialized wrapped in a one-component Pipeline; a Pipeline is serialized as itself.
-        :param evaluator: Evaluator that measures the reference and each materialized candidate against the selected
-            runs.
+        :param eval_cases: The labelled expectations every configuration is measured against.
+        :param evaluator: Evaluator that measures the reference and each materialized candidate against the
+            eval cases.
         :param pricing: Model prices used to calculate candidate costs and rank cost optimizations. Prices do not
             restrict which models the optimizer may choose.
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
@@ -224,6 +226,7 @@ class HarnessOptimizationExperiment:
         self.config_path = config_path
         self.reference = reference
         self.evaluator = evaluator
+        self.eval_cases = list(eval_cases)
         self.pricing = pricing
         self.objectives = objectives
         self.journal = journal
@@ -243,7 +246,7 @@ class HarnessOptimizationExperiment:
         # generated index; it is recorded separately as `reference.yaml` and as the baseline's candidate ID.
         payload = {
             "evaluator": type(self.evaluator).__qualname__,
-            "evaluator_configuration": self.evaluator.fingerprint(),
+            "evaluator_configuration": self.evaluator.fingerprint(eval_cases=self.eval_cases),
             "configuration_key": self.configuration_key,
         }
         context = content_digest(json.dumps(payload, sort_keys=True, default=str))
@@ -263,7 +266,7 @@ class HarnessOptimizationExperiment:
         # Measure the reference, which every candidate is ranked and gated against.
         ref_target = load(reference_yaml)
         try:
-            ref_eval_metrics = self.evaluator.evaluate(target=ref_target)
+            ref_eval_metrics = self.evaluator.evaluate(target=ref_target, eval_cases=self.eval_cases)
         finally:
             ref_target.close()
         self.journal.append(
@@ -337,7 +340,7 @@ class HarnessOptimizationExperiment:
             try:
                 candidate = load(proposed.yaml)
                 try:
-                    metrics = self.evaluator.evaluate(target=candidate)
+                    metrics = self.evaluator.evaluate(target=candidate, eval_cases=self.eval_cases)
                 finally:
                     candidate.close()
                 unpriced = CandidateEvaluation(

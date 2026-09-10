@@ -2,52 +2,44 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from collections.abc import Mapping
 from typing import Any, Protocol
 
-from .dataclasses import EVAL_CASES_KEY, EvaluationMetrics, RetrievalEvalCase
+from .dataclasses import EVAL_CASES_KEY, EvaluationMetrics
 
 
 class HarnessEvaluator(Protocol):
-    """
-    Measure materialized configurations over labelled eval cases using normalized quality scores.
+    """Measure a target configuration over labelled eval cases."""
 
-    An evaluator measures one kind of target — an Agent for one harness, a Pipeline for another — and says so in
-    its own signatures. `target` is typed loosely here so an implementation can name the kind it measures.
-
-    :param eval_cases: The labelled expectations being scored, keyed by question.
-    """
-
-    eval_cases: Mapping[str, RetrievalEvalCase]
-
-    def evaluate(self, target: Any) -> EvaluationMetrics:
+    def evaluate(self, target: Any, eval_cases: list[Any]) -> EvaluationMetrics:
         """
-        Measure a materialized configuration over every eval case, from synchronous code.
+        Measure a target configuration over the supplied eval cases.
 
-        :param target: Materialized configuration to evaluate, of whatever kind this evaluator measures.
-        :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
+        :param target: Target configuration to evaluate.
+        :param eval_cases: The labelled expectations to score it against.
+        :returns: Returns EvaluationMetrics, which includes the score and other relevant metrics.
         """
         ...
 
-    async def evaluate_async(self, target: Any) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Any, eval_cases: list[Any]) -> EvaluationMetrics:
         """
-        Measure a materialized configuration over every eval case.
+        Measure a materialized configuration over the supplied eval cases.
 
         :param target: Materialized configuration to evaluate, of whatever kind this evaluator measures.
-        :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
+        :param eval_cases: The labelled expectations to score it against.
+        :returns: Returns EvaluationMetrics, which includes the score and other relevant metrics.
         """
         ...
 
-    def fingerprint(self) -> dict[str, Any]:
+    def fingerprint(self, eval_cases: list[Any]) -> dict[str, Any]:
         """
         Describe what this evaluator measures, so two measurements are comparable only when it matches.
 
-        :returns: Every configured eval case, ordered by question.
+        :param eval_cases: The labelled expectations being scored.
+        :returns: Every eval case, ordered by question.
         """
         return {
             EVAL_CASES_KEY: sorted(
-                (eval_case.to_dict() for eval_case in self.eval_cases.values()),
-                key=lambda entry: str(entry["question"]),
+                (eval_case.to_dict() for eval_case in eval_cases), key=lambda entry: str(entry["question"])
             )
         }
 

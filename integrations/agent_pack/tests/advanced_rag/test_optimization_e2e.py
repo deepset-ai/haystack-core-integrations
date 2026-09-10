@@ -102,17 +102,10 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
             ),
         ],
     )
-    evaluator = AdvancedRAGHarnessEvaluator(
-        eval_cases=[
-            RAGEvalCase(
-                question=QUESTION,
-                evidence={document.id: EVIDENCE},
-            )
-        ]
-    )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        evaluator=evaluator,
+        eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
+        evaluator=AdvancedRAGHarnessEvaluator(),
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(directory=tmp_path / "journals"),
@@ -149,14 +142,8 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        evaluator=AdvancedRAGHarnessEvaluator(
-            eval_cases=[
-                RAGEvalCase(
-                    question=QUESTION,
-                    evidence={document.id: EVIDENCE},
-                )
-            ]
-        ),
+        eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
+        evaluator=AdvancedRAGHarnessEvaluator(),
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
         journal=ExperimentJournal(directory=tmp_path / "journals"),
