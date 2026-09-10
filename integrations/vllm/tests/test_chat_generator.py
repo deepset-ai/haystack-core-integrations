@@ -223,7 +223,7 @@ class TestConvertChatCompletionToChatMessage:
         assert len(message.tool_calls) == 0
 
 
-class TestVLLMChatGeneratorInit:
+class TestInitialization:
     def test_init_default(self):
         component = VLLMChatGenerator(model=MODEL)
 
@@ -251,7 +251,7 @@ class TestVLLMChatGeneratorInit:
 
         assert component._client is None
         assert component._async_client is None
-        assert not component._is_warmed_up
+        assert not component._tools_warmed_up
         assert component.tools is None
         assert component.http_client_kwargs is None
         assert component.streaming_callback is None
@@ -263,30 +263,8 @@ class TestVLLMChatGeneratorInit:
         assert component.max_retries == 3
 
 
-class TestVLLMChatGeneratorWarmUp:
-    def test_warm_up_creates_clients(self):
-        component = VLLMChatGenerator(model=MODEL)
-        assert component._client is None
-
-        component.warm_up()
-
-        assert component._client is not None
-        assert component._async_client is not None
-        assert component._is_warmed_up is True
-
-    def test_warm_up_is_idempotent(self):
-        component = VLLMChatGenerator(model=MODEL)
-        component.warm_up()
-        first_client = component._client
-
-        component.warm_up()
-
-        assert component._client is first_client
-
-
-class TestVLLMChatGeneratorSerde:
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("VLLM_API_KEY", "test-key")
+class TestSerialization:
+    def test_to_dict(self):
         component = VLLMChatGenerator(
             model=MODEL,
             generation_kwargs={"max_tokens": 512},
@@ -351,7 +329,85 @@ class TestVLLMChatGeneratorSerde:
         assert component.streaming_callback is not None
 
 
-class TestVLLMChatGeneratorRun:
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_VLLM_API_KEY", raising=False)
+        component = VLLMChatGenerator(model=MODEL, api_key=Secret.from_env_var("MISSING_VLLM_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_VLLM_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_openai_client")
+    def test_sync_lifecycle(self, mock_client_cls):
+        component = VLLMChatGenerator(model=MODEL)
+        client = mock_client_cls.return_value
+
+        component.warm_up()
+        assert component._client is client
+        assert component._async_client is None
+        component.close()
+        client.close.assert_called_once_with()
+        assert component._client is None
+        component.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_async_openai_client")
+    @pytest.mark.asyncio
+    async def test_async_lifecycle(self, mock_client_cls):
+        component = VLLMChatGenerator(model=MODEL)
+        client = MagicMock(close=AsyncMock())
+        mock_client_cls.return_value = client
+
+        await component.warm_up_async()
+        assert component._async_client is client
+        assert component._client is None
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component._async_client is None
+        await component.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_openai_client")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = VLLMChatGenerator(model=MODEL)
+        component.warm_up()
+        component.warm_up()
+        mock_client_cls.assert_called_once()
+
+    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_async_openai_client")
+    @pytest.mark.asyncio
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = VLLMChatGenerator(model=MODEL)
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_client_cls.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_is_safe_without_warm_up(self):
+        component = VLLMChatGenerator(model=MODEL)
+        component.close()
+        await component.close_async()
+        assert component._client is None
+        assert component._async_client is None
+
+    @pytest.mark.asyncio
+    async def test_close_and_close_async_are_independent(self):
+        component = VLLMChatGenerator(model=MODEL)
+        sync_client = MagicMock()
+        async_client = MagicMock(close=AsyncMock())
+        component._client = sync_client
+        component._async_client = async_client
+
+        component.close()
+        assert component._client is None
+        assert component._async_client is async_client
+        async_client.close.assert_not_awaited()
+        await component.close_async()
+        assert component._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestRun:
     def test_run(self, mock_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model=MODEL)
         response = component.run([ChatMessage.from_user("What's the capital of France")])
@@ -451,7 +507,7 @@ class TestVLLMChatGeneratorRun:
 
 
 @pytest.mark.asyncio
-class TestVLLMChatGeneratorRunAsync:
+class TestRunAsync:
     async def test_run_async_empty_messages(self):
         component = VLLMChatGenerator(model=MODEL)
         assert await component.run_async([]) == {"replies": []}
@@ -504,7 +560,6 @@ class TestVLLMChatGeneratorRunAsync:
             chunks_received.append(chunk)
 
         component = VLLMChatGenerator(model=MODEL, streaming_callback=callback)
-        component.warm_up()
 
         with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
             mock.return_value = AsyncMockStream(openai_chunks)
@@ -532,7 +587,6 @@ class TestVLLMChatGeneratorRunAsync:
             streaming_chunks.append(chunk)
 
         component = VLLMChatGenerator(model=MODEL, streaming_callback=callback)
-        component.warm_up()
 
         with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
             mock.return_value = AsyncMockStream(openai_chunks)
@@ -558,7 +612,7 @@ THINKING_KWARGS = {"extra_body": {"chat_template_kwargs": {"enable_thinking": Tr
 
 
 @pytest.mark.integration
-class TestVLLMChatGeneratorLiveRun:
+class TestIntegration:
     @pytest.mark.parametrize("generation_kwargs", [NO_THINKING_KWARGS, THINKING_KWARGS])
     def test_live_run(self, generation_kwargs):
         component = VLLMChatGenerator(model=MODEL, generation_kwargs=generation_kwargs)

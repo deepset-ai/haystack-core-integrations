@@ -12,7 +12,7 @@ from openai import APIError, AsyncOpenAI, OpenAI
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 
-from haystack_integrations.common.vllm.utils import _create_openai_clients
+from haystack_integrations.common.vllm.utils import _create_async_openai_client, _create_openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -131,20 +131,40 @@ class VLLMDocumentEmbedder:
 
         self._client: OpenAI | None = None
         self._async_client: AsyncOpenAI | None = None
-        self._is_warmed_up = False
 
     def warm_up(self) -> None:
-        """Create the OpenAI clients."""
-        if self._is_warmed_up:
-            return
-        self._client, self._async_client = _create_openai_clients(
-            api_key=self.api_key,
-            api_base_url=self.api_base_url,
-            timeout=self.timeout,
-            max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
-        )
-        self._is_warmed_up = True
+        """Create the synchronous OpenAI client."""
+        if self._client is None:
+            self._client = _create_openai_client(
+                api_key=self.api_key,
+                api_base_url=self.api_base_url,
+                timeout=self.timeout,
+                max_retries=self.max_retries,
+                http_client_kwargs=self.http_client_kwargs,
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous OpenAI client."""
+        if self._async_client is None:
+            self._async_client = _create_async_openai_client(
+                api_key=self.api_key,
+                api_base_url=self.api_base_url,
+                timeout=self.timeout,
+                max_retries=self.max_retries,
+                http_client_kwargs=self.http_client_kwargs,
+            )
+
+    def close(self) -> None:
+        """Close the synchronous OpenAI client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous OpenAI client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def _prepare_texts_to_embed(self, documents: list[Document]) -> dict[str, str]:
         """Concatenate each Document's text with the selected meta fields."""
@@ -254,8 +274,8 @@ class VLLMDocumentEmbedder:
         if not documents:
             return {"documents": [], "meta": {}}
 
-        if not self._is_warmed_up:
-            self.warm_up()
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
         doc_ids_to_embeddings, meta = self._embed_batch(texts_to_embed, self.batch_size)
@@ -280,8 +300,8 @@ class VLLMDocumentEmbedder:
         if not documents:
             return {"documents": [], "meta": {}}
 
-        if not self._is_warmed_up:
-            self.warm_up()
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
 
         texts_to_embed = self._prepare_texts_to_embed(documents)
         doc_ids_to_embeddings, meta = await self._embed_batch_async(texts_to_embed, self.batch_size)

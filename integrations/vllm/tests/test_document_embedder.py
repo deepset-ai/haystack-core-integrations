@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -31,10 +31,8 @@ def _api_error() -> APIError:
     return APIError(message="boom", request=MagicMock(), body=None)
 
 
-class TestVLLMDocumentEmbedder:
-    def test_init_default(self, monkeypatch):
-        monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
+class TestInitializationAndSerialization:
+    def test_init_default(self):
         embedder = VLLMDocumentEmbedder(model=MODEL)
         assert embedder.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
         assert embedder.model == MODEL
@@ -50,7 +48,6 @@ class TestVLLMDocumentEmbedder:
         assert embedder.extra_parameters is None
         assert embedder._client is None
         assert embedder._async_client is None
-        assert embedder._is_warmed_up is False
 
     def test_init_with_parameters(self):
         embedder = VLLMDocumentEmbedder(
@@ -79,24 +76,7 @@ class TestVLLMDocumentEmbedder:
         assert embedder.raise_on_failure is True
         assert embedder.extra_parameters == {"dimensions": 32, "truncate_prompt_tokens": 256}
 
-    def test_warm_up(self, monkeypatch):
-        monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
-        embedder = VLLMDocumentEmbedder(model=MODEL)
-        embedder.warm_up()
-
-        assert embedder._is_warmed_up is True
-        assert embedder._client is not None
-        assert embedder._async_client is not None
-
-        # idempotent
-        client_before = embedder._client
-        embedder.warm_up()
-        assert embedder._client is client_before
-
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
+    def test_to_dict(self):
         component_dict = component_to_dict(VLLMDocumentEmbedder(model=MODEL), "embedder")
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.vllm.document_embedder.VLLMDocumentEmbedder",
@@ -119,8 +99,7 @@ class TestVLLMDocumentEmbedder:
             },
         }
 
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.delenv("VLLM_API_KEY", raising=False)
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.components.embedders.vllm.document_embedder.VLLMDocumentEmbedder",
             "init_parameters": {
@@ -158,6 +137,86 @@ class TestVLLMDocumentEmbedder:
         assert embedder.raise_on_failure is False
         assert embedder.extra_parameters is None
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_VLLM_API_KEY", raising=False)
+        embedder = VLLMDocumentEmbedder(model=MODEL, api_key=Secret.from_env_var("MISSING_VLLM_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_VLLM_API_KEY"):
+            embedder.warm_up()
+
+    @patch("haystack_integrations.components.embedders.vllm.document_embedder._create_openai_client")
+    def test_sync_lifecycle(self, mock_client_cls):
+        embedder = VLLMDocumentEmbedder(model=MODEL)
+        client = mock_client_cls.return_value
+
+        embedder.warm_up()
+        assert embedder._client is client
+        assert embedder._async_client is None
+        embedder.close()
+        client.close.assert_called_once_with()
+        assert embedder._client is None
+        embedder.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.vllm.document_embedder._create_async_openai_client")
+    @pytest.mark.asyncio
+    async def test_async_lifecycle(self, mock_client_cls):
+        embedder = VLLMDocumentEmbedder(model=MODEL)
+        client = MagicMock(close=AsyncMock())
+        mock_client_cls.return_value = client
+
+        await embedder.warm_up_async()
+        assert embedder._async_client is client
+        assert embedder._client is None
+        await embedder.close_async()
+        client.close.assert_awaited_once_with()
+        assert embedder._async_client is None
+        await embedder.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.vllm.document_embedder._create_openai_client")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        embedder = VLLMDocumentEmbedder(model=MODEL)
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_client_cls.assert_called_once()
+
+    @patch("haystack_integrations.components.embedders.vllm.document_embedder._create_async_openai_client")
+    @pytest.mark.asyncio
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        embedder = VLLMDocumentEmbedder(model=MODEL)
+        await embedder.warm_up_async()
+        await embedder.warm_up_async()
+        mock_client_cls.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_is_safe_without_warm_up(self):
+        embedder = VLLMDocumentEmbedder(model=MODEL)
+        embedder.close()
+        await embedder.close_async()
+        assert embedder._client is None
+        assert embedder._async_client is None
+
+    @pytest.mark.asyncio
+    async def test_close_and_close_async_are_independent(self):
+        embedder = VLLMDocumentEmbedder(model=MODEL)
+        sync_client = MagicMock()
+        async_client = MagicMock(close=AsyncMock())
+        embedder._client = sync_client
+        embedder._async_client = async_client
+
+        embedder.close()
+        assert embedder._client is None
+        assert embedder._async_client is async_client
+        async_client.close.assert_not_awaited()
+        await embedder.close_async()
+        assert embedder._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestRun:
     def test_prepare_texts_to_embed(self):
         embedder = VLLMDocumentEmbedder(
             model=MODEL, prefix="[", suffix="]", meta_fields_to_embed=["topic"], embedding_separator=" | "
@@ -195,7 +254,6 @@ class TestVLLMDocumentEmbedder:
             _fake_response([[0.1], [0.2]], prompt_tokens=2, total_tokens=2),
             _fake_response([[0.3]], prompt_tokens=1, total_tokens=1),
         ]
-        embedder._is_warmed_up = True
 
         docs = [Document(content=f"doc-{i}") for i in range(3)]
         result = embedder.run(docs)
@@ -208,7 +266,6 @@ class TestVLLMDocumentEmbedder:
         embedder = VLLMDocumentEmbedder(model=MODEL, batch_size=1, progress_bar=False)
         embedder._client = MagicMock()
         embedder._client.embeddings.create.side_effect = [_fake_response([[0.1]]), _api_error()]
-        embedder._is_warmed_up = True
 
         result = embedder.run([Document(content="a"), Document(content="b")])
 
@@ -219,7 +276,6 @@ class TestVLLMDocumentEmbedder:
         embedder = VLLMDocumentEmbedder(model=MODEL, raise_on_failure=True, progress_bar=False)
         embedder._client = MagicMock()
         embedder._client.embeddings.create.side_effect = _api_error()
-        embedder._is_warmed_up = True
 
         with pytest.raises(APIError):
             embedder.run([Document(content="a")])
@@ -229,13 +285,14 @@ class TestVLLMDocumentEmbedder:
         embedder = VLLMDocumentEmbedder(model=MODEL, progress_bar=True)
         embedder._async_client = MagicMock()
         embedder._async_client.embeddings.create = AsyncMock(return_value=_fake_response([[0.5], [0.6]]))
-        embedder._is_warmed_up = True
 
         docs = [Document(content="a"), Document(content="b")]
         result = await embedder.run_async(docs)
 
         assert [d.embedding for d in result["documents"]] == [[0.5], [0.6]]
 
+
+class TestIntegration:
     @pytest.mark.integration
     def test_live_run(self):
         embedder = VLLMDocumentEmbedder(model=MODEL, api_base_url=API_BASE_URL)
