@@ -15,12 +15,6 @@ class HarnessEvaluator(Protocol):
     An evaluator measures one kind of target — an Agent for one harness, a Pipeline for another — and says so in
     its own signatures. `target` is typed loosely here so an implementation can name the kind it measures.
 
-    Eval cases are independent and each spends its time waiting on a model, so an evaluator measures several at once
-    and `evaluate_async` is the one that does the work. `evaluate` runs it to completion for a caller that has no event
-    loop of its own.
-
-    Subclass it to inherit `fingerprint` and a `validate` that checks nothing; implement it structurally to supply both.
-
     :param eval_cases: The labelled expectations being scored, keyed by question.
     """
 

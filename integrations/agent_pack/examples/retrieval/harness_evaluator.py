@@ -21,7 +21,7 @@ QUERY_SOCKET = "query"
 DOCUMENTS_SOCKET = "documents"
 
 
-def query_entry_points(pipeline: Pipeline) -> set[str]:
+def _query_entry_points(pipeline: Pipeline) -> set[str]:
     """
     Find every component with an unconnected `query` input the question should be posed to.
 
@@ -31,7 +31,7 @@ def query_entry_points(pipeline: Pipeline) -> set[str]:
     return {name for name, sockets in pipeline.inputs().items() if QUERY_SOCKET in sockets}
 
 
-def documents_exit_point(pipeline: Pipeline) -> str:
+def _documents_exit_point(pipeline: Pipeline) -> str:
     """
     Find the component whose `documents` output is what the pipeline retrieved.
 
@@ -80,9 +80,6 @@ def _score_retrieval_result(
     """
     Score one retrieval run against its labelled evidence.
 
-    How the documents were fetched does not matter here: one query or twenty, the run is scored on what reached
-    the end. What each stage in between emitted is counted by the tracer instead.
-
     :param result: What `Pipeline.run_async` returned.
     :param eval_case: The expectations to score against.
     :param exit_point: Component whose documents are what the pipeline retrieved.
@@ -120,19 +117,7 @@ def _score_retrieval_result(
 
 
 class RetrievalHarnessEvaluator(HarnessEvaluator):
-    """
-    Pose every eval case's question to a retrieval pipeline and score what came back.
-
-    Nothing here names a component. The pipeline under measurement is the thing being optimized, so an optimizer is
-    free to rename `retriever`, insert a ranker, or replace the retrieval path entirely; this finds where to put the
-    question and where to read documents by socket name, and says so at validation time when it cannot.
-
-    Quality is the mean of the per-eval-case scores, normalized to `[0.0, 1.0]`. An eval case scores its recall@k, so a
-    configuration that finds more of the evidence is measured as better even while no eval case yet finds all of it.
-    `passed` is still reported per eval case, and remains the stricter reading.
-    No answer is generated: the labelled evidence names the documents an answer needs, which is what makes one
-    eval case cost a single model call rather than an agent loop.
-    """
+    """Pose every eval case's question to a retrieval pipeline and score what came back."""
 
     def __init__(
         self,
@@ -166,18 +151,15 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
 
     def validate(self, target: Pipeline) -> None:
         """
-        Require the sockets the harness poses questions to and reads documents from.
-
-        Checked before a candidate is measured, so a rewiring that the harness cannot drive costs a validation
-        error the optimizer can repair rather than a whole measurement.
+        Validate the candidate pipeline to expose at least one `query` input and exactly one `documents` output.
 
         :param target: Candidate pipeline deserialized from YAML.
         :raises ValueError: If the pipeline exposes no `query` input, or not exactly one `documents` output.
         """
-        if not query_entry_points(pipeline=target):
+        if not _query_entry_points(pipeline=target):
             msg = f"The pipeline must expose at least one unconnected {QUERY_SOCKET!r} input to receive the question."
             raise ValueError(msg)
-        documents_exit_point(pipeline=target)
+        _documents_exit_point(pipeline=target)
 
     async def _measure(
         self, target: Pipeline, tracer: HarnessTracer
@@ -190,8 +172,8 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
         :returns: One result per eval case, in the order the eval cases were given.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_eval_cases)
-        exit_point = documents_exit_point(pipeline=target)
-        entry_points = query_entry_points(pipeline=target)
+        exit_point = _documents_exit_point(pipeline=target)
+        entry_points = _query_entry_points(pipeline=target)
         eval_cases = list(self.eval_cases.values())
 
         async def measure(

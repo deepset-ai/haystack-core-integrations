@@ -73,20 +73,7 @@ class _CollectingHandler(logging.Handler):
 
 
 class ComponentLogCollector:
-    """
-    Capture warnings and errors the measured components emit, for the duration of one evaluation.
-
-    A measurement says how a configuration scored; it does not say whether the configuration did what it was
-    written to do. A component that swallows a failure keeps the run alive and reports the fact to a logger nobody
-    is reading: `LLMRanker` returns its documents in the order it received them, and the only evidence that no
-    ranking happened is a warning. Measured against a live model, a candidate in exactly that state scored as an
-    improvement. So what a component says when it degrades is part of the evidence, and it is usually the precise
-    remedy — an unsupported parameter names itself.
-
-    Collection is per evaluation rather than per eval case. Retrieval components hand work to a thread pool, and a
-    context-local collector would silently lose whatever those threads reported; a reader also wants to know that
-    a component degraded and how often, not which question it happened on.
-    """
+    """Capture warnings and errors the measured components emit, for the duration of one evaluation."""
 
     def __init__(self, logger_names: tuple[str, ...] = DEFAULT_LOGGERS) -> None:
         """
