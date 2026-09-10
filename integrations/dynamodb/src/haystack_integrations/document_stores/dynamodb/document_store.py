@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -43,7 +43,20 @@ class DynamoDBDocumentStore:
     A Haystack DocumentStore backed by Amazon DynamoDB native vector search.
 
     Uses the `SearchVectors` API (GA 2026-08-05). Documents are stored as items in a
-    DynamoDB table with a vector index, and retrieved via cosine similarity search.
+    DynamoDB table with a vector index, and retrieved via cosine similarity search. Every
+    method has an `_async` counterpart built on `aiobotocore`.
+
+    Limitations to weigh before choosing this store:
+
+    - `filter_documents`, `count_documents` and the filter-based bulk operations run a
+      consistent full-table `Scan` and evaluate Haystack filters client-side, so their cost
+      grows with the table size. `SearchVectors` can only filter on attributes fixed in the
+      index `SearchSchema` at creation time, which arbitrary Haystack filters cannot use.
+    - `SearchVectors` returns at most 100 candidates per request
+      (`SEARCH_VECTORS_MAX_TOP_K`), so `top_k` cannot exceed 100 and filtered retrieval can
+      only choose among those candidates.
+    - A DynamoDB item is limited to 400 KB, which bounds a document's content, metadata and
+      embedding together.
 
     Example usage:
 

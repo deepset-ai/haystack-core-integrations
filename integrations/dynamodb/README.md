@@ -13,6 +13,14 @@
 DynamoDB's native vector search (`SearchVectors`, vector indexes) is only available in
 `boto3 >= 1.43.66`, which requires Python 3.10+. Both are enforced by this package's metadata.
 
+## Limitations
+
+- Metadata filters are evaluated client-side: `filter_documents`, `count_documents` and the
+  filter-based bulk operations scan the whole table, and embedding retrieval filters the at most
+  100 nearest candidates that DynamoDB's `SearchVectors` returns (`top_k` cannot exceed 100).
+- Only cosine similarity is supported for now.
+- A DynamoDB item is limited to 400 KB, which bounds a document's content, metadata and embedding.
+
 ## Running the integration tests
 
 The integration tests run against **real AWS** — there is no local DynamoDB emulator that
