@@ -527,7 +527,6 @@ class TestMessageConversionAndMultimodal:
 
         generator = WatsonxChatGenerator(
             model="meta-llama/llama-3-2-11b-vision-instruct",
-            api_key=Secret.from_token("test-api-key"),
             project_id=Secret.from_token("test-project"),
         )
 
@@ -723,6 +722,7 @@ class TestMessageConversionAndMultimodal:
 
         generator = WatsonxChatGenerator(
             model="meta-llama/llama-3-2-11b-vision-instruct",
+            api_key=Secret.from_token("test-api-key"),
             project_id=Secret.from_token("test-project"),
         )
 
