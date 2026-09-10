@@ -8,7 +8,7 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
@@ -19,21 +19,6 @@ logger = logging.getLogger(__name__)
 
 QUERY_SOCKET = "query"
 DOCUMENTS_SOCKET = "documents"
-
-
-def question_from_run(record: RunRecord) -> str:
-    """
-    Return the question a reference run replays.
-
-    :param record: The recorded reference run.
-    :returns: The recorded question.
-    :raises ValueError: If the run carries no question.
-    """
-    question = record.inputs.get(QUERY_SOCKET)
-    if not isinstance(question, str) or not question:
-        msg = f"Run {record.run_id} does not contain a replayable {QUERY_SOCKET!r} string."
-        raise ValueError(msg)
-    return question
 
 
 def query_entry_points(pipeline: Pipeline) -> set[str]:
@@ -136,7 +121,7 @@ def _score_retrieval_result(
 
 class RetrievalHarnessEvaluator(HarnessEvaluator):
     """
-    Replay the recorded question of every eval case through a retrieval pipeline and score what came back.
+    Pose every eval case's question to a retrieval pipeline and score what came back.
 
     Nothing here names a component. The pipeline under measurement is the thing being optimized, so an optimizer is
     free to rename `retriever`, insert a ranker, or replace the retrieval path entirely; this finds where to put the
@@ -195,19 +180,19 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
         documents_exit_point(pipeline=target)
 
     async def _measure(
-        self, target: Pipeline, resolved: list[RetrievalEvalCase], tracer: HarnessTracer
+        self, target: Pipeline, tracer: HarnessTracer
     ) -> list[tuple[RetrievalEvalCaseMetrics, EvalCaseUsage]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
         :param target: The candidate pipeline to measure.
-        :param resolved: The eval cases to pose.
         :param tracer: Collector for per-eval-case generator usage.
         :returns: One result per eval case, in the order the eval cases were given.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_eval_cases)
         exit_point = documents_exit_point(pipeline=target)
         entry_points = query_entry_points(pipeline=target)
+        eval_cases = list(self.eval_cases.values())
 
         async def measure(
             position: int, eval_case: RetrievalEvalCase
@@ -231,7 +216,7 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
             logger.info(
                 "eval case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
                 position=position,
-                total=len(resolved),
+                total=len(eval_cases),
                 verdict="passed" if scored.passed else f"FAILED ({', '.join(scored.failures)})",
                 latency=latency_ms,
                 question=eval_case.question[:80],
@@ -239,42 +224,30 @@ class RetrievalHarnessEvaluator(HarnessEvaluator):
             return scored, usage
 
         return list(
-            await asyncio.gather(*(measure(index, eval_case) for index, eval_case in enumerate(resolved, start=1)))
+            await asyncio.gather(*(measure(index, eval_case) for index, eval_case in enumerate(eval_cases, start=1)))
         )
 
-    def evaluate(self, target: Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+    def evaluate(self, target: Pipeline) -> EvaluationMetrics:
         """
-        Replay every selected run through the pipeline and return raw experiment metrics, from sync code.
+        Pose every eval case to the pipeline and return raw experiment metrics, from synchronous code.
 
         :param target: The materialized candidate pipeline to score.
-        :param reference_runs: The successful runs supplying the questions to replay.
         :returns: What `evaluate_async` measured.
         :raises RuntimeError: If an event loop is already running; await `evaluate_async` from inside one.
         """
-        return asyncio.run(self.evaluate_async(target=target, reference_runs=reference_runs))
+        return asyncio.run(self.evaluate_async(target=target))
 
-    async def evaluate_async(self, target: Pipeline, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Pipeline) -> EvaluationMetrics:
         """
-        Replay every selected run through the pipeline and return raw experiment metrics.
+        Pose every eval case to the pipeline and return raw experiment metrics.
 
         :param target: The materialized candidate pipeline to score.
-        :param reference_runs: The successful runs supplying the questions to replay.
         :returns: Fraction of eval cases passed, raw model usage, and mean latency, with per-eval-case detail.
-        :raises ValueError: If a recorded question has no labelled eval case.
         """
-        resolved = []
-        for record in reference_runs:
-            question = question_from_run(record=record)
-            eval_case = self.eval_cases.get(question)
-            if eval_case is None:
-                msg = f"No labelled retrieval case for question {question!r}."
-                raise ValueError(msg)
-            resolved.append(eval_case)
-
         tracer = HarnessTracer()
-        target.warm_up()
+        await target.warm_up_async()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = await self._measure(target=target, resolved=resolved, tracer=tracer)
+            measured = await self._measure(target=target, tracer=tracer)
 
         scored = [metric for metric, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}

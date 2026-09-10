@@ -16,7 +16,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.lazy_imports import LazyImport
 from haystack.tools import flatten_tools_or_toolsets, warm_up_tools
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, RunRecord
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.optimization import prompts
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
@@ -28,8 +28,6 @@ from haystack_integrations.agent_pack.optimization.workspace import (
 )
 from haystack_integrations.agent_pack.run_digest import (
     EVAL_CASE_SUMMARY_KEY,
-    RunDigestPolicy,
-    digest_agent_run,
     summarize_eval_case_details,
 )
 
@@ -173,7 +171,7 @@ def _tool_specifications(reference: Agent | Pipeline) -> list[dict[str, Any]]:
     A serialized Agent does not reliably carry this: a `ComponentTool` serializes its parameter schema as null
     whenever the schema is derived from the wrapped component, and a `Toolset` that serializes a descriptor of
     itself carries no tool names at all. Without this, the only way to learn what a tool is called and what it
-    accepts is to find one already invoked in a recorded run.
+    accepts is to find one already invoked in a measured run.
 
     :param reference: The configuration whose tools to describe. A Pipeline that is not an Agent has none.
     :returns: One `{name, description, parameters}` entry per tool, or an empty list when they cannot be read.
@@ -280,12 +278,10 @@ def propose_candidate(
     optimizer_agent: Agent,
     workspace: ConfigurationWorkspace,
     reference: Agent | Pipeline,
-    reference_runs: list[RunRecord],
     pricing: ModelPriceCatalog,
     objectives: OptimizationObjectives,
     baseline: EvaluationMetrics,
     history: list[dict[str, Any]],
-    digest_policy: RunDigestPolicy | None = None,
     history_digest_window: int = 1,
     remaining_evaluations: int | None = None,
     base_id: str | None = None,
@@ -296,12 +292,10 @@ def propose_candidate(
     :param optimizer_agent: Agent supplying generator, instructions and optional documentation tools.
     :param workspace: Single editable file and previous snapshots.
     :param reference: Reference configuration supplying tool specifications, when it has any.
-    :param reference_runs: Recorded behavior evidence.
     :param pricing: Known model prices.
     :param objectives: Quality gates and ranking objective.
     :param baseline: Reference measurement.
     :param history: Prior candidate outcomes.
-    :param digest_policy: Run evidence limits.
     :param history_digest_window: Number of recent detailed outcomes.
     :param remaining_evaluations: How many candidates, including this one, the experiment can still measure. A
         submission costs one pass over the whole evaluation set, so without this the optimizer cannot tell a
@@ -322,14 +316,6 @@ def propose_candidate(
             _section(title="Objectives", body=json.dumps(objectives.to_dict())),
             _section(title="Known model prices", body=json.dumps(pricing.to_dict())),
             _section(title="Tools available to the reference", body=json.dumps(tools) if tools else ""),
-            _section(
-                title="How the reference behaved",
-                body="\n\n".join(
-                    _fenced(text=json.dumps(digest_agent_run(result=record.outputs, policy=digest_policy), default=str))
-                    for record in reference_runs[:3]
-                    if record.outputs
-                ),
-            ),
             # Described eval case by eval case only while it is the only thing measured; once a candidate exists, the
             # most recent one is the configuration worth reading in that much detail.
             _section(

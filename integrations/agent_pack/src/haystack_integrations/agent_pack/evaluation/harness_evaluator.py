@@ -5,7 +5,7 @@
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, RunRecord
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics
 from haystack_integrations.agent_pack.run_digest import EVAL_CASES_KEY
 
 from .dataclasses import RetrievalEvalCase
@@ -13,7 +13,7 @@ from .dataclasses import RetrievalEvalCase
 
 class HarnessEvaluator(Protocol):
     """
-    Measure materialized configurations over reference runs using normalized quality scores.
+    Measure materialized configurations over labelled eval cases using normalized quality scores.
 
     An evaluator measures one kind of target — an Agent for one harness, a Pipeline for another — and says so in
     its own signatures. `target` is typed loosely here so an implementation can name the kind it measures.
@@ -29,22 +29,20 @@ class HarnessEvaluator(Protocol):
 
     eval_cases: Mapping[str, RetrievalEvalCase]
 
-    def evaluate(self, target: Any, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+    def evaluate(self, target: Any) -> EvaluationMetrics:
         """
-        Measure a materialized configuration over the supplied reference runs, from synchronous code.
+        Measure a materialized configuration over every eval case, from synchronous code.
 
         :param target: Materialized configuration to evaluate, of whatever kind this evaluator measures.
-        :param reference_runs: Successful runs supplying inputs and optional evaluator-specific reference outputs.
         :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
         """
         ...
 
-    async def evaluate_async(self, target: Any, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Any) -> EvaluationMetrics:
         """
-        Measure a materialized configuration over the supplied reference runs.
+        Measure a materialized configuration over every eval case.
 
         :param target: Materialized configuration to evaluate, of whatever kind this evaluator measures.
-        :param reference_runs: Successful runs supplying inputs and optional evaluator-specific reference outputs.
         :returns: Normalized quality in `[0.0, 1.0]`, latency, and raw model-usage measurements.
         """
         ...

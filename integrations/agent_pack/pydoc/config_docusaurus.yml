@@ -16,7 +16,6 @@ loaders:
       - haystack_integrations.agent_pack.optimization.workspace
       - haystack_integrations.agent_pack.optimization.agent
       - haystack_integrations.agent_pack.optimization.experiment
-      - haystack_integrations.agent_pack.optimization.local_run_store
       - haystack_integrations.tracing.agent_pack.tracer
     search_path: [../src]
 processors:

@@ -5,10 +5,9 @@
 # Run an Agent-configuration optimization experiment against a labelled RAG evaluation set.
 #
 # The corpus and eval cases come from `multihop_rag`, which chunks the MultiHopRAG news articles and derives
-# each eval case's expected documents from which chunks contain its labelled evidence. The run records
-# successful reference runs, lets an optimizer Agent edit the complete serialized candidate configuration,
-# evaluates each choice against
-# those eval cases, and feeds the measured outcome into the next choice. Nothing is deployed automatically.
+# each eval case's expected documents from which chunks contain its labelled evidence. The run lets an
+# optimizer Agent edit the complete serialized candidate configuration, evaluates each choice against those
+# eval cases, and feeds the measured outcome into the next choice. Nothing is deployed automatically.
 #
 # The reference Agent is deliberately badly configured, so the run shows whether the optimizer can build a better one
 # from measured evidence. See `POOR_RETRIEVER_TOP_K` and the constants next to it for what is wrong with it and why.
@@ -27,18 +26,15 @@
 # carried over from an earlier one.
 
 import argparse
-import asyncio
 import logging
 import os
 import shutil
 import sys
 from pathlib import Path
-from uuid import uuid4
 
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
-from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
 from haystack.tools import ComponentTool, flatten_tools_or_toolsets
@@ -49,7 +45,6 @@ from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_ag
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
 )
-from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.evaluation import RAGEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
@@ -60,7 +55,6 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
 )
-from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
 
 WORKSPACE = Path(".agent-pack-poc")
@@ -188,49 +182,6 @@ def build_reference_agent(store: DocumentStore, model: str) -> Agent:
         max_fetched_docs=POOR_MAX_FETCHED_DOCS,
     )
     return agent.clone(tools=[*agent.tools, build_leftover_tool()])
-
-
-def capture_reference_runs(
-    agent: Agent, eval_cases: list[RAGEvalCase], run_store: LocalRunStore, concurrency: int
-) -> frozenset[str]:
-    """
-    Record one reference input/output pair for every selected eval case, replacing anything stored before.
-
-    The store is cleared first because a record carries no trace of which Agent produced it: keeping earlier runs
-    would describe a reference that has since been reconfigured, and those runs are what the optimizer reads as
-    evidence of how the reference behaves.
-
-    :param agent: The reference Agent to run.
-    :param cases: The eval cases whose questions to replay.
-    :param run_store: Store to record into. Cleared before recording.
-    :param concurrency: How many questions to pose at once.
-    :returns: The identifiers of the runs recorded here.
-    """
-    run_store.clear()
-
-    async def capture_all() -> list[tuple[RAGEvalCase, dict]]:
-        """Pose every question, running several at once."""
-        semaphore = asyncio.Semaphore(concurrency)
-
-        async def capture(position: int, eval_case: RAGEvalCase) -> tuple[RAGEvalCase, dict]:
-            """Pose one question once a slot is free."""
-            async with semaphore:
-                result = await agent.run_async(messages=[ChatMessage.from_user(text=eval_case.question)])
-            answer = result["last_message"].text or ""
-            print(f"  captured {position}/{len(eval_cases)}: {answer[:70]!r} <- {eval_case.question[:60]}")
-            return eval_case, result
-
-        return list(
-            await asyncio.gather(*(capture(index, eval_case) for index, eval_case in enumerate(eval_cases, start=1)))
-        )
-
-    selected_ids: set[str] = set()
-    for eval_case, result in asyncio.run(capture_all()):
-        messages = [ChatMessage.from_user(text=eval_case.question)]
-        record = RunRecord(run_id=str(uuid4()), inputs={"messages": messages}, outputs=result)
-        run_store.add(record=record)
-        selected_ids.add(record.run_id)
-    return frozenset(selected_ids)
 
 
 def build_pricing(models: tuple[str, ...]) -> ModelPriceCatalog:
@@ -433,21 +384,11 @@ def main() -> None:
     tool_names = sorted(configured.name for configured in flatten_tools_or_toolsets(tools=reference_agent.tools))
     print(f"  model={arguments.reference_model} tools={tool_names}")
 
-    print("\n=== 2. execute and store reference runs ===")
-    run_store = LocalRunStore(directory=arguments.workspace / "runs")
-    selected_run_ids = capture_reference_runs(
-        agent=reference_agent,
-        eval_cases=eval_cases,
-        run_store=run_store,
-        concurrency=arguments.max_concurrent_eval_cases,
-    )
-
     pricing = build_pricing(models=(arguments.reference_model, *candidate_models))
 
-    print("\n=== 3. optimization experiment ===")
+    print("\n=== 2. optimization experiment ===")
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
-        run_store=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(
             eval_cases=eval_cases,
             digest_policy=DIGEST_POLICY,
@@ -464,7 +405,6 @@ def main() -> None:
         optimizer_agent=create_harness_optimizer_agent(
             documentation_tools=arguments.docs_mcp, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
         ),
-        run_ids=selected_run_ids,
         max_iterations=arguments.max_iterations,
         config_path=arguments.config,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
@@ -472,7 +412,7 @@ def main() -> None:
     result = experiment.run()
     print(f"  measurement context: {result.measurement_context}; run: {result.run_id}")
 
-    print("\n=== 4. outcome ===")
+    print("\n=== 3. outcome ===")
     report(result=result)
     print(f"\nJournal: {experiment.journal.path_for(result.run_id)}")
 

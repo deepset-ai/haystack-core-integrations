@@ -18,7 +18,6 @@ from haystack.components.agents import Agent
 from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, content_digest
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.optimization.agent import propose_candidate
-from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization.models import (
     ModelPriceCatalog,
     OptimizationObjectives,
@@ -188,13 +187,11 @@ class HarnessOptimizationExperiment:
     def __init__(
         self,
         reference: Agent | Pipeline,
-        run_store: LocalRunStore,
         evaluator: HarnessEvaluator,
         pricing: ModelPriceCatalog,
         objectives: OptimizationObjectives,
         journal: ExperimentJournal,
         optimizer_agent: Agent,
-        run_ids: frozenset[str] | None = None,
         configuration_key: str | None = None,
         max_iterations: int = 8,
         digest_policy: RunDigestPolicy | None = None,
@@ -206,7 +203,6 @@ class HarnessOptimizationExperiment:
 
         :param reference: Agent or Pipeline used to generate the initial pipeline YAML and baseline. An Agent is
             serialized wrapped in a one-component Pipeline; a Pipeline is serialized as itself.
-        :param run_store: Local store of successful Agent runs whose inputs are replayed during evaluation.
         :param evaluator: Evaluator that measures the reference and each materialized candidate against the selected
             runs.
         :param pricing: Model prices used to calculate candidate costs and rank cost optimizations. Prices do not
@@ -214,11 +210,10 @@ class HarnessOptimizationExperiment:
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
         :param journal: Where every raw measurement the experiment takes is recorded.
         :param optimizer_agent: Agent that edits YAML after observing prior outcomes.
-        :param run_ids: Optional identifiers selecting which records to load from `run_store`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
-        :param digest_policy: Caps applied when compressing reference runs into the evidence the optimizer reads.
+        :param digest_policy: Caps applied to the tool trace each measured eval case carries.
         :param history_digest_window: How many recent outcomes retain detailed traces in optimizer context.
         :param config_path: Optional editable YAML draft, created if absent. Defaults to the artifact directory.
         """
@@ -227,13 +222,11 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg)
         self.config_path = config_path
         self.reference = reference
-        self.run_store = run_store
         self.evaluator = evaluator
         self.pricing = pricing
         self.objectives = objectives
         self.journal = journal
         self.optimizer_agent = optimizer_agent
-        self.run_ids = run_ids
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
         self.digest_policy = digest_policy
@@ -241,10 +234,6 @@ class HarnessOptimizationExperiment:
 
     def run(self) -> ExperimentResult:
         """Measure a baseline and a bounded number of validated YAML candidates."""
-        reference_runs = self.run_store.list(run_ids=self.run_ids)
-        if not reference_runs:
-            msg = "The selected run store contains no successful reference runs."
-            raise ValueError(msg)
         dump, load = _serialization(reference=self.reference)
         reference_yaml = dump(self.reference)
 
@@ -252,7 +241,6 @@ class HarnessOptimizationExperiment:
         # the reference configuration, whose serialization carries incidental values such as an in-memory store's
         # generated index; it is recorded separately as `reference.yaml` and as the baseline's candidate ID.
         payload = {
-            "runs": sorted(record.fingerprint() for record in reference_runs),
             "evaluator": type(self.evaluator).__qualname__,
             "evaluator_configuration": self.evaluator.fingerprint(),
             "configuration_key": self.configuration_key,
@@ -272,22 +260,23 @@ class HarnessOptimizationExperiment:
         )
 
         # Measure the reference, which every candidate is ranked and gated against.
-        baseline_target = load(reference_yaml)
+        ref_target = load(reference_yaml)
         try:
-            baseline_raw = self.evaluator.evaluate(target=baseline_target, reference_runs=reference_runs)
+            ref_eval_metrics = self.evaluator.evaluate(target=ref_target)
         finally:
-            baseline_target.close()
+            ref_target.close()
         self.journal.append(
             CandidateEvaluation(
                 measurement_context=context,
                 run_id=run_id,
                 candidate_id=workspace.reference_id,
                 configuration=None,
-                metrics=baseline_raw,
+                metrics=ref_eval_metrics,
             )
         )
-        baseline = self.pricing.price(baseline_raw)
-        if self.objectives.primary == "cost" and baseline.cost is None:
+        # Adds cost to the measurement, derived from the model usage the evaluator recorded.
+        ref_eval_metrics = self.pricing.price(ref_eval_metrics)
+        if self.objectives.primary == "cost" and ref_eval_metrics.cost is None:
             msg = "The reference Agent has unavailable cost; supply pricing and complete usage."
             raise ValueError(msg)
 
@@ -304,12 +293,10 @@ class HarnessOptimizationExperiment:
                     optimizer_agent=self.optimizer_agent,
                     workspace=workspace,
                     reference=self.reference,
-                    reference_runs=reference_runs,
                     pricing=self.pricing,
                     objectives=self.objectives,
-                    baseline=baseline,
+                    baseline=ref_eval_metrics,
                     history=history,
-                    digest_policy=self.digest_policy,
                     history_digest_window=self.history_digest_window,
                     remaining_evaluations=self.max_iterations - len(outcomes),
                     base_id=best_id,
@@ -349,10 +336,10 @@ class HarnessOptimizationExperiment:
             try:
                 candidate = load(proposed.yaml)
                 try:
-                    metrics = self.evaluator.evaluate(target=candidate, reference_runs=reference_runs)
+                    metrics = self.evaluator.evaluate(target=candidate)
                 finally:
                     candidate.close()
-                raw = CandidateEvaluation(
+                unpriced = CandidateEvaluation(
                     measurement_context=context,
                     run_id=run_id,
                     candidate_id=proposed.candidate_id,
@@ -360,7 +347,7 @@ class HarnessOptimizationExperiment:
                     metrics=metrics,
                 )
             except Exception as error:
-                raw = CandidateEvaluation(
+                unpriced = CandidateEvaluation(
                     measurement_context=context,
                     run_id=run_id,
                     candidate_id=proposed.candidate_id,
@@ -368,8 +355,8 @@ class HarnessOptimizationExperiment:
                     metrics=None,
                     failure="".join(traceback.format_exception_only(type(error), error)).strip(),
                 )
-            self.journal.append(raw)
-            priced = raw.price(self.pricing)
+            self.journal.append(unpriced)
+            priced = unpriced.price(self.pricing)
             outcomes.append(priced)
             history.append(
                 {
@@ -379,12 +366,12 @@ class HarnessOptimizationExperiment:
                     "diff": proposed.diff,
                     "metrics": priced.metrics.to_dict() if priced.metrics is not None else None,
                     "failure": priced.failure,
-                    "gate_failures": self._gate_failures(candidate=priced, baseline=baseline),
+                    "gate_failures": self._gate_failures(candidate=priced, baseline=ref_eval_metrics),
                 }
             )
             # The next turn edits the best candidate so far, so a regression is not inherited by what follows.
             eligible = [
-                outcome for outcome in outcomes if not self._gate_failures(candidate=outcome, baseline=baseline)
+                outcome for outcome in outcomes if not self._gate_failures(candidate=outcome, baseline=ref_eval_metrics)
             ]
             best_id = min(eligible, key=self._candidate_rank).candidate_id if eligible else None
 
@@ -396,16 +383,17 @@ class HarnessOptimizationExperiment:
                 gates=history[-1]["gate_failures"],
             )
 
-        # Recommend the best candidate that clears every gate and actually beats the baseline.
+        # Recommend the best candidate that clears every gate and actually beats the reference.
         gates = {
-            outcome.candidate_id: self._gate_failures(candidate=outcome, baseline=baseline) for outcome in outcomes
+            outcome.candidate_id: self._gate_failures(candidate=outcome, baseline=ref_eval_metrics)
+            for outcome in outcomes
         }
         eligible = sorted(
             (outcome for outcome in outcomes if not gates[outcome.candidate_id]), key=self._candidate_rank
         )
         recommendation = None
         for evaluated in eligible:
-            reasons = self._recommendation_reasons(candidate=evaluated, baseline=baseline)
+            reasons = self._recommendation_reasons(candidate=evaluated, baseline=ref_eval_metrics)
             if reasons is not None and evaluated.configuration is not None:
                 recommendation = ExperimentRecommendation(
                     configuration=evaluated.configuration,
@@ -445,7 +433,7 @@ class HarnessOptimizationExperiment:
             draft.unlink(missing_ok=True)
 
         return ExperimentResult(
-            baseline=baseline,
+            baseline=ref_eval_metrics,
             candidates=tuple(outcomes),
             recommendation=recommendation,
             measurement_context=context,
@@ -500,8 +488,4 @@ class HarnessOptimizationExperiment:
         """Explain an improvement or return `None` when the candidate does not beat the baseline."""
         if candidate.metrics is None or self._rank(metrics=candidate.metrics) >= self._rank(metrics=baseline):
             return None
-        reasons: list[str] = []
-        if candidate.metrics.details.get("validated") is False:
-            reasons.append("quality_unvalidated")
-        reasons.append(f"{self.objectives.primary}_improvement")
-        return tuple(reasons)
+        return (f"{self.objectives.primary}_improvement",)

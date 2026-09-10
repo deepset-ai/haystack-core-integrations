@@ -7,7 +7,8 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
+from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
@@ -18,7 +19,6 @@ from haystack_integrations.agent_pack.optimization import (
     load_agent,
     load_pipeline,
 )
-from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
 
 def optimizer_agent_for(models):
@@ -78,8 +78,7 @@ class ModelEvaluator:
         self.failing = failing
         self.calls = []
 
-    def evaluate(self, target, reference_runs):
-        assert reference_runs
+    def evaluate(self, target):
         model = target.chat_generator.model
         self.calls.append(model)
         if model in self.failing:
@@ -93,17 +92,8 @@ class ModelEvaluator:
 
 def configured(tmp_path, models, evaluator=None, objectives=None):
     optimizer, histories = optimizer_agent_for(models)
-    store = LocalRunStore()
-    store.add(
-        RunRecord(
-            run_id="reference",
-            inputs={"messages": [ChatMessage.from_user("question")]},
-            outputs={"last_message": ChatMessage.from_assistant("answer")},
-        )
-    )
     experiment = HarnessOptimizationExperiment(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
-        run_store=store,
         evaluator=evaluator or ModelEvaluator(),
         pricing=ModelPriceCatalog(
             [
@@ -283,11 +273,10 @@ def test_repeated_experiments_have_separate_journals(tmp_path):
     assert second.journal.path_for(b.run_id).exists()
 
 
-def test_empty_store_rejected(tmp_path):
-    experiment, _ = configured(tmp_path, [None])
-    experiment.run_store = LocalRunStore()
-    with pytest.raises(ValueError, match="no successful reference runs"):
-        experiment.run()
+def test_an_evaluator_with_no_eval_cases_is_rejected_when_it_is_built():
+    """Nothing to measure is caught at construction, not as a divide by zero part-way through an experiment."""
+    with pytest.raises(ValueError, match="at least one labelled eval case"):
+        AdvancedRAGHarnessEvaluator(eval_cases=[])
 
 
 def test_quality_objective_prefers_better_answers(tmp_path):
@@ -395,8 +384,7 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
         def fingerprint(self):
             return {"kind": "pipeline-evaluator"}
 
-        def evaluate(self, target, reference_runs):
-            assert reference_runs
+        def evaluate(self, target):
             # A Pipeline reference must arrive as a Pipeline, not wrapped in an Agent.
             assert isinstance(target, Pipeline)
             model = target.get_component("generator").model
@@ -426,13 +414,10 @@ def test_a_plain_pipeline_is_optimized_without_being_wrapped_in_an_agent(tmp_pat
         stage += 1
         return ChatMessage.from_assistant(tool_calls=[call])
 
-    store = LocalRunStore()
-    store.add(RunRecord(run_id="reference", inputs={"query": "question"}, outputs={}))
     optimizer = create_harness_optimizer_agent(chat_generator=MockChatGenerator(response_fn=respond))
     evaluator = PipelineEvaluator()
     result = HarnessOptimizationExperiment(
         reference=reference,
-        run_store=store,
         evaluator=evaluator,
         pricing=ModelPriceCatalog([]),
         # Ranked on quality: both configurations cost the same, so only the better answer can win.

@@ -35,7 +35,6 @@ from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cas
 from retrieval.harness_evaluator import RetrievalHarnessEvaluator
 from util import build_bm25_retriever
 
-from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
@@ -46,7 +45,6 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
 )
-from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
@@ -377,22 +375,12 @@ def main() -> None:
         f"scored at recall@{arguments.k}"
     )
 
-    # A retrieval run replays only its question, so the store records that rather than a captured pipeline run.
-    # Nothing about the reference's behaviour is worth keeping that the measured baseline does not already report.
-    print("\n=== 2. record the questions to replay ===")
-    run_store = LocalRunStore(directory=arguments.workspace / "runs")
-    run_store.clear()
-    for index, eval_case in enumerate(eval_cases):
-        run_store.add(record=RunRecord(run_id=f"case-{index}", inputs={"query": eval_case.question}, outputs={}))
-    print(f"  recorded {len(eval_cases)} questions")
-
-    print("\n=== 3. optimization experiment ===")
+    print("\n=== 2. optimization experiment ===")
     evaluator = RetrievalHarnessEvaluator(
         eval_cases=eval_cases, k=arguments.k, max_concurrent_eval_cases=arguments.max_concurrent_eval_cases
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        run_store=run_store,
         evaluator=evaluator,
         pricing=build_pricing(),
         objectives=OptimizationObjectives(
@@ -414,7 +402,7 @@ def main() -> None:
     result = experiment.run()
     print(f"  measurement context: {result.measurement_context}; run: {result.run_id}")
 
-    print("\n=== 4. outcome ===")
+    print("\n=== 3. outcome ===")
     report(result=result)
     print(f"\nJournal: {experiment.journal.path_for(result.run_id)}")
 

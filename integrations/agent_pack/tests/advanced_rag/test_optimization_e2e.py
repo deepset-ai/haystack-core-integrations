@@ -7,7 +7,6 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
-from haystack_integrations.agent_pack.dataclasses import RunRecord
 from haystack_integrations.agent_pack.evaluation import RAGEvalCase
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
@@ -18,7 +17,6 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
     load_agent,
 )
-from haystack_integrations.agent_pack.optimization.local_run_store import LocalRunStore
 
 EVIDENCE = "CRISPR gene editing can correct hereditary blindness mutations."
 
@@ -90,16 +88,6 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     store.write_documents([document])
 
     reference = scripted_agent(store, document, "reference")
-    run_store = LocalRunStore()
-    messages = [ChatMessage.from_user(text=QUESTION)]
-    run_store.add(
-        record=RunRecord(
-            run_id="reference",
-            inputs={"messages": messages},
-            outputs=reference.run(messages=messages),
-        )
-    )
-
     pricing = ModelPriceCatalog(
         prices=[
             ModelPrice(
@@ -124,7 +112,6 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        run_store=run_store,
         evaluator=evaluator,
         pricing=pricing,
         objectives=OptimizationObjectives(min_quality=1.0),
@@ -142,7 +129,6 @@ def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_
     assert result.recommendation.reasons == ("cost_improvement",)
     assert result.recommendation.evaluation.metrics.quality == 1.0
     assert result.recommendation.evaluation.metrics.cost < result.baseline.cost
-    assert result.recommendation.evaluation.metrics.details["validated"] is True
 
     approved = load_agent(result.recommendation.configuration.yaml)
     assert approved.chat_generator.model == "cheap"
@@ -156,16 +142,6 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     store.write_documents([document])
     reference = scripted_agent(store, document, "reference")
 
-    run_store = LocalRunStore()
-    messages = [ChatMessage.from_user(text=QUESTION)]
-    run_store.add(
-        record=RunRecord(
-            run_id="reference",
-            inputs={"messages": messages},
-            outputs=reference.run(messages=messages),
-        )
-    )
-
     pricing = ModelPriceCatalog(
         prices=[
             ModelPrice(model_id="reference", input_cost_per_million=10),
@@ -173,7 +149,6 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     )
     experiment = HarnessOptimizationExperiment(
         reference=reference,
-        run_store=run_store,
         evaluator=AdvancedRAGHarnessEvaluator(
             eval_cases=[
                 RAGEvalCase(

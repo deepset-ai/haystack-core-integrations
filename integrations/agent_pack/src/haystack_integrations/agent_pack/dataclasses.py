@@ -3,11 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import hashlib
-import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
-
-from haystack.utils import _deserialize_value_with_schema, _serialize_value_with_schema
 
 
 def content_digest(payload: str) -> str:
@@ -18,52 +15,6 @@ def content_digest(payload: str) -> str:
     :returns: A twelve-character hexadecimal digest.
     """
     return hashlib.sha256(payload.encode()).hexdigest()[:12]
-
-
-@dataclass(kw_only=True)
-class RunRecord:
-    """
-    Inputs and outputs of one successful run of an Agent or a Pipeline.
-
-    This is deliberately not a tracing abstraction. Optimization needs examples it can replay and compare, not the
-    span hierarchy produced while an example ran.
-
-    :param run_id: Stable identifier for the run.
-    :param inputs: Keyword arguments the run was given.
-    :param outputs: Dictionary the run returned.
-    """
-
-    run_id: str
-    inputs: dict[str, Any]
-    outputs: dict[str, Any]
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-compatible representation of the record."""
-        return {
-            "run_id": self.run_id,
-            "inputs": _serialize_value_with_schema(payload=self.inputs),
-            "outputs": _serialize_value_with_schema(payload=self.outputs),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RunRecord":
-        """
-        Restore a serialized run record.
-
-        :param data: Serialized run record created by :meth:`to_dict`.
-        :returns: The restored run record.
-        """
-        inputs = _deserialize_value_with_schema(serialized=data["inputs"])
-        outputs = _deserialize_value_with_schema(serialized=data["outputs"])
-        return cls(run_id=data["run_id"], inputs=inputs, outputs=outputs)
-
-    def fingerprint(self) -> str:
-        """Return a content fingerprint used to invalidate stale experiment measurements."""
-        serialized = self.to_dict()
-        payload = json.dumps(
-            {"inputs": serialized["inputs"], "outputs": serialized["outputs"]}, sort_keys=True, default=str
-        )
-        return content_digest(payload=payload)
 
 
 @dataclass(kw_only=True)

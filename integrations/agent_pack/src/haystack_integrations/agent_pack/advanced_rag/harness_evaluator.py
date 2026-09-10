@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from haystack import Document, logging
+from haystack import logging
 from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import flatten_tools_or_toolsets
@@ -23,7 +23,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     GetMetadataFieldValuesTool,
     ListMetadataFieldsTool,
 )
-from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage, RunRecord
+from haystack_integrations.agent_pack.dataclasses import EvaluationMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.evaluation.dataclasses import RAGEvalCase, ToolNames
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
@@ -32,64 +32,6 @@ from haystack_integrations.agent_pack.run_digest import EVAL_CASES_KEY, RUN_DIGE
 from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
 
 logger = logging.getLogger(__name__)
-
-
-def messages_from_run(record: RunRecord) -> list[ChatMessage]:
-    """
-    Reconstruct the Agent input messages recorded in a reference run.
-
-    :param record: The recorded reference run.
-    :returns: The messages the reference Agent was run with.
-    :raises ValueError: If the run holds no replayable message list.
-    """
-    serialized = record.inputs.get("messages")
-    if not isinstance(serialized, list):
-        msg = f"Run {record.run_id} does not contain replayable Agent messages."
-        raise ValueError(msg)
-    return [item if isinstance(item, ChatMessage) else ChatMessage.from_dict(data=item) for item in serialized]
-
-
-def question_from_messages(messages: list[ChatMessage]) -> str:
-    """
-    Return the last textual user question in a message list.
-
-    :param messages: The Agent input messages.
-    :returns: The text of the last user message.
-    :raises ValueError: If no user message carries text.
-    """
-    for message in reversed(messages):
-        if message.is_from("user") and message.text:
-            return message.text
-    msg = "Reference run contains no textual user question."
-    raise ValueError(msg)
-
-
-def eval_case_from_reference_run(record: RunRecord) -> RAGEvalCase:
-    """
-    Create a grounding-parity eval case from a reference run.
-
-    The resulting eval case asserts that a candidate retrieves the same documents the reference retrieved. That measures
-    agreement with the incumbent harness, not correctness: a candidate that retrieves *better* evidence scores as a
-    regression. Use it to detect drift when no labelled evaluation set exists, and treat any recommendation it
-    produces as unvalidated. Supply explicit `RAGEvalCase` objects for a decision you intend to act on.
-
-    :param record: The recorded reference run.
-    :returns: An eval case requiring the candidate to retrieve every document the reference retrieved.
-    :raises ValueError: If the run records no retrieved documents.
-    """
-    messages = messages_from_run(record=record)
-    serialized_documents = record.outputs.get("documents") or []
-    documents = [item if isinstance(item, Document) else Document.from_dict(data=item) for item in serialized_documents]
-    if not documents:
-        msg = f"Run {record.run_id} contains no reference documents; supply an explicit evaluation case."
-        raise ValueError(msg)
-    # Which documents the reference found is all this knows; nothing says what any of them was needed for.
-    return RAGEvalCase(
-        question=question_from_messages(messages=messages),
-        evidence={document.id: "" for document in documents},
-        min_recall=1.0,
-        min_precision=0.0,
-    )
 
 
 def widen_tool_budgets(
@@ -120,7 +62,7 @@ def widen_tool_budgets(
 
 class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
     """
-    Replay recorded questions and score Advanced RAG candidates.
+    Pose every labelled question to an Advanced RAG candidate and score what came back.
 
     Quality is the fraction of eval cases that pass, and is therefore normalized to `[0.0, 1.0]`. An eval case passes
     only when its retrieval, answer, citation, metadata-inspection, and tool-budget expectations pass. Each is measured
@@ -134,7 +76,7 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
     def __init__(
         self,
         *,
-        eval_cases: list[RAGEvalCase] | None = None,
+        eval_cases: list[RAGEvalCase],
         digest_policy: RunDigestPolicy | None = None,
         max_traced_eval_cases: int | None = 6,
         max_concurrent_eval_cases: int = 1,
@@ -142,9 +84,7 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
         """
         Create an evaluator.
 
-        :param eval_cases: Labelled expectations, keyed internally by question. A run whose question has no labelled
-            eval case falls back to a grounding-parity eval case derived from the run itself, and the evaluation is
-            reported as unvalidated.
+        :param eval_cases: Labelled expectations, keyed internally by question.
         :param digest_policy: Caps applied to the tool trace recorded for each eval case.
         :param max_traced_eval_cases: How many eval case traces to keep, or `None` to keep every one. A trace explains a
             result but a reader's history of them is cumulative, so failing eval cases keep theirs first: a passing eval
@@ -156,12 +96,15 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
             not: concurrent runs contend for the same rate limits, so leave this at 1 when ranking by latency, or
             the objective measures this setting rather than the configuration. Eval cases are driven through
             `Agent.run_async` whatever this is set to, so one at a time is simply a concurrency of one.
-        :raises ValueError: If `max_concurrent_eval_cases` is below one.
+        :raises ValueError: If `eval_cases` is empty or `max_concurrent_eval_cases` is below one.
         """
+        if not eval_cases:
+            msg = "The Advanced RAG evaluator needs at least one labelled eval case."
+            raise ValueError(msg)
         if max_concurrent_eval_cases < 1:
             msg = "max_concurrent_eval_cases must be at least 1."
             raise ValueError(msg)
-        self.eval_cases = {eval_case.question: eval_case for eval_case in (eval_cases or [])}
+        self.eval_cases = {eval_case.question: eval_case for eval_case in eval_cases}
         self.digest_policy = digest_policy
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
         self.max_traced_eval_cases = max_traced_eval_cases
@@ -191,22 +134,6 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
         for index in ranked[self.max_traced_eval_cases :]:
             eval_cases[index].pop(RUN_DIGEST_KEY, None)
         return eval_cases
-
-    def _resolve(
-        self, reference_runs: list[RunRecord]
-    ) -> tuple[list[tuple[RAGEvalCase, list[ChatMessage]]], list[str]]:
-        """Pair each reference run with the eval case that scores it, reporting which eval cases had to be derived."""
-        resolved: list[tuple[RAGEvalCase, list[ChatMessage]]] = []
-        derived: list[str] = []
-        for record in reference_runs:
-            messages = messages_from_run(record=record)
-            question = question_from_messages(messages=messages)
-            eval_case = self.eval_cases.get(question)
-            if eval_case is None:
-                eval_case = eval_case_from_reference_run(record=record)
-                derived.append(question)
-            resolved.append((eval_case, messages))
-        return resolved, derived
 
     def _score(
         self,
@@ -258,13 +185,12 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
         return scored
 
     async def _measure(
-        self, agent: Agent, resolved: list[tuple[RAGEvalCase, list[ChatMessage]]], tracer: HarnessTracer
+        self, agent: Agent, tracer: HarnessTracer
     ) -> list[tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
         :param agent: The candidate to measure.
-        :param resolved: Each eval case with the messages that pose it.
         :param tracer: Collector for per-eval-case generator usage.
         :returns: One result per eval case, in the order the eval cases were given.
         """
@@ -280,20 +206,20 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
         )
         tool_names = [tool.name for tool in tools]
 
-        async def measure(
-            position: int, eval_case: RAGEvalCase, messages: list[ChatMessage]
-        ) -> tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]:
+        eval_cases = list(self.eval_cases.values())
+
+        async def measure(position: int, eval_case: RAGEvalCase) -> tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]:
             """Run one eval case, waiting for a slot first."""
             async with semaphore:
                 started = time.perf_counter()
                 with tracer.eval_case() as usage:
-                    result = await agent.run_async(messages=messages)
+                    result = await agent.run_async(messages=[ChatMessage.from_user(text=eval_case.question)])
             scored = self._score(
                 result=result,
                 eval_case=eval_case,
                 started=started,
                 position=position,
-                total=len(resolved),
+                total=len(eval_cases),
                 usage=usage,
                 retrieval_tools=retrieval_tools,
                 metadata_tools=metadata_tools,
@@ -307,44 +233,31 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
             return scored, usage
 
         return list(
-            await asyncio.gather(
-                *(
-                    measure(position, eval_case, messages)
-                    for position, (eval_case, messages) in enumerate(resolved, start=1)
-                )
-            )
+            await asyncio.gather(*(measure(position, eval_case) for position, eval_case in enumerate(eval_cases, 1)))
         )
 
-    def evaluate(self, target: Agent, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+    def evaluate(self, target: Agent) -> EvaluationMetrics:
         """
-        Replay every selected run and return raw experiment metrics, from synchronous code.
+        Pose every eval case and return raw experiment metrics, from synchronous code.
 
         :param target: The materialized candidate Agent to score.
-        :param reference_runs: The successful runs supplying the questions to replay.
         :returns: What `evaluate_async` measured.
         :raises RuntimeError: If an event loop is already running; await `evaluate_async` from inside one.
         """
-        return asyncio.run(self.evaluate_async(target=target, reference_runs=reference_runs))
+        return asyncio.run(self.evaluate_async(target=target))
 
-    async def evaluate_async(self, target: Agent, reference_runs: list[RunRecord]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Agent) -> EvaluationMetrics:
         """
-        Replay every selected run and return raw experiment metrics.
+        Pose every eval case and return raw experiment metrics.
 
         :param target: The materialized candidate Agent to score.
-        :param reference_runs: The successful runs supplying the questions to replay.
         :returns: Fraction of eval cases passed, raw model usage, and mean latency for the candidate, with
             per-eval-case detail.
-        :raises ValueError: If no reference runs were supplied.
         """
-        resolved, derived = self._resolve(reference_runs=reference_runs)
-        if not resolved:
-            msg = "No reference runs were supplied to the Advanced RAG evaluator."
-            raise ValueError(msg)
-
         tracer = HarnessTracer()
-        target.warm_up()
+        await target.warm_up_async()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = await self._measure(agent=target, resolved=resolved, tracer=tracer)
+            measured = await self._measure(agent=target, tracer=tracer)
 
         flattened = [scored for scored, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}
@@ -371,8 +284,6 @@ class AdvancedRAGHarnessEvaluator(HarnessEvaluator):
                 # What the components said about themselves while they ran; a tool or hook that degrades rather
                 # than failing reports it only here.
                 "warnings": diagnostics.to_list(),
-                "validated": not derived,
-                "derived_cases": derived,
                 EVAL_CASES_KEY: self._traced_eval_cases(metrics=flattened),
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
