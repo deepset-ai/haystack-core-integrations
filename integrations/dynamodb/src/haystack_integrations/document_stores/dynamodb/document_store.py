@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 # the distance is converted to a similarity below. Verified on real AWS: an identical vector
 # scored 0.0 and an orthogonal one scored 1.0.
 _COSINE_MAX_DISTANCE = 2.0
-_DEFAULT_TOP_K_CAP = 10000
+
+# Hard, non-adjustable service quota on `TopK` per `SearchVectors` request; see "Vector indexes" in
+# https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html
+SEARCH_VECTORS_MAX_TOP_K = 100
 
 
 class DynamoDBDocumentStore:
@@ -361,24 +364,29 @@ class DynamoDBDocumentStore:
         Uses DynamoDB's native `SearchVectors` API. This method is used internally by
         `DynamoDBEmbeddingRetriever`. Metadata filters are applied client-side after the
         vector search returns, for the same `SearchSchema` constraint documented on
-        `filter_documents`. To avoid dropping matches that fall outside `top_k` post-filter,
-        results are over-fetched (capped at DynamoDB's documented `SearchVectors` limit of
-        10,000, not the 100-item per-page result limit which is a separate, unrelated cap).
+        `filter_documents`. When filters are set, the maximum number of candidates DynamoDB
+        allows (`SEARCH_VECTORS_MAX_TOP_K`, currently 100) is fetched and filtered down to
+        `top_k`. Matches ranked below those candidates are not reachable, so a selective filter
+        can return fewer than `top_k` documents even when more matching documents exist.
 
         :param query_embedding: The query vector.
-        :param top_k: Number of top results to return.
+        :param top_k: Number of top results to return, between 1 and `SEARCH_VECTORS_MAX_TOP_K`.
         :param filters: Optional metadata filters, applied client-side.
         :returns: List of `Document` objects ordered most-similar-first, with `score` set to a
             similarity in ``[0, 1]`` (converted from DynamoDB's cosine distance).
+        :raises ValueError: If `query_embedding` is empty or `top_k` is outside the allowed range.
         """
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
+            raise ValueError(msg)
+        if not 1 <= top_k <= SEARCH_VECTORS_MAX_TOP_K:
+            msg = f"top_k must be between 1 and {SEARCH_VECTORS_MAX_TOP_K} (DynamoDB SearchVectors limit), got {top_k}."
             raise ValueError(msg)
 
         self._ensure_table()
         client = self._get_client()
 
-        fetch_k = min(top_k * 10, _DEFAULT_TOP_K_CAP) if filters else top_k
+        fetch_k = SEARCH_VECTORS_MAX_TOP_K if filters else top_k
         response = client.search_vectors(
             TableName=self.table_name,
             IndexName=self.index_name,

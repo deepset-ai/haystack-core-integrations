@@ -20,6 +20,7 @@ from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.dynamodb import DynamoDBDocumentStore
+from haystack_integrations.document_stores.dynamodb.document_store import SEARCH_VECTORS_MAX_TOP_K
 
 _MODULE = "haystack_integrations.document_stores.dynamodb.document_store"
 
@@ -165,6 +166,40 @@ class TestDynamoDBDocumentStore:
         store = _make_store()
         with pytest.raises(ValueError, match="non-empty list of floats"):
             store._embedding_retrieval(query_embedding=[])
+
+    @pytest.mark.parametrize("top_k", [0, -1, SEARCH_VECTORS_MAX_TOP_K + 1])
+    def test_embedding_retrieval_rejects_top_k_outside_dynamodb_limit(self, top_k: int) -> None:
+        store = _make_store()
+        with pytest.raises(ValueError, match="top_k must be between 1 and 100"):
+            store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=top_k)
+
+    def test_embedding_retrieval_with_filters_fetches_at_most_the_dynamodb_limit(self) -> None:
+        """
+        `TopK` is capped at 100 by a non-adjustable DynamoDB quota, so over-fetching for
+        client-side filtering must never exceed it.
+        """
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.search_vectors.return_value = {"SearchResults": []}
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            store._embedding_retrieval(
+                query_embedding=[0.1, 0.2, 0.3],
+                top_k=50,
+                filters={"field": "meta.topic", "operator": "==", "value": "ai"},
+            )
+            _, kwargs = mock_client.search_vectors.call_args
+            assert kwargs["TopK"] == SEARCH_VECTORS_MAX_TOP_K
+
+    def test_embedding_retrieval_without_filters_fetches_exactly_top_k(self) -> None:
+        store = _make_store()
+        mock_client = MagicMock()
+        mock_client.search_vectors.return_value = {"SearchResults": []}
+        with patch.object(store, "_get_client", return_value=mock_client):
+            store._table_ready = True
+            store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=7)
+            _, kwargs = mock_client.search_vectors.call_args
+            assert kwargs["TopK"] == 7
 
     def test_embedding_retrieval_returns_scored_documents(self) -> None:
         store = _make_store()
