@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Any
 
-from haystack import logging
+from haystack import logging, tracing
 from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import flatten_tools_or_toolsets
@@ -32,7 +32,12 @@ from haystack_integrations.agent_pack.evaluation.dataclasses import (
 )
 from haystack_integrations.agent_pack.evaluation.tool_budgets import resolve_tool_budgets
 from haystack_integrations.agent_pack.run_digest import RUN_DIGEST_KEY, RunDigestPolicy
-from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
+from haystack_integrations.tracing.agent_pack.tracer import (
+    EVAL_CASE_SPAN,
+    EvalCaseUsage,
+    HarnessTracer,
+    usage_from_span,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -179,14 +184,13 @@ class AdvancedRAGHarnessEvaluator:
         return scored
 
     async def _measure(
-        self, agent: Agent, eval_cases: list[RAGEvalCase], tracer: HarnessTracer
+        self, agent: Agent, eval_cases: list[RAGEvalCase]
     ) -> list[tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
         :param agent: The candidate to measure.
         :param eval_cases: The labelled expectations to pose.
-        :param tracer: Collector for per-eval-case generator usage.
         :returns: One result per eval case, in the order the eval cases were given.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_eval_cases)
@@ -205,8 +209,11 @@ class AdvancedRAGHarnessEvaluator:
             """Run one eval case, waiting for a slot first."""
             async with semaphore:
                 started = time.perf_counter()
-                with tracer.eval_case() as usage:
+                with tracing.tracer.trace(
+                    EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
+                ) as span:
                     result = await agent.run_async(messages=[ChatMessage.from_user(text=eval_case.question)])
+                usage = usage_from_span(span=span)
             scored = self._score(
                 result=result,
                 eval_case=eval_case,
@@ -257,7 +264,7 @@ class AdvancedRAGHarnessEvaluator:
         tracer = HarnessTracer()
         await target.warm_up_async()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = await self._measure(agent=target, eval_cases=eval_cases, tracer=tracer)
+            measured = await self._measure(agent=target, eval_cases=eval_cases)
 
         flattened = [scored for scored, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}

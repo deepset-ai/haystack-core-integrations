@@ -12,7 +12,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from haystack import Pipeline, logging
+from haystack import Pipeline, logging, tracing
 from haystack.components.agents import Agent
 
 from haystack_integrations.agent_pack.evaluation.dataclasses import (
@@ -36,7 +36,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_pipeline,
 )
 from haystack_integrations.agent_pack.run_digest import RunDigestPolicy
-from haystack_integrations.tracing.agent_pack.tracer import HarnessTracer
+from haystack_integrations.tracing.agent_pack.tracer import EVAL_CASE_SPAN, HarnessTracer, usage_from_span
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +306,7 @@ class HarnessOptimizationExperiment:
         optimizer_tracer = HarnessTracer()
         while len(outcomes) < self.max_iterations:
             # Measured like a candidate's calls, so the cost of searching is reported beside what it found.
-            with optimizer_tracer.activate(), optimizer_tracer.eval_case() as turn_usage:
+            with optimizer_tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as turn_span:
                 proposed = propose_candidate(
                     optimizer_agent=self.optimizer_agent,
                     workspace=workspace,
@@ -319,7 +319,7 @@ class HarnessOptimizationExperiment:
                     remaining_evaluations=self.max_iterations - len(outcomes),
                     base_id=best_id,
                 )
-            for model, tokens in turn_usage.models.items():
+            for model, tokens in usage_from_span(span=turn_span).models.items():
                 current = optimizer_usage.get(model, ModelTokenUsage())
                 optimizer_usage[model] = ModelTokenUsage(
                     input_tokens=current.input_tokens + tokens.input_tokens,

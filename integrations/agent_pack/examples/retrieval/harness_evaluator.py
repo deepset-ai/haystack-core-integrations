@@ -6,12 +6,17 @@ import asyncio
 import time
 from typing import Any
 
-from haystack import Document, Pipeline, logging
+from haystack import Document, Pipeline, logging, tracing
 
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.agent_pack.evaluation.dataclasses import EVAL_CASES_KEY, EvaluationMetrics, ModelTokenUsage
-from haystack_integrations.tracing.agent_pack.tracer import EvalCaseUsage, HarnessTracer
+from haystack_integrations.tracing.agent_pack.tracer import (
+    EVAL_CASE_SPAN,
+    EvalCaseUsage,
+    HarnessTracer,
+    usage_from_span,
+)
 from retrieval.dataclasses import RetrievalEvalCaseMetrics
 
 logger = logging.getLogger(__name__)
@@ -150,14 +155,13 @@ class RetrievalHarnessEvaluator:
         _documents_exit_point(pipeline=target)
 
     async def _measure(
-        self, target: Pipeline, eval_cases: list[RetrievalEvalCase], tracer: HarnessTracer
+        self, target: Pipeline, eval_cases: list[RetrievalEvalCase]
     ) -> list[tuple[RetrievalEvalCaseMetrics, EvalCaseUsage]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
         :param target: The candidate pipeline to measure.
         :param eval_cases: The labelled expectations to pose.
-        :param tracer: Collector for per-eval-case generator usage.
         :returns: One result per eval case, in the order the eval cases were given.
         """
         semaphore = asyncio.Semaphore(self.max_concurrent_eval_cases)
@@ -171,8 +175,11 @@ class RetrievalHarnessEvaluator:
             data = {name: {QUERY_SOCKET: eval_case.question} for name in entry_points}
             async with semaphore:
                 started = time.perf_counter()
-                with tracer.eval_case() as usage:
+                with tracing.tracer.trace(
+                    EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
+                ) as span:
                     result = await target.run_async(data=data)
+                usage = usage_from_span(span=span)
             latency_ms = (time.perf_counter() - started) * 1000
             scored = _score_retrieval_result(
                 result=result,
@@ -224,7 +231,7 @@ class RetrievalHarnessEvaluator:
         tracer = HarnessTracer()
         await target.warm_up_async()
         with ComponentLogCollector().collect() as diagnostics, tracer.activate():
-            measured = await self._measure(target=target, eval_cases=eval_cases, tracer=tracer)
+            measured = await self._measure(target=target, eval_cases=eval_cases)
 
         scored = [metric for metric, _ in measured]
         model_usage: dict[str, ModelTokenUsage] = {}

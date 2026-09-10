@@ -17,8 +17,8 @@ from haystack.tracing import Span, Tracer
 
 from haystack_integrations.agent_pack.evaluation.dataclasses import ModelTokenUsage
 
-# How many of a socket's strings to keep, and how much of each. A query expansion is worth reading back; an
-# unbounded one, or a socket carrying document text, must not reach whoever reads the measurement.
+
+EVAL_CASE_SPAN = "haystack.harness.eval_case"
 MAX_RECORDED_TEXTS = 8
 MAX_RECORDED_TEXT_CHARS = 120
 
@@ -158,8 +158,7 @@ class HarnessTracer(Tracer):
     """
 
     def __init__(self) -> None:
-        """Initialize task-local eval case and span context."""
-        self._case: ContextVar[EvalCaseUsage | None] = ContextVar("harness_usage", default=None)
+        """Initialize task-local span context."""
         self._span: ContextVar[_HarnessSpan | None] = ContextVar("harness_span", default=None)
 
     @contextmanager
@@ -168,7 +167,8 @@ class HarnessTracer(Tracer):
     ) -> Iterator[Span]:
         """Follow explicit parents as well as context propagated into async worker threads."""
         parent = parent_span if isinstance(parent_span, _HarnessSpan) else self.current_span()
-        usage = parent.usage if parent is not None else self._case.get()
+        # An eval case span opens a fresh collection; every span under it records into that one.
+        usage = EvalCaseUsage() if operation_name == EVAL_CASE_SPAN else (parent.usage if parent is not None else None)
         agent_step = operation_name == "haystack.agent.step.llm"
         generator = (
             agent_step
@@ -183,7 +183,7 @@ class HarnessTracer(Tracer):
             usage=usage,
             generator=generator,
             component=str((tags or {}).get("haystack.component.name") or "") or None,
-            hook=hook
+            hook=hook,
         )
         token = self._span.set(span)
         try:
@@ -198,16 +198,6 @@ class HarnessTracer(Tracer):
         return self._span.get()
 
     @contextmanager
-    def eval_case(self) -> Iterator[EvalCaseUsage]:
-        """Collect one eval case independently of concurrently running eval cases."""
-        usage = EvalCaseUsage()
-        token = self._case.set(usage)
-        try:
-            yield usage
-        finally:
-            self._case.reset(token)
-
-    @contextmanager
     def activate(self) -> Iterator[None]:
         """Own global tracing for evaluation, disabling it afterward even on failure."""
         tracing.enable_tracing(self)
@@ -215,3 +205,13 @@ class HarnessTracer(Tracer):
             yield
         finally:
             tracing.disable_tracing()
+
+
+def usage_from_span(span: Span) -> EvalCaseUsage:
+    """
+    Return what a harness collected under one eval case span.
+
+    :param span: The span a harness opened with `EVAL_CASE_SPAN`.
+    :returns: What was recorded, or an empty record when a HarnessTracer was not the active tracer.
+    """
+    return span.usage if isinstance(span, _HarnessSpan) and span.usage is not None else EvalCaseUsage()

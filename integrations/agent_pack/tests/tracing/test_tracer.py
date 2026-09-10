@@ -7,9 +7,11 @@ from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.tracing.agent_pack.tracer import (
+    EVAL_CASE_SPAN,
     MAX_RECORDED_TEXT_CHARS,
     MAX_RECORDED_TEXTS,
     HarnessTracer,
+    usage_from_span,
 )
 
 
@@ -34,9 +36,10 @@ def test_ranker_and_agent_usage_counted_once_without_content_tracing():
         )
     )
     try:
-        with tracer.activate(), tracer.eval_case() as usage:
+        with tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as span:
             pipeline.run({"ranker": {"query": "Berlin", "documents": [Document(content="Berlin")]}})
             agent.run(messages=[ChatMessage.from_user("q")])
+        usage = usage_from_span(span=span)
         assert usage.complete
         assert usage.calls == 2
         assert usage.models["ranker"].input_tokens == 7
@@ -49,7 +52,7 @@ def test_concurrent_eval_cases_and_threaded_parents_keep_usage_separate():
     tracer = HarnessTracer()
 
     async def run_case(index):
-        with tracer.eval_case() as usage:
+        with tracer.trace(EVAL_CASE_SPAN) as eval_case_span:
             with tracer.trace("parent") as parent:
                 await asyncio.sleep(0)
 
@@ -71,7 +74,7 @@ def test_concurrent_eval_cases_and_threaded_parents_keep_usage_separate():
                         )
 
                 await asyncio.to_thread(worker)
-        return usage
+        return usage_from_span(span=eval_case_span)
 
     async def run_all():
         return await asyncio.gather(*(run_case(i) for i in range(1, 5)))
@@ -86,14 +89,14 @@ def test_concurrent_eval_cases_and_threaded_parents_keep_usage_separate():
 def test_missing_usage_is_unavailable_and_tracer_is_disabled_after_failure():
     tracer = HarnessTracer()
     try:
-        with tracer.activate(), tracer.eval_case() as usage:
+        with tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as eval_case_span:
             with tracer.trace("haystack.chat_generator.run") as span:
                 span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("no usage")]})
             msg = "evaluation failed"
             raise RuntimeError(msg)
     except RuntimeError:
         pass
-    assert not usage.complete
+    assert not usage_from_span(span=eval_case_span).complete
     assert tracing.tracer.actual_tracer is not tracer
 
 
@@ -107,8 +110,9 @@ def test_a_stage_that_rewrites_the_question_records_what_it_asked():
     """A count says four queries were issued; only the text says whether they decomposed or restated."""
     tracer = HarnessTracer()
 
-    with tracer.eval_case() as usage:
+    with tracer.trace(EVAL_CASE_SPAN) as span:
         emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
+    usage = usage_from_span(span=span)
 
     assert usage.outputs["expander"] == {"queries": 2}
     assert usage.texts["expander"] == {"queries": ["who owns it", "when was it sold"]}
@@ -118,8 +122,9 @@ def test_an_unbounded_expansion_cannot_fill_the_readers_context():
     tracer = HarnessTracer()
     long_query = "x" * (MAX_RECORDED_TEXT_CHARS + 50)
 
-    with tracer.eval_case() as usage:
+    with tracer.trace(EVAL_CASE_SPAN) as span:
         emit(tracer, "expander", {"queries": [long_query] * (MAX_RECORDED_TEXTS + 20)})
+    usage = usage_from_span(span=span)
 
     kept = usage.texts["expander"]["queries"]
     assert len(kept) == MAX_RECORDED_TEXTS
@@ -132,9 +137,10 @@ def test_documents_are_counted_and_never_sampled():
     """Sampling is for sockets that are nothing but short strings, so document text is not retained."""
     tracer = HarnessTracer()
 
-    with tracer.eval_case() as usage:
+    with tracer.trace(EVAL_CASE_SPAN) as span:
         emit(tracer, "retriever", {"documents": [Document(content="a long article body")]})
         emit(tracer, "mixed", {"things": ["a string", 7]})
+    usage = usage_from_span(span=span)
 
     assert usage.outputs == {"retriever": {"documents": 1}, "mixed": {"things": 2}}
     assert usage.texts == {}
