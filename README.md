@@ -4,14 +4,14 @@
 
 | Name                                                                                               |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/common/transformers/utils.py                                            |       92 |       10 |       24 |        6 |     84% |96, 99-100, 127-131, 136, 187-190, 224-\>exit, 234-\>236 |
-| src/haystack\_integrations/components/classifiers/transformers/zero\_shot\_document\_classifier.py |       58 |        3 |       18 |        1 |     92% |138-140, 146-\>exit |
-| src/haystack\_integrations/components/extractors/transformers/named\_entity\_extractor.py          |       82 |       23 |       10 |        1 |     70% |117-137, 154, 185-191, 249, 262 |
-| src/haystack\_integrations/components/generators/transformers/chat/chat\_generator.py              |      213 |       19 |       60 |       10 |     89% |64-66, 209-\>214, 265-\>exit, 272-274, 284-\>288, 333, 336-\>339, 366, 424, 453-458, 487, 540-543, 579-585 |
-| src/haystack\_integrations/components/readers/transformers/extractive\_reader.py                   |      229 |        9 |       68 |        9 |     94% |131, 180-\>exit, 193, 218-223, 345-\>350, 417, 474, 496-\>463, 587, 632-633 |
-| src/haystack\_integrations/components/routers/transformers/text\_router.py                         |       51 |        6 |       16 |        4 |     82% |107, 116-118, 124-\>128, 129-\>exit, 132-136 |
-| src/haystack\_integrations/components/routers/transformers/zero\_shot\_text\_router.py             |       46 |        3 |       10 |        1 |     89% |140-142, 148-\>exit |
-| **TOTAL**                                                                                          |  **771** |   **73** |  **206** |   **32** | **88%** |           |
+| src/haystack\_integrations/common/transformers/utils.py                                            |       88 |        7 |       22 |        4 |     88% |126-130, 135, 186-189, 223-\>exit, 233-\>235 |
+| src/haystack\_integrations/components/classifiers/transformers/zero\_shot\_document\_classifier.py |       60 |        3 |       16 |        0 |     93% |   136-138 |
+| src/haystack\_integrations/components/extractors/transformers/named\_entity\_extractor.py          |       73 |        7 |        8 |        0 |     89% |169-174, 232, 245 |
+| src/haystack\_integrations/components/generators/transformers/chat/chat\_generator.py              |      208 |       18 |       52 |        6 |     90% |63-65, 235-237, 312, 315-\>318, 401, 430-435, 518-521, 554, 560-566 |
+| src/haystack\_integrations/components/readers/transformers/extractive\_reader.py                   |      235 |        8 |       66 |        7 |     95% |131, 191, 220-225, 347-\>352, 419, 476, 498-\>465, 636-637 |
+| src/haystack\_integrations/components/routers/transformers/text\_router.py                         |       55 |        5 |       14 |        2 |     87% |113-115, 129-\>137, 132-136 |
+| src/haystack\_integrations/components/routers/transformers/zero\_shot\_text\_router.py             |       48 |        3 |        8 |        0 |     91% |   138-140 |
+| **TOTAL**                                                                                          |  **767** |   **51** |  **186** |   **19** | **91%** |           |
 
 
 ## Setup coverage badge
