@@ -168,7 +168,7 @@ class LlamaCppChatGenerator:
     ```python
     from haystack_integrations.components.generators.llama_cpp import LlamaCppChatGenerator
     user_message = [ChatMessage.from_user("Who is the best American actor?")]
-    generator = LlamaCppGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
+    generator = LlamaCppChatGenerator(model="zephyr-7b-beta.Q4_0.gguf", n_ctx=2048, n_batch=512)
 
     print(generator.run(user_message, generation_kwargs={"max_tokens": 128}))
     # {"replies": [ChatMessage(content="John Cusack", role=<ChatRole.ASSISTANT: "assistant">, name=None, meta={...})}
@@ -293,6 +293,12 @@ class LlamaCppChatGenerator:
 
         self._model = Llama(**kwargs)
 
+    def close(self) -> None:
+        """Release the llama.cpp model."""
+        if self._model is not None:
+            self._model.close()
+            self._model = None
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -364,8 +370,8 @@ class LlamaCppChatGenerator:
             - `replies`: The responses from the model
         """
         messages = _normalize_messages(messages)
-        if self._model is None:
-            self.warm_up()
+        self.warm_up()
+        assert self._model is not None  # noqa: S101
 
         if not messages:
             return {"replies": []}
@@ -398,7 +404,7 @@ class LlamaCppChatGenerator:
         )
 
         if streaming_callback:
-            response_stream = self._model.create_chat_completion(  # type: ignore[union-attr]
+            response_stream = self._model.create_chat_completion(
                 messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs, stream=True
             )
             return self._handle_streaming_response(
@@ -408,7 +414,7 @@ class LlamaCppChatGenerator:
             )  # we know that response_stream is Iterator[CreateChatCompletionStreamResponse]
             # because create_chat_completion was called with stream=True, but mypy doesn't know that
 
-        response = self._model.create_chat_completion(  # type: ignore[union-attr]
+        response = self._model.create_chat_completion(
             messages=formatted_messages, tools=llamacpp_tools, **updated_generation_kwargs
         )
         replies = []

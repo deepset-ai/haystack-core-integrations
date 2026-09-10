@@ -98,15 +98,15 @@ def mock_poller(test_files_path):
     return MockPoller
 
 
-class TestAzureOCRDocumentConverter:
-    def test_init_fail_wo_api_key(self, monkeypatch):
+class TestInitializationAndSerialization:
+    def test_init_default(self, monkeypatch):
         monkeypatch.delenv("AZURE_AI_API_KEY", raising=False)
-        with pytest.raises(ValueError):
-            AzureOCRDocumentConverter(endpoint="test_endpoint")
+        component = AzureOCRDocumentConverter(endpoint="test_endpoint")
 
-    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
-    def test_to_dict(self, mock_resolve_value):
-        mock_resolve_value.return_value = "test_api_key"
+        assert component.endpoint == "test_endpoint"
+        assert component.document_analysis_client is None
+
+    def test_to_dict(self):
         component = AzureOCRDocumentConverter(endpoint="test_endpoint")
         data = component.to_dict()
         assert data == {
@@ -124,15 +124,11 @@ class TestAzureOCRDocumentConverter:
             },
         }
 
-    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
-    def test_init_single_column_layout_defaults_threshold_y_when_none(self, mock_resolve_value):
-        mock_resolve_value.return_value = "test_api_key"
+    def test_init_single_column_layout_defaults_threshold_y_when_none(self):
         component = AzureOCRDocumentConverter(endpoint="test_endpoint", page_layout="single_column", threshold_y=None)
         assert component.threshold_y == 0.05
 
-    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
-    def test_from_dict(self, mock_resolve_value):
-        mock_resolve_value.return_value = "test_api_key"
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.components.converters.azure_form_recognizer.converter.AzureOCRDocumentConverter",
             "init_parameters": {
@@ -154,7 +150,53 @@ class TestAzureOCRDocumentConverter:
         assert component.page_layout == "natural"
         assert component.threshold_y == 0.05
         assert component.store_full_path is False
+        assert component.document_analysis_client is None
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AZURE_AI_API_KEY", raising=False)
+        component = AzureOCRDocumentConverter(
+            endpoint="test_endpoint", api_key=Secret.from_env_var("MISSING_AZURE_AI_API_KEY")
+        )
+
+        assert component.document_analysis_client is None
+        with pytest.raises(ValueError, match="MISSING_AZURE_AI_API_KEY"):
+            component.warm_up()
+
+    def test_sync_lifecycle(self):
+        component = AzureOCRDocumentConverter(endpoint="test_endpoint", api_key=Secret.from_token("test_api_key"))
+        with patch(
+            "haystack_integrations.components.converters.azure_form_recognizer.converter.DocumentAnalysisClient"
+        ) as mock_client_cls:
+            client = mock_client_cls.return_value
+            component.warm_up()
+            assert component.document_analysis_client is client
+            component.close()
+            client.close.assert_called_once_with()
+            assert component.document_analysis_client is None
+            component.warm_up()
+            assert mock_client_cls.call_count == 2
+
+    def test_warm_up_is_idempotent(self):
+        component = AzureOCRDocumentConverter(endpoint="test_endpoint", api_key=Secret.from_token("test_api_key"))
+        with patch(
+            "haystack_integrations.components.converters.azure_form_recognizer.converter.DocumentAnalysisClient"
+        ) as mock_client_cls:
+            component.warm_up()
+            component.warm_up()
+
+        mock_client_cls.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        component = AzureOCRDocumentConverter(endpoint="test_endpoint")
+
+        component.close()
+
+        assert component.document_analysis_client is None
+
+
+class TestRun:
     @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
     def test_azure_converter_with_pdf(self, mock_resolve_value, test_files_path, mock_poller) -> None:
         mock_resolve_value.return_value = "test_api_key"
@@ -340,6 +382,8 @@ D,$54.35,$6345.,
         assert out["documents"] == []
         assert out["raw_azure_response"] == []
 
+
+class TestIntegration:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("CORE_AZURE_CS_ENDPOINT", None), reason="Azure endpoint not available")
     @pytest.mark.skipif(not os.environ.get("CORE_AZURE_CS_API_KEY", None), reason="Azure credentials not available")

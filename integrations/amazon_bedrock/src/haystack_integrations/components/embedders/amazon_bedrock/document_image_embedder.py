@@ -146,16 +146,23 @@ class AmazonBedrockDocumentImageEmbedder:
                 raise ValueError(msg)
             self.embedding_types = embedding_types
 
+        self._client: Any = None
+
+    def warm_up(self) -> None:
+        """Create the Amazon Bedrock client."""
+        if self._client is not None:
+            return
+
         def resolve_secret(secret: Secret | str | None) -> str | None:
             return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_region_name=resolve_secret(self.aws_region_name),
+                aws_profile_name=resolve_secret(self.aws_profile_name),
             )
             config = Config(
                 user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
@@ -167,6 +174,12 @@ class AmazonBedrockDocumentImageEmbedder:
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
             )
             raise AmazonBedrockConfigurationError(msg) from exception
+
+    def close(self) -> None:
+        """Close the Amazon Bedrock client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -216,6 +229,7 @@ class AmazonBedrockDocumentImageEmbedder:
             A dictionary with the following keys:
             - `documents`: Documents with embeddings.
         """
+        self.warm_up()
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "AmazonBedrockDocumentImageEmbedder expects a list of Documents as input. "

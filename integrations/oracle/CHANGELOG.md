@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/oracle-v0.5.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- `OracleDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3710)
+- Oracle adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3734)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `OracleDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3782)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/oracle-v0.4.0] - 2026-07-27
 
 ### 🚀 Features
@@ -10,6 +27,9 @@
 
 - `Oracle` match `search_term` against metadata field value only, drop content match (#3645)
 - Fix new issues raised by ruff 0.16.0 (#3670)
+
+
+## [integrations/oracle-v0.3.0] - 2026-07-09
 
 ### 🧹 Chores
 

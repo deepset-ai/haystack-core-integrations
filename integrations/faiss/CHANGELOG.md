@@ -1,5 +1,32 @@
 # Changelog
 
+## [integrations/faiss-v2.1.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `FAISSDocumentStore` with `search_term`, pagination and returning `(values, total_count)` (#3682)
+- `FAISSDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3704)
+- `FAISSDocumentStore` adding filter to unique metadata values (#3753)
+- Standardize license files (#3771)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Mark some tests as integration in Faiss and Qdrant (#3076)
+- Faiss - add unit tests (#3213)
+- `FAISSDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3778)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/faiss-v2.0.0] - 2026-03-23
 
 ### 🧪 Testing
