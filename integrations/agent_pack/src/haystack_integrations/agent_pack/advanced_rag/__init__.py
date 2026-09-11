@@ -3,10 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .agent import create_advanced_rag_agent
-from .evaluation import (
-    AdvancedRAGEvalCaseMetrics,
-    score_advanced_rag_result,
-)
+from .harness_evaluator import AdvancedRAGEvalCaseMetrics, AdvancedRAGHarnessEvaluator
 from .tools import (
     DocumentStoreToolset,
     FetchDocumentsByFilterTool,
@@ -17,11 +14,11 @@ from .tools import (
 
 __all__ = [
     "AdvancedRAGEvalCaseMetrics",
+    "AdvancedRAGHarnessEvaluator",
     "DocumentStoreToolset",
     "FetchDocumentsByFilterTool",
     "GetMetadataFieldRangeTool",
     "GetMetadataFieldValuesTool",
     "ListMetadataFieldsTool",
     "create_advanced_rag_agent",
-    "score_advanced_rag_result",
 ]

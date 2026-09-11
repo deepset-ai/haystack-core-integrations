@@ -10,7 +10,6 @@ loaders:
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
-      - haystack_integrations.agent_pack.advanced_rag.evaluation
       - haystack_integrations.agent_pack.advanced_rag.harness_evaluator
       - haystack_integrations.agent_pack.deep_research.agent
       - haystack_integrations.agent_pack.optimization.models
