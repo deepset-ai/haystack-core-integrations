@@ -101,7 +101,7 @@ def test_evaluator_prices_the_run_from_the_price_catalog(document):
     assert metrics.quality == 1.0
     assert metrics.cost == (100 * 2.0 + 20 * 4.0) / 1_000_000
     assert metrics.details["input_tokens"] == 100
-    assert metrics.details["eval_cases"][0]["passed"] is True
+    assert metrics.eval_cases[0]["passed"] is True
 
 
 def test_evaluator_includes_secondary_model_usage(document):
@@ -146,7 +146,7 @@ async def test_evaluating_from_inside_a_running_loop_measures_what_the_sync_call
 
     assert awaited.quality == blocking.quality == 1.0
     assert awaited.model_usage == blocking.model_usage
-    assert [entry["failures"] for entry in awaited.details["eval_cases"]] == [[]]
+    assert [entry["failures"] for entry in awaited.eval_cases] == [[]]
 
 
 def test_every_eval_case_is_measured_once_and_latency_is_their_total(document):
@@ -160,7 +160,7 @@ def test_every_eval_case_is_measured_once_and_latency_is_their_total(document):
     assert agent.warmups == 1
     assert metrics.quality == 1.0
     assert metrics.latency_ms == pytest.approx(
-        sum(eval_case_metrics["latency_ms"] for eval_case_metrics in metrics.details["eval_cases"])
+        sum(eval_case_metrics["latency_ms"] for eval_case_metrics in metrics.eval_cases)
     )
 
 
@@ -170,11 +170,11 @@ def test_eval_case_details_carry_the_tool_trace(document):
 
     metrics = AdvancedRAGHarnessEvaluator().evaluate(target=FakeAgent(document), eval_cases=[eval_case])
 
-    trace = metrics.details["eval_cases"][0]["agent_run_digest"]
+    trace = metrics.eval_cases[0]["agent_run_digest"]
     assert [step["tool"] for step in trace["tool_steps"]] == ["list_metadata_fields", "search_documents"]
     assert trace["tool_steps"][1]["arguments"] == '{"query": "CRISPR"}'
     assert trace["tool_steps"][0]["result"] == "fields"
-    assert metrics.details["eval_cases"][0]["exit_reason"] == "text"
+    assert metrics.eval_cases[0]["exit_reason"] == "text"
 
 
 def test_a_run_cut_off_by_its_step_budget_reports_why_it_stopped(document):
@@ -201,7 +201,7 @@ def test_a_run_cut_off_by_its_step_budget_reports_why_it_stopped(document):
 
     metrics = AdvancedRAGHarnessEvaluator().evaluate(target=agent, eval_cases=[eval_case])
 
-    assert metrics.details["eval_cases"][0]["exit_reason"] == "max_agent_steps"
+    assert metrics.eval_cases[0]["exit_reason"] == "max_agent_steps"
     # The backup model is priced alongside the Agent's own, which is what the hook span also makes visible.
     assert "backup" in metrics.model_usage
 
@@ -216,11 +216,11 @@ def test_traces_are_dropped_from_passing_eval_cases_before_failing_ones(document
         target=FakeAgent(document), eval_cases=[passing]
     )
 
-    assert failing_metrics.details["eval_cases"][0]["passed"] is False
-    assert "agent_run_digest" in failing_metrics.details["eval_cases"][0]
+    assert failing_metrics.eval_cases[0]["passed"] is False
+    assert "agent_run_digest" in failing_metrics.eval_cases[0]
     # The trace is withheld past the cap, but the eval case is still reported.
-    assert passing_metrics.details["eval_cases"][0]["passed"] is True
-    assert "agent_run_digest" not in passing_metrics.details["eval_cases"][0]
+    assert passing_metrics.eval_cases[0]["passed"] is True
+    assert "agent_run_digest" not in passing_metrics.eval_cases[0]
 
 
 def test_eval_cases_measured_concurrently_are_reported_in_order(document):
@@ -245,8 +245,8 @@ def test_eval_cases_measured_concurrently_are_reported_in_order(document):
     )
 
     assert concurrent.quality == sequential.quality
-    assert [eval_case["question"] for eval_case in concurrent.details["eval_cases"]] == [
-        eval_case["question"] for eval_case in sequential.details["eval_cases"]
+    assert [eval_case["question"] for eval_case in concurrent.eval_cases] == [
+        eval_case["question"] for eval_case in sequential.eval_cases
     ]
     assert concurrent.model_usage == sequential.model_usage
 
@@ -297,6 +297,6 @@ def test_renamed_pipeline_tool_keeps_budget_and_nested_ranker_usage(document):
     assert metrics.details["usage_complete"]
     assert metrics.model_usage["ranker"].input_tokens == 7
     assert metrics.model_usage["cheap"].input_tokens == 20
-    assert metrics.details["eval_cases"][0]["retrieval_calls"] == 1
-    failures = metrics.details["eval_cases"][0]["failures"]
+    assert metrics.eval_cases[0]["retrieval_calls"] == 1
+    failures = metrics.eval_cases[0]["failures"]
     assert failures == ["tool_calls_over_budget:fetch_documents_by_filter+ranked_search+search_documents:1/0"]

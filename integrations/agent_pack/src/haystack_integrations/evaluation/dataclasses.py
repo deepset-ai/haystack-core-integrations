@@ -7,7 +7,6 @@ from typing import Any
 
 from haystack.dataclasses import ChatMessage
 
-EVAL_CASES_KEY = "eval_cases"
 ToolNames = str | tuple[str, ...] | list[str]
 
 
@@ -16,10 +15,10 @@ class ToolRunStats:
     """
     The tool calls one agent run made, and what they add up to.
 
-    :param calls: Every call the run made, in the order it made them, as `(tool name, the arguments it passed)`:
-            [("list_metadata_fields", {}), ("search_documents", {"query": "CRISPR", "filters": None})]
-    :param errors: The calls that came back an error, as `(tool name, what it said)`:
-            [("get_metadata_field_values", "field 'nope' does not exist in the store")]
+    :param calls: Every call the run made, in the order it made them, as `(tool name, the arguments it passed)`,
+        for example `[("list_metadata_fields", {}), ("search_documents", {"query": "CRISPR", "filters": None})]`.
+    :param errors: The calls that came back an error, as `(tool name, what it said)`, for example
+        `[("get_metadata_field_values", "field 'nope' does not exist in the store")]`.
     """
 
     calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
@@ -99,8 +98,8 @@ class RetrievalEvalCase:
 
     :param question: The question to put to whatever is under evaluation.
     :param evidence: Ground truth, as `{document id: the quote found in that document}`. The keys are the
-        documents recall is measured against, and the values say what each one was needed for:
-            {"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}
+        documents recall is measured against, and the values say what each one was needed for, for example
+        `{"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}`.
         A harness that knows which documents are needed but not what they were needed for leaves the values empty.
     :param min_recall: Minimum share of the needed documents that must be found.
     :param min_precision: Minimum share of what came back that must be needed. Left at 0 by default, because
@@ -257,6 +256,8 @@ class EvaluationMetrics:
     :param latency_ms: Mean end-to-end evaluation latency in milliseconds.
     :param model_usage: Raw token usage keyed by model identifier.
     :param cost: Cost derived from `model_usage`, or `None` when usage has not been priced or includes an unknown model.
+    :param eval_cases: One record per eval case measured, each in whatever shape its evaluator scores. Empty for
+        an evaluator that reports only an aggregate.
     :param details: Evaluator-specific measurements and diagnostic information.
     """
 
@@ -264,6 +265,7 @@ class EvaluationMetrics:
     latency_ms: float
     model_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
     cost: float | None = None
+    eval_cases: list[dict[str, Any]] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -279,6 +281,7 @@ class EvaluationMetrics:
             "latency_ms": self.latency_ms,
             "model_usage": {model: asdict(obj=usage) for model, usage in self.model_usage.items()},
             "cost": self.cost,
+            "eval_cases": self.eval_cases,
             "details": self.details,
         }
 
@@ -296,5 +299,6 @@ class EvaluationMetrics:
             latency_ms=float(data["latency_ms"]),
             model_usage={model: ModelTokenUsage(**usage) for model, usage in (data.get("model_usage") or {}).items()},
             cost=None if cost is None else float(cost),
+            eval_cases=data.get("eval_cases") or [],
             details=data.get("details") or {},
         )

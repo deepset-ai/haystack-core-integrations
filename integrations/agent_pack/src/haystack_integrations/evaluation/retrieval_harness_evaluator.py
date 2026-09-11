@@ -18,7 +18,7 @@ from haystack_integrations.tracing.agent_pack import (
 )
 
 from .component_logs import ComponentLogCollector
-from .dataclasses import EVAL_CASES_KEY, EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
+from .dataclasses import EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +304,7 @@ class RetrievalHarnessEvaluator:
             quality=sum(metric.score for metric in eval_metrics) / len(eval_metrics),
             latency_ms=sum(metric.latency_ms for metric in eval_metrics) / len(eval_metrics),
             model_usage=model_usage,
+            eval_cases=[metric.to_dict() for metric in eval_metrics],
             details={
                 "usage_complete": all(usage.complete for _, usage in measured),
                 "mean_recall_at_k": sum(metric.recall_at_k for metric in eval_metrics) / len(eval_metrics),
@@ -314,6 +315,5 @@ class RetrievalHarnessEvaluator:
                 "stage_output_sizes": _stage_output_sizes(eval_metrics=eval_metrics),
                 # Report any warnings from the logger that were emitted during the evaluation
                 "warnings": diagnostics.to_list(),
-                EVAL_CASES_KEY: [metric.to_dict() for metric in eval_metrics],
             },
         )

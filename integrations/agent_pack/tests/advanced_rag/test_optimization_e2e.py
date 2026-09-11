@@ -157,4 +157,4 @@ def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
     candidate = result.candidates[0]
     assert candidate.metrics.quality == 0.0
     assert result.gate_failures[candidate.candidate_id] == ("quality_below_floor:1.0000",)
-    assert "recall_below_1" in candidate.metrics.details["eval_cases"][0]["failures"]
+    assert "recall_below_1" in candidate.metrics.eval_cases[0]["failures"]

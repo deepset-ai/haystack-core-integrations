@@ -25,7 +25,6 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
 from haystack_integrations.evaluation.agent_run_digest import AGENT_RUN_DIGEST_KEY, AgentRunDigestPolicy
 from haystack_integrations.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.evaluation.dataclasses import (
-    EVAL_CASES_KEY,
     EvaluationMetrics,
     ModelTokenUsage,
     RAGEvalCase,
@@ -277,6 +276,7 @@ class AdvancedRAGHarnessEvaluator:
             quality=quality,
             latency_ms=sum(metric.latency_ms for metric in flattened) / len(flattened),
             model_usage=model_usage,
+            eval_cases=self._traced_eval_cases(metrics=flattened),
             details={
                 "model": model_id,
                 "usage_complete": all(usage.complete and usage.calls > 0 for _, usage in measured),
@@ -285,7 +285,6 @@ class AdvancedRAGHarnessEvaluator:
                 # What the components said about themselves while they ran; a tool or hook that degrades rather
                 # than failing reports it only here.
                 "warnings": diagnostics.to_list(),
-                EVAL_CASES_KEY: self._traced_eval_cases(metrics=flattened),
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
             },

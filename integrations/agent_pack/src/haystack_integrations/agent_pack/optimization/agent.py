@@ -26,7 +26,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
 )
-from haystack_integrations.evaluation.dataclasses import EVAL_CASES_KEY, EvaluationMetrics
+from haystack_integrations.evaluation.dataclasses import EvaluationMetrics
 
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset
@@ -244,24 +244,36 @@ def _summarize_eval_cases(eval_cases: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _summarize_eval_case_details(payload: Any) -> Any:
+def _summarized_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
     """
-    Replace every per-eval-case listing with a count of how the eval cases ended.
+    Replace one measurement's per-eval-case listing with a count of how the eval cases ended.
 
-    :param payload: Any JSON-compatible structure.
-    :returns: The same structure with every eval case listing replaced by a `EVAL_CASE_SUMMARY_KEY` summary.
+    :param metrics: One serialized measurement.
+    :returns: The same measurement, carrying a summary in place of the listing.
     """
-    if isinstance(payload, list):
-        return [_summarize_eval_case_details(payload=item) for item in payload]
-    if isinstance(payload, dict):
-        summarized: dict[str, Any] = {}
-        for key, value in payload.items():
-            if key == EVAL_CASES_KEY:
-                summarized[EVAL_CASE_SUMMARY_KEY] = _summarize_eval_cases(eval_cases=value)
-            else:
-                summarized[key] = _summarize_eval_case_details(payload=value)
-        return summarized
-    return payload
+    eval_cases = metrics.get("eval_cases")
+    if not eval_cases:
+        return metrics
+    summarized = {key: value for key, value in metrics.items() if key != "eval_cases"}
+    summarized[EVAL_CASE_SUMMARY_KEY] = _summarize_eval_cases(eval_cases=eval_cases)
+    return summarized
+
+
+def _summarized_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Summarize the eval cases of every outcome in a history.
+
+    A listing carries one rich record per eval case, and a history holds one listing per candidate, so the
+    listings grow as the square of what an experiment learns while saying the same thing repeatedly. The
+    candidate whose detail is still worth reading is the most recent one, and it is sent separately in full.
+
+    :param history: Prior candidate outcomes, each carrying a measurement or a failure.
+    :returns: The same outcomes, with each measurement summarized.
+    """
+    return [
+        {**outcome, "metrics": _summarized_metrics(metrics=outcome["metrics"])} if outcome.get("metrics") else outcome
+        for outcome in history
+    ]
 
 
 def _render_outcomes(history: list[dict[str, Any]]) -> str:
@@ -333,17 +345,13 @@ def propose_candidate(
             # most recent one is the configuration worth reading in that much detail.
             _section(
                 title="Reference measurement",
-                body=json.dumps(
-                    baseline.to_dict() if not history else _summarize_eval_case_details(payload=baseline.to_dict())
-                ),
+                body=json.dumps(baseline.to_dict() if not history else _summarized_metrics(metrics=baseline.to_dict())),
             ),
         ]
     )
 
     # Second message: append-only, so every turn re-reads all but the newest entry from cache.
-    outcomes = _section(
-        title="Outcomes so far", body=_render_outcomes(history=_summarize_eval_case_details(payload=history))
-    )
+    outcomes = _section(title="Outcomes so far", body=_render_outcomes(history=_summarized_history(history=history)))
 
     # Third message: rewritten every turn, so none of it is cacheable and all of it goes last.
     recent = history[-history_digest_window:] if history_digest_window > 0 else []

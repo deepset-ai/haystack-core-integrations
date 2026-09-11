@@ -100,10 +100,10 @@ def test_only_documents_above_the_cutoff_are_scored(store, wanted):
     deep = RetrievalHarnessEvaluator(k=10).evaluate(target=pipeline, eval_cases=[eval_case(wanted)])
     shallow = RetrievalHarnessEvaluator(k=1).evaluate(target=pipeline, eval_cases=[eval_case(wanted)])
 
-    assert deep.details["eval_cases"][0]["recall_at_k"] == 1.0
-    assert shallow.details["eval_cases"][0]["retrieved"] == deep.details["eval_cases"][0]["retrieved"]
+    assert deep.eval_cases[0]["recall_at_k"] == 1.0
+    assert shallow.eval_cases[0]["retrieved"] == deep.eval_cases[0]["retrieved"]
     # Scored one deep, precision is either 1 or 0, and recall follows whichever document ranked first.
-    assert shallow.details["eval_cases"][0]["precision_at_k"] in (0.0, 1.0)
+    assert shallow.eval_cases[0]["precision_at_k"] in (0.0, 1.0)
 
 
 def test_a_recall_floor_is_what_makes_an_eval_case_fail(store):
@@ -112,8 +112,8 @@ def test_a_recall_floor_is_what_makes_an_eval_case_fail(store):
     metrics = RetrievalHarnessEvaluator().evaluate(target=retrieval_pipeline(store), eval_cases=[missing])
 
     assert metrics.quality == 0.0
-    assert metrics.details["eval_cases"][0]["failures"] == ["recall_below_1"]
-    assert metrics.details["eval_cases"][0]["missed_document_ids"] == ["never retrieved"]
+    assert metrics.eval_cases[0]["failures"] == ["recall_below_1"]
+    assert metrics.eval_cases[0]["missed_document_ids"] == ["never retrieved"]
 
 
 def test_every_stage_reports_how_much_it_emitted(store, wanted):
@@ -170,8 +170,8 @@ def test_eval_cases_measured_concurrently_are_reported_in_order(store, wanted):
         target=retrieval_pipeline(store), eval_cases=cases
     )
 
-    questions = [entry["question"] for entry in concurrent.details["eval_cases"]]
-    assert questions == [entry["question"] for entry in sequential.details["eval_cases"]]
+    questions = [entry["question"] for entry in concurrent.eval_cases]
+    assert questions == [entry["question"] for entry in sequential.eval_cases]
     assert concurrent.quality == sequential.quality
 
 

@@ -12,8 +12,6 @@ from typing import Any
 
 # The trees worth listening to. Component diagnostics live under `haystack`; this pack's own harnesses log their
 # progress under `haystack_integrations`, and a candidate may be built from an integration's components too.
-DEFAULT_LOGGERS = ("haystack", "haystack_integrations")
-
 # One record's rendered message is kept in full up to this length. A component that names an unsupported parameter
 # or a failed request says so early, and the remainder is usually a provider's serialized error envelope.
 MAX_MESSAGE_CHARS = 400
@@ -25,7 +23,15 @@ MAX_DISTINCT_MESSAGES = 12
 
 @dataclass
 class CollectedLogs:
-    """Distinct diagnostics emitted during one evaluation, with how often each occurred."""
+    """
+    Distinct diagnostics emitted during one evaluation, with how often each occurred.
+
+    :param counts: How many times each distinct diagnostic occurred, keyed by its level, the logger that
+        emitted it, and its rendered message cut to `MAX_MESSAGE_CHARS`.
+    :param dropped: How many diagnostics arrived after `MAX_DISTINCT_MESSAGES` distinct ones were already held,
+        so a reader knows the listing is partial.
+    :param lock: Guards both, since the components being measured may log from several threads or tasks.
+    """
 
     counts: Counter[tuple[str, str, str]] = field(default_factory=Counter)
     dropped: int = 0
@@ -75,7 +81,7 @@ class _CollectingHandler(logging.Handler):
 class ComponentLogCollector:
     """Capture warnings and errors the measured components emit, for the duration of one evaluation."""
 
-    def __init__(self, logger_names: tuple[str, ...] = DEFAULT_LOGGERS) -> None:
+    def __init__(self, logger_names: tuple[str, ...] = ("haystack", "haystack_integrations")) -> None:
         """
         Create a collector.
 

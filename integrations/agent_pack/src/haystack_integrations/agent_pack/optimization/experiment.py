@@ -30,7 +30,6 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_pipeline,
 )
 from haystack_integrations.evaluation.dataclasses import (
-    EVAL_CASES_KEY,
     EvaluationMetrics,
     ModelTokenUsage,
 )
@@ -256,7 +255,7 @@ class HarnessOptimizationExperiment:
         # generated index; it is recorded separately as `reference.yaml` and as the baseline's candidate ID.
         payload = {
             "evaluator": type(self.evaluator).__qualname__,
-            EVAL_CASES_KEY: _fingerprint_eval_cases(eval_cases=self.eval_cases),
+            "eval_cases": _fingerprint_eval_cases(eval_cases=self.eval_cases),
             "configuration_key": self.configuration_key,
         }
         context = content_digest(json.dumps(payload, sort_keys=True, default=str))
