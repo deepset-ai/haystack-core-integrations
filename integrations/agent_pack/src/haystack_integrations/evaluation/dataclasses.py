@@ -121,7 +121,7 @@ class EvaluationMetrics:
     :param latency_ms: Mean end-to-end evaluation latency in milliseconds.
     :param model_usage: Raw token usage keyed by model identifier.
     :param cost: Cost derived from `model_usage`, or `None` when usage has not been priced or includes an unknown model.
-    :param details: Evaluator-specific measurements and diagnostic information.
+    :param details: Evaluator-specific metrics and diagnostic information.
     """
 
     quality: float

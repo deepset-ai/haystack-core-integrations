@@ -79,5 +79,5 @@ class TestComponentLogCollector:
         reported = logs.to_list()
         assert any("LLMRanker failed during chat generation" in entry["message"] for entry in reported)
         assert any("temperature does not support 0.0" in entry["message"] for entry in reported)
-        # The run completed and handed back its input untouched, so every other measurement looks ordinary.
+        # The run completed and handed back its input untouched, so every other metric looks ordinary.
         assert [document.content for document in result["ranker"]["documents"]] == ["first", "second", "third"]

@@ -4,7 +4,7 @@
 
 from .span_records import (
     EVAL_CASE_SPAN,
-    EvalCaseUsage,
+    EvalCaseSummary,
     ReportedUsage,
     SpanRecord,
 )
@@ -12,7 +12,7 @@ from .tracer import HarnessTracer
 
 __all__ = [
     "EVAL_CASE_SPAN",
-    "EvalCaseUsage",
+    "EvalCaseSummary",
     "HarnessTracer",
     "ReportedUsage",
     "SpanRecord",

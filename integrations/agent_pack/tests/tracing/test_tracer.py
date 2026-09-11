@@ -10,7 +10,7 @@ from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessTrac
 from haystack_integrations.tracing.agent_pack.tracer import (
     MAX_RECORDED_TEXT_CHARS,
     MAX_RECORDED_TEXTS,
-    _eval_case_usage_from_span,
+    _eval_case_summary_from_span,
     _measure_output,
 )
 
@@ -46,22 +46,22 @@ class TestHarnessTracer:
             with tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as span:
                 pipeline.run({"ranker": {"query": "Berlin", "documents": [Document(content="Berlin")]}})
                 agent.run(messages=[ChatMessage.from_user("q")])
-            usage = _eval_case_usage_from_span(span=span)
-            assert usage.complete
-            assert usage.calls == 2
-            assert usage.models["ranker"].input_tokens == 7
-            assert usage.models["coordinator"].input_tokens == 11
+            summary = _eval_case_summary_from_span(span=span)
+            assert summary.all_tokens_reported
+            assert summary.llm_calls == 2
+            assert summary.models["ranker"].input_tokens == 7
+            assert summary.models["coordinator"].input_tokens == 11
         finally:
             tracing.tracer.is_content_tracing_enabled = old_content
 
     def test_records_component_output(self):
-        """The sizes and samples a measurement reports come from the content tag a component emits."""
+        """The sizes and samples a summary reports come from the content tag a component emits."""
         tracer = HarnessTracer()
         with tracer.trace(EVAL_CASE_SPAN) as span:
             emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
-        usage = _eval_case_usage_from_span(span=span)
-        assert usage.outputs == {"expander": {"queries": 2}}
-        assert usage.texts == {"expander": {"queries": ["who owns it", "when was it sold"]}}
+        summary = _eval_case_summary_from_span(span=span)
+        assert summary.outputs == {"expander": {"queries": 2}}
+        assert summary.texts == {"expander": {"queries": ["who owns it", "when was it sold"]}}
 
     def test_concurrent_eval_cases(self):
         tracer = HarnessTracer()
@@ -89,23 +89,23 @@ class TestHarnessTracer:
                             )
 
                     await asyncio.to_thread(worker)
-            return _eval_case_usage_from_span(span=eval_case_span)
+            return _eval_case_summary_from_span(span=eval_case_span)
 
         async def run_all():
             return await asyncio.gather(*(run_case(i) for i in range(1, 5)))
 
         with tracer.activate():
             results = asyncio.run(run_all())
-        for index, usage in enumerate(results, start=1):
-            assert list(usage.models) == [str(index)]
-            assert usage.models[str(index)].input_tokens == index
+        for index, summary in enumerate(results, start=1):
+            assert list(summary.models) == [str(index)]
+            assert summary.models[str(index)].input_tokens == index
 
     def test_reply_without_usage_meta(self):
         tracer = HarnessTracer()
         with tracer.trace(EVAL_CASE_SPAN) as eval_case_span:
             with tracer.trace("haystack.chat_generator.run") as span:
                 span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("hi")]})
-        assert not _eval_case_usage_from_span(span=eval_case_span).complete
+        assert not _eval_case_summary_from_span(span=eval_case_span).all_tokens_reported
 
     def test_activate_restores_tracing(self):
         tracer = HarnessTracer()

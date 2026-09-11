@@ -135,7 +135,7 @@ class TestEvaluate:
 
 class TestStageOutputSizes:
     def test_reports_every_stage(self, store, wanted):
-        """A pooled candidate set has a size no configuration value states, so only measurement reports it."""
+        """A pooled candidate set has a size no configuration value states, so only a run reports it."""
         pipeline = retrieval_pipeline(store, top_k=3, expansions=2)
         metrics = RetrievalHarnessEvaluator().evaluate(target=pipeline, eval_cases=[eval_case(wanted)])
         stages = metrics.details["stage_output_sizes"]

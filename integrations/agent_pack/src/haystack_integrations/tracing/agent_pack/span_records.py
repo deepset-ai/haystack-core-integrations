@@ -21,11 +21,12 @@ class ReportedUsage:
     """
     Token usage reported by a generator.
 
-    :param model: The model identifier the call reported, or `None` when it reported none.
+    :param model: The model identifier the call reported, or `None` when it reported none, which leaves the
+        eval case unpriceable.
     :param tokens: The token counts the call reported, under whatever keys it used.
     """
 
-    model: Any = None
+    model: str | None = None
     tokens: dict[str, Any] = field(default_factory=dict)
 
 
@@ -78,7 +79,7 @@ class SpanRecords:
 
 
 @dataclass
-class EvalCaseUsage:
+class EvalCaseSummary:
     """
     Summarizes what an eval case's spans reported about its token usage and per-stage outputs.
 
@@ -86,21 +87,21 @@ class EvalCaseUsage:
     :param outputs: How many items each component emitted, by component name and output socket.
     :param texts: A sample of whatever each component emitted as text, by component name and output socket,
         capped by the tracer that recorded it.
-    :param complete: Whether every model call reported token usage. False means the total token usage is
-        underestimated, so the eval case must not be priced.
-    :param calls: How many model calls the eval case made.
+    :param all_tokens_reported: Whether every LLM call reported its token counts. False means the token usage
+        below is underestimated, so the eval case must not be priced.
+    :param llm_calls: How many LLM calls the eval case made.
     """
 
     models: dict[str, ModelTokenUsage] = field(default_factory=dict)
     outputs: dict[str, dict[str, int]] = field(default_factory=dict)
     texts: dict[str, dict[str, list[str]]] = field(default_factory=dict)
-    complete: bool = True
-    calls: int = 0
+    all_tokens_reported: bool = True
+    llm_calls: int = 0
 
 
-def _eval_case_usage_from_records(records: list[SpanRecord]) -> EvalCaseUsage:
+def _eval_case_summary_from_records(records: list[SpanRecord]) -> EvalCaseSummary:
     """
-    Fold what an eval case's spans reported into one measurement.
+    Summarize what an eval case's spans reported.
 
     :param records: The span records collected under one eval case, in the order their spans ended.
     :returns: The eval case's token usage and per-stage output sizes.
@@ -108,8 +109,8 @@ def _eval_case_usage_from_records(records: list[SpanRecord]) -> EvalCaseUsage:
     models: dict[str, ModelTokenUsage] = {}
     outputs: dict[str, dict[str, int]] = {}
     texts: dict[str, dict[str, list[str]]] = {}
-    complete = True
-    calls = 0
+    all_tokens_reported = True
+    llm_calls = 0
     for record in records:
         # Stage sizes come from every component; a generator's reply count says nothing about how much
         # reached the next stage, and nested generators would collide with their owner's entry.
@@ -118,25 +119,37 @@ def _eval_case_usage_from_records(records: list[SpanRecord]) -> EvalCaseUsage:
             if record.output_texts:
                 texts[record.component_name] = record.output_texts
 
+        # If not a generator span skip
         if not record.is_generator_span:
             continue
-        # A model call that reported nothing, or replied with nothing, spent tokens nobody can account for.
+
+        # This means a generator did not report its output so usage cannot be tracked
         if not record.reported_output:
-            complete = False
+            all_tokens_reported = False
             continue
-        calls += 1
+
+        # Counted after the output check, so a call is counted once there is evidence it produced something.
+        llm_calls += 1
+
+        # If no usage was reported from the provider we indicate not all token usage is accounted for
         if not record.reported_usage:
-            complete = False
-        for model, tokens in ((entry.model, entry.tokens) for entry in record.reported_usage):
-            if not isinstance(model, str) or not all(
-                any(isinstance(tokens.get(key), (int, float)) for key in keys)
+            all_tokens_reported = False
+
+        for entry in record.reported_usage:
+            # Providers key token counts differently, so any known input key and any known output key will do.
+            counted_input_and_output = all(
+                any(isinstance(entry.tokens.get(key), (int, float)) for key in keys)
                 for keys in (_INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS)
-            ):
-                complete = False
-                continue
-            current = models.get(model, ModelTokenUsage())
-            models[model] = ModelTokenUsage(
-                input_tokens=current.input_tokens + _first_numeric(usage=tokens, keys=_INPUT_TOKEN_KEYS),
-                output_tokens=current.output_tokens + _first_numeric(usage=tokens, keys=_OUTPUT_TOKEN_KEYS),
             )
-    return EvalCaseUsage(models=models, outputs=outputs, texts=texts, complete=complete, calls=calls)
+            # Usage nobody can attribute to a model, or missing either count, cannot be priced.
+            if entry.model is None or not counted_input_and_output:
+                all_tokens_reported = False
+                continue
+            current = models.get(entry.model, ModelTokenUsage())
+            models[entry.model] = ModelTokenUsage(
+                input_tokens=current.input_tokens + _first_numeric(usage=entry.tokens, keys=_INPUT_TOKEN_KEYS),
+                output_tokens=current.output_tokens + _first_numeric(usage=entry.tokens, keys=_OUTPUT_TOKEN_KEYS),
+            )
+    return EvalCaseSummary(
+        models=models, outputs=outputs, texts=texts, all_tokens_reported=all_tokens_reported, llm_calls=llm_calls
+    )

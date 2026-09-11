@@ -13,11 +13,11 @@ from haystack.tracing import Span, Tracer
 
 from .span_records import (
     EVAL_CASE_SPAN,
-    EvalCaseUsage,
+    EvalCaseSummary,
     ReportedUsage,
     SpanRecord,
     SpanRecords,
-    _eval_case_usage_from_records,
+    _eval_case_summary_from_records,
 )
 
 # The tags a component's output arrives under.
@@ -93,7 +93,7 @@ class _HarnessSpan(Span):
             return
         if not self.record.is_generator_span:
             # A generator reports what it spent, not how much reached the next stage, so measuring its
-            # replies would only produce a size the measurement throws away.
+            # replies would only produce a size the summary throws away.
             sizes, texts = _measure_output(value=value)
             self.record = replace(self.record, output_sizes=sizes, output_texts=texts)
         else:
@@ -108,13 +108,7 @@ class _HarnessSpan(Span):
 
 
 class HarnessTracer(Tracer):
-    """
-    Record what every span under an eval case reported, for `_eval_case_usage_from_records` to make a measurement of.
-
-    Three things are taken from the spans a run emits and nothing else is kept: the token usage a generator
-    reports, how many items every other component emitted, and a capped sample of the sockets that emitted
-    short strings.
-    """
+    """A tracer that collects spans for one eval case, and discards everything else."""
 
     def __init__(self) -> None:
         """Initialize task-local span context."""
@@ -160,13 +154,13 @@ class HarnessTracer(Tracer):
             tracing.disable_tracing()
 
 
-def _eval_case_usage_from_span(span: Span) -> EvalCaseUsage:
+def _eval_case_summary_from_span(span: Span) -> EvalCaseSummary:
     """
-    Return what a harness measured under one eval case span.
+    Return the summary of what ran under one eval case span.
 
     :param span: The span a harness opened with `EVAL_CASE_SPAN`.
-    :returns: The measurement, or an empty one when a HarnessTracer was not the active tracer.
+    :returns: The summary, or an empty one when a HarnessTracer was not the active tracer.
     """
     if isinstance(span, _HarnessSpan) and span.collected is not None:
-        return _eval_case_usage_from_records(records=span.collected.records)
-    return EvalCaseUsage()
+        return _eval_case_summary_from_records(records=span.collected.records)
+    return EvalCaseSummary()
