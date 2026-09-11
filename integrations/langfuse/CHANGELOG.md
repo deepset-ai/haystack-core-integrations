@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/langfuse-v6.0.0] - 2026-09-11
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🚜 Refactor
+
+- [**breaking**] Langfuse connector - move tracer creation at warm_up (#3949)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/langfuse-v5.2.0] - 2026-07-15
 
 ### 🐛 Bug Fixes
