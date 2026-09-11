@@ -8,7 +8,7 @@ from typing import Any
 
 from haystack.errors import FilterError
 
-NO_VALUE = "no_value"
+NO_VALUE = object()  # unique sentinel; can never equal a user-supplied filter value
 
 
 def _validate_filters(filters: dict[str, Any] | None = None) -> None:
@@ -31,7 +31,7 @@ def _convert_filters_to_where_clause_and_params(
     else:
         clause, values = _parse_logical_condition(filters)
 
-    params = [v for v in values if v != NO_VALUE]
+    params = [v for v in values if v is not NO_VALUE]
     return f" {operator} {clause}", params
 
 
