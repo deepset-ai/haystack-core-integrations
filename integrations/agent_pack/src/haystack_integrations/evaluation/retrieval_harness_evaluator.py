@@ -18,10 +18,13 @@ from haystack_integrations.tracing.agent_pack import (
 )
 
 from .component_logs import ComponentLogCollector
-from .dataclasses import EVAL_CASES_KEY, EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
+from .dataclasses import EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
 
 logger = logging.getLogger(__name__)
 
+
+# The entry in `EvaluationMetrics.details` carrying one record per measured eval case.
+EVAL_CASES_KEY = "eval_cases"
 
 QUERY_SOCKET = "query"
 DOCUMENTS_SOCKET = "documents"

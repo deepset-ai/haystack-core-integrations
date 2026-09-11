@@ -5,8 +5,6 @@
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-EVAL_CASES_KEY = "eval_cases"
-
 
 @dataclass(kw_only=True)
 class RetrievalEvalCase:
@@ -15,8 +13,8 @@ class RetrievalEvalCase:
 
     :param question: The question to put to whatever is under evaluation.
     :param evidence: Ground truth, as `{document id: the quote found in that document}`. The keys are the
-        documents recall is measured against, and the values say what each one was needed for:
-            {"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}
+        documents recall is measured against, and the values say what each one was needed for, for example
+        `{"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}`.
         A harness that knows which documents are needed but not what they were needed for leaves the values empty.
     :param min_recall: Minimum share of the needed documents that must be found.
     :param min_precision: Minimum share of what came back that must be needed. Left at 0 by default, because
