@@ -79,82 +79,75 @@ def scripted_agent(store, document, model):
     )
 
 
-def test_advanced_rag_experiment_recommends_cheaper_model_at_quality_parity(tmp_path):
-    document = Document(
-        content="CRISPR gene editing can correct hereditary blindness mutations.",
-        meta={"category": "science", "year": 2021},
-    )
-    store = InMemoryDocumentStore()
-    store.write_documents([document])
-
-    reference = scripted_agent(store, document, "reference")
-    pricing = ModelPriceCatalog(
-        prices=[
-            ModelPrice(
-                model_id="reference",
-                input_cost_per_million=10,
-                output_cost_per_million=20,
+class TestAdvancedRagExperiment:
+    def test_recommends_cheaper_model_at_parity(self, tmp_path):
+        document = Document(
+            content="CRISPR gene editing can correct hereditary blindness mutations.",
+            meta={"category": "science", "year": 2021},
+        )
+        store = InMemoryDocumentStore()
+        store.write_documents([document])
+        reference = scripted_agent(store, document, "reference")
+        pricing = ModelPriceCatalog(
+            prices=[
+                ModelPrice(
+                    model_id="reference",
+                    input_cost_per_million=10,
+                    output_cost_per_million=20,
+                ),
+                ModelPrice(
+                    model_id="cheap",
+                    input_cost_per_million=1,
+                    output_cost_per_million=2,
+                ),
+            ],
+        )
+        experiment = HarnessOptimizationExperiment(
+            reference=reference,
+            eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
+            evaluator=AdvancedRAGHarnessEvaluator(),
+            pricing=pricing,
+            objectives=OptimizationObjectives(min_quality=1.0),
+            journal=ExperimentJournal(directory=tmp_path / "journals"),
+            optimizer_agent=optimizer_agent_for(
+                lambda params: params["chat_generator"]["init_parameters"].update(model="cheap")
             ),
-            ModelPrice(
-                model_id="cheap",
-                input_cost_per_million=1,
-                output_cost_per_million=2,
-            ),
-        ],
-    )
-    experiment = HarnessOptimizationExperiment(
-        reference=reference,
-        eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
-        evaluator=AdvancedRAGHarnessEvaluator(),
-        pricing=pricing,
-        objectives=OptimizationObjectives(min_quality=1.0),
-        journal=ExperimentJournal(directory=tmp_path / "journals"),
-        optimizer_agent=optimizer_agent_for(
-            lambda params: params["chat_generator"]["init_parameters"].update(model="cheap")
-        ),
-    )
+        )
+        result = experiment.run()
+        assert result.baseline.quality == 1.0
+        assert result.recommendation is not None
+        assert "model: cheap" in result.recommendation.configuration.yaml
+        assert result.recommendation.reasons == ("cost_improvement",)
+        assert result.recommendation.evaluation.metrics.quality == 1.0
+        assert result.recommendation.evaluation.metrics.cost < result.baseline.cost
+        approved = load_agent(result.recommendation.configuration.yaml)
+        assert approved.chat_generator.model == "cheap"
+        assert reference.chat_generator.model == "reference"
 
-    result = experiment.run()
-
-    assert result.baseline.quality == 1.0
-    assert result.recommendation is not None
-    assert "model: cheap" in result.recommendation.configuration.yaml
-    assert result.recommendation.reasons == ("cost_improvement",)
-    assert result.recommendation.evaluation.metrics.quality == 1.0
-    assert result.recommendation.evaluation.metrics.cost < result.baseline.cost
-
-    approved = load_agent(result.recommendation.configuration.yaml)
-    assert approved.chat_generator.model == "cheap"
-    assert reference.chat_generator.model == "reference"
-
-
-def test_experiment_withholds_a_recommendation_when_quality_regresses(tmp_path):
-    """The cheaper model is only recommended while it still answers the labelled eval case."""
-    document = Document(content="CRISPR gene editing can correct hereditary blindness mutations.")
-    store = InMemoryDocumentStore()
-    store.write_documents([document])
-    reference = scripted_agent(store, document, "reference")
-
-    pricing = ModelPriceCatalog(
-        prices=[
-            ModelPrice(model_id="reference", input_cost_per_million=10),
-        ]
-    )
-    experiment = HarnessOptimizationExperiment(
-        reference=reference,
-        eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
-        evaluator=AdvancedRAGHarnessEvaluator(),
-        pricing=pricing,
-        objectives=OptimizationObjectives(min_quality=1.0),
-        journal=ExperimentJournal(directory=tmp_path / "journals"),
-        optimizer_agent=optimizer_agent_for(lambda params: params.update(max_agent_steps=1)),
-    )
-
-    result = experiment.run()
-
-    assert result.baseline.quality == 1.0
-    assert result.recommendation is None
-    candidate = result.candidates[0]
-    assert candidate.metrics.quality == 0.0
-    assert result.gate_failures[candidate.candidate_id] == ("quality_below_floor:1.0000",)
-    assert "recall_below_1" in candidate.metrics.eval_cases[0]["failures"]
+    def test_withholds_on_quality_regression(self, tmp_path):
+        """The cheaper model is only recommended while it still answers the labelled eval case."""
+        document = Document(content="CRISPR gene editing can correct hereditary blindness mutations.")
+        store = InMemoryDocumentStore()
+        store.write_documents([document])
+        reference = scripted_agent(store, document, "reference")
+        pricing = ModelPriceCatalog(
+            prices=[
+                ModelPrice(model_id="reference", input_cost_per_million=10),
+            ]
+        )
+        experiment = HarnessOptimizationExperiment(
+            reference=reference,
+            eval_cases=[RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
+            evaluator=AdvancedRAGHarnessEvaluator(),
+            pricing=pricing,
+            objectives=OptimizationObjectives(min_quality=1.0),
+            journal=ExperimentJournal(directory=tmp_path / "journals"),
+            optimizer_agent=optimizer_agent_for(lambda params: params.update(max_agent_steps=1)),
+        )
+        result = experiment.run()
+        assert result.baseline.quality == 1.0
+        assert result.recommendation is None
+        candidate = result.candidates[0]
+        assert candidate.metrics.quality == 0.0
+        assert result.gate_failures[candidate.candidate_id] == ("quality_below_floor:1.0000",)
+        assert "recall_below_1" in candidate.metrics.eval_cases[0]["failures"]

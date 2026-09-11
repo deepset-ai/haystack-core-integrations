@@ -94,7 +94,7 @@ class ToolRunStats:
 @dataclass(kw_only=True)
 class RetrievalEvalCase:
     """
-    One labelled question and the documents an answer to it needs.
+    One labelled question and the documents needed to answer it.
 
     :param question: The question to put to whatever is under evaluation.
     :param evidence: Ground truth, as `{document id: the quote found in that document}`. The keys are the
@@ -119,7 +119,7 @@ class RetrievalEvalCase:
 
     @property
     def expected_document_ids(self) -> frozenset[str]:
-        """The documents an answer needs, which are the ones its evidence was found in."""
+        """The documents needed to answer a question based on the provided evidence"""
         return frozenset(self.evidence)
 
     def found_at(self, document_ids: list[str], k: int | None = None) -> frozenset[str]:
@@ -247,9 +247,43 @@ class ModelTokenUsage:
 
 
 @dataclass(kw_only=True)
-class EvaluationMetrics:
+class ReportedUsage:
     """
-    Measurements produced by a harness evaluator for one target configuration.
+    Token usage one LLM call reported.
+
+    :param model: The model identifier the call reported, or `None` when it reported none, which leaves the
+        eval case unpriceable.
+    :param tokens: The token counts the call reported, or `None` when it reported neither an input nor an
+        output count, which also leaves the eval case unpriceable.
+    """
+
+    model: str | None = None
+    tokens: ModelTokenUsage | None = None
+
+
+@dataclass(kw_only=True)
+class EvalCaseSummary:
+    """
+    Summarizes what an eval case's spans reported about its token usage and per-stage outputs.
+
+    :param models: Token usage attributed to each model the eval case called, keyed by model identifier.
+    :param outputs: How many items each component emitted, by component name and output socket.
+    :param texts: A sample of whatever each component emitted as text, by component name and output socket,
+        capped by the tracer that recorded it.
+    :param all_tokens_reported: Whether every LLM call reported its token counts. False means the token usage
+        below is underestimated, so the eval case must not be priced.
+    """
+
+    models: dict[str, ModelTokenUsage] = field(default_factory=dict)
+    outputs: dict[str, dict[str, int]] = field(default_factory=dict)
+    texts: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    all_tokens_reported: bool = True
+
+
+@dataclass(kw_only=True)
+class EvalMetrics:
+    """
+    Metrics produced by a harness evaluator for one target configuration.
 
     :param quality: Normalized aggregate quality score in the inclusive range `[0.0, 1.0]`. Each harness evaluator
         defines which checks contribute to this score.
@@ -258,7 +292,7 @@ class EvaluationMetrics:
     :param cost: Cost derived from `model_usage`, or `None` when usage has not been priced or includes an unknown model.
     :param eval_cases: One record per eval case measured, each in whatever shape its evaluator scores. Empty for
         an evaluator that reports only an aggregate.
-    :param details: Evaluator-specific measurements and diagnostic information.
+    :param details: Evaluator-specific metrics and diagnostic information.
     """
 
     quality: float
@@ -286,12 +320,12 @@ class EvaluationMetrics:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EvaluationMetrics":
+    def from_dict(cls, data: dict[str, Any]) -> "EvalMetrics":
         """
         Restore metrics from a serialized representation.
 
-        :param data: Serialized evaluation metrics.
-        :returns: The restored evaluation metrics.
+        :param data: Serialized eval metrics.
+        :returns: The restored eval metrics.
         """
         cost = data.get("cost")
         return cls(

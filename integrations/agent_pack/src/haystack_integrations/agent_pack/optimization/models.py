@@ -5,7 +5,7 @@
 from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
-from haystack_integrations.evaluation.dataclasses import EvaluationMetrics, ModelTokenUsage
+from haystack_integrations.evaluation.dataclasses import EvalMetrics, ModelTokenUsage
 
 
 @dataclass(kw_only=True)
@@ -89,14 +89,14 @@ class ModelPriceCatalog:
             ) / 1_000_000
         return total
 
-    def price(self, metrics: EvaluationMetrics) -> EvaluationMetrics:
+    def price(self, metrics: EvalMetrics) -> EvalMetrics:
         """
         Apply known prices to raw model usage.
 
         :param metrics: Raw harness evaluation metrics to price.
         :returns: A copy with calculated cost, or unavailable cost and the unknown model identifiers in its details.
         """
-        if metrics.details.get("usage_complete") is False:
+        if metrics.details.get("all_tokens_reported") is False:
             return replace(metrics, cost=None)
         if metrics.cost is not None:
             return metrics

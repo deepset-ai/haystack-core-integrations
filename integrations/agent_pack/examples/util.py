@@ -27,3 +27,15 @@ def build_bm25_retriever(store: DocumentStore, top_k: int = 5) -> Any:
     opensearch_import.check()
     # Narrowed for the type checker: anything that is not the in-memory store is the OpenSearch one here.
     return OpenSearchBM25Retriever(document_store=cast("OpenSearchDocumentStore", store), top_k=top_k)
+
+
+def preview(text: str, limit: int) -> str:
+    """
+    Collapse text to one line and cut it, marking the cut so a reader knows there is more.
+
+    :param text: The text to preview.
+    :param limit: How many characters to keep.
+    :returns: The preview, ending in an ellipsis when anything was cut.
+    """
+    collapsed = " ".join((text or "").split())
+    return collapsed if len(collapsed) <= limit else f"{collapsed[:limit]}..."

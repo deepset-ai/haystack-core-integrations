@@ -26,7 +26,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     CandidateConfiguration,
     ConfigurationWorkspace,
 )
-from haystack_integrations.evaluation.dataclasses import EvaluationMetrics
+from haystack_integrations.evaluation.dataclasses import EvalMetrics
 
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset
@@ -225,7 +225,7 @@ def _headline(metrics: dict[str, Any] | None) -> str:
         parts.append(f"{summary.get('passed')}/{summary.get('total')} eval cases clean")
         if failures := summary.get("failures"):
             parts.append("failures " + ", ".join(f"{name} x{count}" for name, count in failures.items()))
-    if details.get("usage_complete") is False:
+    if details.get("all_tokens_reported") is False:
         parts.append("usage incomplete")
     for warning in details.get("warnings") or []:
         parts.append(f"warning x{warning['count']}: {warning['message']}")
@@ -305,7 +305,7 @@ def propose_candidate(
     reference: Agent | Pipeline,
     pricing: ModelPriceCatalog,
     objectives: OptimizationObjectives,
-    baseline: EvaluationMetrics,
+    baseline: EvalMetrics,
     history: list[dict[str, Any]],
     history_digest_window: int = 1,
     remaining_evaluations: int | None = None,

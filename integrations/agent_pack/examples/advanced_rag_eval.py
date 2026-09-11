@@ -38,7 +38,7 @@ from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import flatten_tools_or_toolsets
 from multihop_rag import CORPUS_KEY, LabelledQuestion, build_eval_cases, prepare_corpus
-from util import build_bm25_retriever
+from util import build_bm25_retriever, preview
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
 from haystack_integrations.evaluation import (
@@ -52,18 +52,6 @@ from haystack_integrations.evaluation import (
 RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
 _CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})[^]]*\]")
-
-
-def _preview(text: str, limit: int) -> str:
-    """
-    Collapse text to one line and cut it, marking the cut so a reader knows there is more.
-
-    :param text: The text to preview.
-    :param limit: How many characters to keep.
-    :returns: The preview, ending in an ellipsis when anything was cut.
-    """
-    collapsed = " ".join((text or "").split())
-    return collapsed if len(collapsed) <= limit else f"{collapsed[:limit]}..."
 
 
 def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
@@ -152,25 +140,25 @@ def run_eval_case(agent: Agent, eval_case: RAGEvalCase, position: int, total: in
         print(f"    Title: {title}")
         for document in sorted(documents, key=lambda chunk: chunk.meta.get("split_id", 0)):
             needed_here = "-> " if document.id in eval_case.expected_document_ids else "   "
-            preview = _preview(text=document.content or "", limit=80)
-            print(f"      {needed_here}chunk {document.meta.get('split_id'):>2}  [doc {document.id[:8]}]  {preview}")
+            snippet = preview(text=document.content or "", limit=80)
+            print(f"      {needed_here}chunk {document.meta.get('split_id'):>2}  [doc {document.id[:8]}]  {snippet}")
     # Naming the quote, since the id alone says nothing about what the run failed to find or failed to use.
     print()
     for document_id in sorted(eval_case.expected_document_ids - retrieved_ids):
         print(
             f"  needed but never retrieved: [doc {document_id[:8]}] "
-            f"{_preview(text=eval_case.evidence[document_id], limit=96)}"
+            f"{preview(text=eval_case.evidence[document_id], limit=96)}"
         )
     for document_id in sorted(uncited & retrieved_ids):
         print(
             f"  needed and retrieved but not cited: [doc {document_id[:8]}] "
-            f"{_preview(text=eval_case.evidence[document_id], limit=96)}"
+            f"{preview(text=eval_case.evidence[document_id], limit=96)}"
         )
 
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for tool_name, message in tool_run_stats.errors:
-        print(f"  tool error: {tool_name} -> {_preview(text=message, limit=120)}")
+        print(f"  tool error: {tool_name} -> {preview(text=message, limit=120)}")
     print("  answer:")
     for line in answer.splitlines():
         print(f"    {line}")

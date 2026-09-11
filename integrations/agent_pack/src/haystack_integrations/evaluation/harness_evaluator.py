@@ -4,29 +4,29 @@
 
 from typing import Any, Protocol
 
-from .dataclasses import EvaluationMetrics
+from .dataclasses import EvalMetrics
 
 
 class HarnessEvaluator(Protocol):
     """Measure a target configuration over labelled eval cases."""
 
-    def evaluate(self, target: Any, eval_cases: list[Any]) -> EvaluationMetrics:
+    def evaluate(self, target: Any, eval_cases: list[Any]) -> EvalMetrics:
         """
         Measure a target configuration over the supplied eval cases.
 
         :param target: Target configuration to evaluate.
         :param eval_cases: The labelled expectations to score it against.
-        :returns: Returns EvaluationMetrics, which includes the score and other relevant metrics.
+        :returns: Returns EvalMetrics, which includes the score and other relevant metrics.
         """
         ...
 
-    async def evaluate_async(self, target: Any, eval_cases: list[Any]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Any, eval_cases: list[Any]) -> EvalMetrics:
         """
         Measure a materialized configuration over the supplied eval cases.
 
         :param target: Materialized configuration to evaluate, of whatever kind this evaluator measures.
         :param eval_cases: The labelled expectations to score it against.
-        :returns: Returns EvaluationMetrics, which includes the score and other relevant metrics.
+        :returns: Returns EvalMetrics, which includes the score and other relevant metrics.
         """
         ...
 

@@ -10,18 +10,11 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging, tracing
 
-from haystack_integrations.tracing.agent_pack import (
-    EVAL_CASE_SPAN,
-    EvalCaseUsage,
-    HarnessTracer,
-    usage_from_span,
-)
-
-from .component_logs import ComponentLogCollector
-from .dataclasses import EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
+from .dataclasses import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
+from .harness_log_collector import HarnessLogCollector
+from .tracer import EVAL_CASE_SPAN, EvalCaseSummary, HarnessSpan, HarnessTracer
 
 logger = logging.getLogger(__name__)
-
 
 QUERY_SOCKET = "query"
 DOCUMENTS_SOCKET = "documents"
@@ -104,7 +97,7 @@ def _stage_output_sizes(eval_metrics: list[RetrievalEvalCaseMetrics]) -> dict[st
     Summarize how many items each component emitted.
 
     We report the range of output sizes from a component's output socket and the "low median" of the sizes it produced.
-    We chose to use the low median since it's a better summarizing measure on non-normal distributions.
+    The low median is used since it's a better summarization measure on non-normal distributions.
 
     :param eval_metrics: List of `RetrievalEvalCaseMetrics` objects to summarize.
     :returns: The smallest, typical and largest output size, by component name and output socket.
@@ -207,7 +200,7 @@ class RetrievalHarnessEvaluator:
 
     async def _measure(
         self, target: Pipeline, eval_cases: list[RetrievalEvalCase]
-    ) -> list[tuple[RetrievalEvalCaseMetrics, EvalCaseUsage]]:
+    ) -> list[tuple[RetrievalEvalCaseMetrics, EvalCaseSummary]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
@@ -221,7 +214,7 @@ class RetrievalHarnessEvaluator:
 
         async def measure(
             position: int, eval_case: RetrievalEvalCase
-        ) -> tuple[RetrievalEvalCaseMetrics, EvalCaseUsage]:
+        ) -> tuple[RetrievalEvalCaseMetrics, EvalCaseSummary]:
             """Pose one question once a slot is free."""
             data = {name: {QUERY_SOCKET: eval_case.question} for name in entry_points}
             async with semaphore:
@@ -230,7 +223,12 @@ class RetrievalHarnessEvaluator:
                     EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
                 ) as span:
                     result = await target.run_async(data=data)
-                eval_case_usage = usage_from_span(span=span)
+                # An empty summary when a HarnessTracer was not the active tracer.
+                eval_case_summary = (
+                    span.collected.summarize()
+                    if isinstance(span, HarnessSpan) and span.collected is not None
+                    else EvalCaseSummary()
+                )
             latency_ms = (time.perf_counter() - started) * 1000
             eval_case_metrics = _score_retrieval_result(
                 result=result,
@@ -238,8 +236,8 @@ class RetrievalHarnessEvaluator:
                 exit_point=exit_point,
                 k=self.k,
                 latency_ms=latency_ms,
-                stage_outputs=dict(eval_case_usage.outputs),
-                stage_texts=dict(eval_case_usage.texts),
+                stage_outputs=dict(eval_case_summary.outputs),
+                stage_texts=dict(eval_case_summary.texts),
             )
             logger.info(
                 "eval case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
@@ -249,13 +247,13 @@ class RetrievalHarnessEvaluator:
                 latency=latency_ms,
                 question=eval_case.question[:80],
             )
-            return eval_case_metrics, eval_case_usage
+            return eval_case_metrics, eval_case_summary
 
         return list(
             await asyncio.gather(*(measure(index, eval_case) for index, eval_case in enumerate(eval_cases, start=1)))
         )
 
-    def evaluate(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvaluationMetrics:
+    def evaluate(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvalMetrics:
         """
         Pose every eval case to the pipeline and return raw experiment metrics, from synchronous code.
 
@@ -266,7 +264,7 @@ class RetrievalHarnessEvaluator:
         """
         return asyncio.run(self.evaluate_async(target=target, eval_cases=eval_cases))
 
-    async def evaluate_async(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvalMetrics:
         """
         Pose every eval case to the pipeline and return raw experiment metrics.
 
@@ -284,7 +282,7 @@ class RetrievalHarnessEvaluator:
 
         # Run the evaluation with a HarnessTracer and log collector to capture diagnostics and run-time information
         tracer = HarnessTracer()
-        with ComponentLogCollector().collect() as diagnostics, tracer.activate():
+        with HarnessLogCollector().collect() as diagnostics, tracer.activate():
             measured = await self._measure(target=target, eval_cases=eval_cases)
 
         # Extract the evaluation metrics
@@ -292,21 +290,21 @@ class RetrievalHarnessEvaluator:
 
         # Aggregate model usage across all measured eval cases
         model_usage: dict[str, ModelTokenUsage] = {}
-        for _, usage in measured:
-            for model, tokens in usage.models.items():
+        for _, summary in measured:
+            for model, tokens in summary.models.items():
                 current = model_usage.get(model, ModelTokenUsage())
                 model_usage[model] = ModelTokenUsage(
                     input_tokens=current.input_tokens + tokens.input_tokens,
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
 
-        return EvaluationMetrics(
+        return EvalMetrics(
             quality=sum(metric.score for metric in eval_metrics) / len(eval_metrics),
             latency_ms=sum(metric.latency_ms for metric in eval_metrics) / len(eval_metrics),
             model_usage=model_usage,
             eval_cases=[metric.to_dict() for metric in eval_metrics],
             details={
-                "usage_complete": all(usage.complete for _, usage in measured),
+                "all_tokens_reported": all(summary.all_tokens_reported for _, summary in measured),
                 "mean_recall_at_k": sum(metric.recall_at_k for metric in eval_metrics) / len(eval_metrics),
                 "mean_precision_at_k": sum(metric.precision_at_k for metric in eval_metrics) / len(eval_metrics),
                 "mean_retrieved": sum(metric.retrieved for metric in eval_metrics) / len(eval_metrics),

@@ -23,20 +23,15 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     ListMetadataFieldsTool,
 )
 from haystack_integrations.evaluation.agent_run_digest import AGENT_RUN_DIGEST_KEY, AgentRunDigestPolicy
-from haystack_integrations.evaluation.component_logs import ComponentLogCollector
 from haystack_integrations.evaluation.dataclasses import (
-    EvaluationMetrics,
+    EvalMetrics,
     ModelTokenUsage,
     RAGEvalCase,
     ToolNames,
 )
+from haystack_integrations.evaluation.harness_log_collector import HarnessLogCollector
 from haystack_integrations.evaluation.tool_budgets import resolve_tool_budgets
-from haystack_integrations.tracing.agent_pack import (
-    EVAL_CASE_SPAN,
-    EvalCaseUsage,
-    HarnessTracer,
-    usage_from_span,
-)
+from haystack_integrations.evaluation.tracer import EVAL_CASE_SPAN, EvalCaseSummary, HarnessSpan, HarnessTracer
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +174,7 @@ class AdvancedRAGHarnessEvaluator:
 
     async def _measure(
         self, agent: Agent, eval_cases: list[RAGEvalCase]
-    ) -> list[tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]]:
+    ) -> list[tuple[AdvancedRAGEvalCaseMetrics, EvalCaseSummary]]:
         """
         Measure every eval case, running up to `max_concurrent_eval_cases` of them at once.
 
@@ -199,7 +194,7 @@ class AdvancedRAGHarnessEvaluator:
         )
         tool_names = [tool.name for tool in tools]
 
-        async def measure(position: int, eval_case: RAGEvalCase) -> tuple[AdvancedRAGEvalCaseMetrics, EvalCaseUsage]:
+        async def measure(position: int, eval_case: RAGEvalCase) -> tuple[AdvancedRAGEvalCaseMetrics, EvalCaseSummary]:
             """Run one eval case, waiting for a slot first."""
             async with semaphore:
                 started = time.perf_counter()
@@ -207,7 +202,12 @@ class AdvancedRAGHarnessEvaluator:
                     EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
                 ) as span:
                     result = await agent.run_async(messages=[ChatMessage.from_user(text=eval_case.question)])
-                usage = usage_from_span(span=span)
+                # An empty summary when a HarnessTracer was not the active tracer.
+                usage = (
+                    span.collected.summarize()
+                    if isinstance(span, HarnessSpan) and span.collected is not None
+                    else EvalCaseSummary()
+                )
             scored = self._score(
                 result=result,
                 eval_case=eval_case,
@@ -229,7 +229,7 @@ class AdvancedRAGHarnessEvaluator:
             await asyncio.gather(*(measure(position, eval_case) for position, eval_case in enumerate(eval_cases, 1)))
         )
 
-    def evaluate(self, target: Agent, eval_cases: list[RAGEvalCase]) -> EvaluationMetrics:
+    def evaluate(self, target: Agent, eval_cases: list[RAGEvalCase]) -> EvalMetrics:
         """
         Pose every eval case and return raw experiment metrics, from synchronous code.
 
@@ -240,7 +240,7 @@ class AdvancedRAGHarnessEvaluator:
         """
         return asyncio.run(self.evaluate_async(target=target, eval_cases=eval_cases))
 
-    async def evaluate_async(self, target: Agent, eval_cases: list[RAGEvalCase]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Agent, eval_cases: list[RAGEvalCase]) -> EvalMetrics:
         """
         Pose every eval case and return raw experiment metrics.
 
@@ -256,7 +256,7 @@ class AdvancedRAGHarnessEvaluator:
 
         tracer = HarnessTracer()
         await target.warm_up_async()
-        with ComponentLogCollector().collect() as diagnostics, tracer.activate():
+        with HarnessLogCollector().collect() as diagnostics, tracer.activate():
             measured = await self._measure(agent=target, eval_cases=eval_cases)
 
         flattened = [scored for scored, _ in measured]
@@ -272,14 +272,15 @@ class AdvancedRAGHarnessEvaluator:
         input_tokens = sum(usage.input_tokens for usage in model_usage.values())
         output_tokens = sum(usage.output_tokens for usage in model_usage.values())
         model_id = getattr(target.chat_generator, "model", None)
-        return EvaluationMetrics(
+        return EvalMetrics(
             quality=quality,
             latency_ms=sum(metric.latency_ms for metric in flattened) / len(flattened),
             model_usage=model_usage,
             eval_cases=self._traced_eval_cases(metrics=flattened),
             details={
                 "model": model_id,
-                "usage_complete": all(usage.complete and usage.calls > 0 for _, usage in measured),
+                # A run that attributed nothing to a model is as unpriceable as one that under-reported.
+                "all_tokens_reported": all(usage.all_tokens_reported and usage.models for _, usage in measured),
                 "mean_recall": sum(metric.recall for metric in flattened) / len(flattened),
                 "mean_precision": sum(metric.precision for metric in flattened) / len(flattened),
                 # What the components said about themselves while they ran; a tool or hook that degrades rather

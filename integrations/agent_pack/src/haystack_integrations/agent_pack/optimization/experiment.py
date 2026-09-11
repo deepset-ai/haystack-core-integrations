@@ -30,11 +30,11 @@ from haystack_integrations.agent_pack.optimization.workspace import (
     load_pipeline,
 )
 from haystack_integrations.evaluation.dataclasses import (
-    EvaluationMetrics,
+    EvalMetrics,
     ModelTokenUsage,
 )
 from haystack_integrations.evaluation.harness_evaluator import HarnessEvaluator
-from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessTracer, usage_from_span
+from haystack_integrations.evaluation.tracer import EVAL_CASE_SPAN, HarnessSpan, HarnessTracer
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class CandidateEvaluation:
     run_id: str
     candidate_id: str
     configuration: CandidateConfiguration | None
-    metrics: EvaluationMetrics | None
+    metrics: EvalMetrics | None
     failure: str | None = None
 
     def price(self, pricing: ModelPriceCatalog) -> "CandidateEvaluation":
@@ -74,7 +74,7 @@ class CandidateEvaluation:
             run_id=data["run_id"],
             candidate_id=data["candidate_id"],
             configuration=CandidateConfiguration(**data["configuration"]) if data.get("configuration") else None,
-            metrics=EvaluationMetrics.from_dict(data=metrics) if metrics is not None else None,
+            metrics=EvalMetrics.from_dict(data=metrics) if metrics is not None else None,
             failure=data.get("failure"),
         )
 
@@ -92,7 +92,7 @@ class ExperimentRecommendation:
 class ExperimentResult:
     """Priced baseline, candidate outcomes, and the optional best recommendation."""
 
-    baseline: EvaluationMetrics
+    baseline: EvalMetrics
     candidates: tuple[CandidateEvaluation, ...]
     recommendation: ExperimentRecommendation | None
     measurement_context: str
@@ -314,7 +314,9 @@ class HarnessOptimizationExperiment:
                     remaining_evaluations=self.max_iterations - len(outcomes),
                     base_id=best_id,
                 )
-            for model, tokens in usage_from_span(span=turn_span).models.items():
+            # An empty summary when a HarnessTracer was not the active tracer.
+            collected = turn_span.collected if isinstance(turn_span, HarnessSpan) else None
+            for model, tokens in (collected.summarize().models if collected is not None else {}).items():
                 current = optimizer_usage.get(model, ModelTokenUsage())
                 optimizer_usage[model] = ModelTokenUsage(
                     input_tokens=current.input_tokens + tokens.input_tokens,
@@ -457,7 +459,7 @@ class HarnessOptimizationExperiment:
             optimizer_cost=optimizer_cost,
         )
 
-    def _gate_failures(self, candidate: CandidateEvaluation, baseline: EvaluationMetrics) -> tuple[str, ...]:
+    def _gate_failures(self, candidate: CandidateEvaluation, baseline: EvalMetrics) -> tuple[str, ...]:
         """Return the hard gates a candidate failed."""
         if candidate.metrics is None:
             return ("evaluation_failed",)
@@ -473,13 +475,13 @@ class HarnessOptimizationExperiment:
         # Usage a harness could not account for means a model call was observed and produced nothing measurable,
         # which is what a silently swallowed component failure looks like from here. Such a candidate is not
         # describing its own behaviour, whatever it scored, so it cannot win on any objective.
-        if candidate.metrics.details.get("usage_complete") is False:
+        if candidate.metrics.details.get("all_tokens_reported") is False:
             failures.append("usage_incomplete")
         elif self.objectives.primary == "cost" and candidate.metrics.cost is None:
             failures.append("cost_unavailable")
         return tuple(failures)
 
-    def _rank(self, metrics: EvaluationMetrics) -> tuple[float, float]:
+    def _rank(self, metrics: EvalMetrics) -> tuple[float, float]:
         """Return the objective-dependent ordering key for priced metrics, lower being better."""
         cost = metrics.cost if metrics.cost is not None else float("inf")
         if self.objectives.primary == "quality":
@@ -495,9 +497,7 @@ class HarnessOptimizationExperiment:
         """Return a sortable rank that places failed candidates last."""
         return self._rank(metrics=candidate.metrics) if candidate.metrics is not None else (float("inf"), float("inf"))
 
-    def _recommendation_reasons(
-        self, candidate: CandidateEvaluation, baseline: EvaluationMetrics
-    ) -> tuple[str, ...] | None:
+    def _recommendation_reasons(self, candidate: CandidateEvaluation, baseline: EvalMetrics) -> tuple[str, ...] | None:
         """Explain an improvement or return `None` when the candidate does not beat the baseline."""
         if candidate.metrics is None or self._rank(metrics=candidate.metrics) >= self._rank(metrics=baseline):
             return None

@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .agent_run_digest import AGENT_RUN_DIGEST_KEY, AgentRunDigestPolicy, digest_agent_run
-from .component_logs import ComponentLogCollector
 from .dataclasses import (
-    EvaluationMetrics,
+    EvalMetrics,
     ModelTokenUsage,
     RAGEvalCase,
     RetrievalEvalCase,
@@ -13,6 +12,7 @@ from .dataclasses import (
     ToolRunStats,
 )
 from .harness_evaluator import HarnessEvaluator
+from .harness_log_collector import HarnessLogCollector
 from .retrieval_harness_evaluator import RetrievalEvalCaseMetrics, RetrievalHarnessEvaluator
 from .tool_budgets import ANY_TOOL, DEFAULT_TOOL_BUDGET, budgets_exceeded, resolve_tool_budgets
 
@@ -21,9 +21,9 @@ __all__ = [
     "ANY_TOOL",
     "DEFAULT_TOOL_BUDGET",
     "AgentRunDigestPolicy",
-    "ComponentLogCollector",
-    "EvaluationMetrics",
+    "EvalMetrics",
     "HarnessEvaluator",
+    "HarnessLogCollector",
     "ModelTokenUsage",
     "RAGEvalCase",
     "RetrievalEvalCase",
