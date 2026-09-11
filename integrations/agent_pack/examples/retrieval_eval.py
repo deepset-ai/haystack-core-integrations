@@ -31,9 +31,10 @@ import argparse
 from haystack import Pipeline
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.query import QueryExpander
+from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, build_eval_cases, prepare_corpus
-from util import MultiQueryRetriever, build_bm25_retriever
+from util import build_bm25_retriever
 
 from haystack_integrations.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
 
@@ -59,15 +60,17 @@ def build_pipeline(store: DocumentStore, arguments: argparse.Namespace) -> Pipel
     :param arguments: The parsed command line, giving the expansion count, model and retrieval depth.
     :returns: A pipeline exposing a `query` input and a `documents` output, which is all the harness needs.
     """
+    retriever = build_bm25_retriever(store=store, top_k=arguments.top_k)
     pipeline = Pipeline()
     if not arguments.expansions:
-        pipeline.add_component("retriever", build_bm25_retriever(store=store, top_k=arguments.top_k))
+        pipeline.add_component("retriever", retriever)
         return pipeline
     expander = QueryExpander(
         chat_generator=OpenAIChatGenerator(model=arguments.model), n_expansions=arguments.expansions
     )
     pipeline.add_component("expander", expander)
-    pipeline.add_component("retriever", MultiQueryRetriever(store=store, top_k=arguments.top_k))
+    # One retrieval per expanded query, pooled and ranked by score.
+    pipeline.add_component("retriever", MultiQueryTextRetriever(retriever=retriever))
     pipeline.connect("expander.queries", "retriever.queries")
     return pipeline
 
