@@ -15,7 +15,7 @@ from haystack import tracing
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 from haystack.tracing import Span, Tracer
 
-from haystack_integrations.evaluation.dataclasses import ModelTokenUsage
+from .dataclasses import EvalCaseSummary, ModelTokenUsage, ReportedUsage
 
 # The span a harness opens around one eval case. Everything traced under it belongs to that eval case.
 EVAL_CASE_SPAN = "haystack.harness.eval_case"
@@ -93,42 +93,6 @@ def _is_generator_span(operation_name: str, tags: dict[str, Any]) -> bool:
     )
 
 
-@dataclass(kw_only=True)
-class ReportedUsage:
-    """
-    Token usage one LLM call reported.
-
-    :param model: The model identifier the call reported, or `None` when it reported none, which leaves the
-        eval case unpriceable.
-    :param tokens: The token counts the call reported, or `None` when it reported neither an input nor an
-        output count, which also leaves the eval case unpriceable.
-    """
-
-    model: str | None = None
-    tokens: ModelTokenUsage | None = None
-
-
-@dataclass(kw_only=True)
-class EvalCaseSummary:
-    """
-    Summarizes what an eval case's spans reported about its token usage and per-stage outputs.
-
-    :param models: Token usage attributed to each model the eval case called, keyed by model identifier.
-    :param outputs: How many items each component emitted, by component name and output socket.
-    :param texts: A sample of whatever each component emitted as text, by component name and output socket,
-        capped by the tracer that recorded it.
-    :param all_tokens_reported: Whether every LLM call reported its token counts. False means the token usage
-        below is underestimated, so the eval case must not be priced.
-    :param llm_calls: How many LLM calls the eval case made.
-    """
-
-    models: dict[str, ModelTokenUsage] = field(default_factory=dict)
-    outputs: dict[str, dict[str, int]] = field(default_factory=dict)
-    texts: dict[str, dict[str, list[str]]] = field(default_factory=dict)
-    all_tokens_reported: bool = True
-    llm_calls: int = 0
-
-
 @dataclass
 class CollectedSpans:
     """
@@ -160,27 +124,16 @@ class CollectedSpans:
         outputs: dict[str, dict[str, int]] = {}
         texts: dict[str, dict[str, list[str]]] = {}
         all_tokens_reported = True
-        llm_calls = 0
         for span in self.spans:
-            # Stage sizes come from every component; a generator's reply count says nothing about how much
-            # reached the next stage, and nested generators would collide with their owner's entry.
-            if span.component_name is not None and not span.is_generator_span and span.output_sizes:
+            # A generator run as a pipeline component is a stage like any other; the spans a component opens
+            # inside itself are named for the attribute holding them, so they never overwrite their owner.
+            if span.component_name is not None and span.output_sizes:
                 outputs[span.component_name] = span.output_sizes
                 if span.output_texts:
                     texts[span.component_name] = span.output_texts
 
-            if not span.is_generator_span:
-                continue
-
-            # A generator that never emitted an output tag made a call nobody can account for.
-            if not span.reported_output:
-                all_tokens_reported = False
-                continue
-
-            # Counted after the output check, so a call is counted once there is evidence it produced something.
-            llm_calls += 1
-
-            if not span.reported_usage:
+            # An LLM call that reported no usage at all spent tokens nobody can account for.
+            if span.is_generator_span and not span.reported_usage:
                 all_tokens_reported = False
 
             for entry in span.reported_usage:
@@ -193,9 +146,7 @@ class CollectedSpans:
                     input_tokens=current.input_tokens + entry.tokens.input_tokens,
                     output_tokens=current.output_tokens + entry.tokens.output_tokens,
                 )
-        return EvalCaseSummary(
-            models=models, outputs=outputs, texts=texts, all_tokens_reported=all_tokens_reported, llm_calls=llm_calls
-        )
+        return EvalCaseSummary(models=models, outputs=outputs, texts=texts, all_tokens_reported=all_tokens_reported)
 
 
 class HarnessSpan(Span):
@@ -222,11 +173,9 @@ class HarnessSpan(Span):
         self.parent_span_id = parent_span_id
         self.component_name = component_name
         self.is_generator_span = is_generator_span
-        # Filled in as the span runs.
         self.output_sizes: dict[str, int] = {}
         self.output_texts: dict[str, list[str]] = {}
         self.reported_usage: list[ReportedUsage] = []
-        self.reported_output = False
 
     def set_tag(self, key: str, value: Any) -> None:
         """Discard ordinary trace tags."""
@@ -235,12 +184,8 @@ class HarnessSpan(Span):
         """Measure one component output and discard it, so no content is retained and none has to be enabled."""
         if key not in USAGE_OUTPUT_TAGS or not isinstance(value, dict):
             return
-        if not self.is_generator_span:
-            # A generator reports what it spent, not how much reached the next stage, so measuring its
-            # replies would only produce a size the summary throws away.
-            self.output_sizes, self.output_texts = _measure_output(value=value)
-        else:
-            self.reported_output = True
+        self.output_sizes, self.output_texts = _measure_output(value=value)
+        if self.is_generator_span:
             self.reported_usage = [
                 ReportedUsage(model=reply.meta.get("model"), tokens=_reported_tokens(usage=reply.meta.get("usage")))
                 for reply in value.get("replies") or []

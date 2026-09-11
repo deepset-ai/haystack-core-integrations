@@ -10,10 +10,9 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging, tracing
 
-from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, EvalCaseSummary, HarnessSpan, HarnessTracer
-
-from .component_logs import ComponentLogCollector
 from .dataclasses import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
+from .harness_log_collector import HarnessLogCollector
+from .tracer import EVAL_CASE_SPAN, EvalCaseSummary, HarnessSpan, HarnessTracer
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +101,7 @@ def _stage_output_sizes(eval_metrics: list[RetrievalEvalCaseMetrics]) -> dict[st
     Summarize how many items each component emitted.
 
     We report the range of output sizes from a component's output socket and the "low median" of the sizes it produced.
-    We chose to use the low median since it's a better summarizing measure on non-normal distributions.
+    The low median is used since it's a better summarization measure on non-normal distributions.
 
     :param eval_metrics: List of `RetrievalEvalCaseMetrics` objects to summarize.
     :returns: The smallest, typical and largest output size, by component name and output socket.
@@ -287,7 +286,7 @@ class RetrievalHarnessEvaluator:
 
         # Run the evaluation with a HarnessTracer and log collector to capture diagnostics and run-time information
         tracer = HarnessTracer()
-        with ComponentLogCollector().collect() as diagnostics, tracer.activate():
+        with HarnessLogCollector().collect() as diagnostics, tracer.activate():
             measured = await self._measure(target=target, eval_cases=eval_cases)
 
         # Extract the evaluation metrics

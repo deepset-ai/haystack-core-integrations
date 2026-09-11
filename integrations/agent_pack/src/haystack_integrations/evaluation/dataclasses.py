@@ -34,7 +34,7 @@ class RetrievalEvalCase:
 
     @property
     def expected_document_ids(self) -> frozenset[str]:
-        """The documents an answer needs, which are the ones its evidence was found in."""
+        """The documents needed to answer a question based on the provided evidence"""
         return frozenset(self.evidence)
 
     def found_at(self, document_ids: list[str], k: int | None = None) -> frozenset[str]:
@@ -109,6 +109,40 @@ class ModelTokenUsage:
 
     input_tokens: int = 0
     output_tokens: int = 0
+
+
+@dataclass(kw_only=True)
+class ReportedUsage:
+    """
+    Token usage one LLM call reported.
+
+    :param model: The model identifier the call reported, or `None` when it reported none, which leaves the
+        eval case unpriceable.
+    :param tokens: The token counts the call reported, or `None` when it reported neither an input nor an
+        output count, which also leaves the eval case unpriceable.
+    """
+
+    model: str | None = None
+    tokens: ModelTokenUsage | None = None
+
+
+@dataclass(kw_only=True)
+class EvalCaseSummary:
+    """
+    Summarizes what an eval case's spans reported about its token usage and per-stage outputs.
+
+    :param models: Token usage attributed to each model the eval case called, keyed by model identifier.
+    :param outputs: How many items each component emitted, by component name and output socket.
+    :param texts: A sample of whatever each component emitted as text, by component name and output socket,
+        capped by the tracer that recorded it.
+    :param all_tokens_reported: Whether every LLM call reported its token counts. False means the token usage
+        below is underestimated, so the eval case must not be priced.
+    """
+
+    models: dict[str, ModelTokenUsage] = field(default_factory=dict)
+    outputs: dict[str, dict[str, int]] = field(default_factory=dict)
+    texts: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    all_tokens_reported: bool = True
 
 
 @dataclass(kw_only=True)

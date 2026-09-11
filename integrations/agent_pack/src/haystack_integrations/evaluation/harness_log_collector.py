@@ -26,8 +26,7 @@ class CollectedLogs:
         emitted it, and its rendered message cut to `MAX_MESSAGE_CHARS`.
     :param dropped: How many diagnostics arrived after `MAX_DISTINCT_MESSAGES` distinct ones were already held,
         so a reader knows the listing is partial.
-    :param lock: Guards the counts and dropped, since the components being measured may log from several threads or
-        tasks.
+    :param lock: Guards the counts and dropped, since what is being measured may log from several threads or tasks.
     """
 
     counts: Counter[tuple[str, str, str]] = field(default_factory=Counter)
@@ -76,15 +75,15 @@ class _CollectingHandler(logging.Handler):
             self.handleError(record)
 
 
-class ComponentLogCollector:
-    """Capture warnings and errors the measured components emit, for the duration of one evaluation."""
+class HarnessLogCollector:
+    """Capture the warnings and errors whatever a harness runs emits, for the duration of one evaluation."""
 
     def __init__(self, logger_names: tuple[str, ...] = ("haystack", "haystack_integrations")) -> None:
         """
         Create a collector.
 
         :param logger_names: Roots of the logger trees to listen to. By default, they are "haystack" and
-            "haystack_integrations", which cover components built by Haystack.
+            "haystack_integrations", which cover anything Haystack runs: e.g. pipelines, components, tools, hooks, etc.
         """
         self.logger_names = logger_names
 
