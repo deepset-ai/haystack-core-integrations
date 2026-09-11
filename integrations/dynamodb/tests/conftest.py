@@ -35,7 +35,12 @@ TABLE_PREFIX = f"haystack_test_{uuid.uuid4().hex[:8]}_"
 
 
 def make_store(**kwargs) -> DynamoDBDocumentStore:
-    """A store with static credentials for unit tests; never talks to AWS unless a client is used."""
+    """
+    A store with static credentials for unit tests; never talks to AWS unless a client is used.
+
+    All three credential Secrets are fixed tokens so the tests do not depend on `AWS_*` variables
+    in the environment (CI exports `AWS_SESSION_TOKEN` after assuming the OIDC role).
+    """
     return DynamoDBDocumentStore(
         table_name="test_docs",
         index_name="test_index",
@@ -43,6 +48,7 @@ def make_store(**kwargs) -> DynamoDBDocumentStore:
         region_name="us-east-1",
         aws_access_key_id=Secret.from_token("test-key"),
         aws_secret_access_key=Secret.from_token("test-secret"),
+        aws_session_token=Secret.from_token("test-session-token"),
         **kwargs,
     )
 

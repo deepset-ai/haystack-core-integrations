@@ -422,7 +422,15 @@ class TestDynamoDBDocumentStore:
             "region_name": "us-east-1",
             "aws_access_key_id": "test-key",
             "aws_secret_access_key": "test-secret",
+            "aws_session_token": "test-session-token",
         }
+
+    def test_client_kwargs_omit_unset_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        for var in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+            monkeypatch.delenv(var, raising=False)
+        store = DynamoDBDocumentStore(embedding_dimension=3)
+        # nothing forwarded: boto3 falls back to its default credential and region chain
+        assert store._client_kwargs() == {}
 
     def test_init_does_not_create_a_client(self) -> None:
         store = make_store()
