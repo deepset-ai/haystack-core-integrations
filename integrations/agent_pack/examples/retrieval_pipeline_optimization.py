@@ -228,11 +228,13 @@ def _stages(details: dict) -> str:
     Render how much each component emitted, in execution order.
 
     :param details: One measurement's details, carrying `stage_output_sizes`.
-    :returns: One `component.socket count` entry per stage, or a note when nothing was recorded.
+    :returns: One `component.socket median (min-max)` entry per stage, or a note when nothing was recorded.
     """
     stages = details.get("stage_output_sizes") or {}
     entries = [
-        f"{component}.{socket} {size:.1f}" for component, sockets in stages.items() for socket, size in sockets.items()
+        f"{component}.{socket} {sizes['median']} ({sizes['min']}-{sizes['max']})"
+        for component, sockets in stages.items()
+        for socket, sizes in sockets.items()
     ]
     return " -> ".join(entries) if entries else "not recorded"
 
