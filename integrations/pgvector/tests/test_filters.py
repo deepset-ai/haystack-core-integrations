@@ -483,3 +483,21 @@ def test_validate_filters():
     invalid_filters = {"field": "meta.number", "value": "100"}
     with pytest.raises(ValueError):
         _validate_filters(invalid_filters)
+
+
+@pytest.mark.parametrize("operator", ["AND", "OR"])
+def test_logical_condition_empty_conditions_raises(operator):
+    with pytest.raises(FilterError):
+        _parse_logical_condition({"operator": operator, "conditions": []})
+
+
+def test_logical_condition_nested_empty_conditions_raises():
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.type", "operator": "==", "value": "article"},
+            {"operator": "OR", "conditions": []},
+        ],
+    }
+    with pytest.raises(FilterError):
+        _convert_filters_to_where_clause_and_params(filters)
