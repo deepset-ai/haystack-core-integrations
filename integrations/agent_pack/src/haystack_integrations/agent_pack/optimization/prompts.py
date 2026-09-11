@@ -76,6 +76,13 @@ its limit and the allowance written into its prompt, and both sit downstream of 
 Change a stage together with the ones that have to pass the difference through, and read the per-eval-case counts to
 find where the path actually narrows rather than where you changed it.
 
+A prompt that renders documents decides what the model is allowed to judge them on. A default usually renders an
+index and the content, which throws away whatever metadata the corpus carries — a title, a source or outlet, an
+author, a date, a category. That is often what separates two documents whose text reads alike, and a question
+naming an outlet or a date cannot be answered from content alone. Where the harness says which fields exist, or a
+run reports them, render the ones that bear on the question alongside the content and name them in the prompt so
+the model reads them as fields rather than inferring them from prose.
+
 ## OpenAI generators
 
 Every OpenAI generator in a configuration should be `OpenAIResponsesChatGenerator`, including one held inside

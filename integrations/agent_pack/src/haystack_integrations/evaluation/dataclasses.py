@@ -191,15 +191,14 @@ class RAGEvalCase(RetrievalEvalCase):
     :param tool_budgets: How many times the run may call a tool, or a group of tools sharing one allowance, as
         `{tool name or names: limit}`. Which tools an agent has is the agent's business, so the caller names
         them; anything left unnamed falls to the `*` entry, or to a default. See `resolve_tool_budgets`.
-    :param max_tool_errors: Tolerated failing tool calls.
-    :param max_steps: Cap on agent steps, or `None` to leave the agent's own cap as the only one.
+    :param max_tool_errors: Tolerated failing tool calls. A run over this fails the eval case without voiding
+        what it retrieved, since a tool that errors is the configuration's problem rather than the eval case's.
     :param require_citations: Whether an answer grounded in retrieved documents must cite at least one of them.
         An answer with no citations at all otherwise passes a citation check trivially.
     """
 
     tool_budgets: dict[ToolNames, int] = field(default_factory=dict)
     max_tool_errors: int = 0
-    max_steps: int | None = None
     require_citations: bool = True
 
     def to_dict(self) -> dict[str, Any]:

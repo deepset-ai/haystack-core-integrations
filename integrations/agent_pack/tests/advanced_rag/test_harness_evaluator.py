@@ -19,8 +19,6 @@ from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_
 from haystack_integrations.agent_pack.optimization import ModelPrice, ModelPriceCatalog
 from haystack_integrations.evaluation import RAGEvalCase
 
-EVIDENCE = "CRISPR is used for gene editing"
-
 QUESTION = "What is CRISPR used for?"
 
 
@@ -142,8 +140,25 @@ class TestScoreAdvancedRagResult:
             result=result_for("CRISPR edits genes.", [document]), eval_case=eval_case, latency_ms=1
         )
         assert metrics.passed is False
-        assert metrics.failures == ("answer_cites_nothing",)
+        # The answer cited nothing, so it is grounded in none of the evidence however much was retrieved.
+        assert metrics.failures == ("recall_below_1", "answer_cites_nothing")
         assert metrics.citations_resolved is True
+        assert metrics.recall == 1.0
+        assert metrics.score == 0.0
+
+    def test_scores_what_the_answer_cited(self, document):
+        """Retrieving the evidence and answering from it are different things; quality is the second one."""
+        other = Document(content="CRISPR also corrects hereditary blindness")
+        eval_case = RAGEvalCase(question="q", evidence={document.id: EVIDENCE, other.id: EVIDENCE})
+        metrics = _score_advanced_rag_result(
+            result=result_for(f"answer [doc {document.id[:8]}]", [document, other]),
+            eval_case=eval_case,
+            latency_ms=1,
+        )
+        # Both needed documents were retrieved; the answer cited one of them.
+        assert metrics.recall == 1.0
+        assert metrics.cited_recall == 0.5
+        assert metrics.score == 0.5
 
     def test_citations_to_unretrieved_documents(self, document):
         eval_case = RAGEvalCase(question="q", evidence={document.id: EVIDENCE}, require_citations=False)
@@ -153,14 +168,10 @@ class TestScoreAdvancedRagResult:
         assert metrics.failures == ("unresolvable_citation",)
         assert metrics.citations_resolved is False
 
-    def test_error_and_step_budgets(self, document):
-        """Every budget the run broke is named, so one report says everything that has to change."""
+    def test_tool_errors(self, document):
+        """A tool that errors fails the eval case, but what the run did retrieve still counts towards quality."""
         eval_case = RAGEvalCase(
-            question="q",
-            evidence={document.id: EVIDENCE},
-            require_citations=False,
-            max_tool_errors=0,
-            max_steps=1,
+            question="q", evidence={document.id: EVIDENCE}, require_citations=False, max_tool_errors=0
         )
         metrics = _score_advanced_rag_result(
             result=result_for("CRISPR is used for gene editing", [document], errors=("search_documents",)),
@@ -168,7 +179,9 @@ class TestScoreAdvancedRagResult:
             latency_ms=1,
         )
         assert metrics.passed is False
-        assert set(metrics.failures) == {"tool_errors:1", "steps_over_budget:3"}
+        assert set(metrics.failures) == {"tool_errors"}
+        assert metrics.tool_errors == 1
+        assert metrics.score == 1.0
 
     def test_reports_tool_order(self, document):
         eval_case = RAGEvalCase(question="q", evidence={document.id: EVIDENCE}, require_citations=False)
@@ -200,6 +213,28 @@ class TestScoreAdvancedRagResult:
 
 
 class TestEvaluate:
+    def test_quality_is_mean_recall(self, document):
+        """Recall moves in steps of a half or a third, so a pass rate would report finding half of it as nothing."""
+        other = Document(content="CRISPR also corrects hereditary blindness")
+        eval_case = RAGEvalCase(
+            question=QUESTION, evidence={document.id: EVIDENCE, other.id: EVIDENCE}, require_citations=False
+        )
+        metrics = AdvancedRAGHarnessEvaluator().evaluate(target=FakeAgent(document), eval_cases=[eval_case])
+        # One of the two needed documents was retrieved: the eval case fails, and half of it still counts.
+        assert metrics.eval_cases[0]["passed"] is False
+        assert metrics.quality == 0.5
+        assert metrics.details["pass_rate"] == 0.0
+
+    def test_over_budget_scores_zero(self, document):
+        """A tool-call budget is what an eval case will not pay past, so what was found beyond it earns nothing."""
+        eval_case = RAGEvalCase(
+            question=QUESTION, evidence={document.id: EVIDENCE}, tool_budgets={"search_documents": 0}
+        )
+        metrics = AdvancedRAGHarnessEvaluator().evaluate(target=FakeAgent(document), eval_cases=[eval_case])
+        assert metrics.eval_cases[0]["recall"] == 1.0
+        assert metrics.quality == 0.0
+        assert any("tool_calls_over_budget" in failure for failure in metrics.eval_cases[0]["failures"])
+
     def test_prices_from_the_catalog(self, document):
         """Cost must come from the catalog the experiment ranks against, not a second price table."""
         eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
@@ -233,7 +268,7 @@ class TestEvaluate:
         assert priced.details["unpriced_models"] == ["unknown"]
 
     def test_latency_totals_the_eval_cases(self, document):
-        """One measurement per eval case: quality is the fraction that passed, with no variance estimate to report."""
+        """One measurement per eval case, so latency is their total with no variance estimate to report."""
         eval_case = RAGEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
         agent = FakeAgent(document)
         metrics = AdvancedRAGHarnessEvaluator().evaluate(target=agent, eval_cases=[eval_case])
@@ -363,7 +398,7 @@ class TestEvaluate:
         assert metrics.model_usage["cheap"].input_tokens == 20
         assert metrics.eval_cases[0]["retrieval_calls"] == 1
         failures = metrics.eval_cases[0]["failures"]
-        assert failures == ["tool_calls_over_budget:fetch_documents_by_filter+ranked_search+search_documents:1/0"]
+        assert failures == ["tool_calls_over_budget:fetch_documents_by_filter+ranked_search+search_documents"]
 
     def test_init_invalid_concurrency(self):
         """A concurrency of zero would measure nothing at all."""

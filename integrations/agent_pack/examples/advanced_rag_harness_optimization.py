@@ -54,6 +54,7 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
     create_harness_optimizer_agent,
 )
+from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
 from haystack_integrations.evaluation import RAGEvalCase
 from haystack_integrations.evaluation.agent_run_digest import AgentRunDigestPolicy
 
@@ -87,24 +88,48 @@ each phrased for that piece. Retrieving too little and retrieving loosely are se
 reports which one occurred.
 
 The retrieval tool itself is part of the configuration and can be replaced, not only retuned. It is a single
-keyword retriever, which ranks by wording alone; a tool backed by a retrieval pipeline could retrieve a wider
-candidate set and then rank it by something else. Retrieval that keeps failing once both the instructions and the
+keyword retriever, which ranks by wording alone. A tool backed by a retrieval pipeline can expand the query into
+several, retrieve for each, and rank what they pooled before returning it. Expansion and ranking belong together:
+one query finds only what shares its wording, so expansion is what widens the candidate set, but keyword scores
+from different queries are not comparable to each other, so the pooled set arrives in no meaningful order and
+whatever the tool returns from it is close to arbitrary. Expanding without ranking buys recall the tool then
+throws away by returning the wrong subset. Retrieval that keeps failing once both the instructions and the
 retriever's own limits have been tuned is evidence about that mechanism rather than about the wording of either,
-and the mechanism is then the variable worth a measurement. Confirm what such a pipeline serializes to, and which
+and the mechanism is then the variable worth a measurement.
+
+Eval cases going over their search budget are the clearest sign of that. An Agent searches again because the last
+search did not return what it needed, so a run that spends two or three times its allowance is reporting that each
+individual search is too weak, not that the Agent is undisciplined. Tightening the instructions to search less
+makes the budget failure go away while leaving the evidence unfound; strengthening what one search returns fixes
+both. Read the over-budget eval cases together with the recall on them before deciding which of the two you are
+looking at. Confirm what such a pipeline serializes to, and which
 components this environment can actually import, before spending one on it.
 A tool wrapping a single component can become a tool wrapping a pipeline. To put a ranker behind this Agent's
 retrieval tool, build a PipelineTool: connect retriever.documents to ranker.documents, map the tool's query to
 both query inputs, map filters to the retriever, and expose ranker.documents as the tool's documents output.
 Whatever replaces the tool has to keep the outputs_to_state mappings and formatting handlers the harness reads.
+
+Quality is the share of each eval case's needed documents that the answer actually cited, averaged over the
+eval cases. Retrieving the evidence is necessary but not sufficient: a run that retrieves everything and cites
+none of it scores nothing. The retrieval recall is reported beside it, so the two are distinguishable — retrieval
+that is already complete points at the answer step rather than at the retriever.
+
+A tool that comes back an error fails the eval case without voiding what the run retrieved, and the count is
+reported per eval case. Errors concentrated in one tool are evidence about the configuration rather than about the
+question: a filter built against a field that does not exist, a limit the tool refuses, a tool that can never
+return anything. Read which tool errored and why, and change the configuration so it stops rather than budgeting
+for it.
+
+Every generator in the configuration stays at or below `gpt-5.6-terra`. `gpt-5.6-sol` is out of scope for
+this experiment: do not move any component onto it, and do not propose it as a change worth measuring.
 """.strip()
 
 # The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the
 # optimizer to gain. Quality: retrieval is starved from both sides, because `search_documents` returns a single
 # document and a filter fetch shows two, while every eval case demands at least three matching documents; the
 # loop is then cut off after a few steps, so a run that does retrieve is liable to be summarized by the
-# backup-answer hook without citations. Cost: it reasons at high effort over a task that does not need it, and
-# carries a leftover retrieval tool whose schema is sent to the model on every step and which can never return
-# anything (see `build_leftover_tool`).
+# backup-answer hook without citations. Cost: it carries a leftover retrieval tool whose schema is sent to the
+# model on every step and which can never return anything (see `build_leftover_tool`).
 #
 # The reference starts on the cheapest model, so the optimizer cannot buy its improvement by downgrading. A broken
 # configuration wastes money flailing — measured: a starved reference spent 19 retrieval calls and 37,011 input
@@ -115,7 +140,7 @@ POOR_RETRIEVER_TOP_K = 1
 POOR_LEFTOVER_TOOL_NAME = "search_product_manuals"
 POOR_MAX_FETCHED_DOCS = 2
 POOR_MAX_AGENT_STEPS = 6
-POOR_REASONING_EFFORT = "high"
+REFERENCE_REASONING_EFFORT = "low"
 
 # USD prices per million tokens, used only to rank candidates against each other.
 MODEL_PRICES: dict[str, tuple[float, float]] = {
@@ -123,6 +148,26 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
     "gpt-5.6-terra": (2.00, 12.00),
     "gpt-5.6-luna": (0.20, 1.20),
 }
+
+
+def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator | None:
+    """
+    Build the optimizer's generator on a named model, leaving everything else as the default.
+
+    Only the model differs from what the library would build, so a run that changes it measures the model rather
+    than the settings around it.
+
+    :param model: Model to reason with, or None to accept the library default.
+    :returns: The generator, or None to let `create_harness_optimizer_agent` choose.
+    """
+    if model is None:
+        return None
+    return OpenAIResponsesChatGenerator(
+        model=model,
+        timeout=180.0,
+        max_retries=5,
+        generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY, "reasoning": {"effort": "low"}},
+    )
 
 
 def build_leftover_tool() -> ComponentTool:
@@ -170,7 +215,7 @@ def build_leftover_tool() -> ComponentTool:
 
 def build_reference_agent(store: DocumentStore, model: str) -> Agent:
     """Build the badly configured Advanced RAG Agent whose complete configuration will be optimized."""
-    generation_kwargs = {"reasoning": {"effort": POOR_REASONING_EFFORT}}
+    generation_kwargs = {"reasoning": {"effort": REFERENCE_REASONING_EFFORT}}
     agent = create_advanced_rag_agent(
         document_store=store,
         retriever=build_bm25_retriever(store=store, top_k=POOR_RETRIEVER_TOP_K),
@@ -315,6 +360,10 @@ def parse_args() -> argparse.Namespace:
         help="Maximum number of candidate configurations included in the experiment.",
     )
     parser.add_argument(
+        "--optimizer-model",
+        help="Model the optimizer itself reasons with. Defaults to whatever `create_harness_optimizer_agent` chooses.",
+    )
+    parser.add_argument(
         "--docs-mcp",
         action="store_true",
         help="Give the optimizer Agent access to the public Haystack documentation MCP server.",
@@ -402,7 +451,9 @@ def main() -> None:
         ),
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
         optimizer_agent=create_harness_optimizer_agent(
-            documentation_tools=arguments.docs_mcp, additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE
+            chat_generator=build_optimizer_generator(model=arguments.optimizer_model),
+            documentation_tools=arguments.docs_mcp,
+            additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE,
         ),
         max_iterations=arguments.max_iterations,
         config_path=arguments.config,

@@ -65,6 +65,10 @@ of what a question needs registers even when no single eval case is yet complete
 budgets contributes nothing at all, however much of the evidence it found. Nothing writes an answer, so nothing is
 gained by adding a generator.
 
+Every document carries `title`, `category`, `source`, `author`, `published_at` and `url` alongside its content,
+and nothing in this pipeline shows them to a model unless a prompt renders them. The questions name outlets and
+dates constantly, so a component that judges documents can be given those fields to judge on.
+
 Eval cases require evidence spread across several documents, and one query phrased for the whole question tends to
 surface only the documents that share its wording. Expansion buys recall with model calls, and a wider candidate
 set buys it with precision; the eval case reports recall and precision separately, and names the documents that were

@@ -61,7 +61,6 @@ class TestRAGEvalCase:
             question="q",
             evidence={"b": "second quote", "a": "first quote"},
             tool_budgets={("search_documents", "fetch_documents_by_filter"): 12, "list_metadata_fields": 8, "*": 2},
-            max_steps=20,
             min_precision=0.5,
         )
         data = original.to_dict()

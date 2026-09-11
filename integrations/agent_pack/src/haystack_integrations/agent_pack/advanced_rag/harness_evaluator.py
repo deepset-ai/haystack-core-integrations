@@ -56,13 +56,25 @@ class AdvancedRAGEvalCaseMetrics:
     `exit_reason` is what the counts hide: a run cut off by its step budget is answered by the backup-answer
     hook, which does not cite, so it fails a citation expectation for a reason that has nothing to do with
     retrieval.
+
+    :param score: What quality aggregates over eval cases, which is `cited_recall` for an eval case requiring
+        citations and `recall` for one that does not, rather than whether the eval case passed. Recall over a
+        handful of expected documents moves in steps of a half or a third, so a threshold on it reports a
+        configuration that went from finding none of the evidence to two thirds of it as no change at all. A run
+        that spent more tool calls than its budget allowed scores zero however much evidence it found, because it
+        bought that evidence at a price the eval case refused.
+    :param recall: Share of the needed documents the run retrieved, whether or not the answer used them.
+    :param cited_recall: Share of the needed documents the answer actually cited. Retrieving evidence and
+        answering from it are different things, and only this one says the answer was grounded in it.
     """
 
     question: str
     passed: bool
+    score: float
     failures: tuple[str, ...]
     recall: float
     precision: float
+    cited_recall: float
     citations_resolved: bool
     cited_document_ids: tuple[str, ...]
     inspected_first: bool
@@ -141,13 +153,23 @@ def _score_advanced_rag_result(
     precision = eval_case.precision_at(document_ids=retrieved_ids)
 
     cited_refs = tuple(CITATION_PATTERN.findall(answer))
+    cited_ids = [
+        document.id for document in retrieved_documents if any(document.id.startswith(ref) for ref in cited_refs)
+    ]
     citations_resolved = all(
         any(document.id.startswith(reference) for document in retrieved_documents) for reference in cited_refs
     )
+    cited_recall = eval_case.recall_at(document_ids=cited_ids)
+    # Retrieving the evidence is not the same as answering from it. An eval case that asks for citations is scored
+    # on what the answer actually cited; one that does not is scored on what the run retrieved.
+    grounded_recall = cited_recall if eval_case.require_citations else recall
 
     failures: list[str] = []
+    # A tool-call budget is what an eval case will not pay past, so breaking one voids it rather than scoring it.
+    # Everything else is reported as a failure and still scores what it found.
+    over_budget: list[str] = []
 
-    if recall < eval_case.min_recall:
+    if grounded_recall < eval_case.min_recall:
         failures.append(f"recall_below_{eval_case.min_recall:g}")
     if precision < eval_case.min_precision:
         failures.append(f"precision_below_{eval_case.min_precision:g}")
@@ -158,22 +180,25 @@ def _score_advanced_rag_result(
 
     if tool_budgets is None:
         tool_budgets = resolve_tool_budgets(budgets=eval_case.tool_budgets, tool_names=())
-    for group, (calls, limit) in budgets_exceeded(stats=stats, budgets=tool_budgets).items():
-        failures.append(f"tool_calls_over_budget:{'+'.join(group)}:{calls}/{limit}")
+    # The label names the group and nothing else, so repeats of one problem count as one recurring failure
+    # rather than as several distinct ones. How much was spent is on `retrieval_calls` and `tool_errors`.
+    for group in budgets_exceeded(stats=stats, budgets=tool_budgets):
+        over_budget.append(f"tool_calls_over_budget:{'+'.join(group)}")
     if len(stats.errors) > eval_case.max_tool_errors:
-        failures.append(f"tool_errors:{len(stats.errors)}")
+        failures.append("tool_errors")
+    failures.extend(over_budget)
 
     steps = int(result.get("step_count") or 0)
-    if eval_case.max_steps is not None and steps > eval_case.max_steps:
-        failures.append(f"steps_over_budget:{steps}")
 
     usage = result.get("token_usage") or {}
     return AdvancedRAGEvalCaseMetrics(
         question=eval_case.question,
         passed=not failures,
+        score=0.0 if over_budget else grounded_recall,
         failures=tuple(failures),
         recall=recall,
         precision=precision,
+        cited_recall=cited_recall,
         citations_resolved=citations_resolved,
         cited_document_ids=cited_refs,
         inspected_first=inspected_first,
@@ -423,7 +448,7 @@ class AdvancedRAGHarnessEvaluator:
                     input_tokens=current.input_tokens + tokens.input_tokens,
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
-        quality = sum(metric.passed for metric in flattened) / len(flattened)
+        quality = sum(metric.score for metric in flattened) / len(flattened)
         input_tokens = sum(usage.input_tokens for usage in model_usage.values())
         output_tokens = sum(usage.output_tokens for usage in model_usage.values())
         model_id = getattr(target.chat_generator, "model", None)
@@ -436,7 +461,10 @@ class AdvancedRAGHarnessEvaluator:
                 "model": model_id,
                 # A run that attributed nothing to a model is as unpriceable as one that under-reported.
                 "all_tokens_reported": all(usage.all_tokens_reported and usage.models for _, usage in measured),
+                # Quality is the mean score; the pass rate is reported beside it rather than being it.
+                "pass_rate": sum(metric.passed for metric in flattened) / len(flattened),
                 "mean_recall": sum(metric.recall for metric in flattened) / len(flattened),
+                "mean_cited_recall": sum(metric.cited_recall for metric in flattened) / len(flattened),
                 "mean_precision": sum(metric.precision for metric in flattened) / len(flattened),
                 # What the components said about themselves while they ran; a tool or hook that degrades rather
                 # than failing reports it only here.
