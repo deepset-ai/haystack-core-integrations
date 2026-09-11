@@ -59,6 +59,26 @@ class TestConvertFiltersToQdrantUnit:
         condition = qdrant_filter.must[0]
         assert isinstance(condition.match, models.MatchValue)
 
+    def test_in_with_spaces_uses_text_match(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "in", "field": "meta.title", "value": ["hello world"]})
+        condition = qdrant_filter.should[0]
+        assert isinstance(condition.match, models.MatchText)
+
+    def test_in_without_spaces_uses_value_match(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "in", "field": "meta.name", "value": ["name_0"]})
+        condition = qdrant_filter.should[0]
+        assert isinstance(condition.match, models.MatchValue)
+
+    def test_ne_with_spaces_uses_text_match(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "!=", "field": "meta.title", "value": "hello world"})
+        condition = qdrant_filter.must_not[0]
+        assert isinstance(condition.match, models.MatchText)
+
+    def test_ne_without_spaces_uses_value_match(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "!=", "field": "meta.name", "value": "name_0"})
+        condition = qdrant_filter.must_not[0]
+        assert isinstance(condition.match, models.MatchValue)
+
     def test_single_logical_condition_unwrapped(self):
         qdrant_filter = convert_filters_to_qdrant(
             {
