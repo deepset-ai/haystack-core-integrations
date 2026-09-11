@@ -7,11 +7,6 @@ import pytest
 import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
@@ -138,14 +133,13 @@ class TestTogetherAIChatGenerator:
     def test_warm_up(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        component.warm_up()
         assert component.client.api_key == "test-api-key"
 
-    def test_init_fail_wo_api_key(self, monkeypatch):
+    def test_warm_up_fails_without_api_key(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
+        component = TogetherAIChatGenerator()
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = TogetherAIChatGenerator()
             component.warm_up()
 
     def test_init_with_parameters(self):
@@ -285,7 +279,7 @@ class TestTogetherAIChatGenerator:
         assert "replies" in response
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+        assert isinstance(response["replies"][0], ChatMessage)
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")
@@ -301,7 +295,7 @@ class TestTogetherAIChatGenerator:
         assert "replies" in response
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+        assert isinstance(response["replies"][0], ChatMessage)
 
     @pytest.mark.skipif(
         not os.environ.get("TOGETHER_API_KEY", None),
@@ -510,36 +504,6 @@ class TestTogetherAIChatGenerator:
             assert isinstance(tool_call, ToolCall)
             assert tool_call.tool_name == "weather"
 
-    @pytest.mark.skipif(
-        not os.environ.get("TOGETHER_API_KEY", None),
-        reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
-    )
-    @pytest.mark.integration
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
-    def test_pipeline_with_togetherai_chat_generator(self, tools):
-        """
-        Test that the TogetherAIChatGenerator component can be used in a pipeline
-        """
-        pipeline = Pipeline()
-        pipeline.add_component("generator", TogetherAIChatGenerator(tools=tools))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
-
-        pipeline.connect("generator", "tool_invoker")
-
-        results = pipeline.run(
-            data={
-                "generator": {
-                    "messages": [ChatMessage.from_user("What's the weather like in Paris?")],
-                    "generation_kwargs": {"tool_choice": "auto"},
-                }
-            }
-        )
-
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
-
     def test_serde_in_pipeline(self, monkeypatch):
         """
         Test serialization/deserialization of TogetherAIChatGenerator in a Pipeline,
@@ -596,9 +560,6 @@ class TestTogetherAIChatGenerator:
             },
             "connections": [],
         }
-
-        if not hasattr(pipeline, "_connection_type_validation"):
-            expected_dict.pop("connection_type_validation")
 
         assert pipeline_dict == expected_dict
 
@@ -690,7 +651,7 @@ class TestTogetherAIChatGenerator:
             assert tool_call.arguments["city"] in ["Paris", "Berlin"]
             assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
-        # Mock the response we'd get from ToolInvoker
+        # Build the tool result messages returned to the chat generator
         tool_result_messages = []
         for tool_call in tool_calls:
             if tool_call.tool_name == "weather":
