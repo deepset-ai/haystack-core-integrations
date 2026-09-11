@@ -150,6 +150,7 @@ class TransformersExtractiveReader:
             answers_per_seq=self.answers_per_seq,
             no_answer=self.no_answer,
             calibration_factor=self.calibration_factor,
+            overlap_threshold=self.overlap_threshold,
             model_kwargs=self.model_kwargs,
         )
 
