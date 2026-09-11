@@ -88,14 +88,26 @@ each phrased for that piece. Retrieving too little and retrieving loosely are se
 reports which one occurred.
 
 The retrieval tool itself is part of the configuration and can be replaced, not only retuned. It is a single
-keyword retriever, which ranks by wording alone. A tool backed by a retrieval pipeline can expand the query into
-several, retrieve for each, and rank what they pooled before returning it. Expansion and ranking belong together:
-one query finds only what shares its wording, so expansion is what widens the candidate set, but keyword scores
-from different queries are not comparable to each other, so the pooled set arrives in no meaningful order and
-whatever the tool returns from it is close to arbitrary. Expanding without ranking buys recall the tool then
-throws away by returning the wrong subset. Retrieval that keeps failing once both the instructions and the
-retriever's own limits have been tuned is evidence about that mechanism rather than about the wording of either,
-and the mechanism is then the variable worth a measurement.
+keyword retriever, which ranks by wording alone, and the way to improve it here is to make one search better
+rather than to make the tool issue several. This Agent already searches more than once: decomposing a question
+into a search per piece of evidence is something its instructions can ask for, and every call it makes is
+separately ranked against its own query. A query expander inside the tool would repeat that at a second level
+while the Agent keeps doing it at the first.
+
+What one search returns is therefore the thing worth improving, and a ranker behind the retriever is what improves
+it: the retriever can consider a wide candidate set on wording, and the ranker can pick from it on whether a
+document adds a facet the question asks for.
+
+Those are two separate numbers and only the second one is what the tool returns. Let the retriever consider plenty
+and have the ranker cut it to roughly five to seven documents per search. Three is too few even when the ranking
+is good, since an eval case needs at least three matching documents and a single search rarely holds all of them.
+Past seven the cost is where it shows: everything returned enters the Agent's context and stays there for every
+later step, so width is paid for on every subsequent call as input tokens rather than as a quality failure. Read
+the reported cost against the recall to find where widening stopped buying evidence and started buying context.
+
+Retrieval that keeps failing once both the instructions and the retriever's own limits have been tuned is evidence
+about that mechanism rather than about the wording of either, and the mechanism is then the variable worth a
+measurement.
 
 Eval cases going over their search budget are the clearest sign of that. An Agent searches again because the last
 search did not return what it needed, so a run that spends two or three times its allowance is reporting that each
@@ -120,8 +132,15 @@ question: a filter built against a field that does not exist, a limit the tool r
 return anything. Read which tool errored and why, and change the configuration so it stops rather than budgeting
 for it.
 
-Every generator in the configuration stays at or below `gpt-5.6-terra`. `gpt-5.6-sol` is out of scope for
-this experiment: do not move any component onto it, and do not propose it as a change worth measuring.
+The model a generator runs on is part of the configuration, and `gpt-5.6-terra` is available for any of them.
+The reference coordinator is on the cheapest model, so moving it up is a real variable rather than a way of
+buying back a downgrade: what it costs is priced and reported, and whether the decomposition and citation
+decisions it makes are worth that is exactly the kind of question a measurement answers. Configuration and
+prompt repairs are usually the cheaper fix and worth trying first, but a quality objective that has stopped
+moving on those is a reason to measure the model rather than to keep rewriting instructions.
+
+`gpt-5.6-sol` is the one exception: it is out of scope for this experiment, so do not move any component onto
+it and do not propose it as a change worth measuring.
 """.strip()
 
 # The reference Agent starts badly configured on both axes the experiment measures, so there is real ground for the

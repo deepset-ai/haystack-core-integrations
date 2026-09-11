@@ -83,6 +83,14 @@ naming an outlet or a date cannot be answered from content alone. Where the harn
 run reports them, render the ones that bear on the question alongside the content and name them in the prompt so
 the model reads them as fields rather than inferring them from prose.
 
+A prompt that already asks for what the runs are not doing is a different problem from a prompt that never asked,
+and only one of them is fixed by editing. Read what a run actually did against what its instruction told it to do
+before rewriting that instruction: where the configuration already says to work through each part of the question,
+or to cite every document it used, and the runs do neither, saying it again more firmly usually measures as no
+change. Following a long instruction under a full context is what a larger model is better at, so a configuration
+that keeps not doing what it was told is evidence about the model rather than about the wording, and the model is
+then the variable worth the next measurement.
+
 ## OpenAI generators
 
 Every OpenAI generator in a configuration should be `OpenAIResponsesChatGenerator`, including one held inside
