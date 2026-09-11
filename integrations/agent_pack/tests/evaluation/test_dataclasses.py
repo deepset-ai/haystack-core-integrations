@@ -1,6 +1,6 @@
 import pytest
 
-from haystack_integrations.evaluation import EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
+from haystack_integrations.evaluation import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
 
 
 class TestRetrievalEvalCase:
@@ -35,18 +35,18 @@ class TestRetrievalEvalCase:
         assert list(eval_case.to_dict()["evidence"]) == ["a", "b"]
 
 
-class TestEvaluationMetrics:
+class TestEvalMetrics:
     @pytest.mark.parametrize("quality", [-0.01, 1.01])
     def test_init_invalid_quality(self, quality: float):
         """Every harness evaluator must use the shared normalized quality scale."""
         with pytest.raises(ValueError, match="quality must be between"):
-            EvaluationMetrics(quality=quality, latency_ms=1.0)
+            EvalMetrics(quality=quality, latency_ms=1.0)
 
     def test_serialization_roundtrip(self):
-        metrics = EvaluationMetrics(
+        metrics = EvalMetrics(
             quality=0.75,
             latency_ms=12.5,
             model_usage={"model": ModelTokenUsage(input_tokens=100, output_tokens=20)},
             details={"mean_recall": 0.5},
         )
-        assert EvaluationMetrics.from_dict(data=metrics.to_dict()) == metrics
+        assert EvalMetrics.from_dict(data=metrics.to_dict()) == metrics

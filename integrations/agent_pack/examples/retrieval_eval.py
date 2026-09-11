@@ -12,10 +12,15 @@
 # sockets by name rather than by component name, so the same harness scores a plain BM25 retriever and a
 # multi-stage pipeline without being told how either is wired.
 #
-# Run from `integrations/agent_pack`. The corpus requires `datasets`:
+# The pipeline here expands the question into several queries with an LLM, retrieves for each and pools the
+# results. That puts a model call inside the pipeline, so the harness reports what the retrieval cost in tokens
+# alongside what it recalled, and how many queries the expansion actually produced.
+#
+# Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
 #     hatch run test:python examples/retrieval_eval.py
 #     hatch run test:python examples/retrieval_eval.py --max-eval-cases 20 --k 5
+#     hatch run test:python examples/retrieval_eval.py --expansions 0   # BM25 alone, no model call
 #     hatch run test:python examples/retrieval_eval.py --store opensearch
 #
 # `--store opensearch` reuses a populated index across runs, so repeat runs skip re-indexing. Set `OPENSEARCH_URL`
@@ -24,8 +29,11 @@
 import argparse
 
 from haystack import Pipeline
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.components.query import QueryExpander
+from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, build_eval_cases, prepare_corpus
-from util import build_bm25_retriever
+from util import MultiQueryRetriever, build_bm25_retriever
 
 from haystack_integrations.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
 
@@ -38,11 +46,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-case-seed", type=int, default=0, help="Selects which eval cases are drawn.")
     parser.add_argument("--k", type=int, default=10, help="Rank cutoff, giving recall@k and precision@k.")
     parser.add_argument("--top-k", type=int, default=10, help="How many documents one retrieval returns.")
+    parser.add_argument("--expansions", type=int, default=3, help="Extra queries to expand into, or 0 for BM25 alone.")
+    parser.add_argument("--model", default="gpt-5.4", help="The model that expands the question.")
     return parser.parse_args()
 
 
+def build_pipeline(store: DocumentStore, arguments: argparse.Namespace) -> Pipeline:
+    """
+    Build the pipeline to score: BM25 alone, or an LLM query expansion pooled over one retrieval per query.
+
+    :param store: The corpus to retrieve from.
+    :param arguments: The parsed command line, giving the expansion count, model and retrieval depth.
+    :returns: A pipeline exposing a `query` input and a `documents` output, which is all the harness needs.
+    """
+    pipeline = Pipeline()
+    if not arguments.expansions:
+        pipeline.add_component("retriever", build_bm25_retriever(store=store, top_k=arguments.top_k))
+        return pipeline
+    expander = QueryExpander(
+        chat_generator=OpenAIChatGenerator(model=arguments.model), n_expansions=arguments.expansions
+    )
+    pipeline.add_component("expander", expander)
+    pipeline.add_component("retriever", MultiQueryRetriever(store=store, top_k=arguments.top_k))
+    pipeline.connect("expander.queries", "retriever.queries")
+    return pipeline
+
+
 def main() -> None:
-    """Build the corpus, score a BM25 pipeline against it, and print what each eval case did."""
+    """Build the corpus, score a retrieval pipeline against it, and print what each eval case cost and did."""
     arguments = parse_args()
 
     print("=== 1. set up corpus and evaluation set ===")
@@ -54,9 +85,8 @@ def main() -> None:
     eval_cases = [RetrievalEvalCase(question=one.question, evidence=one.evidence) for one in labelled]
     print(f"  eval cases: {len(eval_cases)} labelled from evidence, scored at recall@{arguments.k}")
 
-    # Any pipeline exposing a `query` input and a `documents` output can be scored; this one is the simplest.
-    pipeline = Pipeline()
-    pipeline.add_component("retriever", build_bm25_retriever(store=store, top_k=arguments.top_k))
+    # Any pipeline exposing a `query` input and a `documents` output can be scored, whatever runs in between.
+    pipeline = build_pipeline(store=store, arguments=arguments)
 
     print("\n=== 2. evaluate ===")
     evaluator = RetrievalHarnessEvaluator(k=arguments.k)
@@ -74,6 +104,13 @@ def main() -> None:
     for component, sockets in metrics.details["stage_output_sizes"].items():
         for socket, sizes in sockets.items():
             print(f"    {component}.{socket}: {sizes['median']} typical ({sizes['min']}-{sizes['max']})")
+
+    # What the retrieval cost, gathered from the spans the pipeline's model calls emitted.
+    for model, usage in metrics.model_usage.items():
+        per_eval_case = (usage.input_tokens + usage.output_tokens) / len(eval_cases)
+        print(f"    {model}: {usage.input_tokens} in + {usage.output_tokens} out ({per_eval_case:.0f} per eval case)")
+    if metrics.model_usage and not metrics.details["all_tokens_reported"]:
+        print("    (a model call reported no token counts, so the totals above are an undercount)")
 
     print()
     for eval_case in metrics.details["eval_cases"]:

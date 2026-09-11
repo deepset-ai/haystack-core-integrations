@@ -1,18 +1,32 @@
 import asyncio
 
+import pytest
 from haystack import Document, Pipeline, tracing
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessTracer
+from haystack_integrations.evaluation.dataclasses import ModelTokenUsage
+from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessSpan, HarnessTracer
 from haystack_integrations.tracing.agent_pack.tracer import (
     MAX_RECORDED_TEXT_CHARS,
     MAX_RECORDED_TEXTS,
-    _eval_case_summary_from_span,
+    CollectedSpans,
+    ReportedUsage,
     _measure_output,
+    _reported_tokens,
 )
+
+TOKENS = ModelTokenUsage(input_tokens=3, output_tokens=1)
+
+
+def generator_span(model="m", tokens=TOKENS, **overrides):
+    """One span shaped like an LLM call that reported a single reply."""
+    span = HarnessSpan(is_generator_span=True, **overrides)
+    span.reported_output = True
+    span.reported_usage = [ReportedUsage(model=model, tokens=tokens)]
+    return span
 
 
 def emit(tracer, component, output):
@@ -46,7 +60,7 @@ class TestHarnessTracer:
             with tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as span:
                 pipeline.run({"ranker": {"query": "Berlin", "documents": [Document(content="Berlin")]}})
                 agent.run(messages=[ChatMessage.from_user("q")])
-            summary = _eval_case_summary_from_span(span=span)
+            summary = span.collected.summarize()
             assert summary.all_tokens_reported
             assert summary.llm_calls == 2
             assert summary.models["ranker"].input_tokens == 7
@@ -59,7 +73,7 @@ class TestHarnessTracer:
         tracer = HarnessTracer()
         with tracer.trace(EVAL_CASE_SPAN) as span:
             emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
-        summary = _eval_case_summary_from_span(span=span)
+        summary = span.collected.summarize()
         assert summary.outputs == {"expander": {"queries": 2}}
         assert summary.texts == {"expander": {"queries": ["who owns it", "when was it sold"]}}
 
@@ -89,7 +103,7 @@ class TestHarnessTracer:
                             )
 
                     await asyncio.to_thread(worker)
-            return _eval_case_summary_from_span(span=eval_case_span)
+            return eval_case_span.collected.summarize()
 
         async def run_all():
             return await asyncio.gather(*(run_case(i) for i in range(1, 5)))
@@ -105,7 +119,7 @@ class TestHarnessTracer:
         with tracer.trace(EVAL_CASE_SPAN) as eval_case_span:
             with tracer.trace("haystack.chat_generator.run") as span:
                 span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("hi")]})
-        assert not _eval_case_summary_from_span(span=eval_case_span).all_tokens_reported
+        assert not eval_case_span.collected.summarize().all_tokens_reported
 
     def test_activate_restores_tracing(self):
         tracer = HarnessTracer()
@@ -124,12 +138,12 @@ class TestHarnessTracer:
             with tracer.trace("haystack.component.run", tags={"haystack.component.name": "ranker"}):
                 with tracer.trace("haystack.chat_generator.run"):
                     pass
-        records = eval_case_span.collected.records
-        by_id = {record.span_id: record for record in records}
-        # Records arrive in the order their spans ended, so the nested generator comes first.
-        generator, ranker = records
+        spans = eval_case_span.collected.spans
+        by_id = {span.span_id: span for span in spans}
+        # Spans arrive in the order they ended, so the nested generator comes first.
+        generator, ranker = spans
         assert by_id[generator.parent_span_id] is ranker
-        assert ranker.parent_span_id == eval_case_span.record.span_id
+        assert ranker.parent_span_id == eval_case_span.span_id
 
 
 class TestMeasureOutput:
@@ -153,3 +167,62 @@ class TestMeasureOutput:
         assert texts["queries"] == [f"{'x' * MAX_RECORDED_TEXT_CHARS}..."] * MAX_RECORDED_TEXTS
         # The count is not capped, so the sample being short never hides how much was really emitted.
         assert sizes["queries"] == MAX_RECORDED_TEXTS + 20
+
+
+class TestReportedTokens:
+    @pytest.mark.parametrize(
+        ("usage", "expected"),
+        [
+            pytest.param(
+                {"input_tokens": 3, "output_tokens": 1},
+                ModelTokenUsage(input_tokens=3, output_tokens=1),
+                id="named_counts",
+            ),
+            pytest.param(
+                {"prompt_tokens": 3, "completion_tokens": 1},
+                ModelTokenUsage(input_tokens=3, output_tokens=1),
+                id="provider_keys",
+            ),
+            pytest.param({"input_tokens": 3}, None, id="output_count_missing"),
+            pytest.param({"input_tokens": 3, "output_tokens": "lots"}, None, id="count_is_not_a_number"),
+            pytest.param({}, None, id="nothing_reported"),
+            pytest.param(None, None, id="no_usage_key"),
+        ],
+    )
+    def test_reported_tokens(self, usage, expected):
+        """A generator reports whatever its provider does, so the counts are normalized where they arrive."""
+        assert _reported_tokens(usage=usage) == expected
+
+
+class TestCollectedSpans:
+    def test_sums_repeated_models(self):
+        """Summarizing is a pure function of the collected spans, so it can be checked without running anything."""
+        summary = CollectedSpans(spans=[generator_span(), generator_span()]).summarize()
+        assert summary.llm_calls == 2
+        assert summary.models["m"] == ModelTokenUsage(input_tokens=6, output_tokens=2)
+        assert summary.all_tokens_reported
+
+    def test_call_without_output(self):
+        """A generator span that never emitted an output tag spent tokens nobody can account for."""
+        silent = HarnessSpan(is_generator_span=True)
+        summary = CollectedSpans(spans=[generator_span(), silent]).summarize()
+        assert summary.all_tokens_reported is False
+        # The silent call is not counted, because nothing says it produced anything.
+        assert summary.llm_calls == 1
+
+    def test_unquantified_usage(self):
+        for span in (generator_span(tokens=None), generator_span(model=None)):
+            summary = CollectedSpans(spans=[span]).summarize()
+            assert summary.all_tokens_reported is False
+            assert summary.models == {}
+            # The call still happened, so it is still counted.
+            assert summary.llm_calls == 1
+
+    def test_generator_output_not_a_stage(self):
+        """A reply count says nothing about how much reached the next stage, and would collide with its owner."""
+        ranker = HarnessSpan(component_name="ranker")
+        ranker.output_sizes = {"documents": 4}
+        nested = generator_span(component_name="ranker")
+        nested.output_sizes = {"replies": 1}
+        summary = CollectedSpans(spans=[nested, ranker]).summarize()
+        assert summary.outputs == {"ranker": {"documents": 4}}

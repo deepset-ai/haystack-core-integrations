@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .component_logs import ComponentLogCollector
-from .dataclasses import EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
+from .dataclasses import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
 from .retrieval_harness_evaluator import RetrievalEvalCaseMetrics, RetrievalHarnessEvaluator
 
 __all__ = [
     "ComponentLogCollector",
-    "EvaluationMetrics",
+    "EvalMetrics",
     "ModelTokenUsage",
     "RetrievalEvalCase",
     "RetrievalEvalCaseMetrics",

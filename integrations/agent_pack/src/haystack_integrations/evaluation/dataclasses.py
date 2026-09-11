@@ -9,7 +9,7 @@ from typing import Any
 @dataclass(kw_only=True)
 class RetrievalEvalCase:
     """
-    One labelled question and the documents an answer to it needs.
+    One labelled question and the documents needed to answer it.
 
     :param question: The question to put to whatever is under evaluation.
     :param evidence: Ground truth, as `{document id: the quote found in that document}`. The keys are the
@@ -112,9 +112,9 @@ class ModelTokenUsage:
 
 
 @dataclass(kw_only=True)
-class EvaluationMetrics:
+class EvalMetrics:
     """
-    Measurements produced by a harness evaluator for one target configuration.
+    Metrics produced by a harness evaluator for one target configuration.
 
     :param quality: Normalized aggregate quality score in the inclusive range `[0.0, 1.0]`. Each harness evaluator
         defines which checks contribute to this score.
@@ -147,12 +147,12 @@ class EvaluationMetrics:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EvaluationMetrics":
+    def from_dict(cls, data: dict[str, Any]) -> "EvalMetrics":
         """
         Restore metrics from a serialized representation.
 
-        :param data: Serialized evaluation metrics.
-        :returns: The restored evaluation metrics.
+        :param data: Serialized eval metrics.
+        :returns: The restored eval metrics.
         """
         cost = data.get("cost")
         return cls(

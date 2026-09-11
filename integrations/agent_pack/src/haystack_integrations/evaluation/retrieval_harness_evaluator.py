@@ -10,16 +10,15 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging, tracing
 
-from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, EvalCaseSummary, HarnessTracer
-from haystack_integrations.tracing.agent_pack.tracer import _eval_case_summary_from_span
+from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, EvalCaseSummary, HarnessSpan, HarnessTracer
 
 from .component_logs import ComponentLogCollector
-from .dataclasses import EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
+from .dataclasses import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
 
 logger = logging.getLogger(__name__)
 
 
-# The entry in `EvaluationMetrics.details` carrying one record per measured eval case.
+# The entry in `EvalMetrics.details` carrying one record per measured eval case.
 EVAL_CASES_KEY = "eval_cases"
 
 QUERY_SOCKET = "query"
@@ -229,7 +228,12 @@ class RetrievalHarnessEvaluator:
                     EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
                 ) as span:
                     result = await target.run_async(data=data)
-                eval_case_summary = _eval_case_summary_from_span(span=span)
+                # An empty summary when a HarnessTracer was not the active tracer.
+                eval_case_summary = (
+                    span.collected.summarize()
+                    if isinstance(span, HarnessSpan) and span.collected is not None
+                    else EvalCaseSummary()
+                )
             latency_ms = (time.perf_counter() - started) * 1000
             eval_case_metrics = _score_retrieval_result(
                 result=result,
@@ -254,7 +258,7 @@ class RetrievalHarnessEvaluator:
             await asyncio.gather(*(measure(index, eval_case) for index, eval_case in enumerate(eval_cases, start=1)))
         )
 
-    def evaluate(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvaluationMetrics:
+    def evaluate(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvalMetrics:
         """
         Pose every eval case to the pipeline and return raw experiment metrics, from synchronous code.
 
@@ -265,7 +269,7 @@ class RetrievalHarnessEvaluator:
         """
         return asyncio.run(self.evaluate_async(target=target, eval_cases=eval_cases))
 
-    async def evaluate_async(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvaluationMetrics:
+    async def evaluate_async(self, target: Pipeline, eval_cases: list[RetrievalEvalCase]) -> EvalMetrics:
         """
         Pose every eval case to the pipeline and return raw experiment metrics.
 
@@ -299,7 +303,7 @@ class RetrievalHarnessEvaluator:
                     output_tokens=current.output_tokens + tokens.output_tokens,
                 )
 
-        return EvaluationMetrics(
+        return EvalMetrics(
             quality=sum(metric.score for metric in eval_metrics) / len(eval_metrics),
             latency_ms=sum(metric.latency_ms for metric in eval_metrics) / len(eval_metrics),
             model_usage=model_usage,

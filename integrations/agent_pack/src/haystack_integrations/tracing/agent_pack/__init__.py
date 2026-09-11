@@ -2,18 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .span_records import (
-    EVAL_CASE_SPAN,
-    EvalCaseSummary,
-    ReportedUsage,
-    SpanRecord,
-)
-from .tracer import HarnessTracer
+from .tracer import EVAL_CASE_SPAN, EvalCaseSummary, HarnessSpan, HarnessTracer
 
 __all__ = [
     "EVAL_CASE_SPAN",
     "EvalCaseSummary",
+    "HarnessSpan",
     "HarnessTracer",
-    "ReportedUsage",
-    "SpanRecord",
 ]
