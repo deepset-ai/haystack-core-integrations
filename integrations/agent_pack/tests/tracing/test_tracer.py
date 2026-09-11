@@ -37,7 +37,7 @@ def generator_record(model="m", tokens=None, **overrides):
 
 
 class TestHarnessTracer:
-    def test_records_usage_without_content_tracing(self):
+    def test_usage_without_content_tracing(self):
         tracer = HarnessTracer()
         old_content = tracing.tracer.is_content_tracing_enabled
         tracing.tracer.is_content_tracing_enabled = False
@@ -69,7 +69,7 @@ class TestHarnessTracer:
         finally:
             tracing.tracer.is_content_tracing_enabled = old_content
 
-    def test_concurrent_eval_cases_keep_their_usage_separate(self):
+    def test_concurrent_eval_cases(self):
         tracer = HarnessTracer()
 
         async def run_case(index):
@@ -106,36 +106,30 @@ class TestHarnessTracer:
             assert list(usage.models) == [str(index)]
             assert usage.models[str(index)].input_tokens == index
 
-    def test_a_reply_carrying_no_usage_meta_is_incomplete(self):
+    def test_reply_without_usage_meta(self):
         tracer = HarnessTracer()
-
         with tracer.trace(EVAL_CASE_SPAN) as eval_case_span:
             with tracer.trace("haystack.chat_generator.run") as span:
                 span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("hi")]})
-
         assert not usage_from_span(span=eval_case_span).complete
 
-    def test_activate_restores_tracing_after_a_failure(self):
+    def test_activate_restores_tracing(self):
         tracer = HarnessTracer()
-
         try:
             with tracer.activate():
                 msg = "evaluation failed"
                 raise RuntimeError(msg)
         except RuntimeError:
             pass
-
         assert tracing.tracer.actual_tracer is not tracer
 
-    def test_records_carry_the_nesting_a_stored_trace_would_have(self):
+    def test_records_carry_parent_ids(self):
         """A record built from a stored trace has parent pointers, so a live one carries them too."""
         tracer = HarnessTracer()
-
         with tracer.trace(EVAL_CASE_SPAN) as eval_case_span:
             with tracer.trace("haystack.component.run", tags={"haystack.component.name": "ranker"}):
                 with tracer.trace("haystack.chat_generator.run"):
                     pass
-
         records = eval_case_span.collected.records
         by_id = {record.span_id: record for record in records}
         # Records arrive in the order their spans ended, so the nested generator comes first.
@@ -145,67 +139,50 @@ class TestHarnessTracer:
 
 
 class TestOutputSampling:
-    def test_samples_a_socket_that_emitted_short_strings(self):
-        """A count says four queries were issued; only the text says whether they decomposed or restated."""
+    def test_samples_string_sockets(self):
+        """A count says how many queries were issued; only the text says whether they decomposed or restated."""
         tracer = HarnessTracer()
-
         with tracer.trace(EVAL_CASE_SPAN) as span:
             emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
+            emit(tracer, "retriever", {"documents": [Document(content="a long article body")]})
+            emit(tracer, "mixed", {"things": ["a string", 7]})
         usage = usage_from_span(span=span)
+        assert usage.outputs == {"expander": {"queries": 2}, "retriever": {"documents": 1}, "mixed": {"things": 2}}
+        # Only a socket that is nothing but short strings is sampled, so document text is never retained.
+        assert usage.texts == {"expander": {"queries": ["who owns it", "when was it sold"]}}
 
-        assert usage.outputs["expander"] == {"queries": 2}
-        assert usage.texts["expander"] == {"queries": ["who owns it", "when was it sold"]}
-
-    def test_caps_the_sample_but_not_the_count(self):
+    def test_caps_samples(self):
         tracer = HarnessTracer()
         long_query = "x" * (MAX_RECORDED_TEXT_CHARS + 50)
-
         with tracer.trace(EVAL_CASE_SPAN) as span:
             emit(tracer, "expander", {"queries": [long_query] * (MAX_RECORDED_TEXTS + 20)})
         usage = usage_from_span(span=span)
-
         kept = usage.texts["expander"]["queries"]
         assert len(kept) == MAX_RECORDED_TEXTS
         assert all(entry == "x" * MAX_RECORDED_TEXT_CHARS + "..." for entry in kept)
         # The count is not capped, so the sample being short never hides how much was really emitted.
         assert usage.outputs["expander"]["queries"] == MAX_RECORDED_TEXTS + 20
 
-    def test_counts_but_never_samples_documents(self):
-        """Sampling is for sockets that are nothing but short strings, so document text is not retained."""
-        tracer = HarnessTracer()
-
-        with tracer.trace(EVAL_CASE_SPAN) as span:
-            emit(tracer, "retriever", {"documents": [Document(content="a long article body")]})
-            emit(tracer, "mixed", {"things": ["a string", 7]})
-        usage = usage_from_span(span=span)
-
-        assert usage.outputs == {"retriever": {"documents": 1}, "mixed": {"things": 2}}
-        assert usage.texts == {}
-
 
 class TestEvalCaseUsageFromRecords:
-    def test_sums_the_same_model_called_twice(self):
+    def test_sums_repeated_models(self):
         """Folding is a pure function of the records, so it can be checked without running anything."""
         usage = eval_case_usage_from_records(records=[generator_record(), generator_record()])
-
         assert usage.calls == 2
         assert usage.models["m"] == ModelTokenUsage(input_tokens=6, output_tokens=2)
         assert usage.complete
 
-    def test_a_call_that_reported_nothing_is_incomplete(self):
+    def test_call_without_output(self):
         """A generator span that never emitted an output tag spent tokens nobody can account for."""
         silent = SpanRecord(is_generator_span=True)
-
         usage = eval_case_usage_from_records(records=[generator_record(), silent])
-
         assert usage.complete is False
         # The silent call is not counted, because nothing says it produced anything.
         assert usage.calls == 1
 
-    def test_usage_a_generator_did_not_quantify_is_not_guessed_at(self):
+    def test_unquantified_usage(self):
         replied_without_usage = generator_record(model="m", tokens={})
         replied_without_model = generator_record(model=None)
-
         for record in (replied_without_usage, replied_without_model):
             usage = eval_case_usage_from_records(records=[record])
             assert usage.complete is False
@@ -213,11 +190,9 @@ class TestEvalCaseUsageFromRecords:
             # The call still happened, so it is still counted.
             assert usage.calls == 1
 
-    def test_a_generators_own_output_is_not_a_stage(self):
+    def test_generator_output_not_a_stage(self):
         """A reply count says nothing about how much reached the next stage, and would collide with its owner."""
         ranker = SpanRecord(component_name="ranker", output_sizes={"documents": 4})
         nested = generator_record(component_name="ranker", output_sizes={"replies": 1})
-
         usage = eval_case_usage_from_records(records=[nested, ranker])
-
         assert usage.outputs == {"ranker": {"documents": 4}}
