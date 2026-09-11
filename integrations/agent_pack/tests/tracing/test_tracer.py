@@ -6,34 +6,19 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.evaluation.dataclasses import ModelTokenUsage
-from haystack_integrations.tracing.agent_pack import (
-    EVAL_CASE_SPAN,
-    HarnessTracer,
-    ReportedUsage,
-    SpanRecord,
-    eval_case_usage_from_records,
-    usage_from_span,
+from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, HarnessTracer
+from haystack_integrations.tracing.agent_pack.tracer import (
+    MAX_RECORDED_TEXT_CHARS,
+    MAX_RECORDED_TEXTS,
+    _eval_case_usage_from_span,
+    _measure_output,
 )
-from haystack_integrations.tracing.agent_pack.span_records import MAX_RECORDED_TEXT_CHARS, MAX_RECORDED_TEXTS
 
 
 def emit(tracer, component, output):
     """Emit one component's output the way Haystack's component tracing does."""
     with tracer.trace("haystack.component.run", tags={"haystack.component.name": component}) as span:
         span.set_content_tag("haystack.component.output", output)
-
-
-def generator_record(model="m", tokens=None, **overrides):
-    """One span record shaped like a model call that reported a single reply."""
-    return SpanRecord(
-        is_generator_span=True,
-        reported_output=True,
-        reported_usage=[
-            ReportedUsage(model=model, tokens=tokens if tokens is not None else {"input_tokens": 3, "output_tokens": 1})
-        ],
-        **overrides,
-    )
 
 
 class TestHarnessTracer:
@@ -61,13 +46,22 @@ class TestHarnessTracer:
             with tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as span:
                 pipeline.run({"ranker": {"query": "Berlin", "documents": [Document(content="Berlin")]}})
                 agent.run(messages=[ChatMessage.from_user("q")])
-            usage = usage_from_span(span=span)
+            usage = _eval_case_usage_from_span(span=span)
             assert usage.complete
             assert usage.calls == 2
             assert usage.models["ranker"].input_tokens == 7
             assert usage.models["coordinator"].input_tokens == 11
         finally:
             tracing.tracer.is_content_tracing_enabled = old_content
+
+    def test_records_component_output(self):
+        """The sizes and samples a measurement reports come from the content tag a component emits."""
+        tracer = HarnessTracer()
+        with tracer.trace(EVAL_CASE_SPAN) as span:
+            emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
+        usage = _eval_case_usage_from_span(span=span)
+        assert usage.outputs == {"expander": {"queries": 2}}
+        assert usage.texts == {"expander": {"queries": ["who owns it", "when was it sold"]}}
 
     def test_concurrent_eval_cases(self):
         tracer = HarnessTracer()
@@ -95,7 +89,7 @@ class TestHarnessTracer:
                             )
 
                     await asyncio.to_thread(worker)
-            return usage_from_span(span=eval_case_span)
+            return _eval_case_usage_from_span(span=eval_case_span)
 
         async def run_all():
             return await asyncio.gather(*(run_case(i) for i in range(1, 5)))
@@ -111,7 +105,7 @@ class TestHarnessTracer:
         with tracer.trace(EVAL_CASE_SPAN) as eval_case_span:
             with tracer.trace("haystack.chat_generator.run") as span:
                 span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("hi")]})
-        assert not usage_from_span(span=eval_case_span).complete
+        assert not _eval_case_usage_from_span(span=eval_case_span).complete
 
     def test_activate_restores_tracing(self):
         tracer = HarnessTracer()
@@ -138,61 +132,24 @@ class TestHarnessTracer:
         assert ranker.parent_span_id == eval_case_span.record.span_id
 
 
-class TestOutputSampling:
+class TestMeasureOutput:
     def test_samples_string_sockets(self):
         """A count says how many queries were issued; only the text says whether they decomposed or restated."""
-        tracer = HarnessTracer()
-        with tracer.trace(EVAL_CASE_SPAN) as span:
-            emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
-            emit(tracer, "retriever", {"documents": [Document(content="a long article body")]})
-            emit(tracer, "mixed", {"things": ["a string", 7]})
-        usage = usage_from_span(span=span)
-        assert usage.outputs == {"expander": {"queries": 2}, "retriever": {"documents": 1}, "mixed": {"things": 2}}
-        # Only a socket that is nothing but short strings is sampled, so document text is never retained.
-        assert usage.texts == {"expander": {"queries": ["who owns it", "when was it sold"]}}
+        sizes, texts = _measure_output(
+            value={
+                "queries": ["who owns it", "when was it sold"],
+                "prompt": "one rendered prompt",
+                "documents": [Document(content="a long article body")],
+                "things": ["a string", 7],
+            }
+        )
+        assert sizes == {"queries": 2, "prompt": 1, "documents": 1, "things": 2}
+        # Only a socket that is nothing but strings is sampled, so document text is never retained.
+        assert texts == {"queries": ["who owns it", "when was it sold"], "prompt": ["one rendered prompt"]}
 
     def test_caps_samples(self):
-        tracer = HarnessTracer()
         long_query = "x" * (MAX_RECORDED_TEXT_CHARS + 50)
-        with tracer.trace(EVAL_CASE_SPAN) as span:
-            emit(tracer, "expander", {"queries": [long_query] * (MAX_RECORDED_TEXTS + 20)})
-        usage = usage_from_span(span=span)
-        kept = usage.texts["expander"]["queries"]
-        assert len(kept) == MAX_RECORDED_TEXTS
-        assert all(entry == "x" * MAX_RECORDED_TEXT_CHARS + "..." for entry in kept)
+        sizes, texts = _measure_output(value={"queries": [long_query] * (MAX_RECORDED_TEXTS + 20)})
+        assert texts["queries"] == [f"{'x' * MAX_RECORDED_TEXT_CHARS}..."] * MAX_RECORDED_TEXTS
         # The count is not capped, so the sample being short never hides how much was really emitted.
-        assert usage.outputs["expander"]["queries"] == MAX_RECORDED_TEXTS + 20
-
-
-class TestEvalCaseUsageFromRecords:
-    def test_sums_repeated_models(self):
-        """Folding is a pure function of the records, so it can be checked without running anything."""
-        usage = eval_case_usage_from_records(records=[generator_record(), generator_record()])
-        assert usage.calls == 2
-        assert usage.models["m"] == ModelTokenUsage(input_tokens=6, output_tokens=2)
-        assert usage.complete
-
-    def test_call_without_output(self):
-        """A generator span that never emitted an output tag spent tokens nobody can account for."""
-        silent = SpanRecord(is_generator_span=True)
-        usage = eval_case_usage_from_records(records=[generator_record(), silent])
-        assert usage.complete is False
-        # The silent call is not counted, because nothing says it produced anything.
-        assert usage.calls == 1
-
-    def test_unquantified_usage(self):
-        replied_without_usage = generator_record(model="m", tokens={})
-        replied_without_model = generator_record(model=None)
-        for record in (replied_without_usage, replied_without_model):
-            usage = eval_case_usage_from_records(records=[record])
-            assert usage.complete is False
-            assert usage.models == {}
-            # The call still happened, so it is still counted.
-            assert usage.calls == 1
-
-    def test_generator_output_not_a_stage(self):
-        """A reply count says nothing about how much reached the next stage, and would collide with its owner."""
-        ranker = SpanRecord(component_name="ranker", output_sizes={"documents": 4})
-        nested = generator_record(component_name="ranker", output_sizes={"replies": 1})
-        usage = eval_case_usage_from_records(records=[nested, ranker])
-        assert usage.outputs == {"ranker": {"documents": 4}}
+        assert sizes["queries"] == MAX_RECORDED_TEXTS + 20

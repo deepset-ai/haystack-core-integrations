@@ -10,12 +10,8 @@ from typing import Any
 
 from haystack import Document, Pipeline, logging, tracing
 
-from haystack_integrations.tracing.agent_pack import (
-    EVAL_CASE_SPAN,
-    EvalCaseUsage,
-    HarnessTracer,
-    usage_from_span,
-)
+from haystack_integrations.tracing.agent_pack import EVAL_CASE_SPAN, EvalCaseUsage, HarnessTracer
+from haystack_integrations.tracing.agent_pack.tracer import _eval_case_usage_from_span
 
 from .component_logs import ComponentLogCollector
 from .dataclasses import EvaluationMetrics, ModelTokenUsage, RetrievalEvalCase
@@ -233,7 +229,7 @@ class RetrievalHarnessEvaluator:
                     EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
                 ) as span:
                     result = await target.run_async(data=data)
-                eval_case_usage = usage_from_span(span=span)
+                eval_case_usage = _eval_case_usage_from_span(span=span)
             latency_ms = (time.perf_counter() - started) * 1000
             eval_case_metrics = _score_retrieval_result(
                 result=result,
