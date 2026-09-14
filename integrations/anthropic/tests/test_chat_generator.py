@@ -797,9 +797,12 @@ class TestIntegration:
         """
         callback = StreamingCollector() if streaming else None
         component = AnthropicChatGenerator(streaming_callback=callback, timeout=30.0, max_retries=1)
-        results = component.run(messages=[ChatMessage.from_user("What's the capital of France?")])
+        results = component.run(
+            messages=[ChatMessage.from_user("What's the capital of France?"), ChatMessage.from_assistant(text=None)]
+        )
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
+        assert message.is_from(ChatRole.ASSISTANT)
         assert "Paris" in message.text
         assert "claude-sonnet-4-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
