@@ -198,6 +198,29 @@ class TestLangfuseSpan:
             assert mock_context_manager._span.update.call_count == 1
             assert mock_context_manager._span.update.call_args_list[0][1] == {"output": []}
 
+    def test_set_content_tag_strings_containing_messages_or_replies_do_not_raise(self):
+        # e.g. an Agent tool returning plain text, traced as "haystack.agent.step.tool.output"
+        mock_context_manager = MockContextManager()
+        span = LangfuseSpan(mock_context_manager)
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag("key.input", "summarize my messages")
+            assert mock_context_manager._span.update.call_args_list[0][1] == {"input": "summarize my messages"}
+
+            mock_context_manager._span.update.reset_mock()
+            span.set_content_tag("key.output", "No replies found")
+            assert mock_context_manager._span.update.call_args_list[0][1] == {"output": "No replies found"}
+
+    def test_set_content_tag_messages_that_are_not_chat_messages_do_not_raise(self):
+        # e.g. a component with a `messages: list[str]` input socket
+        mock_context_manager = MockContextManager()
+        span = LangfuseSpan(mock_context_manager)
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag("key.input", {"messages": ["hi", "there"]})
+            assert mock_context_manager._span.update.call_count == 1
+            assert mock_context_manager._span.update.call_args_list[0][1] == {"input": '{"messages": ["hi", "there"]}'}
+
 
 class TestSpanContext:
     def test_post_init(self):
