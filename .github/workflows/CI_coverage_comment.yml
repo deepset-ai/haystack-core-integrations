@@ -27,6 +27,7 @@ on:
       - "Test / ddgs"
       - "Test / deepeval"
       - "Test / docling"
+      - "Test / docling_graph"
       - "Test / docling_serve"
       - "Test / dspy"
       - "Test / e2b"
