@@ -277,6 +277,11 @@ def test_convert_meta_to_int():
             None,
         ),
         (
+            [Document(content=None, meta={"flags": [True, False]})],
+            {"flags": {"type": "boolean"}},
+            None,
+        ),
+        (
             [Document(content=None, meta={"empty": []})],
             {"empty": {"type": "keyword"}},
             None,
