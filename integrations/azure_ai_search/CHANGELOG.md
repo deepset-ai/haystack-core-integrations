@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/azure_ai_search-v4.2.1] - 2026-09-09
+
+### 🐛 Bug Fixes
+
+- Serialize include_search_metadata in AzureAISearchDocumentStore.to_dict (#3925)
+
+### 🧪 Testing
+
+- Make Azure AI Search tests automatically use common metadata (#3880)
+
+
 ## [integrations/azure_ai_search-v4.2.0] - 2026-09-02
 
 ### 🚀 Features

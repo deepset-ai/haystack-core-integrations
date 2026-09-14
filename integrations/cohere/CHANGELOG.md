@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cohere-v10.0.1] - 2026-09-10
+
+### 🐛 Bug Fixes
+
+- Batch CohereDocumentEmbedder.run_async like the sync path (#3926)
+
+
 ## [integrations/cohere-v10.0.0] - 2026-09-04
 
 ### 🚜 Refactor

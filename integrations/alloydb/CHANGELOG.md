@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/alloydb-v0.3.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- *(alloydb,mariadb)* NO_VALUE sentinel collides with 'no_value' (#3951)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/alloydb-v0.3.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

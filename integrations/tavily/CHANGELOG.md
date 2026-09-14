@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/tavily-v1.0.0] - 2026-09-10
+
+### 🚀 Features
+
+- [**breaking**] Tavily - add lifecycle handling (#3938)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/tavily-v0.4.0] - 2026-07-15
 
 ### 🚀 Features

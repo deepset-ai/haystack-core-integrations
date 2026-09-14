@@ -92,6 +92,19 @@ class TestFilterConversion:
             {"field": "meta.tag", "operator": operator, "value": value}
         ) == (clause, params)
 
+    @pytest.mark.parametrize(
+        ("operator", "value", "clause", "params"),
+        [
+            ("==", "no_value", " WHERE JSON_UNQUOTE(JSON_EXTRACT(meta, '$.tag')) = ?", ["no_value"]),
+            ("in", ["no_value", "x"], " WHERE JSON_UNQUOTE(JSON_EXTRACT(meta, '$.tag')) IN (?, ?)", ["no_value", "x"]),
+        ],
+    )
+    def test_value_equal_to_no_value_sentinel_keeps_its_param(self, operator, value, clause, params):
+        # the literal "no_value" must not be mistaken for the internal NO_VALUE marker and dropped from params
+        assert _convert_filters_to_where_clause_and_params(
+            {"field": "meta.tag", "operator": operator, "value": value}
+        ) == (clause, params)
+
     def test_top_level_field(self):
         assert _convert_filters_to_where_clause_and_params({"field": "id", "operator": "==", "value": "doc-1"}) == (
             " WHERE `id` = ?",

@@ -247,6 +247,35 @@ class TestRun:
             assert doc_with_embedding.meta == doc.meta
             assert doc_with_embedding.embedding == embedding
 
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.embedders.cohere.document_embedder.AsyncClientV2")
+    async def test_run_async_sends_texts_in_batches(self, mock_async_client_cls):
+        """
+        run_async must honour batch_size like run does. The Cohere embed endpoint caps the number of
+        texts per call, so sending every text in a single request breaks on larger inputs.
+        """
+        batch_sizes: list[int] = []
+
+        class _Response:
+            def __init__(self, n: int) -> None:
+                self.embeddings = [("float", [[0.1, 0.2, 0.3]] * n)]
+                self.meta = None
+
+        async def fake_embed(*, texts, **_kwargs):
+            batch_sizes.append(len(texts))
+            return _Response(len(texts))
+
+        mock_async_client_cls.return_value.embed = fake_embed
+
+        embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"), batch_size=2)
+        docs = [Document(content=f"doc {i}") for i in range(5)]
+
+        result = await embedder.run_async(docs)
+
+        assert batch_sizes == [2, 2, 1]
+        assert len(result["documents"]) == 5
+        assert all(doc.embedding == [0.1, 0.2, 0.3] for doc in result["documents"])
+
     @patch("haystack_integrations.components.embedders.cohere.document_embedder.get_response")
     def test_run_does_not_modify_original_documents(self, mock_get_response):
         embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"))

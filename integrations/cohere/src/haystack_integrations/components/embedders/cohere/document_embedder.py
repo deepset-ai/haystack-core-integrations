@@ -249,6 +249,8 @@ class CohereDocumentEmbedder:
             model_name=self.model,
             input_type=self.input_type,
             truncate=self.truncate,
+            batch_size=self.batch_size,
+            progress_bar=self.progress_bar,
             embedding_type=self.embedding_type,
         )
 
