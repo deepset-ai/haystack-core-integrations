@@ -55,7 +55,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
-from haystack_integrations.evaluation import RAGEvalCase
+from haystack_integrations.evaluation import RAGEvalCase, ToolNames
 from haystack_integrations.evaluation.agent_run_digest import AgentRunDigestPolicy
 
 WORKSPACE = Path(".agent-pack-poc")
@@ -133,11 +133,11 @@ return anything. Read which tool errored and why, and change the configuration s
 for it.
 
 The model a generator runs on is part of the configuration, and `gpt-5.6-terra` is available for any of them.
-The reference coordinator is on the cheapest model, so moving it up is a real variable rather than a way of
-buying back a downgrade: what it costs is priced and reported, and whether the decomposition and citation
-decisions it makes are worth that is exactly the kind of question a measurement answers. Configuration and
-prompt repairs are usually the cheaper fix and worth trying first, but a quality objective that has stopped
-moving on those is a reason to measure the model rather than to keep rewriting instructions.
+Moving one is a real variable in either direction: what it costs is priced and reported, and whether the
+decomposition and citation decisions a model makes are worth what it charges for them is exactly the kind of
+question a measurement answers. Read the configuration for what each generator is on now rather than assuming.
+Configuration and prompt repairs are usually the cheaper fix and worth trying first, but a quality objective that
+has stopped moving on those is a reason to measure the model rather than to keep rewriting instructions.
 
 `gpt-5.6-sol` is the one exception: it is out of scope for this experiment, so do not move any component onto
 it and do not propose it as a change worth measuring.
@@ -160,6 +160,15 @@ POOR_LEFTOVER_TOOL_NAME = "search_product_manuals"
 POOR_MAX_FETCHED_DOCS = 2
 POOR_MAX_AGENT_STEPS = 6
 REFERENCE_REASONING_EFFORT = "low"
+
+# What an eval case will pay for before it is voided. An answer here needs up to four documents spread across
+# separate articles, and one search per piece of evidence is what finds them, so the retrieval allowance has to
+# leave room for that plus a retry rather than capping the decomposition the instructions ask for. Metadata is
+# inspected once per field and not per piece of evidence, so it needs less.
+TOOL_BUDGETS: dict[ToolNames, int] = {
+    ("search_documents", "fetch_documents_by_filter"): 10,
+    ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range"): 6,
+}
 
 # USD prices per million tokens, used only to rank candidates against each other.
 MODEL_PRICES: dict[str, tuple[float, float]] = {
@@ -445,7 +454,10 @@ def main() -> None:
     # The ground-truth answer is left out: many are short words like "Yes", where a substring check on a reply
     # can match for reasons unrelated to the answer being right.
     labelled = build_eval_cases(articles=articles, limit=arguments.max_eval_cases, seed=arguments.eval_case_seed)
-    eval_cases = [RAGEvalCase(question=question.question, evidence=question.evidence) for question in labelled]
+    eval_cases = [
+        RAGEvalCase(question=question.question, evidence=question.evidence, tool_budgets=TOOL_BUDGETS)
+        for question in labelled
+    ]
     print(f"  eval cases: {len(eval_cases)} labelled from evidence")
     candidate_models = tuple(arguments.candidate_models or CANDIDATE_MODELS)
     reference_agent = build_reference_agent(store=store, model=arguments.reference_model)
