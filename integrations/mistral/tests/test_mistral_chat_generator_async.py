@@ -82,9 +82,7 @@ class TestMistralChatGeneratorAsync:
     async def test_warm_up_async(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         component = MistralChatGenerator()
-        if hasattr(component, "warm_up_async"):
-            # haystack-ai >= 3.0 creates the async client during async warm-up
-            await component.warm_up_async()
+        await component.warm_up_async()
 
         assert isinstance(component.async_client, AsyncOpenAI)
         assert component.async_client.api_key == "test-api-key"

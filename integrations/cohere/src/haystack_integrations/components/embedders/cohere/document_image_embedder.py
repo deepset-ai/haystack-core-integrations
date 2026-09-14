@@ -128,18 +128,28 @@ class CohereDocumentImageEmbedder:
         self._api_base_url = api_base_url
         self._timeout = timeout
 
-        self._client = ClientV2(
-            api_key=self._api_key.resolve_value(),
-            base_url=self._api_base_url,
-            timeout=self._timeout,
-            client_name="haystack",
-        )
-        self._async_client = AsyncClientV2(
-            api_key=self._api_key.resolve_value(),
-            base_url=self._api_base_url,
-            timeout=self._timeout,
-            client_name="haystack",
-        )
+        self._client: ClientV2 | None = None
+        self._async_client: AsyncClientV2 | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Cohere client."""
+        if self._client is None:
+            self._client = ClientV2(
+                api_key=self._api_key.resolve_value(),
+                base_url=self._api_base_url,
+                timeout=self._timeout,
+                client_name="haystack",
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Cohere client."""
+        if self._async_client is None:
+            self._async_client = AsyncClientV2(
+                api_key=self._api_key.resolve_value(),
+                base_url=self._api_base_url,
+                timeout=self._timeout,
+                client_name="haystack",
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -264,6 +274,8 @@ class CohereDocumentImageEmbedder:
             - `documents`: Documents with embeddings.
         """
 
+        self.warm_up()
+        assert self._client is not None
         images_to_embed = self._extract_images_to_embed(documents)
 
         embeddings = []
@@ -312,6 +324,8 @@ class CohereDocumentImageEmbedder:
             - `documents`: Documents with embeddings.
         """
 
+        await self.warm_up_async()
+        assert self._async_client is not None
         images_to_embed = self._extract_images_to_embed(documents)
 
         embeddings = []

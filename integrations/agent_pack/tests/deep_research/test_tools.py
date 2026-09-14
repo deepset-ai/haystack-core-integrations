@@ -38,7 +38,7 @@ def test_read_url_result_reports_no_readable_text():
 
 
 def test_make_read_url_tool_builds_pipeline_tool():
-    tool = make_read_url_tool(summarizer_llm=MockChatGenerator(), max_content_length=1234)
+    tool = make_read_url_tool(page_summary_llm=MockChatGenerator(), max_page_chars=1234)
     assert isinstance(tool, PipelineTool)
     assert tool.name == "read_url"
     assert tool._input_mapping == {"urls": ["fetcher.urls"], "question": ["builder.question"]}

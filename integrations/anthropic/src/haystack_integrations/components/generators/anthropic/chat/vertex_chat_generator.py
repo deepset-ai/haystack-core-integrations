@@ -146,17 +146,30 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.timeout = timeout
         self.max_retries = max_retries
 
+        # mypy is not happy that the Vertex clients differ from the base Anthropic client types
+        self.client = None  # type: ignore[assignment]
+        self.async_client = None  # type: ignore[assignment]
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Anthropic Vertex clients."""
         client_kwargs: dict[str, Any] = {"region": self.region, "project_id": self.project_id}
         # We do this since timeout=None is not the same as not setting it in Anthropic
-        if timeout is not None:
-            client_kwargs["timeout"] = timeout
+        if self.timeout is not None:
+            client_kwargs["timeout"] = self.timeout
         # We do this since max_retries must be an int when passing to Anthropic
-        if max_retries is not None:
-            client_kwargs["max_retries"] = max_retries
+        if self.max_retries is not None:
+            client_kwargs["max_retries"] = self.max_retries
+        return client_kwargs
 
-        # mypy is not happy that we override the type of the clients
-        self.client = AnthropicVertex(**client_kwargs)  # type: ignore[assignment]
-        self.async_client = AsyncAnthropicVertex(**client_kwargs)  # type: ignore[assignment]
+    def warm_up(self) -> None:
+        """Create the synchronous Anthropic Vertex client."""
+        if self.client is None:
+            self.client = AnthropicVertex(**self._client_kwargs())  # type: ignore[assignment]
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Anthropic Vertex client."""
+        if self.async_client is None:
+            self.async_client = AsyncAnthropicVertex(**self._client_kwargs())  # type: ignore[assignment]
 
     def to_dict(self) -> dict[str, Any]:
         """

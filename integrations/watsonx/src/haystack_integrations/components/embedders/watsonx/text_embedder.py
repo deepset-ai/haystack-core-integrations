@@ -89,19 +89,25 @@ class WatsonxTextEmbedder:
         self.timeout = timeout
         self.max_retries = max_retries
 
-        # Initialize the embeddings client
-        credentials = Credentials(api_key=api_key.resolve_value(), url=api_base_url)
+        self.embedder: Embeddings | None = None
+
+    def warm_up(self) -> None:
+        """Create the Watsonx embeddings client."""
+        if self.embedder is not None:
+            return
+
+        credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
 
         params = {}
-        if truncate_input_tokens is not None:
-            params["truncate_input_tokens"] = truncate_input_tokens
+        if self.truncate_input_tokens is not None:
+            params["truncate_input_tokens"] = self.truncate_input_tokens
 
         self.embedder = Embeddings(
-            model_id=model,
+            model_id=self.model,
             credentials=credentials,
-            project_id=project_id.resolve_value(),
+            project_id=self.project_id.resolve_value(),
             params=params if params else None,  # type: ignore[arg-type]
-            max_retries=max_retries,
+            max_retries=self.max_retries,
         )
 
     def _get_telemetry_data(self) -> dict[str, Any]:
@@ -163,6 +169,8 @@ class WatsonxTextEmbedder:
             - 'meta': Information about the model usage
         """
         text_to_embed = self._prepare_input(text=text)
+        self.warm_up()
+        assert self.embedder is not None  # noqa: S101
         embedding = self.embedder.embed_query(text_to_embed)
         return {
             "embedding": embedding,

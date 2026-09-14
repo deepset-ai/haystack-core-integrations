@@ -81,6 +81,12 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
+      - name: Start sparse TEI server
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: docker compose up -d
+
       - name: Run unit tests
         run: hatch run test:unit-cov-retry
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/ollama-v7.0.0] - 2026-09-10
+
+### 🚀 Features
+
+- [**breaking**] Ollama - add lifecycle handling (#3931)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- [**breaking**] Remove deprecated `OllamaGenerator` (use `OllamaChatGenerator` instead) (#3886)
+
+
 ## [integrations/ollama-v6.8.0] - 2026-07-09
 
 ### 🐛 Bug Fixes
@@ -31,10 +51,14 @@
 
 ### 🚀 Features
 
-- *(ollama)* Add dimensions parameter to OllamaDocumentEmbedder and OllamaTextEmbedder (#3322)
 - Ollama - accept str as ChatGenerator input; deprecate generator; rm generator example (#3388)
 
-### 🌀 Miscellaneous
+
+## [integrations/ollama-v6.5.0] - 2026-05-21
+
+### 🚀 Features
+
+- *(ollama)* Add dimensions parameter to OllamaDocumentEmbedder and OllamaTextEmbedder (#3322)
 
 
 ## [integrations/ollama-v6.4.0] - 2026-05-21
@@ -299,7 +323,6 @@
 
 ### 🌀 Miscellaneous
 
-- Chore: update changelog for `ollama-haystack==2.0.0` (#1214)
 - Chore: use class methods to create `ChatMessage` (#1222)
 
 ## [integrations/ollama-v2.0.0] - 2024-11-22
@@ -419,11 +442,16 @@
 
 ### 🌀 Miscellaneous
 
+- Ollama: improve test (#191)
+- Mount Ollama in haystack_integrations (#216)
+
+## [integrations/ollama-v0.0.2] - 2024-01-09
+
+### 🌀 Miscellaneous
+
 - Docs: Ollama docstrings update (#171)
 - Add example of OllamaGenerator (#170)
 - Ollama Chat Generator (#176)
-- Ollama: improve test (#191)
-- Mount Ollama in haystack_integrations (#216)
 
 ## [integrations/ollama-v0.0.1] - 2024-01-03
 

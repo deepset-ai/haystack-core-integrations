@@ -17,6 +17,30 @@ from haystack.utils.device import ComponentDevice, DeviceMap
 from haystack_integrations.components.readers.transformers import TransformersExtractiveReader
 
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        reader = TransformersExtractiveReader(model="model", token=Secret.from_env_var("MISSING_HF_TOKEN"))
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            reader.warm_up()
+
+    @patch("haystack_integrations.components.readers.transformers.extractive_reader.AutoTokenizer.from_pretrained")
+    @patch(
+        "haystack_integrations.components.readers.transformers.extractive_reader."
+        "AutoModelForQuestionAnswering.from_pretrained"
+    )
+    def test_warm_up_is_idempotent(self, model_mock, tokenizer_mock):
+        model_mock.return_value.hf_device_map = {"": "cpu"}
+        reader = TransformersExtractiveReader(model="model", token=None)
+
+        reader.warm_up()
+        reader.warm_up()
+
+        model_mock.assert_called_once()
+        tokenizer_mock.assert_called_once()
+
+
 @pytest.fixture()
 def initialized_token(monkeypatch: MonkeyPatch) -> Secret:
     monkeypatch.setenv("HF_API_TOKEN", "secret-token")
@@ -622,7 +646,9 @@ def test_add_answer_page_number_with_form_feed(mock_reader: TransformersExtracti
     "AutoModelForQuestionAnswering.from_pretrained"
 )
 def test_warm_up_use_hf_token(mocked_automodel, mocked_autotokenizer, initialized_token: Secret):
-    reader = TransformersExtractiveReader("deepset/roberta-base-squad2", device=ComponentDevice.from_str("cpu"))
+    reader = TransformersExtractiveReader(
+        "deepset/roberta-base-squad2", device=ComponentDevice.from_str("cpu"), token=initialized_token
+    )
 
     class MockedModel:
         def __init__(self):
@@ -640,7 +666,7 @@ def test_warm_up_use_hf_token(mocked_automodel, mocked_autotokenizer, initialize
     "haystack_integrations.components.readers.transformers.extractive_reader."
     "AutoModelForQuestionAnswering.from_pretrained"
 )
-def test_device_map_auto(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars_if_empty):
+def test_device_map_auto(mocked_automodel, _mocked_autotokenizer):
     reader = TransformersExtractiveReader("deepset/roberta-base-squad2", model_kwargs={"device_map": "auto"})
     auto_device = ComponentDevice.resolve_device(None)
 
@@ -662,7 +688,7 @@ def test_device_map_auto(mocked_automodel, _mocked_autotokenizer, del_hf_env_var
     "haystack_integrations.components.readers.transformers.extractive_reader."
     "AutoModelForQuestionAnswering.from_pretrained"
 )
-def test_device_map_str(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars_if_empty):
+def test_device_map_str(mocked_automodel, _mocked_autotokenizer):
     reader = TransformersExtractiveReader("deepset/roberta-base-squad2", model_kwargs={"device_map": "cpu:0"})
 
     class MockedModel:
@@ -683,7 +709,7 @@ def test_device_map_str(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars
     "haystack_integrations.components.readers.transformers.extractive_reader."
     "AutoModelForQuestionAnswering.from_pretrained"
 )
-def test_device_map_dict(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars_if_empty):
+def test_device_map_dict(mocked_automodel, _mocked_autotokenizer):
     reader = TransformersExtractiveReader(
         "deepset/roberta-base-squad2", model_kwargs={"device_map": {"layer_1": 1, "classifier": "cpu"}}
     )
@@ -843,7 +869,7 @@ class TestDeduplication:
         assert keep is True
 
     def test_should_keep_missing_document_candidate_answer(
-        self, mock_reader: TransformersExtractiveReader, doc1: Document, candidate_answer: ExtractedAnswer
+        self, mock_reader: TransformersExtractiveReader, doc1: Document
     ):
         answer2 = "river in Maine"
         keep = mock_reader._should_keep(
