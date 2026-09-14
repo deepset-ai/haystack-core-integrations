@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_cf5f870db8e23248_vertex_chat_generator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-03 15:41 +0000
+            created at 2026-09-14 12:56 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -423,10 +423,10 @@
     <p class="pln"><span class="n"><a id="t339" href="#t339">339</a></span><span class="t">                        <span class="com"># but mypy doesnt know that</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t340" href="#t340">340</a></span><span class="t">                        <span class="nam">blk</span><span class="op">[</span><span class="str">&quot;cache_control&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">cache_control</span>  <span class="com"># type: ignore [typeddict-unknown-key]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t341" href="#t341">341</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t342" href="#t342">342</a></span><span class="t">        <span class="key">if</span> <span class="key">not</span> <span class="nam">content</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t342" href="#t342">342</a></span><span class="t">        <span class="key">if</span> <span class="key">not</span> <span class="nam">content</span> <span class="key">and</span> <span class="key">not</span> <span class="nam">message</span><span class="op">.</span><span class="nam">is_from</span><span class="op">(</span><span class="nam">ChatRole</span><span class="op">.</span><span class="nam">ASSISTANT</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t343" href="#t343">343</a></span><span class="t">            <span class="nam">msg</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t344" href="#t344">344</a></span><span class="t">                <span class="str">&quot;A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, &quot;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t345" href="#t345">345</a></span><span class="t">                <span class="str">&quot;`ToolCall`, or `ToolCallResult`.&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t344" href="#t344">344</a></span><span class="t">                <span class="fst">f&quot;</span><span class="fst">A `ChatMessage` from `</span><span class="op">{</span><span class="nam">message</span><span class="op">.</span><span class="nam">_role</span><span class="op">.</span><span class="nam">value</span><span class="op">}</span><span class="fst">` must contain at least one `TextContent`, </span><span class="fst">&quot;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t345" href="#t345">345</a></span><span class="t">                <span class="str">&quot;`ImageContent`, `ToolCall`, or `ToolCallResult`. Only assistant messages can be empty.&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t346" href="#t346">346</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t347" href="#t347">347</a></span><span class="t">            <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t348" href="#t348">348</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -717,7 +717,7 @@
             <a class="nav" href="z_cf5f870db8e23248_vertex_chat_generator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-03 15:41 +0000
+            created at 2026-09-14 12:56 +0000
         </p>
     </div>
 </footer>
