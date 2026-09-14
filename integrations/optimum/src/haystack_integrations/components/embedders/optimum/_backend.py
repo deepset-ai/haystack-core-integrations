@@ -89,12 +89,14 @@ class _EmbedderParams:
             out[field] = copy.deepcopy(getattr(self, field))
 
         # Fixups.
-        assert isinstance(self.pooling_mode, OptimumEmbedderPooling)
-        out["pooling_mode"] = str(self.pooling_mode)
+        out["pooling_mode"] = str(self.pooling_mode) if self.pooling_mode is not None else None
         out["token"] = self.token.to_dict() if self.token else None
         out["optimizer_settings"] = self.optimizer_settings.to_dict() if self.optimizer_settings else None
         out["quantizer_settings"] = self.quantizer_settings.to_dict() if self.quantizer_settings else None
 
+        out["model_kwargs"] = out["model_kwargs"] or {}
+        out["model_kwargs"].setdefault("model_id", self.model)
+        out["model_kwargs"].setdefault("provider", self.onnx_execution_provider)
         out["model_kwargs"].pop("use_auth_token", None)
         out["model_kwargs"].pop("token", None)
         serialize_hf_model_kwargs(out["model_kwargs"])
@@ -102,7 +104,8 @@ class _EmbedderParams:
 
     @classmethod
     def deserialize_inplace(cls, data: dict[str, Any]) -> dict[str, Any]:
-        data["pooling_mode"] = OptimumEmbedderPooling.from_str(data["pooling_mode"])
+        if data["pooling_mode"] is not None:
+            data["pooling_mode"] = OptimumEmbedderPooling.from_str(data["pooling_mode"])
         if data["optimizer_settings"] is not None:
             data["optimizer_settings"] = OptimumEmbedderOptimizationConfig.from_dict(data["optimizer_settings"])
         if data["quantizer_settings"] is not None:
@@ -149,6 +152,9 @@ class _EmbedderBackend:
         self.pooling_layer: SentenceTransformerPoolingLayer | None = None
 
     def warm_up(self) -> None:
+        if self.model is not None:
+            return
+
         assert self.params.model_kwargs
         model_kwargs = copy.deepcopy(self.params.model_kwargs)
         model = ORTModelForFeatureExtraction.from_pretrained(**model_kwargs, export=True)
