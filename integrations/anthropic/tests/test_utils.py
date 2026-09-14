@@ -1009,6 +1009,12 @@ class TestConvertMessagesToAnthropicFormat:
             [{"role": "assistant", "content": [{"type": "text", "text": "I have an answer"}]}],
         )
 
+        messages = [ChatMessage.from_assistant(text=None)]
+        assert _convert_messages_to_anthropic_format(messages) == (
+            [],
+            [{"role": "assistant", "content": []}],
+        )
+
         messages = [
             ChatMessage.from_assistant(
                 tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
@@ -1248,7 +1254,7 @@ class TestConvertMessagesToAnthropicFormat:
         """
         Test that the AnthropicChatGenerator component fails to convert an invalid ChatMessage to Anthropic format.
         """
-        message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+        message = ChatMessage(_role=ChatRole.USER, _content=[])
         with pytest.raises(ValueError):
             _convert_messages_to_anthropic_format([message])
 

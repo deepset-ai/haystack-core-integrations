@@ -339,10 +339,10 @@ def _convert_messages_to_anthropic_format(
                         # but mypy doesnt know that
                         blk["cache_control"] = cache_control  # type: ignore [typeddict-unknown-key]
 
-        if not content:
+        if not content and not message.is_from(ChatRole.ASSISTANT):
             msg = (
-                "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, "
-                "`ToolCall`, or `ToolCallResult`."
+                f"A `ChatMessage` from `{message._role.value}` must contain at least one `TextContent`, "
+                "`ImageContent`, `ToolCall`, or `ToolCallResult`. Only assistant messages can be empty."
             )
             raise ValueError(msg)
 
