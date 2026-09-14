@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, create_autospec, patch
 
 import pytest
+from haystack import Pipeline
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.weaviate import WeaviateHybridRetriever
@@ -12,7 +13,7 @@ from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 
 def test_close():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
 
     retriever.close()
@@ -22,7 +23,7 @@ def test_close():
 
 
 def test_init_default():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
     assert retriever._document_store == mock_document_store
     assert retriever._filters == {}
@@ -39,7 +40,7 @@ def test_init_default():
 
 
 def test_init_with_parameters():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     filters = {"field": "content", "operator": "==", "value": "test"}
     retriever = WeaviateHybridRetriever(
         document_store=mock_document_store,
@@ -207,7 +208,7 @@ def test_from_dict_with_parameters(_mock_weaviate):
 
 
 def test_run_basic():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Test document", score=0.9)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
@@ -226,7 +227,7 @@ def test_run_basic():
 
 
 def test_run_with_runtime_filters():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Filtered document", score=0.8)]
 
     # Test with REPLACE policy (default)
@@ -244,7 +245,7 @@ def test_run_with_runtime_filters():
 
 
 def test_run_with_runtime_parameters():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Runtime params document", score=0.6)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
@@ -256,7 +257,7 @@ def test_run_with_runtime_parameters():
 
 
 def test_run_with_init_and_runtime_parameters():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Init and runtime params document", score=0.5)]
 
     retriever = WeaviateHybridRetriever(
@@ -271,7 +272,7 @@ def test_run_with_init_and_runtime_parameters():
 
 
 def test_run_empty_query():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = []
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
@@ -285,7 +286,7 @@ def test_run_empty_query():
 
 
 def test_run_multiple_documents():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_documents = [
         Mock(content="Document 1", score=0.9),
         Mock(content="Document 2", score=0.8),
@@ -347,7 +348,7 @@ def test_from_dict_no_filter_policy(_mock_weaviate):
 
 
 def test_run_with_alpha_zero_runtime():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
@@ -368,7 +369,7 @@ def test_run_with_alpha_zero_runtime():
 
 
 def test_run_with_alpha_zero_init_and_none_runtime():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store, alpha=0.0)
@@ -389,7 +390,7 @@ def test_run_with_alpha_zero_init_and_none_runtime():
 
 
 def test_run_with_max_vector_distance_zero_runtime():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
@@ -410,7 +411,7 @@ def test_run_with_max_vector_distance_zero_runtime():
 
 
 def test_run_with_max_vector_distance_zero_init_and_none_runtime():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store, max_vector_distance=0.0)
@@ -431,7 +432,7 @@ def test_run_with_max_vector_distance_zero_init_and_none_runtime():
 
 
 def test_init_with_invalid_alpha():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     with pytest.raises(ValueError, match=r"alpha \(-0.1\) must be in the range \[0.0, 1.0\]"):
         WeaviateHybridRetriever(document_store=mock_document_store, alpha=-0.1)
     with pytest.raises(ValueError, match=r"alpha \(1.5\) must be in the range \[0.0, 1.0\]"):
@@ -439,9 +440,23 @@ def test_init_with_invalid_alpha():
 
 
 def test_run_with_invalid_alpha():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
     with pytest.raises(ValueError, match=r"alpha \(-0.1\) must be in the range \[0.0, 1.0\]"):
         retriever.run(query="q", query_embedding=[0.1], alpha=-0.1)
     with pytest.raises(ValueError, match=r"alpha \(1.5\) must be in the range \[0.0, 1.0\]"):
         retriever.run(query="q", query_embedding=[0.1], alpha=1.5)
+
+
+def test_pipeline_serde():
+    """A pipeline holding the retriever must survive a dumps/loads round trip, nested store included."""
+    document_store = WeaviateDocumentStore(url="http://localhost:8080")
+    pipeline = Pipeline()
+    pipeline.add_component("retriever", WeaviateHybridRetriever(document_store=document_store, top_k=3, alpha=0.3))
+
+    reloaded = Pipeline.loads(pipeline.dumps()).get_component("retriever")
+
+    assert isinstance(reloaded, WeaviateHybridRetriever)
+    assert isinstance(reloaded._document_store, WeaviateDocumentStore)
+    assert reloaded._document_store.to_dict() == document_store.to_dict()
+    assert reloaded._top_k == 3
