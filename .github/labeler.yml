@@ -303,6 +303,11 @@ integration:mongodb-atlas:
       - any-glob-to-any-file: "integrations/mongodb_atlas/**/*"
       - any-glob-to-any-file: ".github/workflows/mongodb_atlas.yml"
 
+integration:mrscraper:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mrscraper/**/*"
+      - any-glob-to-any-file: ".github/workflows/mrscraper.yml"
+
 integration:nvidia:
   - changed-files:
       - any-glob-to-any-file: "integrations/nvidia/**/*"
