@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v6.0.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- Anthropic - allow empty assistant messages (#3952)
+
+
 ## [integrations/anthropic-v6.0.0] - 2026-09-03
 
 ### 🚀 Features
