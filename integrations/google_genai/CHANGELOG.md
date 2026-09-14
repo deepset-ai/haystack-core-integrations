@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v5.0.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- Google GenAI - allow empty assistant messages (#3953)
+
+
 ## [integrations/google_genai-v5.0.0] - 2026-09-07
 
 ### 🚀 Features
