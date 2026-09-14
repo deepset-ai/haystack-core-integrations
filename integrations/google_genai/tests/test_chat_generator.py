@@ -813,12 +813,14 @@ class TestGoogleGenAIChatGeneratorInference:
         callback = Callback()
 
         results = component.run(
-            messages=[ChatMessage.from_user("What's the capital of France?")], streaming_callback=callback
+            messages=[ChatMessage.from_user("What's the capital of France?"), ChatMessage.from_assistant(text=None)],
+            streaming_callback=callback,
         )
 
         assert len(results["replies"]) == 1
         assert callback.counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
+        assert message.is_from(ChatRole.ASSISTANT)
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert message.meta["finish_reason"] == "stop"
 
