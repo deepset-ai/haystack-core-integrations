@@ -1036,6 +1036,10 @@ class TestConvertMessageToGoogleGenAI:
         assert google_content.parts[0].function_response.parts[2].inline_data.mime_type == "application/pdf"
         assert google_content.parts[0].function_response.parts[2].inline_data.data == b"This is a test document."
 
+    def test_convert_message_empty_assistant_content(self):
+        message = ChatMessage.from_assistant(text=None)
+        assert _convert_message_to_google_genai_format(message) == types.Content(role="model", parts=[])
+
     def test_convert_message_empty_content_raises(self):
         message = ChatMessage.from_user("hello")
         message._content = []
