@@ -70,3 +70,8 @@ def test_parse_comparison_condition_errors():
         _parse_comparison_condition({"field": "meta.x", "value": 1})
     with pytest.raises(FilterError, match="'value' key missing"):
         _parse_comparison_condition({"field": "meta.x", "operator": "=="})
+
+
+def test_parse_comparison_condition_unknown_operator():
+    with pytest.raises(FilterError, match="Unknown comparison operator 'like'"):
+        _parse_comparison_condition({"field": "meta.number", "operator": "like", "value": 100})
