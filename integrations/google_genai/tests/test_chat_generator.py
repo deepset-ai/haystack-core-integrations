@@ -108,7 +108,7 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()
-        assert component._model == "gemini-3.7-flash"
+        assert component._model == "gemini-3.8-flash"
         assert component._generation_kwargs == {}
         assert component._safety_settings == []
         assert component._streaming_callback is None
@@ -383,7 +383,7 @@ class TestGoogleGenAIChatGeneratorRun:
 
         assert len(results["replies"]) == 1
         assert results["replies"][0].text == "Hello"
-        assert results["replies"][0].meta["model"] == "gemini-3.7-flash"
+        assert results["replies"][0].meta["model"] == "gemini-3.8-flash"
         assert results["replies"][0].meta["finish_reason"] == "stop"
         component._client.models.generate_content.assert_called_once()
 
@@ -414,7 +414,7 @@ class TestGoogleGenAIChatGeneratorRun:
         Gemini 3 models send the terminal "STOP" in its own chunk, after the one holding the function call.
         Both the streamed chunk and the aggregated reply must report "tool_calls".
         """
-        component = GoogleGenAIChatGenerator(model="gemini-3.7-flash")
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash")
         component._client = MagicMock()
 
         def google_chunk(parts, finish_reason=None):
@@ -714,7 +714,7 @@ class TestGoogleGenAIChatGeneratorInference:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
-        assert "gemini-3.7-flash" in message.meta["model"]
+        assert "gemini-3.8-flash" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     def test_run_with_multiple_images_mixed_content(self, test_files_path):
@@ -1076,7 +1076,7 @@ class TestAsyncGoogleGenAIChatGeneratorInference:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
-        assert "gemini-3.7-flash" in message.meta["model"]
+        assert "gemini-3.8-flash" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     async def test_live_run_async_streaming(self):
