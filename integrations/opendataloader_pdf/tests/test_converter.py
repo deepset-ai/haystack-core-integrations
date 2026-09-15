@@ -53,6 +53,11 @@ def _mock_opendataloader(monkeypatch):
                 encoding="utf-8",
             )
 
+            if kwargs["image_output"] == "external":
+                image_dir = Path(kwargs["image_dir"])
+                image_dir.mkdir(parents=True, exist_ok=True)
+                (image_dir / f"{pdf_path.stem}_image_1.png").write_bytes(b"fake image")
+
     monkeypatch.setattr(
         converter_module.opendataloader_pdf,
         "convert",
@@ -76,6 +81,7 @@ def test_converter_with_pdf_path(
     assert document.content == "This is extracted PDF content"
     assert document.meta["file_path"] == "document.pdf"
     assert document.meta["output_format"] == "markdown"
+    assert result["image_documents"] == []
 
 
 def test_converter_with_bytestream(
@@ -168,6 +174,79 @@ def test_converter_passes_options(
     assert call["hybrid"] == "docling-fast"
     assert call["table_method"] == "cluster"
     assert call["image_output"] == "off"
+    assert "image_dir" not in call
+
+
+def test_converter_extracts_images_to_persistent_directory(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    image_output_dir = tmp_path / "nested" / "images"
+    converter = OpenDataLoaderConverter(extract_images=True, image_output_dir=image_output_dir)
+
+    result = converter.run(sources=[pdf_file])
+
+    call = _mock_opendataloader[0]
+    expected_image_path = image_output_dir / "document_0_image_1.png"
+    assert call["image_output"] == "external"
+    assert call["image_dir"] == str(image_output_dir)
+    assert expected_image_path.read_bytes() == b"fake image"
+    assert len(result["documents"]) == 1
+    assert len(result["image_documents"]) == 1
+    image_document = result["image_documents"][0]
+    assert image_document.content is None
+    assert image_document.meta == {"file_path": str(expected_image_path)}
+
+
+def test_converter_returns_empty_image_output_when_pdf_has_no_images(tmp_path, _mock_opendataloader, monkeypatch):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    image_output_dir = tmp_path / "images"
+
+    def fake_convert_without_images(input_path, output_dir, **_kwargs):
+        for pdf in input_path:
+            output_file = Path(output_dir) / f"{Path(pdf).stem}.md"
+            output_file.write_text("This is extracted PDF content", encoding="utf-8")
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", fake_convert_without_images)
+    converter = OpenDataLoaderConverter(extract_images=True, image_output_dir=image_output_dir)
+
+    result = converter.run(sources=[pdf_file])
+
+    assert len(result["documents"]) == 1
+    assert result["image_documents"] == []
+    assert image_output_dir.is_dir()
+
+
+def test_converter_only_returns_images_created_by_current_run(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    image_output_dir = tmp_path / "images"
+    image_output_dir.mkdir()
+    existing_image = image_output_dir / "existing.png"
+    existing_image.write_bytes(b"existing image")
+    converter = OpenDataLoaderConverter(extract_images=True, image_output_dir=str(image_output_dir))
+
+    result = converter.run(sources=[pdf_file])
+
+    assert existing_image.exists()
+    assert [document.meta["file_path"] for document in result["image_documents"]] == [
+        str(image_output_dir / "document_0_image_1.png")
+    ]
+
+
+def test_converter_requires_output_directory_when_extracting_images():
+    with pytest.raises(ValueError, match="image_output_dir is required"):
+        OpenDataLoaderConverter(extract_images=True)
+
+
+def test_converter_ignores_managed_image_convert_kwargs(caplog):
+    convert_kwargs = {"image_output": "external", "image_dir": "images", "language": "en"}
+
+    converter = OpenDataLoaderConverter(convert_kwargs=convert_kwargs)
+
+    assert "Ignoring component-managed image options" in caplog.text
+    assert converter.convert_kwargs == {"language": "en"}
+    assert convert_kwargs == {"image_output": "external", "image_dir": "images", "language": "en"}
 
 
 def test_converter_rejects_non_pdf(
@@ -281,16 +360,34 @@ def test_converter_preserves_bytestream_and_per_source_metadata(
     assert second_document.meta["category"] == "second"
 
 
-def test_converter_serialization():
+def test_converter_empty_sources_returns_both_outputs_without_conversion(tmp_path, monkeypatch):
+    converter = OpenDataLoaderConverter(extract_images=True, image_output_dir=tmp_path / "images")
+
+    def fail_java_check():
+        pytest.fail("Java should not be checked for empty sources")
+
+    monkeypatch.setattr(converter, "_check_java_available", fail_java_check)
+
+    assert converter.run(sources=[]) == {"documents": [], "image_documents": []}
+    assert not (tmp_path / "images").exists()
+
+
+def test_converter_serialization(tmp_path):
+    image_output_dir = tmp_path / "images"
     converter = OpenDataLoaderConverter(
         output_format="text",
         convert_kwargs={"hybrid": "docling-fast"},
+        extract_images=True,
+        image_output_dir=image_output_dir,
     )
     data = converter.to_dict()
     restored = OpenDataLoaderConverter.from_dict(data)
 
+    assert data["init_parameters"]["image_output_dir"] == str(image_output_dir)
     assert restored.output_format == "text"
     assert restored.convert_kwargs["hybrid"] == "docling-fast"
+    assert restored.extract_images is True
+    assert restored.image_output_dir == image_output_dir
 
 
 @pytest.mark.integration
