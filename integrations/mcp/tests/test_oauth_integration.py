@@ -37,17 +37,17 @@ DISCOVERY_BASE = f"http://127.0.0.1:{SERVER_PORT}"
 
 
 class _OAuthHandler(BaseHTTPRequestHandler):
-    def log_message(self, *args):  # silence request log output  # noqa: D102
+    def log_message(self, *args):  # silence request log output
         pass
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         if self.path == "/.well-known/oauth-authorization-server":
             body = json.dumps({"token_endpoint": TOKEN_ENDPOINT}).encode()
             self._send(200, body)
         else:
             self._send(404, b"{}")
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length).decode()
         params = dict(urllib.parse.parse_qsl(raw))
@@ -98,7 +98,7 @@ def mock_oauth_server():
         try:
             httpx.get(f"http://127.0.0.1:{SERVER_PORT}/.well-known/oauth-authorization-server", timeout=1)
             break
-        except Exception:  # noqa: BLE001
+        except Exception:
             time.sleep(0.1)
     yield
     server.shutdown()

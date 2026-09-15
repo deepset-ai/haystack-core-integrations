@@ -26,6 +26,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.auth import SecretType
 from haystack.utils.url_validation import is_valid_http_url
 
+from haystack_integrations.tools.mcp.oauth import OAuthConfig, ensure_oauth
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
@@ -33,8 +34,6 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 
 from .compatibility_layer import is_reconnectable, mcp_field_value
-
-from haystack_integrations.tools.mcp.oauth import OAuthConfig, ensure_oauth
 
 logger = logging.getLogger(__name__)
 
