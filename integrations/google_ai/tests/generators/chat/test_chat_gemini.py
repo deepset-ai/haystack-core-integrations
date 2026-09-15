@@ -105,7 +105,7 @@ class TestGoogleAIGeminiChatGenerator:
                 tools=tools,
             )
         mock_genai_configure.assert_called_once_with(api_key="test")
-        assert gemini._model_name == "gemini-2.0-flash"
+        assert gemini._model_name == "gemini-3.8-flash"
         assert gemini._generation_config == generation_config
         assert gemini._safety_settings == safety_settings
         assert gemini._tools == tools
@@ -120,7 +120,7 @@ class TestGoogleAIGeminiChatGenerator:
             "type": TYPE,
             "init_parameters": {
                 "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "gemini-2.0-flash",
+                "model": "gemini-3.8-flash",
                 "generation_config": None,
                 "safety_settings": None,
                 "streaming_callback": None,
@@ -161,7 +161,7 @@ class TestGoogleAIGeminiChatGenerator:
             "type": TYPE,
             "init_parameters": {
                 "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "gemini-2.0-flash",
+                "model": "gemini-3.8-flash",
                 "generation_config": {
                     "temperature": 0.5,
                     "top_p": 0.5,
@@ -212,7 +212,7 @@ class TestGoogleAIGeminiChatGenerator:
                     "type": TYPE,
                     "init_parameters": {
                         "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                        "model": "gemini-2.0-flash",
+                        "model": "gemini-3.8-flash",
                         "generation_config": None,
                         "safety_settings": None,
                         "streaming_callback": None,
@@ -221,7 +221,7 @@ class TestGoogleAIGeminiChatGenerator:
                 }
             )
 
-        assert gemini._model_name == "gemini-2.0-flash"
+        assert gemini._model_name == "gemini-3.8-flash"
         assert gemini._generation_config is None
         assert gemini._safety_settings is None
         assert gemini._tools is None
@@ -236,7 +236,7 @@ class TestGoogleAIGeminiChatGenerator:
                     "type": TYPE,
                     "init_parameters": {
                         "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                        "model": "gemini-2.0-flash",
+                        "model": "gemini-3.8-flash",
                         "generation_config": {
                             "temperature": 0.5,
                             "top_p": 0.5,
@@ -262,7 +262,7 @@ class TestGoogleAIGeminiChatGenerator:
                 }
             )
 
-        assert gemini._model_name == "gemini-2.0-flash"
+        assert gemini._model_name == "gemini-3.8-flash"
         assert gemini._generation_config == GenerationConfig(
             candidate_count=1,
             stop_sequences=["stop"],
@@ -286,7 +286,7 @@ class TestGoogleAIGeminiChatGenerator:
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
         generator = GoogleAIGeminiChatGenerator(
-            model="gemini-2.0-flash",
+            model="gemini-3.8-flash",
             generation_config=GenerationConfig(
                 temperature=0.6,
                 stop_sequences=["stop", "words"],
@@ -308,7 +308,7 @@ class TestGoogleAIGeminiChatGenerator:
                     "type": TYPE,
                     "init_parameters": {
                         "api_key": {"env_vars": ["GOOGLE_API_KEY"], "strict": True, "type": "env_var"},
-                        "model": "gemini-2.0-flash",
+                        "model": "gemini-3.8-flash",
                         "generation_config": {
                             "temperature": 0.6,
                             "stop_sequences": ["stop", "words"],
@@ -415,7 +415,7 @@ class TestGoogleAIGeminiChatGenerator:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     def test_run_with_tools(self, tools):
-        gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash-exp", tools=tools)
+        gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-3.8-flash", tools=tools)
         user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
         response = gemini_chat.run(messages=user_message)
         assert "replies" in response
@@ -451,7 +451,7 @@ class TestGoogleAIGeminiChatGenerator:
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("GOOGLE_API_KEY", None), reason="GOOGLE_API_KEY env var not set")
     async def test_run_with_tools_async(self, tools):
-        gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-2.0-flash-exp", tools=tools)
+        gemini_chat = GoogleAIGeminiChatGenerator(model="gemini-3.8-flash", tools=tools)
         user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
         response = await gemini_chat.run_async(messages=user_message)
         assert "replies" in response
@@ -500,7 +500,7 @@ class TestGoogleAIGeminiChatGenerator:
         }
 
         gemini_chat = GoogleAIGeminiChatGenerator(
-            model="gemini-2.0-flash-exp", tools=multiple_tools, tool_config=tool_config
+            model="gemini-3.8-flash", tools=multiple_tools, tool_config=tool_config
         )
         user_message = [
             ChatMessage.from_user("What is the temperature in celsius in Berlin and how many people live there?")
@@ -535,7 +535,7 @@ class TestGoogleAIGeminiChatGenerator:
         }
 
         gemini_chat = GoogleAIGeminiChatGenerator(
-            model="gemini-2.0-flash-exp", tools=multiple_tools, tool_config=tool_config
+            model="gemini-3.8-flash", tools=multiple_tools, tool_config=tool_config
         )
         user_message = [
             ChatMessage.from_user("What is the temperature in celsius in Berlin and how many people live there?")
@@ -562,7 +562,7 @@ class TestGoogleAIGeminiChatGenerator:
             streaming_callback_called = True
 
         gemini_chat = GoogleAIGeminiChatGenerator(
-            model="gemini-2.0-flash-exp", tools=tools, streaming_callback=streaming_callback
+            model="gemini-3.8-flash", tools=tools, streaming_callback=streaming_callback
         )
         messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
         response = gemini_chat.run(messages=messages)
@@ -611,7 +611,7 @@ class TestGoogleAIGeminiChatGenerator:
             streaming_callback_called = True
 
         gemini_chat = GoogleAIGeminiChatGenerator(
-            model="gemini-2.0-flash-exp", tools=tools, streaming_callback=streaming_callback
+            model="gemini-3.8-flash", tools=tools, streaming_callback=streaming_callback
         )
         messages = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]
         response = await gemini_chat.run_async(messages=messages)

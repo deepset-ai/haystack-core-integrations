@@ -32,7 +32,7 @@ def tools():
 
 def _counter_with_mock_client(total_tokens, **kwargs):
     """Build a counter whose client is already set, so `warm_up` never builds a real one."""
-    counter = GoogleGenAITokenCounter("gemini-3.7-flash", **kwargs)
+    counter = GoogleGenAITokenCounter("gemini-3.8-flash", **kwargs)
     client = Mock()
     client.models.count_tokens.return_value = Mock(total_tokens=total_tokens)
     counter.client = client
@@ -42,9 +42,9 @@ def _counter_with_mock_client(total_tokens, **kwargs):
 class TestGoogleGenAITokenCounterInitSerDe:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-        counter = GoogleGenAITokenCounter("gemini-3.7-flash")
+        counter = GoogleGenAITokenCounter("gemini-3.8-flash")
 
-        assert counter.model == "gemini-3.7-flash"
+        assert counter.model == "gemini-3.8-flash"
         assert counter.api == "gemini"
         assert counter.vertex_ai_project is None
         assert counter.vertex_ai_location is None
@@ -56,7 +56,7 @@ class TestGoogleGenAITokenCounterInitSerDe:
     def test_serde_round_trip(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         counter = GoogleGenAITokenCounter(
-            "gemini-3.7-flash",
+            "gemini-3.8-flash",
             api="vertex",
             vertex_ai_project="my-project",
             vertex_ai_location="us-central1",
@@ -68,7 +68,7 @@ class TestGoogleGenAITokenCounterInitSerDe:
         assert data == {
             "type": "haystack_integrations.token_counters.google_genai.token_counter.GoogleGenAITokenCounter",
             "init_parameters": {
-                "model": "gemini-3.7-flash",
+                "model": "gemini-3.8-flash",
                 "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
                 "api": "vertex",
                 "vertex_ai_project": "my-project",
@@ -90,7 +90,7 @@ class TestGoogleGenAITokenCounterInitSerDe:
 
 class TestGoogleGenAITokenCounterCount:
     def test_count_without_messages_or_tools_returns_zero(self):
-        counter = GoogleGenAITokenCounter("gemini-3.7-flash")
+        counter = GoogleGenAITokenCounter("gemini-3.8-flash")
 
         assert counter.count([]) == 0
         # Nothing to measure means nothing to connect to either.
@@ -102,7 +102,7 @@ class TestGoogleGenAITokenCounterCount:
         assert counter.count([ChatMessage.from_user("How many tokens is this?")]) == 42
 
         _, kwargs = counter.client.models.count_tokens.call_args
-        assert kwargs["model"] == "gemini-3.7-flash"
+        assert kwargs["model"] == "gemini-3.8-flash"
         assert len(kwargs["contents"]) == 1
         assert kwargs["config"] is None
 
@@ -112,7 +112,7 @@ class TestGoogleGenAITokenCounterCount:
         assert counter.count([ChatMessage.from_user("Hello")]) == 0
 
     def test_count_rejects_tools_on_the_gemini_developer_api(self, tools):
-        counter = GoogleGenAITokenCounter("gemini-3.7-flash")
+        counter = GoogleGenAITokenCounter("gemini-3.8-flash")
 
         with pytest.raises(ValueError, match="tools") as exc_info:
             counter.count([ChatMessage.from_user("Hi")], tools=tools)
@@ -182,7 +182,7 @@ class TestGoogleGenAITokenCounterInference:
             ChatMessage.from_tool(tool_result="22°C, sunny", origin=tool_call),
         ]
 
-        counter = GoogleGenAITokenCounter("gemini-3.7-flash")
+        counter = GoogleGenAITokenCounter("gemini-3.8-flash")
         token_count = counter.count(messages)
 
         assert isinstance(token_count, int)

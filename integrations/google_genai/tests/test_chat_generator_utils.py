@@ -780,7 +780,7 @@ class TestStreamingChunkConversion:
             chunk=types.GenerateContentResponse(candidates=[]),
             index=3,
             component_info=component_info,
-            model="gemini-3.7-flash",
+            model="gemini-3.8-flash",
         )
 
         assert chunk.content == ""
