@@ -497,7 +497,7 @@ class TestGoogleGenAIChatGeneratorRun:
         assert config.max_output_tokens == 100
 
     def test_run_thinking_error_raises_helpful_message(self):
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", generation_kwargs={"thinking_budget": 1024})
         component._client = MagicMock()
         component._client.models.generate_content = Mock(side_effect=Exception("thinking_config is not supported"))
 
@@ -664,7 +664,7 @@ class TestGoogleGenAIChatGeneratorRun:
 
     @pytest.mark.asyncio
     async def test_run_async_thinking_error_raises_helpful_message(self):
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", generation_kwargs={"thinking_budget": 1024})
         component._async_client = MagicMock()
         component._async_client.models.generate_content = AsyncMock(
             side_effect=Exception("thinking_config is not supported")

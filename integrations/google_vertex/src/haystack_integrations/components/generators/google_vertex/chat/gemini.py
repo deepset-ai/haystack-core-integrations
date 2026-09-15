@@ -124,7 +124,7 @@ class VertexAIGeminiChatGenerator:
     tool_invoker = ToolInvoker(tools=[tool])
 
     gemini_chat = VertexAIGeminiChatGenerator(
-        model="gemini-2.0-flash-exp",
+        model="gemini-3.8-flash",
         tools=[tool],
     )
     user_message = [ChatMessage.from_user("What is the temperature in celsius in Berlin?")]

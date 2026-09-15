@@ -30,7 +30,7 @@ def test_init(mock_vertexai_init, _mock_generative_model):
         system_instruction="Please provide brief answers.",
     )
     mock_vertexai_init.assert_called()
-    assert gemini._model_name == "gemini-2.0-flash"
+    assert gemini._model_name == "gemini-3.8-flash"
     assert gemini._generation_config == generation_config
     assert gemini._safety_settings == safety_settings
     assert gemini._system_instruction == "Please provide brief answers."
@@ -51,7 +51,7 @@ def test_to_dict(_mock_vertexai_init, _mock_generative_model):
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
         "init_parameters": {
-            "model": "gemini-2.0-flash",
+            "model": "gemini-3.8-flash",
             "project_id": None,
             "location": None,
             "generation_config": None,
@@ -85,7 +85,7 @@ def test_to_dict_with_params(_mock_vertexai_init, _mock_generative_model):
     assert gemini.to_dict() == {
         "type": "haystack_integrations.components.generators.google_vertex.gemini.VertexAIGeminiGenerator",
         "init_parameters": {
-            "model": "gemini-2.0-flash",
+            "model": "gemini-3.8-flash",
             "project_id": "TestID123",
             "location": "TestLocation",
             "generation_config": {
@@ -112,7 +112,7 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
             "init_parameters": {
                 "project_id": None,
                 "location": None,
-                "model": "gemini-2.0-flash",
+                "model": "gemini-3.8-flash",
                 "generation_config": None,
                 "safety_settings": None,
                 "streaming_callback": None,
@@ -121,7 +121,7 @@ def test_from_dict(_mock_vertexai_init, _mock_generative_model):
         }
     )
 
-    assert gemini._model_name == "gemini-2.0-flash"
+    assert gemini._model_name == "gemini-3.8-flash"
     assert gemini._project_id is None
     assert gemini._location is None
     assert gemini._safety_settings is None
@@ -138,7 +138,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
             "init_parameters": {
                 "project_id": "TestID123",
                 "location": "TestLocation",
-                "model": "gemini-2.0-flash",
+                "model": "gemini-3.8-flash",
                 "generation_config": {
                     "temperature": 0.5,
                     "top_p": 0.5,
@@ -154,7 +154,7 @@ def test_from_dict_with_param(_mock_vertexai_init, _mock_generative_model):
         }
     )
 
-    assert gemini._model_name == "gemini-2.0-flash"
+    assert gemini._model_name == "gemini-3.8-flash"
     assert gemini._project_id == "TestID123"
     assert gemini._location == "TestLocation"
     assert gemini._safety_settings == {HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH}
@@ -194,7 +194,7 @@ def test_run_with_streaming_callback(mock_generative_model):
         nonlocal streaming_callback_called
         streaming_callback_called = True
 
-    gemini = VertexAIGeminiGenerator(model="gemini-2.0-flash", streaming_callback=streaming_callback)
+    gemini = VertexAIGeminiGenerator(model="gemini-3.8-flash", streaming_callback=streaming_callback)
     gemini.run(["Come on, stream!"])
     assert streaming_callback_called
 

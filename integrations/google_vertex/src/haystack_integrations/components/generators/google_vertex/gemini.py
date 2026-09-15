@@ -62,7 +62,7 @@ class VertexAIGeminiGenerator:
     def __init__(
         self,
         *,
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-3.8-flash",
         project_id: Optional[str] = None,
         location: Optional[str] = None,
         generation_config: Optional[Union[GenerationConfig, dict[str, Any]]] = None,
