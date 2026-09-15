@@ -1,0 +1,19 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.mrscraper.account
+      - haystack_integrations.components.mrscraper.discovery
+      - haystack_integrations.components.mrscraper.extraction
+      - haystack_integrations.components.mrscraper.results
+      - haystack_integrations.components.mrscraper.scraper_creation
+      - haystack_integrations.components.mrscraper.scraper_runs
+      - haystack_integrations.tools.mrscraper.toolset
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: MrScraper integration for Haystack
+  id: integrations-mrscraper
+  filename: mrscraper.md
+  title: MrScraper
