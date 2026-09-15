@@ -980,9 +980,13 @@ class PgvectorDocumentStore:
             )
             raise DocumentStoreError(error_msg) from e
 
+        # executemany(returning=True) yields one result set per document, so walk them all with nextset()
         written_docs = 0
-        async for _ in self._async_cursor:
-            written_docs += 1
+        while True:
+            if await self._async_cursor.fetchone():
+                written_docs += 1
+            if not self._async_cursor.nextset():
+                break
 
         return written_docs
 
