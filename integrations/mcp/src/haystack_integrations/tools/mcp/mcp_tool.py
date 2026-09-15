@@ -34,6 +34,8 @@ from mcp.shared._httpx_utils import create_mcp_http_client
 
 from .compatibility_layer import is_reconnectable, mcp_field_value
 
+from haystack_integrations.tools.mcp.oauth import OAuthConfig, ensure_oauth
+
 logger = logging.getLogger(__name__)
 
 
@@ -487,6 +489,8 @@ class SSEClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
+        # Ensure OAuth token is fetched and injected into server_info.headers before resolving
+        ensure_oauth(server_info)
         # Resolve Secret values in headers dictionary
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
@@ -538,6 +542,8 @@ class StreamableHttpClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
+        # Ensure OAuth token is fetched and injected into server_info.headers before resolving
+        ensure_oauth(server_info)
         # Resolve Secret values in headers dictionary
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
@@ -630,6 +636,17 @@ class MCPServerInfo(ABC):
                 deserialize_secrets_inplace(data_copy, keys=[name])
                 continue
 
+            # Nested object with its own from_dict (e.g. OAuthConfig)?
+            type_name = value.get("type")
+            if isinstance(type_name, str) and type_name not in secret_types:
+                try:
+                    klass = import_class_by_name(type_name)
+                    if hasattr(klass, "from_dict"):
+                        data_copy[name] = klass.from_dict(value)
+                        continue
+                except (ImportError, AttributeError):
+                    pass
+
             # Nested secrets (one level deep)
             nested_keys: list[str] = [
                 k for k, v in value.items() if isinstance(v, dict) and v.get("type") in secret_types
@@ -690,6 +707,7 @@ class SSEServerInfo(MCPServerInfo):
     max_retries: int = 3
     base_delay: float = 1.0
     max_delay: float = 30.0
+    oauth_config: OAuthConfig | None = None
 
     def __post_init__(self) -> None:
         """Validate that either url or base_url is provided."""
@@ -776,6 +794,7 @@ class StreamableHttpServerInfo(MCPServerInfo):
     max_retries: int = 3
     base_delay: float = 1.0
     max_delay: float = 30.0
+    oauth_config: OAuthConfig | None = None
 
     def __post_init__(self) -> None:
         """Validate the URL."""
