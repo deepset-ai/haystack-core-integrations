@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, create_autospec
 
 import pytest
 
@@ -12,7 +12,7 @@ from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 @pytest.mark.asyncio
 async def test_close_async():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store.close_async = AsyncMock()
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
 
@@ -24,7 +24,7 @@ async def test_close_async():
 
 @pytest.mark.asyncio
 async def test_run_async_calls_async_retrieval():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval_async = AsyncMock(return_value=[])
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
@@ -50,7 +50,7 @@ async def test_run_async_calls_async_retrieval():
 
 @pytest.mark.asyncio
 async def test_run_async_with_init_parameters():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     mock_document_store._hybrid_retrieval_async = AsyncMock(return_value=[])
 
     retriever = WeaviateHybridRetriever(
@@ -74,7 +74,7 @@ async def test_run_async_with_init_parameters():
 
 @pytest.mark.asyncio
 async def test_run_async_with_invalid_alpha():
-    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
     with pytest.raises(ValueError, match=r"alpha \(-0.1\) must be in the range \[0.0, 1.0\]"):
         await retriever.run_async(query="q", query_embedding=[0.1], alpha=-0.1)
