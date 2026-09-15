@@ -302,9 +302,7 @@ class TestEnsureOAuth:
     def test_uses_cached_token(self):
         server_info = self._make_server_info()
         cached = TokenData(access_token="cached-token", expires_at=time.time() + 3600)
-        server_info.oauth_config.token_storage.store_token(
-            "cid@https://auth.example.com/token", cached
-        )
+        server_info.oauth_config.token_storage.store_token("cid@https://auth.example.com/token", cached)
 
         with patch("haystack_integrations.tools.mcp.oauth._fetch_client_credentials_token") as mock_fetch:
             ensure_oauth(server_info)
@@ -315,9 +313,7 @@ class TestEnsureOAuth:
     def test_refetches_expired_token(self):
         server_info = self._make_server_info()
         expired = TokenData(access_token="old", expires_at=time.time() - 1)
-        server_info.oauth_config.token_storage.store_token(
-            "cid@https://auth.example.com/token", expired
-        )
+        server_info.oauth_config.token_storage.store_token("cid@https://auth.example.com/token", expired)
         new_token = TokenData(access_token="new-token", expires_at=time.time() + 3600)
 
         with patch("haystack_integrations.tools.mcp.oauth._fetch_client_credentials_token", return_value=new_token):

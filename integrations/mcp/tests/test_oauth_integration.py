@@ -60,12 +60,14 @@ class _OAuthHandler(BaseHTTPRequestHandler):
                 self._send(401, json.dumps({"error": "invalid_client"}).encode())
                 return
             scope = params.get("scope", "")
-            body = json.dumps({
-                "access_token": ISSUED_TOKEN,
-                "token_type": "Bearer",
-                "expires_in": 3600,
-                "scope": scope,
-            }).encode()
+            body = json.dumps(
+                {
+                    "access_token": ISSUED_TOKEN,
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": scope,
+                }
+            ).encode()
             self._send(200, body)
 
         elif self.path == "/oauth/no-expiry-token":
