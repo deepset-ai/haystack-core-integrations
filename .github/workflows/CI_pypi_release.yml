@@ -5,13 +5,13 @@ name: Core / Project release on PyPi
 # * integrations/<INTEGRATION_FOLDER_NAME>-v1.0.0.post0 (for post-releases)
 #
 # For example, if we want to release version 1.0.99
-# of the google-vertex-haystack integration we'd have to push the tag:
+# of the google-genai-haystack integration we'd have to push the tag:
 #
-# integrations/google_vertex-v1.0.99
+# integrations/google_genai-v1.0.99
 #
 # For a final post-release (e.g., for archiving):
 #
-# integrations/google_vertex-v1.0.99.post0
+# integrations/google_genai-v1.0.99.post0
 
 on:
   push:
