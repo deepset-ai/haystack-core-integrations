@@ -85,7 +85,7 @@ class DocumentLanguageClassifier:
 
         :raises TypeError: if the input is not a list of Documents.
         """
-        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+        if not isinstance(documents, list) or not all(isinstance(doc, Document) for doc in documents):
             msg = (
                 "DocumentLanguageClassifier expects a list of Document as input. "
                 "In case you want to classify and route a text, please use the TextLanguageRouter."
