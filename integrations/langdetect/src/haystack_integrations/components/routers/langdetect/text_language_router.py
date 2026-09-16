@@ -50,9 +50,13 @@ class TextLanguageRouter:
         :param languages: A list of ISO language codes.
             See the supported languages in [`langdetect` documentation](https://github.com/Mimino666/langdetect#languages).
             If not specified, defaults to ["en"].
+        :raises ValueError: If "unmatched" is present in `languages`.
         """
         if not languages:
             languages = ["en"]
+        if "unmatched" in languages:
+            msg = "TextLanguageRouter reserves the output name 'unmatched'. Please remove it from the languages list."
+            raise ValueError(msg)
         self.languages = languages
         component.set_output_types(self, unmatched=str, **dict.fromkeys(languages, str))
 
