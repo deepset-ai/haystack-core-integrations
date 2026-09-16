@@ -12,6 +12,14 @@ from haystack_integrations.components.routers.langdetect import TextLanguageRout
 
 
 class TestTextLanguageRouter:
+    def test_init(self):
+        component = TextLanguageRouter()
+        assert component.languages == ["en"]
+
+    def test_init_with_reserved_language_name_raises_value_error(self):
+        with pytest.raises(ValueError, match="unmatched"):
+            TextLanguageRouter(languages=["en", "unmatched"])
+
     def test_non_string_input(self):
         with pytest.raises(TypeError, match=r"TextLanguageRouter expects a string as input\."):
             classifier = TextLanguageRouter()
