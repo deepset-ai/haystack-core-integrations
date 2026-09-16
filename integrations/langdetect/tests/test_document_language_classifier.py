@@ -25,6 +25,12 @@ class TestDocumentLanguageClassifier:
             classifier = DocumentLanguageClassifier()
             classifier.run(documents=Document(content="This is an english sentence."))
 
+    def test_run_with_mixed_types_raises_type_error(self):
+        classifier = DocumentLanguageClassifier(languages=["en"])
+        docs = [Document(content="This is English"), "not a document"]
+        with pytest.raises(TypeError, match=r"DocumentLanguageClassifier expects a list of Document as input\."):
+            classifier.run(documents=docs)
+
     def test_empty_list(self):
         classifier = DocumentLanguageClassifier()
         result = classifier.run(documents=[])
