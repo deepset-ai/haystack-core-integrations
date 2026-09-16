@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v6.0.0] - 2026-09-15
+
+### 📚 Documentation
+
+- *(gemini)* Default to gemini-3.8-flash, deprecate old models (#3959)
+
+
 ## [integrations/google_genai-v5.0.1] - 2026-09-14
 
 ### 🐛 Bug Fixes
