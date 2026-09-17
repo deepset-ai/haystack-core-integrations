@@ -82,6 +82,37 @@ class IBMDb2EmbeddingRetriever:
         """
         self.document_store.close()
 
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self,
+        query_embedding: list[float],
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+    ) -> dict[str, list[Document]]:
+        """
+        Async version of run(). Retrieve documents by vector similarity.
+
+        :param query_embedding: Dense float vector from an embedder component.
+        :param filters: Runtime filters, merged with constructor filters according to filter_policy.
+        :param top_k: Override the constructor top_k for this call.
+        :returns: A dictionary with key `documents` containing a list of matching :class:`Document` objects.
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        docs = await self.document_store._embedding_retrieval_async(
+            query_embedding,
+            filters=filters,
+            top_k=top_k if top_k is not None else self.top_k,
+        )
+        return {"documents": docs}
+
+    async def close_async(self) -> None:
+        """
+        Release the async resources of the underlying Document Store only.
+
+        The synchronous connection is not affected.
+        """
+        await self.document_store.close_async()
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.

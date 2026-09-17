@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.28.0", "ibm-db>=3.2.8"]
+dependencies = ["haystack-ai>=2.28.0", "ibm-db>=3.3.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ibm_db#readme"
@@ -53,6 +53,7 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
@@ -166,4 +167,5 @@ addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
 ]
+asyncio_mode = "auto"
 log_cli = true
