@@ -5,11 +5,12 @@
 """Async tests for IBM Db2 Document Store."""
 
 import dataclasses
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
@@ -266,3 +267,202 @@ async def test_update_by_filter_async_noop_on_no_filters(mock_async_store: IBMDb
     result = await mock_async_store.update_by_filter_async(filters=None, meta={"k": "v"})
     assert result == 0
     assert mock_async_store._async_connection is None
+
+
+# ---------------------------------------------------------------------------
+# Mocked-connection unit tests — cover async execution paths
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_cursor(fetchone_return=None, fetchall_return=None, rowcount=0):
+    """Build an AsyncMock cursor that behaves like AsyncCursor."""
+    cur = MagicMock()
+    cur.execute = AsyncMock()
+    cur.executemany = AsyncMock()
+    cur.fetchone = AsyncMock(return_value=fetchone_return)
+    cur.fetchall = AsyncMock(return_value=fetchall_return or [])
+    cur.rowcount = rowcount
+    # support async with cursor:
+    cur.__aenter__ = AsyncMock(return_value=cur)
+    cur.__aexit__ = AsyncMock(return_value=False)
+    return cur
+
+
+def _make_mock_conn(cursor):
+    """Build an AsyncMock connection that returns the given cursor."""
+    conn = MagicMock()
+    conn.cursor = AsyncMock(return_value=cursor)
+    conn.commit = AsyncMock()
+    conn.rollback = AsyncMock()
+    conn.close = AsyncMock()
+    return conn
+
+
+@pytest.fixture
+def mock_connected_store(mock_async_store: IBMDb2DocumentStore):
+    """
+    Store with _get_connection_async patched to return a mock connection.
+    The cursor returned has sensible defaults that can be overridden per test.
+    """
+    cur = _make_mock_cursor(fetchone_return=(0,), fetchall_return=[])
+    conn = _make_mock_conn(cur)
+    mock_async_store._get_connection_async = AsyncMock(return_value=conn)  # type: ignore[method-assign]
+    mock_async_store._async_table_initialized = True
+    mock_async_store._mock_conn = conn
+    mock_async_store._mock_cur = cur
+    return mock_async_store
+
+
+@pytest.mark.asyncio
+async def test_count_documents_async_calls_execute(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=(7,))
+    result = await mock_connected_store.count_documents_async()
+    assert result == 7
+    mock_connected_store._mock_cur.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_count_documents_by_filter_async_with_filters(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=(3,))
+    result = await mock_connected_store.count_documents_by_filter_async(
+        filters={"field": "meta.category", "operator": "==", "value": "A"}
+    )
+    assert result == 3
+
+
+@pytest.mark.asyncio
+async def test_filter_documents_async_returns_documents(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchall = AsyncMock(
+        return_value=[("id1", "content1", json.dumps({"k": "v"}), None)]
+    )
+    docs = await mock_connected_store.filter_documents_async()
+    assert len(docs) == 1
+    assert docs[0].id == "id1"
+    assert docs[0].content == "content1"
+    assert docs[0].meta == {"k": "v"}
+
+
+@pytest.mark.asyncio
+async def test_write_documents_async_insert_path(mock_connected_store: IBMDb2DocumentStore) -> None:
+    docs = [Document(content="doc1"), Document(content="doc2")]
+    result = await mock_connected_store.write_documents_async(docs)
+    assert result == 2
+    mock_connected_store._mock_cur.executemany.assert_awaited_once()
+    mock_connected_store._mock_conn.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_write_documents_async_skip_policy(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.rowcount = 1
+    docs = [Document(content="doc1")]
+    result = await mock_connected_store.write_documents_async(docs, policy=DuplicatePolicy.SKIP)
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_write_documents_async_overwrite_policy(mock_connected_store: IBMDb2DocumentStore) -> None:
+    docs = [Document(content="doc1")]
+    result = await mock_connected_store.write_documents_async(docs, policy=DuplicatePolicy.OVERWRITE)
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_documents_async_executes_delete(mock_connected_store: IBMDb2DocumentStore) -> None:
+    await mock_connected_store.delete_documents_async(["id1", "id2"])
+    mock_connected_store._mock_cur.execute.assert_awaited_once()
+    sql_call = mock_connected_store._mock_cur.execute.call_args[0][0]
+    assert "DELETE" in sql_call
+
+
+@pytest.mark.asyncio
+async def test_delete_by_filter_async_returns_rowcount(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.rowcount = 5
+    result = await mock_connected_store.delete_by_filter_async(
+        filters={"field": "meta.category", "operator": "==", "value": "A"}
+    )
+    assert result == 5
+
+
+@pytest.mark.asyncio
+async def test_delete_all_documents_async_no_recreate(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=(4,))
+    result = await mock_connected_store.delete_all_documents_async(recreate_index=False)
+    assert result == 4
+    # Second execute call should be the DELETE
+    calls = mock_connected_store._mock_cur.execute.call_args_list
+    assert any("DELETE" in str(c) for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_update_by_filter_async_updates_rows(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchall = AsyncMock(return_value=[("id1", json.dumps({"old": "val"}))])
+    result = await mock_connected_store.update_by_filter_async(
+        filters={"field": "meta.old", "operator": "==", "value": "val"},
+        meta={"new_key": "new_val"},
+    )
+    assert result == 1
+    # UPDATE execute should have been called
+    calls = mock_connected_store._mock_cur.execute.call_args_list
+    assert any("UPDATE" in str(c) for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_get_metadata_fields_info_async_empty(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchall = AsyncMock(return_value=[])
+    result = await mock_connected_store.get_metadata_fields_info_async()
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_get_metadata_field_min_max_async_returns_none_on_empty(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=(None, None))
+    result = await mock_connected_store.get_metadata_field_min_max_async("priority")
+    assert result == {"min": None, "max": None}
+
+
+@pytest.mark.asyncio
+async def test_get_metadata_field_unique_values_async_empty(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=(0,))
+    mock_connected_store._mock_cur.fetchall = AsyncMock(return_value=[])
+    values, count = await mock_connected_store.get_metadata_field_unique_values_async("category")
+    assert values == []
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_count_unique_metadata_by_filter_async_executes_query(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    mock_connected_store._mock_cur.fetchall = AsyncMock(return_value=[("A",), ("B",), ("A",)])
+    result = await mock_connected_store.count_unique_metadata_by_filter_async(metadata_fields=["category"])
+    assert result == {"category": 2}  # A and B are distinct
+
+
+@pytest.mark.asyncio
+async def test_embedding_retrieval_async_returns_documents(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.fetchall = AsyncMock(return_value=[("id1", "content1", json.dumps({}), None, 0.1)])
+    docs = await mock_connected_store._embedding_retrieval_async(query_embedding=[0.1] * 768, top_k=1)
+    assert len(docs) == 1
+    assert docs[0].id == "id1"
+    assert docs[0].score == pytest.approx(0.1)
+
+
+@pytest.mark.asyncio
+async def test_embedding_retrieval_async_handles_zero_vector_error(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    mock_connected_store._mock_cur.fetchall = AsyncMock(side_effect=Exception("SQL0801N Division by zero"))
+    docs = await mock_connected_store._embedding_retrieval_async(query_embedding=[0.1] * 768, top_k=1)
+    assert docs == []
+
+
+@pytest.mark.asyncio
+async def test_transaction_async_rolls_back_on_error(mock_connected_store: IBMDb2DocumentStore) -> None:
+    mock_connected_store._mock_cur.execute = AsyncMock(side_effect=Exception("db error"))
+    with pytest.raises(DocumentStoreError, match="db error"):
+        async with mock_connected_store._transaction_async("test op") as cur:
+            await cur.execute("SELECT 1")
+    mock_connected_store._mock_conn.rollback.assert_awaited_once()
+    mock_connected_store._mock_conn.commit.assert_not_called()
