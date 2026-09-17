@@ -60,6 +60,8 @@ dependencies = [
     "pip",
     # deep_research agent
     "tavily-haystack>=0.4.0",
+    # the examples build their evaluation corpus from a Hugging Face dataset
+    "datasets",
     "trafilatura",
     "pypdf",
     "arrow",
@@ -70,9 +72,9 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 # we specify the package to cover to avoid including additional integrations in the coverage report
-unit-cov-retry = 'pytest --cov=haystack_integrations.agent_pack --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
-integration-cov-append-retry = 'pytest --cov=haystack_integrations.agent_pack --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
-types = "mypy -p haystack_integrations.agent_pack {args}"
+unit-cov-retry = 'pytest --cov=haystack_integrations.agent_pack --cov=haystack_integrations.evaluation --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations.agent_pack --cov=haystack_integrations.evaluation --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
+types = "mypy -p haystack_integrations.agent_pack -p haystack_integrations.evaluation {args}"
 
 [tool.mypy]
 install_types = true
