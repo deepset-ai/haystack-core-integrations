@@ -267,14 +267,15 @@ class HuggingFaceAPISparseDocumentEmbedder:
         return embeddings
 
     async def _embed_batches_async(self, texts: list[str]) -> list[SparseEmbedding]:
-        assert self._async_client is not None  # noqa: S101
+        client = self._async_client
+        assert client is not None  # noqa: S101
         semaphore = Semaphore(self.concurrency_limit)
         batches = [texts[start : start + self.batch_size] for start in range(0, len(texts), self.batch_size)]
         progress = tqdm(total=len(batches), disable=not self.progress_bar, desc="Calculating sparse embeddings")
 
         async def embed_batch(batch: list[str]) -> list[SparseEmbedding]:
             async with semaphore:
-                result = await _embed_sparse_async(client=self._async_client, inputs=batch)
+                result = await _embed_sparse_async(client=client, inputs=batch)
                 progress.update(1)
                 return result
 
