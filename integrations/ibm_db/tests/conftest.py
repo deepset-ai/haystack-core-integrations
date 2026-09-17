@@ -5,6 +5,7 @@
 import sys
 
 import pytest
+import pytest_asyncio
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.ibm_db import IBMDb2DocumentStore
@@ -35,18 +36,17 @@ def connection_config():
     return DB2_CONNECTION
 
 
-@pytest.fixture
-def document_store(request):
+@pytest_asyncio.fixture
+async def document_store(request):
     """
     Create a fresh document store for each test with unique table name.
 
-    This fixture is required by Haystack's mixin tests.
+    Used by both sync and async integration tests.  Haystack's mixin tests
+    require this fixture name.
     """
-    # Use test name to create unique table name per test
     # Include Python version to avoid conflicts when multiple versions run concurrently
     table_name = f"haystack_{request.node.name}_{sys.version_info.major}_{sys.version_info.minor}"
 
-    # Use standard embedding dimension (768) for compatibility with mixin tests
     store = IBMDb2DocumentStore(
         **DB2_CONNECTION,
         table_name=table_name,
@@ -57,15 +57,16 @@ def document_store(request):
 
     yield store
 
-    # Cleanup after test
+    # Close async connection first — releases pconnect pool locks before the table drop
+    await store.close_async()
+
+    # Drop the table and release sync connection
     try:
         conn = store._get_connection()
         with conn.cursor() as cur:
             cur.execute(f"DROP TABLE {store.table_name}")
             conn.commit()
     except Exception:
-        # Ignore cleanup errors
         pass
-
-
-# Made with Bob
+    finally:
+        store.close()

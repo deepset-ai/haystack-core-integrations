@@ -4,11 +4,12 @@
 
 """IBM Db2 Document Store for Haystack."""
 
+import asyncio
 import json
 import logging
 import threading
-from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager, suppress
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
@@ -17,6 +18,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from ibm_db_dbi import AsyncConnection, AsyncCursor  # type: ignore[import-untyped]
 
 from .filters import FilterTranslator
 
@@ -143,6 +145,10 @@ class IBMDb2DocumentStore:
         self._connection_lock = threading.Lock()
         self._table_initialized = False
 
+        self._async_connection: AsyncConnection | None = None
+        self._async_connection_lock = asyncio.Lock()
+        self._async_table_initialized = False
+
     def _get_connection(self) -> ibm_db_dbi.Connection:
         """
         Get or create a persistent database connection and ensure the table exists.
@@ -207,6 +213,101 @@ class IBMDb2DocumentStore:
                     self._connection.close()
                 self._connection = None
 
+    async def _get_connection_async(self) -> AsyncConnection:
+        """
+        Get or create a persistent async database connection and ensure the table exists.
+
+        Uses ``ibm_db_dbi.pconnect_async()`` so the underlying connection comes from the
+        same persistent pool as the synchronous path.  This is required for VECTOR_DISTANCE
+        queries — non-pooled ``connect()``-based connections hang on large CLOB parameters
+        used in the VECTOR() cast.  The resulting sync Connection is wrapped in
+        ``AsyncConnection`` so all callers use the standard async cursor API.
+
+        Uses a separate async connection and asyncio.Lock, completely independent of the
+        synchronous connection.
+
+        :return: IBM Db2 AsyncConnection object
+        """
+        if self._async_connection is not None and self._async_table_initialized:
+            return self._async_connection
+
+        async with self._async_connection_lock:
+            if self._async_connection is None:
+                dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
+
+                if self.use_ssl:
+                    dsn += ";SECURITY=SSL"
+                    if self.ssl_certificate:
+                        dsn += f";SSLServerCertificate={self.ssl_certificate}"
+
+                conn_options = {ibm_db_dbi.SQL_ATTR_AUTOCOMMIT: ibm_db_dbi.SQL_AUTOCOMMIT_OFF}
+                if self.connection_options:
+                    conn_options.update(self.connection_options)
+
+                # Use pconnect_async (persistent pool) rather than AsyncConnection.connect
+                # (non-persistent).  Non-persistent connections hang on VECTOR_DISTANCE
+                # queries with large CLOB parameter binding; the persistent pool avoids this.
+                sync_conn = await ibm_db_dbi.pconnect_async(
+                    dsn=dsn,
+                    user=self.username.resolve_value() or "",
+                    password=self.password.resolve_value() or "",
+                    conn_options=conn_options,
+                )
+                conn = AsyncConnection(sync_conn)
+
+                if self.schema:
+                    cur = await conn.cursor()
+                    async with cur:
+                        try:
+                            await cur.execute(f"SET SCHEMA {self.schema}")
+                            await conn.commit()
+                        except Exception as e:
+                            await conn.rollback()
+                            msg = f"Failed to set schema {self.schema}: {e}"
+                            raise RuntimeError(msg) from e
+
+                self._async_connection = conn
+
+            if not self._async_table_initialized:
+                await self._ensure_table_exists_async(recreate=self.recreate_table)
+                self._async_table_initialized = True
+
+        return self._async_connection
+
+    async def close_async(self) -> None:
+        """
+        Release the associated async resources only.
+
+        The synchronous connection is not affected.
+        """
+        async with self._async_connection_lock:
+            if self._async_connection is not None:
+                with suppress(Exception):
+                    await self._async_connection.close()
+                self._async_connection = None
+                self._async_table_initialized = False
+
+    @asynccontextmanager
+    async def _transaction_async(self, error_msg: str) -> AsyncIterator[AsyncCursor]:
+        """
+        Async context manager: yield an AsyncCursor for a unit of work, committing on success.
+
+        On any error the transaction is rolled back and the exception is re-raised
+        as a `DocumentStoreError` prefixed with `error_msg`.
+
+        :param error_msg: Human-readable prefix for the wrapped error.
+        """
+        conn = await self._get_connection_async()
+        cur = await conn.cursor()
+        async with cur:
+            try:
+                yield cur
+                await conn.commit()
+            except Exception as e:
+                await conn.rollback()
+                msg = f"{error_msg}: {e}"
+                raise DocumentStoreError(msg) from e
+
     @contextmanager
     def _transaction(self, error_msg: str) -> Iterator[Any]:
         """
@@ -226,6 +327,48 @@ class IBMDb2DocumentStore:
                 conn.rollback()
                 msg = f"{error_msg}: {e}"
                 raise DocumentStoreError(msg) from e
+
+    async def _ensure_table_exists_async(self, recreate: bool = False) -> None:
+        """
+        Ensure the document table exists in the database (async version).
+
+        :param recreate: If True, drop and recreate the table
+        """
+        assert self._async_connection is not None  # noqa: S101
+        conn = self._async_connection
+
+        cur = await conn.cursor()
+        async with cur:
+            if recreate:
+                try:
+                    await cur.execute(f"DROP TABLE {self.table_name}")
+                    await conn.commit()
+                except Exception:
+                    await conn.rollback()
+
+            table_exists = False
+            try:
+                await cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+                table_exists = True
+            except Exception:
+                pass
+
+            if not table_exists:
+                create_sql = (
+                    f"CREATE TABLE {self.table_name} ("
+                    "id VARCHAR(512) NOT NULL PRIMARY KEY, "
+                    "content CLOB(2M), "
+                    "meta BLOB, "
+                    f"embedding VECTOR({self.embedding_dim}, FLOAT32)"
+                    ")"
+                )
+                try:
+                    await cur.execute(create_sql)
+                    await conn.commit()
+                    logger.info(f"Created table {self.table_name}")
+                except Exception:
+                    await conn.rollback()
+                    raise
 
     def _ensure_table_exists(self, recreate: bool = False) -> None:
         """
@@ -321,6 +464,17 @@ class IBMDb2DocumentStore:
             result = cur.fetchone()
             return result[0] if result else 0
 
+    async def count_documents_async(self) -> int:
+        """
+        Async version of count_documents.
+
+        :return: Number of documents
+        """
+        async with self._transaction_async("Failed to count documents") as cur:
+            await cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+            result = await cur.fetchone()
+            return result[0] if result else 0
+
     def count_documents_by_filter(self, filters: dict[str, Any] | None = None) -> int:
         """
         Count documents that match the provided filters.
@@ -337,6 +491,24 @@ class IBMDb2DocumentStore:
             query = f"SELECT COUNT(*) FROM {self.table_name} {where_clause}"
             cur.execute(query, params)
             result = cur.fetchone()
+            return result[0] if result else 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any] | None = None) -> int:
+        """
+        Async version of count_documents_by_filter.
+
+        :param filters: Filters to apply. See Haystack documentation for filter syntax.
+        :return: Number of documents matching the filters
+        """
+        if not filters:
+            return await self.count_documents_async()
+
+        where_clause, params = self._build_where_clause(filters)
+
+        async with self._transaction_async("Failed to count documents by filter") as cur:
+            query = f"SELECT COUNT(*) FROM {self.table_name} {where_clause}"
+            await cur.execute(query, params)
+            result = await cur.fetchone()
             return result[0] if result else 0
 
     def write_documents(
@@ -384,6 +556,50 @@ class IBMDb2DocumentStore:
             msg = f"Unsupported duplicate policy: {policy}"
             raise ValueError(msg)
 
+    async def write_documents_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
+    ) -> int:
+        """
+        Async version of write_documents.
+
+        :param documents: List of documents to write
+        :param policy: Policy for handling duplicate documents
+        :return: Number of documents written
+        :raises ValueError: If documents is not a list of Document objects or has invalid embeddings
+        :raises TypeError: If embeddings have invalid types
+        :raises DuplicateDocumentError: If a document with the same id already exists and policy is FAIL or NONE
+        """
+        if not isinstance(documents, list):
+            msg = f"Expected a list of Document objects, got {type(documents)}"
+            raise ValueError(msg)
+
+        if not documents:
+            return 0
+
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"Expected Document objects, got {type(doc)}"
+                raise ValueError(msg)
+
+            if doc.embedding is not None:
+                try:
+                    self._validate_embedding(doc.embedding, allow_none=False)
+                except (ValueError, TypeError) as e:
+                    msg = f"Invalid embedding for document '{doc.id}': {e}"
+                    raise type(e)(msg) from e
+
+        if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
+            return await self._insert_documents_async(documents)
+        elif policy == DuplicatePolicy.SKIP:
+            return await self._skip_duplicate_documents_async(documents)
+        elif policy == DuplicatePolicy.OVERWRITE:
+            return await self._upsert_documents_async(documents)
+        else:
+            msg = f"Unsupported duplicate policy: {policy}"
+            raise ValueError(msg)
+
     def _insert_documents(self, documents: list[Document]) -> int:
         """Insert documents and fail on duplicates via database integrity errors."""
         rows = [self._to_row(doc) for doc in documents]
@@ -399,6 +615,37 @@ class IBMDb2DocumentStore:
                 conn.commit()
             except Exception as e:
                 conn.rollback()
+                error_msg = str(e).lower()
+                duplicate_indicators = (
+                    "duplicate",
+                    "unique",
+                    "sql0803n",
+                    "primary key",
+                    "sqlcode=-803",
+                    "sqlstate=23505",
+                )
+                if any(indicator in error_msg for indicator in duplicate_indicators):
+                    msg = f"Document already exists. Use DuplicatePolicy.OVERWRITE or SKIP. Original error: {e}"
+                    raise DuplicateDocumentError(msg) from e
+                raise
+        return len(documents)
+
+    async def _insert_documents_async(self, documents: list[Document]) -> int:
+        """Async version: insert documents and fail on duplicates via database integrity errors."""
+        rows = [self._to_row(doc) for doc in documents]
+        conn = await self._get_connection_async()
+        cur = await conn.cursor()
+        sql = (
+            f"INSERT INTO {self.table_name} (id, content, meta, embedding) "
+            f"VALUES (?, ?, SYSTOOLS.JSON2BSON(?), "
+            f"VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32))"
+        )
+        async with cur:
+            try:
+                await cur.executemany(sql, rows)
+                await conn.commit()
+            except Exception as e:
+                await conn.rollback()
                 error_msg = str(e).lower()
                 duplicate_indicators = (
                     "duplicate",
@@ -434,6 +681,27 @@ class IBMDb2DocumentStore:
                     inserted_count += 1
         return inserted_count
 
+    async def _skip_duplicate_documents_async(self, documents: list[Document]) -> int:
+        """Async version: skip duplicate documents using MERGE."""
+        rows = [self._to_row(doc) for doc in documents]
+        inserted_count = 0
+        merge_sql = (
+            f"MERGE INTO {self.table_name} AS t "
+            f"USING (VALUES (?, ?, SYSTOOLS.JSON2BSON(?), "
+            f"VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32))) "
+            f"AS s(id, content, meta, embedding) "
+            "ON t.id = s.id "
+            "WHEN NOT MATCHED THEN "
+            "INSERT (id, content, meta, embedding) "
+            "VALUES (s.id, s.content, s.meta, s.embedding)"
+        )
+        async with self._transaction_async("Failed to skip duplicate documents") as cur:
+            for row in rows:
+                await cur.execute(merge_sql, row)
+                if cur.rowcount > 0:
+                    inserted_count += 1
+        return inserted_count
+
     def _upsert_documents(self, documents: list[Document]) -> int:
         rows = [self._to_row(doc) for doc in documents]
         merge_sql = (
@@ -453,6 +721,26 @@ class IBMDb2DocumentStore:
                 cur.execute(merge_sql, row)
         return len(documents)
 
+    async def _upsert_documents_async(self, documents: list[Document]) -> int:
+        """Async version: upsert documents using MERGE."""
+        rows = [self._to_row(doc) for doc in documents]
+        merge_sql = (
+            f"MERGE INTO {self.table_name} AS t "
+            f"USING (VALUES (?, ?, SYSTOOLS.JSON2BSON(?), "
+            f"VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32))) "
+            f"AS s(id, content, meta, embedding) "
+            "ON t.id = s.id "
+            "WHEN MATCHED THEN "
+            "UPDATE SET t.content = s.content, t.meta = s.meta, t.embedding = s.embedding "
+            "WHEN NOT MATCHED THEN "
+            "INSERT (id, content, meta, embedding) "
+            "VALUES (s.id, s.content, s.meta, s.embedding)"
+        )
+        async with self._transaction_async("Failed to upsert documents") as cur:
+            for row in rows:
+                await cur.execute(merge_sql, row)
+        return len(documents)
+
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Filter documents using SQL-based metadata and field conditions.
@@ -470,6 +758,24 @@ class IBMDb2DocumentStore:
         with self._transaction("Failed to filter documents") as cur:
             cur.execute(sql, params)
             rows = cur.fetchall()
+        return [_row_to_document(row) for row in rows]
+
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Async version of filter_documents.
+
+        :param filters: Optional filter dictionary to constrain the returned documents.
+        :return: List of matching documents.
+        """
+        sql = f"SELECT id, content, SYSTOOLS.BSON2JSON(meta) AS meta, embedding FROM {self.table_name}"
+        params: list[Any] = []
+        if filters:
+            where_clause, params = self._build_where_clause(filters)
+            sql = f"{sql} {where_clause}"
+        sql = f"{sql} ORDER BY id"
+        async with self._transaction_async("Failed to filter documents") as cur:
+            await cur.execute(sql, params)
+            rows = await cur.fetchall()
         return [_row_to_document(row) for row in rows]
 
     def _build_where_clause(self, filters: dict[str, Any]) -> tuple[str, list[Any]]:
@@ -501,6 +807,20 @@ class IBMDb2DocumentStore:
         with self._transaction("Failed to delete documents") as cur:
             cur.execute(sql, document_ids)
 
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
+        """
+        Async version of delete_documents.
+
+        :param document_ids: List of document IDs to delete
+        """
+        if not document_ids:
+            return
+
+        placeholders = ", ".join("?" for _ in document_ids)
+        sql = f"DELETE FROM {self.table_name} WHERE id IN ({placeholders})"
+        async with self._transaction_async("Failed to delete documents") as cur:
+            await cur.execute(sql, document_ids)
+
     def delete_by_filter(self, filters: dict[str, Any] | None = None) -> int:
         """
         Delete documents that match the provided filters.
@@ -515,6 +835,22 @@ class IBMDb2DocumentStore:
 
         with self._transaction("Failed to delete documents by filter") as cur:
             cur.execute(f"DELETE FROM {self.table_name} {where_clause}", params)
+            return cur.rowcount
+
+    async def delete_by_filter_async(self, filters: dict[str, Any] | None = None) -> int:
+        """
+        Async version of delete_by_filter.
+
+        :param filters: Filters to apply. See Haystack documentation for filter syntax.
+        :return: Number of documents deleted
+        """
+        if not filters:
+            return 0
+
+        where_clause, params = self._build_where_clause(filters)
+
+        async with self._transaction_async("Failed to delete documents by filter") as cur:
+            await cur.execute(f"DELETE FROM {self.table_name} {where_clause}", params)
             return cur.rowcount
 
     def delete_all_documents(self, recreate_index: bool = False) -> int:
@@ -535,6 +871,25 @@ class IBMDb2DocumentStore:
             else:
                 # Just delete all rows
                 cur.execute(f"DELETE FROM {self.table_name}")
+
+            return deleted_count
+
+    async def delete_all_documents_async(self, recreate_index: bool = False) -> int:
+        """
+        Async version of delete_all_documents.
+
+        :param recreate_index: If True, recreate the table after deletion
+        :return: Number of documents deleted
+        """
+        async with self._transaction_async("Failed to delete all documents") as cur:
+            await cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+            result = await cur.fetchone()
+            deleted_count = result[0] if result else 0
+
+            if recreate_index:
+                await self._ensure_table_exists_async(recreate=True)
+            else:
+                await cur.execute(f"DELETE FROM {self.table_name}")
 
             return deleted_count
 
@@ -575,6 +930,43 @@ class IBMDb2DocumentStore:
                 # Update the document
                 update_sql = f"UPDATE {self.table_name} SET meta = SYSTOOLS.JSON2BSON(?) WHERE id = ?"
                 cur.execute(update_sql, (merged_meta_json, doc_id))
+                updated_count += 1
+
+            return updated_count
+
+    async def update_by_filter_async(
+        self, filters: dict[str, Any] | None = None, meta: dict[str, Any] | None = None
+    ) -> int:
+        """
+        Async version of update_by_filter.
+
+        :param filters: Filters to apply. See Haystack documentation for filter syntax.
+        :param meta: Dictionary of metadata fields to update
+        :return: Number of documents updated
+        """
+        if not meta:
+            msg = "meta must be a non-empty dictionary"
+            raise ValueError(msg)
+
+        if not filters:
+            return 0
+
+        where_clause, params = self._build_where_clause(filters)
+
+        async with self._transaction_async("Failed to update documents by filter") as cur:
+            select_sql = f"SELECT id, SYSTOOLS.BSON2JSON(meta) AS meta FROM {self.table_name} {where_clause}"
+            await cur.execute(select_sql, params)
+            rows = await cur.fetchall()
+
+            updated_count = 0
+            for row in rows:
+                doc_id, meta_json = row
+                existing_meta = json.loads(meta_json) if meta_json else {}
+                existing_meta.update(meta)
+                merged_meta_json = json.dumps(existing_meta)
+
+                update_sql = f"UPDATE {self.table_name} SET meta = SYSTOOLS.JSON2BSON(?) WHERE id = ?"
+                await cur.execute(update_sql, (merged_meta_json, doc_id))
                 updated_count += 1
 
             return updated_count
@@ -683,6 +1075,67 @@ class IBMDb2DocumentStore:
 
         return unique_values, total_count
 
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
+        """
+        Async version of get_metadata_field_unique_values.
+
+        :param metadata_field: The metadata field name (can include or omit the 'meta.' prefix).
+        :param search_term: Optional term to filter returned values by case-insensitive substring match.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
+        :return: A tuple containing (list of unique values in their original JSON type, total count).
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        params: list[Any] = []
+        filter_where = ""
+        if filters:
+            filter_expression = FilterTranslator().translate(filters, params)
+            filter_where = f" WHERE {filter_expression}"
+
+        value_subquery = (
+            f"SELECT JSON_QUERY(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS value "
+            f"FROM {self.table_name}{filter_where}"
+        )
+
+        search_clause = ""
+        if search_term is not None:
+            search_clause = " AND LOCATE(UPPER(?), UPPER(value)) > 0"
+            params.append(search_term)
+
+        count_sql = f"SELECT COUNT(DISTINCT value) FROM ({value_subquery}) AS t WHERE value IS NOT NULL{search_clause}"
+        select_sql = (
+            f"SELECT DISTINCT value FROM ({value_subquery}) AS t WHERE value IS NOT NULL{search_clause} "
+            f"ORDER BY value OFFSET ? ROWS FETCH FIRST ? ROWS ONLY"
+        )
+
+        async with self._transaction_async(f"Failed to get unique values for field '{metadata_field}'") as cur:
+            await cur.execute(count_sql, params)
+            count_row = await cur.fetchone()
+            total_count = count_row[0] if count_row and count_row[0] is not None else 0
+
+            await cur.execute(select_sql, [*params, from_, size])
+            rows = await cur.fetchall()
+
+        unique_values: list[Any] = []
+        for row in rows:
+            if row[0] is None:
+                continue
+            try:
+                unique_values.append(json.loads(row[0]))
+            except (json.JSONDecodeError, TypeError):
+                unique_values.append(row[0])
+
+        return unique_values, total_count
+
     def get_metadata_field_min_max(self, field: str) -> dict[str, Any]:
         """
         Get the minimum and maximum values for a numeric metadata field.
@@ -730,6 +1183,49 @@ class IBMDb2DocumentStore:
 
         return {"min": None, "max": None}
 
+    async def get_metadata_field_min_max_async(self, field: str) -> dict[str, Any]:
+        """
+        Async version of get_metadata_field_min_max.
+
+        :param field: The metadata field name (can include 'meta.' prefix)
+        :return: Dictionary with 'min' and 'max' keys
+        """
+        field_name = field.removeprefix("meta.")
+
+        conn = await self._get_connection_async()
+        cur = await conn.cursor()
+        async with cur:
+            sql = (
+                f"SELECT "
+                f"MIN(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)), "
+                f"MAX(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)) "
+                f"FROM {self.table_name} "
+                f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+            )
+            try:
+                await cur.execute(sql)
+                row = await cur.fetchone()
+                if row and row[0] is not None:
+                    return {"min": row[0], "max": row[1]}
+            except Exception:
+                sql = (
+                    f"SELECT "
+                    f"MIN(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))), "
+                    f"MAX(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))) "
+                    f"FROM {self.table_name} "
+                    f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+                )
+                try:
+                    await cur.execute(sql)
+                    row = await cur.fetchone()
+                    if row and row[0] is not None:
+                        return {"min": row[0], "max": row[1]}
+                except Exception as e:
+                    msg = f"Failed to get min/max for field '{field}': {e}"
+                    raise DocumentStoreError(msg) from e
+
+        return {"min": None, "max": None}
+
     def get_metadata_fields_info(self) -> dict[str, dict[str, Any]]:
         """
         Get information about all metadata fields including their types.
@@ -743,6 +1239,41 @@ class IBMDb2DocumentStore:
             rows = cur.fetchall()
 
         # Analyze the metadata to infer field types
+        fields_info: dict[str, dict[str, Any]] = {}
+
+        for row in rows:
+            meta_json = row[0]
+            if not meta_json:
+                continue
+
+            try:
+                meta = json.loads(meta_json)
+                if not isinstance(meta, dict):
+                    continue
+
+                for field_name, field_value in meta.items():
+                    if field_name not in fields_info:
+                        if field_value is not None:
+                            field_type = self._infer_field_type(field_value)
+                            fields_info[field_name] = {"type": field_type}
+                        else:
+                            fields_info[field_name] = {"type": "text"}
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        return fields_info
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, Any]]:
+        """
+        Async version of get_metadata_fields_info.
+
+        :return: Dictionary mapping field names to their type information
+        """
+        sql = f"SELECT SYSTOOLS.BSON2JSON(meta) AS meta FROM {self.table_name} WHERE meta IS NOT NULL"
+        async with self._transaction_async("Failed to get metadata fields info") as cur:
+            await cur.execute(sql)
+            rows = await cur.fetchall()
+
         fields_info: dict[str, dict[str, Any]] = {}
 
         for row in rows:
@@ -822,6 +1353,54 @@ class IBMDb2DocumentStore:
 
         return result
 
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any] | None = None, metadata_fields: list[str] | None = None
+    ) -> dict[str, int]:
+        """
+        Async version of count_unique_metadata_by_filter.
+
+        :param filters: Optional filters to apply before counting
+        :param metadata_fields: List of metadata field names to count unique values for
+        :return: Dictionary mapping field names to their unique value counts
+        """
+        if not metadata_fields:
+            return {}
+
+        where_clause, params = self._build_where_clause(filters) if filters else ("", [])
+
+        result = {}
+        for field in metadata_fields:
+            field_name = field.removeprefix("meta.")
+
+            sql = (
+                f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
+                f"FROM {self.table_name} "
+            )
+            if where_clause:
+                sql += where_clause + " AND "
+            else:
+                sql += "WHERE "
+            sql += f"JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+
+            async with self._transaction_async(f"Failed to count unique metadata for field '{field}'") as cur:
+                await cur.execute(sql, params)
+                rows = await cur.fetchall()
+
+            unique_values = set()
+            for row in rows:
+                value = row[0]
+                if value is not None:
+                    try:
+                        parsed_value = json.loads(value)
+                        value_key = json.dumps(parsed_value, sort_keys=True)
+                        unique_values.add(value_key)
+                    except (json.JSONDecodeError, TypeError):
+                        unique_values.add(value)
+
+            result[field] = len(unique_values)
+
+        return result
+
     @staticmethod
     def _infer_field_type(value: Any) -> str:
         """
@@ -874,6 +1453,79 @@ class IBMDb2DocumentStore:
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["username", "password"])
         return default_from_dict(cls, data)
+
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: list[float],
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Async version of _embedding_retrieval.
+
+        :param query_embedding: Query embedding vector
+        :param filters: Optional filters to apply
+        :param top_k: Number of documents to retrieve
+        :return: List of documents with similarity scores
+        :raises ValueError: If query_embedding is invalid
+        :raises TypeError: If query_embedding has invalid type
+        """
+        self._validate_embedding(query_embedding, allow_none=False)
+
+        conn = await self._get_connection_async()
+        embedding_str = f"{query_embedding}"
+        where_clause, filter_params = self._build_where_clause(filters) if filters else ("", [])
+
+        null_check = "embedding IS NOT NULL"
+        if where_clause:
+            where_clause = f"{where_clause} AND {null_check}"
+        else:
+            where_clause = f"WHERE {null_check}"
+
+        sql = (
+            f"SELECT id, content, SYSTOOLS.BSON2JSON(meta) AS meta, embedding, "
+            f"VECTOR_DISTANCE(embedding, VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32), "
+            f"{self.distance_metric}) AS score "
+            f"FROM {self.table_name} "
+            f"{where_clause} "
+            f"ORDER BY score ASC FETCH FIRST ? ROWS ONLY"
+        )
+        params: list[Any] = [embedding_str, *filter_params, top_k]
+
+        cur = await conn.cursor()
+        async with cur:
+            await cur.execute(sql, params)
+            try:
+                rows = await cur.fetchall()
+            except BaseException as e:
+                error_msg = str(e)
+                cause_msg = str(e.__cause__) if hasattr(e, "__cause__") and e.__cause__ else ""
+                if (
+                    "SQL0801N" in error_msg
+                    or "Division by zero" in error_msg
+                    or "SQL0801N" in cause_msg
+                    or "Division by zero" in cause_msg
+                ):
+                    rows = []
+                else:
+                    raise
+
+        documents = []
+        for row in rows:
+            doc_id, content, meta_json, embedding, score = row
+            meta = json.loads(meta_json) if meta_json else {}
+            embedding_list = _parse_embedding(embedding)
+            doc = Document(
+                id=doc_id,
+                content=content,
+                meta=meta,
+                embedding=embedding_list,
+                score=float(score),
+            )
+            documents.append(doc)
+
+        return documents
 
     def _embedding_retrieval(
         self,
