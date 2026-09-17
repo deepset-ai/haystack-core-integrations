@@ -154,7 +154,7 @@ _LIBREOFFICE_EXTENSIONS = frozenset(
         ".zabw",
     }
 )
-MIME_TYPE_EXTENSIONS = {
+_MIME_TYPE_EXTENSIONS = {
     "application/epub+zip": ".epub",
     "application/msword": ".doc",
     "application/pdf": ".pdf",
@@ -362,7 +362,7 @@ class GotenbergFileConverter:
         if mime_type in {"text/markdown", "text/x-markdown"}:
             return "markdown", ".md"
 
-        suffix = MIME_TYPE_EXTENSIONS.get(mime_type) or mimetypes.guess_extension(type=mime_type, strict=False)
+        suffix = _MIME_TYPE_EXTENSIONS.get(mime_type) or mimetypes.guess_extension(type=mime_type, strict=False)
         if suffix is None or suffix.lower() not in _LIBREOFFICE_EXTENSIONS:
             msg = f"Unsupported ByteStream MIME type: {mime_type!r}"
             raise ValueError(msg)
