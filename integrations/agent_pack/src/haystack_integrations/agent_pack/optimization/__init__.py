@@ -8,6 +8,7 @@ from haystack_integrations.agent_pack.optimization.agent import (
 )
 from haystack_integrations.agent_pack.optimization.experiment import (
     CandidateEvaluation,
+    CandidateProgress,
     ExperimentJournal,
     ExperimentRecommendation,
     ExperimentResult,
@@ -30,6 +31,7 @@ from haystack_integrations.agent_pack.optimization.workspace import (
 __all__ = [
     "CandidateConfiguration",
     "CandidateEvaluation",
+    "CandidateProgress",
     "ConfigurationWorkspace",
     "ExperimentJournal",
     "ExperimentRecommendation",

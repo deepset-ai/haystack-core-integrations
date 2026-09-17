@@ -49,7 +49,7 @@ class TestCreateOptimizerAgent:
         agent = create_harness_optimizer_agent(additional_instructions="Keep the corpus.")
         assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
         # Pinned so that changing what the search itself costs stays a deliberate decision.
-        assert agent.chat_generator.model == "gpt-5.6-luna"
+        assert agent.chat_generator.model == "gpt-5.6-terra"
         assert _describe_environment() in agent.system_prompt
         assert agent.system_prompt.endswith("Keep the corpus.")
         assert agent.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}

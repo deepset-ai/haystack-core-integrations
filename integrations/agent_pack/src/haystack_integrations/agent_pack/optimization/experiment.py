@@ -80,6 +80,27 @@ class CandidateEvaluation:
 
 
 @dataclass(kw_only=True)
+class CandidateProgress:
+    """
+    One measured candidate, handed to a caller as the search reaches it rather than when it ends.
+
+    :param position: Which candidate this is, counting from one.
+    :param total: How many candidates the experiment may measure in all.
+    :param evaluation: The priced measurement, or the failure that replaced it.
+    :param gate_failures: The hard gates this candidate missed, empty when it cleared them all.
+    :param baseline: The reference measurement, so a caller can report a change without holding state.
+    :param is_best: Whether this candidate now leads the eligible ones.
+    """
+
+    position: int
+    total: int
+    evaluation: "CandidateEvaluation"
+    gate_failures: tuple[str, ...]
+    baseline: EvalMetrics
+    is_best: bool
+
+
+@dataclass(kw_only=True)
 class ExperimentRecommendation:
     """The measured configuration that passed its gates and outranked the reference."""
 
@@ -210,6 +231,8 @@ class HarnessOptimizationExperiment:
         max_iterations: int = 8,
         history_digest_window: int = 1,
         config_path: str | Path | None = None,
+        on_baseline: Callable[[EvalMetrics], None] | None = None,
+        on_candidate: Callable[[CandidateProgress], None] | None = None,
     ) -> None:
         """
         Configure an iterative, journaled harness optimization run.
@@ -229,6 +252,9 @@ class HarnessOptimizationExperiment:
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
         :param history_digest_window: How many recent outcomes retain detailed traces in optimizer context.
         :param config_path: Optional editable YAML draft, created if absent. Defaults to the artifact directory.
+        :param on_baseline: Called with the priced reference measurement before the search starts.
+        :param on_candidate: Called with each candidate as it is measured, priced and gated, so a long run
+            can be watched rather than only read afterwards.
         """
         if max_iterations < 0:
             msg = "max_iterations must be nonnegative."
@@ -244,6 +270,8 @@ class HarnessOptimizationExperiment:
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
         self.history_digest_window = history_digest_window
+        self.on_baseline = on_baseline
+        self.on_candidate = on_candidate
 
     def run(self) -> ExperimentResult:
         """Measure a baseline and a bounded number of validated YAML candidates."""
@@ -292,6 +320,8 @@ class HarnessOptimizationExperiment:
         if self.objectives.primary == "cost" and ref_eval_metrics.cost is None:
             msg = "The reference Agent has unavailable cost; supply pricing and complete usage."
             raise ValueError(msg)
+        if self.on_baseline is not None:
+            self.on_baseline(ref_eval_metrics)
 
         # Search: propose one candidate, measure it, and feed the outcome into the next proposal.
         outcomes: list[CandidateEvaluation] = []
@@ -397,6 +427,17 @@ class HarnessOptimizationExperiment:
                 candidate_id=proposed.candidate_id,
                 gates=history[-1]["gate_failures"],
             )
+            if self.on_candidate is not None:
+                self.on_candidate(
+                    CandidateProgress(
+                        position=len(outcomes),
+                        total=self.max_iterations,
+                        evaluation=priced,
+                        gate_failures=history[-1]["gate_failures"],
+                        baseline=ref_eval_metrics,
+                        is_best=best_id == priced.candidate_id,
+                    )
+                )
 
         # Recommend the best candidate that clears every gate and actually beats the reference.
         gates = {
