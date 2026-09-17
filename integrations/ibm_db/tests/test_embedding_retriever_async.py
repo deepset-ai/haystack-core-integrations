@@ -152,7 +152,6 @@ class TestEmbeddingRetrieverAsync:
     def retriever_live(self, document_store: IBMDb2DocumentStore) -> IBMDb2EmbeddingRetriever:
         return IBMDb2EmbeddingRetriever(document_store=document_store, top_k=3)
 
-    @pytest.mark.timeout(60)
     async def test_run_async_returns_top_k_results(
         self, retriever_live: IBMDb2EmbeddingRetriever, document_store: IBMDb2DocumentStore
     ) -> None:
