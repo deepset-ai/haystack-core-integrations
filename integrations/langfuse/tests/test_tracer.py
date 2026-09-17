@@ -3,13 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import base64
 import datetime
 import logging
 import sys
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses import ChatMessage, ImageContent, TextContent, ToolCall
+from haystack.tracing import utils as tracing_utils
 
 from haystack_integrations.tracing.langfuse.tracer import (
     _COMPONENT_OUTPUT_KEY,
@@ -197,6 +199,48 @@ class TestLangfuseSpan:
             span.set_content_tag("key.output", {"replies": None})
             assert mock_context_manager._span.update.call_count == 1
             assert mock_context_manager._span.update.call_args_list[0][1] == {"output": []}
+
+    @pytest.mark.parametrize(
+        "key,value,expected",
+        [
+            # Agent tool results are traced as-is and are often not dicts
+            ("key.output", None, ""),
+            ("key.output", 42, 42),
+            ("key.output", True, True),
+            ("key.output", "No replies found", "No replies found"),
+            ("key.output", {"replies": 5}, 5),
+            ("key.input", "summarize my messages", "summarize my messages"),
+            # e.g. a component with a `messages: list[str]` input socket
+            ("key.input", {"messages": ["hi", "there"]}, '{"messages": ["hi", "there"]}'),
+            ("key.input", {"messages": "hi"}, '{"messages": "hi"}'),
+        ],
+    )
+    def test_set_content_tag_non_chat_message_values_do_not_raise(self, key, value, expected):
+        mock_context_manager = MockContextManager()
+        span = LangfuseSpan(mock_context_manager)
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag(key, value)
+            assert mock_context_manager._span.update.call_count == 1
+            field = "input" if key.endswith(".input") else "output"
+            assert mock_context_manager._span.update.call_args_list[0][1] == {field: expected}
+
+    def test_set_content_tag_messages_without_openai_format_do_not_raise(self):
+        # Tool results with images can't be converted with ChatMessage.to_openai_dict_format
+        mock_context_manager = MockContextManager()
+        span = LangfuseSpan(mock_context_manager)
+        image = ImageContent(base64_image=base64.b64encode(b"\x89PNG\r\n\x1a\n").decode(), mime_type="image/png")
+        tool_message = ChatMessage.from_tool(
+            tool_result=[TextContent("chart"), image], origin=ToolCall(tool_name="plot", arguments={}, id="call_1")
+        )
+        value = {"messages": [tool_message]}
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag("key.input", value)
+            assert mock_context_manager._span.update.call_count == 1
+            assert mock_context_manager._span.update.call_args_list[0][1] == {
+                "input": tracing_utils.coerce_tag_value(value)
+            }
 
 
 class TestSpanContext:
