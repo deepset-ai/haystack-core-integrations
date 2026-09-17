@@ -282,6 +282,10 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> FilterReturn:
     operator: str = condition["operator"]
     value: Any = condition["value"]
 
+    if operator not in COMPARISON_OPERATORS:
+        msg = f"Unknown comparison operator '{operator}'. Valid operators are: {list(COMPARISON_OPERATORS.keys())}"
+        raise FilterError(msg)
+
     return COMPARISON_OPERATORS[operator](field, value)
 
 
