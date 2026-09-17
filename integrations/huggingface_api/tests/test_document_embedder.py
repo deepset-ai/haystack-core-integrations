@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import os
 import random
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -52,12 +53,17 @@ class TestInitializationAndSerialization:
         assert embedder.suffix == ""
         assert embedder.truncate
         assert not embedder.normalize
+        assert not embedder.use_grpc
         assert embedder.batch_size == 32
         assert embedder.progress_bar
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
         assert embedder._client is None
         assert embedder._async_client is None
+        assert embedder._channel is None
+        assert embedder._async_channel is None
+        assert embedder._stub is None
+        assert embedder._async_stub is None
 
     def test_init_serverless_no_model(self):
         with pytest.raises(ValueError):
@@ -78,12 +84,17 @@ class TestInitializationAndSerialization:
         assert embedder.suffix == ""
         assert embedder.truncate
         assert not embedder.normalize
+        assert not embedder.use_grpc
         assert embedder.batch_size == 32
         assert embedder.progress_bar
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
         assert embedder._client is None
         assert embedder._async_client is None
+        assert embedder._channel is None
+        assert embedder._async_channel is None
+        assert embedder._stub is None
+        assert embedder._async_stub is None
 
     def test_init_tei_invalid_url(self):
         with pytest.raises(ValueError):
@@ -125,6 +136,7 @@ class TestInitializationAndSerialization:
                 "suffix": "suffix",
                 "truncate": False,
                 "normalize": True,
+                "use_grpc": False,
                 "batch_size": 128,
                 "progress_bar": False,
                 "meta_fields_to_embed": ["meta_field"],
@@ -161,6 +173,7 @@ class TestInitializationAndSerialization:
         assert embedder.suffix == "suffix"
         assert not embedder.truncate
         assert embedder.normalize
+        assert not embedder.use_grpc
         assert embedder.batch_size == 128
         assert not embedder.progress_bar
         assert embedder.meta_fields_to_embed == ["meta_field"]
@@ -187,6 +200,90 @@ class TestComponentLifecycle:
         )
         with pytest.raises(RepositoryNotFoundError):
             embedder.warm_up()
+
+    def test_grpc_sync_lifecycle(self):
+        module = "haystack_integrations.components.embedders.huggingface_api.document_embedder"
+        with (
+            patch(f"{module}.InferenceClient") as mock_http_client_cls,
+            patch(f"{module}.AsyncInferenceClient") as mock_async_http_client_cls,
+            patch(f"{module}.grpc.insecure_channel") as mock_channel_cls,
+            patch(f"{module}.grpc.aio.insecure_channel") as mock_async_channel_cls,
+            patch(f"{module}.tei_pb2_grpc.EmbedStub") as mock_stub_cls,
+        ):
+            embedder = HuggingFaceAPIDocumentEmbedder(
+                api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+                api_params={"url": "localhost:8081"},
+                use_grpc=True,
+            )
+            channel = mock_channel_cls.return_value
+            stub = mock_stub_cls.return_value
+
+            mock_channel_cls.assert_not_called()
+            mock_async_channel_cls.assert_not_called()
+            embedder.warm_up()
+            embedder.warm_up()
+
+            mock_channel_cls.assert_called_once_with("localhost:8081")
+            mock_async_channel_cls.assert_not_called()
+            mock_stub_cls.assert_called_once_with(channel)
+            mock_http_client_cls.assert_not_called()
+            mock_async_http_client_cls.assert_not_called()
+            assert embedder._channel is channel
+            assert embedder._stub is stub
+            assert embedder._async_channel is None
+            assert embedder._async_stub is None
+
+            embedder.close()
+            channel.close.assert_called_once_with()
+            assert embedder._channel is None
+            assert embedder._stub is None
+
+            embedder.warm_up()
+            assert mock_channel_cls.call_count == 2
+            assert mock_stub_cls.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_grpc_async_lifecycle(self):
+        module = "haystack_integrations.components.embedders.huggingface_api.document_embedder"
+        with (
+            patch(f"{module}.InferenceClient") as mock_http_client_cls,
+            patch(f"{module}.AsyncInferenceClient") as mock_async_http_client_cls,
+            patch(f"{module}.grpc.insecure_channel") as mock_channel_cls,
+            patch(f"{module}.grpc.aio.insecure_channel") as mock_async_channel_cls,
+            patch(f"{module}.tei_pb2_grpc.EmbedStub") as mock_stub_cls,
+        ):
+            channel = MagicMock(close=AsyncMock())
+            mock_async_channel_cls.return_value = channel
+            stub = mock_stub_cls.return_value
+            embedder = HuggingFaceAPIDocumentEmbedder(
+                api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+                api_params={"url": "localhost:8081"},
+                use_grpc=True,
+            )
+
+            mock_async_channel_cls.assert_not_called()
+            mock_channel_cls.assert_not_called()
+            await embedder.warm_up_async()
+            await embedder.warm_up_async()
+
+            mock_async_channel_cls.assert_called_once_with("localhost:8081")
+            mock_channel_cls.assert_not_called()
+            mock_stub_cls.assert_called_once_with(channel)
+            mock_http_client_cls.assert_not_called()
+            mock_async_http_client_cls.assert_not_called()
+            assert embedder._async_channel is channel
+            assert embedder._async_stub is stub
+            assert embedder._channel is None
+            assert embedder._stub is None
+
+            await embedder.close_async()
+            channel.close.assert_awaited_once_with()
+            assert embedder._async_channel is None
+            assert embedder._async_stub is None
+
+            await embedder.warm_up_async()
+            assert mock_async_channel_cls.call_count == 2
+            assert mock_stub_cls.call_count == 2
 
     @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.InferenceClient")
     def test_sync_lifecycle(self, mock_client_cls):
@@ -492,6 +589,38 @@ class TestRun:
             assert len(doc.embedding) == 384
             assert all(isinstance(x, float) for x in doc.embedding)
 
+    def test_embed_batch_grpc(self):
+        requests = []
+        stream_count = 0
+
+        def embed_stream(batch):
+            nonlocal stream_count
+            stream_count += 1
+            batch_requests = list(batch)
+            requests.extend(batch_requests)
+            return [MagicMock(embeddings=[0.1, 0.2]) for _ in batch_requests]
+
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "localhost:8081"},
+            use_grpc=True,
+            progress_bar=False,
+        )
+        try:
+            embedder.warm_up()
+            assert embedder._stub is not None
+            embedder._stub.EmbedStream = embed_stream
+            embeddings = embedder._embed_batch_grpc(["text 1", "text 2"])
+        finally:
+            embedder.close()
+
+        assert stream_count == 1
+        assert embeddings == [[0.1, 0.2], [0.1, 0.2]]
+        assert [(request.inputs, request.truncate, request.normalize) for request in requests] == [
+            ("text 1", True, False),
+            ("text 2", True, False),
+        ]
+
     def test_adjust_api_parameters(self):
         truncate, normalize = HuggingFaceAPIDocumentEmbedder._adjust_api_parameters(
             True, False, HFEmbeddingAPIType.SERVERLESS_INFERENCE_API
@@ -504,6 +633,43 @@ class TestRun:
         )
         assert truncate is True
         assert normalize is False
+
+    @pytest.mark.integration
+    def test_live_run_tei_grpc(self):
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "localhost:8081"},
+            use_grpc=True,
+            progress_bar=False,
+        )
+        try:
+            result = embedder.run([Document(content="This is a test document for embedding.")])
+        finally:
+            embedder.close()
+
+        documents = result["documents"]
+        assert len(documents) == 1
+        assert len(documents[0].embedding) == 384
+        assert all(isinstance(value, float) for value in documents[0].embedding)
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async_tei_grpc(self):
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "localhost:8081"},
+            use_grpc=True,
+            progress_bar=False,
+        )
+        try:
+            result = await embedder.run_async([Document(content="This is a test document for embedding.")])
+        finally:
+            await embedder.close_async()
+
+        documents = result["documents"]
+        assert len(documents) == 1
+        assert len(documents[0].embedding) == 384
+        assert all(isinstance(value, float) for value in documents[0].embedding)
 
 
 @pytest.mark.integration
@@ -562,6 +728,50 @@ class TestIntegration:
             assert isinstance(doc.embedding, list)
             assert len(doc.embedding) == 384
             assert all(isinstance(x, float) for x in doc.embedding)
+
+    @pytest.mark.asyncio
+    async def test_embed_batch_async_grpc(self):
+        streams: list[list[tuple[str, bool, bool]]] = []
+        all_streams_started = asyncio.Event()
+
+        def embed_stream(batch):
+            stream_requests: list[tuple[str, bool, bool]] = []
+            streams.append(stream_requests)
+            if len(streams) == 3:
+                all_streams_started.set()
+
+            async def responses():
+                await all_streams_started.wait()
+                async for request in batch:
+                    stream_requests.append((request.inputs, request.truncate, request.normalize))
+                    embedding_value = float(request.inputs.removeprefix("text "))
+                    yield MagicMock(embeddings=[embedding_value])
+
+            return responses()
+
+        embedder = HuggingFaceAPIDocumentEmbedder(
+            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
+            api_params={"url": "localhost:8081"},
+            use_grpc=True,
+            concurrency_limit=3,
+            progress_bar=False,
+        )
+        try:
+            await embedder.warm_up_async()
+            assert embedder._async_stub is not None
+            embedder._async_stub.EmbedStream = embed_stream
+            embeddings = await embedder._embed_batch_grpc_async(
+                ["text 1", "text 2", "text 3", "text 4", "text 5", "text 6", "text 7"]
+            )
+        finally:
+            await embedder.close_async()
+
+        assert embeddings == [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0]]
+        assert streams == [
+            [("text 1", True, False), ("text 2", True, False)],
+            [("text 3", True, False), ("text 4", True, False)],
+            [("text 5", True, False), ("text 6", True, False), ("text 7", True, False)],
+        ]
 
 
 class TestRunAsync:

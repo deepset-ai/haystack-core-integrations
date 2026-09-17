@@ -9,6 +9,28 @@ services:
     volumes:
       - tei-data:/data
     restart: no
+  tei-grpc:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3-grpc
+    command: ["--model-id", "sentence-transformers/all-MiniLM-L6-v2"]
+    ports:
+      - "8081:80"
+    environment:
+      - HF_TOKEN
+    volumes:
+      - tei-grpc-data:/data
+    restart: no
+  tei-sparse-grpc:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3-grpc
+    command: ["--model-id", "opensearch-project/opensearch-neural-sparse-encoding-doc-v2-mini", "--pooling", "splade"]
+    ports:
+      - "8082:80"
+    environment:
+      - HF_TOKEN
+    volumes:
+      - tei-sparse-grpc-data:/data
+    restart: no
 
 volumes:
   tei-data:
+  tei-grpc-data:
+  tei-sparse-grpc-data:
