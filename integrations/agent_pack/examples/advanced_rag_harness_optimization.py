@@ -39,7 +39,7 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
 from haystack.tools import ComponentTool, flatten_tools_or_toolsets
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
-from util import build_bm25_retriever
+from util import build_bm25_retriever, quiet_hub_warnings
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent, prompts
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
@@ -414,6 +414,7 @@ def enable_progress_reporting() -> None:
     progress and phases arrive on the same stream in order.
     """
     sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
+    quiet_hub_warnings()
     handler = logging.StreamHandler(stream=sys.stdout)
     handler.setFormatter(logging.Formatter("  %(message)s"))
     progress = logging.getLogger("haystack_integrations.agent_pack")

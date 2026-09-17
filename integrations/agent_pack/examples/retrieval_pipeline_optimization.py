@@ -22,6 +22,7 @@
 import argparse
 import logging
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -32,9 +33,10 @@ from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
-from util import build_bm25_retriever
+from util import build_bm25_retriever, quiet_hub_warnings
 
 from haystack_integrations.agent_pack.optimization import (
+    CandidateProgress,
     ExperimentJournal,
     ExperimentResult,
     HarnessOptimizationExperiment,
@@ -44,7 +46,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
-from haystack_integrations.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
+from haystack_integrations.evaluation import EvalMetrics, RetrievalEvalCase, RetrievalHarnessEvaluator
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
 EXPANDER_MODEL = "gpt-5.6-luna"
@@ -240,52 +242,249 @@ def _stages(details: dict) -> str:
         for component, sockets in stages.items()
         for socket, sizes in sockets.items()
     ]
-    return " -> ".join(entries) if entries else "not recorded"
+    return " → ".join(entries) if entries else "not recorded"
+
+
+# Colour is worth having on a terminal and only noise in a redirected log.
+_STYLE = {
+    "bold": "\033[1m",
+    "dim": "\033[2m",
+    "green": "\033[32m",
+    "red": "\033[31m",
+    "cyan": "\033[36m",
+    "off": "\033[0m",
+}
+
+
+def _paint(text: str, *names: str) -> str:
+    """
+    Apply terminal styles, or none when stdout is redirected.
+
+    :param text: The text to style.
+    :param names: Style names to apply.
+    :returns: The text, wrapped in escape codes only when a terminal is reading them.
+    """
+    if not sys.stdout.isatty():
+        return text
+    return "".join(_STYLE[name] for name in names) + text + _STYLE["off"]
+
+
+def _rule(label: str) -> str:
+    """
+    Draw a labelled separator the width of the terminal.
+
+    :param label: What the section below the rule is.
+    :returns: The rule, padded to the terminal width.
+    """
+    width = min(shutil.get_terminal_size(fallback=(100, 24)).columns, 110)
+    return _paint(f"── {label} " + "─" * max(width - len(label) - 6, 4), "dim")
+
+
+def _delta(current: float, baseline: float, *, digits: int = 2, prefix: str = "", more_is_better: bool = True) -> str:
+    """
+    Render a change against the baseline, coloured by whether it is an improvement.
+
+    :param current: The candidate's value.
+    :param baseline: The reference's value.
+    :param digits: Decimal places to show.
+    :param prefix: Unit to put in front of the number, such as a currency symbol.
+    :param more_is_better: Whether a rise is the good direction, which it is for quality and is not for spend.
+    :returns: A signed change, or an empty string when nothing moved.
+    """
+    change = current - baseline
+    if abs(change) < 10**-digits / 2:
+        return ""
+    rendered = f"{prefix}{abs(change):.{digits}f}"
+    improved = change > 0 if more_is_better else change < 0
+    return _paint(f"  ({'+' if change > 0 else '-'}{rendered})", "green" if improved else "red")
+
+
+# Serialized Haystack keys are lower snake case. Prose headings inside a rewritten prompt are not, which is
+# what tells the two apart in a hunk that does not show the block scalar those headings sit under.
+_SETTING = re.compile(r"^[+-]\s*([a-z_][a-z0-9_.]*):\s*(.*)$")
+
+
+def _summarize(value: str, limit: int = 28) -> str:
+    """
+    Reduce one YAML value to something that fits on a shared line.
+
+    :param value: The value as it appears in the diff.
+    :param limit: How many characters to keep.
+    :returns: The value, or a word standing in for one too long to show.
+    """
+    collapsed = " ".join(value.split())
+    # A block scalar marker names no value; what follows it is the rewritten text itself.
+    if not collapsed or collapsed.startswith("|") or collapsed.startswith(">"):
+        return ""
+    # A dotted class path is only worth its last segment on a shared line.
+    if "." in collapsed and " " not in collapsed:
+        collapsed = collapsed.rsplit(".", 1)[-1]
+    return collapsed if len(collapsed) <= limit else "rewritten"
+
+
+def _changes(diff: str, limit: int = 5) -> str:
+    """
+    Reduce a unified diff to the settings it actually changed.
+
+    A candidate's diff is mostly re-indented YAML and rewritten prompts. What a reader wants from it is which
+    knobs moved, so keys are paired across the removed and added sides, prose inside a rewritten prompt is
+    skipped, and anything past the limit is counted.
+
+    :param diff: The unified diff between this candidate and its parent.
+    :param limit: How many changed settings to name before counting the rest.
+    :returns: One line naming the changes, or a note when the diff holds none of this shape.
+    """
+    removed: dict[str, str] = {}
+    added: dict[str, str] = {}
+    order: list[str] = []
+    skipped_prose = False
+    # A key with no value of its own opens a subtree, and a block scalar opens prose. Both read as a wall of
+    # settings when what changed is one component or one prompt, so everything indented under them is skipped.
+    skip_below: dict[str, int | None] = {"+": None, "-": None}
+    for line in diff.splitlines():
+        if line.startswith(("+++", "---", "@@")) or line[:1] not in {"+", "-"}:
+            # A prompt is usually edited in place, so its own key stays as context and only the prose moves.
+            # That context line is the only thing saying the lines under it are prose rather than settings.
+            opener = _SETTING.match(f"+{line[1:]}") if line[:1] == " " else None
+            depth = len(line[1:]) - len(line[1:].lstrip())
+            carries_text = opener is not None and not _summarize(value=opener.group(2))
+            skip_below = {"+": depth, "-": depth} if carries_text else {"+": None, "-": None}
+            continue
+        side, body = line[0], line[1:]
+        indent = len(body) - len(body.lstrip())
+        opened = skip_below[side]
+        if opened is not None and (not body.strip() or indent > opened):
+            skipped_prose = skipped_prose or bool(body.strip())
+            continue
+        skip_below[side] = None
+        match = _SETTING.match(line)
+        if match is None:
+            continue
+        key, raw = match.group(1), match.group(2)
+        value = _summarize(value=raw)
+        if not value or raw.strip().startswith(("|", ">")):
+            skip_below[side] = indent
+        if key not in order:
+            order.append(key)
+        (added if side == "+" else removed)[key] = value
+
+    entries = []
+    for key in order:
+        was, now = removed.get(key), added.get(key)
+        if was is not None and now is not None:
+            entries.append(f"{key} {was} → {now}" if was and now else f"{key} rewritten")
+        elif now is not None:
+            entries.append(_paint(f"+ {key}", "green") + (f" {now}" if now else ""))
+        else:
+            entries.append(_paint(f"- {key}", "red"))
+    if skipped_prose:
+        entries.append(_paint("prompt text", "dim"))
+    if not entries:
+        return _paint("whitespace and formatting only", "dim")
+    shown = "  ·  ".join(entries[:limit])
+    return shown if len(entries) <= limit else f"{shown}  ·  {_paint(f'+{len(entries) - limit} more', 'dim')}"
+
+
+def _measurements(metrics: EvalMetrics, baseline: EvalMetrics | None = None) -> list[str]:
+    """
+    Render one measurement as aligned lines, against the baseline when there is one.
+
+    :param metrics: The measurement to render.
+    :param baseline: The reference measurement, or None for the reference itself.
+    :returns: The lines to print, already labelled.
+    """
+    details = metrics.details
+    reference = baseline.details if baseline is not None else None
+    quality = f"{metrics.quality:.2f}" + (_delta(metrics.quality, baseline.quality) if baseline else "")
+    recall = f"{details['mean_recall_at_k']:.2f}" + (
+        _delta(details["mean_recall_at_k"], reference["mean_recall_at_k"]) if reference else ""
+    )
+    cost = format_cost(cost=metrics.cost)
+    if baseline is not None and metrics.cost is not None and baseline.cost is not None:
+        cost += _delta(metrics.cost, baseline.cost, digits=4, prefix="$", more_is_better=False)
+    latency = f"{metrics.latency_ms:.0f}ms" + (
+        _delta(metrics.latency_ms, baseline.latency_ms, digits=0, more_is_better=False) if baseline else ""
+    )
+    scores = (
+        f"    {_paint('quality ', 'bold')} {quality}   recall@k {recall}   "
+        f"precision@k {details['mean_precision_at_k']:.2f}   returned {details['mean_retrieved']:.1f}"
+    )
+    return [
+        scores,
+        f"    {_paint('spend   ', 'bold')} {cost}   latency {latency}",
+        f"    {_paint('stages  ', 'bold')} {_stages(details=details)}",
+    ]
+
+
+def print_baseline(metrics: EvalMetrics) -> None:
+    """
+    Print the reference measurement every candidate is ranked against.
+
+    :param metrics: The priced reference measurement.
+    """
+    print()
+    print(_rule("baseline · the reference pipeline"))
+    for line in _measurements(metrics=metrics):
+        print(line)
+
+
+def print_candidate(progress: CandidateProgress) -> None:
+    """
+    Print one candidate as the search measures it, so a long run can be watched.
+
+    :param progress: The measured candidate, its gates, and whether it now leads.
+    """
+    evaluation = progress.evaluation
+    print()
+    print(_rule(f"candidate {progress.position}/{progress.total} · {evaluation.candidate_id}"))
+    if evaluation.configuration is not None:
+        print(f"    {_paint('why     ', 'bold')} {evaluation.configuration.rationale}")
+        print(f"    {_paint('changed ', 'bold')} {_changes(diff=evaluation.configuration.diff)}")
+    if evaluation.metrics is None:
+        print(f"    {_paint('verdict ', 'bold')} {_paint('did not run: ' + str(evaluation.failure), 'red')}")
+        return
+    for line in _measurements(metrics=evaluation.metrics, baseline=progress.baseline):
+        print(line)
+    verdict = (
+        _paint("cleared every gate", "green")
+        if not progress.gate_failures
+        else _paint("gated: " + ", ".join(progress.gate_failures), "red")
+    )
+    if progress.is_best:
+        verdict += _paint("  ← best so far", "cyan", "bold")
+    print(f"    {_paint('verdict ', 'bold')} {verdict}")
 
 
 def report(result: ExperimentResult) -> None:
-    """Print baseline, candidate, gate, and recommendation details."""
-    baseline = result.baseline
-    print("\n--- baseline (reference pipeline) ---")
-    print(
-        f"  quality={baseline.quality:.2f} cost={format_cost(cost=baseline.cost)} "
-        f"latency={baseline.latency_ms:.0f}ms recall@k={baseline.details['mean_recall_at_k']:.2f} "
-        f"retrieved={baseline.details['mean_retrieved']:.1f}"
-    )
-    print(f"  stages: {_stages(details=baseline.details)}")
-
-    print("\n--- candidates ---")
-    for candidate in result.candidates:
-        gates = result.gate_failures.get(candidate.candidate_id, ())
-        if candidate.metrics is None:
-            print(f"  {candidate.candidate_id} -> failed: {candidate.failure}")
-            continue
-        details = candidate.metrics.details
-        print(
-            f"  {candidate.candidate_id} -> quality={candidate.metrics.quality:.2f} "
-            f"cost={format_cost(cost=candidate.metrics.cost)} recall@k={details['mean_recall_at_k']:.2f} "
-            f"retrieved={details['mean_retrieved']:.1f}"
-        )
-        print(f"    stages: {_stages(details=details)}")
-        print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
-
-    print("\n--- what the search itself cost ---")
+    """Print what the search cost and what it recommends, the candidates having printed as they were measured."""
+    print()
+    print(_rule("what the search itself cost"))
     usage = ", ".join(
         f"{model}: {tokens.input_tokens} in / {tokens.output_tokens} out"
         for model, tokens in result.optimizer_usage.items()
     )
-    print(f"  optimizer usage: {usage or 'none recorded'}")
-    print(f"  optimizer cost:  {format_cost(cost=result.optimizer_cost)} (input tokens charged at full price)")
+    print(f"    {_paint('optimizer', 'bold')} {usage or 'none recorded'}")
+    print(f"    {_paint('priced at', 'bold')} {format_cost(cost=result.optimizer_cost)} (input charged at full price)")
 
-    print("\n--- recommendation ---")
+    print()
+    print(_rule("recommendation"))
     if result.recommendation is None:
-        print("  none: no candidate cleared every gate and improved on the reference")
+        print(f"    {_paint('none', 'red')}: no candidate cleared every gate and improved on the reference")
         return
     recommendation = result.recommendation
-    print(f"  configuration: {result.artifact_directory / 'recommended.yaml'}")
-    print(f"  rationale: {recommendation.configuration.rationale}")
-    print(f"  reasons: {', '.join(recommendation.reasons)}")
-    print("  Nothing was deployed. Approving this recommendation is a separate, human decision.")
+    measured = recommendation.evaluation.metrics
+    if measured is not None:
+        print(
+            f"    {_paint('candidate', 'bold')} {recommendation.evaluation.candidate_id}   "
+            f"quality {measured.quality:.2f}{_delta(measured.quality, result.baseline.quality)}   "
+            f"cost {format_cost(cost=measured.cost)}"
+        )
+    print(f"    {_paint('why      ', 'bold')} {recommendation.configuration.rationale}")
+    print(f"    {_paint('reasons  ', 'bold')} {', '.join(recommendation.reasons)}")
+    print(f"    {_paint('config   ', 'bold')} {result.artifact_directory / 'recommended.yaml'}")
+    print(
+        f"\n    {_paint('Nothing was deployed. Approving this recommendation is a separate, human decision.', 'dim')}"
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -336,16 +535,36 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+class _Narrate(logging.Filter):
+    """Drop what this script now prints itself, and shorten what it keeps to what a reader is watching for."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # The candidate block prints all of this, together with the change and rationale that produced it.
+        if hasattr(record, "candidate_id") and hasattr(record, "gates"):
+            return False
+        # The search cost is reported once at the end.
+        if hasattr(record, "turns") and hasattr(record, "cost"):
+            return False
+        if hasattr(record, "steps") and hasattr(record, "calls"):
+            record.msg = _paint(f"optimizer · {record.steps} steps · {' → '.join(record.calls)}", "dim")
+        return True
+
+
 def enable_progress_reporting() -> None:
     """Route library progress to stdout, line buffered, so a redirected run reports as it goes."""
     sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
+    quiet_hub_warnings()
     handler = logging.StreamHandler(stream=sys.stdout)
-    handler.setFormatter(logging.Formatter("  %(message)s"))
+    handler.setFormatter(logging.Formatter("    %(message)s"))
+    handler.addFilter(_Narrate())
     progress = logging.getLogger("haystack_integrations.agent_pack")
     progress.handlers.clear()
     progress.addHandler(handler)
     progress.setLevel(logging.INFO)
     progress.propagate = False
+    # An edit the optimizer repairs within its turn is normal, and Haystack logs the whole rejected call with it.
+    # The repair is visible in the turn's step count, so the dump only buries the measurements.
+    logging.getLogger("haystack.components.agents.tool_calling").setLevel(logging.CRITICAL)
 
 
 def main() -> None:
@@ -401,14 +620,17 @@ def main() -> None:
         ),
         max_iterations=arguments.max_iterations,
         config_path=arguments.config,
+        on_baseline=print_baseline,
+        on_candidate=print_candidate,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()
-    print(f"  measurement context: {result.measurement_context}; run: {result.run_id}")
 
     print("\n=== 3. outcome ===")
     report(result=result)
-    print(f"\nJournal: {experiment.journal.path_for(result.run_id)}")
+    print()
+    print(_paint(f"    journal  {experiment.journal.path_for(result.run_id)}", "dim"))
+    print(_paint(f"    context  {result.measurement_context} · {result.run_id}", "dim"))
 
 
 if __name__ == "__main__":
