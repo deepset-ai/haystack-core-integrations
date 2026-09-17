@@ -192,10 +192,6 @@ class HuggingFaceAPIDocumentEmbedder:
 
         if use_grpc:
             grpc_import.check()
-            self._channel = grpc.insecure_channel(model_or_url)
-            self._stub = tei_pb2_grpc.EmbedStub(self._channel)
-            self._async_channel = grpc.aio.insecure_channel(model_or_url)
-            self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
 
         self.api_type = api_type
         self.api_params = api_params
@@ -213,36 +209,60 @@ class HuggingFaceAPIDocumentEmbedder:
         self._model_or_url = model_or_url
         self._client: InferenceClient | None = None
         self._async_client: AsyncInferenceClient | None = None
+        self._channel: grpc.Channel | None = None
+        self._async_channel: grpc.aio.Channel | None = None
+        self._stub: tei_pb2_grpc.EmbedStub | None = None
+        self._async_stub: tei_pb2_grpc.EmbedAsyncStub | None = None
 
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Hugging Face clients."""
         return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
 
     def warm_up(self) -> None:
-        """Create the synchronous Hugging Face client."""
+        """Create the synchronous Hugging Face client or gRPC channel."""
+        if self.use_grpc:
+            if self._channel is None:
+                self._channel = grpc.insecure_channel(self._model_or_url)
+                self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            return
+
         if self._client is None:
             if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
                 _check_valid_model(self._model_or_url, HFModelType.EMBEDDING, self.token)
             self._client = InferenceClient(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous Hugging Face client."""
+        """Create the asynchronous Hugging Face client or gRPC channel."""
+        if self.use_grpc:
+            if self._async_channel is None:
+                self._async_channel = grpc.aio.insecure_channel(self._model_or_url)
+                self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
+            return
+
         if self._async_client is None:
             if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
                 await _check_valid_model_async(self._model_or_url, HFModelType.EMBEDDING, self.token)
             self._async_client = AsyncInferenceClient(**self._client_kwargs())
 
     def close(self) -> None:
-        """Close the synchronous Hugging Face client."""
+        """Close synchronous HTTP and gRPC resources."""
         if self._client is not None:
             self._client.close()
             self._client = None
+        if self._channel is not None:
+            self._channel.close()
+            self._channel = None
+            self._stub = None
 
     async def close_async(self) -> None:
-        """Close the asynchronous Hugging Face client."""
+        """Close asynchronous HTTP and gRPC resources."""
         if self._async_client is not None:
             await self._async_client.close()
             self._async_client = None
+        if self._async_channel is not None:
+            await self._async_channel.close()
+            self._async_channel = None
+            self._async_stub = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -320,6 +340,7 @@ class HuggingFaceAPIDocumentEmbedder:
         if not texts_to_embed:
             return []
 
+        assert self._stub is not None  # noqa: S101
         responses = self._stub.EmbedStream(
             tei_pb2.EmbedRequest(inputs=text, truncate=self.truncate, normalize=self.normalize)
             for text in texts_to_embed
@@ -385,6 +406,7 @@ class HuggingFaceAPIDocumentEmbedder:
                 for text in texts:
                     yield tei_pb2.EmbedRequest(inputs=text, truncate=self.truncate, normalize=self.normalize)
 
+            assert self._async_stub is not None  # noqa: S101
             responses = self._async_stub.EmbedStream(_requests())
             embeddings = [list(response.embeddings) async for response in responses]
             if len(embeddings) != len(texts):
@@ -458,7 +480,6 @@ class HuggingFaceAPIDocumentEmbedder:
             - `documents`: A list of documents with embeddings.
         """
         self.warm_up()
-        assert self._client is not None  # noqa: S101
 
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
@@ -497,7 +518,6 @@ class HuggingFaceAPIDocumentEmbedder:
             - `documents`: A list of documents with embeddings.
         """
         await self.warm_up_async()
-        assert self._async_client is not None  # noqa: S101
 
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (

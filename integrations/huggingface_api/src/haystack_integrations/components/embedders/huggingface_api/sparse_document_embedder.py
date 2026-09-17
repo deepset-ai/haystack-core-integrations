@@ -30,6 +30,10 @@ class HuggingFaceAPISparseDocumentEmbedder:
     Embeds Documents into sparse vectors using a Hugging Face Text Embeddings Inference (TEI) server.
 
     The component batches requests and returns copies of the input Documents with `sparse_embedding` set.
+    HTTP clients and gRPC channels are created lazily by `warm_up()` or `run()` and reused until `close()` is called.
+    Async resources are owned independently and managed with `warm_up_async()` and `close_async()`.
+
+    ### Usage example
 
     ```python
     from haystack import Document
@@ -61,7 +65,9 @@ class HuggingFaceAPISparseDocumentEmbedder:
         Create a sparse Document embedder backed by TEI.
 
         :param api_base_url: Base URL of the TEI server.
-        :param token: Token sent to TEI as HTTP bearer authorization, if set.
+        :param token: Token sent to TEI as HTTP bearer authorization, if set. The token is resolved when an HTTP
+            client is first created by `warm_up()` or `warm_up_async()`, not during initialization.
+            Close and warm up the embedder again to pick up a changed token.
         :param prefix: A string to add before each prepared Document text.
         :param suffix: A string to add after each prepared Document text.
         :param batch_size: Number of Documents sent in each HTTP request. This parameter is ignored when using gRPC.
@@ -87,10 +93,6 @@ class HuggingFaceAPISparseDocumentEmbedder:
 
         if use_grpc:
             grpc_import.check()
-            self._channel = grpc.insecure_channel(api_base_url)
-            self._stub = tei_pb2_grpc.EmbedStub(self._channel)
-            self._async_channel = grpc.aio.insecure_channel(api_base_url)
-            self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
 
         self.api_base_url = api_base_url
         self.token = token
@@ -104,6 +106,54 @@ class HuggingFaceAPISparseDocumentEmbedder:
         self.headers = headers or {}
         self.concurrency_limit = concurrency_limit
         self.use_grpc = use_grpc
+        self._client: httpx.Client | None = None
+        self._async_client: httpx.AsyncClient | None = None
+        self._channel: grpc.Channel | None = None
+        self._async_channel: grpc.aio.Channel | None = None
+        self._stub: tei_pb2_grpc.EmbedStub | None = None
+        self._async_stub: tei_pb2_grpc.EmbedAsyncStub | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous HTTP client or gRPC channel if it has not been created yet."""
+        if self.use_grpc:
+            if self._channel is None:
+                self._channel = grpc.insecure_channel(self.api_base_url)
+                self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            return
+
+        if self._client is None:
+            self._client = httpx.Client(**self._client_kwargs())
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous HTTP client or gRPC channel if it has not been created yet."""
+        if self.use_grpc:
+            if self._async_channel is None:
+                self._async_channel = grpc.aio.insecure_channel(self.api_base_url)
+                self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
+            return
+
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(**self._client_kwargs())
+
+    def close(self) -> None:
+        """Close and reset synchronous HTTP and gRPC resources."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+        if self._channel is not None:
+            self._channel.close()
+            self._channel = None
+            self._stub = None
+
+    async def close_async(self) -> None:
+        """Close and reset asynchronous HTTP and gRPC resources."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
+        if self._async_channel is not None:
+            await self._async_channel.close()
+            self._async_channel = None
+            self._async_stub = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -149,6 +199,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
         if not texts:
             return []
 
+        assert self._stub is not None  # noqa: S101
         responses = self._stub.EmbedSparseStream(tei_pb2.EmbedSparseRequest(inputs=text) for text in texts)
         embeddings = [
             SparseEmbedding(
@@ -184,6 +235,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
                 for text in stream_texts:
                     yield tei_pb2.EmbedSparseRequest(inputs=text)
 
+            assert self._async_stub is not None  # noqa: S101
             responses = self._async_stub.EmbedSparseStream(requests())
             embeddings = [
                 SparseEmbedding(
@@ -203,24 +255,26 @@ class HuggingFaceAPISparseDocumentEmbedder:
         finally:
             progress.close()
 
-    def _embed_batches(self, client: httpx.Client, texts: list[str]) -> list[SparseEmbedding]:
+    def _embed_batches(self, texts: list[str]) -> list[SparseEmbedding]:
+        assert self._client is not None  # noqa: S101
         embeddings = []
         for start in tqdm(
             range(0, len(texts), self.batch_size),
             disable=not self.progress_bar,
             desc="Calculating sparse embeddings",
         ):
-            embeddings.extend(_embed_sparse(client=client, inputs=texts[start : start + self.batch_size]))
+            embeddings.extend(_embed_sparse(client=self._client, inputs=texts[start : start + self.batch_size]))
         return embeddings
 
-    async def _embed_batches_async(self, client: httpx.AsyncClient, texts: list[str]) -> list[SparseEmbedding]:
+    async def _embed_batches_async(self, texts: list[str]) -> list[SparseEmbedding]:
+        assert self._async_client is not None  # noqa: S101
         semaphore = Semaphore(self.concurrency_limit)
         batches = [texts[start : start + self.batch_size] for start in range(0, len(texts), self.batch_size)]
         progress = tqdm(total=len(batches), disable=not self.progress_bar, desc="Calculating sparse embeddings")
 
         async def embed_batch(batch: list[str]) -> list[SparseEmbedding]:
             async with semaphore:
-                result = await _embed_sparse_async(client=client, inputs=batch)
+                result = await _embed_sparse_async(client=self._async_client, inputs=batch)
                 progress.update(1)
                 return result
 
@@ -246,13 +300,13 @@ class HuggingFaceAPISparseDocumentEmbedder:
         :param documents: Documents to embed.
         :returns: Copies of the Documents with sparse embeddings.
         """
+        self.warm_up()
         self._validate_documents(documents)
         texts = self._prepare_texts_to_embed(documents)
         if self.use_grpc:
             embeddings = self._embed_batch_grpc(texts)
         else:
-            with httpx.Client(**self._client_kwargs()) as client:
-                embeddings = self._embed_batches(client, texts)
+            embeddings = self._embed_batches(texts)
         return {
             "documents": [
                 replace(document, sparse_embedding=embedding)
@@ -268,13 +322,13 @@ class HuggingFaceAPISparseDocumentEmbedder:
         :param documents: Documents to embed.
         :returns: Copies of the Documents with sparse embeddings.
         """
+        await self.warm_up_async()
         self._validate_documents(documents)
         texts = self._prepare_texts_to_embed(documents)
         if self.use_grpc:
             embeddings = await self._embed_batch_grpc_async(texts)
         else:
-            async with httpx.AsyncClient(**self._client_kwargs()) as client:
-                embeddings = await self._embed_batches_async(client, texts)
+            embeddings = await self._embed_batches_async(texts)
         return {
             "documents": [
                 replace(document, sparse_embedding=embedding)

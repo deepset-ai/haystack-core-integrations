@@ -25,6 +25,10 @@ class HuggingFaceAPISparseTextEmbedder:
     Embeds text into a sparse vector using a Hugging Face Text Embeddings Inference (TEI) server.
 
     The TEI server must be running a sparse embedding model and expose the `/embed_sparse` endpoint.
+    HTTP clients and gRPC channels are created lazily by `warm_up()`/`warm_up_async()` or the corresponding run
+    method, then reused until `close()`/`close_async()` is called. HTTP tokens are resolved when the client is created.
+
+    ### Usage example
 
     ```python
     from haystack_integrations.components.embedders.huggingface_api import HuggingFaceAPISparseTextEmbedder
@@ -50,7 +54,8 @@ class HuggingFaceAPISparseTextEmbedder:
         Create a sparse text embedder backed by TEI.
 
         :param api_base_url: Base URL of the TEI server.
-        :param token: Token sent to TEI as HTTP bearer authorization, if set.
+        :param token: Token sent to TEI as HTTP bearer authorization, if set. The token is resolved when the HTTP
+            client is created during warm-up. Close and warm up the embedder again to pick up a changed token.
         :param prefix: A string to add before the text.
         :param suffix: A string to add after the text.
         :param timeout: HTTP request timeout in seconds. Set to `None` to disable it.
@@ -65,10 +70,6 @@ class HuggingFaceAPISparseTextEmbedder:
 
         if use_grpc:
             grpc_import.check()
-            self._channel = grpc.insecure_channel(api_base_url)
-            self._stub = tei_pb2_grpc.EmbedStub(self._channel)
-            self._async_channel = grpc.aio.insecure_channel(api_base_url)
-            self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
 
         self.api_base_url = api_base_url
         self.token = token
@@ -77,6 +78,12 @@ class HuggingFaceAPISparseTextEmbedder:
         self.timeout = timeout
         self.headers = headers or {}
         self.use_grpc = use_grpc
+        self._client: httpx.Client | None = None
+        self._async_client: httpx.AsyncClient | None = None
+        self._channel: grpc.Channel | None = None
+        self._async_channel: grpc.aio.Channel | None = None
+        self._stub: tei_pb2_grpc.EmbedStub | None = None
+        self._async_stub: tei_pb2_grpc.EmbedAsyncStub | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -101,6 +108,62 @@ class HuggingFaceAPISparseTextEmbedder:
             api_base_url=self.api_base_url, timeout=self.timeout, headers=self.headers, token=self.token
         )
 
+    def warm_up(self) -> None:
+        """
+        Create the synchronous HTTP client or gRPC channel if it has not been created yet.
+
+        The token is resolved when creating an HTTP client. An existing resource is reused.
+
+        :raises ValueError:
+            If the configured token cannot be resolved.
+        """
+        if self.use_grpc:
+            if self._channel is None:
+                self._channel = grpc.insecure_channel(self.api_base_url)
+                self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            return
+
+        if self._client is None:
+            self._client = httpx.Client(**self._client_kwargs())
+
+    async def warm_up_async(self) -> None:
+        """
+        Create the asynchronous HTTP client or gRPC channel if it has not been created yet.
+
+        The token is resolved when creating an HTTP client. An existing resource is reused.
+
+        :raises ValueError:
+            If the configured token cannot be resolved.
+        """
+        if self.use_grpc:
+            if self._async_channel is None:
+                self._async_channel = grpc.aio.insecure_channel(self.api_base_url)
+                self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
+            return
+
+        if self._async_client is None:
+            self._async_client = httpx.AsyncClient(**self._client_kwargs())
+
+    def close(self) -> None:
+        """Close and reset synchronous HTTP and gRPC resources."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+        if self._channel is not None:
+            self._channel.close()
+            self._channel = None
+            self._stub = None
+
+    async def close_async(self) -> None:
+        """Close and reset asynchronous HTTP and gRPC resources."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
+        if self._async_channel is not None:
+            await self._async_channel.close()
+            self._async_channel = None
+            self._async_stub = None
+
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):
             msg = (
@@ -118,8 +181,10 @@ class HuggingFaceAPISparseTextEmbedder:
         :param text: Text to embed.
         :returns: The sparse embedding of the input text.
         """
+        self.warm_up()
         text_to_embed = self._prepare_input(text)
         if self.use_grpc:
+            assert self._stub is not None  # noqa: S101
             response = self._stub.EmbedSparse(tei_pb2.EmbedSparseRequest(inputs=text_to_embed))
             return {
                 "sparse_embedding": SparseEmbedding(
@@ -128,8 +193,8 @@ class HuggingFaceAPISparseTextEmbedder:
                 )
             }
 
-        with httpx.Client(**self._client_kwargs()) as client:
-            embeddings = _embed_sparse(client=client, inputs=text_to_embed)
+        assert self._client is not None  # noqa: S101
+        embeddings = _embed_sparse(client=self._client, inputs=text_to_embed)
         return {"sparse_embedding": embeddings[0]}
 
     @component.output_types(sparse_embedding=SparseEmbedding)
@@ -140,8 +205,10 @@ class HuggingFaceAPISparseTextEmbedder:
         :param text: Text to embed.
         :returns: The sparse embedding of the input text.
         """
+        await self.warm_up_async()
         text_to_embed = self._prepare_input(text)
         if self.use_grpc:
+            assert self._async_stub is not None  # noqa: S101
             response = await self._async_stub.EmbedSparse(tei_pb2.EmbedSparseRequest(inputs=text_to_embed))
             return {
                 "sparse_embedding": SparseEmbedding(
@@ -150,6 +217,6 @@ class HuggingFaceAPISparseTextEmbedder:
                 )
             }
 
-        async with httpx.AsyncClient(**self._client_kwargs()) as client:
-            embeddings = await _embed_sparse_async(client=client, inputs=text_to_embed)
+        assert self._async_client is not None  # noqa: S101
+        embeddings = await _embed_sparse_async(client=self._async_client, inputs=text_to_embed)
         return {"sparse_embedding": embeddings[0]}
