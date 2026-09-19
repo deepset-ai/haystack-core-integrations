@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Literal
+from uuid import uuid4
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
@@ -187,25 +188,6 @@ class OpenDataLoaderConverter:
             raise RuntimeError(message)
         return output_file.read_text(encoding="utf-8")
 
-    @staticmethod
-    def _file_state(directory: Path) -> dict[Path, tuple[int, int, int]]:
-        """
-        Capture the state of files in an image output directory.
-
-        The state is used to distinguish files extracted by the current conversion from unrelated files already in
-        the user-provided directory.
-
-        :param directory: Directory whose files should be captured recursively.
-        :returns:
-            Mapping of file paths to their size, modification time, and change time.
-        """
-        state: dict[Path, tuple[int, int, int]] = {}
-        for path in directory.rglob("*"):
-            if path.is_file():
-                stat = path.stat()
-                state[path] = (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
-        return state
-
     @component.output_types(documents=list[Document], image_documents=list[Document])
     def run(
         self,
@@ -230,9 +212,11 @@ class OpenDataLoaderConverter:
 
         documents: list[Document] = []
         image_documents: list[Document] = []
+        image_dir: Path | None = None
         if self.image_output_dir is not None:
             self.image_output_dir.mkdir(parents=True, exist_ok=True)
-            image_files_before = self._file_state(self.image_output_dir)
+            image_dir = self.image_output_dir / uuid4().hex
+            image_dir.mkdir()
 
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -243,8 +227,8 @@ class OpenDataLoaderConverter:
             prepared_sources = self._prepare_sources(sources=sources, metadata=metadata, input_dir=input_dir)
 
             conversion_kwargs = {"image_output": "off", **self.convert_kwargs}
-            if self.image_output_dir is not None:
-                conversion_kwargs.update(image_output="external", image_dir=str(self.image_output_dir))
+            if image_dir is not None:
+                conversion_kwargs.update(image_output="external", image_dir=str(image_dir))
 
             opendataloader_pdf.convert(
                 input_path=[str(pdf_path) for pdf_path, _ in prepared_sources],
@@ -256,12 +240,9 @@ class OpenDataLoaderConverter:
                 content = self._read_output(output_dir=output_dir, pdf_path=pdf_path)
                 documents.append(Document(content=content, meta={**document_meta, "output_format": self.output_format}))
 
-        if self.image_output_dir is not None:
-            image_files_after = self._file_state(self.image_output_dir)
+        if image_dir is not None:
             image_documents = [
-                Document(meta={"file_path": str(path)})
-                for path, state in image_files_after.items()
-                if image_files_before.get(path) != state
+                Document(meta={"file_path": str(path)}) for path in image_dir.rglob("*") if path.is_file()
             ]
 
         return {"documents": documents, "image_documents": image_documents}

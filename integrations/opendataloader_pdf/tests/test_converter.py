@@ -1,5 +1,7 @@
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 from haystack.dataclasses import ByteStream
@@ -186,15 +188,70 @@ def test_converter_extracts_images_to_persistent_directory(tmp_path, _mock_opend
     result = converter.run(sources=[pdf_file])
 
     call = _mock_opendataloader[0]
-    expected_image_path = image_output_dir / "document_0_image_1.png"
+    staged_pdf_stem = Path(call["input_path"][0]).stem
+    call_image_dir = Path(call["image_dir"])
+    expected_image_path = call_image_dir / f"{staged_pdf_stem}_image_1.png"
     assert call["image_output"] == "external"
-    assert call["image_dir"] == str(image_output_dir)
+    assert call_image_dir.parent == image_output_dir
     assert expected_image_path.read_bytes() == b"fake image"
     assert len(result["documents"]) == 1
     assert len(result["image_documents"]) == 1
     image_document = result["image_documents"][0]
     assert image_document.content is None
     assert image_document.meta == {"file_path": str(expected_image_path)}
+
+
+def test_converter_uses_unique_image_paths_across_runs(tmp_path, _mock_opendataloader):
+    first_pdf = tmp_path / "report_a.pdf"
+    second_pdf = tmp_path / "report_b.pdf"
+    first_pdf.write_bytes(b"%PDF first")
+    second_pdf.write_bytes(b"%PDF second")
+    image_output_dir = tmp_path / "images"
+    converter = OpenDataLoaderConverter(extract_images=True, image_output_dir=image_output_dir)
+
+    first_result = converter.run(sources=[first_pdf])
+    first_image_path = Path(first_result["image_documents"][0].meta["file_path"])
+    second_result = converter.run(sources=[second_pdf])
+    second_image_path = Path(second_result["image_documents"][0].meta["file_path"])
+
+    assert first_image_path != second_image_path
+    assert first_image_path.parent != second_image_path.parent
+    assert first_image_path.exists()
+    assert second_image_path.exists()
+    assert set(image_output_dir.rglob("*.png")) == {first_image_path, second_image_path}
+
+
+def test_converter_isolates_images_between_concurrent_runs(tmp_path, _mock_opendataloader, monkeypatch):
+    first_pdf = tmp_path / "report_a.pdf"
+    second_pdf = tmp_path / "report_b.pdf"
+    first_pdf.write_bytes(b"%PDF first")
+    second_pdf.write_bytes(b"%PDF second")
+    image_output_dir = tmp_path / "images"
+    converter = OpenDataLoaderConverter(extract_images=True, image_output_dir=image_output_dir)
+    convert = converter_module.opendataloader_pdf.convert
+    conversions_finished = Barrier(2)
+
+    def synchronized_convert(*args, **kwargs):
+        convert(*args, **kwargs)
+        conversions_finished.wait(timeout=5)
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", synchronized_convert)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_future = executor.submit(converter.run, sources=[first_pdf])
+        second_future = executor.submit(converter.run, sources=[second_pdf])
+        first_result = first_future.result(timeout=5)
+        second_result = second_future.result(timeout=5)
+
+    first_images = first_result["image_documents"]
+    second_images = second_result["image_documents"]
+    assert len(first_images) == 1
+    assert len(second_images) == 1
+    first_image_path = Path(first_images[0].meta["file_path"])
+    second_image_path = Path(second_images[0].meta["file_path"])
+    assert first_image_path.parent != second_image_path.parent
+    assert first_image_path.parent.parent == image_output_dir
+    assert second_image_path.parent.parent == image_output_dir
 
 
 def test_converter_returns_empty_image_output_when_pdf_has_no_images(tmp_path, _mock_opendataloader, monkeypatch):
@@ -228,10 +285,10 @@ def test_converter_only_returns_images_created_by_current_run(tmp_path, _mock_op
 
     result = converter.run(sources=[pdf_file])
 
+    call = _mock_opendataloader[0]
+    expected_image_path = Path(call["image_dir"]) / f"{Path(call['input_path'][0]).stem}_image_1.png"
     assert existing_image.exists()
-    assert [document.meta["file_path"] for document in result["image_documents"]] == [
-        str(image_output_dir / "document_0_image_1.png")
-    ]
+    assert [document.meta["file_path"] for document in result["image_documents"]] == [str(expected_image_path)]
 
 
 def test_converter_requires_output_directory_when_extracting_images():
@@ -404,3 +461,15 @@ def test_real_pdf_conversion():
     assert document.content
     assert document.meta["file_path"] == "hello_world.pdf"
     assert document.meta["output_format"] == "markdown"
+
+
+@pytest.mark.integration
+def test_real_pdf_conversion_extracts_images(tmp_path):
+    pdf_file = Path(__file__).parent / "test_files" / "pdf_with_image.pdf"
+    image_output_dir = tmp_path / "images"
+    converter = OpenDataLoaderConverter(extract_images=True, image_output_dir=image_output_dir)
+
+    result = converter.run(sources=[pdf_file])
+
+    assert result["image_documents"]
+    assert Path(result["image_documents"][0].meta["file_path"]).exists()
