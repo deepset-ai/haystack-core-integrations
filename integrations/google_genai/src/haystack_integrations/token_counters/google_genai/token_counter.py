@@ -39,7 +39,7 @@ class GoogleGenAITokenCounter:
     from haystack.dataclasses import ChatMessage
     from haystack_integrations.token_counters.google_genai import GoogleGenAITokenCounter
 
-    counter = GoogleGenAITokenCounter("gemini-3.7-flash")
+    counter = GoogleGenAITokenCounter("gemini-3.8-flash")
     messages = [ChatMessage.from_user("Hello, how are you?")]
     token_count = counter.count(messages)
     print(f"Token count: {token_count}")

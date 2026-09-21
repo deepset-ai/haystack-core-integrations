@@ -43,7 +43,7 @@ class GoogleGenAIChatGenerator:
     """
     A component for generating chat completions using Google's Gemini models via the Google Gen AI SDK.
 
-    Supports models like gemini-3.7-flash and other Gemini variants. For Gemini 2.5 series models,
+    Supports models like gemini-3.8-flash and other Gemini variants. For Gemini 2.5 series models,
     enables thinking features via `generation_kwargs={"thinking_budget": value}`.
 
     ### Thinking Support (Gemini 2.5 and Gemini 3 Series)
@@ -71,7 +71,7 @@ class GoogleGenAIChatGenerator:
     from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
-    chat_generator = GoogleGenAIChatGenerator(model="gemini-3.7-flash")
+    chat_generator = GoogleGenAIChatGenerator(model="gemini-3.8-flash")
     ```
 
     **2. Vertex AI (Application Default Credentials)**
@@ -83,7 +83,7 @@ class GoogleGenAIChatGenerator:
         api="vertex",
         vertex_ai_project="my-project",
         vertex_ai_location="us-central1",
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
     )
     ```
 
@@ -94,7 +94,7 @@ class GoogleGenAIChatGenerator:
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
     chat_generator = GoogleGenAIChatGenerator(
         api="vertex",
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
     )
     ```
 
@@ -107,7 +107,7 @@ class GoogleGenAIChatGenerator:
 
     # Initialize the chat generator with thinking support
     chat_generator = GoogleGenAIChatGenerator(
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
         generation_kwargs={"thinking_budget": 1024}  # Enable thinking with 1024 token budget
     )
 
@@ -135,7 +135,7 @@ class GoogleGenAIChatGenerator:
 
     # Can use either List[Tool] or Toolset
     chat_generator_with_tools = GoogleGenAIChatGenerator(
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
         tools=[weather_tool],  # or tools=Toolset([weather_tool])
         generation_kwargs={"thinking_budget": -1}  # Dynamic thinking allocation
     )
@@ -157,7 +157,7 @@ class GoogleGenAIChatGenerator:
         population: int
 
     chat_generator = GoogleGenAIChatGenerator(
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
         generation_kwargs={"response_format": City}
     )
 
@@ -180,12 +180,14 @@ class GoogleGenAIChatGenerator:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "gemini-3.8-flash",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
+        "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-lite",
         "gemini-3-flash-preview",
-        "gemini-3.1-flash-lite-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -202,7 +204,7 @@ class GoogleGenAIChatGenerator:
         api: Literal["gemini", "vertex"] = "gemini",
         vertex_ai_project: str | None = None,
         vertex_ai_location: str | None = None,
-        model: str = "gemini-3.7-flash",
+        model: str = "gemini-3.8-flash",
         generation_kwargs: dict[str, Any] | None = None,
         safety_settings: list[dict[str, Any]] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -222,7 +224,7 @@ class GoogleGenAIChatGenerator:
             Application Default Credentials.
         :param vertex_ai_location: Google Cloud location for Vertex AI (e.g., "us-central1", "europe-west1").
             Required when using Vertex AI with Application Default Credentials.
-        :param model: Name of the model to use (e.g., "gemini-3.7-flash")
+        :param model: Name of the model to use (e.g., "gemini-3.8-flash")
         :param generation_kwargs: Configuration for generation (temperature, max_tokens, etc.).
             For Gemini 2.5 series, supports `thinking_budget` to configure thinking behavior:
             - `thinking_budget`: int, controls thinking token allocation
