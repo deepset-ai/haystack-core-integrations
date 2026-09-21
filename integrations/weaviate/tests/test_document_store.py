@@ -105,9 +105,19 @@ async def test_async_client_connects_to_weaviate_cloud(mock_connect, monkeypatch
     mock_client.collections.exists = exists
     mock_connect.return_value = mock_client
 
-    ds = WeaviateDocumentStore(url="rAnD0m.something.weaviate.cloud", auth_client_secret=AuthApiKey())
+    ds = WeaviateDocumentStore(
+        url="rAnD0m.something.weaviate.cloud",
+        auth_client_secret=AuthApiKey(),
+        additional_headers={"X-HuggingFace-Api-Key": "k"},
+    )
     assert await ds.async_client is mock_client
+
     mock_connect.assert_called_once()
+    _args, kwargs = mock_connect.call_args
+    assert kwargs["headers"] == {
+        "X-HuggingFace-Api-Key": "k",
+        "X-Weaviate-Client-Integration": _integration_header_value(),
+    }
 
 
 @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
