@@ -183,12 +183,6 @@ class TestConvertChatCompletionToChatMessage:
 
 
 class TestTruncatedToolCall:
-    """
-    A response cut off at `max_tokens` while the model was writing a tool call must not surface that call: its
-    arguments are incomplete, so invoking the tool would act on the wrong input. The reply carries the `length`
-    finish reason instead, which is what `Agent` reads to stop with `exit_reason="length"`.
-    """
-
     def test_truncated_tool_call_is_dropped(self, caplog):
         chat_completion = Message(
             id="msg_01MZF",
@@ -269,7 +263,6 @@ class TestTruncatedToolCall:
 
     @pytest.mark.parametrize("is_async", [False, True])
     async def test_streaming_truncated_tool_call_is_dropped(self, is_async):
-        """The streaming path reaches the same reply: the truncated JSON never parses into a tool call."""
         generator = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
         raw_chunks = [
             RawMessageStartEvent(
