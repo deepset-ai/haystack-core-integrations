@@ -509,6 +509,14 @@ class TestRun:
                     "thinking": {"type": "disabled"},
                 },
             ),
+            (
+                {
+                    "service_tier": "standard_only",
+                },
+                {
+                    "service_tier": "standard_only",
+                },
+            ),
         ],
     )
     def test_run_with_flattened_generation_kwargs(
@@ -528,6 +536,7 @@ class TestRun:
         assert actual_kwargs.get("tool_choice") == expected_kwargs.get("tool_choice")
         assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
         assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
+        assert actual_kwargs.get("service_tier") == expected_kwargs.get("service_tier")
 
 
 class TestAnthropicServerTools:

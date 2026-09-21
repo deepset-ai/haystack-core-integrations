@@ -104,6 +104,7 @@ class AnthropicChatGenerator:
         "tool_choice",
         "max_tokens",
         "metadata",
+        "service_tier",
         "stop_sequences",
         "temperature",
         "top_p",
@@ -114,15 +115,17 @@ class AnthropicChatGenerator:
     ]
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "claude-fable-5-1",
+        "claude-fable-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
         "claude-opus-4-6",
-        "claude-sonnet-4-6",
-        "claude-haiku-4-5-20251001",
-        "claude-sonnet-4-5-20250929",
         "claude-opus-4-5-20251101",
-        "claude-opus-4-1-20250805",
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-20250514",
-        "claude-3-haiku-20240307",
+        "claude-sonnet-5",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5-20250929",
+        "claude-haiku-4-5-20251001",
     ]
     """A non-exhaustive list of chat models supported by this component. See
      https://platform.claude.com/docs/en/about-claude/models/overview for the full list."""
@@ -155,6 +158,8 @@ class AnthropicChatGenerator:
             - `system`: The system message to be passed to the model.
             - `max_tokens`: The maximum number of tokens to generate.
             - `metadata`: A dictionary of metadata to be passed to the model.
+            - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
+                (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
             - `stop_sequences`: A list of strings that the model should stop generating at.
             - `temperature`: The temperature to use for sampling.
             - `top_p`: The top_p value to use for nucleus sampling.
