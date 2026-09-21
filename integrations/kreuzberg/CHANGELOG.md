@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/kreuzberg-v1.0.2] - 2026-08-20
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+- KreuzbergConverter config round-trips as YAML dict instead of JSON string (#3807)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/kreuzberg-v1.0.1] - 2026-07-29
 
 ### 🚀 Features

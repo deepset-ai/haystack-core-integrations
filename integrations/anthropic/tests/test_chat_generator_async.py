@@ -77,6 +77,16 @@ class TestUnit:
         assert response["replies"][0].meta["finish_reason"] == "stop"
         assert "completion_tokens" in response["replies"][0].meta["usage"]
 
+    async def test_run_async_with_generation_kwargs(self, chat_messages, mock_anthropic_completion_async):
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+        )
+        await component.run_async(chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_anthropic_completion_async.call_args
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.9
+
 
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")

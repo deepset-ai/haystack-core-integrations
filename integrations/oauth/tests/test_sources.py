@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 from unittest.mock import patch
 
 import httpx
@@ -147,6 +148,45 @@ class TestOAuthRefreshTokenSource:
             await source.resolve_async()
         assert token == "acc-async"
         assert mp.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_concurrent_resolve_async_refreshes_once(self):
+        """The refresh lock exists to collapse a burst of concurrent callers into a single network refresh."""
+        source = self._source()
+        with patch("httpx.AsyncClient.post", side_effect=self._slow_post("acc-async")) as mp:
+            tokens = await asyncio.gather(*(source.resolve_async() for _ in range(4)))
+        assert tokens == ["acc-async"] * 4
+        assert mp.call_count == 1
+
+    def test_resolve_async_works_in_a_second_event_loop(self):
+        """
+        A source outlives the loop that first used it: one `asyncio.run` per request is a common deployment.
+
+        An `asyncio.Lock` binds to the loop that first awaits it *under contention* and rejects every other one, so
+        a lock built once and cached on the instance made the second loop's first contended refresh raise
+        `RuntimeError: ... is bound to a different event loop`. Both halves of this test must contend for the lock,
+        otherwise the lock is never bound and the bug does not reproduce.
+        """
+        source = self._source()
+
+        async def two_concurrent_callers() -> list[str]:
+            # expires_in=0 keeps the cache from serving the second round, so both rounds really refresh.
+            with patch("httpx.AsyncClient.post", side_effect=self._slow_post("acc-async", expires_in=0)):
+                return list(await asyncio.gather(source.resolve_async(), source.resolve_async()))
+
+        assert asyncio.run(two_concurrent_callers()) == ["acc-async"] * 2
+        # Same source, brand new event loop.
+        assert asyncio.run(two_concurrent_callers()) == ["acc-async"] * 2
+
+    @staticmethod
+    def _slow_post(access_token: str, expires_in: int = 3600):
+        """A patched `post` that yields to the loop, so a second caller reaches the lock while the first holds it."""
+
+        async def _post(*_args, **_kwargs):
+            await asyncio.sleep(0)
+            return _json(access_token=access_token, expires_in=expires_in)
+
+        return _post
 
 
 class TestOAuthTokenExchangeSource:

@@ -270,7 +270,9 @@ class DSPySignatureChatGenerator:
         Run the DSPy module on the given messages.
 
         :param messages: List of chat messages. The last user message is used as input.
-        :param generation_kwargs: Optional runtime generation parameters.
+        :param generation_kwargs: Optional runtime generation parameters. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept.
         :param kwargs: Additional keyword arguments mapped to signature input fields.
         :returns: A dictionary with `replies` (list of ChatMessage).
         """
@@ -305,7 +307,9 @@ class DSPySignatureChatGenerator:
         Uses DSPy's native `acall` for true async I/O.
 
         :param messages: List of chat messages. The last user message is used as input.
-        :param generation_kwargs: Optional runtime generation parameters.
+        :param generation_kwargs: Optional runtime generation parameters. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only at
+            initialization are kept.
         :param kwargs: Additional keyword arguments mapped to signature input fields.
         :returns: A dictionary with `replies` (list of ChatMessage).
         """

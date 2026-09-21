@@ -85,7 +85,11 @@ class RagasEvaluator:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(self, ragas_metrics=[_serialize_metric(m) for m in self.metrics])
+        return default_to_dict(
+            self,
+            ragas_metrics=[_serialize_metric(m) for m in self.metrics],
+            concurrency_limit=self.concurrency_limit,
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RagasEvaluator":

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/opendataloader_pdf-v0.1.1] - 2026-08-24
+
+### 📚 Documentation
+
+- Docs (opendataloader_pdf): improve docstrings and formatting (#3840)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/opendataloader_pdf-v0.1.0] - 2026-08-07
 
 ### 🌀 Miscellaneous

@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import copy
+import json
 from pathlib import Path
 from typing import Any
 
@@ -144,10 +145,10 @@ class KreuzbergConverter:
         :returns:
             Dictionary with serialized data.
         """
-        config_json = config_to_json(self.config) if self.config else None
+        config_dict = json.loads(config_to_json(self.config)) if self.config else None
         return default_to_dict(
             self,
-            config=config_json,
+            config=config_dict,
             config_path=self.config_path,
             store_full_path=self.store_full_path,
             batch=self.batch,
@@ -167,6 +168,8 @@ class KreuzbergConverter:
         config_data = data["init_parameters"].get("config")
         if isinstance(config_data, str):
             data["init_parameters"]["config"] = _config_from_json_str(config_data)
+        elif isinstance(config_data, dict):
+            data["init_parameters"]["config"] = _config_from_json_str(json.dumps(config_data))
         return default_from_dict(cls, data)
 
     def _build_config(self) -> ExtractionConfig:

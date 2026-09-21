@@ -13,3 +13,5 @@
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
 To run integration tests locally, you need to export the `OPENAI_API_KEY` environment variable.
+One test additionally runs the Brave Search MCP server in Docker: it is skipped unless
+`BRAVE_API_KEY` is also exported.

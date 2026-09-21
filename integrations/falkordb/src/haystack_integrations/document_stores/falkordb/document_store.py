@@ -614,6 +614,12 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
 
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: Cypher's `DISTINCT` treats a whole-number float (e.g. `1.0`) as identical to a
+        numerically equal int (`1`), so those two collapse into a single value. Floats with a fractional
+        part (e.g. `1.5`) are unaffected.
+
         :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
         :param search_term: Optional case-insensitive substring filter applied to the metadata
             field's own value.
@@ -640,6 +646,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             query_params["search_term"] = search_term
 
         where = " AND ".join(where_parts)
+        # Not fixable here: Cypher's DISTINCT treats a whole-number float (1.0) as identical to a
+        # numerically equal int (1), so it collapses them - see this method's docstring.
         cypher = (
             f"MATCH (d:{self.node_label}) WHERE {where} "
             f"WITH DISTINCT d.{field} AS val "

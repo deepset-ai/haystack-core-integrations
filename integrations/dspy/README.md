@@ -3,6 +3,8 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/dspy-haystack.svg)](https://pypi.org/project/dspy-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dspy-haystack.svg)](https://pypi.org/project/dspy-haystack)
 
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/dspy/CHANGELOG.md)
+
 ---
 
 ## Contributing

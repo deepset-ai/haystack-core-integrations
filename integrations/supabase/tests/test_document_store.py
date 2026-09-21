@@ -45,6 +45,41 @@ class TestDocumentStore(
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: SupabasePgvectorDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. This store's ``meta`` column is JSONB, and
+        PostgreSQL's JSONB equality treats a whole-number float (e.g. 1.0) and a numerically equal int
+        (1) as the same value, so ``SELECT DISTINCT meta->'field'`` collapses them regardless of which
+        other values share that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what this store can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0): a whole-number float would still collapse
+        with an int under PostgreSQL's JSONB numeric equality even in its own field, so a fractional
+        value is used to sidestep that ambiguity entirely.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
     def test_write_blob(self, document_store: SupabasePgvectorDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(id="1", blob=bytestream)]

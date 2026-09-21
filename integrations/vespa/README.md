@@ -4,6 +4,8 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/vespa-haystack.svg)](https://pypi.org/project/vespa-haystack)
 
 - [Integration page](https://haystack.deepset.ai/integrations/vespa)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/vespa/CHANGELOG.md)
+
 ---
 
 ## Contributing

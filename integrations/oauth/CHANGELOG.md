@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/oauth-v1.0.1] - 2026-08-24
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- *(oauth)* Rebuild the OAuthRefreshTokenSource refresh lock per event loop (#3790)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/oauth-v1.0.0] - 2026-06-18
 
 ### 🚀 Features

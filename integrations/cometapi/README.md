@@ -1,7 +1,7 @@
 # cometapi-haystack
 
 [![PyPI - Version](https://img.shields.io/pypi/v/cometapi-haystack.svg)](https://pypi.org/project/cometapi-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cometapi-haystack.svg)](https://pypi.org/project/cometapihaystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cometapi-haystack.svg)](https://pypi.org/project/cometapi-haystack)
 
 - [Integration page](https://haystack.deepset.ai/integrations/comet-api)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/cometapi/CHANGELOG.md)

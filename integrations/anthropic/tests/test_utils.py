@@ -1009,6 +1009,12 @@ class TestConvertMessagesToAnthropicFormat:
             [{"role": "assistant", "content": [{"type": "text", "text": "I have an answer"}]}],
         )
 
+        messages = [ChatMessage.from_assistant(text=None)]
+        assert _convert_messages_to_anthropic_format(messages) == (
+            [],
+            [{"role": "assistant", "content": []}],
+        )
+
         messages = [
             ChatMessage.from_assistant(
                 tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
@@ -1089,10 +1095,16 @@ class TestConvertMessagesToAnthropicFormat:
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
         )
+        base64_pdf = "JVBERi0xLjEKMSAwIG9iago8PC9UeXBlL0NhdGFsb2c+PgplbmRvYmoKdHJhaWxlcgo8PC9Sb290IDEgMCBSPj4KJSVFT0Y="
 
         tool_result = [
-            TextContent("Here's the retrieved image"),
+            TextContent("Here are the retrieved image and document"),
             ImageContent(base64_image=base64_image, mime_type="image/png"),
+            FileContent(
+                base64_data=base64_pdf,
+                mime_type="application/pdf",
+                extra={"context": "This document contains a table", "title": "A nice PDF"},
+            ),
         ]
         messages = [
             ChatMessage.from_tool(
@@ -1109,10 +1121,20 @@ class TestConvertMessagesToAnthropicFormat:
                             "type": "tool_result",
                             "tool_use_id": "123",
                             "content": [
-                                {"type": "text", "text": "Here's the retrieved image"},
+                                {"type": "text", "text": "Here are the retrieved image and document"},
                                 {
                                     "type": "image",
                                     "source": {"type": "base64", "media_type": "image/png", "data": base64_image},
+                                },
+                                {
+                                    "type": "document",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": "application/pdf",
+                                        "data": base64_pdf,
+                                    },
+                                    "context": "This document contains a table",
+                                    "title": "A nice PDF",
                                 },
                             ],
                             "is_error": False,
@@ -1232,7 +1254,7 @@ class TestConvertMessagesToAnthropicFormat:
         """
         Test that the AnthropicChatGenerator component fails to convert an invalid ChatMessage to Anthropic format.
         """
-        message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+        message = ChatMessage(_role=ChatRole.USER, _content=[])
         with pytest.raises(ValueError):
             _convert_messages_to_anthropic_format([message])
 

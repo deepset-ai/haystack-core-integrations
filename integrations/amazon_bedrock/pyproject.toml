@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "boto3>=1.42.84,<2", "aiobotocore>=3.4.0,<4"]
+dependencies = ["haystack-ai>=3.0.0", "boto3>=1.42.84,<2", "aiobotocore>=3.4.0,<4"]
 
 
 
@@ -75,6 +75,8 @@ types = """mypy -p haystack_integrations.common.amazon_bedrock \
 -p haystack_integrations.components.embedders.amazon_bedrock \
 -p haystack_integrations.components.generators.amazon_bedrock \
 -p haystack_integrations.components.rankers.amazon_bedrock \
+-p haystack_integrations.components.retrievers.amazon_bedrock \
+-p haystack_integrations.token_counters.amazon_bedrock \
 -p haystack_integrations.components.downloaders.s3 \
 -p haystack_integrations.common.s3 {args}"""
 

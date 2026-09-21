@@ -1,5 +1,6 @@
 import base64
 import dataclasses
+import inspect
 import json
 import os
 import re
@@ -10,7 +11,6 @@ from botocore.eventstream import EventStream
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ChatMessage,
     ChatRole,
     ComponentInfo,
@@ -18,6 +18,7 @@ from haystack.dataclasses import (
     FinishReason,
     ImageContent,
     ReasoningContent,
+    StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
     TextContent,
@@ -197,10 +198,16 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
     # Assuming tool call result messages will only contain tool results
     tool_results = []
     for tool_call_result in tool_call_result_message.tool_call_results:
+        content: list[dict[str, Any]]
         if isinstance(tool_call_result.result, str):
             try:
                 json_result = json.loads(tool_call_result.result)
-                content = [{"json": json_result}]
+                # Bedrock's toolResult.content[].json field requires a JSON object, not an arbitrary JSON value
+                # (e.g. a bare number, string, boolean, null or array is rejected with a ValidationException).
+                if isinstance(json_result, dict):
+                    content = [{"json": json_result}]
+                else:
+                    content = [{"text": tool_call_result.result}]
             except json.JSONDecodeError:
                 content = [{"text": tool_call_result.result}]
         elif isinstance(tool_call_result.result, list):
@@ -209,7 +216,15 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
                 if isinstance(item, TextContent):
                     content.append({"text": item.text})
                 elif isinstance(item, ImageContent):
-                    content.append(_convert_image_content_to_bedrock_format(item))
+                    content.append(_convert_image_content_to_bedrock_format(image_content=item))
+                elif isinstance(item, FileContent):
+                    content.append(_convert_file_content_to_bedrock_format(file_content=item))
+                else:
+                    err_msg = (
+                        "Unsupported content type in tool call result list. "
+                        "Only TextContent, ImageContent, and FileContent are supported."
+                    )
+                    raise ValueError(err_msg)
         else:
             err_msg = "Unsupported content type in tool call result"
             raise ValueError(err_msg)
@@ -693,7 +708,7 @@ def _convert_chunks_to_messages(chunks: list[StreamingChunk]) -> list[ChatMessag
 
 async def _parse_streaming_response_async(
     response_stream: EventStream,
-    streaming_callback: AsyncStreamingCallbackT,
+    streaming_callback: StreamingCallbackT,
     model: str,
     component_info: ComponentInfo,
 ) -> list[ChatMessage]:
@@ -714,7 +729,10 @@ async def _parse_streaming_response_async(
         if content_block_idx is not None and content_block_idx not in content_block_idxs:
             streaming_chunk.start = True
             content_block_idxs.add(content_block_idx)
-        await streaming_callback(streaming_chunk)
+        # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+        callback_result = streaming_callback(streaming_chunk)
+        if inspect.isawaitable(callback_result):
+            await callback_result
         chunks.append(streaming_chunk)
 
     replies = _convert_chunks_to_messages(chunks)

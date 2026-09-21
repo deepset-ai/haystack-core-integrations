@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pinecone_haystack"
+name = "pinecone-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"

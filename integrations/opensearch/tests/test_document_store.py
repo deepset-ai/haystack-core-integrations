@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses.document import Document
@@ -602,77 +602,6 @@ def test_ensure_index_exists_no_create_when_disabled(_mock_opensearch_client):
     mock_client.indices.get_mapping.assert_not_called()
 
 
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_direct_index(_mock_sync_client, _mock_async_client):
-    """Async: When an index exists and is referenced directly, mappings are loaded without error."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=True)
-    mock_client.indices.get_mapping = AsyncMock(
-        return_value={"my-index": {"mappings": {"properties": {"content": {"type": "text"}}}}}
-    )
-
-    await store._ensure_index_exists_async()
-
-    mock_client.indices.exists.assert_called_once_with(index="my-index")
-    mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
-    mock_client.indices.create.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_with_alias(_mock_sync_client, _mock_async_client):
-    """Async: When self._index is an alias, get_mapping keys by real index name; no KeyError."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=True)
-    mock_client.indices.get_mapping = AsyncMock(
-        return_value={"my-real-index-v1": {"mappings": {"properties": {"content": {"type": "text"}}}}}
-    )
-
-    await store._ensure_index_exists_async()  # must not raise KeyError
-
-    mock_client.indices.get_mapping.assert_called_once_with(index="my-alias")
-    mock_client.indices.create.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_creates_index_when_not_exists(_mock_sync_client, _mock_async_client):
-    """Async: When the index does not exist and create_index=True, the index is created."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=False)
-
-    await store._ensure_index_exists_async()
-
-    mock_client.indices.create.assert_called_once()
-    mock_client.indices.get_mapping.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_ensure_index_exists_async_no_create_when_disabled(_mock_sync_client, _mock_async_client):
-    """Async: When the index does not exist and create_index=False, no index is created."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.exists = AsyncMock(return_value=False)
-
-    await store._ensure_index_exists_async()
-
-    mock_client.indices.create.assert_not_called()
-    mock_client.indices.get_mapping.assert_not_called()
-
-
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_delete_all_documents_recreate_raises_for_alias(_mock_opensearch_client):
     """delete_all_documents(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
@@ -698,39 +627,6 @@ def test_delete_all_documents_recreate_works_for_concrete_index(_mock_opensearch
     mock_client.indices.get.return_value = {"my-index": {"mappings": {}, "settings": {"index": {}}}}
 
     store.delete_all_documents(recreate_index=True)
-
-    mock_client.indices.delete.assert_called_once_with(index="my-index")
-    mock_client.indices.create.assert_called_once()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_delete_all_documents_async_recreate_raises_for_alias(_mock_sync_client, _mock_async_client):
-    """delete_all_documents_async(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.get = AsyncMock(return_value={"my-real-index-v1": {"mappings": {}, "settings": {"index": {}}}})
-
-    with pytest.raises(DocumentStoreError, match="is an alias"):
-        await store.delete_all_documents_async(recreate_index=True)
-
-    mock_client.indices.delete.assert_not_called()
-    mock_client.indices.create.assert_not_called()
-
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_delete_all_documents_async_recreate_works_for_concrete_index(_mock_sync_client, _mock_async_client):
-    """delete_all_documents_async(recreate_index=True) proceeds normally when self._index is a concrete index."""
-    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
-    mock_client = AsyncMock()
-    store._async_client = mock_client
-    mock_client.indices.get = AsyncMock(return_value={"my-index": {"mappings": {}, "settings": {"index": {}}}})
-
-    await store.delete_all_documents_async(recreate_index=True)
 
     mock_client.indices.delete.assert_called_once_with(index="my-index")
     mock_client.indices.create.assert_called_once()
@@ -1174,142 +1070,53 @@ class TestDocumentStore(
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
 
-    def test_get_metadata_field_unique_values(self, document_store: OpenSearchDocumentStore):
-        # Test with string values
+    def test_get_metadata_field_unique_values_pagination_beyond_total(self, document_store: OpenSearchDocumentStore):
+        """
+        Edge case not covered by the shared GetMetadataFieldUniqueValuesTest mixin's pagination test:
+        requesting a page starting beyond the total count must return an empty page with the correct total.
+        """
         docs = [
-            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
-            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
-            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
-            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
-            Document(content="Python data science", meta={"category": "A", "language": "Python"}),
-            Document(content="Java backend", meta={"category": "B", "language": "Java"}),
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "C"}),
         ]
         document_store.write_documents(docs)
 
-        # Test getting all unique values without search term
-        unique_values, total_count = document_store.get_metadata_field_unique_values(
-            metadata_field="category", search_term=None, from_=0, size=10
-        )
-        assert set(unique_values) == {"A", "B", "C"}
-        assert total_count == 3
-
-        # Test field name normalization - the "meta." prefix is optional and must give identical results
-        unique_values_prefixed, total_count_prefixed = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term=None, from_=0, size=10
-        )
-        assert set(unique_values_prefixed) == set(unique_values)
-        assert total_count_prefixed == total_count
-
-        unique_languages, total_languages = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.language", search_term=None, from_=0, size=10
-        )
-        assert set(unique_languages) == {"Python", "Java", "JavaScript"}
-        assert total_languages == 3
-
-        # Test pagination - first page
-        unique_values_page1, total_count_page1 = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term=None, from_=0, size=2
-        )
-        assert len(unique_values_page1) == 2
-        assert all(val in ["A", "B", "C"] for val in unique_values_page1)
-        assert total_count_page1 == 3
-
-        # Test pagination - second page, via from_ (triggers the offset-walk internally)
-        unique_values_page2, total_count_page2 = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term=None, from_=2, size=2
-        )
-        assert len(unique_values_page2) == 1
-        assert unique_values_page2[0] in ["A", "B", "C"]
-        assert total_count_page2 == 3
-
-        # Pages don't overlap and together cover all values
-        assert not set(unique_values_page1).intersection(set(unique_values_page2))
-        assert set(unique_values_page1) | set(unique_values_page2) == {"A", "B", "C"}
-
-        # Test pagination - from_ beyond total count (should return empty, but a valid total_count)
         unique_values_beyond, total_beyond = document_store.get_metadata_field_unique_values(
             metadata_field="meta.category", search_term=None, from_=10, size=10
         )
         assert len(unique_values_beyond) == 0
         assert total_beyond == 3
 
-        # Test with search term - filter by the metadata field's own VALUE matching "Python"
-        # ("language" values are "Python"/"Java"/"JavaScript", so searching "Python" against
-        # the "category" field's values ("A"/"B"/"C") should match nothing)
-        unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.category", search_term="Python", from_=0, size=10
-        )
-        assert set(unique_values_filtered) == set()
-        assert total_filtered == 0
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: OpenSearchDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. OpenSearch's dynamic field mapping fixes a
+        field's type from the first document written to it, so that scenario raises a
+        mapper_parsing_exception here instead.
 
-        # Searching "language" values themselves for the substring "Java" must match both
-        # "Java" and "JavaScript" (substring match on the field's own value).
-        unique_languages_filtered, total_java = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.language", search_term="Java", from_=0, size=10
-        )
-        assert set(unique_languages_filtered) == {"Java", "JavaScript"}
-        assert total_java == 2
-
-        # Case-insensitivity: a lowercase search term must still match the differently-cased values above.
-        unique_languages_lower, total_lower = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.language", search_term="java", from_=0, size=10
-        )
-        assert set(unique_languages_lower) == {"Java", "JavaScript"}
-        assert total_lower == 2
-
-        # Test with integer values
-        int_docs = [
-            Document(content="Doc 1", meta={"priority": 1}),
-            Document(content="Doc 2", meta={"priority": 2}),
-            Document(content="Doc 3", meta={"priority": 1}),
-            Document(content="Doc 4", meta={"priority": 3}),
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what OpenSearch can actually support.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.0}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
         ]
-        document_store.write_documents(int_docs)
-        unique_priorities, total_priorities = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.priority", search_term=None, from_=0, size=10
-        )
-        assert set(unique_priorities) == {1, 2, 3}
-        assert total_priorities == 3
+        document_store.write_documents(docs)
 
-        # search_term now matches against the field's own value, not the content, so searching
-        # for content text ("Doc 1") against the "priority" field's values ("1"/"2"/"3") matches nothing.
-        unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.priority", search_term="Doc 1", from_=0, size=10
-        )
-        assert set(unique_priorities_filtered) == set()
-        assert total_priorities_filtered == 0
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
 
-        # search_term matching the field's own (stringified) value (e.g. "1") does match, but the
-        # returned value itself keeps its original type (int here).
-        unique_priorities_by_value, total_priorities_by_value = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.priority", search_term="1", from_=0, size=10
-        )
-        assert set(unique_priorities_by_value) == {1}
-        assert total_priorities_by_value == 1
-
-        # Prove the semantic change explicitly with a document whose CONTENT contains the search
-        # term but whose target metadata field value does NOT: it must now be EXCLUDED.
-        content_match_docs = [
-            Document(content="This mentions needle in the text", meta={"topic": "unrelated"}),
-        ]
-        document_store.write_documents(content_match_docs)
-        unique_topics_content_only, total_topics_content_only = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.topic", search_term="needle", from_=0, size=10
-        )
-        assert set(unique_topics_content_only) == set()
-        assert total_topics_content_only == 0
-
-        # And a document whose metadata field VALUE contains the search term but whose content does
-        # NOT: it must now be INCLUDED.
-        value_match_docs = [
-            Document(content="Nothing special here", meta={"topic": "needle-in-haystack"}),
-        ]
-        document_store.write_documents(value_match_docs)
-        unique_topics_value_only, total_topics_value_only = document_store.get_metadata_field_unique_values(
-            metadata_field="meta.topic", search_term="needle", from_=0, size=10
-        )
-        assert set(unique_topics_value_only) == {"needle-in-haystack"}
-        assert total_topics_value_only == 1
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.0] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
 
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""

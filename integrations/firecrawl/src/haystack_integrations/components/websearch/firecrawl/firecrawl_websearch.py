@@ -70,13 +70,12 @@ class FirecrawlWebSearch:
         self._async_firecrawl_client: AsyncFirecrawl | None = None
 
     def warm_up(self) -> None:
-        """
-        Warm up the Firecrawl clients by initializing the sync and async clients.
-
-        This is useful to avoid cold start delays when performing searches.
-        """
+        """Warm up the synchronous Firecrawl client."""
         if self._firecrawl_client is None:
             self._firecrawl_client = Firecrawl(api_key=self.api_key.resolve_value())
+
+    async def warm_up_async(self) -> None:
+        """Warm up the asynchronous Firecrawl client."""
         if self._async_firecrawl_client is None:
             self._async_firecrawl_client = AsyncFirecrawl(api_key=self.api_key.resolve_value())
 
@@ -97,8 +96,8 @@ class FirecrawlWebSearch:
             - `documents`: List of documents with search result content.
             - `links`: List of URLs from the search results.
         """
-        if self._firecrawl_client is None:
-            self.warm_up()
+        self.warm_up()
+        assert self._firecrawl_client is not None  # noqa: S101
 
         current_params = search_params if search_params is not None else self._search_params
         params = current_params.copy()
@@ -106,7 +105,7 @@ class FirecrawlWebSearch:
             params["limit"] = self.top_k
 
         try:
-            search_response = self._firecrawl_client.search(  # type: ignore[union-attr]
+            search_response = self._firecrawl_client.search(
                 query=query,
                 **params,
             )
@@ -134,8 +133,8 @@ class FirecrawlWebSearch:
             - `documents`: List of documents with search result content.
             - `links`: List of URLs from the search results.
         """
-        if self._async_firecrawl_client is None:
-            self.warm_up()
+        await self.warm_up_async()
+        assert self._async_firecrawl_client is not None  # noqa: S101
 
         current_params = search_params if search_params is not None else self._search_params
         params = current_params.copy()
@@ -143,7 +142,7 @@ class FirecrawlWebSearch:
             params["limit"] = self.top_k
 
         try:
-            search_response = await self._async_firecrawl_client.search(  # type: ignore[union-attr]
+            search_response = await self._async_firecrawl_client.search(
                 query=query,
                 **params,
             )

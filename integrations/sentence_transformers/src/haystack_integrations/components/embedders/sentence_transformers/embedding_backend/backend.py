@@ -112,5 +112,9 @@ class _SentenceTransformersEmbeddingBackend:
         if quantization_ranges is not None and precision in ("int8", "uint8"):
             kwargs["precision"] = "float32"
             embeddings = self.model.encode(data, **kwargs)
-            return quantize_embeddings(embeddings, precision=precision, ranges=np.asarray(quantization_ranges)).tolist()
+            quantized = quantize_embeddings(embeddings, precision=precision, ranges=np.asarray(quantization_ranges))
+            if isinstance(quantized, list):
+                msg = "Unexpected multi-vector output from quantize_embeddings"
+                raise TypeError(msg)
+            return quantized.tolist()
         return self.model.encode(data, **kwargs).tolist()

@@ -3,6 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/vllm-haystack.svg)](https://pypi.org/project/vllm-haystack)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/vllm-haystack.svg)](https://pypi.org/project/vllm-haystack)
 
+- [Integration page](https://haystack.deepset.ai/integrations/vllm)
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/vllm/CHANGELOG.md)
 
 ---

@@ -1950,6 +1950,9 @@ class PgvectorDocumentStore:
         # Use the `->` (jsonb) operator rather than `->>` (text) so DISTINCT/ORDER BY operate on the
         # value's original JSON type (numbers sort numerically, not lexicographically) and psycopg
         # decodes the result to its native Python type instead of a string.
+        #
+        # Not fixable here: JSONB equality treats a whole-number float (1.0) as identical to a
+        # numerically equal int (1), so DISTINCT still collapses them - see this method's docstring.
         sql_select = SQL("SELECT DISTINCT meta->{} AS value").format(field_literal)
         sql_from = SQL(" FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
@@ -2006,6 +2009,12 @@ class PgvectorDocumentStore:
         """
         Returns unique values for a given metadata field, optionally filtered by a search term.
 
+        **Note**: values of different JSON type categories are kept distinct - a string, a number and
+        a boolean never collapse into each other, even when they share a textual form (e.g. the string
+        `"1"` and the number `1`). One exception: the ``meta`` column is JSONB, whose equality treats a
+        whole-number float (`1.0`) as identical to a numerically equal int (`1`), so those two collapse
+        into a single value. Floats with a fractional part (e.g. `1.5`) are unaffected.
+
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
         :param search_term: Optional search term to filter unique values by a case-insensitive substring
             match against the metadata field's own value. If None, all values are considered.
@@ -2051,6 +2060,12 @@ class PgvectorDocumentStore:
     ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a given metadata field, optionally filtered by a search term.
+
+        **Note**: values of different JSON type categories are kept distinct - a string, a number and
+        a boolean never collapse into each other, even when they share a textual form (e.g. the string
+        `"1"` and the number `1`). One exception: the ``meta`` column is JSONB, whose equality treats a
+        whole-number float (`1.0`) as identical to a numerically equal int (`1`), so those two collapse
+        into a single value. Floats with a fractional part (e.g. `1.5`) are unaffected.
 
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
         :param search_term: Optional search term to filter unique values by a case-insensitive substring

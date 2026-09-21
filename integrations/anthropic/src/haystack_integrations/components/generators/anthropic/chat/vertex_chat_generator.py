@@ -46,7 +46,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client = AnthropicVertexChatGenerator(
-                model="claude-sonnet-4@20250514",
+                model="claude-sonnet-4-5@20250929",
                 project_id="your-project-id", region="your-region"
             )
     response = client.run(messages)
@@ -57,7 +57,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.")],
-    >> _name=None, _meta={'model': 'claude-sonnet-4@20250514', 'index': 0, 'finish_reason': 'end_turn',
+    >> _name=None, _meta={'model': 'claude-sonnet-4-5@20250929', 'index': 0, 'finish_reason': 'end_turn',
     >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
     ```
 
@@ -69,13 +69,16 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "claude-fable-5-1",
+        "claude-fable-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
         "claude-opus-4-6",
+        "claude-opus-4-5@20251101",
+        "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5@20250929",
-        "claude-sonnet-4@20250514",
-        "claude-opus-4-5@20251101",
-        "claude-opus-4-1@20250805",
-        "claude-opus-4@20250514",
         "claude-haiku-4-5@20251001",
     ]
     """A non-exhaustive list of chat models supported by this component. See
@@ -85,7 +88,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self,
         region: str,
         project_id: str,
-        model: str = "claude-sonnet-4@20250514",
+        model: str = "claude-sonnet-4-5@20250929",
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
@@ -111,6 +114,8 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             - `system`: The system message to be passed to the model.
             - `max_tokens`: The maximum number of tokens to generate.
             - `metadata`: A dictionary of metadata to be passed to the model.
+            - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
+                (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
             - `stop_sequences`: A list of strings that the model should stop generating at.
             - `temperature`: The temperature to use for sampling.
             - `top_p`: The top_p value to use for nucleus sampling.
@@ -146,17 +151,30 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.timeout = timeout
         self.max_retries = max_retries
 
+        # mypy is not happy that the Vertex clients differ from the base Anthropic client types
+        self.client = None  # type: ignore[assignment]
+        self.async_client = None  # type: ignore[assignment]
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Anthropic Vertex clients."""
         client_kwargs: dict[str, Any] = {"region": self.region, "project_id": self.project_id}
         # We do this since timeout=None is not the same as not setting it in Anthropic
-        if timeout is not None:
-            client_kwargs["timeout"] = timeout
+        if self.timeout is not None:
+            client_kwargs["timeout"] = self.timeout
         # We do this since max_retries must be an int when passing to Anthropic
-        if max_retries is not None:
-            client_kwargs["max_retries"] = max_retries
+        if self.max_retries is not None:
+            client_kwargs["max_retries"] = self.max_retries
+        return client_kwargs
 
-        # mypy is not happy that we override the type of the clients
-        self.client = AnthropicVertex(**client_kwargs)  # type: ignore[assignment]
-        self.async_client = AsyncAnthropicVertex(**client_kwargs)  # type: ignore[assignment]
+    def warm_up(self) -> None:
+        """Create the synchronous Anthropic Vertex client."""
+        if self.client is None:
+            self.client = AnthropicVertex(**self._client_kwargs())  # type: ignore[assignment]
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Anthropic Vertex client."""
+        if self.async_client is None:
+            self.async_client = AsyncAnthropicVertex(**self._client_kwargs())  # type: ignore[assignment]
 
     def to_dict(self) -> dict[str, Any]:
         """

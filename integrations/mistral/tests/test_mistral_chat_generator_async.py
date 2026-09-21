@@ -82,9 +82,7 @@ class TestMistralChatGeneratorAsync:
     async def test_warm_up_async(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         component = MistralChatGenerator()
-        if hasattr(component, "warm_up_async"):
-            # haystack-ai >= 3.0 creates the async client during async warm-up
-            await component.warm_up_async()
+        await component.warm_up_async()
 
         assert isinstance(component.async_client, AsyncOpenAI)
         assert component.async_client.api_key == "test-api-key"
@@ -120,6 +118,16 @@ class TestMistralChatGeneratorAsync:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_generation_kwargs(self, chat_messages, mock_async_chat_completion, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
+        await component.run_async(chat_messages, generation_kwargs={"temperature": 0.9})
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.9
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY", None),

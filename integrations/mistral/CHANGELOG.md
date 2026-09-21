@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/mistral-v2.0.0] - 2026-09-08
+
+### 🚀 Features
+
+- [**breaking**] Mistral - add lifecycle handling (#3929)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- Fix Mistral test due to new OpenAI SDK release (#3879)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/mistral-v1.5.0] - 2026-07-06
 
 ### 🐛 Bug Fixes
