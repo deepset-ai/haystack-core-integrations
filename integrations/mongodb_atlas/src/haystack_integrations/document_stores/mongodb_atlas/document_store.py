@@ -559,7 +559,8 @@ class MongoDBAtlasDocumentStore:
         pipeline: list[dict[str, Any]] = []
 
         if filters:
-            pipeline.append({"$match": _normalize_filters(filters)})
+            translated_filters = self._translate_filters(filters)
+            pipeline.append({"$match": _normalize_filters(translated_filters)})
 
         pipeline.append({"$group": {"_id": mongo_field}})
 

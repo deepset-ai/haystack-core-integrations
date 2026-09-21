@@ -471,6 +471,13 @@ class TestMongoDBDocumentStoreHelpers:
         pipeline = mock_collection.aggregate.call_args[0][0]
         assert pipeline[0]["$group"] == {"_id": "$metadata.author"}
 
+        # 5b. get_metadata_field_unique_values with filters: the $match stage must be translated
+        # too, otherwise it filters on "meta.source" while the collection stores "source".
+        store.get_metadata_field_unique_values("author", filters=filters)
+        pipeline = mock_collection.aggregate.call_args[0][0]
+        assert pipeline[0] == {"$match": {"source": {"$eq": "url"}}}
+        assert pipeline[1]["$group"] == {"_id": "$metadata.author"}
+
         # 6. count_unique_metadata_by_filter
         mock_collection.aggregate.return_value = [{"source": [{"count": 1}]}]
         store.count_unique_metadata_by_filter(filters, ["source"])
