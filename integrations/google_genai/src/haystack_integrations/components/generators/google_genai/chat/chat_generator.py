@@ -468,7 +468,7 @@ class GoogleGenAIChatGenerator:
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
         safety_settings = safety_settings or self._safety_settings
-        tools = tools or self._tools
+        tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)
@@ -586,7 +586,7 @@ class GoogleGenAIChatGenerator:
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
         safety_settings = safety_settings or self._safety_settings
-        tools = tools or self._tools
+        tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)

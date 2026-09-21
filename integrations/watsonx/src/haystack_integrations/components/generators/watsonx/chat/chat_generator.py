@@ -364,7 +364,8 @@ class WatsonxChatGenerator:
         watsonx_messages = []
         content: str | dict[str, Any] | list[dict[str, Any]] | None
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        resolved_tools = tools if tools is not None else self.tools
+        flattened_tools = flatten_tools_or_toolsets(resolved_tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_definitions = [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools]
 

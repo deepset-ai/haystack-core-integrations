@@ -347,7 +347,8 @@ class VLLMChatGenerator:
 
         openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        resolved_tools = tools if tools is not None else self.tools
+        flattened_tools = flatten_tools_or_toolsets(resolved_tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_definitions = None
         if flattened_tools:

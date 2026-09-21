@@ -401,6 +401,28 @@ class TestRun:
             assert len(call_kwargs.kwargs["tools"]) == 1
             assert call_kwargs.kwargs["tools"][0]["function"]["name"] == "weather"
 
+    def test_empty_tools_override_not_sent_to_litellm(self):
+        def weather(city: str) -> str:
+            """Get weather."""
+            return f"Sunny in {city}"
+
+        tool = Tool(
+            function=weather,
+            name="weather",
+            description="Get weather",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        )
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o", tools=[tool])
+        mock_resp = _make_mock_response()
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            gen.run(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+            call_kwargs = fake_litellm.completion.call_args
+            assert call_kwargs.kwargs["tools"] is None
+
 
 class TestSerializationRoundTrip:
     def test_round_trip_basic(self):

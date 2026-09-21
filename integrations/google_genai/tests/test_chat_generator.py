@@ -471,6 +471,16 @@ class TestGoogleGenAIChatGeneratorRun:
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.tools is not None
 
+    def test_run_with_empty_tools_override(self, mock_response, tools):
+        component = GoogleGenAIChatGenerator(tools=tools)
+        component._client = MagicMock()
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        component.run([ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        call_kwargs = component._client.models.generate_content.call_args
+        assert call_kwargs.kwargs["config"] is None
+
     def test_run_with_safety_settings(self, mock_response):
         safety = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}]
         component = GoogleGenAIChatGenerator()
@@ -593,6 +603,17 @@ class TestGoogleGenAIChatGeneratorRun:
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.temperature == 0.9
         assert config.max_output_tokens == 100
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_empty_tools_override(self, mock_response, tools):
+        component = GoogleGenAIChatGenerator(tools=tools)
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
+
+        await component.run_async([ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        call_kwargs = component._async_client.models.generate_content.call_args
+        assert call_kwargs.kwargs["config"] is None
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_streaming_chunk):

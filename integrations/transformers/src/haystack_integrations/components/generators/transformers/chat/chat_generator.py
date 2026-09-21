@@ -539,7 +539,7 @@ class TransformersChatGenerator:
         """
         assert self.pipeline is not None  # noqa: S101
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         if tools and streaming_callback is not None:
             msg = "Using tools and streaming at the same time is not supported. Please choose one."
             raise ValueError(msg)

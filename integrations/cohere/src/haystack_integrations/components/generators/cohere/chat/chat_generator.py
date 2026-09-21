@@ -686,7 +686,7 @@ class CohereChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         if flattened_tools:
             _check_duplicate_tool_names(flattened_tools)
@@ -755,7 +755,7 @@ class CohereChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         if flattened_tools:
             _check_duplicate_tool_names(flattened_tools)

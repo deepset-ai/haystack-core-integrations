@@ -281,6 +281,13 @@ class TestOpenRouterChatGeneratorUnit:
         assert function_spec["strict"] is True
         assert function_spec["parameters"]["additionalProperties"] is False
 
+    def test_prepare_api_call_with_empty_tools_override(self, chat_messages, tools, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator(tools=tools)
+        api_args = component._prepare_api_call(messages=chat_messages, tools=[])
+
+        assert "tools" not in api_args
+
     def test_prepare_api_call_raises_when_streaming_with_multiple_responses(self, chat_messages, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
         component = OpenRouterChatGenerator(generation_kwargs={"n": 2})

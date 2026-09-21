@@ -170,7 +170,8 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         aimlapi_formatted_messages: list[dict[str, Any]] = [message.to_openai_dict_format() for message in messages]
 
         tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        resolved_tools = tools if tools is not None else self.tools
+        flattened_tools = flatten_tools_or_toolsets(resolved_tools)
         _check_duplicate_tool_names(flattened_tools)
 
         openai_tools = {}

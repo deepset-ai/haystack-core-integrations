@@ -950,6 +950,25 @@ class TestRun:
         assert "get_current_temperature" in tool_names
         assert "population" in tool_names
 
+    def test_run_with_empty_tools_override(self, temperature_tool):
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool])
+
+        mock_model = MagicMock()
+        mock_response = {
+            "choices": [{"message": {"content": "Paris"}, "index": 0, "finish_reason": "stop"}],
+            "id": "test_id",
+            "model": "test_model",
+            "created": 1234567890,
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        mock_model.create_chat_completion.return_value = mock_response
+        generator._model = mock_model
+
+        generator.run(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert call_args["tools"] == []
+
     def test_run_with_string_input(self, generator_mock):
         """
         Test that a string input is converted to a user ChatMessage and returns a list of replies.

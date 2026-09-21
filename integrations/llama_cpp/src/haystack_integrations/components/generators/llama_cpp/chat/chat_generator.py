@@ -379,7 +379,7 @@ class LlamaCppChatGenerator:
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
 

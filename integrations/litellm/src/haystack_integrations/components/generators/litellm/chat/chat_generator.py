@@ -116,7 +116,8 @@ class LiteLLMChatGenerator:
         if self.api_base_url:
             extra["api_base"] = self.api_base_url
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        resolved_tools = tools if tools is not None else self.tools
+        flattened_tools = flatten_tools_or_toolsets(resolved_tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_defs = None
         if flattened_tools:

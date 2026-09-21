@@ -702,6 +702,21 @@ class TestValidationAndTools:
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
 
+    def test_run_with_empty_tools_override(self, tools):
+        generator = TransformersChatGenerator(model="Qwen/Qwen3-0.6B", tools=tools)
+
+        mock_pipeline = Mock(return_value=[{"generated_text": "Paris"}])
+        mock_tokenizer = Mock(spec=PreTrainedTokenizer)
+        mock_tokenizer.encode.return_value = ["some", "tokens"]
+        mock_tokenizer.pad_token_id = 100
+        mock_tokenizer.apply_chat_template.return_value = "test prompt"
+        mock_pipeline.tokenizer = mock_tokenizer
+        generator.pipeline = mock_pipeline
+
+        generator.run(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        assert mock_tokenizer.apply_chat_template.call_args.kwargs["tools"] is None
+
     def test_run_with_tools_and_tool_response(self):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
 

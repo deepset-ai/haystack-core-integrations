@@ -559,7 +559,7 @@ class HuggingFaceAPIChatGenerator:
 
         formatted_messages = [convert_message_to_hf_format(message) for message in messages]
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         if tools and self.streaming_callback:
             msg = "Using tools and streaming at the same time is not supported. Please choose one."
             raise ValueError(msg)
@@ -621,7 +621,7 @@ class HuggingFaceAPIChatGenerator:
 
         formatted_messages = [convert_message_to_hf_format(message) for message in messages]
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         if tools and self.streaming_callback:
             msg = "Using tools and streaming at the same time is not supported. Please choose one."
             raise ValueError(msg)

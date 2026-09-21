@@ -436,6 +436,18 @@ class TestRun:
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.9
 
+    def test_run_with_empty_tools_override(self, mock_chat_completion):
+        @tool
+        def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
+            """Get the weather in a given city."""
+            return f"The weather in {city} is sunny"
+
+        component = VLLMChatGenerator(model=MODEL, tools=[weather])
+        component.run([ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert "tools" not in kwargs
+
     def test_run_with_string_input(self, mock_chat_completion):
         component = VLLMChatGenerator(model=MODEL)
         result = component.run("What's the capital of France?")

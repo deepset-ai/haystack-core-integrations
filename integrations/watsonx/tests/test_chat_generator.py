@@ -370,6 +370,18 @@ class TestRun:
             tools=None,
         )
 
+    def test_run_with_empty_tools_override(self, mock_watsonx, tools: list[Tool]) -> None:
+        generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            project_id=Secret.from_token("test-project"),
+            tools=tools,
+        )
+
+        generator.run(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        _, kwargs = mock_watsonx["model_instance"].chat.call_args
+        assert kwargs["tools"] is None
+
     def test_run_with_streaming(self, mock_watsonx, mock_select_callback):
         """Test streaming with callback through parent class"""
         generator = WatsonxChatGenerator(

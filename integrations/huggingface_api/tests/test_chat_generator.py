@@ -726,6 +726,18 @@ class TestRun:
             "usage": {"completion_tokens": 30, "prompt_tokens": 426},
         }
 
+    def test_run_with_empty_tools_override(self, mock_check_valid_model, mock_chat_completion, tools, chat_messages):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-3.1-70B-Instruct"},
+            tools=tools,
+        )
+
+        generator.run(messages=chat_messages, tools=[])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["tools"] is None
+
     def test_convert_hfapi_tool_calls_empty(self):
         hfapi_tool_calls = None
         tool_calls = _convert_hfapi_tool_calls(hfapi_tool_calls)
@@ -1189,6 +1201,21 @@ class TestRunAsync:
             "model": "meta-llama/Llama-3.1-70B-Instruct",
             "usage": {"completion_tokens": 30, "prompt_tokens": 426},
         }
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_empty_tools_override(
+        self, mock_check_valid_model, mock_chat_completion_async, tools, chat_messages
+    ):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-3.1-70B-Instruct"},
+            tools=tools,
+        )
+
+        await generator.run_async(messages=chat_messages, tools=[])
+
+        _, kwargs = mock_chat_completion_async.call_args
+        assert kwargs["tools"] is None
 
 
 @pytest.mark.integration

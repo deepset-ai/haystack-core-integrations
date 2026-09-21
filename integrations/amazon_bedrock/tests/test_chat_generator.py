@@ -612,6 +612,15 @@ class TestAmazonBedrockChatGenerator:
             ]
         }
 
+    def test_prepare_request_params_with_empty_tools_override(self, tools):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6", tools=tools)
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+            tools=[],
+        )
+
+        assert "toolConfig" not in request_params
+
     @pytest.mark.parametrize(
         "generation_kwargs,additional_model_request_fields",
         [

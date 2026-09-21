@@ -280,7 +280,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             if chat_msg.reasoning and chat_msg.reasoning.extra.get("reasoning_details"):
                 openai_formatted_messages[i]["reasoning_details"] = chat_msg.reasoning.extra["reasoning_details"]
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        resolved_tools = tools if tools is not None else self.tools
+        flattened_tools = flatten_tools_or_toolsets(resolved_tools)
         tools_strict = tools_strict if tools_strict is not None else self.tools_strict
         _check_duplicate_tool_names(flattened_tools)
 

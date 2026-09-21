@@ -464,7 +464,7 @@ class AmazonBedrockChatGenerator:
         }
 
         # Handle tools - either toolConfig or Haystack Tool objects but not both
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
