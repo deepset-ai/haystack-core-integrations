@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Integration tests for IBMDb2EmbeddingRetriever using live DB2 instance."""
+"""Tests for IBMDb2EmbeddingRetriever."""
 
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -172,3 +172,44 @@ class TestIBMDb2EmbeddingRetrieverRun:
         assert kwargs["top_k"] == 2
         # REPLACE policy => runtime filters win
         assert kwargs["filters"] == apply_filter_policy(FilterPolicy.REPLACE, {}, runtime_filters)
+
+
+class TestIBMDb2EmbeddingRetrieverRunAsync:
+    """Unit tests for run_async using a mocked document store (no database)."""
+
+    async def test_run_async_delegates_to_embedding_retrieval_async(self):
+        expected = [Document(id="1", content="a"), Document(id="2", content="b")]
+        mock_store = Mock(spec=IBMDb2DocumentStore)
+        mock_store._embedding_retrieval_async = AsyncMock(return_value=expected)
+
+        retriever = IBMDb2EmbeddingRetriever(document_store=mock_store, top_k=4)
+        result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3, 0.4])
+
+        assert result == {"documents": expected}
+        mock_store._embedding_retrieval_async.assert_awaited_once()
+        _, kwargs = mock_store._embedding_retrieval_async.call_args
+        assert kwargs["top_k"] == 4
+        assert kwargs["filters"] == {}
+
+    async def test_run_async_top_k_override_and_runtime_filters(self):
+        mock_store = Mock(spec=IBMDb2DocumentStore)
+        mock_store._embedding_retrieval_async = AsyncMock(return_value=[])
+
+        runtime_filters = {"operator": "==", "field": "meta.x", "value": "y"}
+        retriever = IBMDb2EmbeddingRetriever(document_store=mock_store, top_k=10)
+        await retriever.run_async(query_embedding=[0.1, 0.2], filters=runtime_filters, top_k=2)
+
+        _, kwargs = mock_store._embedding_retrieval_async.call_args
+        assert kwargs["top_k"] == 2
+        # REPLACE policy => runtime filters win
+        assert kwargs["filters"] == apply_filter_policy(FilterPolicy.REPLACE, {}, runtime_filters)
+
+    async def test_run_async_uses_constructor_top_k_when_not_overridden(self):
+        mock_store = Mock(spec=IBMDb2DocumentStore)
+        mock_store._embedding_retrieval_async = AsyncMock(return_value=[])
+
+        retriever = IBMDb2EmbeddingRetriever(document_store=mock_store, top_k=7)
+        await retriever.run_async(query_embedding=[0.1, 0.2])
+
+        _, kwargs = mock_store._embedding_retrieval_async.call_args
+        assert kwargs["top_k"] == 7

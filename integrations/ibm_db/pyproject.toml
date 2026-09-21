@@ -53,6 +53,7 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
+    "pytest-asyncio>=0.23.0",
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
@@ -163,6 +164,8 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "class"
 markers = [
   "integration: integration tests",
 ]

@@ -4,6 +4,7 @@
 
 """IBM Db2 Document Store for Haystack."""
 
+import asyncio
 import json
 import logging
 import threading
@@ -953,6 +954,31 @@ class IBMDb2DocumentStore:
             documents.append(doc)
 
         return documents
+
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: list[float],
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Async variant of :meth:`_embedding_retrieval`.
+
+        Offloads the synchronous IBM Db2 call to a thread pool via
+        :func:`asyncio.to_thread` so the event loop is not blocked.
+
+        :param query_embedding: Query embedding vector.
+        :param filters: Optional filters to apply.
+        :param top_k: Number of documents to retrieve.
+        :return: List of documents with similarity scores.
+        """
+        return await asyncio.to_thread(
+            self._embedding_retrieval,
+            query_embedding,
+            filters=filters,
+            top_k=top_k,
+        )
 
 
 __all__ = ["IBMDb2DocumentStore"]

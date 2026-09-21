@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### 🚀 Features
+
+- Add async API support: `IBMDb2EmbeddingRetriever.run_async()` and `IBMDb2DocumentStore._embedding_retrieval_async()` (#3971)
+
 ## [integrations/ibm_db-v0.3.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
