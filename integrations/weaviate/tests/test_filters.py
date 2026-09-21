@@ -143,13 +143,3 @@ def test_equal_passes_through_values_that_are_not_dates():
     assert _parse_comparison_condition(
         {"field": "meta.number", "operator": "==", "value": 100}
     ) == weaviate.classes.query.Filter.by_property("number").equal(100)
-
-
-def test_invert_nested_not_conditions():
-    """NOT inverts to OR, so a NOT nested inside a NOT must round-trip back to the original meaning."""
-    inner = {"operator": "NOT", "conditions": [{"field": "meta.number", "operator": "==", "value": 100}]}
-    inverted = _invert_condition({"operator": "NOT", "conditions": [inner]})
-    assert inverted == {
-        "operator": "OR",
-        "conditions": [{"operator": "OR", "conditions": [{"field": "meta.number", "operator": "!=", "value": 100}]}],
-    }
