@@ -42,6 +42,8 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_MAX_TOKENS = 8192
+
 
 @component
 class AnthropicChatGenerator:
@@ -153,7 +155,9 @@ class AnthropicChatGenerator:
 
             Supported generation_kwargs parameters are:
             - `system`: The system message to be passed to the model.
-            - `max_tokens`: The maximum number of tokens to generate.
+            - `max_tokens`: The maximum number of tokens to generate. Defaults to 8192. A response that hits
+                this limit is cut off; if the model was writing a tool call at the time, that call is dropped
+                and the reply carries a `length` finish reason.
             - `metadata`: A dictionary of metadata to be passed to the model.
             - `stop_sequences`: A list of strings that the model should stop generating at.
             - `temperature`: The temperature to use for sampling.
@@ -587,7 +591,7 @@ class AnthropicChatGenerator:
             system=system_messages,
             tools=anthropic_tools,
             stream=streaming_callback is not None,
-            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            max_tokens=generation_kwargs.pop("max_tokens", _DEFAULT_MAX_TOKENS),
             **generation_kwargs,
         )
 
@@ -636,7 +640,7 @@ class AnthropicChatGenerator:
             system=system_messages,
             tools=anthropic_tools,
             stream=streaming_callback is not None,
-            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            max_tokens=generation_kwargs.pop("max_tokens", _DEFAULT_MAX_TOKENS),
             **generation_kwargs,
         )
 

@@ -24,6 +24,7 @@ from haystack.tools import Tool, Toolset, create_tool_from_function
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
+    _DEFAULT_MAX_TOKENS,
     AnthropicChatGenerator,
 )
 from haystack_integrations.components.generators.anthropic.chat.utils import (
@@ -416,6 +417,18 @@ class TestRun:
         assert "Hello! I'm Claude." in response["replies"][0].text
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-5"
         assert response["replies"][0].meta["finish_reason"] == "stop"
+
+    def test_run_uses_default_max_tokens(self, chat_messages, mock_chat_completion):
+        """
+        Anthropic requires `max_tokens`, so the component sends a default when the caller sets none. It must leave
+        room for a realistic tool call: too low a ceiling truncates the arguments and the call is dropped.
+        """
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        component.run(chat_messages)
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["max_tokens"] == _DEFAULT_MAX_TOKENS
+        assert _DEFAULT_MAX_TOKENS == 8192
 
     def test_run_with_generation_kwargs(self, chat_messages, mock_chat_completion):
         component = AnthropicChatGenerator(
