@@ -224,3 +224,4 @@ def test_pipeline_serde():
     assert isinstance(reloaded._document_store, WeaviateDocumentStore)
     assert reloaded._document_store.to_dict() == document_store.to_dict()
     assert reloaded._top_k == 3
+    assert reloaded._distance == 0.5
