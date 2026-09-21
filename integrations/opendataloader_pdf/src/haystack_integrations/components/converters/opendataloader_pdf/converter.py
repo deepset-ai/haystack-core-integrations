@@ -63,8 +63,8 @@ class OpenDataLoaderConverter:
             [OpenDataLoader PDF Python options](https://opendataloader.org/docs/quick-start-python#convert-options).
             The `image_output` and `image_dir` arguments are managed by this component; supplied values are ignored.
         :param extract_images: Whether to extract images and return them through the `image_documents` output.
-        :param image_output_dir: Persistent directory for extracted image files. Required when `extract_images` is
-            `True`.
+        :param image_output_dir: Persistent root directory for extracted image files. Each `run()` stores its images
+            in a unique subdirectory of this directory. Required when `extract_images` is `True`.
         :raises ValueError: If image extraction is enabled without an output directory.
         """
         conversion_options = convert_kwargs.copy() if convert_kwargs else {}
