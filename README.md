@@ -4,8 +4,8 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/opendataloader\_pdf/converter.py |       79 |        5 |       20 |        4 |     91% |92-\>100, 95-99, 149-150, 169 |
-| **TOTAL**                                                                         |   **79** |    **5** |   **20** |    **4** | **91%** |           |
+| src/haystack\_integrations/components/converters/opendataloader\_pdf/converter.py |      102 |        4 |       32 |        3 |     95% |130-\>138, 133-137, 187-188 |
+| **TOTAL**                                                                         |  **102** |    **4** |   **32** |    **3** | **95%** |           |
 
 
 ## Setup coverage badge
