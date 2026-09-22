@@ -139,7 +139,15 @@ class TestLocalFileSources:
         post_call = mock_httpx2_clients.sync_client.post.call_args
         assert post_call.args == ("/forms/libreoffice/convert",)
         assert _uploaded_files(post_call)[0][1][:2] == ("REPORT.DOCX", b"docx bytes")
-        _assert_pdf(result=result)
+        _assert_pdf(result=result, meta={"file_path": str(path)})
+
+    def test_explicit_metadata_overrides_local_file_path(self, tmp_path: Path) -> None:
+        path = tmp_path / "report.docx"
+        path.write_bytes(b"docx bytes")
+
+        result = GotenbergFileConverter().run(sources=[path], meta={"file_path": "original/report.docx"})
+
+        _assert_pdf(result=result, meta={"file_path": "original/report.docx"})
 
     @pytest.mark.parametrize("suffix", ".pages .xlsx .key .vsdx .png .pdf .uot".split())
     def test_supported_libreoffice_suffixes_use_direct_endpoint(
@@ -170,7 +178,7 @@ class TestLocalFileSources:
             ("files", ("index.html", "<h1>Local HTML</h1>", "text/html")),
             ("files", ("styles.css", b"body {}", "text/css")),
         ]
-        _assert_pdf(result=result)
+        _assert_pdf(result=result, meta={"file_path": str(source)})
 
     @pytest.mark.parametrize("suffix", [".md", ".markdown"])
     def test_local_markdown_uploads_matching_template_source_and_resources(
@@ -191,7 +199,7 @@ class TestLocalFileSources:
         assert '{{ toHTML "release_notes.md" }}' in parts[0][1][1]
         assert parts[1] == ("files", ("release_notes.md", "# Local Markdown", "text/markdown"))
         assert parts[2] == ("files", ("logo.png", b"png", "image/png"))
-        _assert_pdf(result=result)
+        _assert_pdf(result=result, meta={"file_path": str(source)})
 
     @pytest.mark.parametrize("source_type", ["str", "path"])
     def test_missing_local_file_is_rejected(self, tmp_path: Path, source_type: str) -> None:
@@ -450,6 +458,7 @@ class TestAsyncRun:
             "/forms/libreoffice/convert",
         ]
         assert [item.data for item in result["output"]] == [b"%PDF-html", b"%PDF-office"]
+        assert [item.meta for item in result["output"]] == [{}, {"file_path": str(office)}]
 
 
 class TestResources:

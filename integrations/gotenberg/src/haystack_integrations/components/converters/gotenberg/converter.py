@@ -236,6 +236,15 @@ def _resources(resources: list[Path] | None) -> list[Path]:
     return paths
 
 
+def _source_metadata(source: str | Path | ByteStream) -> dict[str, Any]:
+    """Return metadata inherited from the source."""
+    if isinstance(source, ByteStream):
+        return source.meta
+    if isinstance(source, Path) or "://" not in source:
+        return {"file_path": str(source)}
+    return {}
+
+
 def _is_url_source(source: str) -> bool:
     """Return whether a string is an HTTP(S) URL, rejecting malformed or unsupported URLs."""
     if "://" not in source:
@@ -263,7 +272,8 @@ class GotenbergFileConverter:
     Local Markdown files use Gotenberg's Markdown route, local HTML files use its Chromium HTML route, and every
     other supported local file uses its LibreOffice route. HTTP(S) strings use the Chromium URL route. `ByteStream`
     sources are routed by their MIME type. Resources are validated for every batch but uploaded only with HTML and
-    Markdown sources.
+    Markdown sources. Output metadata preserves local source paths under `file_path` and metadata from `ByteStream`
+    sources; explicit metadata takes precedence.
 
     ### Usage example
 
@@ -503,7 +513,7 @@ class GotenbergFileConverter:
             output = [
                 self._pdf(
                     response=client.post(path, files=files),
-                    meta={**(source.meta if isinstance(source, ByteStream) else {}), **source_meta},
+                    meta={**_source_metadata(source=source), **source_meta},
                 )
                 for source, (path, files), source_meta in zip(sources, requests, meta_list, strict=True)
             ]
@@ -564,7 +574,7 @@ class GotenbergFileConverter:
         output = [
             self._pdf(
                 response=response,
-                meta={**(source.meta if isinstance(source, ByteStream) else {}), **source_meta},
+                meta={**_source_metadata(source=source), **source_meta},
             )
             for source, response, source_meta in zip(sources, responses, meta_list, strict=True)
         ]
