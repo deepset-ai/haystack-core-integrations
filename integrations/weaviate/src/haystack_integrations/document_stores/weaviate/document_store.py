@@ -166,6 +166,9 @@ class WeaviateDocumentStore:
             ```
             {"X-OpenAI-Api-Key": "<THE-KEY>"}, {"X-HuggingFace-Api-Key": "<THE-KEY>"}
             ```
+            Every connection also carries `X-Weaviate-Client-Integration: haystack-python/<version>`, which
+            identifies this integration in Weaviate's telemetry. Supplying that header here, in any casing,
+            overrides it.
         :param embedded_options:
             If set, create an embedded Weaviate cluster inside the client. For a full list of options see
             `weaviate.embedded.EmbeddedOptions`.

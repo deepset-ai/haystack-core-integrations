@@ -105,9 +105,84 @@ async def test_async_client_connects_to_weaviate_cloud(mock_connect, monkeypatch
     mock_client.collections.exists = exists
     mock_connect.return_value = mock_client
 
-    ds = WeaviateDocumentStore(url="rAnD0m.something.weaviate.cloud", auth_client_secret=AuthApiKey())
+    ds = WeaviateDocumentStore(
+        url="rAnD0m.something.weaviate.cloud",
+        auth_client_secret=AuthApiKey(),
+        additional_headers={"X-HuggingFace-Api-Key": "k"},
+    )
     assert await ds.async_client is mock_client
+
     mock_connect.assert_called_once()
+    _args, kwargs = mock_connect.call_args
+    assert kwargs["headers"] == {
+        "X-HuggingFace-Api-Key": "k",
+        "X-Weaviate-Client-Integration": _integration_header_value(),
+    }
+
+
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
+def test_client_sends_integration_header(mock_weaviate_client_class):
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_weaviate_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="http://localhost:8080")
+    ds.client  # noqa: B018
+
+    headers = mock_weaviate_client_class.call_args.kwargs["additional_headers"]
+    assert headers["X-Weaviate-Client-Integration"].startswith("haystack-python/")
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateAsyncClient")
+async def test_async_client_sends_integration_header(mock_weaviate_async_client_class):
+    mock_client = MagicMock()
+
+    async def connect() -> None:
+        return None
+
+    async def exists(_name: str) -> bool:
+        return True
+
+    mock_client.connect = connect
+    mock_client.collections.exists = exists
+    mock_weaviate_async_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="http://localhost:8080")
+    await ds.async_client
+
+    headers = mock_weaviate_async_client_class.call_args.kwargs["additional_headers"]
+    assert headers["X-Weaviate-Client-Integration"].startswith("haystack-python/")
+
+
+@pytest.mark.parametrize("header_name", ["X-Weaviate-Client-Integration", "x-weaviate-client-integration"])
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
+def test_user_supplied_integration_header_wins(mock_weaviate_client_class, header_name):
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_weaviate_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="http://localhost:8080", additional_headers={header_name: "custom/1.0"})
+    ds.client  # noqa: B018
+
+    headers = mock_weaviate_client_class.call_args.kwargs["additional_headers"]
+    assert headers == {header_name: "custom/1.0"}
+
+
+def test_integration_header_value_falls_back_to_unknown_version(monkeypatch):
+    def raise_package_not_found(_package_name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError
+
+    monkeypatch.setattr(importlib.metadata, "version", raise_package_not_found)
+
+    assert _integration_header_value() == "haystack-python/unknown"
+
+
+def test_integration_header_is_not_serialized():
+    assert WeaviateDocumentStore().to_dict()["init_parameters"]["additional_headers"] is None
+
+    ds = WeaviateDocumentStore(additional_headers={"X-HuggingFace-Api-Key": "k"})
+    assert ds.to_dict()["init_parameters"]["additional_headers"] == {"X-HuggingFace-Api-Key": "k"}
 
 
 @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")

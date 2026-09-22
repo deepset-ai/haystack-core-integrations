@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/anthropic-v6.1.0] - 2026-09-22
+
+### 🐛 Bug Fixes
+
+- Anthropic - respect an empty runtime tools list (#3977)
+- Drop Anthropic tool calls truncated at max_tokens and raise the default limit (#3982)
+
+### 🧹 Chores
+
+- Refresh Anthropic model lists and expose service_tierupdates (#3983)
+
+
 ## [integrations/anthropic-v6.0.1] - 2026-09-14
 
 ### 🐛 Bug Fixes

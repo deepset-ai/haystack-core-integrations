@@ -509,6 +509,14 @@ class TestRun:
                     "thinking": {"type": "disabled"},
                 },
             ),
+            (
+                {
+                    "service_tier": "standard_only",
+                },
+                {
+                    "service_tier": "standard_only",
+                },
+            ),
         ],
     )
     def test_run_with_flattened_generation_kwargs(
@@ -528,6 +536,7 @@ class TestRun:
         assert actual_kwargs.get("tool_choice") == expected_kwargs.get("tool_choice")
         assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
         assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
+        assert actual_kwargs.get("service_tier") == expected_kwargs.get("service_tier")
 
 
 class TestAnthropicServerTools:
@@ -568,6 +577,12 @@ class TestAnthropicServerTools:
         _, kwargs = mock_chat_completion.call_args
         assert len(kwargs["tools"]) == 2
         assert kwargs["tools"][-1] == {"type": "web_search_20250305"}
+
+    def test_run_with_empty_tools_override(self, chat_messages, mock_chat_completion, tools):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"), tools=tools)
+        component.run(messages=chat_messages, tools=[])
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["tools"] == []
 
 
 class TestMixedToolsAndToolsets:
