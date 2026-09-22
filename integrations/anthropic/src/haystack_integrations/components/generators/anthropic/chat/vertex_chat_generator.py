@@ -46,7 +46,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client = AnthropicVertexChatGenerator(
-                model="claude-sonnet-4@20250514",
+                model="claude-sonnet-4-5@20250929",
                 project_id="your-project-id", region="your-region"
             )
     response = client.run(messages)
@@ -57,7 +57,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.")],
-    >> _name=None, _meta={'model': 'claude-sonnet-4@20250514', 'index': 0, 'finish_reason': 'end_turn',
+    >> _name=None, _meta={'model': 'claude-sonnet-4-5@20250929', 'index': 0, 'finish_reason': 'end_turn',
     >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
     ```
 
@@ -69,13 +69,16 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "claude-fable-5-1",
+        "claude-fable-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
         "claude-opus-4-6",
+        "claude-opus-4-5@20251101",
+        "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5@20250929",
-        "claude-sonnet-4@20250514",
-        "claude-opus-4-5@20251101",
-        "claude-opus-4-1@20250805",
-        "claude-opus-4@20250514",
         "claude-haiku-4-5@20251001",
     ]
     """A non-exhaustive list of chat models supported by this component. See
@@ -85,7 +88,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self,
         region: str,
         project_id: str,
-        model: str = "claude-sonnet-4@20250514",
+        model: str = "claude-sonnet-4-5@20250929",
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
@@ -111,6 +114,8 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             - `system`: The system message to be passed to the model.
             - `max_tokens`: The maximum number of tokens to generate.
             - `metadata`: A dictionary of metadata to be passed to the model.
+            - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
+                (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
             - `stop_sequences`: A list of strings that the model should stop generating at.
             - `temperature`: The temperature to use for sampling.
             - `top_p`: The top_p value to use for nucleus sampling.
