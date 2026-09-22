@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import base64
 import dataclasses
 import json
 import time
@@ -450,9 +451,15 @@ class DynamoDBDocumentStore:
         return str(value)
 
     def _doc_to_item(self, doc: Document) -> dict[str, Any]:
-        d = doc.to_dict(flatten=False)
+        # `score` is a retrieval-time value, not part of the stored document; persisting it would
+        # hand a stale score back out of `filter_documents`. Other stores drop it the same way.
+        d = {k: v for k, v in doc.to_dict(flatten=False).items() if k != "score"}
         doc_id = d.pop("id")
         embedding = d.pop("embedding", None)
+        if (blob := d.get("blob")) is not None:
+            # `to_dict` renders the bytes as a list of ints, which JSON stores at ~4 bytes per byte.
+            # Base64 keeps the blob within the 400 KB item limit for much longer.
+            blob["data"] = base64.b64encode(bytes(blob["data"])).decode()
         # Everything except the key and the vector is stored as one JSON payload attribute, which
         # gives a stable, order-independent round trip of arbitrary nested metadata.
         payload = self._sanitize_metadata_value(d)
@@ -468,6 +475,8 @@ class DynamoDBDocumentStore:
     def _item_to_doc(item: dict[str, Any]) -> Document:
         payload = json.loads(item["payload"]) if "payload" in item else {}
         payload["id"] = item["id"]
+        if (blob := payload.get("blob")) is not None:
+            blob["data"] = base64.b64decode(blob["data"])
         if _VECTOR_ATTRIBUTE in item:
             payload["embedding"] = item[_VECTOR_ATTRIBUTE]
         return Document.from_dict(payload)

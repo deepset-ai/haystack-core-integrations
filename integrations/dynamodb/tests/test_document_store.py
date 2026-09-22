@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 from botocore.exceptions import ClientError
-from haystack.dataclasses import Document
+from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import DocumentStoreBaseExtendedTests
@@ -538,6 +539,21 @@ class TestDynamoDBDocumentStore:
                 filters={"field": "meta.topic", "operator": "==", "value": "db"},
             )
             assert [d.id for d in docs] == ["2"]
+
+    def test_doc_to_item_does_not_persist_score(self) -> None:
+        store = make_store()
+        item = store._doc_to_item(Document(id="1", content="hello", score=0.9))
+        assert "score" not in json.loads(item["payload"])
+        assert DynamoDBDocumentStore._item_to_doc(item).score is None
+
+    def test_doc_to_item_stores_blob_as_base64_and_round_trips(self) -> None:
+        store = make_store()
+        blob = ByteStream(data=b"\x00\x01binary", mime_type="application/octet-stream", meta={"name": "f.bin"})
+        item = store._doc_to_item(Document(id="1", blob=blob))
+        stored_blob = json.loads(item["payload"])["blob"]
+        assert stored_blob["data"] == base64.b64encode(blob.data).decode()
+        assert stored_blob["mime_type"] == "application/octet-stream"
+        assert DynamoDBDocumentStore._item_to_doc(item).blob == blob
 
     def test_to_dict_and_from_dict_roundtrip(self) -> None:
         store = DynamoDBDocumentStore(
