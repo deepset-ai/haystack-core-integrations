@@ -114,11 +114,12 @@ def test_run_uses_runtime_top_k_and_filters(mocked_store):
 @pytest.mark.asyncio
 async def test_run_async(mocked_store):
     mock_doc = Document(content="test", id="1")
-    with patch.object(mocked_store, "search", return_value=[mock_doc]):
+    with patch.object(mocked_store, "search_async", return_value=[mock_doc]):
         retriever = AstraEmbeddingRetriever(mocked_store, top_k=5)
         result = await retriever.run_async(query_embedding=[0.1] * 768)
         assert result["documents"] == [mock_doc]
-        call_args = mocked_store.search.call_args
+        mocked_store.search_async.assert_awaited_once()
+        call_args = mocked_store.search_async.call_args
         assert call_args.args == ([0.1] * 768, 5)
         assert call_args.kwargs == {"filters": {}}
 
@@ -126,12 +127,13 @@ async def test_run_async(mocked_store):
 @pytest.mark.asyncio
 async def test_run_async_filters_replace(mocked_store):
     mock_doc = Document(content="test", id="1")
-    with patch.object(mocked_store, "search", return_value=[mock_doc]):
+    with patch.object(mocked_store, "search_async", return_value=[mock_doc]):
         retriever = AstraEmbeddingRetriever(
             mocked_store, top_k=5, filters={"lang": "en"}, filter_policy=FilterPolicy.REPLACE
         )
         await retriever.run_async(query_embedding=[0.1] * 768, filters={"year": 2024})
-        assert mocked_store.search.call_args.kwargs["filters"] == {"year": 2024}
+        mocked_store.search_async.assert_awaited_once()
+        assert mocked_store.search_async.call_args.kwargs["filters"] == {"year": 2024}
 
 
 @pytest.mark.asyncio
@@ -139,12 +141,13 @@ async def test_run_async_filters_merge(mocked_store):
     mock_doc = Document(content="test", id="1")
     init_filters = {"field": "lang", "operator": "==", "value": "en"}
     runtime_filters = {"field": "year", "operator": "==", "value": 2024}
-    with patch.object(mocked_store, "search", return_value=[mock_doc]):
+    with patch.object(mocked_store, "search_async", return_value=[mock_doc]):
         retriever = AstraEmbeddingRetriever(
             mocked_store, top_k=5, filters=init_filters, filter_policy=FilterPolicy.MERGE
         )
         await retriever.run_async(query_embedding=[0.1] * 768, filters=runtime_filters)
-        merged = mocked_store.search.call_args.kwargs["filters"]
+        mocked_store.search_async.assert_awaited_once()
+        merged = mocked_store.search_async.call_args.kwargs["filters"]
         assert merged["operator"] == "AND"
         assert init_filters in merged["conditions"]
         assert runtime_filters in merged["conditions"]

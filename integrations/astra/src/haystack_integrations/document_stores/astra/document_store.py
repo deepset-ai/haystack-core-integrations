@@ -5,13 +5,22 @@
 from collections.abc import Generator
 from typing import Any
 
+from astrapy import DataAPIClient
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.version import __version__ as integration_version
 
-from .astra_client import AstraClient, QueryResponse
+from .astra_client import (
+    _API_OPTIONS,
+    CALLER_NAME,
+    AstraClient,
+    QueryResponse,
+    _collection_definition,
+    _collection_exists,
+)
 from .errors import AstraDocumentStoreFilterError
 from .filters import _convert_filters
 
@@ -73,7 +82,9 @@ class AstraDocumentStore:
               - `DuplicatePolicy.SKIP`: if a Document with the same ID already exists, it is skipped and not written.
               - `DuplicatePolicy.OVERWRITE`: if a Document with the same ID already exists, it is overwritten.
               - `DuplicatePolicy.FAIL`: if a Document with the same ID already exists, an error is raised.
-        :param similarity: the similarity function used to compare document vectors.
+        :param similarity: Retained for compatibility. Collections use their existing metric, or the Astra DB
+            default metric for new collections; this parameter does not override it.
+        :param namespace: The keyspace containing the collection, or the SDK default when omitted.
 
         :raises ValueError: if the API endpoint or token is not set.
         """
@@ -129,6 +140,8 @@ class AstraDocumentStore:
             Deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
+        if isinstance(data["init_parameters"].get("duplicates_policy"), str):
+            data["init_parameters"]["duplicates_policy"] = DuplicatePolicy[data["init_parameters"]["duplicates_policy"]]
         return default_from_dict(cls, data)
 
     def to_dict(self) -> dict[str, Any]:
@@ -462,6 +475,51 @@ class AstraDocumentStore:
         logger.debug(f"Raw responses: {result}")  # leaving for debugging
 
         return result
+
+    async def search_async(
+        self, query_embedding: list[float], top_k: int, filters: dict[str, Any] | None = None
+    ) -> list[Document]:
+        """
+        Search using AstraPy's native async API.
+
+        Each call checks the collection and releases its database and collection connections on completion,
+        including on failure or cancellation. This adds a collection-listing request per search.
+
+        :param query_embedding: A list of query embeddings.
+        :param top_k: The number of results to return.
+        :param filters: Filters to apply during search.
+        :returns: Matching documents, including embeddings, metadata and similarity scores.
+        """
+        converted_filters = _convert_filters(filters)
+        client = DataAPIClient(callers=[(CALLER_NAME, integration_version)], api_options=_API_OPTIONS)
+        async with client.get_async_database(
+            api_endpoint=self.resolved_api_endpoint,
+            token=self.resolved_token,
+            keyspace=self.namespace,
+        ) as database:
+            if _collection_exists(self.collection_name, await database.list_collections()):
+                collection = database.get_collection(self.collection_name)
+            else:
+                collection = await database.create_collection(
+                    name=self.collection_name,
+                    definition=_collection_definition(self.embedding_dimension),
+                )
+            async with collection:
+                responses = [
+                    response
+                    async for response in collection.find(
+                        filter=converted_filters,
+                        sort={"$vector": query_embedding},
+                        limit=top_k,
+                        include_similarity=True,
+                        projection={"*": 1},
+                    )
+                ]
+        if not responses:
+            logger.warning("No documents found.")
+        return self._get_result_to_documents(
+            AstraClient._format_query_response(responses, include_metadata=True, include_values=True)
+        )
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """

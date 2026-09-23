@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -93,7 +92,7 @@ class AstraEmbeddingRetriever:
         """
         Retrieve documents from the AstraDocumentStore asynchronously.
 
-        Runs the sync search in a thread pool to avoid blocking the event loop.
+        Uses the native async Astra DB API and releases connections after each search.
 
         :param query_embedding: floats representing the query embedding
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
@@ -106,7 +105,7 @@ class AstraEmbeddingRetriever:
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         top_k = top_k or self.top_k
 
-        documents = await asyncio.to_thread(self.document_store.search, query_embedding, top_k, filters=filters)
+        documents = await self.document_store.search_async(query_embedding, top_k, filters=filters)
         return {"documents": documents}
 
     def to_dict(self) -> dict[str, Any]:

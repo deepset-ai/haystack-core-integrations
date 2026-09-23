@@ -6,7 +6,8 @@ from types import SimpleNamespace
 from unittest import mock
 
 import pytest
-from astrapy.exceptions import CollectionAlreadyExistsException
+from astrapy.exceptions import DataAPIResponseException
+from astrapy.info import CollectionDefinition, CollectionDescriptor
 
 from haystack_integrations.document_stores.astra.astra_client import (
     AstraClient,
@@ -29,6 +30,7 @@ CLIENT_KWARGS = {
 @pytest.fixture
 def mock_db():
     with mock.patch(CLIENT_PATH) as patched_client:
+        patched_client.return_value.get_database.return_value.list_collections.return_value = []
         yield patched_client.return_value.get_database.return_value
 
 
@@ -46,8 +48,7 @@ class TestAstraClientInit:
     def test_creates_collection(self, client):
         client._astra_db.create_collection.assert_called_once_with(
             name="my_collection",
-            dimension=4,
-            indexing={"deny": ["metadata._node_content", "content"]},
+            definition={"vector": {"dimension": 4}, "indexing": {"deny": ["metadata._node_content", "content"]}},
         )
         assert client._astra_db_collection is client._astra_db.create_collection.return_value
 
@@ -59,35 +60,36 @@ class TestAstraClientInit:
         ],
     )
     def test_preexisting_collection_with_mismatched_indexing_warns(self, mock_db, pre_indexing, warning_match):
-        mock_db.create_collection.side_effect = CollectionAlreadyExistsException(
-            text="exists", keyspace="default", collection_name="my_collection"
-        )
         mock_db.list_collections.return_value = [
-            SimpleNamespace(name="my_collection", options=SimpleNamespace(indexing=pre_indexing))
+            CollectionDescriptor(
+                name="my_collection", definition=CollectionDefinition(indexing=pre_indexing), raw_descriptor={}
+            )
         ]
         with pytest.warns(UserWarning, match=warning_match):
-            AstraClient(**CLIENT_KWARGS)
+            client = AstraClient(**CLIENT_KWARGS)
         mock_db.get_collection.assert_called_once_with("my_collection")
+        assert client._astra_db_collection is mock_db.get_collection.return_value
+        mock_db.create_collection.assert_not_called()
 
     def test_preexisting_collection_with_matching_indexing_reuses_silently(self, mock_db):
-        mock_db.create_collection.side_effect = CollectionAlreadyExistsException(
-            text="exists", keyspace="default", collection_name="my_collection"
-        )
         mock_db.list_collections.return_value = [
-            SimpleNamespace(
+            CollectionDescriptor(
                 name="my_collection",
-                options=SimpleNamespace(indexing={"deny": ["metadata._node_content", "content"]}),
+                definition=CollectionDefinition(indexing={"deny": ["metadata._node_content", "content"]}),
+                raw_descriptor={},
             )
         ]
         AstraClient(**CLIENT_KWARGS)
         mock_db.get_collection.assert_called_once_with("my_collection")
+        mock_db.create_collection.assert_not_called()
 
-    def test_unrelated_already_exists_reraises(self, mock_db):
-        mock_db.create_collection.side_effect = CollectionAlreadyExistsException(
-            text="exists", keyspace="default", collection_name="my_collection"
+    def test_collection_creation_error_propagates(self, mock_db):
+        mock_db.create_collection.side_effect = DataAPIResponseException.from_response(
+            command=None,
+            raw_response={"errors": [{"message": "incompatible collection", "errorCode": "INVALID_COLLECTION_NAME"}]},
         )
         mock_db.list_collections.return_value = []
-        with pytest.raises(CollectionAlreadyExistsException):
+        with pytest.raises(DataAPIResponseException):
             AstraClient(**CLIENT_KWARGS)
 
 

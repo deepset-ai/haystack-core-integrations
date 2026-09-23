@@ -8,9 +8,9 @@ from typing import Any
 from warnings import warn
 
 from astrapy import DataAPIClient as AstraDBClient
-from astrapy.collection import FilterType
-from astrapy.constants import ReturnDocument
-from astrapy.exceptions import CollectionAlreadyExistsException
+from astrapy.api_options import APIOptions, SerdesOptions
+from astrapy.constants import FilterType, ReturnDocument
+from astrapy.info import CollectionDescriptor
 from haystack import logging
 from haystack.version import __version__ as integration_version
 from pydantic.dataclasses import dataclass
@@ -19,6 +19,40 @@ logger = logging.getLogger(__name__)
 
 NON_INDEXED_FIELDS = ["metadata._node_content", "content"]
 CALLER_NAME = "haystack"
+# Binary encoding introduced in AstraPy 2 rounds embeddings to float32.
+_API_OPTIONS = APIOptions(serdes_options=SerdesOptions(binary_encode_vectors=False))
+
+
+def _collection_definition(embedding_dimension: int) -> dict[str, Any]:
+    # Preserve the SDK-default metric used by existing versions of this integration.
+    return {"vector": {"dimension": embedding_dimension}, "indexing": {"deny": NON_INDEXED_FIELDS}}
+
+
+def _collection_exists(collection_name: str, collections: list[CollectionDescriptor]) -> bool:
+    for descriptor in collections:
+        if descriptor.name != collection_name:
+            continue
+        indexing = descriptor.definition.indexing or {}
+        if not indexing:
+            warn(
+                f"Collection '{collection_name}' is detected as having indexing turned on for all fields "
+                "(either created manually or by older versions of this plugin). This implies stricter "
+                "limitations on the amount of text each entry can store. Consider indexing anew on a "
+                "fresh collection to be able to store longer texts.",
+                UserWarning,
+                stacklevel=3,
+            )
+        elif indexing != {"deny": NON_INDEXED_FIELDS}:
+            warn(
+                f"Collection '{collection_name}' has unexpected 'indexing' settings "
+                f"(options.indexing = {json.dumps(indexing)}). This can result in odd behaviour when running "
+                "metadata filtering and/or unwarranted limitations on storing long texts. "
+                "Consider indexing anew on a fresh collection.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return True
+    return False
 
 
 @dataclass
@@ -77,6 +111,7 @@ class AstraClient:
         # Get the keyspace from the collection name
         my_client = AstraDBClient(
             callers=[(CALLER_NAME, integration_version)],
+            api_options=_API_OPTIONS,
         )
 
         # Get the database object
@@ -86,69 +121,14 @@ class AstraClient:
             keyspace=namespace,
         )
 
-        indexing_options = {"deny": NON_INDEXED_FIELDS}
-        try:
-            # Create and connect to the newly created collection
+        # AstraPy 2 no longer checks for existing collections before creation.
+        if _collection_exists(collection_name, self._astra_db.list_collections()):
+            self._astra_db_collection = self._astra_db.get_collection(collection_name)
+        else:
             self._astra_db_collection = self._astra_db.create_collection(
                 name=collection_name,
-                dimension=embedding_dimension,
-                indexing=indexing_options,
+                definition=_collection_definition(embedding_dimension),
             )
-        except CollectionAlreadyExistsException as _:
-            # possibly the collection is preexisting and has legacy
-            # indexing settings: verify
-            preexisting = [
-                coll_descriptor
-                for coll_descriptor in self._astra_db.list_collections()
-                if coll_descriptor.name == collection_name
-            ]
-
-            if preexisting:
-                # if it has no "indexing", it is a legacy collection;
-                # otherwise it's unexpected: warn and proceed at user's risk
-                pre_col_idx_opts = preexisting[0].options.indexing or {}
-                if not pre_col_idx_opts:
-                    warn(
-                        (
-                            f"Collection '{collection_name}' is detected as "
-                            "having indexing turned on for all fields "
-                            "(either created manually or by older versions "
-                            "of this plugin). This implies stricter "
-                            "limitations on the amount of text"
-                            " each entry can store. Consider indexing anew on a"
-                            " fresh collection to be able to store longer texts."
-                        ),
-                        UserWarning,
-                        stacklevel=2,
-                    )
-                    self._astra_db_collection = self._astra_db.get_collection(
-                        collection_name,
-                    )
-                # check if the indexing options match entirely
-                elif pre_col_idx_opts == indexing_options:
-                    self._astra_db_collection = self._astra_db.get_collection(
-                        collection_name,
-                    )
-                else:
-                    options_json = json.dumps(pre_col_idx_opts)
-                    warn(
-                        (
-                            f"Collection '{collection_name}' has unexpected 'indexing'"
-                            f" settings (options.indexing = {options_json})."
-                            " This can result in odd behaviour when running "
-                            " metadata filtering and/or unwarranted limitations"
-                            " on storing long texts. Consider indexing anew on a"
-                            " fresh collection."
-                        ),
-                        UserWarning,
-                        stacklevel=2,
-                    )
-                    self._collection = self._astra_db.get_collection(
-                        collection_name,
-                    )
-            else:
-                # other exception
-                raise
 
     def query(
         self,
