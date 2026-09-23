@@ -62,7 +62,7 @@ jobs:
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
     services:
       arcadedb:
-        image: arcadedata/arcadedb:26.9.1
+        image: arcadedata/arcadedb:latest
         env:
           # Default password so container starts in forks; main repo uses secret
           JAVA_OPTS: "-Darcadedb.server.rootPassword=${{ secrets.ARCADEDB_PASSWORD || 'arcadedb' }}"
