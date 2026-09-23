@@ -8,7 +8,7 @@
 | src/haystack\_integrations/components/classifiers/transformers/zero\_shot\_document\_classifier.py |       60 |        3 |       16 |        0 |     93% |   136-138 |
 | src/haystack\_integrations/components/extractors/transformers/named\_entity\_extractor.py          |       73 |        2 |        8 |        1 |     96% |   170-171 |
 | src/haystack\_integrations/components/generators/transformers/chat/chat\_generator.py              |      208 |       16 |       52 |        4 |     92% |63-65, 235-237, 312, 315-\>318, 430-435, 518-521, 560-566 |
-| src/haystack\_integrations/components/readers/transformers/extractive\_reader.py                   |      235 |        7 |       66 |        6 |     96% |131, 220-225, 347-\>352, 419, 476, 498-\>465, 636-637 |
+| src/haystack\_integrations/components/readers/transformers/extractive\_reader.py                   |      235 |        7 |       66 |        6 |     96% |131, 221-226, 348-\>353, 420, 477, 499-\>466, 637-638 |
 | src/haystack\_integrations/components/routers/transformers/text\_router.py                         |       55 |        3 |       14 |        1 |     91% |113-115, 129-\>137 |
 | src/haystack\_integrations/components/routers/transformers/zero\_shot\_text\_router.py             |       48 |        3 |        8 |        0 |     91% |   138-140 |
 | **TOTAL**                                                                                          |  **767** |   **41** |  **186** |   **16** | **93%** |           |
