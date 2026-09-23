@@ -5,7 +5,8 @@
 from dataclasses import replace
 from typing import Any, Literal
 
-from google.genai import types
+from google.genai import Client, types
+from google.genai.client import AsyncClient
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
@@ -145,14 +146,45 @@ class GoogleGenAIDocumentEmbedder:
         self._timeout = timeout
         self._max_retries = max_retries
 
-        self._client = _get_client(
-            api_key=api_key,
-            api=api,
-            vertex_ai_project=vertex_ai_project,
-            vertex_ai_location=vertex_ai_location,
-            timeout=timeout,
-            max_retries=max_retries,
-        )
+        self._client: Client | None = None
+        self._async_client: AsyncClient | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Google Gen AI client."""
+        if self._client is None:
+            self._client = _get_client(
+                api_key=self._api_key,
+                api=self._api,
+                vertex_ai_project=self._vertex_ai_project,
+                vertex_ai_location=self._vertex_ai_location,
+                timeout=self._timeout,
+                max_retries=self._max_retries,
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Google Gen AI client."""
+        if self._async_client is None:
+            self._async_client = _get_client(
+                api_key=self._api_key,
+                api=self._api,
+                vertex_ai_project=self._vertex_ai_project,
+                vertex_ai_location=self._vertex_ai_location,
+                timeout=self._timeout,
+                max_retries=self._max_retries,
+                async_client=True,
+            )
+
+    def close(self) -> None:
+        """Close the synchronous Google Gen AI client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Google Gen AI client."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -217,6 +249,7 @@ class GoogleGenAIDocumentEmbedder:
         """
         Embed a list of texts in batches.
         """
+        assert self._client is not None  # noqa: S101
         resolved_config = types.EmbedContentConfig(**self._config) if self._config else None
 
         all_embeddings = []
@@ -251,7 +284,7 @@ class GoogleGenAIDocumentEmbedder:
         """
         Embed a list of texts in batches asynchronously.
         """
-
+        assert self._async_client is not None  # noqa: S101
         all_embeddings = []
         meta: dict[str, Any] = {}
         for i in tqdm(
@@ -263,7 +296,7 @@ class GoogleGenAIDocumentEmbedder:
             if self._config:
                 args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
 
-            response = await self._client.aio.models.embed_content(**args)
+            response = await self._async_client.models.embed_content(**args)
 
             embeddings = []
             if response.embeddings:
@@ -291,6 +324,9 @@ class GoogleGenAIDocumentEmbedder:
             - `documents`: A list of documents with embeddings.
             - `meta`: Information about the usage of the model.
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             error_message_documents = (
                 "GoogleGenAIDocumentEmbedder expects a list of Documents as input. "
@@ -322,6 +358,9 @@ class GoogleGenAIDocumentEmbedder:
             - `documents`: A list of documents with embeddings.
             - `meta`: Information about the usage of the model.
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             error_message_documents = (
                 "GoogleGenAIDocumentEmbedder expects a list of Documents as input. "

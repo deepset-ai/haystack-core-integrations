@@ -2,13 +2,40 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
+from typing import Literal, overload
 
 from google.genai import Client, types
+from google.genai.client import AsyncClient
 from haystack import logging
 from haystack.utils import Secret
 
 logger = logging.getLogger(__name__)
+
+
+@overload
+def _get_client(
+    api_key: Secret,
+    api: Literal["gemini", "vertex"],
+    vertex_ai_project: str | None,
+    vertex_ai_location: str | None,
+    timeout: float | None = None,
+    max_retries: int | None = None,
+    *,
+    async_client: Literal[False] = False,
+) -> Client: ...
+
+
+@overload
+def _get_client(
+    api_key: Secret,
+    api: Literal["gemini", "vertex"],
+    vertex_ai_project: str | None,
+    vertex_ai_location: str | None,
+    timeout: float | None = None,
+    max_retries: int | None = None,
+    *,
+    async_client: Literal[True] = True,
+) -> AsyncClient: ...
 
 
 def _get_client(
@@ -18,7 +45,9 @@ def _get_client(
     vertex_ai_location: str | None,
     timeout: float | None = None,
     max_retries: int | None = None,
-) -> Client:
+    *,
+    async_client: bool = False,
+) -> Client | AsyncClient:
     """
     Internal utility function to get a Google GenAI client.
 
@@ -35,6 +64,7 @@ def _get_client(
         when using Vertex AI with Application Default Credentials.
     :param timeout: Timeout for Google GenAI client calls.
     :param max_retries: Maximum number of retries to attempt for failed requests.
+    :param async_client: Whether to return the asynchronous client.
 
     :returns: A Google GenAI client.
 
@@ -70,21 +100,26 @@ def _get_client(
 
         if vertex_ai_project and vertex_ai_location:
             logger.info("Using vertex_ai_project and vertex_ai_location for authentication.")
-            return Client(
+            client = Client(
                 vertexai=True,
                 project=vertex_ai_project,
                 location=vertex_ai_location,
                 http_options=http_options,
             )
+        else:
+            logger.info(
+                "No vertex_ai_project or vertex_ai_location provided for Vertex AI. Using the API key for "
+                "authentication."
+            )
+            client = Client(vertexai=True, api_key=resolved_api_key, http_options=http_options)
+    else:
+        # Gemini API
+        if not resolved_api_key:
+            msg = "To use Gemini API, you must export the GOOGLE_API_KEY or GEMINI_API_KEY environment variable."
+            raise ValueError(msg)
 
-        logger.info(
-            "No vertex_ai_project or vertex_ai_location provided for Vertex AI. Using the API key for authentication."
-        )
-        return Client(vertexai=True, api_key=resolved_api_key, http_options=http_options)
+        client = Client(api_key=resolved_api_key, http_options=http_options)
 
-    # Gemini API
-    if not resolved_api_key:
-        msg = "To use Gemini API, you must export the GOOGLE_API_KEY or GEMINI_API_KEY environment variable."
-        raise ValueError(msg)
-
-    return Client(api_key=resolved_api_key, http_options=http_options)
+    # the async client is an attribute of the sync client object
+    # https://github.com/googleapis/python-genai/blob/main/README.md#close-a-client.
+    return client.aio if async_client else client

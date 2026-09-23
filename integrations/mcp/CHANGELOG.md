@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/mcp-v1.5.1] - 2026-09-01
+
+### 🚀 Features
+
+- Support MCP Python SDK v2 - compatibility mode (#3878)
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- MCP - refactor test_toolset_combination for Toolset.__add__ removal (#3877)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/mcp-v1.4.1] - 2026-07-29
 
 ### 🐛 Bug Fixes
@@ -103,7 +122,7 @@
 
 - Add MCPTool/MCPToolset warm_up (#2384)
 
-## [integrations/mcp-v0.8.0] - 2025-10-14
+## [integrations/mcp-v0.0.8] - 2025-10-14
 
 ### 🐛 Bug Fixes
 
@@ -159,6 +178,8 @@
 ### 🧹 Chores
 
 - Align core-integrations Hatch scripts (#1898)
+
+## [integrations/mcp-v0.3.1] - 2025-05-28
 
 ### 🌀 Miscellaneous
 

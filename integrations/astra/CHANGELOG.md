@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/astra-v4.4.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `AstraDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3714)
+- Astra adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3738)
+- Standardize license files (#3771)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- `AstraDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3775)
+
+### 🧹 Chores
+
+- Astra - migrate generator example to chat generator (#3389)
+
+
 ## [integrations/astra-v4.3.0] - 2026-04-27
 
 ### 🚀 Features
@@ -32,7 +54,7 @@
 - Increase lower pins for 3.14 support in some integrations + test with 3.14 (#3033)
 
 
-## [integrations/integrations/astra-v4.1.0] - 2026-03-06
+## [integrations/astra-v4.1.0] - 2026-03-06
 
 ### 🚀 Features
 
@@ -68,10 +90,6 @@
 - Adding `delete_by_filter` and `update_by_filter` (#2631)
 
 
-### ⚙️ CI
-
-- Change pytest command (#2475)
-
 ### 🧹 Chores
 
 - Remove Readme API CI workflow and configs (#2573)
@@ -79,6 +97,13 @@
 ### 🌀 Miscellaneous
 
 - Adopt PEP 585 type hinting (part 1) (#2509)
+
+## [integrations/astra-v3.0.1] - 2025-11-11
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+
 
 ## [integrations/astra-v3.0.0] - 2025-10-21
 
@@ -137,7 +162,7 @@
 ## [integrations/astra-v0.1.2] - 2024-11-25
 
 
-## [integrations/astra-v0.9.4] - 2024-11-25
+## [integrations/astra-v0.10.1] - 2024-11-25
 
 ### 🌀 Miscellaneous
 
@@ -181,16 +206,20 @@
 
 ## [integrations/astra-v0.9.1] - 2024-07-15
 
+### 🐛 Bug Fixes
+
+- `Astra` - Fallback to default filter policy when deserializing retrievers without the init parameter (#896)
+
+
+## [integrations/astra-v0.9.0] - 2024-07-15
+
 ### 🚀 Features
 
-- Defer the database connection to when it's needed (#769)
 - Add filter_policy to astra integration (#827)
 
 ### 🐛 Bug Fixes
 
-- Fix astra nightly
 - Fix typing checks
-- `Astra` - Fallback to default filter policy when deserializing retrievers without the init parameter (#896)
 
 ### ⚙️ CI
 
@@ -201,6 +230,16 @@
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Fix: Incorrect astra not equal operator (#868)
 - Chore: Minor retriever pydoc fix (#884)
+
+## [integrations/astra-v0.8.0] - 2024-05-30
+
+### 🚀 Features
+
+- Defer the database connection to when it's needed (#769)
+
+### 🐛 Bug Fixes
+
+- Fix astra nightly
 
 ## [integrations/astra-v0.7.0] - 2024-05-15
 

@@ -28,8 +28,15 @@ dependencies = [
   "cognee>=1.0.9",
   # litellm (pulled in transitively by cognee) ships a Rust extension from 1.83.8+ with no cp314
   # wheels and caps requires-python at <3.14, so on Python 3.14 constrain to the last pure-Python
-  # release. Other Python versions stay unpinned.
+  # release.
   "litellm<1.83.8; python_version >= '3.14'",
+  # On Python 3.10, litellm 1.98.0 imports `NotRequired` from `typing` (3.11+ only), so `import
+  # litellm` fails outright even though litellm still declares requires-python >=3.10. 1.97.0
+  # imports, but leaves the `Message` pydantic model with an unresolved forward reference, so every
+  # completion raises (BerriAI/litellm#36384). 1.96.2 is the last release that works on 3.10; both
+  # regressions are fixed for 3.11+ in 1.98.0, so only 3.10 needs the cap. Drop it once a release
+  # imports and completes on 3.10 again.
+  "litellm<1.97.0; python_version < '3.11'",
 ]
 
 [project.urls]

@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/vllm-v2.0.0] - 2026-09-10
+
+### 🚀 Features
+
+- [**breaking**] VLLM - add lifecycle handling (#3942)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Fix tests for openai>=3.0.0 (#3801)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/vllm-v1.3.0] - 2026-07-07
 
 ### 🧹 Chores

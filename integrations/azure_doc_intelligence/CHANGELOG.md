@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/azure_doc_intelligence-v1.2.0] - 2026-09-07
+
+### 🚀 Features
+
+- Azure Doc Intelligence - add close method (#3908)
+
+
 ## [integrations/azure_doc_intelligence-v1.1.0] - 2026-08-17
 
 ### 🐛 Bug Fixes

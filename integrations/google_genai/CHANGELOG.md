@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/google_genai-v6.0.0] - 2026-09-15
+
+### 📚 Documentation
+
+- *(gemini)* Default to gemini-3.8-flash, deprecate old models (#3959)
+
+
+## [integrations/google_genai-v5.0.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- Google GenAI - allow empty assistant messages (#3953)
+
+
+## [integrations/google_genai-v5.0.0] - 2026-09-07
+
+### 🚀 Features
+
+- [**breaking**] Google GenAI - add lifecycle handling (#3915)
+
+
+## [integrations/google_genai-v4.9.0] - 2026-09-04
+
+### 🚀 Features
+
+- Add GoogleGenAITokenCounter to google-genai integration (#3868)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/google_genai-v4.8.0] - 2026-08-24
 
 ### 🚀 Features
@@ -139,11 +171,15 @@
 
 ### 🚀 Features
 
-- *(google-genai)* Add timeout and max_retries to chat generator (#2875)
 - GoogleGenAIChatGenerator provides supported models list (#2930)
 - Add GoogleGenAIMultimodalDocumentEmbedder to support gemini-embedding-2 (#2944)
 
-### 🌀 Miscellaneous
+
+## [integrations/google_genai-v3.9.0] - 2026-03-09
+
+### 🚀 Features
+
+- *(google-genai)* Add timeout and max_retries to chat generator (#2875)
 
 
 ## [integrations/google_genai-v3.8.0] - 2026-03-02

@@ -4,6 +4,7 @@
 
 import base64
 import datetime
+import importlib.metadata
 import json
 from contextlib import suppress
 from dataclasses import asdict
@@ -37,6 +38,27 @@ from ._filters import convert_filters, validate_filters
 from .auth import AuthCredentials
 
 logger = logging.getLogger(__name__)
+
+# Weaviate tracks which framework integrations talk to it through this header, so that adoption of
+# weaviate-haystack shows up in Weaviate's own telemetry. See https://github.com/weaviate/weaviate/pull/10535.
+_INTEGRATION_HEADER = "X-Weaviate-Client-Integration"
+_INTEGRATION_NAME = "haystack-python"
+_PACKAGE_NAME = "weaviate-haystack"
+
+
+def _integration_header_value() -> str:
+    """
+    Builds the value of the Weaviate client integration header.
+
+    :returns:
+        A `<name>/<version>` string. The version falls back to `unknown` when the package metadata is
+        unavailable, for example when running from a source checkout that was never installed.
+    """
+    try:
+        version = importlib.metadata.version(_PACKAGE_NAME)
+    except importlib.metadata.PackageNotFoundError:
+        version = "unknown"
+    return f"{_INTEGRATION_NAME}/{version}"
 
 
 # This is the default collection properties for Weaviate.
@@ -144,6 +166,9 @@ class WeaviateDocumentStore:
             ```
             {"X-OpenAI-Api-Key": "<THE-KEY>"}, {"X-HuggingFace-Api-Key": "<THE-KEY>"}
             ```
+            Every connection also carries `X-Weaviate-Client-Integration: haystack-python/<version>`, which
+            identifies this integration in Weaviate's telemetry. Supplying that header here, in any casing,
+            overrides it.
         :param embedded_options:
             If set, create an embedded Weaviate cluster inside the client. For a full list of options see
             `weaviate.embedded.EmbeddedOptions`.
@@ -183,6 +208,26 @@ class WeaviateDocumentStore:
             "properties", DOCUMENT_COLLECTION_PROPERTIES
         )
 
+    def _connection_headers(self) -> dict[str, Any]:
+        """
+        Builds the headers passed to the Weaviate client.
+
+        Merges the integration identification header into the user supplied `additional_headers`. A user
+        supplied value for the same header wins, so the header can be overridden or suppressed. The merged
+        headers are deliberately not stored on the instance: `to_dict()` must keep serializing only the
+        headers the user actually passed, so that a serialized pipeline does not bake in the version of
+        `weaviate-haystack` that happened to write it.
+
+        :returns:
+            The headers to pass to the Weaviate client.
+        """
+        headers: dict[str, Any] = dict(self._additional_headers) if self._additional_headers else {}
+        # The comparison is case insensitive because gRPC metadata keys are case sensitive: a user supplied
+        # "x-weaviate-client-integration" would otherwise end up alongside our own spelling of the header.
+        if not any(key.lower() == _INTEGRATION_HEADER.lower() for key in headers):
+            headers[_INTEGRATION_HEADER] = _integration_header_value()
+        return headers
+
     @property
     def client(self) -> weaviate.WeaviateClient:
         """Return the synchronous Weaviate client, creating and connecting it if necessary."""
@@ -199,7 +244,7 @@ class WeaviateDocumentStore:
             self._client = weaviate.connect_to_weaviate_cloud(
                 self._url,
                 auth_credentials=self._auth_client_secret.resolve_value(),
-                headers=self._additional_headers,
+                headers=self._connection_headers(),
                 additional_config=self._additional_config,
             )
         else:
@@ -216,7 +261,7 @@ class WeaviateDocumentStore:
                 ),
                 auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
                 additional_config=self._additional_config,
-                additional_headers=self._additional_headers,
+                additional_headers=self._connection_headers(),
                 embedded_options=self._embedded_options,
                 skip_init_checks=False,
             )
@@ -244,7 +289,7 @@ class WeaviateDocumentStore:
             self._async_client = weaviate.use_async_with_weaviate_cloud(
                 self._url,
                 auth_credentials=self._auth_client_secret.resolve_value(),
-                headers=self._additional_headers,
+                headers=self._connection_headers(),
                 additional_config=self._additional_config,
             )
         else:
@@ -261,7 +306,7 @@ class WeaviateDocumentStore:
                 ),
                 auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
                 additional_config=self._additional_config,
-                additional_headers=self._additional_headers,
+                additional_headers=self._connection_headers(),
                 embedded_options=self._embedded_options,
                 skip_init_checks=False,
             )
@@ -649,7 +694,8 @@ class WeaviateDocumentStore:
         :param from_: The starting offset for pagination (0-indexed).
         :param size: The maximum number of unique values to return.
         :returns: A tuple of (paginated list of unique values in their original type, total count of
-            unique values).
+            unique values). See `get_metadata_field_unique_values`'s docstring for a caveat on scalar
+            int fields - `agg_result`'s numeric group keys always decode as `float`.
         """
         all_values = [g.grouped_by.value for g in agg_result.groups] if agg_result.groups else []
         if search_term:
@@ -683,15 +729,23 @@ class WeaviateDocumentStore:
         :param size: The maximum number of unique values to return. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
-        :raises ValueError: If the field is not found in the collection schema.
+
+        **Note**: a scalar `int` metadata value comes back as `float`, not `int`. weaviate-client has no
+        wire-protocol field for a scalar int - non-list properties are packed into a
+        `google.protobuf.Struct`, whose `Value` type only has `number_value` (a double), so the int/float
+        distinction is lost before the value reaches Weaviate. `GroupByAggregate` decodes numeric group
+        keys the same way, so this holds even when the field's schema type is explicitly `DataType.INT`.
+        List-valued int fields (e.g. `meta={"tags": [1, 2]}`) are unaffected - those go through a
+        dedicated `IntArrayProperties` wire type instead.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
 
         config = self.collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
         if field_name not in schema_fields:
-            msg = f"Field '{field_name}' not found in collection schema"
-            raise ValueError(msg)
+            # No document has ever written this field, so Weaviate's auto-schema never created a
+            # property for it - there are no values to aggregate.
+            return [], 0
 
         weaviate_filter = None
         if filters:
@@ -730,7 +784,14 @@ class WeaviateDocumentStore:
         :param size: The maximum number of unique values to return. Defaults to 10.
         :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple of (list of unique values in their original type, total count of unique values).
-        :raises ValueError: If the field is not found in the collection schema.
+
+        **Note**: a scalar `int` metadata value comes back as `float`, not `int`. weaviate-client has no
+        wire-protocol field for a scalar int - non-list properties are packed into a
+        `google.protobuf.Struct`, whose `Value` type only has `number_value` (a double), so the int/float
+        distinction is lost before the value reaches Weaviate. `GroupByAggregate` decodes numeric group
+        keys the same way, so this holds even when the field's schema type is explicitly `DataType.INT`.
+        List-valued int fields (e.g. `meta={"tags": [1, 2]}`) are unaffected - those go through a
+        dedicated `IntArrayProperties` wire type instead.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
 
@@ -738,8 +799,9 @@ class WeaviateDocumentStore:
         config = await collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
         if field_name not in schema_fields:
-            msg = f"Field '{field_name}' not found in collection schema"
-            raise ValueError(msg)
+            # No document has ever written this field, so Weaviate's auto-schema never created a
+            # property for it - there are no values to aggregate.
+            return [], 0
 
         weaviate_filter = None
         if filters:

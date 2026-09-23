@@ -497,7 +497,15 @@ class FAISSDocumentStore:
             search_term_lower = search_term.lower()
             values = [val for val in values if search_term_lower in str(val).lower()]
 
-        unique_values = set(values)
+        # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain set
+        # would silently merge them. Dedupe by (type, value) instead to keep them distinct.
+        seen: set[tuple[type, Any]] = set()
+        unique_values = []
+        for val in values:
+            dedup_key = (type(val), val)
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                unique_values.append(val)
         sorted_values = sorted(unique_values, key=str)
         total_count = len(sorted_values)
         end = from_ + size
@@ -517,11 +525,13 @@ class FAISSDocumentStore:
         counts = {}
 
         for field in metadata_fields:
-            unique_vals = set()
+            # Values of different types can be equal in Python (`1 == True`, `1 == 1.0`), so a plain
+            # set would silently merge them. Dedupe by (type, value) instead to keep them distinct.
+            unique_vals: set[tuple[type, Any]] = set()
             for doc in filtered_docs:
                 val = FAISSDocumentStore._get_doc_value(doc, field)
                 if val is not None:
-                    unique_vals.add(val)
+                    unique_vals.add((type(val), val))
             counts[field] = len(unique_vals)
 
         return dict(counts)

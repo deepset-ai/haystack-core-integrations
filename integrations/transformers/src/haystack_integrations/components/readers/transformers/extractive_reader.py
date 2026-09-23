@@ -176,21 +176,23 @@ class TransformersExtractiveReader:
         """
         Initializes the component.
         """
+        if self.model is not None:
+            return
+
         # Take the first device used by `accelerate`. Needed to pass inputs from the tokenizer to the correct device.
-        if self.model is None:
-            self.model = AutoModelForQuestionAnswering.from_pretrained(
-                self.model_name_or_path, token=self.token.resolve_value() if self.token else None, **self.model_kwargs
-            )
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name_or_path, token=self.token.resolve_value() if self.token else None
-            )
-            assert self.model is not None  # noqa: S101 # mypy doesn't know this is set in the line above
-            # hf_device_map appears to only be set now when mixed devices are actually used.
-            # So if it's missing then we can use the device attribute which is set even for single-device models.
-            if hf_device_map := getattr(self.model, "hf_device_map", None):
-                self.device = ComponentDevice.from_multiple(device_map=DeviceMap.from_hf(hf_device_map))
-            else:
-                self.device = ComponentDevice.from_single(Device.from_str(str(self.model.device)))
+        token = self.token.resolve_value() if self.token else None
+        model = AutoModelForQuestionAnswering.from_pretrained(self.model_name_or_path, token=token, **self.model_kwargs)
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, token=token)
+        # hf_device_map appears to only be set now when mixed devices are actually used.
+        # So if it's missing then we can use the device attribute which is set even for single-device models.
+        if hf_device_map := getattr(model, "hf_device_map", None):
+            device = ComponentDevice.from_multiple(device_map=DeviceMap.from_hf(hf_device_map))
+        else:
+            device = ComponentDevice.from_single(Device.from_str(str(model.device)))
+
+        self.model = model
+        self.tokenizer = tokenizer
+        self.device = device
 
     @staticmethod
     def _flatten_documents(
@@ -314,8 +316,10 @@ class TransformersExtractiveReader:
                 # But we shouldn't have special tokens in the answers at this point
                 # The whole span is given by the start of the start_token (index 0)
                 # and the end of the end token (index 1)
-                s_char_spans.append(encoding.token_to_chars(start_token)[0])
-                e_char_spans.append(encoding.token_to_chars(end_token)[1])
+                # `type: ignore[index]` because tokenizers>=0.23.1 types the return as
+                # `tuple[int, int] | None`; the `None` case cannot occur here per the above
+                s_char_spans.append(encoding.token_to_chars(start_token)[0])  # type: ignore[index]
+                e_char_spans.append(encoding.token_to_chars(end_token)[1])  # type: ignore[index]
             start_candidates_tokens_to_chars.append(s_char_spans)
             end_candidates_tokens_to_chars.append(e_char_spans)
             valid_candidates_values.append(candidates_values[i][valid])
@@ -581,8 +585,10 @@ class TransformersExtractiveReader:
         :returns:
             List of answers sorted by (desc.) answer score.
         """
-        if self.model is None:
-            self.warm_up()
+        self.warm_up()
+        assert self.model is not None  # noqa: S101
+        assert self.tokenizer is not None  # noqa: S101
+        assert self.device is not None  # noqa: S101
 
         if not documents:
             return {"answers": []}
