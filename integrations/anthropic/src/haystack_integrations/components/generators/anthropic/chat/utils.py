@@ -2,6 +2,7 @@ import json
 from copy import deepcopy
 from typing import Any, Literal, TypeAlias, cast, get_args
 
+from haystack import logging
 from haystack.dataclasses.chat_message import (
     ChatMessage,
     ChatRole,
@@ -31,6 +32,8 @@ from anthropic.types import (
     ToolResultBlockParam,
     ToolUseBlockParam,
 )
+
+logger = logging.getLogger(__name__)
 
 # See https://docs.anthropic.com/en/api/messages for supported formats
 ImageFormat = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
@@ -339,10 +342,10 @@ def _convert_messages_to_anthropic_format(
                         # but mypy doesnt know that
                         blk["cache_control"] = cache_control  # type: ignore [typeddict-unknown-key]
 
-        if not content:
+        if not content and not message.is_from(ChatRole.ASSISTANT):
             msg = (
-                "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, "
-                "`ToolCall`, or `ToolCallResult`."
+                f"A `ChatMessage` from `{message._role.value}` must contain at least one `TextContent`, "
+                "`ImageContent`, `ToolCall`, or `ToolCallResult`. Only assistant messages can be empty."
             )
             raise ValueError(msg)
 
@@ -392,9 +395,29 @@ def _convert_chat_completion_to_chat_message(
     """
     tool_calls = []
     reasoning_contents = []
-    reasoning_text = ""
 
-    for block in anthropic_response.content:
+    # A `max_tokens` stop reason cuts the response off mid-block. If that block was a tool call, its arguments are
+    # incomplete: Anthropic still returns a `tool_use` block, but only the keys it managed to finish. Running the
+    # tool with those arguments would act on the wrong input, so the call is dropped here. Instead, the reply carries
+    # the `length` finish reason which mirrors the streaming path, where the truncated JSON fails to parse and the tool
+    # call is dropped.
+    blocks = anthropic_response.content
+    truncated_tool_call = (
+        anthropic_response.stop_reason == "max_tokens" and bool(blocks) and blocks[-1].type == "tool_use"
+    )
+    if truncated_tool_call:
+        truncated_block = blocks[-1]
+        logger.warning(
+            "The model hit the `max_tokens` limit while writing the arguments of tool call `{tool_name}`, so they "
+            "are incomplete and the tool call will be skipped. Raise `max_tokens` in `generation_kwargs` to give "
+            "the model room to finish. Tool call ID: {tool_call_id}, partial arguments: {arguments}",
+            tool_name=truncated_block.name,
+            tool_call_id=truncated_block.id,
+            arguments=truncated_block.input,
+        )
+        blocks = blocks[:-1]
+
+    for block in blocks:
         reasoning_content: dict[str, Any] = {}
         if block.type == "tool_use":
             tool_calls.append(ToolCall(tool_name=block.name, arguments=block.input, id=block.id))
@@ -420,30 +443,25 @@ def _convert_chat_completion_to_chat_message(
     text = ""
 
     if not (ignore_tools_thinking_messages and tool_calls):
-        text = " ".join(block.text for block in anthropic_response.content if block.type == "text")
-
-    message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=reasoning)
+        text = " ".join(block.text for block in blocks if block.type == "text")
 
     # Dump the chat completion to a dict
     response_dict = anthropic_response.model_dump()
-    usage = _get_openai_compatible_usage(response_dict)
-    message._meta.update(
-        {
-            "model": response_dict.get("model", None),
-            "index": 0,
-            "finish_reason": FINISH_REASON_MAPPING.get(response_dict.get("stop_reason" or "")),
-            "usage": usage,
-        }
-    )
+    meta: dict[str, Any] = {
+        "model": response_dict.get("model", None),
+        "index": 0,
+        "finish_reason": FINISH_REASON_MAPPING.get(response_dict.get("stop_reason")),
+        "usage": _get_openai_compatible_usage(response_dict),
+    }
 
     # keep raw content so server-tool blocks can be replayed on later turns
-    content_blocks = response_dict.get("content") or []
-    if _has_server_tool_blocks(content_blocks):
-        message._meta["raw_content_for_server_tools"] = content_blocks
-    if citations := _extract_citations(content_blocks):
-        message._meta["citations"] = citations
+    raw_content_blocks = response_dict.get("content") or []
+    if _has_server_tool_blocks(raw_content_blocks):
+        meta["raw_content_for_server_tools"] = raw_content_blocks
+    if citations := _extract_citations(raw_content_blocks):
+        meta["citations"] = citations
 
-    return message
+    return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, reasoning=reasoning, meta=meta)
 
 
 def _convert_anthropic_chunk_to_streaming_chunk(

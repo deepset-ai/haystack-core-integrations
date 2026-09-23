@@ -233,8 +233,11 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
     :returns: Google Gen AI Content object.
     """
     # Check if message has content
-    if not message._content:
-        msg = "A `ChatMessage` must contain at least one content part."
+    if not message._content and not message.is_from(ChatRole.ASSISTANT):
+        msg = (
+            f"A `ChatMessage` from `{message._role.value}` must contain at least one content part. "
+            "Only assistant messages can be empty."
+        )
         raise ValueError(msg)
 
     parts = []

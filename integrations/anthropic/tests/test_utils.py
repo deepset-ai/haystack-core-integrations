@@ -182,6 +182,135 @@ class TestConvertChatCompletionToChatMessage:
         assert message.meta["raw_content_for_server_tools"][2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
 
 
+class TestTruncatedToolCall:
+    def test_truncated_tool_call_is_dropped(self, caplog):
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[
+                ToolUseBlock(
+                    type="tool_use",
+                    id="toolu_01",
+                    name="update_description",
+                    # the model never got to write `description`
+                    input={"issue_id": "AGE-144"},
+                )
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="max_tokens",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=8192),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert chat_message.tool_calls == []
+        assert chat_message.meta["finish_reason"] == "length"
+        assert "max_tokens" in caplog.text
+        assert "update_description" in caplog.text
+
+    def test_completed_tool_calls_before_the_truncated_one_are_kept(self):
+        """Only the final block is cut off, so earlier tool calls in the same reply are still usable."""
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[
+                ToolUseBlock(type="tool_use", id="toolu_01", name="weather", input={"city": "Paris"}),
+                ToolUseBlock(type="tool_use", id="toolu_02", name="update_description", input={}),
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="max_tokens",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=8192),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert [tool_call.tool_name for tool_call in chat_message.tool_calls] == ["weather"]
+
+    def test_tool_call_is_kept_when_the_response_ended_normally(self):
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[ToolUseBlock(type="tool_use", id="toolu_01", name="weather", input={"city": "Paris"})],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="tool_use",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=40),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert [tool_call.tool_name for tool_call in chat_message.tool_calls] == ["weather"]
+        assert chat_message.meta["finish_reason"] == "tool_calls"
+
+    def test_text_truncated_at_max_tokens_is_kept(self):
+        """Only tool calls are dropped: truncated text is still the model's answer, just a shorter one."""
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[TextBlock(type="text", text="The capital of France is", citations=None)],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="max_tokens",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=8192),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert chat_message.text == "The capital of France is"
+        assert chat_message.meta["finish_reason"] == "length"
+
+    @pytest.mark.parametrize("is_async", [False, True])
+    async def test_streaming_truncated_tool_call_is_dropped(self, is_async):
+        generator = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        raw_chunks = [
+            RawMessageStartEvent(
+                message=Message(
+                    id="msg_123",
+                    content=[],
+                    model="claude-sonnet-4-5",
+                    role="assistant",
+                    stop_reason=None,
+                    stop_sequence=None,
+                    type="message",
+                    usage=Usage(input_tokens=100, output_tokens=1),
+                ),
+                type="message_start",
+            ),
+            RawContentBlockStartEvent(
+                content_block=ToolUseBlock(id="toolu_01", input={}, name="update_description", type="tool_use"),
+                index=0,
+                type="content_block_start",
+            ),
+            RawContentBlockDeltaEvent(
+                delta=InputJSONDelta(
+                    partial_json='{"issue_id": "AGE-144", "description": "Lorem ip', type="input_json_delta"
+                ),
+                index=0,
+                type="content_block_delta",
+            ),
+            RawMessageDeltaEvent(
+                delta=Delta(stop_reason="max_tokens", stop_sequence=None),
+                type="message_delta",
+                usage=MessageDeltaUsage(output_tokens=8192),
+            ),
+        ]
+
+        if is_async:
+
+            async def _astream():
+                for chunk in raw_chunks:
+                    yield chunk
+
+            message = (await generator._process_response_async(_astream()))["replies"][0]
+        else:
+            message = generator._process_response(raw_chunks)["replies"][0]
+
+        assert message.tool_calls == []
+        assert message.meta["finish_reason"] == "length"
+
+
 class TestConvertAnthropicChunkToStreamingChunk:
     def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_and_reasoning_to_streaming_chunks(self):
         """
@@ -1009,6 +1138,12 @@ class TestConvertMessagesToAnthropicFormat:
             [{"role": "assistant", "content": [{"type": "text", "text": "I have an answer"}]}],
         )
 
+        messages = [ChatMessage.from_assistant(text=None)]
+        assert _convert_messages_to_anthropic_format(messages) == (
+            [],
+            [{"role": "assistant", "content": []}],
+        )
+
         messages = [
             ChatMessage.from_assistant(
                 tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
@@ -1248,7 +1383,7 @@ class TestConvertMessagesToAnthropicFormat:
         """
         Test that the AnthropicChatGenerator component fails to convert an invalid ChatMessage to Anthropic format.
         """
-        message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+        message = ChatMessage(_role=ChatRole.USER, _content=[])
         with pytest.raises(ValueError):
             _convert_messages_to_anthropic_format([message])
 
