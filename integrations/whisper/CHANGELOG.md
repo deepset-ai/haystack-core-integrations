@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/whisper-v1.1.0] - 2026-09-11
+
+### 🚀 Features
+
+- RemoteWhisperTranscriber - add lifecycle handling (#3948)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Harden flaky LocalWhisperTranscriber integration test (#3504)
+- Force CPU in LocalWhisperTranscriber integration tests (#3505)
+- Fix tests for openai>=3.0.0 (#3801)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/whisper-v1.0.0] - 2026-06-19
 
 ### 🚀 Features

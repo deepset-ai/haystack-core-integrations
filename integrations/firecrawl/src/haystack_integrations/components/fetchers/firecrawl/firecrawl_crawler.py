@@ -83,14 +83,18 @@ class FirecrawlCrawler:
         :returns: A dictionary with the following keys:
             - `documents`: List of documents, one for each URL crawled.
         """
-        if self._firecrawl_client is None:
-            self.warm_up()
+        self.warm_up()
+        assert self._firecrawl_client is not None  # noqa: S101
 
         current_params = params if params is not None else self._params
         documents: list[Document] = []
         for url in urls:
-            docs = self._crawl_url(url=url, params=current_params)
-            documents.extend(docs)
+            try:
+                crawl_response = self._firecrawl_client.crawl(url=url, **current_params)
+            except Exception as error:
+                logger.exception(f"Failed to crawl website {url}: {error}")
+                continue
+            documents.extend(self._documents_from_crawl_response(url=url, crawl_response=crawl_response))
 
         return {"documents": documents}
 
@@ -111,67 +115,30 @@ class FirecrawlCrawler:
         :returns: A dictionary with the following keys:
             - `documents`: List of documents, one for each URL crawled.
         """
-        if self._async_firecrawl_client is None:
-            self.warm_up()
+        await self.warm_up_async()
+        assert self._async_firecrawl_client is not None  # noqa: S101
 
         current_params = params if params is not None else self._params
         documents: list[Document] = []
         for url in urls:
-            docs = await self._crawl_url_async(url=url, params=current_params)
-            documents.extend(docs)
+            try:
+                crawl_response = await self._async_firecrawl_client.crawl(url=url, **current_params)
+            except Exception as error:
+                logger.exception(f"Failed to crawl website {url}: {error}")
+                continue
+            documents.extend(self._documents_from_crawl_response(url=url, crawl_response=crawl_response))
 
         return {"documents": documents}
 
     def warm_up(self) -> None:
-        """
-        Warm up the Firecrawl client by initializing the clients.
-
-        This is useful to avoid cold start delays when crawling many URLs.
-        """
+        """Warm up the synchronous Firecrawl client."""
         if self._firecrawl_client is None:
             self._firecrawl_client = Firecrawl(api_key=self.api_key.resolve_value())
+
+    async def warm_up_async(self) -> None:
+        """Warm up the asynchronous Firecrawl client."""
         if self._async_firecrawl_client is None:
             self._async_firecrawl_client = AsyncFirecrawl(api_key=self.api_key.resolve_value())
-
-    def _crawl_url(self, url: str, params: dict[str, Any]) -> list[Document]:
-        """
-        Crawl a single URL and return Documents.
-
-        :param url: URL to crawl.
-        :param params: Crawl request parameters.
-        :return: List of Documents from the crawl result.
-        """
-        try:
-            # Ignoring type because the firecrawl client is initialized as None and only set during warm_up
-            crawl_response = self._firecrawl_client.crawl(  # type: ignore[union-attr]
-                url=url,
-                **params,
-            )
-        except Exception as error:
-            logger.exception(f"Failed to crawl website {url}: {error}")
-            return []
-
-        return self._documents_from_crawl_response(url=url, crawl_response=crawl_response)
-
-    async def _crawl_url_async(self, url: str, params: dict[str, Any]) -> list[Document]:
-        """
-        Asynchronously crawl a single URL and return Documents.
-
-        :param url: URL to crawl.
-        :param params: Crawl request parameters.
-        :return: List of Documents from the crawl result.
-        """
-        try:
-            # Ignoring type because the firecrawl client is initialized as None and only set during warm_up
-            crawl_response = await self._async_firecrawl_client.crawl(  # type: ignore[union-attr]
-                url=url,
-                **params,
-            )
-        except Exception as error:
-            logger.exception(f"Failed to crawl website {url}: {error}")
-            return []
-
-        return self._documents_from_crawl_response(url=url, crawl_response=crawl_response)
 
     def _documents_from_crawl_response(self, url: str, crawl_response: Any) -> list[Document]:
         """

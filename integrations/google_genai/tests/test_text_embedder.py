@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from google.genai.types import ContentEmbedding, EmbedContentResponse
@@ -11,7 +12,7 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.google_genai import GoogleGenAITextEmbedder
 
 
-class TestGoogleGenAITextEmbedder:
+class TestGoogleGenAITextEmbedderInitSerDe:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
         embedder = GoogleGenAITextEmbedder()
@@ -26,6 +27,8 @@ class TestGoogleGenAITextEmbedder:
         assert embedder._vertex_ai_location is None
         assert embedder._timeout is None
         assert embedder._max_retries is None
+        assert embedder._client is None
+        assert embedder._async_client is None
 
     def test_init_with_parameters(self):
         embedder = GoogleGenAITextEmbedder(
@@ -45,8 +48,7 @@ class TestGoogleGenAITextEmbedder:
         assert embedder._timeout == 30.0
         assert embedder._max_retries == 3
 
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+    def test_to_dict(self):
         component = GoogleGenAITextEmbedder()
         data = component.to_dict()
         assert data == {
@@ -65,8 +67,7 @@ class TestGoogleGenAITextEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "fake-api-key")
+    def test_to_dict_with_custom_init_parameters(self):
         component = GoogleGenAITextEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
             model="model",
@@ -119,8 +120,89 @@ class TestGoogleGenAITextEmbedder:
         assert component._timeout == 30.0
         assert component._max_retries == 3
 
-    def test_prepare_input(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_GOOGLE_API_KEY", raising=False)
+        embedder = GoogleGenAITextEmbedder(api_key=Secret.from_env_var("MISSING_GOOGLE_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_GOOGLE_API_KEY"):
+            embedder.warm_up()
+
+    @patch("haystack_integrations.components.embedders.google_genai.text_embedder._get_client")
+    def test_sync_lifecycle(self, mock_get_client):
+        embedder = GoogleGenAITextEmbedder(api_key=Secret.from_token("test-api-key"))
+        client = mock_get_client.return_value
+        embedder.warm_up()
+        assert embedder._client is client
+        assert embedder._async_client is None
+
+        embedder.close()
+        client.close.assert_called_once_with()
+        assert embedder._client is None
+
+        embedder.warm_up()
+        assert mock_get_client.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.google_genai.text_embedder._get_client")
+    async def test_async_lifecycle(self, mock_get_client):
+        embedder = GoogleGenAITextEmbedder(api_key=Secret.from_token("test-api-key"))
+        client = mock_get_client.return_value
+        client.aclose = AsyncMock()
+        await embedder.warm_up_async()
+        assert embedder._async_client is client
+        assert embedder._client is None
+
+        await embedder.close_async()
+        client.aclose.assert_awaited_once_with()
+        assert embedder._async_client is None
+
+        await embedder.warm_up_async()
+        assert mock_get_client.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.google_genai.text_embedder._get_client")
+    def test_warm_up_is_idempotent(self, mock_get_client):
+        embedder = GoogleGenAITextEmbedder(api_key=Secret.from_token("test-api-key"))
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_get_client.assert_called_once()
+
+    @patch("haystack_integrations.components.embedders.google_genai.text_embedder._get_client")
+    async def test_warm_up_async_is_idempotent(self, mock_get_client):
+        embedder = GoogleGenAITextEmbedder(api_key=Secret.from_token("test-api-key"))
+        await embedder.warm_up_async()
+        await embedder.warm_up_async()
+        mock_get_client.assert_called_once()
+
+    async def test_close_is_safe_without_warm_up(self):
+        embedder = GoogleGenAITextEmbedder(api_key=Secret.from_token("test-api-key"))
+        embedder.close()
+        await embedder.close_async()
+        assert embedder._client is None
+        assert embedder._async_client is None
+
+    @patch("haystack_integrations.components.embedders.google_genai.text_embedder._get_client")
+    async def test_close_and_close_async_are_independent(self, mock_get_client):
+        sync_client = MagicMock()
+        async_client = MagicMock()
+        async_client.aclose = AsyncMock()
+        mock_get_client.side_effect = [sync_client, async_client]
+        embedder = GoogleGenAITextEmbedder(api_key=Secret.from_token("test-api-key"))
+        embedder.warm_up()
+        await embedder.warm_up_async()
+
+        embedder.close()
+        assert embedder._client is None
+        assert embedder._async_client is async_client
+        async_client.aclose.assert_not_awaited()
+
+        await embedder.close_async()
+        assert embedder._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestGoogleGenAITextEmbedderRun:
+    def test_prepare_input(self):
         embedder = GoogleGenAITextEmbedder()
 
         contents = "The food was delicious"
@@ -130,9 +212,7 @@ class TestGoogleGenAITextEmbedder:
             "contents": "The food was delicious",
         }
 
-    def test_prepare_output(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
-
+    def test_prepare_output(self):
         response = EmbedContentResponse(
             embeddings=[ContentEmbedding(values=[0.1, 0.2, 0.3])],
         )
@@ -144,7 +224,8 @@ class TestGoogleGenAITextEmbedder:
             "meta": {"model": "gemini-embedding-001"},
         }
 
-    def test_run_wrong_input_format(self):
+    @patch("haystack_integrations.components.embedders.google_genai.text_embedder._get_client")
+    def test_run_wrong_input_format(self, _mock_get_client):
         embedder = GoogleGenAITextEmbedder(api_key=Secret.from_token("fake-api-key"))
 
         list_integers_input = [1, 2, 3]

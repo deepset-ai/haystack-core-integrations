@@ -23,8 +23,12 @@ from haystack.dataclasses import (
     ToolCall,
 )
 from haystack.tools import Tool, Toolset, create_tool_from_function
+from haystack.utils import Secret
 
-from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
+from haystack_integrations.common.amazon_bedrock.errors import (
+    AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
+)
 from haystack_integrations.components.generators.amazon_bedrock import (
     AmazonBedrockChatGenerator,
 )
@@ -190,7 +194,7 @@ def top_song_tool_config():
 
 class TestAmazonBedrockChatGenerator:
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_to_dict(self, mock_boto3_session, boto3_config):
+    def test_to_dict(self, boto3_config):
         """
         Test that the to_dict method returns the correct dictionary without aws credentials
         """
@@ -249,7 +253,7 @@ class TestAmazonBedrockChatGenerator:
         assert generator.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_from_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
+    def test_from_dict(self, boto3_config: dict[str, Any] | None):
         """
         Test that the from_dict method returns the correct object
         """
@@ -296,7 +300,7 @@ class TestAmazonBedrockChatGenerator:
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
 
-    def test_from_dict_aws_region_name(self, mock_boto3_session: Any):
+    def test_from_dict_aws_region_name(self):
         """
         Test that aws_region_name as str value is correctly parsed
         """
@@ -315,26 +319,15 @@ class TestAmazonBedrockChatGenerator:
         serialized = generator.to_dict()
         assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
 
-    def test_default_constructor(self, mock_boto3_session, mock_aioboto3_session, set_env_variables):
+    def test_default_constructor(self):
         """
         Test that the default constructor sets the correct values
         """
         layer = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         assert layer.model == "global.anthropic.claude-sonnet-4-6"
+        assert layer.client is None
 
-        # assert mocked boto3 client called exactly once
-        mock_boto3_session.assert_called_once()
-
-        # assert mocked boto3 client was called with the correct parameters
-        mock_boto3_session.assert_called_with(
-            aws_access_key_id="some_fake_id",
-            aws_secret_access_key="some_fake_key",
-            aws_session_token="some_fake_token",
-            region_name="fake_region",
-            profile_name="some_fake_profile",
-        )
-
-    def test_constructor_with_generation_kwargs(self, mock_boto3_session):
+    def test_constructor_with_generation_kwargs(self):
         """
         Test that model_kwargs are correctly set in the constructor
         """
@@ -352,7 +345,7 @@ class TestAmazonBedrockChatGenerator:
         with pytest.raises(ValueError, match="cannot be None or empty string"):
             AmazonBedrockChatGenerator(model="")
 
-    def test_serde_in_pipeline(self, mock_boto3_session, monkeypatch):
+    def test_serde_in_pipeline(self, monkeypatch):
         # Set mock AWS credentials
         monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-key")
         monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
@@ -441,7 +434,7 @@ class TestAmazonBedrockChatGenerator:
         new_pipeline = Pipeline.loads(pipeline.dumps())
         assert new_pipeline.get_component("generator").tools == [tool]
 
-    def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_tool_config(self, top_song_tool_config):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
@@ -451,7 +444,7 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["toolConfig"] == top_song_tool_config
 
-    def test_prepare_request_params_guardrail_config(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_guardrail_config(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
             guardrail_config={
@@ -468,14 +461,14 @@ class TestAmazonBedrockChatGenerator:
             "guardrailVersion": "test",
         }
 
-    def test_constructor_with_system_cachepoint_config(self, mock_boto3_session):
+    def test_constructor_with_system_cachepoint_config(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
             system_cachepoint_config={"type": "default"},
         )
         assert generator.system_cachepoint_config == {"cachePoint": {"type": "default"}}
 
-    def test_to_dict_with_system_cachepoint_config(self, mock_boto3_session):
+    def test_to_dict_with_system_cachepoint_config(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
             system_cachepoint_config={"type": "default"},
@@ -483,7 +476,7 @@ class TestAmazonBedrockChatGenerator:
         serialized = generator.to_dict()
         assert serialized["init_parameters"]["system_cachepoint_config"] == {"cachePoint": {"type": "default"}}
 
-    def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_response_format(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         schema = {
             "type": "object",
@@ -515,7 +508,7 @@ class TestAmazonBedrockChatGenerator:
             }
         }
 
-    def test_prepare_request_params_response_format_missing_schema_key(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_response_format_missing_schema_key(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         with pytest.raises(ValueError, match="'response_format' must contain a 'schema' key"):
             generator._prepare_request_params(
@@ -523,7 +516,7 @@ class TestAmazonBedrockChatGenerator:
                 generation_kwargs={"response_format": {"name": "test"}},
             )
 
-    def test_init_with_mixed_tools(self, mock_boto3_session, set_env_variables):
+    def test_init_with_mixed_tools(self):
         def tool_fn(city: str) -> str:
             return city
 
@@ -556,7 +549,7 @@ class TestAmazonBedrockChatGenerator:
 
         assert generator.tools == [weather_tool, toolset]
 
-    def test_prepare_request_params_with_mixed_tools(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_with_mixed_tools(self):
         def tool_fn(city: str) -> str:
             return city
 
@@ -696,8 +689,6 @@ class TestAmazonBedrockChatGenerator:
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(
         self,
-        mock_boto3_session,
-        set_env_variables,
         generation_kwargs,
         additional_model_request_fields,
     ):
@@ -712,18 +703,13 @@ class TestAmazonBedrockChatGenerator:
         else:
             assert request_params["additionalModelRequestFields"] == additional_model_request_fields
 
-    def test_init_connection_error(self):
-        with patch("boto3.Session", side_effect=Exception("connection refused")):
-            with pytest.raises(Exception, match="Could not connect to Amazon Bedrock"):
-                AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
-
-    def test_get_async_session_creates_and_caches(self, mock_boto3_session, set_env_variables):
+    def test_get_async_session_creates_and_caches(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         session1 = generator._get_async_session()
         session2 = generator._get_async_session()
         assert session1 is session2
 
-    def test_get_async_session_error(self, mock_boto3_session, set_env_variables):
+    def test_get_async_session_error(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         with patch(
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.get_aws_session",
@@ -732,7 +718,7 @@ class TestAmazonBedrockChatGenerator:
             with pytest.raises(Exception, match="Could not connect to Amazon Bedrock"):
                 generator._get_async_session()
 
-    def test_from_dict_without_stop_words_or_callback(self, mock_boto3_session):
+    def test_from_dict_without_stop_words_or_callback(self):
         generator = AmazonBedrockChatGenerator.from_dict(
             {
                 "type": CLASS_TYPE,
@@ -744,7 +730,7 @@ class TestAmazonBedrockChatGenerator:
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.streaming_callback is None
 
-    def test_prepare_request_params_response_format_without_description(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_response_format_without_description(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
         request_params, _ = generator._prepare_request_params(
@@ -754,14 +740,14 @@ class TestAmazonBedrockChatGenerator:
         json_schema_block = request_params["outputConfig"]["textFormat"]["structure"]["jsonSchema"]
         assert "description" not in json_schema_block
 
-    def test_resolve_flattened_kwargs_both_parallel_flags_raises(self, mock_boto3_session, set_env_variables):
+    def test_resolve_flattened_kwargs_both_parallel_flags_raises(self):
         _ = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         with pytest.raises(ValueError, match="Cannot set both disable_parallel_tool_use and parallel_tool_use"):
             AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
                 {"disable_parallel_tool_use": True, "parallel_tool_use": True}
             )
 
-    def test_from_dict_resolves_tools_cachepoint_config_ttl(self, mock_boto3_session):
+    def test_from_dict_resolves_tools_cachepoint_config_ttl(self):
         generator = AmazonBedrockChatGenerator.from_dict(
             {
                 "type": CLASS_TYPE,
@@ -773,7 +759,7 @@ class TestAmazonBedrockChatGenerator:
         )
         assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
 
-    def test_from_dict_resolves_tools_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+    def test_from_dict_resolves_tools_cachepoint_config_ttl_preserves_existing_type(self):
         generator = AmazonBedrockChatGenerator.from_dict(
             {
                 "type": CLASS_TYPE,
@@ -786,7 +772,7 @@ class TestAmazonBedrockChatGenerator:
         )
         assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
-    def test_from_dict_resolves_system_cachepoint_config_ttl(self, mock_boto3_session):
+    def test_from_dict_resolves_system_cachepoint_config_ttl(self):
         generator = AmazonBedrockChatGenerator.from_dict(
             {
                 "type": CLASS_TYPE,
@@ -798,7 +784,7 @@ class TestAmazonBedrockChatGenerator:
         )
         assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
 
-    def test_from_dict_resolves_system_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+    def test_from_dict_resolves_system_cachepoint_config_ttl_preserves_existing_type(self):
         generator = AmazonBedrockChatGenerator.from_dict(
             {
                 "type": CLASS_TYPE,
@@ -811,7 +797,7 @@ class TestAmazonBedrockChatGenerator:
         )
         assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
-    def test_run_completion(self, mock_boto3_session, set_env_variables):
+    def test_run_completion(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
         generator.client.converse.return_value = {
@@ -824,7 +810,7 @@ class TestAmazonBedrockChatGenerator:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Paris"
 
-    def test_run_with_generation_kwargs(self, mock_boto3_session, set_env_variables):
+    def test_run_with_generation_kwargs(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
             generation_kwargs={"maxTokens": 100, "temperature": 0.5},
@@ -841,7 +827,7 @@ class TestAmazonBedrockChatGenerator:
         _, kwargs = generator.client.converse.call_args
         assert kwargs["inferenceConfig"] == {"maxTokens": 100, "temperature": 0.9}
 
-    def test_run_client_error(self, mock_boto3_session, set_env_variables):
+    def test_run_client_error(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
         generator.client.converse.side_effect = ClientError(
@@ -850,7 +836,7 @@ class TestAmazonBedrockChatGenerator:
         with pytest.raises(AmazonBedrockInferenceError):
             generator.run([ChatMessage.from_user("Hello")])
 
-    def test_run_streaming(self, mock_boto3_session, set_env_variables):
+    def test_run_streaming(self):
         chunks = []
 
         def callback(chunk: StreamingChunk):
@@ -873,7 +859,7 @@ class TestAmazonBedrockChatGenerator:
         assert len(chunks) > 0
 
     @pytest.mark.asyncio
-    async def test_run_async_completion(self, mock_boto3_session, set_env_variables):
+    async def test_run_async_completion(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         mock_response = {
             "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
@@ -897,7 +883,7 @@ class TestAmazonBedrockChatGenerator:
         assert result["replies"][0].text == "Paris"
 
     @pytest.mark.asyncio
-    async def test_run_async_with_generation_kwargs(self, mock_boto3_session, set_env_variables):
+    async def test_run_async_with_generation_kwargs(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
             generation_kwargs={"maxTokens": 100, "temperature": 0.5},
@@ -923,7 +909,7 @@ class TestAmazonBedrockChatGenerator:
         _, kwargs = mock_async_client.converse.call_args
         assert kwargs["inferenceConfig"] == {"maxTokens": 100, "temperature": 0.9}
 
-    def test_run_with_string_input(self, mock_boto3_session, set_env_variables):
+    def test_run_with_string_input(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
         generator.client.converse.return_value = {
@@ -940,7 +926,7 @@ class TestAmazonBedrockChatGenerator:
         assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
-    async def test_run_async_with_string_input(self, mock_boto3_session, set_env_variables):
+    async def test_run_async_with_string_input(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         mock_response = {
             "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
@@ -965,6 +951,56 @@ class TestAmazonBedrockChatGenerator:
         assert isinstance(result["replies"], list)
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
+
+
+class TestComponentLifecycle:
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        generator = AmazonBedrockChatGenerator(
+            model="anthropic.claude-v2",
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(AmazonBedrockConfigurationError):
+            generator.warm_up()
+
+    def test_warm_up_connection_error(self, mock_boto3_session):
+        mock_boto3_session.side_effect = Exception("connection refused")
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        with pytest.raises(AmazonBedrockConfigurationError):
+            generator.warm_up()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        client = mock_boto3_session.return_value.client.return_value
+        generator.warm_up()
+        assert generator.client is client
+        generator.close()
+        client.close.assert_called_once_with()
+        assert generator.client is None
+        generator.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.warm_up()
+        generator.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-v2")
+        generator.close()
+        assert generator.client is None
 
 
 # In the CI, those tests are skipped if AWS Authentication fails

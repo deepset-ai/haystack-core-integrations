@@ -69,17 +69,24 @@ class ChonkieSentenceDocumentSplitter:
         self.skip_empty_documents = skip_empty_documents
         self.page_break_character = page_break_character
 
+        self._chunker: chonkie.SentenceChunker | None = None
+
+    def warm_up(self) -> None:
+        """Initialize the Chonkie sentence chunker."""
+        if self._chunker is not None:
+            return
+
         kwargs: dict[str, Any] = {
-            "tokenizer": tokenizer,
-            "chunk_size": chunk_size,
-            "chunk_overlap": chunk_overlap,
-            "min_sentences_per_chunk": min_sentences_per_chunk,
-            "min_characters_per_sentence": min_characters_per_sentence,
-            "approximate": approximate,
-            "include_delim": include_delim,
+            "tokenizer": self.tokenizer,
+            "chunk_size": self.chunk_size,
+            "chunk_overlap": self.chunk_overlap,
+            "min_sentences_per_chunk": self.min_sentences_per_chunk,
+            "min_characters_per_sentence": self.min_characters_per_sentence,
+            "approximate": self.approximate,
+            "include_delim": self.include_delim,
         }
-        if delim is not None:
-            kwargs["delim"] = delim
+        if self.delim is not None:
+            kwargs["delim"] = self.delim
 
         self._chunker = chonkie.SentenceChunker(**kwargs)
 
@@ -91,6 +98,9 @@ class ChonkieSentenceDocumentSplitter:
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
+        self.warm_up()
+        assert self._chunker is not None  # noqa: S101
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieSentenceDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)

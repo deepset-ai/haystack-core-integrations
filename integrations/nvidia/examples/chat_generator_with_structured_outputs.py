@@ -27,7 +27,7 @@ chat_messages = [
 ]
 
 component = NvidiaChatGenerator(
-    model="meta/llama-3.1-70b-instruct",
+    model="nvidia/nemotron-3.5-lightning-30b-a3b",
     generation_kwargs={"extra_body": {"nvext": {"guided_json": json_schema}}},
 )
 results = component.run(chat_messages)

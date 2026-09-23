@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/supabase-v0.4.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `SupaBase` override test_get_metadata_field_unique_values_distinct_types (#3852)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/supabase-v0.3.0] - 2026-06-04
 
 ### 🚀 Features

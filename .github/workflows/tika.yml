@@ -106,7 +106,9 @@ jobs:
       - name: Start Tika server
         if: runner.os == 'Linux'
         run: |
-          docker run -d -p 127.0.0.1:9998:9998 apache/tika:latest
+          # Pinned to the last 3.x image because the tika Python client does not yet support
+          # Tika Server 4.x (TIKA-4816).
+          docker run -d -p 127.0.0.1:9998:9998 apache/tika:3.3.1.0
           for i in $(seq 1 30); do
             if curl -sf http://localhost:9998/tika > /dev/null 2>&1; then
               echo "Tika is ready"

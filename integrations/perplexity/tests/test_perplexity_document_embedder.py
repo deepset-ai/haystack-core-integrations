@@ -82,9 +82,7 @@ class TestPerplexityDocumentEmbedder:
         models = PerplexityDocumentEmbedder.SUPPORTED_MODELS
         assert models == ["pplx-embed-v1-0.6b", "pplx-embed-v1-4b"]
 
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
-
+    def test_init_default(self):
         embedder = PerplexityDocumentEmbedder()
 
         assert embedder.api_key == Secret.from_env_var(["PERPLEXITY_API_KEY"])
@@ -97,6 +95,8 @@ class TestPerplexityDocumentEmbedder:
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
         assert embedder.encoding_format == "base64_int8"
+        assert embedder.client is None
+        assert embedder.async_client is None
 
     def test_init_with_parameters(self):
         embedder = PerplexityDocumentEmbedder(
@@ -130,9 +130,7 @@ class TestPerplexityDocumentEmbedder:
                 encoding_format="float",
             )
 
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
-
+    def test_to_dict(self):
         embedder = PerplexityDocumentEmbedder()
         component_dict = embedder.to_dict()
 
@@ -158,8 +156,7 @@ class TestPerplexityDocumentEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test-secret-key")
+    def test_to_dict_with_custom_init_parameters(self):
         embedder = PerplexityDocumentEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
             model="pplx-embed-v1-4b",
@@ -199,8 +196,7 @@ class TestPerplexityDocumentEmbedder:
             },
         }
 
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "fake-api-key")
+    def test_from_dict(self):
         data = {
             "type": (
                 "haystack_integrations.components.embedders.perplexity.document_embedder.PerplexityDocumentEmbedder"
