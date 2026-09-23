@@ -18,8 +18,10 @@ from .mcp_tool import (
     StreamableHttpServerInfo,
 )
 from .mcp_toolset import MCPToolset
+from .oauth import InMemoryTokenStorage, OAuthConfig, TokenData, TokenStorage
 
 __all__ = [
+    "InMemoryTokenStorage",
     "MCPClient",
     "MCPConnectionError",
     "MCPError",
@@ -28,10 +30,13 @@ __all__ = [
     "MCPTool",
     "MCPToolNotFoundError",
     "MCPToolset",
+    "OAuthConfig",
     "SSEClient",
     "SSEServerInfo",
     "StdioClient",
     "StdioServerInfo",
     "StreamableHttpClient",
     "StreamableHttpServerInfo",
+    "TokenData",
+    "TokenStorage",
 ]
