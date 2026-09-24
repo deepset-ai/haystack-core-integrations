@@ -385,6 +385,11 @@ class AnthropicChatGenerator:
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
 
+        thinking_display = generation_kwargs.pop("thinking_display", None)
+        if thinking_display is not None:
+            thinking = generation_kwargs.setdefault("thinking", {})
+            thinking["display"] = thinking_display
+
         return generation_kwargs
 
     def _process_response(

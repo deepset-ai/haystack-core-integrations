@@ -481,6 +481,7 @@ class TestRun:
                     "parallel_tool_use": None,
                     "tool_choice_type": None,
                     "adaptive_thinking_effort": None,
+                    "thinking_display": None,
                 },
                 {},
             ),
@@ -515,6 +516,26 @@ class TestRun:
                 },
                 {
                     "service_tier": "standard_only",
+                },
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "high",
+                    "thinking_display": "summarized",
+                },
+                {
+                    "thinking": {"type": "adaptive", "display": "summarized"},
+                    "output_config": {"effort": "high"},
+                },
+            ),
+            (
+                # thinking_display is merged into an explicitly passed thinking dict
+                {
+                    "thinking": {"type": "adaptive"},
+                    "thinking_display": "omitted",
+                },
+                {
+                    "thinking": {"type": "adaptive", "display": "omitted"},
                 },
             ),
         ],
