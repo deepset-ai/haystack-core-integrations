@@ -9,6 +9,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from psycopg import AsyncConnection, Connection, Cursor, Error, IntegrityError
 from psycopg.cursor_async import AsyncCursor
@@ -1075,6 +1076,12 @@ class PgvectorDocumentStore:
         :returns: The number of documents deleted.
         """
         _validate_filters(filters)
+        if not filters:
+            # An empty filter here would compile to an unqualified DELETE and empty the table.
+            # InMemoryDocumentStore raises FilterError for the same input, and delete_all_documents()
+            # exists for the case where wiping the table is what was meant.
+            msg = "delete_by_filter requires a non-empty filter. Use delete_all_documents() to delete every document."
+            raise FilterError(msg)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
@@ -1117,6 +1124,12 @@ class PgvectorDocumentStore:
         :returns: The number of documents deleted.
         """
         _validate_filters(filters)
+        if not filters:
+            # An empty filter here would compile to an unqualified DELETE and empty the table.
+            # InMemoryDocumentStore raises FilterError for the same input, and delete_all_documents()
+            # exists for the case where wiping the table is what was meant.
+            msg = "delete_by_filter requires a non-empty filter. Use delete_all_documents() to delete every document."
+            raise FilterError(msg)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
