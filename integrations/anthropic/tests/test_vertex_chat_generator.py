@@ -1,4 +1,5 @@
 import os
+from unittest.mock import AsyncMock, patch
 
 import anthropic
 import pytest
@@ -19,23 +20,25 @@ class TestUnit:
         component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
         assert component.region == "us-central1"
         assert component.project_id == "test-project-id"
-        assert component.model == "claude-sonnet-4@20250514"
+        assert component.model == "claude-sonnet-4-5@20250929"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.ignore_tools_thinking_messages
+        assert component.client is None
+        assert component.async_client is None
 
     def test_init_with_parameters(self):
         component = AnthropicVertexChatGenerator(
             region="us-central1",
             project_id="test-project-id",
-            model="claude-sonnet-4@20250514",
+            model="claude-sonnet-4-5@20250929",
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             ignore_tools_thinking_messages=False,
         )
         assert component.region == "us-central1"
         assert component.project_id == "test-project-id"
-        assert component.model == "claude-sonnet-4@20250514"
+        assert component.model == "claude-sonnet-4-5@20250929"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.ignore_tools_thinking_messages is False
@@ -51,7 +54,7 @@ class TestUnit:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-sonnet-4@20250514",
+                "model": "claude-sonnet-4-5@20250929",
                 "streaming_callback": None,
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
@@ -82,7 +85,7 @@ class TestUnit:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-sonnet-4@20250514",
+                "model": "claude-sonnet-4-5@20250929",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": False,
@@ -102,7 +105,7 @@ class TestUnit:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-sonnet-4@20250514",
+                "model": "claude-sonnet-4-5@20250929",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
@@ -113,7 +116,7 @@ class TestUnit:
             },
         }
         component = AnthropicVertexChatGenerator.from_dict(data)
-        assert component.model == "claude-sonnet-4@20250514"
+        assert component.model == "claude-sonnet-4-5@20250929"
         assert component.region == "us-central1"
         assert component.project_id == "test-project-id"
         assert component.streaming_callback is print_streaming_chunk
@@ -153,6 +156,55 @@ class TestUnit:
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
 
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AnthropicVertex")
+    def test_sync_lifecycle(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        client = mock_client_cls.return_value
+
+        component.warm_up()
+        assert component.client is client
+        assert component.async_client is None
+        component.close()
+        client.close.assert_called_once_with()
+        assert component.client is None
+        component.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AsyncAnthropicVertex")
+    async def test_async_lifecycle(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        client = mock_client_cls.return_value
+        client.close = AsyncMock()
+
+        await component.warm_up_async()
+        assert component.async_client is client
+        assert component.client is None
+        await component.close_async()
+        client.close.assert_awaited_once_with()
+        assert component.async_client is None
+        await component.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AnthropicVertex")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(
+            region="us-central1", project_id="test-project-id", timeout=10.0, max_retries=1
+        )
+        component.warm_up()
+        component.warm_up()
+        mock_client_cls.assert_called_once_with(
+            region="us-central1", project_id="test-project-id", timeout=10.0, max_retries=1
+        )
+
+    @patch("haystack_integrations.components.generators.anthropic.chat.vertex_chat_generator.AsyncAnthropicVertex")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
+        await component.warm_up_async()
+        await component.warm_up_async()
+        mock_client_cls.assert_called_once_with(region="us-central1", project_id="test-project-id")
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
     not (os.environ.get("REGION", None) and os.environ.get("PROJECT_ID", None)),
@@ -168,7 +220,7 @@ class TestIntegration:
 
     def test_default_inference_params(self, chat_messages):
         client = AnthropicVertexChatGenerator(
-            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-sonnet-4@20250514"
+            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-sonnet-4-5@20250929"
         )
         response = client.run(chat_messages)
 
@@ -191,7 +243,7 @@ class TestIntegration:
         component = AnthropicVertexChatGenerator(
             region=os.environ.get("REGION"),
             project_id=os.environ.get("PROJECT_ID"),
-            model="claude-sonnet-4@20250514",
+            model="claude-sonnet-4-5@20250929",
         )
         results = await component.run_async(messages=[ChatMessage.from_user("What's the capital of France?")])
         assert len(results["replies"]) == 1

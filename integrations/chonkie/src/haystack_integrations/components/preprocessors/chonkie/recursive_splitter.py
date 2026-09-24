@@ -65,10 +65,17 @@ class ChonkieRecursiveDocumentSplitter:
         else:
             self.rules = rules
 
+        self._chunker: chonkie.RecursiveChunker | None = None
+
+    def warm_up(self) -> None:
+        """Initialize the Chonkie recursive chunker."""
+        if self._chunker is not None:
+            return
+
         kwargs: dict[str, Any] = {
-            "tokenizer": tokenizer,
-            "chunk_size": chunk_size,
-            "min_characters_per_chunk": min_characters_per_chunk,
+            "tokenizer": self.tokenizer,
+            "chunk_size": self.chunk_size,
+            "min_characters_per_chunk": self.min_characters_per_chunk,
         }
         if self.rules is not None:
             kwargs["rules"] = self.rules
@@ -83,6 +90,9 @@ class ChonkieRecursiveDocumentSplitter:
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
+        self.warm_up()
+        assert self._chunker is not None  # noqa: S101
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieRecursiveDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)

@@ -157,18 +157,28 @@ class LangfuseConnector:
         self.span_handler = span_handler
         self.host = host
         self.langfuse_client_kwargs = langfuse_client_kwargs
+        self._httpx_client = httpx_client
+        self.tracer: LangfuseTracer | None = None
+
+    def warm_up(self) -> None:
+        """
+        Initialize the Langfuse client and enable tracing once.
+        """
+        if self.tracer is not None:
+            return
+
         resolved_langfuse_client_kwargs = {
-            "secret_key": secret_key.resolve_value() if secret_key else None,
-            "public_key": public_key.resolve_value() if public_key else None,
-            "httpx_client": httpx_client,
-            "host": host,
-            **(langfuse_client_kwargs or {}),
+            "secret_key": self.secret_key.resolve_value() if self.secret_key else None,
+            "public_key": self.public_key.resolve_value() if self.public_key else None,
+            "httpx_client": self._httpx_client,
+            "host": self.host,
+            **(self.langfuse_client_kwargs or {}),
         }
         self.tracer = LangfuseTracer(
             tracer=Langfuse(**resolved_langfuse_client_kwargs),
-            name=name,
-            public=public,
-            span_handler=span_handler,
+            name=self.name,
+            public=self.public,
+            span_handler=self.span_handler,
         )
         tracing.enable_tracing(self.tracer)
 
@@ -186,6 +196,8 @@ class LangfuseConnector:
             - `trace_url`: The URL to the tracing data.
             - `trace_id`: The ID of the trace.
         """
+        self.warm_up()
+        assert self.tracer is not None
         logger.debug(
             "Langfuse tracer invoked with the following context: '{invocation_context}'",
             invocation_context=invocation_context,

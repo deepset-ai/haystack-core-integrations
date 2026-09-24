@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -611,7 +612,7 @@ class TestStreamingChunkConversion:
         mock_part.text = "Here is my answer"
         mock_part.function_call = None
         mock_part.thought = False
-        mock_part.thought_signature = "sig_abc123"
+        mock_part.thought_signature = b"\x12\x9e\x08\xff"
         mock_content.parts = [mock_part]
         mock_candidate.content = mock_content
 
@@ -624,7 +625,9 @@ class TestStreamingChunkConversion:
         assert chunk.content == "Here is my answer"
         assert "thought_signature_deltas" in chunk.meta
         assert len(chunk.meta["thought_signature_deltas"]) == 1
-        assert chunk.meta["thought_signature_deltas"][0]["signature"] == "sig_abc123"
+        signature = chunk.meta["thought_signature_deltas"][0]["signature"]
+        assert isinstance(signature, str)
+        assert base64.b64decode(signature) == b"\x12\x9e\x08\xff"
         assert chunk.meta["thought_signature_deltas"][0]["has_text"] is True
         assert chunk.meta["thought_signature_deltas"][0]["is_thought"] is False
 
@@ -780,7 +783,7 @@ class TestStreamingChunkConversion:
             chunk=types.GenerateContentResponse(candidates=[]),
             index=3,
             component_info=component_info,
-            model="gemini-3.7-flash",
+            model="gemini-3.8-flash",
         )
 
         assert chunk.content == ""
@@ -975,6 +978,37 @@ class TestConvertMessageToGoogleGenAI:
         assert google_content.parts[1].function_call.args == {"city": "Paris"}
         assert google_content.parts[1].thought_signature == b"encrypted_mock_thought_signature_2"
 
+    def test_thought_signature_bytes_round_trip(self, monkeypatch):
+        """Raw (non UTF-8) thought signature bytes are stored as base64 strings and restored as bytes."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+        raw_signature = b"\x12\x9e\x08\n\x9b\x08\x01i\xff\xfe"
+
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_candidate.finish_reason = "STOP"
+        mock_chunk.candidates = [mock_candidate]
+        mock_part = Mock()
+        mock_part.text = None
+        mock_part.thought = False
+        mock_part.function_call = types.FunctionCall(id="call_1", name="weather", args={"city": "Paris"})
+        mock_part.thought_signature = raw_signature
+        mock_candidate.content = Mock(parts=[mock_part])
+        mock_chunk.usage_metadata = None
+
+        chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=mock_chunk, index=0, component_info=component_info, model="gemini-2.5-flash"
+        )
+        message = _aggregate_streaming_chunks_with_reasoning([chunk])
+
+        # meta must be JSON serializable (no raw bytes)
+        json.dumps(message.meta)
+        restored = ChatMessage.from_dict(json.loads(json.dumps(message.to_dict())))
+
+        google_content = _convert_message_to_google_genai_format(restored)
+        assert google_content.parts[0].function_call.name == "weather"
+        assert google_content.parts[0].thought_signature == raw_signature
+
     def test_convert_message_to_google_genai_format_with_reasoning_content(self):
         """Test that ReasoningContent is properly skipped during conversion."""
         # ReasoningContent is for human transparency only, not sent to the API
@@ -1035,6 +1069,10 @@ class TestConvertMessageToGoogleGenAI:
         assert isinstance(google_content.parts[0].function_response.parts[2], types.FunctionResponsePart)
         assert google_content.parts[0].function_response.parts[2].inline_data.mime_type == "application/pdf"
         assert google_content.parts[0].function_response.parts[2].inline_data.data == b"This is a test document."
+
+    def test_convert_message_empty_assistant_content(self):
+        message = ChatMessage.from_assistant(text=None)
+        assert _convert_message_to_google_genai_format(message) == types.Content(role="model", parts=[])
 
     def test_convert_message_empty_content_raises(self):
         message = ChatMessage.from_user("hello")

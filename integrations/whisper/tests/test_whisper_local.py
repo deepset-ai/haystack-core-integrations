@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -18,7 +17,7 @@ from haystack_integrations.components.audio.whisper import LocalWhisperTranscrib
 SAMPLES_PATH = Path(__file__).parent / "test_files"
 
 
-class TestLocalWhisperTranscriber:
+class TestInitialization:
     def test_init(self):
         transcriber = LocalWhisperTranscriber(
             model="large-v2"
@@ -31,6 +30,8 @@ class TestLocalWhisperTranscriber:
         with pytest.raises(ValueError, match="Model name 'whisper-1' not recognized"):
             LocalWhisperTranscriber(model="whisper-1")
 
+
+class TestSerialization:
     def test_to_dict(self):
         transcriber = LocalWhisperTranscriber()
         data = transcriber.to_dict()
@@ -95,20 +96,24 @@ class TestLocalWhisperTranscriber:
         assert transcriber.whisper_params == {}
         assert transcriber._model is None
 
-    def test_warmup(self):
+
+class TestComponentLifecycle:
+    def test_warm_up(self):
         with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
             transcriber = LocalWhisperTranscriber(model="large-v2", device=ComponentDevice.from_str("cpu"))
             mocked_whisper.load_model.assert_not_called()
             transcriber.warm_up()
             mocked_whisper.load_model.assert_called_once_with("large-v2", device=torch.device(type="cpu"))
 
-    def test_warmup_doesnt_reload(self):
+    def test_warm_up_is_idempotent(self):
         with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
             transcriber = LocalWhisperTranscriber(model="large-v2")
             transcriber.warm_up()
             transcriber.warm_up()
             mocked_whisper.load_model.assert_called_once()
 
+
+class TestRun:
     def test_run_with_path(self):
         comp = LocalWhisperTranscriber(model="large-v2")
         comp._model = MagicMock()
@@ -210,8 +215,9 @@ class TestLocalWhisperTranscriber:
             mocked_whisper.load_model.assert_called_once()
             assert results[0].content == "test transcription"
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")
+
+@pytest.mark.integration
+class TestIntegration:
     def test_whisper_local_transcriber(self, test_files_path):
         # Force CPU. By default the component resolves to the best available device, which is MPS on Apple
         # Silicon. Whisper inference on MPS is unreliable on the GitHub-hosted macOS runners and produced
@@ -247,8 +253,6 @@ class TestLocalWhisperTranscriber:
         # meta.audio_file should contain the temp path where we dumped the audio bytes
         assert docs[2].meta["audio_file"]
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")
     def test_whisper_local_transcriber_pipeline_and_url_source(self):
         pipe = Pipeline()
         pipe.add_component("fetcher", LinkContentFetcher())

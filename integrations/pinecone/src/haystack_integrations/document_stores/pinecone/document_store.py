@@ -828,12 +828,13 @@ class PineconeDocumentStore:
                         # For lists, check the type of elements if list is non-empty
                         if value:
                             # Sample first element to determine list type
-                            if isinstance(value[0], str):
+                            # bool before int/float here too, same reason as above
+                            if isinstance(value[0], bool):
+                                field_samples[field].add("boolean")
+                            elif isinstance(value[0], str):
                                 field_samples[field].add("keyword")
                             elif isinstance(value[0], (int, float)):
                                 field_samples[field].add("long")
-                            elif isinstance(value[0], bool):
-                                field_samples[field].add("boolean")
                         else:
                             # Empty list, default to keyword
                             field_samples[field].add("keyword")

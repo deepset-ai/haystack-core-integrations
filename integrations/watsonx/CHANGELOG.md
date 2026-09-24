@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/watsonx-v2.0.0] - 2026-09-11
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+
+### 🚜 Refactor
+
+- [**breaking**] Watsonx - move client creation to warm_up (#3944)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- [**breaking**] Remove deprecated `WatsonxGenerator` (use `WatsonxChatGenerator` instead) (#3889)
+
+
 ## [integrations/watsonx-v1.7.0] - 2026-08-07
 
 ### 🚀 Features
@@ -10,6 +30,9 @@
 
 - Fix new issues raised by ruff 0.16.0 (#3670)
 
+
+## [integrations/watsonx-v1.6.0] - 2026-07-09
+
 ### 🧪 Testing
 
 - Fix failing test watsonx integration (#3414)
@@ -19,8 +42,6 @@
 ### 🧹 Chores
 
 - Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
-
-### 🌀 Miscellaneous
 
 
 ## [integrations/watsonx-v1.5.0] - 2026-06-04
