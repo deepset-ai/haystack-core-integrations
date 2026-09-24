@@ -25,7 +25,7 @@ classifiers = [
   "Topic :: Database",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["haystack-ai>=2.26.1", "falkordb>=1.6,<2"]
+dependencies = ["haystack-ai>=2.28.0", "falkordb>=1.6,<2"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/falkordb#readme"
