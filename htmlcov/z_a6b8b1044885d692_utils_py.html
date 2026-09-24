@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_ad4df36e6abddf46_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-24 11:59 +0000
+            created at 2026-09-24 15:00 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -699,10 +699,10 @@
     <p class="run"><span class="n"><a id="t615" href="#t615">615</a></span><span class="t">            <span class="nam">streaming_chunk</span> <span class="op">=</span> <span class="nam">StreamingChunk</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t616" href="#t616">616</a></span><span class="t">                <span class="nam">content</span><span class="op">=</span><span class="str">&quot;&quot;</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t617" href="#t617">617</a></span><span class="t">                <span class="nam">index</span><span class="op">=</span><span class="nam">block_idx</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t618" href="#t618">618</a></span><span class="t">                <span class="nam">reasoning</span><span class="op">=</span><span class="nam">ReasoningContent</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t619" href="#t619">619</a></span><span class="t">                    <span class="nam">reasoning_text</span><span class="op">=</span><span class="nam">reasoning_text</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t620" href="#t620">620</a></span><span class="t">                    <span class="nam">extra</span><span class="op">=</span><span class="nam">extra</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t621" href="#t621">621</a></span><span class="t">                <span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t618" href="#t618">618</a></span><span class="t">                <span class="com"># redactedContent-only deltas have no text or signature, skip them like the non-streaming path</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t619" href="#t619">619</a></span><span class="t">                <span class="nam">reasoning</span><span class="op">=</span><span class="nam">ReasoningContent</span><span class="op">(</span><span class="nam">reasoning_text</span><span class="op">=</span><span class="nam">reasoning_text</span><span class="op">,</span> <span class="nam">extra</span><span class="op">=</span><span class="nam">extra</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t620" href="#t620">620</a></span><span class="t">                <span class="key">if</span> <span class="nam">reasoning_text</span> <span class="key">or</span> <span class="nam">extra</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t621" href="#t621">621</a></span><span class="t">                <span class="key">else</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t622" href="#t622">622</a></span><span class="t">                <span class="nam">meta</span><span class="op">=</span><span class="nam">base_meta</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t623" href="#t623">623</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t624" href="#t624">624</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -852,7 +852,7 @@
             <a class="nav" href="z_ad4df36e6abddf46_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-24 11:59 +0000
+            created at 2026-09-24 15:00 +0000
         </p>
     </div>
 </footer>
