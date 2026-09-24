@@ -221,13 +221,14 @@ class SnowflakeAuthenticator:
 
         return masked_params
 
-    def test_connection(self, user: str, account: str, database: str | None = None) -> bool:
+    def test_connection(self, user: str, account: str, database: str | None = None, *, role: str | None = None) -> bool:
         """
         Tests the connection with the provided credentials.
 
         :param user: Snowflake username.
         :param account: Snowflake account identifier.
         :param database: Optional database name.
+        :param role: Optional role to activate for the connection. When omitted, the user's default role is used.
         :returns: True if connection is successful, False otherwise.
         """
         try:
@@ -239,6 +240,8 @@ class SnowflakeAuthenticator:
 
             if database:
                 connection_params["database"] = database
+            if role:
+                connection_params["role"] = role
 
             if self.authenticator == AUTH_SNOWFLAKE:
                 if self.api_key:

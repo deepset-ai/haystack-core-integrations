@@ -189,6 +189,26 @@ class TestSnowflakeAuthenticator:
         assert call_kwargs["database"] == "test_db"
         mock_connection.close.assert_called_once()
 
+    @pytest.mark.parametrize("role", ["ANALYST", None])
+    def test_authenticator_test_connection_with_role(self, mocker: Mock, role: str | None) -> None:
+        # Test test_connection with role parameter
+
+        mock_connection = mocker.Mock()
+        mock_connect = mocker.patch("snowflake.connector.connect", return_value=mock_connection)
+
+        auth = SnowflakeAuthenticator(
+            authenticator="SNOWFLAKE",
+            api_key=Secret.from_token("test_password"),
+        )
+
+        result = auth.test_connection(user="test_user", account="test_account", database="test_db", role=role)
+
+        assert result is True
+        call_kwargs = mock_connect.call_args[1]
+        assert call_kwargs.get("role") == role
+        # An unset role must not be sent at all; `role=None` is not the same as omitting the key.
+        assert ("role" in call_kwargs) is (role is not None)
+
     def test_authenticator_test_connection_jwt_with_pwd(self, mocker: Mock, tmp_path: Path) -> None:
         # Test test_connection for JWT with encrypted key (has password)
 

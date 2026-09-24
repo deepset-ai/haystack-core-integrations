@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote_plus, urlsplit
 
 import pandas as pd
 import polars as pl
@@ -144,7 +144,7 @@ class TestSnowflakeTableRetriever:
         assert isinstance(deserialized, SnowflakeTableRetriever)
 
     @pytest.mark.parametrize(
-        "user, account, db_name, schema_name, warehouse_name, expected_uri, should_raise",
+        "user, account, db_name, schema_name, warehouse_name, role_name, expected_uri, should_raise",
         [
             (
                 "test_user",
@@ -152,7 +152,42 @@ class TestSnowflakeTableRetriever:
                 "test_db",
                 "test_schema",
                 "test_warehouse",
+                None,
                 "snowflake://test_user:test_api_key@test_account/test_db/test_schema?warehouse=test_warehouse&login_timeout=60",
+                False,
+            ),
+            (
+                "test_user",
+                "test_account",
+                "test_db",
+                "test_schema",
+                "test_warehouse",
+                "ANALYST",
+                "snowflake://test_user:test_api_key@test_account/test_db/test_schema?warehouse=test_warehouse&role=ANALYST&login_timeout=60",
+                False,
+            ),
+            (
+                # Role names are quoted identifiers in Snowflake and may contain spaces; the ADBC driver
+                # url-unescapes DSN query values, so the escaped form is what must reach the URI.
+                "test_user",
+                "test_account",
+                "test_db",
+                None,
+                None,
+                "my role",
+                "snowflake://test_user:test_api_key@test_account/test_db?role=my+role&login_timeout=60",
+                False,
+            ),
+            (
+                # A role name carrying a DSN delimiter is the case escaping actually protects against:
+                # unescaped, the '&' would split the query string and lose everything after it.
+                "test_user",
+                "test_account",
+                "test_db",
+                None,
+                None,
+                "SALES&OPS",
+                "snowflake://test_user:test_api_key@test_account/test_db?role=SALES%26OPS&login_timeout=60",
                 False,
             ),
             (
@@ -161,12 +196,14 @@ class TestSnowflakeTableRetriever:
                 "test_db",
                 None,
                 "test_warehouse",
+                None,
                 "snowflake://test_user:test_api_key@test_account/test_db?warehouse=test_warehouse&login_timeout=60",
                 False,
             ),
             (
                 "test_user",
                 "test_account",
+                None,
                 None,
                 None,
                 None,
@@ -180,10 +217,11 @@ class TestSnowflakeTableRetriever:
                 "test_schema",
                 "test_warehouse",
                 None,
+                None,
                 True,
             ),
-            ("test_user", None, "test_db", "test_schema", "test_warehouse", None, True),
-            (None, None, "test_db", "test_schema", "test_warehouse", None, True),
+            ("test_user", None, "test_db", "test_schema", "test_warehouse", None, None, True),
+            (None, None, "test_db", "test_schema", "test_warehouse", None, None, True),
         ],
     )
     def test_snowflake_uri_constructor(
@@ -194,6 +232,7 @@ class TestSnowflakeTableRetriever:
         db_name: str | None,
         schema_name: str | None,
         warehouse_name: str | None,
+        role_name: str | None,
         expected_uri: str | None,
         should_raise: bool,
     ) -> None:
@@ -212,6 +251,7 @@ class TestSnowflakeTableRetriever:
             database=db_name,
             db_schema=schema_name,
             warehouse=warehouse_name,
+            role=role_name,
         )
         retriever.warm_up()
 
@@ -442,6 +482,89 @@ class TestSnowflakeTableRetriever:
         uri = retriever._snowflake_uri_constructor()
         expected_uri = f"snowflake://test_user:test_api_key@test_account/test_db?login_timeout={custom_timeout}"
         assert uri == expected_uri
+
+    def test_warm_up_connection_test_uses_role(self, mocker: Mock) -> None:
+        # warm_up() opens a real connection before any query runs. If it kept using the default role,
+        # a user whose default role has no grant on `database` would never reach the query at all.
+        mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+        test_connection = mocker.patch(
+            "haystack_integrations.components.retrievers.snowflake.auth.SnowflakeAuthenticator.test_connection",
+            return_value=True,
+        )
+
+        retriever = SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="SNOWFLAKE",
+            api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
+            database="test_db",
+            role="ANALYST",
+        )
+        retriever.warm_up()
+
+        assert test_connection.call_args[1]["role"] == "ANALYST"
+
+    @pytest.mark.parametrize("role", ["ANALYST", None])
+    def test_role_reaches_the_snowflake_connector(self, mocker: Mock, tmp_path: Path, role: str | None) -> None:
+        # JWT queries bypass ADBC and go through snowflake-connector-python, so the role has to be
+        # wired into that path too, and must be omitted entirely rather than sent as None.
+        key_file = tmp_path / "key.pem"
+        key_file.write_text("-----BEGIN PRIVATE KEY-----\ntest_key_content\n-----END PRIVATE KEY-----")
+        mocker.patch.dict(
+            os.environ, {"SNOWFLAKE_PRIVATE_KEY_FILE": str(key_file), "SNOWFLAKE_PRIVATE_KEY_PWD": "test_password"}
+        )
+        mocker.patch(
+            "haystack_integrations.components.retrievers.snowflake.auth.SnowflakeAuthenticator.test_connection",
+            return_value=True,
+        )
+
+        mock_cursor = mocker.Mock()
+        mock_cursor.description = [("COUNT",)]
+        mock_cursor.fetchall.return_value = []
+        mock_connection = mocker.Mock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connect = mocker.patch("snowflake.connector.connect", return_value=mock_connection)
+
+        retriever = SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="SNOWFLAKE_JWT",
+            private_key_file=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_FILE"),
+            private_key_file_pwd=Secret.from_env_var("SNOWFLAKE_PRIVATE_KEY_PWD"),
+            database="test_db",
+            warehouse="test_warehouse",
+            role=role,
+        )
+        retriever.warm_up()
+        retriever._execute_query_with_connector("SELECT 1")
+
+        conn_params = mock_connect.call_args[1]
+        assert conn_params.get("role") == role
+        assert ("role" in conn_params) is (role is not None)
+
+    @pytest.mark.parametrize("role", ["ANALYST", None])
+    def test_role_serialization_round_trip(self, mocker: Mock, role: str | None) -> None:
+        mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+        mocker.patch(
+            "haystack_integrations.components.retrievers.snowflake.auth.SnowflakeAuthenticator.test_connection",
+            return_value=True,
+        )
+
+        retriever = SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="SNOWFLAKE",
+            api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
+            database="test_db",
+            warehouse="test_warehouse",
+            role=role,
+        )
+
+        serialized = retriever.to_dict()
+        assert serialized["init_parameters"]["role"] == role
+
+        deserialized = SnowflakeTableRetriever.from_dict(serialized)
+        assert deserialized.role == role
 
     def test_jwt_authentication_serialization(self, jwt_retriever: SnowflakeTableRetriever) -> None:
         serialized = jwt_retriever.to_dict()
@@ -781,6 +904,47 @@ class TestSnowflakeTableRetriever:
         # Should still return dataframe even if markdown fails
         assert not result["dataframe"].empty
         assert result["table"] == ""  # Markdown should be empty on error
+
+    @pytest.mark.parametrize(
+        "role, round_trips",
+        [
+            ("ANALYST", True),
+            ("my role", True),
+            ("SALES&OPS", True),
+            ("A=B", True),
+            # Documented limitation: gosnowflake unescapes twice, so a literal '+' is eaten by the second
+            # pass and arrives as a space. Escaping twice here would survive that, but only by relying on
+            # gosnowflake.DSN escaping once while ParseDSN unescapes twice, which is an upstream asymmetry.
+            ("DATA+OPS", False),
+        ],
+    )
+    def test_uri_role_survives_gosnowflake_double_unescape(self, mocker: Mock, role: str, round_trips: bool) -> None:
+        """
+        Pins the DSN contract the escaping in ``_snowflake_uri_constructor`` is written against.
+
+        ADBC calls ``gosnowflake.ParseDSN`` on this URI, and that function url-unescapes a query value
+        twice: once in ``parseDSNParams`` and once in the post-parse pass over ``Config.Role``. For the
+        inputs below ``unquote_plus`` matches Go's ``url.QueryUnescape``, so applying it twice models
+        the role name Snowflake will actually receive.
+        """
+        mocker.patch.dict(os.environ, {"SNOWFLAKE_API_KEY": "test_api_key"})
+        mocker.patch(
+            "haystack_integrations.components.retrievers.snowflake.auth.SnowflakeAuthenticator.test_connection",
+            return_value=True,
+        )
+        retriever = SnowflakeTableRetriever(
+            user="test_user",
+            account="test_account",
+            authenticator="SNOWFLAKE",
+            api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
+            role=role,
+        )
+        retriever.warm_up()
+
+        query = urlsplit(retriever._snowflake_uri_constructor()).query
+        # Splitting on the raw delimiters is what the driver does, so a badly escaped role shows up here.
+        raw = dict(pair.split("=", 1) for pair in query.split("&"))["role"]
+        assert (unquote_plus(unquote_plus(raw)) == role) is round_trips
 
     def test_create_masked_uri_with_special_chars(self, retriever: SnowflakeTableRetriever, mocker: Mock) -> None:
         # Test password masking with special characters

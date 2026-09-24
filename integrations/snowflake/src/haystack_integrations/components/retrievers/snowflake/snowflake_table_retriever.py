@@ -39,6 +39,7 @@ class SnowflakeTableRetriever:
         database="<DATABASE-NAME>",
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
+        role="<ROLE-NAME>",
     )
     # Components warm up automatically on first run.
     ```
@@ -54,6 +55,7 @@ class SnowflakeTableRetriever:
         database="<DATABASE-NAME>",
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
+        role="<ROLE-NAME>",
     )
     # Components warm up automatically on first run.
     ```
@@ -70,6 +72,7 @@ class SnowflakeTableRetriever:
         database="<DATABASE-NAME>",
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
+        role="<ROLE-NAME>",
     )
     # Components warm up automatically on first run.
     ```
@@ -115,6 +118,8 @@ class SnowflakeTableRetriever:
         oauth_client_secret: Secret | None = Secret.from_env_var("SNOWFLAKE_OAUTH_CLIENT_SECRET", strict=False),  # noqa: B008
         oauth_token_request_url: str | None = None,
         oauth_authorization_url: str | None = None,
+        *,
+        role: str | None = None,
     ) -> None:
         """
         Initialize SnowflakeTableRetriever with connection and authentication parameters.
@@ -139,6 +144,8 @@ class SnowflakeTableRetriever:
             Required for OAUTH authentication.
         :param oauth_token_request_url: OAuth token request URL for Client Credentials flow.
         :param oauth_authorization_url: OAuth authorization URL for Authorization Code flow.
+        :param role: Name of the Snowflake role to activate for the session. If not set, Snowflake uses the
+            user's default role, which may not have grants on the target warehouse, database, or schema.
         """
 
         self.user = user
@@ -147,6 +154,7 @@ class SnowflakeTableRetriever:
         self.database = database
         self.db_schema = db_schema
         self.warehouse = warehouse
+        self.role = role
         self.login_timeout = login_timeout or 60
         self.return_markdown = return_markdown
         self.authenticator = authenticator
@@ -177,7 +185,9 @@ class SnowflakeTableRetriever:
         )
 
         # Test connection during initialization to verify credentials
-        if not self.authenticator_handler.test_connection(user=self.user, account=self.account, database=self.database):
+        if not self.authenticator_handler.test_connection(
+            user=self.user, account=self.account, database=self.database, role=self.role
+        ):
             msg = "Failed to connect to Snowflake with provided credentials"
             raise ConnectionError(msg)
 
@@ -196,6 +206,7 @@ class SnowflakeTableRetriever:
             "database": self.database,
             "db_schema": self.db_schema,
             "warehouse": self.warehouse,
+            "role": self.role,
             "login_timeout": self.login_timeout,
             "return_markdown": self.return_markdown,
             "authenticator": self.authenticator,
@@ -274,6 +285,15 @@ class SnowflakeTableRetriever:
         params = []
         if self.warehouse:
             params.append(f"warehouse={self.warehouse}")
+        if self.role:
+            # ADBC hands this URI to gosnowflake.ParseDSN, which url-unescapes a query value twice: once in
+            # parseDSNParams and once more in the post-parse pass over Config.Role. Escaping here is what keeps
+            # the '&', '=' and space characters of a quoted role identifier from corrupting the DSN; a literal
+            # '+' or '%' in a role name survives only the first unescape and is not supported on the ADBC leg.
+            # Escaping twice would round-trip today, but only because gosnowflake.DSN escapes once while
+            # ParseDSN unescapes twice, so it would break as soon as upstream fixes that asymmetry.
+            # 'warehouse' above is deliberately left unescaped: pre-existing behaviour this change does not touch.
+            params.append(f"role={quote_plus(self.role)}")
         params.append(f"login_timeout={self.login_timeout}")
 
         # Add authentication-specific parameters (pass user for JWT ADBC support)
@@ -363,6 +383,8 @@ class SnowflakeTableRetriever:
                 conn_params["schema"] = self.db_schema
             if self.warehouse:
                 conn_params["warehouse"] = self.warehouse
+            if self.role:
+                conn_params["role"] = self.role
 
             # Add JWT-specific parameters
             if self.authenticator == "SNOWFLAKE_JWT":

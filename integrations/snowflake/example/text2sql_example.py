@@ -95,6 +95,7 @@ snowflake = SnowflakeTableRetriever(
     authenticator="SNOWFLAKE",
     api_key=Secret.from_env_var("SNOWFLAKE_API_KEY"),
     warehouse="<WAREHOUSE-NAME>",
+    role="<ROLE-NAME>",
 )
 
 adapter = OutputAdapter(template="{{ replies[0] }}", output_type=str)
