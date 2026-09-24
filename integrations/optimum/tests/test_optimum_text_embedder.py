@@ -86,10 +86,7 @@ class TestInitializationSerialization:
                 "onnx_execution_provider": "CPUExecutionProvider",
                 "pooling_mode": None,
                 "working_dir": None,
-                "model_kwargs": {
-                    "model_id": "sentence-transformers/all-mpnet-base-v2",
-                    "provider": "CPUExecutionProvider",
-                },
+                "model_kwargs": {},
                 "optimizer_settings": None,
                 "quantizer_settings": None,
             },
@@ -103,10 +100,7 @@ class TestInitializationSerialization:
         assert embedder._params.normalize_embeddings is True
         assert embedder._params.onnx_execution_provider == "CPUExecutionProvider"
         assert embedder._params.pooling_mode is None
-        assert embedder._params.model_kwargs == {
-            "model_id": "sentence-transformers/all-mpnet-base-v2",
-            "provider": "CPUExecutionProvider",
-        }
+        assert embedder._params.model_kwargs == {}
         assert embedder._params.working_dir is None
         assert embedder._params.optimizer_settings is None
         assert embedder._params.quantizer_settings is None
@@ -140,11 +134,7 @@ class TestInitializationSerialization:
                 "normalize_embeddings": False,
                 "onnx_execution_provider": "CUDAExecutionProvider",
                 "pooling_mode": "max",
-                "model_kwargs": {
-                    "trust_remote_code": True,
-                    "model_id": "sentence-transformers/all-minilm-l6-v2",
-                    "provider": "CUDAExecutionProvider",
-                },
+                "model_kwargs": {"trust_remote_code": True},
                 "working_dir": "working_dir",
                 "optimizer_settings": {"mode": "o1", "for_gpu": True},
                 "quantizer_settings": {"mode": "arm64", "per_channel": True},
@@ -159,11 +149,7 @@ class TestInitializationSerialization:
         assert embedder._params.normalize_embeddings is False
         assert embedder._params.onnx_execution_provider == "CUDAExecutionProvider"
         assert embedder._params.pooling_mode == OptimumEmbedderPooling.MAX
-        assert embedder._params.model_kwargs == {
-            "trust_remote_code": True,
-            "model_id": "sentence-transformers/all-minilm-l6-v2",
-            "provider": "CUDAExecutionProvider",
-        }
+        assert embedder._params.model_kwargs == {"trust_remote_code": True}
         assert embedder._params.working_dir == "working_dir"
         assert embedder._params.optimizer_settings == OptimumEmbedderOptimizationConfig(
             OptimumEmbedderOptimizationMode.O1, for_gpu=True
