@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-10 13:13 +0000
+            created at 2026-09-24 15:05 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -727,7 +727,7 @@
     <p class="run run2"><span class="n"><a id="t643" href="#t643">643</a></span><span class="t">            <span class="nam">init_callback</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">streaming_callback</span><span class="op">,</span> <span class="nam">runtime_callback</span><span class="op">=</span><span class="nam">streaming_callback</span><span class="op">,</span> <span class="nam">requires_async</span><span class="op">=</span><span class="key">False</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t644" href="#t644">644</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t645" href="#t645">645</a></span><span class="t">        <span class="nam">generation_kwargs</span> <span class="op">=</span> <span class="op">{</span><span class="op">**</span><span class="nam">self</span><span class="op">.</span><span class="nam">generation_kwargs</span><span class="op">,</span> <span class="op">**</span><span class="op">(</span><span class="nam">generation_kwargs</span> <span class="key">or</span> <span class="op">{</span><span class="op">}</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t646" href="#t646">646</a></span><span class="t">        <span class="nam">tools_to_use</span> <span class="op">=</span> <span class="nam">tools</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">tools</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t646" href="#t646">646</a></span><span class="t">        <span class="nam">tools_to_use</span> <span class="op">=</span> <span class="nam">tools</span> <span class="key">if</span> <span class="nam">tools</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">tools</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t647" href="#t647">647</a></span><span class="t">        <span class="nam">flattened_tools</span> <span class="op">=</span> <span class="nam">flatten_tools_or_toolsets</span><span class="op">(</span><span class="nam">tools_to_use</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t648" href="#t648">648</a></span><span class="t">        <span class="nam">_check_duplicate_tool_names</span><span class="op">(</span><span class="nam">flattened_tools</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t649" href="#t649">649</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -787,7 +787,7 @@
     <p class="run"><span class="n"><a id="t703" href="#t703">703</a></span><span class="t">        <span class="nam">callback</span> <span class="op">=</span> <span class="nam">select_streaming_callback</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">streaming_callback</span><span class="op">,</span> <span class="nam">streaming_callback</span><span class="op">,</span> <span class="nam">requires_async</span><span class="op">=</span><span class="key">True</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t704" href="#t704">704</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t705" href="#t705">705</a></span><span class="t">        <span class="nam">generation_kwargs</span> <span class="op">=</span> <span class="op">{</span><span class="op">**</span><span class="nam">self</span><span class="op">.</span><span class="nam">generation_kwargs</span><span class="op">,</span> <span class="op">**</span><span class="op">(</span><span class="nam">generation_kwargs</span> <span class="key">or</span> <span class="op">{</span><span class="op">}</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t706" href="#t706">706</a></span><span class="t">        <span class="nam">tools_to_use</span> <span class="op">=</span> <span class="nam">tools</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">tools</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t706" href="#t706">706</a></span><span class="t">        <span class="nam">tools_to_use</span> <span class="op">=</span> <span class="nam">tools</span> <span class="key">if</span> <span class="nam">tools</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">tools</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t707" href="#t707">707</a></span><span class="t">        <span class="nam">flattened_tools</span> <span class="op">=</span> <span class="nam">flatten_tools_or_toolsets</span><span class="op">(</span><span class="nam">tools_to_use</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t708" href="#t708">708</a></span><span class="t">        <span class="nam">_check_duplicate_tool_names</span><span class="op">(</span><span class="nam">flattened_tools</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t709" href="#t709">709</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -820,7 +820,7 @@
             <a class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-10 13:13 +0000
+            created at 2026-09-24 15:05 +0000
         </p>
     </div>
 </footer>
