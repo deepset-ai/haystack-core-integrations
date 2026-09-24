@@ -349,6 +349,11 @@ class AnthropicChatGenerator:
 
     def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
+        # Copy the nested dicts the flattened kwargs write into; a shallow copy would share them with the
+        # component's init-time generation_kwargs, so a per-run flattened kwarg would persist across runs.
+        for key in ("tool_choice", "thinking", "output_config"):
+            if isinstance(generation_kwargs.get(key), dict):
+                generation_kwargs[key] = dict(generation_kwargs[key])
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)

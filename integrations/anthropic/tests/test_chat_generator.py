@@ -559,6 +559,41 @@ class TestRun:
         assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
         assert actual_kwargs.get("service_tier") == expected_kwargs.get("service_tier")
 
+    def test_run_with_flattened_generation_kwargs_does_not_leak_across_runs(self, chat_messages, mock_chat_completion):
+        init_generation_kwargs = {
+            "tool_choice": {"type": "auto"},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "low"},
+        }
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs=init_generation_kwargs,
+        )
+
+        component.run(
+            chat_messages,
+            generation_kwargs={
+                "parallel_tool_use": False,
+                "thinking_display": "summarized",
+                "adaptive_thinking_effort": "high",
+            },
+        )
+        first_kwargs = mock_chat_completion.call_args.kwargs
+        assert first_kwargs["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+        assert first_kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
+        assert first_kwargs["output_config"] == {"effort": "high"}
+
+        component.run(chat_messages)
+        second_kwargs = mock_chat_completion.call_args.kwargs
+        assert second_kwargs["tool_choice"] == {"type": "auto"}
+        assert second_kwargs["thinking"] == {"type": "adaptive"}
+        assert second_kwargs["output_config"] == {"effort": "low"}
+        assert component.generation_kwargs == {
+            "tool_choice": {"type": "auto"},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "low"},
+        }
+
 
 class TestAnthropicServerTools:
     def test_init_with_anthropic_server_tools(self, monkeypatch):
