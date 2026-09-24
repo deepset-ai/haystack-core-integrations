@@ -504,7 +504,7 @@ class TestFalkorDBCypherRetrieverIntegration:
 
     def test_run_graph_traversal(self, document_store):
         """A relationship-traversal query must follow edges and return the target node."""
-        document_store._ensure_connected()
+        document_store.warm_up()
         document_store.graph.query(
             "CREATE (a:Document {id: 'src', content: 'Source Doc'})"
             "-[:CITES]->"
