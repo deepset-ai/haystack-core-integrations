@@ -4,13 +4,13 @@
 
 | Name                                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      164 |       84 |       40 |        4 |     48% |35-36, 51-60, 127-132, 138-139, 152-195, 206-214, 221-224, 227-\>exit, 230-\>exit, 236-276, 280-299 |
+| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      167 |       85 |       44 |        5 |     46% |35-36, 55-60, 124-125, 128-133, 138-140, 153-199, 210-218, 225-228, 231-\>exit, 234-\>exit, 240-280, 284-303 |
 | src/haystack\_integrations/components/embedders/optimum/optimization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
-| src/haystack\_integrations/components/embedders/optimum/optimum\_document\_embedder.py |       52 |       11 |       12 |        2 |     73% |149-153, 214, 227-234 |
-| src/haystack\_integrations/components/embedders/optimum/optimum\_text\_embedder.py     |       37 |        8 |        6 |        2 |     72% |129-133, 174, 183-185 |
-| src/haystack\_integrations/components/embedders/optimum/pooling.py                     |       18 |        0 |        2 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/optimum/optimum\_document\_embedder.py |       53 |        8 |       10 |        1 |     83% |   225-235 |
+| src/haystack\_integrations/components/embedders/optimum/optimum\_text\_embedder.py     |       38 |        5 |        4 |        1 |     86% |   181-186 |
+| src/haystack\_integrations/components/embedders/optimum/pooling.py                     |       18 |        1 |        2 |        0 |     95% |        36 |
 | src/haystack\_integrations/components/embedders/optimum/quantization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
-| **TOTAL**                                                                              |  **347** |  **111** |   **80** |   **12** | **66%** |           |
+| **TOTAL**                                                                              |  **352** |  **107** |   **80** |   **11** | **67%** |           |
 
 
 ## Setup coverage badge
