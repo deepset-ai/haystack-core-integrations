@@ -55,6 +55,18 @@ GOOGLE_GENAI_SUPPORTED_MIME_TYPES = {
 }
 
 
+def _encode_thought_signature(signature: bytes | str) -> str:
+    """
+    Encode a thought signature as a base64 string so it can be safely stored in meta and serialized.
+
+    :param signature: The raw thought signature bytes returned by the Google GenAI API.
+    :returns: The base64-encoded signature.
+    """
+    if isinstance(signature, bytes):
+        return base64.b64encode(signature).decode("utf-8")
+    return signature
+
+
 def _process_response_format(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
     """
     Process `response_format` from generation_kwargs into Google GenAI native parameters.
@@ -278,6 +290,7 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                     tool_call_index += 1  # Move to next tool call for next part
 
             # Add the thought signature to preserve context
+            # Passed through as is: the Google GenAI SDK decodes base64 strings back into bytes
             part_dict["thought_signature"] = sig_info["signature"]
 
             parts.append(types.Part(**part_dict))
@@ -522,7 +535,7 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
                     thought_signatures.append(
                         {
                             "part_index": i,
-                            "signature": part.thought_signature,
+                            "signature": _encode_thought_signature(part.thought_signature),
                             "has_text": part.text is not None,
                             "has_function_call": part.function_call is not None,
                             "is_thought": hasattr(part, "thought") and part.thought,
@@ -650,7 +663,7 @@ def _convert_google_chunk_to_streaming_chunk(
                 thought_signature_deltas.append(
                     {
                         "part_index": part_index,
-                        "signature": part.thought_signature,
+                        "signature": _encode_thought_signature(part.thought_signature),
                         "has_text": part.text is not None,
                         "has_function_call": part.function_call is not None,
                         "is_thought": hasattr(part, "thought") and part.thought,
