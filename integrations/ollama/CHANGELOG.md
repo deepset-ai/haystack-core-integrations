@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v7.0.1] - 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Ollama - respect an empty runtime tools list (#3976)
+
+
 ## [integrations/ollama-v7.0.0] - 2026-09-10
 
 ### 🚀 Features
