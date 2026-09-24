@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 from dataclasses import replace
 from typing import Any
 
@@ -121,7 +122,7 @@ class OptimumDocumentEmbedder:
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
         """
-        params = _EmbedderParams(
+        self._params = _EmbedderParams(
             model=model,
             token=token,
             prefix=prefix,
@@ -139,18 +140,18 @@ class OptimumDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
-        self._backend = _EmbedderBackend(params)
-        self._initialized = False
+        self._backend: _EmbedderBackend | None = None
 
     def warm_up(self) -> None:
         """
         Initializes the component.
         """
-        if self._initialized:
+        if self._backend is not None:
             return
 
-        self._backend.warm_up()
-        self._initialized = True
+        backend = _EmbedderBackend(copy.deepcopy(self._params))
+        backend.warm_up()
+        self._backend = backend
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -159,7 +160,7 @@ class OptimumDocumentEmbedder:
         :returns:
             Dictionary with serialized data.
         """
-        init_params = self._backend.parameters.serialize()
+        init_params = self._params.serialize()
         init_params["meta_fields_to_embed"] = self.meta_fields_to_embed
         init_params["embedding_separator"] = self.embedding_separator
         return default_to_dict(self, **init_params)
@@ -188,9 +189,9 @@ class OptimumDocumentEmbedder:
             ]
 
             text_to_embed = (
-                self._backend.parameters.prefix
+                self._params.prefix
                 + self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
-                + self._backend.parameters.suffix
+                + self._params.suffix
             )
 
             texts_to_embed.append(text_to_embed)
@@ -210,9 +211,6 @@ class OptimumDocumentEmbedder:
         :raises TypeError:
             If the input is not a list of Documents.
         """
-        if not self._initialized:
-            self.warm_up()
-
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "OptimumDocumentEmbedder expects a list of Documents as input."
@@ -223,6 +221,9 @@ class OptimumDocumentEmbedder:
         # Return empty list if no documents
         if not documents:
             return {"documents": []}
+
+        self.warm_up()
+        assert self._backend is not None
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
         embeddings = self._backend.embed_texts(texts_to_embed)
