@@ -19,8 +19,8 @@ class BackupAnswerHook:
     Produce a final answer when the agent run ends without one. Runs as an `after_run` hook.
 
     When the agent exhausts `max_agent_steps` mid-investigation, the run ends on a tool call or tool result instead of
-    an assistant text answer (and only `after_run` hooks run in this situation). This hook detects that case and makes
-    one LLM call over the conversation so far to produce a best-effort answer from the already-gathered evidence.
+    an assistant text answer (and only `after_run` hooks run in this situation). This hook detects that situation and
+    makes one LLM call over the conversation so far to produce a best-effort answer from the already-gathered evidence.
     """
 
     allowed_hook_points = ("after_run",)

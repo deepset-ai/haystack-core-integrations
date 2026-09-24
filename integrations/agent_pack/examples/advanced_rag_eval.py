@@ -21,7 +21,7 @@
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
 #     hatch run test:python examples/advanced_rag_eval.py
-#     hatch run test:python examples/advanced_rag_eval.py --max-cases 5
+#     hatch run test:python examples/advanced_rag_eval.py --max-eval-cases 5
 #     hatch run test:python examples/advanced_rag_eval.py --store opensearch
 #
 # `--store opensearch` reuses a populated index across runs, so repeat runs skip re-indexing. Set `OPENSEARCH_URL`
@@ -31,135 +31,27 @@ import argparse
 import re
 import time
 from collections import Counter
-from dataclasses import dataclass, field
 from typing import Any
 
 from haystack import Document
 from haystack.components.agents import Agent
-from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage
-from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.document_stores.types import DocumentStore
-from haystack.lazy_imports import LazyImport
+from haystack.tools import flatten_tools_or_toolsets
 from multihop_rag import CORPUS_KEY, LabelledQuestion, build_eval_cases, prepare_corpus
+from util import build_bm25_retriever, preview
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
-
-with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
-    from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever
+from haystack_integrations.evaluation import (
+    RAGEvalCase,
+    ToolNames,
+    ToolRunStats,
+    budgets_exceeded,
+    resolve_tool_budgets,
+)
 
 RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
 _CITATION_RE = re.compile(r"\[doc ([0-9a-f]{4,16})[^]]*\]")
-
-
-@dataclass
-class EvalCase:
-    """
-    One eval case: a question, the documents that answer it, and the budgets the run may spend.
-
-    :param question: The question to put to the agent.
-    :param evidence: Ground truth, as `{chunk id: the quote found in that chunk}`. The keys are the documents the
-        answer needs, and the values are what the answer should be based on. For example,
-        {"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}
-    :param tool_budgets: How many times the run may call a tool, or a group of tools sharing one allowance, as
-        `{tool name or names: limit}`. Exceeding any of them fails the eval case. Which tools these are depends
-        on the agent under evaluation, so the caller supplies them.
-    """
-
-    question: str
-    evidence: dict[str, str]
-    tool_budgets: dict[str | tuple[str, ...], int]
-
-    @property
-    def expected_document_ids(self) -> frozenset[str]:
-        """The chunks an answer needs, which are the ones its evidence was found in."""
-        return frozenset(self.evidence)
-
-
-@dataclass
-class ToolRunStats:
-    """
-    The tool calls one agent run made, and what they add up to.
-
-    :param calls: Every call the run made, in the order it made them, as `(tool name, the arguments it passed)`:
-
-            [("list_metadata_fields", {}), ("search_documents", {"query": "CRISPR", "filters": None})]
-
-    :param errors: The calls that came back an error, as `(tool name, what it said)`:
-
-            [("get_metadata_field_values", "field 'nope' does not exist in the store")]
-    """
-
-    calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
-    errors: list[tuple[str, str]] = field(default_factory=list)
-
-    @staticmethod
-    def _named(tools: str | tuple[str, ...]) -> set[str]:
-        """
-        Normalize one tool name or a group of them to a set.
-
-        :param tools: A tool name, or several of them.
-        :returns: The names as a set.
-        """
-        return {tools} if isinstance(tools, str) else set(tools)
-
-    def calls_to(self, tools: str | tuple[str, ...]) -> int:
-        """
-        Count the calls made to one tool, or to any of a group of them.
-
-        :param tools: A tool name, or several of them.
-        :returns: How many calls the run made to them.
-        """
-        wanted = self._named(tools=tools)
-        return sum(1 for name, _ in self.calls if name in wanted)
-
-    def called_before(self, tools: str | tuple[str, ...], other: str | tuple[str, ...]) -> bool:
-        """
-        Whether the run reached for one tool before it reached for another.
-
-        :param tools: The tool, or tools, that should come first.
-        :param other: The tool, or tools, they should come before.
-        :returns: True when one of `tools` was called and none of `other` was called before it. False when
-            `other` came first, and when neither was called at all.
-        """
-        wanted, after = self._named(tools=tools), self._named(tools=other)
-        for name, _ in self.calls:
-            if name in wanted:
-                return True
-            if name in after:
-                return False
-        return False
-
-
-def _preview(text: str, limit: int) -> str:
-    """
-    Collapse text to one line and cut it, marking the cut so a reader knows there is more.
-
-    :param text: The text to preview.
-    :param limit: How many characters to keep.
-    :returns: The preview, ending in an ellipsis when anything was cut.
-    """
-    collapsed = " ".join((text or "").split())
-    return collapsed if len(collapsed) <= limit else f"{collapsed[:limit]}..."
-
-
-def extract_tool_run_stats(messages: list[ChatMessage]) -> ToolRunStats:
-    """
-    Extract tool calls and error results from an agent run.
-
-    :param messages: The messages returned by `agent.run(...)`.
-    :returns: The extracted statistics.
-    """
-    return ToolRunStats(
-        calls=[(call.tool_name, call.arguments or {}) for message in messages for call in message.tool_calls],
-        errors=[
-            (result.origin.tool_name, result.result)
-            for message in messages
-            for result in message.tool_call_results
-            if result.error
-        ],
-    )
 
 
 def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
@@ -176,44 +68,30 @@ def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
     return total
 
 
-def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
-    """
-    Build the matching BM25 retriever for a document store.
-
-    :param store: The store to retrieve from.
-    :param top_k: How many documents one retrieval returns.
-    :returns: The retriever.
-    """
-    if isinstance(store, InMemoryDocumentStore):
-        return InMemoryBM25Retriever(document_store=store, top_k=top_k)
-    opensearch_import.check()
-    return OpenSearchBM25Retriever(document_store=store, top_k=top_k)
-
-
-def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> dict[str, Any]:
+def run_eval_case(agent: Agent, eval_case: RAGEvalCase, position: int, total: int) -> dict[str, Any]:
     """
     Run the agent on one eval case and print its report.
 
     :param agent: The agent under evaluation.
-    :param case: The eval case to evaluate.
+    :param eval_case: The eval case to evaluate.
     :param position: Which eval case this is, for the report heading.
     :param total: How many eval cases there are, for the report heading.
     :returns: A dict with `passed` (bool), `usage` (the run's token_usage dict), and `time` (s).
     """
     started = time.perf_counter()
-    result = agent.run(messages=[ChatMessage.from_user(case.question)])
+    result = agent.run(messages=[ChatMessage.from_user(eval_case.question)])
     elapsed = time.perf_counter() - started
 
     # Everything the report needs comes out of the one run: its messages, its answer and its token usage.
-    tool_run_stats = extract_tool_run_stats(messages=result["messages"])
+    tool_run_stats = ToolRunStats.from_messages(messages=result["messages"])
     answer = result["last_message"].text or ""
     usage = result.get("token_usage") or {}
 
     # Recall on the retrieved documents: how many of the expected documents the Agent found.
     retrieved_docs = result.get("documents") or []
     retrieved_ids = {document.id for document in retrieved_docs}
-    found = case.expected_document_ids & retrieved_ids
-    recall = len(found) / len(case.expected_document_ids)
+    found = eval_case.expected_document_ids & retrieved_ids
+    recall = len(found) / len(eval_case.expected_document_ids)
 
     # Resolve each [doc <short-id>] the answer uses against what the Agent found. A reference matching nothing
     # is a fake citation, and one the answer doesn't use is an uncited document. Both are failures.
@@ -221,31 +99,30 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
     resolved = [ref for ref in cited_refs if any(document.id.startswith(ref) for document in retrieved_docs)]
     cited_ids = {document.id for document in retrieved_docs if any(document.id.startswith(r) for r in cited_refs)}
     citations_ok = len(resolved) == len(cited_refs)
-    uncited = case.expected_document_ids - cited_ids
+    uncited = eval_case.expected_document_ids - cited_ids
 
     # An eval case passes only on all four: it found every expected document, cited every one of them, made no
     # citation that does not resolve, and stayed inside its tool budget.
-    spent = {tools: tool_run_stats.calls_to(tools=tools) for tools in case.tool_budgets}
-    within_budget = all(used <= case.tool_budgets[tools] for tools, used in spent.items())
-    passed = recall == 1.0 and not uncited and citations_ok and within_budget
+    budgets = resolve_tool_budgets(
+        budgets=eval_case.tool_budgets, tool_names=[tool.name for tool in flatten_tools_or_toolsets(tools=agent.tools)]
+    )
+    over_budget = budgets_exceeded(stats=tool_run_stats, budgets=budgets)
+    passed = recall >= eval_case.min_recall and not uncited and citations_ok and not over_budget
 
     inspected_first = tool_run_stats.called_before(tools="list_metadata_fields", other=RETRIEVAL_TOOLS)
     counts = Counter(name for name, _ in tool_run_stats.calls)
-    filtered_retrievals = sum(
-        1 for name, args in tool_run_stats.calls if name in RETRIEVAL_TOOLS and args.get("filters")
-    )
-    needed = len(case.expected_document_ids)
+    filtered_retrievals = tool_run_stats.calls_with_argument(tools=RETRIEVAL_TOOLS, argument="filters")
+    needed = len(eval_case.expected_document_ids)
     print(f"\n=== eval case {position}/{total}: {'PASS' if passed else 'FAIL'} ===")
-    print(f"  question: {case.question}")
+    print(f"  question: {eval_case.question}")
     print(f"  tools called: {dict(counts)}")
     print(
         f"  inspected metadata first: {inspected_first}   retrievals with a filter: {filtered_retrievals}   "
         f"tool errors: {len(tool_run_stats.errors)}   steps: {result['step_count']}   time: {elapsed:.1f}s"
     )
-    for tools, used in spent.items():
-        limit = case.tool_budgets[tools]
-        label = tools if isinstance(tools, str) else " + ".join(tools)
-        print(f"  tool budget: {label} {used}/{limit} -> {'ok' if used <= limit else 'EXCEEDED'}")
+    for group, limit in budgets.items():
+        used = tool_run_stats.calls_to(tools=group)
+        print(f"  tool budget: {' + '.join(group)} {used}/{limit} -> {'ok' if used <= limit else 'EXCEEDED'}")
     print(f"  retrieval: found {len(found)}/{needed} of the documents the answer needs, {len(retrieved_docs)} returned")
     print(
         f"  citations: cited {needed - len(uncited)}/{needed} of them, "
@@ -262,26 +139,26 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
     for title, documents in by_article.items():
         print(f"    Title: {title}")
         for document in sorted(documents, key=lambda chunk: chunk.meta.get("split_id", 0)):
-            needed_here = "-> " if document.id in case.expected_document_ids else "   "
-            preview = _preview(text=document.content or "", limit=80)
-            print(f"      {needed_here}chunk {document.meta.get('split_id'):>2}  [doc {document.id[:8]}]  {preview}")
+            needed_here = "-> " if document.id in eval_case.expected_document_ids else "   "
+            snippet = preview(text=document.content or "", limit=80)
+            print(f"      {needed_here}chunk {document.meta.get('split_id'):>2}  [doc {document.id[:8]}]  {snippet}")
     # Naming the quote, since the id alone says nothing about what the run failed to find or failed to use.
     print()
-    for document_id in sorted(case.expected_document_ids - retrieved_ids):
+    for document_id in sorted(eval_case.expected_document_ids - retrieved_ids):
         print(
             f"  needed but never retrieved: [doc {document_id[:8]}] "
-            f"{_preview(text=case.evidence[document_id], limit=96)}"
+            f"{preview(text=eval_case.evidence[document_id], limit=96)}"
         )
     for document_id in sorted(uncited & retrieved_ids):
         print(
             f"  needed and retrieved but not cited: [doc {document_id[:8]}] "
-            f"{_preview(text=case.evidence[document_id], limit=96)}"
+            f"{preview(text=eval_case.evidence[document_id], limit=96)}"
         )
 
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for tool_name, message in tool_run_stats.errors:
-        print(f"  tool error: {tool_name} -> {_preview(text=message, limit=120)}")
+        print(f"  tool error: {tool_name} -> {preview(text=message, limit=120)}")
     print("  answer:")
     for line in answer.splitlines():
         print(f"    {line}")
@@ -292,8 +169,10 @@ def main() -> None:
     """Run the eval set and print per-eval-case reports plus a summary."""
     parser = argparse.ArgumentParser(description="Mini evaluation harness for the Advanced RAG agent.")
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
-    parser.add_argument("--max-cases", type=int, default=10, help="How many labelled questions to evaluate.")
-    parser.add_argument("--case-seed", type=int, default=0, help="Selects which eval cases are drawn from the dataset.")
+    parser.add_argument("--max-eval-cases", type=int, default=10, help="How many labelled questions to evaluate.")
+    parser.add_argument(
+        "--eval-case-seed", type=int, default=0, help="Selects which eval cases are drawn from the dataset."
+    )
     arguments = parser.parse_args()
 
     store, articles = prepare_corpus(backend=arguments.store)
@@ -301,14 +180,15 @@ def main() -> None:
     print(f"{CORPUS_KEY} on {arguments.store}: {chunks} chunks from {len(articles)} articles")
 
     labelled: list[LabelledQuestion] = build_eval_cases(
-        articles=articles, limit=arguments.max_cases, seed=arguments.case_seed
+        articles=articles, limit=arguments.max_eval_cases, seed=arguments.eval_case_seed
     )
     # Budgets for the tools this agent has. Lenient on purpose: too many retrievals is better than too few.
     # Generous on purpose: a MultiHopRAG question needs evidence from several articles, so several searches are
     # the expected shape of a good run rather than a sign of floundering.
-    budgets: dict[str | tuple[str, ...], int] = {METADATA_TOOLS: 8, RETRIEVAL_TOOLS: 12}
+    budgets: dict[ToolNames, int] = {METADATA_TOOLS: 8, RETRIEVAL_TOOLS: 12}
     eval_cases = [
-        EvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets) for question in labelled
+        RAGEvalCase(question=question.question, evidence=question.evidence, tool_budgets=budgets)
+        for question in labelled
     ]
     print(f"eval cases: {len(eval_cases)} labelled from evidence")
 
@@ -317,8 +197,8 @@ def main() -> None:
 
     # Run the eval cases
     results = [
-        run_eval_case(agent=agent, case=case, position=position, total=len(eval_cases))
-        for position, case in enumerate(eval_cases, start=1)
+        run_eval_case(agent=agent, eval_case=eval_case, position=position, total=len(eval_cases))
+        for position, eval_case in enumerate(eval_cases, start=1)
     ]
 
     # Calculate total usage
