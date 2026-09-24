@@ -538,6 +538,26 @@ class TestRun:
                     "thinking": {"type": "adaptive", "display": "omitted"},
                 },
             ),
+            (
+                # thinking_display is dropped when thinking is disabled through a flattened kwarg
+                {
+                    "adaptive_thinking_effort": "none",
+                    "thinking_display": "summarized",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
+            (
+                # thinking_display is dropped when thinking is disabled through an explicit thinking dict
+                {
+                    "thinking": {"type": "disabled"},
+                    "thinking_display": "summarized",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
         ],
     )
     def test_run_with_flattened_generation_kwargs(

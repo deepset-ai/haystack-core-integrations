@@ -574,7 +574,9 @@ class AmazonBedrockChatGenerator:
         thinking_display = generation_kwargs.pop("thinking_display", None)
         if thinking_display is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
-            thinking["display"] = thinking_display
+            # `display` is only accepted with enabled or adaptive thinking, so it's dropped when thinking is disabled
+            if thinking.get("type") != "disabled":
+                thinking["display"] = thinking_display
 
         return generation_kwargs
 
