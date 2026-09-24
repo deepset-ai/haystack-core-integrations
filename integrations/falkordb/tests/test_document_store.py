@@ -7,7 +7,6 @@ import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import falkordb as _falkordb_module
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -30,6 +29,7 @@ from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBEmbeddingRetriever,
 )
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
+from haystack_integrations.document_stores.falkordb import document_store as document_store_module
 from haystack_integrations.document_stores.falkordb.document_store import (
     _convert_filters,
 )
@@ -75,7 +75,7 @@ def mock_falkordb(monkeypatch):
     constructor.return_value = client
     client.select_graph.return_value = graph
     graph.query.return_value = _result([])
-    monkeypatch.setattr(_falkordb_module, "FalkorDB", constructor)
+    monkeypatch.setattr(document_store_module, "FalkorDB", constructor)
     return constructor, client, graph
 
 
@@ -164,6 +164,43 @@ class TestFalkorDBDocumentStoreUnit:
     def test_convert_filters_errors(self, filter_node, match):
         with pytest.raises(FilterError, match=match):
             _convert_filters(filter_node)
+
+    def test_warm_up_initializes_client_and_schema(self, mock_falkordb):
+        constructor, client, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+
+        store.warm_up()
+
+        constructor.assert_called_once()
+        assert store.client is client
+        assert store.graph is graph
+        assert store.initialized is True
+        assert graph.query.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_falkordb):
+        constructor, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+
+        store.warm_up()
+        store.warm_up()
+
+        constructor.assert_called_once()
+        assert graph.query.call_count == 2
+
+    def test_close_then_warm_up_reopens(self, mock_falkordb):
+        constructor, client, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+
+        store.close()
+        store.warm_up()
+
+        assert constructor.call_count == 2
+        client.close.assert_called_once()
+        assert store.client is client
+        assert store.graph is graph
+        assert store.initialized is True
+        assert graph.query.call_count == 4
 
     @pytest.mark.parametrize("rows, expected", [([[42]], 42), ([], 0)])
     def test_count_documents(self, mock_falkordb, rows, expected):
@@ -540,6 +577,8 @@ class TestDocumentStore(
         assert document_store.count_documents() == 0
         document_store.close()
         assert document_store.client is None
+        document_store.warm_up()
+        assert document_store.client is not None
         assert document_store.count_documents() == 0
 
     @pytest.fixture
