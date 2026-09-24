@@ -190,10 +190,6 @@ integration:google-genai:
       - any-glob-to-any-file: "integrations/google_genai/**/*"
       - any-glob-to-any-file: ".github/workflows/google_genai.yml"
 
-integration:google-vertex:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/google_vertex/**/*"
-
 integration:gotenberg:
   - changed-files:
       - any-glob-to-any-file: "integrations/gotenberg/**/*"
