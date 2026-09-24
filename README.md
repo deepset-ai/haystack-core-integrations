@@ -4,12 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      216 |        7 |       92 |       11 |     94% |249, 315, 357-358, 416-\>419, 439-\>445, 441, 501-\>504, 517-\>491, 527-\>533, 529, 535-\>537, 538 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      224 |        7 |      100 |       11 |     94% |249, 315, 362-363, 428-\>431, 451-\>457, 453, 513-\>516, 529-\>503, 539-\>545, 541, 547-\>549, 550 |
 | src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       69 |        3 |       20 |        4 |     92% |198, 203, 264-\>266, 267 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      297 |       27 |      186 |       24 |     88% |89-\>79, 96, 98, 101-\>79, 189-\>200, 198-199, 270-274, 287-\>280, 291-295, 296-\>289, 306-307, 311, 319, 339-\>338, 379-\>384, 384-\>387, 430-431, 437-438, 507, 572-580, 585-\>587, 588, 590, 607-608 |
 | src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       52 |        0 |       10 |        1 |     98% | 216-\>219 |
 | src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       50 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
-| **TOTAL**                                                                                   |  **684** |   **41** |  **324** |   **43** | **91%** |           |
+| **TOTAL**                                                                                   |  **692** |   **41** |  **332** |   **43** | **91%** |           |
 
 
 ## Setup coverage badge
