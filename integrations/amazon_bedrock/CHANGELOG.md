@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v8.1.1] - 2026-09-23
+
+### 🐛 Bug Fixes
+
+- Serialize missing init params in `to_dict` (transformers, amazon_bedrock) (#3873)
+
+
 ## [integrations/amazon_bedrock-v8.1.0] - 2026-09-04
 
 ### 🚀 Features

@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/weaviate-v7.9.0] - 2026-09-21
+
+### 🚀 Features
+
+- Send X-Weaviate-Client-Integration telemetry header (#3954)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Raise weaviate-client floor and test against Weaviate 1.39 (#3956)
+
+
 ## [integrations/weaviate-v7.8.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
