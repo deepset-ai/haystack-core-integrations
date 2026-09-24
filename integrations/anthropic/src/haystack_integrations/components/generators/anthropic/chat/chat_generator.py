@@ -42,6 +42,8 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_MAX_TOKENS = 8192
+
 
 @component
 class AnthropicChatGenerator:
@@ -156,7 +158,9 @@ class AnthropicChatGenerator:
 
             Supported generation_kwargs parameters are:
             - `system`: The system message to be passed to the model.
-            - `max_tokens`: The maximum number of tokens to generate.
+            - `max_tokens`: The maximum number of tokens to generate. Defaults to 8192. A response that hits
+                this limit is cut off; if the model was writing a tool call at the time, that call is dropped
+                and the reply carries a `length` finish reason.
             - `metadata`: A dictionary of metadata to be passed to the model.
             - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
                 (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
@@ -345,6 +349,11 @@ class AnthropicChatGenerator:
 
     def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
+        # Copy the nested dicts the flattened kwargs write into; a shallow copy would share them with the
+        # component's init-time generation_kwargs, so a per-run flattened kwarg would persist across runs.
+        for key in ("tool_choice", "thinking", "output_config"):
+            if isinstance(generation_kwargs.get(key), dict):
+                generation_kwargs[key] = dict(generation_kwargs[key])
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
@@ -380,6 +389,13 @@ class AnthropicChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        thinking_display = generation_kwargs.pop("thinking_display", None)
+        if thinking_display is not None:
+            thinking = generation_kwargs.setdefault("thinking", {})
+            # `display` is only accepted with enabled or adaptive thinking, so it's dropped when thinking is disabled
+            if thinking.get("type") != "disabled":
+                thinking["display"] = thinking_display
 
         return generation_kwargs
 
@@ -592,7 +608,7 @@ class AnthropicChatGenerator:
             system=system_messages,
             tools=anthropic_tools,
             stream=streaming_callback is not None,
-            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            max_tokens=generation_kwargs.pop("max_tokens", _DEFAULT_MAX_TOKENS),
             **generation_kwargs,
         )
 
@@ -641,7 +657,7 @@ class AnthropicChatGenerator:
             system=system_messages,
             tools=anthropic_tools,
             stream=streaming_callback is not None,
-            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            max_tokens=generation_kwargs.pop("max_tokens", _DEFAULT_MAX_TOKENS),
             **generation_kwargs,
         )
 

@@ -481,6 +481,7 @@ class TestRun:
                     "parallel_tool_use": None,
                     "tool_choice_type": None,
                     "adaptive_thinking_effort": None,
+                    "thinking_display": None,
                 },
                 {},
             ),
@@ -517,6 +518,46 @@ class TestRun:
                     "service_tier": "standard_only",
                 },
             ),
+            (
+                {
+                    "adaptive_thinking_effort": "high",
+                    "thinking_display": "summarized",
+                },
+                {
+                    "thinking": {"type": "adaptive", "display": "summarized"},
+                    "output_config": {"effort": "high"},
+                },
+            ),
+            (
+                # thinking_display is merged into an explicitly passed thinking dict
+                {
+                    "thinking": {"type": "adaptive"},
+                    "thinking_display": "omitted",
+                },
+                {
+                    "thinking": {"type": "adaptive", "display": "omitted"},
+                },
+            ),
+            (
+                # thinking_display is dropped when thinking is disabled through a flattened kwarg
+                {
+                    "adaptive_thinking_effort": "none",
+                    "thinking_display": "summarized",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
+            (
+                # thinking_display is dropped when thinking is disabled through an explicit thinking dict
+                {
+                    "thinking": {"type": "disabled"},
+                    "thinking_display": "summarized",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
         ],
     )
     def test_run_with_flattened_generation_kwargs(
@@ -537,6 +578,41 @@ class TestRun:
         assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
         assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
         assert actual_kwargs.get("service_tier") == expected_kwargs.get("service_tier")
+
+    def test_run_with_flattened_generation_kwargs_does_not_leak_across_runs(self, chat_messages, mock_chat_completion):
+        init_generation_kwargs = {
+            "tool_choice": {"type": "auto"},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "low"},
+        }
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs=init_generation_kwargs,
+        )
+
+        component.run(
+            chat_messages,
+            generation_kwargs={
+                "parallel_tool_use": False,
+                "thinking_display": "summarized",
+                "adaptive_thinking_effort": "high",
+            },
+        )
+        first_kwargs = mock_chat_completion.call_args.kwargs
+        assert first_kwargs["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+        assert first_kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
+        assert first_kwargs["output_config"] == {"effort": "high"}
+
+        component.run(chat_messages)
+        second_kwargs = mock_chat_completion.call_args.kwargs
+        assert second_kwargs["tool_choice"] == {"type": "auto"}
+        assert second_kwargs["thinking"] == {"type": "adaptive"}
+        assert second_kwargs["output_config"] == {"effort": "low"}
+        assert component.generation_kwargs == {
+            "tool_choice": {"type": "auto"},
+            "thinking": {"type": "adaptive"},
+            "output_config": {"effort": "low"},
+        }
 
 
 class TestAnthropicServerTools:

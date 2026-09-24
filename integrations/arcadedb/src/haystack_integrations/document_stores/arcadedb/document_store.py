@@ -467,7 +467,8 @@ class ArcadeDBDocumentStore:
         Deletes all documents in the document store.
         """
         self._ensure_initialized()
-        self._command(f"TRUNCATE TYPE `{self._type_name}`")
+        # UNSAFE is required to truncate a non-empty vertex type; safe here since the store never creates edges
+        self._command(f"TRUNCATE TYPE `{self._type_name}` UNSAFE")
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """

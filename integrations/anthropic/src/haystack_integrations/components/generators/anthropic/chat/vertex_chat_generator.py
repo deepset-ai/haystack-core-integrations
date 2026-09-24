@@ -112,7 +112,9 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
             Supported generation_kwargs parameters are:
             - `system`: The system message to be passed to the model.
-            - `max_tokens`: The maximum number of tokens to generate.
+            - `max_tokens`: The maximum number of tokens to generate. Defaults to 8192. A response that hits
+                this limit is cut off; if the model was writing a tool call at the time, that call is dropped
+                and the reply carries a `length` finish reason.
             - `metadata`: A dictionary of metadata to be passed to the model.
             - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
                 (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
