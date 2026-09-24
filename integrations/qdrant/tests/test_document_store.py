@@ -382,7 +382,7 @@ class TestQdrantDocumentStoreUnit:
             ("count_documents", (), 0),
             ("count_documents_by_filter", ({},), 0),
             ("get_metadata_fields_info", (), {}),
-            ("get_metadata_field_min_max", ("score",), {}),
+            ("get_metadata_field_min_max", ("score",), {"min": None, "max": None}),
             ("count_unique_metadata_by_filter", ({}, ["category"]), {"category": 0}),
             ("get_metadata_field_unique_values", ("category",), ([], 0)),
         ],

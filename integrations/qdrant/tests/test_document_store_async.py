@@ -146,7 +146,7 @@ class TestQdrantDocumentStoreAsyncUnit:
             ("count_documents_async", (), 0),
             ("count_documents_by_filter_async", ({},), 0),
             ("get_metadata_fields_info_async", (), {}),
-            ("get_metadata_field_min_max_async", ("score",), {}),
+            ("get_metadata_field_min_max_async", ("score",), {"min": None, "max": None}),
             ("count_unique_metadata_by_filter_async", ({}, ["category"]), {"category": 0}),
             ("get_metadata_field_unique_values_async", ("category",), ([], 0)),
         ],

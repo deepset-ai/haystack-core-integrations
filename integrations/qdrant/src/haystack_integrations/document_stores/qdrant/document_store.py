@@ -1184,7 +1184,7 @@ class QdrantDocumentStore:
             return {"min": min_value, "max": max_value}
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max()")
-            return {}
+            return {"min": None, "max": None}
 
     async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
         """
@@ -1221,7 +1221,7 @@ class QdrantDocumentStore:
             return {"min": min_value, "max": max_value}
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max_async()")
-            return {}
+            return {"min": None, "max": None}
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
