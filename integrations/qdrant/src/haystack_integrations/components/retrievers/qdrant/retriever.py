@@ -737,7 +737,7 @@ class QdrantHybridRetriever:
         rrf_weights: list[float] | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Asynchronously run the Sparse Embedding Retriever on the given input data.
+        Asynchronously run the Hybrid Retriever on the given input data.
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
