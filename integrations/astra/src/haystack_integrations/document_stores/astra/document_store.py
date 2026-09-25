@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from asyncio import Lock
+from asyncio import AbstractEventLoop, Lock, get_running_loop
 from collections.abc import Generator
 from typing import Any
 from warnings import warn
@@ -121,6 +121,7 @@ class AstraDocumentStore:
         self._index: AstraClient | None = None
         self._async_collection: AsyncCollection | None = None
         self._async_collection_lock = Lock()
+        self._async_loop: AbstractEventLoop | None = None
 
     @property
     def index(self) -> AstraClient:
@@ -136,7 +137,18 @@ class AstraDocumentStore:
             )
         return self._index
 
+    def _reset_async_state_on_loop_change(self) -> None:
+        # The cached collection's HTTP client and the lock are bound to the loop that first used them, e.g.
+        # repeated `asyncio.run(...)` calls each get a new loop. A stale collection can't be closed from
+        # another loop, so it is dropped.
+        loop = get_running_loop()
+        if self._async_loop is not loop:
+            self._async_collection = None
+            self._async_collection_lock = Lock()
+            self._async_loop = loop
+
     async def _get_async_collection(self) -> AsyncCollection:
+        self._reset_async_state_on_loop_change()
         async with self._async_collection_lock:
             if self._async_collection is None:
                 client = DataAPIClient(callers=[(CALLER_NAME, integration_version)], api_options=_API_OPTIONS)
@@ -164,8 +176,10 @@ class AstraDocumentStore:
         Release the cached async collection connection without deleting documents.
 
         Call this on the same event loop as `search_async`, after all searches have finished and before
-        closing the loop. Repeated calls are safe; a later search opens a new connection.
+        closing the loop. Repeated calls are safe; a later search opens a new connection. Searches on a new
+        event loop open a new connection automatically.
         """
+        self._reset_async_state_on_loop_change()
         async with self._async_collection_lock:
             if self._async_collection is not None:
                 # AstraPy 2 exposes connection cleanup through its async context manager protocol.

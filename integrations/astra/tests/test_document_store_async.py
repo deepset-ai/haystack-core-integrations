@@ -15,7 +15,7 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
 @pytest.fixture
-async def native_async_store(mock_auth):  # noqa: ARG001
+def native_async_mocks(mock_auth):  # noqa: ARG001
     with mock.patch(
         "haystack_integrations.document_stores.astra.document_store.DataAPIClient", autospec=DataAPIClient
     ) as client:
@@ -29,10 +29,15 @@ async def native_async_store(mock_auth):  # noqa: ARG001
         store = AstraDocumentStore(
             collection_name="custom", embedding_dimension=4, similarity="dot_product", namespace="keyspace"
         )
-        try:
-            yield store, client, database, collection
-        finally:
-            await store.close_async()
+        yield store, client, database, collection
+
+
+@pytest.fixture
+async def native_async_store(native_async_mocks):
+    try:
+        yield native_async_mocks
+    finally:
+        await native_async_mocks[0].close_async()
 
 
 @pytest.mark.parametrize("existing", [False, True])
@@ -126,6 +131,28 @@ async def test_concurrent_searches_initialize_once(native_async_store):
     database.list_collections.assert_awaited_once()
     database.create_collection.assert_awaited_once()
     assert collection.find.call_count == 2
+
+
+def test_search_async_across_event_loops(native_async_mocks):
+    # e.g. repeated `asyncio.run(pipeline.run_async(...))`: the cached collection's HTTP client and the lock
+    # are bound to the loop that first used them, so a new loop must get fresh ones
+    store, client, database, _ = native_async_mocks
+
+    async def list_collections():
+        await asyncio.sleep(0)  # yield so that concurrent searches contend for the lock
+        return []
+
+    database.list_collections.side_effect = list_collections
+    collections = [mock.MagicMock(spec=AsyncCollection), mock.MagicMock(spec=AsyncCollection)]
+    database.create_collection.side_effect = collections
+
+    async def concurrent_searches():
+        await asyncio.gather(store.search_async([0.1] * 4, 2), store.search_async([0.1] * 4, 2))
+        return store._async_collection
+
+    assert asyncio.run(concurrent_searches()) is collections[0]
+    assert asyncio.run(concurrent_searches()) is collections[1]
+    assert client.call_count == 2
 
 
 async def test_close_async_before_search_does_not_initialize(native_async_store):
