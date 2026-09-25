@@ -4,12 +4,12 @@
 
 | Name                                                                 |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/astra/retriever.py  |       36 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/astra/astra\_client.py   |      133 |        0 |       32 |        1 |     99% | 294-\>292 |
-| src/haystack\_integrations/document\_stores/astra/document\_store.py |      314 |      104 |      150 |       20 |     63% |177, 195-\>198, 198-\>206, 207, 209-\>219, 236, 249-278, 288, 293-294, 298, 309, 311, 312-\>307, 318-\>305, 322, 364-396, 400-414, 423-425, 435-440, 451-464, 473-484, 497-500, 510-521, 544, 594, 598-\>601, 623, 657-658 |
+| src/haystack\_integrations/components/retrievers/astra/retriever.py  |       39 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/astra/astra\_client.py   |       37 |        0 |       10 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/astra/document\_store.py |      476 |       15 |      166 |       19 |     95% |197-\>exit, 215-\>221, 245, 262-\>265, 265-\>270, 433, 444, 446, 447-\>442, 453-\>440, 457, 525, 529-532, 595, 695, 885, 888-\>891, 924, 953 |
 | src/haystack\_integrations/document\_stores/astra/errors.py          |        8 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/astra/filters.py         |      114 |       19 |       54 |       12 |     82% |68, 70, 74, 86-87, 108-109, 128, 130-134, 139, 146, 153, 160, 174-175 |
-| **TOTAL**                                                            |  **605** |  **123** |  **240** |   **33** | **76%** |           |
+| **TOTAL**                                                            |  **674** |   **34** |  **234** |   **31** | **93%** |           |
 
 
 ## Setup coverage badge
