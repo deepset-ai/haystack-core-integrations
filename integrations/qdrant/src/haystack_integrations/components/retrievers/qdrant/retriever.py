@@ -559,10 +559,14 @@ class QdrantHybridRetriever:
              groups to return.
         :param return_embedding: Whether to return the embeddings of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
-        :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+        :param score_threshold: A minimal score threshold for the fused result.
+            On this hybrid path the threshold is applied server-side to the fused
+            Reciprocal Rank Fusion (RRF) scores, after fusion — only documents with a
+            fused score better than this threshold are returned.
+            Fused scores are small sums of `1/(k + rank)` terms (`k` defaults to 2), not
+            cosine similarities or distances, so thresholds calibrated for dense/sparse
+            retrieval do not transfer. With `group_by`, groups with no surviving hits
+            are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
@@ -659,7 +663,7 @@ class QdrantHybridRetriever:
         rrf_weights: list[float] | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Run the Sparse Embedding Retriever on the given input data.
+        Run the Hybrid Retriever on the given input data.
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
@@ -669,10 +673,14 @@ class QdrantHybridRetriever:
         :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
              groups to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
-        :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+        :param score_threshold: A minimal score threshold for the fused result.
+            On this hybrid path the threshold is applied server-side to the fused
+            Reciprocal Rank Fusion (RRF) scores, after fusion — only documents with a
+            fused score better than this threshold are returned.
+            Fused scores are small sums of `1/(k + rank)` terms (`k` defaults to 2), not
+            cosine similarities or distances, so thresholds calibrated for dense/sparse
+            retrieval do not transfer. With `group_by`, groups with no surviving hits
+            are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
@@ -729,7 +737,7 @@ class QdrantHybridRetriever:
         rrf_weights: list[float] | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Asynchronously run the Sparse Embedding Retriever on the given input data.
+        Asynchronously run the Hybrid Retriever on the given input data.
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
@@ -739,10 +747,14 @@ class QdrantHybridRetriever:
         :param top_k: The maximum number of documents to return. If using `group_by` parameters, maximum number of
              groups to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
-        :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+        :param score_threshold: A minimal score threshold for the fused result.
+            On this hybrid path the threshold is applied server-side to the fused
+            Reciprocal Rank Fusion (RRF) scores, after fusion — only documents with a
+            fused score better than this threshold are returned.
+            Fused scores are small sums of `1/(k + rank)` terms (`k` defaults to 2), not
+            cosine similarities or distances, so thresholds calibrated for dense/sparse
+            retrieval do not transfer. With `group_by`, groups with no surviving hits
+            are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
