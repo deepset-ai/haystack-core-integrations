@@ -4,6 +4,7 @@
 
 """Integration tests for IBM DB2 Document Store using Haystack mixin tests."""
 
+import asyncio
 import math
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -825,8 +826,6 @@ class TestIBMDb2DocumentStoreAsync:
 
     async def test_close_async_closes_connection(self, async_mocked_store):
         store, conn, _ = async_mocked_store
-        import asyncio
-
         store._async_connection_lock = asyncio.Lock()
 
         await store.close_async()

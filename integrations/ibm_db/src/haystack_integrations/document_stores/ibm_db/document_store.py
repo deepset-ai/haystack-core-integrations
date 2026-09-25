@@ -13,12 +13,12 @@ from contextlib import asynccontextmanager, contextmanager, suppress
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
-from ibm_db_dbi import AsyncConnection  # type: ignore[import-untyped]
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from ibm_db_dbi import AsyncConnection  # type: ignore[import-untyped]
 
 from .filters import FilterTranslator
 
@@ -227,9 +227,7 @@ class IBMDb2DocumentStore:
             self._async_table_initialized = False
 
     async def _get_async_connection(self) -> AsyncConnection:
-        """
-        Get or create a persistent async database connection using ibm_db's
-        :class:`AsyncConnection` API (ibm_db >= 3.3.0).
+        """Get or create a persistent async database connection using ibm_db's AsyncConnection API (ibm_db >= 3.3.0).
 
         Thread-safe lazy initialisation with SSL support.
 
