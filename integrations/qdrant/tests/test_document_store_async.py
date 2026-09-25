@@ -162,13 +162,6 @@ class TestQdrantDocumentStoreAsyncUnit:
             with pytest.raises(QdrantStoreError):
                 await getattr(document_store, method_name)(*args)
 
-    async def test_count_documents_async_still_reports_zero_for_a_missing_collection(self):
-        """The counterpart of the sync case: left as it was, for the same documented reason."""
-        document_store = QdrantDocumentStore(location=":memory:")
-        await document_store._initialize_async_client()
-        with patch.object(document_store._async_client, "count", side_effect=ValueError("collection not found")):
-            assert await document_store.count_documents_async() == 0
-
     async def test_close_async(self):
         document_store = QdrantDocumentStore(location=":memory:")
         mock_client = AsyncMock()

@@ -15,7 +15,6 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.misc import _normalize_metadata_field_name
 from numpy import exp
 from qdrant_client.http import models as rest
-from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
 
 from .converters import (
@@ -338,6 +337,9 @@ class QdrantDocumentStore:
     def count_documents(self) -> int:
         """
         Returns the number of documents present in the Document Store.
+
+        :returns: The number of documents in the collection.
+        :raises QdrantStoreError: Counting documents fails.
         """
         self._initialize_client()
         assert self._client is not None
@@ -346,15 +348,16 @@ class QdrantDocumentStore:
                 collection_name=self.index,
             )
             return response.count
-        except (UnexpectedResponse, ValueError):
-            # Qdrant local raises ValueError if the collection is not found, but
-            # with the remote server UnexpectedResponse is raised. Until that's unified,
-            # we need to catch both.
-            return 0
+        except Exception as e:
+            msg = f"Error when calling QdrantDocumentStore.count_documents(): {e}"
+            raise QdrantStoreError(msg) from e
 
     async def count_documents_async(self) -> int:
         """
-        Asynchronously returns the number of documents present in the document dtore.
+        Asynchronously returns the number of documents present in the document store.
+
+        :returns: The number of documents in the collection.
+        :raises QdrantStoreError: Counting documents fails.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -363,11 +366,9 @@ class QdrantDocumentStore:
                 collection_name=self.index,
             )
             return response.count
-        except (UnexpectedResponse, ValueError):
-            # Qdrant local raises ValueError if the collection is not found, but
-            # with the remote server UnexpectedResponse is raised. Until that's unified,
-            # we need to catch both.
-            return 0
+        except Exception as e:
+            msg = f"Error when calling QdrantDocumentStore.count_documents_async(): {e}"
+            raise QdrantStoreError(msg) from e
 
     def filter_documents(
         self,
@@ -921,38 +922,39 @@ class QdrantDocumentStore:
         Deletes all documents from the document store.
 
         :param recreate_index: Whether to recreate the index after deleting all documents.
+        :raises QdrantStoreError: Deleting documents or recreating the collection fails.
         """
 
         self._initialize_client()
         assert self._client is not None
 
-        if recreate_index:
-            # get current collection config as json
-            collection_info = self._client.get_collection(collection_name=self.index)
-            info_json = collection_info.model_dump()
+        try:
+            if recreate_index:
+                # get current collection config as json
+                collection_info = self._client.get_collection(collection_name=self.index)
+                info_json = collection_info.model_dump()
 
-            # deal with the Optional use_sparse_embeddings
-            sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
-            use_sparse_embeddings = True if sparse_vectors else False
+                # deal with the Optional use_sparse_embeddings
+                sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
+                use_sparse_embeddings = True if sparse_vectors else False
 
-            # deal with the Optional sparse_idf
-            hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
-            sparse_idf = True if use_sparse_embeddings and hnsw_config else False
+                # deal with the Optional sparse_idf
+                hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
+                sparse_idf = True if use_sparse_embeddings and hnsw_config else False
 
-            # recreate collection
-            self._set_up_collection(
-                collection_name=self.index,
-                embedding_dim=info_json["config"]["params"]["vectors"]["size"],
-                recreate_collection=True,
-                similarity=info_json["config"]["params"]["vectors"]["distance"].lower(),
-                use_sparse_embeddings=use_sparse_embeddings,
-                sparse_idf=sparse_idf,
-                on_disk=info_json["config"]["hnsw_config"]["on_disk"],
-                payload_fields_to_index=info_json["payload_schema"],
-            )
+                # recreate collection
+                self._set_up_collection(
+                    collection_name=self.index,
+                    embedding_dim=info_json["config"]["params"]["vectors"]["size"],
+                    recreate_collection=True,
+                    similarity=info_json["config"]["params"]["vectors"]["distance"].lower(),
+                    use_sparse_embeddings=use_sparse_embeddings,
+                    sparse_idf=sparse_idf,
+                    on_disk=info_json["config"]["hnsw_config"]["on_disk"],
+                    payload_fields_to_index=info_json["payload_schema"],
+                )
 
-        else:
-            try:
+            else:
                 self._client.delete(
                     collection_name=self.index,
                     points_selector=rest.FilterSelector(
@@ -962,47 +964,48 @@ class QdrantDocumentStore:
                     ),
                     wait=self.wait_result_from_api,
                 )
-            except Exception as e:
-                msg = f"Error when calling QdrantDocumentStore.delete_all_documents(): {e}"
-                raise QdrantStoreError(msg) from e
+        except Exception as e:
+            msg = f"Error when calling QdrantDocumentStore.delete_all_documents(): {e}"
+            raise QdrantStoreError(msg) from e
 
     async def delete_all_documents_async(self, recreate_index: bool = False) -> None:
         """
         Asynchronously deletes all documents from the document store.
 
         :param recreate_index: Whether to recreate the index after deleting all documents.
+        :raises QdrantStoreError: Deleting documents or recreating the collection fails.
         """
 
         await self._initialize_async_client()
         assert self._async_client is not None
 
-        if recreate_index:
-            # get current collection config as json
-            collection_info = await self._async_client.get_collection(collection_name=self.index)
-            info_json = collection_info.model_dump()
+        try:
+            if recreate_index:
+                # get current collection config as json
+                collection_info = await self._async_client.get_collection(collection_name=self.index)
+                info_json = collection_info.model_dump()
 
-            # deal with the Optional use_sparse_embeddings
-            sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
-            use_sparse_embeddings = True if sparse_vectors else False
+                # deal with the Optional use_sparse_embeddings
+                sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
+                use_sparse_embeddings = True if sparse_vectors else False
 
-            # deal with the Optional sparse_idf
-            hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
-            sparse_idf = True if use_sparse_embeddings and hnsw_config else False
+                # deal with the Optional sparse_idf
+                hnsw_config = info_json["config"]["params"]["vectors"].get("config", {}).get("hnsw_config", None)
+                sparse_idf = True if use_sparse_embeddings and hnsw_config else False
 
-            # recreate collection
-            await self._set_up_collection_async(
-                collection_name=self.index,
-                embedding_dim=info_json["config"]["params"]["vectors"]["size"],
-                recreate_collection=True,
-                similarity=info_json["config"]["params"]["vectors"]["distance"].lower(),
-                use_sparse_embeddings=use_sparse_embeddings,
-                sparse_idf=sparse_idf,
-                on_disk=info_json["config"]["hnsw_config"]["on_disk"],
-                payload_fields_to_index=info_json["payload_schema"],
-            )
+                # recreate collection
+                await self._set_up_collection_async(
+                    collection_name=self.index,
+                    embedding_dim=info_json["config"]["params"]["vectors"]["size"],
+                    recreate_collection=True,
+                    similarity=info_json["config"]["params"]["vectors"]["distance"].lower(),
+                    use_sparse_embeddings=use_sparse_embeddings,
+                    sparse_idf=sparse_idf,
+                    on_disk=info_json["config"]["hnsw_config"]["on_disk"],
+                    payload_fields_to_index=info_json["payload_schema"],
+                )
 
-        else:
-            try:
+            else:
                 await self._async_client.delete(
                     collection_name=self.index,
                     points_selector=rest.FilterSelector(
@@ -1012,9 +1015,9 @@ class QdrantDocumentStore:
                     ),
                     wait=self.wait_result_from_api,
                 )
-            except Exception as e:
-                msg = f"Error when calling QdrantDocumentStore.delete_all_documents_async(): {e}"
-                raise QdrantStoreError(msg) from e
+        except Exception as e:
+            msg = f"Error when calling QdrantDocumentStore.delete_all_documents_async(): {e}"
+            raise QdrantStoreError(msg) from e
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -1024,6 +1027,7 @@ class QdrantDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :returns: The number of documents that match the filters.
+        :raises QdrantStoreError: Counting documents matching the filters fails.
         """
         self._initialize_client()
         assert self._client is not None
@@ -1035,7 +1039,7 @@ class QdrantDocumentStore:
                 count_filter=qdrant_filter,
             )
             return response.count
-        except (UnexpectedResponse, ValueError) as e:
+        except Exception as e:
             msg = f"Error when calling QdrantDocumentStore.count_documents_by_filter(): {e}"
             raise QdrantStoreError(msg) from e
 
@@ -1048,6 +1052,7 @@ class QdrantDocumentStore:
 
         :returns:
             The number of documents that match the filters.
+        :raises QdrantStoreError: Counting documents matching the filters fails.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1059,7 +1064,7 @@ class QdrantDocumentStore:
                 count_filter=qdrant_filter,
             )
             return response.count
-        except (UnexpectedResponse, ValueError) as e:
+        except Exception as e:
             msg = f"Error when calling QdrantDocumentStore.count_documents_by_filter_async(): {e}"
             raise QdrantStoreError(msg) from e
 
@@ -1076,6 +1081,7 @@ class QdrantDocumentStore:
             ```python
             {"category": {"type": "keyword"}, "priority": {"type": "long"}}
             ```
+        :raises QdrantStoreError: Retrieving or processing metadata field information fails.
         """
         self._initialize_client()
         assert self._client is not None
@@ -1101,7 +1107,7 @@ class QdrantDocumentStore:
                         break
 
             return fields_info
-        except (UnexpectedResponse, ValueError) as e:
+        except Exception as e:
             msg = f"Error when calling QdrantDocumentStore.get_metadata_fields_info(): {e}"
             raise QdrantStoreError(msg) from e
 
@@ -1118,6 +1124,7 @@ class QdrantDocumentStore:
             ```python
             {"category": {"type": "keyword"}, "priority": {"type": "long"}}
             ```
+        :raises QdrantStoreError: Retrieving or processing metadata field information fails.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1143,7 +1150,7 @@ class QdrantDocumentStore:
                         break
 
             return fields_info
-        except (UnexpectedResponse, ValueError) as e:
+        except Exception as e:
             msg = f"Error when calling QdrantDocumentStore.get_metadata_fields_info_async(): {e}"
             raise QdrantStoreError(msg) from e
 
@@ -1156,6 +1163,7 @@ class QdrantDocumentStore:
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
                   metadata field across all documents. Returns ``{"min": None, "max": None}`` if no documents have
                   the field.
+        :raises QdrantStoreError: Retrieving or computing the metadata bounds fails.
         """
         self._initialize_client()
         assert self._client is not None
@@ -1193,6 +1201,7 @@ class QdrantDocumentStore:
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
                   metadata field across all documents. Returns ``{"min": None, "max": None}`` if no documents have
                   the field.
+        :raises QdrantStoreError: Retrieving or computing the metadata bounds fails.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1231,6 +1240,7 @@ class QdrantDocumentStore:
 
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
+        :raises QdrantStoreError: Retrieving or counting unique metadata values fails.
         """
         self._initialize_client()
         assert self._client is not None
@@ -1272,6 +1282,7 @@ class QdrantDocumentStore:
 
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
+        :raises QdrantStoreError: Retrieving or counting unique metadata values fails.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
@@ -1323,6 +1334,7 @@ class QdrantDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :returns: A tuple containing (list of unique values, total count of unique matching values).
+        :raises QdrantStoreError: Retrieving or processing unique metadata values fails.
         """
         self._initialize_client()
         assert self._client is not None
@@ -1378,6 +1390,7 @@ class QdrantDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :returns: A tuple containing (list of unique values, total count of unique matching values).
+        :raises QdrantStoreError: Retrieving or processing unique metadata values fails.
         """
         await self._initialize_async_client()
         assert self._async_client is not None

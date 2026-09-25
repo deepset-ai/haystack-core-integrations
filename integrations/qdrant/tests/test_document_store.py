@@ -398,15 +398,6 @@ class TestQdrantDocumentStoreUnit:
             with pytest.raises(QdrantStoreError):
                 getattr(document_store, method_name)(*args)
 
-    def test_count_documents_still_reports_zero_for_a_missing_collection(self):
-        """Left as it was on purpose: this handler's own comment says it exists for a collection that
-        is not there, which Qdrant local reports as ValueError and the server as UnexpectedResponse.
-        Zero documents is the right answer to that, and haystack's CountDocumentsTest relies on it."""
-        document_store = QdrantDocumentStore(location=":memory:")
-        document_store._initialize_client()
-        with patch.object(document_store._client, "count", side_effect=ValueError("collection not found")):
-            assert document_store.count_documents() == 0
-
     def test_close(self):
         document_store = QdrantDocumentStore(location=":memory:")
         mock_client = MagicMock()
