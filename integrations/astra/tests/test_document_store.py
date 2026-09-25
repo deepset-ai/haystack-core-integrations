@@ -436,6 +436,27 @@ def test_delete_all_documents_wraps_exception(mocked_store):
     collection.delete_many.assert_called_once_with({})
 
 
+def test_delete_all_documents_recreate_index(mocked_store):
+    store, collection = mocked_store
+    store.delete_all_documents(recreate_index=True)
+    collection.drop.assert_called_once_with()
+    collection.database.create_collection.assert_called_once_with(
+        "documents", definition=collection.options.return_value
+    )
+    collection.delete_many.assert_not_called()
+    assert store._collection is collection.database.create_collection.return_value
+
+
+def test_delete_all_documents_recreate_index_failure(mocked_store):
+    store, collection = mocked_store
+    store._collection = collection
+    collection.database.create_collection.side_effect = RuntimeError("boom")
+    with pytest.raises(DocumentStoreError, match="Failed to delete all documents"):
+        store.delete_all_documents(recreate_index=True)
+    # The next operation creates the collection again from the store settings.
+    assert store._collection is None
+
+
 @pytest.mark.parametrize(
     "filters,meta,match",
     [

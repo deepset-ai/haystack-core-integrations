@@ -357,6 +357,21 @@ async def test_delete_all_documents_async_wraps_exception(mocked_async_store):
         await store.delete_all_documents_async()
 
 
+async def test_delete_all_documents_async_recreate_index(mocked_async_store):
+    store, collection = mocked_async_store
+    database = mock.MagicMock(spec=AsyncDatabase)
+    database.__aenter__.return_value = database
+    with mock.patch.object(store, "_async_database", return_value=database):
+        await store.delete_all_documents_async(recreate_index=True)
+    collection.drop.assert_awaited_once_with()
+    database.create_collection.assert_awaited_once_with("documents", definition=collection.options.return_value)
+    collection.delete_many.assert_not_awaited()
+    # Both the replaced collection's client and the temporary database are released.
+    collection.__aexit__.assert_awaited_once()
+    database.__aexit__.assert_awaited_once()
+    assert store._async_collection is database.create_collection.return_value
+
+
 async def test_delete_by_filter_async(mocked_async_store):
     store, collection = mocked_async_store
     collection.delete_many.return_value.deleted_count = 3

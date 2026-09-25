@@ -7,7 +7,7 @@ from collections.abc import Generator
 from typing import Any
 from warnings import warn
 
-from astrapy import AsyncCollection, Collection
+from astrapy import AsyncCollection, AsyncDatabase, Collection, Database
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
@@ -119,13 +119,19 @@ class AstraDocumentStore:
         self._async_collection_lock = Lock()
         self._async_loop: AbstractEventLoop | None = None
 
+    def _database(self) -> Database:
+        return _data_api_client().get_database(
+            api_endpoint=self.resolved_api_endpoint, token=self.resolved_token, keyspace=self.namespace
+        )
+
+    def _async_database(self) -> AsyncDatabase:
+        return _data_api_client().get_async_database(
+            api_endpoint=self.resolved_api_endpoint, token=self.resolved_token, keyspace=self.namespace
+        )
+
     def _get_collection(self) -> Collection:
         if self._collection is None:
-            database = _data_api_client().get_database(
-                api_endpoint=self.resolved_api_endpoint,
-                token=self.resolved_token,
-                keyspace=self.namespace,
-            )
+            database = self._database()
             descriptor = _find_collection(self.collection_name, database.list_collections())
             if descriptor is not None:
                 warning = _collection_indexing_warning(descriptor)
@@ -154,11 +160,7 @@ class AstraDocumentStore:
         self._reset_async_state_on_loop_change()
         async with self._async_collection_lock:
             if self._async_collection is None:
-                async with _data_api_client().get_async_database(
-                    api_endpoint=self.resolved_api_endpoint,
-                    token=self.resolved_token,
-                    keyspace=self.namespace,
-                ) as database:
+                async with self._async_database() as database:
                     descriptor = _find_collection(self.collection_name, await database.list_collections())
                     if descriptor is not None:
                         warning = _collection_indexing_warning(descriptor)
@@ -692,28 +694,55 @@ class AstraDocumentStore:
         else:
             logger.error("Could not delete all documents")
 
-    def delete_all_documents(self) -> None:
+    def delete_all_documents(self, *, recreate_index: bool = False) -> None:
         """
         Deletes all documents from the document store.
 
-        :raises DocumentStoreError: if the documents could not be deleted.
+        :param recreate_index: If `True`, drops the collection and recreates it with its current definition (vector
+            dimension, metric and indexing settings) instead of deleting its documents. Dropping and creating a
+            collection takes several seconds and is not atomic: if the creation fails, the next operation creates the
+            collection from this store's settings.
+        :raises DocumentStoreError: if the documents could not be deleted or the collection could not be recreated.
         """
+        deletion_counter = -1
         try:
-            deletion_counter = self._get_collection().delete_many({}).deleted_count
+            collection = self._get_collection()
+            if recreate_index:
+                definition = collection.options()
+                collection.drop()
+                self._collection = None
+                self._collection = collection.database.create_collection(self.collection_name, definition=definition)
+            else:
+                deletion_counter = collection.delete_many({}).deleted_count
         except Exception as e:
             msg = f"Failed to delete all documents from Astra: {e!s}"
             raise DocumentStoreError(msg) from e
         self._log_delete_all(deletion_counter)
 
-    async def delete_all_documents_async(self) -> None:
+    async def delete_all_documents_async(self, *, recreate_index: bool = False) -> None:
         """
         Asynchronously deletes all documents from the document store.
 
-        :raises DocumentStoreError: if the documents could not be deleted.
+        :param recreate_index: If `True`, drops the collection and recreates it with its current definition (vector
+            dimension, metric and indexing settings) instead of deleting its documents. Dropping and creating a
+            collection takes several seconds and is not atomic: if the creation fails, the next operation creates the
+            collection from this store's settings.
+        :raises DocumentStoreError: if the documents could not be deleted or the collection could not be recreated.
         """
+        deletion_counter = -1
         try:
             collection = await self._get_async_collection()
-            deletion_counter = (await collection.delete_many({})).deleted_count
+            if recreate_index:
+                definition = await collection.options()
+                await collection.drop()
+                self._async_collection = None
+                # The database used to open the cached collection is already closed, so open a new one.
+                async with self._async_database() as database:
+                    recreated = await database.create_collection(self.collection_name, definition=definition)
+                await collection.__aexit__()
+                self._async_collection = recreated
+            else:
+                deletion_counter = (await collection.delete_many({})).deleted_count
         except Exception as e:
             msg = f"Failed to delete all documents from Astra: {e!s}"
             raise DocumentStoreError(msg) from e
