@@ -105,7 +105,7 @@ def main() -> None:
     print(
         f"  recall@{arguments.k}={metrics.details['mean_recall_at_k']:.2f}  "
         f"precision@{arguments.k}={metrics.details['mean_precision_at_k']:.2f}  "
-        f"duration={median(metrics.durations):.1f}s median ({min(metrics.durations):.1f}-{max(metrics.durations):.1f}s)"
+        f"median duration={median(metrics.durations):.1f}s ({min(metrics.durations):.1f}-{max(metrics.durations):.1f}s)"
     )
     # How much each component emitted, which no configuration value states once a pipeline pools or deduplicates.
     for component, sockets in metrics.details["component_output_sizes"].items():
