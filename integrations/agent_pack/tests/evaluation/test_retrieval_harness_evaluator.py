@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import nullcontext
 
 import pytest
 from haystack import Document, Pipeline, component
@@ -6,13 +7,14 @@ from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
+from haystack_integrations.agent_pack.evaluation.tracer import HarnessTracer
 
 QUESTION = "What is CRISPR used for?"
 
 
 @component
 class Expander:
-    """A stage that rewrites the question, so a pipeline has something before its retriever."""
+    """A component that rewrites the question, so a pipeline has something before its retriever."""
 
     def __init__(self, expansions: int = 1) -> None:
         self.expansions = expansions
@@ -91,8 +93,8 @@ class TestEvaluate:
         renamed.add_component("search_step", MultiRetriever(store))
         renamed.connect("rewrite_step.queries", "search_step.queries")
         metrics = RetrievalHarnessEvaluator().evaluate(target=renamed, eval_cases=[eval_case(wanted)])
-        assert metrics.quality == 1.0
-        assert set(metrics.details["stage_output_sizes"]) == {"rewrite_step", "search_step"}
+        assert metrics.details["mean_recall_at_k"] == 1.0
+        assert set(metrics.details["component_output_sizes"]) == {"rewrite_step", "search_step"}
 
     def test_k_cutoff(self, store, wanted):
         """`k` makes the pipeline answerable for what it ranked highest, not for how much it returned."""
@@ -107,9 +109,23 @@ class TestEvaluate:
     def test_below_min_recall(self, store):
         missing = RetrievalEvalCase(question=QUESTION, evidence={"never retrieved": "x"})
         metrics = RetrievalHarnessEvaluator().evaluate(target=retrieval_pipeline(store), eval_cases=[missing])
-        assert metrics.quality == 0.0
+        assert metrics.details["mean_recall_at_k"] == 0.0
         assert metrics.details["eval_cases"][0]["failures"] == ["recall_below_1"]
         assert metrics.details["eval_cases"][0]["missed_document_ids"] == ["never retrieved"]
+
+    def test_min_recall(self, store):
+        """The threshold decides which eval cases are reported as failures; the recall is reported either way."""
+        missing = RetrievalEvalCase(question=QUESTION, evidence={"never retrieved": "x"})
+        evaluator = RetrievalHarnessEvaluator(min_recall=0.0)
+        metrics = evaluator.evaluate(target=retrieval_pipeline(store), eval_cases=[missing])
+        assert metrics.details["eval_cases"][0]["failures"] == []
+        assert metrics.details["mean_recall_at_k"] == 0.0
+
+    def test_untraced_run_is_not_vouched_for(self, store, wanted, monkeypatch):
+        """A run nothing recorded cannot claim its token counts were complete."""
+        monkeypatch.setattr(HarnessTracer, "activate", lambda _self: nullcontext())
+        metrics = RetrievalHarnessEvaluator().evaluate(target=retrieval_pipeline(store), eval_cases=[eval_case(wanted)])
+        assert metrics.all_tokens_reported is False
 
     def test_no_eval_cases(self, store):
         with pytest.raises(ValueError, match="no eval cases to score"):
@@ -126,22 +142,22 @@ class TestEvaluate:
         )
         questions = [entry["question"] for entry in concurrent.details["eval_cases"]]
         assert questions == [entry["question"] for entry in sequential.details["eval_cases"]]
-        assert concurrent.quality == sequential.quality
+        assert concurrent.details["mean_recall_at_k"] == sequential.details["mean_recall_at_k"]
 
     def test_init_invalid_concurrency(self):
         with pytest.raises(ValueError, match="at least 1"):
             RetrievalHarnessEvaluator(max_concurrent_eval_cases=0)
 
 
-class TestStageOutputSizes:
-    def test_reports_every_stage(self, store, wanted):
+class TestComponentOutputSizes:
+    def test_reports_every_component(self, store, wanted):
         """A pooled candidate set has a size no configuration value states, so only a run reports it."""
         pipeline = retrieval_pipeline(store, top_k=3, expansions=2)
         metrics = RetrievalHarnessEvaluator().evaluate(target=pipeline, eval_cases=[eval_case(wanted)])
-        stages = metrics.details["stage_output_sizes"]
-        assert stages["expander"]["queries"] == {"min": 3, "median": 3, "max": 3}
+        components = metrics.details["component_output_sizes"]
+        assert components["expander"]["queries"] == {"min": 3, "median": 3, "max": 3}
         # Three queries at top_k 3 could reach nine documents; deduplication is why it does not.
-        assert stages["retriever"]["documents"]["max"] <= 9
+        assert components["retriever"]["documents"]["max"] <= 9
 
     def test_varying_sizes(self, store, wanted):
         """A median alone would hide it, and a mean would report a size no eval case produced."""
@@ -159,7 +175,7 @@ class TestStageOutputSizes:
         cases = [eval_case(wanted, question=f"{QUESTION} {index}") for index in range(3)]
         cases.append(eval_case(wanted, question="rare question"))
         metrics = RetrievalHarnessEvaluator().evaluate(target=pipeline, eval_cases=cases)
-        assert metrics.details["stage_output_sizes"]["expander"]["queries"] == {"min": 1, "median": 3, "max": 3}
+        assert metrics.details["component_output_sizes"]["expander"]["queries"] == {"min": 1, "median": 3, "max": 3}
 
 
 class TestEvaluateAsync:
@@ -171,5 +187,5 @@ class TestEvaluateAsync:
         blocking = await asyncio.to_thread(
             RetrievalHarnessEvaluator().evaluate, target=retrieval_pipeline(store), eval_cases=cases
         )
-        assert awaited.quality == blocking.quality == 1.0
-        assert awaited.details["stage_output_sizes"] == blocking.details["stage_output_sizes"]
+        assert awaited.details["mean_recall_at_k"] == blocking.details["mean_recall_at_k"] == 1.0
+        assert awaited.details["component_output_sizes"] == blocking.details["component_output_sizes"]

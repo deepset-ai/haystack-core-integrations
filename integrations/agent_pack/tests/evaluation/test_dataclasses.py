@@ -29,24 +29,18 @@ class TestRetrievalEvalCase:
         assert eval_case.precision_at(document_ids=ranked, k=k) == precision
 
     def test_serialization_roundtrip(self):
-        eval_case = RetrievalEvalCase(question="q", evidence={"b": "second", "a": "first"}, min_precision=0.5)
+        eval_case = RetrievalEvalCase(question="q", evidence={"b": "second", "a": "first"})
         assert RetrievalEvalCase.from_dict(data=eval_case.to_dict()) == eval_case
         # Evidence is ordered, so the same set is identified the same way whichever order it was built in.
         assert list(eval_case.to_dict()["evidence"]) == ["a", "b"]
 
 
 class TestEvalMetrics:
-    @pytest.mark.parametrize("quality", [-0.01, 1.01])
-    def test_init_invalid_quality(self, quality: float):
-        """Every harness evaluator must use the shared normalized quality scale."""
-        with pytest.raises(ValueError, match="quality must be between"):
-            EvalMetrics(quality=quality, latency_ms=1.0)
-
     def test_serialization_roundtrip(self):
         metrics = EvalMetrics(
-            quality=0.75,
             latency_ms=12.5,
             model_usage={"model": ModelTokenUsage(input_tokens=100, output_tokens=20)},
+            all_tokens_reported=False,
             details={"mean_recall": 0.5},
         )
         assert EvalMetrics.from_dict(data=metrics.to_dict()) == metrics

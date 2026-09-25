@@ -31,12 +31,8 @@ class RetrievalEvalCaseMetrics:
 
     :param question: The question that was posed.
     :param passed: Whether the run met every expectation, which is true exactly when `failures` is empty.
-    :param score: What quality aggregates over eval cases, which is recall@k rather than whether the eval case
-        passed. Recall over a handful of expected documents moves in steps of a half or a third, so a threshold
-        on it reports a configuration that went from finding none of the evidence to two thirds of it as no
-        change at all.
-    :param stage_outputs: How many items each component emitted, by component name and output socket.
-    :param stage_texts: A capped sample of whatever each component emitted as text, by component name and
+    :param component_output_sizes: How many items each component emitted, by component name and output socket.
+    :param component_output_samples: A capped sample of whatever each component emitted as text, by component name and
         output socket. For a pipeline that rewrites the question, this is what it actually asked the store,
         which is usually what explains a recall failure rather than how many queries there were.
     :param failures: Every expectation the run missed, named.
@@ -50,9 +46,8 @@ class RetrievalEvalCaseMetrics:
 
     question: str
     passed: bool
-    score: float
-    stage_outputs: dict[str, dict[str, int]]
-    stage_texts: dict[str, dict[str, list[str]]]
+    component_output_sizes: dict[str, dict[str, int]]
+    component_output_samples: dict[str, dict[str, list[str]]]
     failures: tuple[str, ...]
     recall_at_k: float
     precision_at_k: float
@@ -96,7 +91,7 @@ def _documents_exit_point(pipeline: Pipeline) -> str:
     return producers[0]
 
 
-def _stage_output_sizes(eval_metrics: list[RetrievalEvalCaseMetrics]) -> dict[str, dict[str, dict[str, int]]]:
+def _component_output_sizes(eval_metrics: list[RetrievalEvalCaseMetrics]) -> dict[str, dict[str, dict[str, int]]]:
     """
     Summarize how many items each component emitted.
 
@@ -108,7 +103,7 @@ def _stage_output_sizes(eval_metrics: list[RetrievalEvalCaseMetrics]) -> dict[st
     """
     sizes: dict[str, dict[str, list[int]]] = {}
     for metric in eval_metrics:
-        for component, sockets in metric.stage_outputs.items():
+        for component, sockets in metric.component_output_sizes.items():
             for socket, size in sockets.items():
                 sizes.setdefault(component, {}).setdefault(socket, []).append(size)
     return {
@@ -125,9 +120,11 @@ def _score_retrieval_result(
     *,
     exit_point: str,
     k: int | None = None,
+    min_recall: float = 1.0,
+    min_precision: float = 0.0,
     latency_ms: float,
-    stage_outputs: dict[str, dict[str, int]] | None = None,
-    stage_texts: dict[str, dict[str, list[str]]] | None = None,
+    component_output_sizes: dict[str, dict[str, int]] | None = None,
+    component_output_samples: dict[str, dict[str, list[str]]] | None = None,
 ) -> RetrievalEvalCaseMetrics:
     """
     Score one retrieval run against its labelled evidence.
@@ -136,9 +133,11 @@ def _score_retrieval_result(
     :param eval_case: The expectations to score against.
     :param exit_point: Component whose documents are what the pipeline retrieved.
     :param k: Rank cutoff the run is scored at, or `None` to score everything it returned.
+    :param min_recall: Share of the needed documents the run must find to pass.
+    :param min_precision: Share of what the run returned that must be needed for it to pass.
     :param latency_ms: Measured wall-clock duration of the run.
-    :param stage_outputs: How many items each component emitted, by component name and output socket.
-    :param stage_texts: A capped sample of whatever each component emitted as text.
+    :param component_output_sizes: How many items each component emitted, by component name and output socket.
+    :param component_output_samples: A capped sample of whatever each component emitted as text.
     :returns: The score, naming every expectation the run missed.
     """
     retrieved = (result.get(exit_point) or {}).get(DOCUMENTS_SOCKET) or []
@@ -148,17 +147,16 @@ def _score_retrieval_result(
     precision_at_k = eval_case.precision_at(document_ids=returned_ids, k=k)
 
     failures: list[str] = []
-    if recall_at_k < eval_case.min_recall:
-        failures.append(f"recall_below_{eval_case.min_recall:g}")
-    if precision_at_k < eval_case.min_precision:
-        failures.append(f"precision_below_{eval_case.min_precision:g}")
+    if recall_at_k < min_recall:
+        failures.append(f"recall_below_{min_recall:g}")
+    if precision_at_k < min_precision:
+        failures.append(f"precision_below_{min_precision:g}")
 
     return RetrievalEvalCaseMetrics(
         question=eval_case.question,
         passed=not failures,
-        stage_outputs=stage_outputs or {},
-        stage_texts=stage_texts or {},
-        score=recall_at_k,
+        component_output_sizes=component_output_sizes or {},
+        component_output_samples=component_output_samples or {},
         failures=tuple(failures),
         recall_at_k=recall_at_k,
         precision_at_k=precision_at_k,
@@ -171,23 +169,35 @@ def _score_retrieval_result(
 class RetrievalHarnessEvaluator:
     """Pose every eval case's question to a retrieval pipeline and score what came back."""
 
-    def __init__(self, *, k: int | None = None, max_concurrent_eval_cases: int = 1) -> None:
+    def __init__(
+        self,
+        *,
+        k: int | None = None,
+        min_recall: float = 1.0,
+        min_precision: float = 0.0,
+        max_concurrent_eval_cases: int = 1,
+    ) -> None:
         """
         Create an evaluator.
 
         :param k: Rank cutoff every eval case is scored at, giving recall@k and precision@k. Only the first
             `k` documents a run returns count, in the order it ranked them, so a pipeline is measured on what
             it put at the top rather than on how much it returned. `None` scores everything returned.
-        :param max_concurrent_eval_cases: How many eval cases to measure at once. Eval cases are independent and each
-        spends its
-            time waiting on a model, so this decides wall-clock time rather than cost. Leave it at 1 when ranking
-            by latency, or the objective measures contention rather than the configuration.
+        :param min_recall: Share of an eval case's needed documents a run must find for that eval case to pass.
+            The mean recall is reported either way; this only decides which eval cases are reported as failures.
+        :param min_precision: Share of what a run returned that must be needed for its eval case to pass. Left at 0
+            by default, because returning more than was asked for is not itself a fault.
+        :param max_concurrent_eval_cases: How many eval cases to measure at once. Eval cases are independent and
+            each spends its time waiting on a model, so this decides wall-clock time rather than cost. Leave it at
+            1 when ranking by latency, or the objective measures contention rather than the configuration.
         :raises ValueError: If `max_concurrent_eval_cases` is below one.
         """
         if max_concurrent_eval_cases < 1:
             msg = "max_concurrent_eval_cases must be at least 1."
             raise ValueError(msg)
         self.k = k
+        self.min_recall = min_recall
+        self.min_precision = min_precision
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
 
     def validate(self, target: Pipeline) -> None:
@@ -227,11 +237,11 @@ class RetrievalHarnessEvaluator:
                     EVAL_CASE_SPAN, tags={"haystack.harness.eval_case.question": eval_case.question}
                 ) as span:
                     result = await target.run_async(data=data)
-                # An empty summary when a HarnessTracer was not the active tracer.
+                # Without a HarnessTracer active nothing was recorded, so nothing can be vouched for.
                 eval_case_summary = (
                     span.collected.summarize()
                     if isinstance(span, HarnessSpan) and span.collected is not None
-                    else EvalCaseSummary()
+                    else EvalCaseSummary(all_tokens_reported=False)
                 )
             latency_ms = (time.perf_counter() - started) * 1000
             eval_case_metrics = _score_retrieval_result(
@@ -239,9 +249,11 @@ class RetrievalHarnessEvaluator:
                 eval_case=eval_case,
                 exit_point=exit_point,
                 k=self.k,
+                min_recall=self.min_recall,
+                min_precision=self.min_precision,
                 latency_ms=latency_ms,
-                stage_outputs=dict(eval_case_summary.outputs),
-                stage_texts=dict(eval_case_summary.texts),
+                component_output_sizes=dict(eval_case_summary.component_output_sizes),
+                component_output_samples=dict(eval_case_summary.component_output_samples),
             )
             logger.info(
                 "eval case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
@@ -274,7 +286,9 @@ class RetrievalHarnessEvaluator:
 
         :param target: The materialized candidate pipeline to score.
         :param eval_cases: The labelled expectations to score it against.
-        :returns: Fraction of eval cases passed, raw model usage, and mean latency, with per-eval-case detail.
+        :returns: Mean latency and raw model usage, with `details` holding `mean_recall_at_k`,
+            `mean_precision_at_k`, `mean_retrieved`, `component_output_sizes`, `warnings`, and one record per eval
+            case under `eval_cases`.
         :raises ValueError: If no eval cases were supplied, leaving nothing to score.
         """
         if not eval_cases:
@@ -295,25 +309,20 @@ class RetrievalHarnessEvaluator:
         # Aggregate model usage across all measured eval cases
         model_usage: dict[str, ModelTokenUsage] = {}
         for _, summary in measured:
-            for model, tokens in summary.models.items():
-                current = model_usage.get(model, ModelTokenUsage())
-                model_usage[model] = ModelTokenUsage(
-                    input_tokens=current.input_tokens + tokens.input_tokens,
-                    output_tokens=current.output_tokens + tokens.output_tokens,
-                )
+            for model, tokens in summary.model_usage.items():
+                model_usage[model] = model_usage.get(model, ModelTokenUsage()) + tokens
 
         return EvalMetrics(
-            quality=sum(metric.score for metric in eval_metrics) / len(eval_metrics),
             latency_ms=sum(metric.latency_ms for metric in eval_metrics) / len(eval_metrics),
             model_usage=model_usage,
+            all_tokens_reported=all(summary.all_tokens_reported for _, summary in measured),
             details={
-                "all_tokens_reported": all(summary.all_tokens_reported for _, summary in measured),
                 "mean_recall_at_k": sum(metric.recall_at_k for metric in eval_metrics) / len(eval_metrics),
                 "mean_precision_at_k": sum(metric.precision_at_k for metric in eval_metrics) / len(eval_metrics),
                 "mean_retrieved": sum(metric.retrieved for metric in eval_metrics) / len(eval_metrics),
                 # Report the range and low median of the output sizes each component produced. Useful for understanding
-                # intermediate stages of a pipeline.
-                "stage_output_sizes": _stage_output_sizes(eval_metrics=eval_metrics),
+                # intermediate components of a pipeline.
+                "component_output_sizes": _component_output_sizes(eval_metrics=eval_metrics),
                 # Report any warnings from the logger that were emitted during the evaluation
                 "warnings": diagnostics.to_list(),
                 EVAL_CASES_KEY: [metric.to_dict() for metric in eval_metrics],

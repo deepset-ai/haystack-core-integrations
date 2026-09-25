@@ -16,15 +16,10 @@ class RetrievalEvalCase:
         documents recall is measured against, and the values say what each one was needed for, for example
         `{"a1b2c3...": "Tyreek Hill now needs to ...", "d4e5f6...": "The Dolphins went on to ..."}`.
         A harness that knows which documents are needed but not what they were needed for leaves the values empty.
-    :param min_recall: Minimum share of the needed documents that must be found.
-    :param min_precision: Minimum share of what came back that must be needed. Left at 0 by default, because
-        returning more than was asked for is not itself a fault; raise it to make over-retrieval cost something.
     """
 
     question: str
     evidence: dict[str, str] = field(default_factory=dict)
-    min_recall: float = 1.0
-    min_precision: float = 0.0
 
     def __post_init__(self) -> None:
         """Require ground truth to score against."""
@@ -108,39 +103,16 @@ class ModelTokenUsage:
     input_tokens: int = 0
     output_tokens: int = 0
 
+    def __add__(self, other: "ModelTokenUsage") -> "ModelTokenUsage":
+        """
+        Add up two usages of the same model.
 
-@dataclass(kw_only=True)
-class ReportedUsage:
-    """
-    Token usage one LLM call reported.
-
-    :param model: The model identifier the call reported, or `None` when it reported none, which leaves the
-        eval case unpriceable.
-    :param tokens: The token counts the call reported, or `None` when it reported neither an input nor an
-        output count, which also leaves the eval case unpriceable.
-    """
-
-    model: str | None = None
-    tokens: ModelTokenUsage | None = None
-
-
-@dataclass(kw_only=True)
-class EvalCaseSummary:
-    """
-    Summarizes what an eval case's spans reported about its token usage and per-stage outputs.
-
-    :param models: Token usage attributed to each model the eval case called, keyed by model identifier.
-    :param outputs: How many items each component emitted, by component name and output socket.
-    :param texts: A sample of whatever each component emitted as text, by component name and output socket,
-        capped by the tracer that recorded it.
-    :param all_tokens_reported: Whether every LLM call reported its token counts. False means the token usage
-        below is underestimated, so the eval case must not be priced.
-    """
-
-    models: dict[str, ModelTokenUsage] = field(default_factory=dict)
-    outputs: dict[str, dict[str, int]] = field(default_factory=dict)
-    texts: dict[str, dict[str, list[str]]] = field(default_factory=dict)
-    all_tokens_reported: bool = True
+        :param other: The usage to add to this one.
+        :returns: A new usage holding both counts summed.
+        """
+        return ModelTokenUsage(
+            input_tokens=self.input_tokens + other.input_tokens, output_tokens=self.output_tokens + other.output_tokens
+        )
 
 
 @dataclass(kw_only=True)
@@ -148,32 +120,27 @@ class EvalMetrics:
     """
     Metrics produced by a harness evaluator for one target configuration.
 
-    :param quality: Normalized aggregate quality score in the inclusive range `[0.0, 1.0]`. Each harness evaluator
-        defines which checks contribute to this score.
     :param latency_ms: Mean end-to-end evaluation latency in milliseconds.
+    :param all_tokens_reported: Whether every LLM call the evaluation made reported its token counts. False means
+        `model_usage` understates what the evaluation actually spent.
     :param model_usage: Raw token usage keyed by model identifier.
     :param cost: Cost derived from `model_usage`, or `None` when usage has not been priced or includes an unknown model.
-    :param details: Evaluator-specific metrics and diagnostic information.
+    :param details: What the harness evaluator scored and the diagnostics it collected. Each harness evaluator
+        documents its own keys.
     """
 
-    quality: float
     latency_ms: float
+    all_tokens_reported: bool
     model_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
     cost: float | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        """Validate the shared normalized quality contract."""
-        if not 0.0 <= self.quality <= 1.0:
-            msg = "quality must be between 0.0 and 1.0."
-            raise ValueError(msg)
-
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible representation."""
         return {
-            "quality": self.quality,
             "latency_ms": self.latency_ms,
             "model_usage": {model: asdict(obj=usage) for model, usage in self.model_usage.items()},
+            "all_tokens_reported": self.all_tokens_reported,
             "cost": self.cost,
             "details": self.details,
         }
@@ -188,9 +155,9 @@ class EvalMetrics:
         """
         cost = data.get("cost")
         return cls(
-            quality=float(data["quality"]),
             latency_ms=float(data["latency_ms"]),
             model_usage={model: ModelTokenUsage(**usage) for model, usage in (data.get("model_usage") or {}).items()},
+            all_tokens_reported=bool(data["all_tokens_reported"]),
             cost=None if cost is None else float(cost),
             details=data.get("details") or {},
         )

@@ -15,7 +15,7 @@ from haystack import tracing
 from haystack.components.agents.utils import _INPUT_TOKEN_KEYS, _OUTPUT_TOKEN_KEYS, _first_numeric
 from haystack.tracing import Span, Tracer
 
-from .dataclasses import EvalCaseSummary, ModelTokenUsage, ReportedUsage
+from .dataclasses import ModelTokenUsage
 
 # The span a harness opens around one eval case. Everything traced under it belongs to that eval case.
 EVAL_CASE_SPAN = "haystack.harness.eval_case"
@@ -46,7 +46,7 @@ def _measure_output(value: dict[str, Any]) -> tuple[dict[str, int], dict[str, li
     :returns: How many items each socket carried, and a capped sample of the sockets carrying only strings.
     """
     sizes: dict[str, int] = {}
-    texts: dict[str, list[str]] = {}
+    samples: dict[str, list[str]] = {}
     for socket, emitted in value.items():
         # A socket carrying one string or one object emits one item, not none: a router or a prompt builder
         # belongs in the chain as much as a retriever does. A string is characters, not items, so it counts once.
@@ -54,8 +54,8 @@ def _measure_output(value: dict[str, Any]) -> tuple[dict[str, int], dict[str, li
         sizes[socket] = len(items)
         # Documents and messages are counted and dropped, so nothing long is retained by accident.
         if items and all(isinstance(item, str) for item in items):
-            texts[socket] = [_capped(text=item) for item in items[:MAX_RECORDED_TEXTS]]
-    return sizes, texts
+            samples[socket] = [_capped(text=item) for item in items[:MAX_RECORDED_TEXTS]]
+    return sizes, samples
 
 
 def _reported_tokens(usage: Any) -> ModelTokenUsage | None:
@@ -93,6 +93,25 @@ def _is_generator_span(operation_name: str, tags: dict[str, Any]) -> bool:
     )
 
 
+@dataclass(kw_only=True)
+class EvalCaseSummary:
+    """
+    Summarizes what an eval case's spans reported about its token usage and per-component outputs.
+
+    :param all_tokens_reported: Whether every LLM call reported its token counts. False means
+        `model_usage` understates what the eval case spent, so it must not be priced.
+    :param model_usage: Token usage attributed to each model the eval case called, keyed by model identifier.
+    :param component_output_sizes: How many items each component emitted, by component name and output socket.
+    :param component_output_samples: A sample of whatever each component emitted as text, by component name and
+        output socket, capped by the tracer that recorded it.
+    """
+
+    all_tokens_reported: bool
+    model_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
+    component_output_sizes: dict[str, dict[str, int]] = field(default_factory=dict)
+    component_output_samples: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+
+
 @dataclass
 class CollectedSpans:
     """
@@ -118,35 +137,29 @@ class CollectedSpans:
         """
         Summarize what the collected spans reported.
 
-        :returns: The eval case's token usage and per-stage output sizes.
+        :returns: The eval case's token usage and per-component output sizes.
         """
-        models: dict[str, ModelTokenUsage] = {}
-        outputs: dict[str, dict[str, int]] = {}
-        texts: dict[str, dict[str, list[str]]] = {}
+        model_usage: dict[str, ModelTokenUsage] = {}
+        component_output_sizes: dict[str, dict[str, int]] = {}
+        component_output_samples: dict[str, dict[str, list[str]]] = {}
         all_tokens_reported = True
         for span in self.spans:
-            # A generator run as a pipeline component is a stage like any other; the spans a component opens
-            # inside itself are named for the attribute holding them, so they never overwrite their owner.
+            # A generator run as a pipeline component is reported like any other. One held inside another
+            # component is named for the attribute holding it, so it never overwrites its owner.
             if span.component_name is not None and span.output_sizes:
-                outputs[span.component_name] = span.output_sizes
-                if span.output_texts:
-                    texts[span.component_name] = span.output_texts
+                component_output_sizes[span.component_name] = span.output_sizes
+                if span.output_samples:
+                    component_output_samples[span.component_name] = span.output_samples
 
-            # An LLM call that reported no usage at all spent tokens nobody can account for.
-            if span.is_generator_span and not span.reported_usage:
-                all_tokens_reported = False
-
-            for entry in span.reported_usage:
-                # Usage nobody can attribute to a model, or missing either count, cannot be priced.
-                if entry.model is None or entry.tokens is None:
-                    all_tokens_reported = False
-                    continue
-                current = models.get(entry.model, ModelTokenUsage())
-                models[entry.model] = ModelTokenUsage(
-                    input_tokens=current.input_tokens + entry.tokens.input_tokens,
-                    output_tokens=current.output_tokens + entry.tokens.output_tokens,
-                )
-        return EvalCaseSummary(models=models, outputs=outputs, texts=texts, all_tokens_reported=all_tokens_reported)
+            all_tokens_reported = all_tokens_reported and span.all_tokens_reported
+            for model, tokens in span.model_usage.items():
+                model_usage[model] = model_usage.get(model, ModelTokenUsage()) + tokens
+        return EvalCaseSummary(
+            all_tokens_reported=all_tokens_reported,
+            model_usage=model_usage,
+            component_output_sizes=component_output_sizes,
+            component_output_samples=component_output_samples,
+        )
 
 
 class HarnessSpan(Span):
@@ -174,8 +187,10 @@ class HarnessSpan(Span):
         self.component_name = component_name
         self.is_generator_span = is_generator_span
         self.output_sizes: dict[str, int] = {}
-        self.output_texts: dict[str, list[str]] = {}
-        self.reported_usage: list[ReportedUsage] = []
+        self.output_samples: dict[str, list[str]] = {}
+        self.model_usage: dict[str, ModelTokenUsage] = {}
+        # An LLM call is unaccounted for until a reply arrives saying what it spent.
+        self.all_tokens_reported = not is_generator_span
 
     def set_tag(self, key: str, value: Any) -> None:
         """Discard ordinary trace tags."""
@@ -184,12 +199,20 @@ class HarnessSpan(Span):
         """Measure one component output and discard it, so no content is retained and none has to be enabled."""
         if key not in USAGE_OUTPUT_TAGS or not isinstance(value, dict):
             return
-        self.output_sizes, self.output_texts = _measure_output(value=value)
-        if self.is_generator_span:
-            self.reported_usage = [
-                ReportedUsage(model=reply.meta.get("model"), tokens=_reported_tokens(usage=reply.meta.get("usage")))
-                for reply in value.get("replies") or []
-            ]
+        self.output_sizes, self.output_samples = _measure_output(value=value)
+        if not self.is_generator_span:
+            return
+        replies = value.get("replies") or []
+        model_usage: dict[str, ModelTokenUsage] = {}
+        all_tokens_reported = bool(replies)
+        for reply in replies:
+            model, tokens = reply.meta.get("model"), _reported_tokens(usage=reply.meta.get("usage"))
+            # A reply that names no model, or is missing either count, spent tokens that cannot be attributed.
+            if not isinstance(model, str) or tokens is None:
+                all_tokens_reported = False
+                continue
+            model_usage[model] = model_usage.get(model, ModelTokenUsage()) + tokens
+        self.model_usage, self.all_tokens_reported = model_usage, all_tokens_reported
 
 
 class HarnessTracer(Tracer):

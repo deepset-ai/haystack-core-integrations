@@ -102,13 +102,12 @@ def main() -> None:
 
     print("\n=== 3. outcome ===")
     print(
-        f"  quality={metrics.quality:.2f} (mean recall@{arguments.k})  "
-        f"recall@k={metrics.details['mean_recall_at_k']:.2f}  "
-        f"precision@k={metrics.details['mean_precision_at_k']:.2f}  "
+        f"  recall@{arguments.k}={metrics.details['mean_recall_at_k']:.2f}  "
+        f"precision@{arguments.k}={metrics.details['mean_precision_at_k']:.2f}  "
         f"latency={metrics.latency_ms:.0f}ms"
     )
-    # How much each stage emitted, which no configuration value states once a pipeline pools or deduplicates.
-    for component, sockets in metrics.details["stage_output_sizes"].items():
+    # How much each component emitted, which no configuration value states once a pipeline pools or deduplicates.
+    for component, sockets in metrics.details["component_output_sizes"].items():
         for socket, sizes in sockets.items():
             print(f"    {component}.{socket}: {sizes['median']} typical ({sizes['min']}-{sizes['max']})")
 
@@ -116,7 +115,7 @@ def main() -> None:
     for model, usage in metrics.model_usage.items():
         per_eval_case = (usage.input_tokens + usage.output_tokens) / len(eval_cases)
         print(f"    {model}: {usage.input_tokens} in + {usage.output_tokens} out ({per_eval_case:.0f} per eval case)")
-    if metrics.model_usage and not metrics.details["all_tokens_reported"]:
+    if metrics.model_usage and not metrics.all_tokens_reported:
         print("    (a model call reported no token counts, so the totals above are an undercount)")
 
     quotes = {document: quote for eval_case in eval_cases for document, quote in eval_case.evidence.items()}
@@ -135,7 +134,7 @@ def main() -> None:
         )
         # What the pipeline actually put to the store, under the same names section 3 counted. A recall
         # failure is usually explained by the queries rather than by how many of them there were.
-        for component, sockets in reported["stage_texts"].items():
+        for component, sockets in reported["component_output_samples"].items():
             for socket, texts in sockets.items():
                 print(f"  {component}.{socket}:")
                 for text in texts:

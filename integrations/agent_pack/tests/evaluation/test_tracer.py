@@ -15,18 +15,18 @@ from haystack_integrations.agent_pack.evaluation.tracer import (
     CollectedSpans,
     HarnessSpan,
     HarnessTracer,
-    ReportedUsage,
     _measure_output,
     _reported_tokens,
 )
 
-TOKENS = ModelTokenUsage(input_tokens=3, output_tokens=1)
+USAGE = {"input_tokens": 3, "output_tokens": 1}
 
 
-def generator_span(model="m", tokens=TOKENS, **overrides):
-    """One span shaped like an LLM call that reported a single reply."""
+def generator_span(model="m", usage=USAGE, **overrides):
+    """One span shaped like an LLM call that reported a single reply, filled in the way the tracer fills it."""
     span = HarnessSpan(is_generator_span=True, **overrides)
-    span.reported_usage = [ReportedUsage(model=model, tokens=tokens)]
+    meta = {key: value for key, value in (("model", model), ("usage", usage)) if value is not None}
+    span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("answer", meta=meta)]})
     return span
 
 
@@ -63,8 +63,8 @@ class TestHarnessTracer:
                 agent.run(messages=[ChatMessage.from_user("q")])
             summary = span.collected.summarize()
             assert summary.all_tokens_reported
-            assert summary.models["ranker"].input_tokens == 7
-            assert summary.models["coordinator"].input_tokens == 11
+            assert summary.model_usage["ranker"].input_tokens == 7
+            assert summary.model_usage["coordinator"].input_tokens == 11
         finally:
             tracing.tracer.is_content_tracing_enabled = old_content
 
@@ -74,8 +74,8 @@ class TestHarnessTracer:
         with tracer.trace(EVAL_CASE_SPAN) as span:
             emit(tracer, "expander", {"queries": ["who owns it", "when was it sold"]})
         summary = span.collected.summarize()
-        assert summary.outputs == {"expander": {"queries": 2}}
-        assert summary.texts == {"expander": {"queries": ["who owns it", "when was it sold"]}}
+        assert summary.component_output_sizes == {"expander": {"queries": 2}}
+        assert summary.component_output_samples == {"expander": {"queries": ["who owns it", "when was it sold"]}}
 
     def test_concurrent_eval_cases(self):
         tracer = HarnessTracer()
@@ -111,8 +111,8 @@ class TestHarnessTracer:
         with tracer.activate():
             results = asyncio.run(run_all())
         for index, summary in enumerate(results, start=1):
-            assert list(summary.models) == [str(index)]
-            assert summary.models[str(index)].input_tokens == index
+            assert list(summary.model_usage) == [str(index)]
+            assert summary.model_usage[str(index)].input_tokens == index
 
     def test_reply_without_usage_meta(self):
         tracer = HarnessTracer()
@@ -201,7 +201,7 @@ class TestCollectedSpans:
     def test_sums_repeated_models(self):
         """Summarizing is a pure function of the collected spans, so it can be checked without running anything."""
         summary = CollectedSpans(spans=[generator_span(), generator_span()]).summarize()
-        assert summary.models["m"] == ModelTokenUsage(input_tokens=6, output_tokens=2)
+        assert summary.model_usage["m"] == ModelTokenUsage(input_tokens=6, output_tokens=2)
         assert summary.all_tokens_reported
 
     def test_call_reporting_nothing(self):
@@ -211,22 +211,22 @@ class TestCollectedSpans:
         assert summary.all_tokens_reported is False
 
     def test_unquantified_usage(self):
-        for span in (generator_span(tokens=None), generator_span(model=None)):
+        for span in (generator_span(usage=None), generator_span(model=None)):
             summary = CollectedSpans(spans=[span]).summarize()
             assert summary.all_tokens_reported is False
-            assert summary.models == {}
+            assert summary.model_usage == {}
 
-    def test_a_generator_is_a_stage_too(self):
+    def test_a_generator_is_reported_too(self):
         """A generator run as a pipeline component emits into the next one, so what it emitted is worth reporting."""
         ranker = HarnessSpan(component_name="ranker")
         ranker.output_sizes = {"documents": 4}
         generator = generator_span(component_name="gen")
         generator.output_sizes = {"replies": 1}
         summary = CollectedSpans(spans=[generator, ranker]).summarize()
-        assert summary.outputs == {"gen": {"replies": 1}, "ranker": {"documents": 4}}
+        assert summary.component_output_sizes == {"gen": {"replies": 1}, "ranker": {"documents": 4}}
 
-    def test_a_span_without_a_component_is_not_a_stage(self):
+    def test_a_span_without_a_component_is_not_reported(self):
         """An agent step names no component, so it has nothing to file its sizes under."""
         step = generator_span()
         step.output_sizes = {"replies": 1}
-        assert CollectedSpans(spans=[step]).summarize().outputs == {}
+        assert CollectedSpans(spans=[step]).summarize().component_output_sizes == {}
