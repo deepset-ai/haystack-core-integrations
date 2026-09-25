@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging as python_logging
+import logging as stdlib_logging
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from datetime import datetime
@@ -105,8 +105,9 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
 )
 
 logger = logging.getLogger(__name__)
-python_logging.getLogger("azure").setLevel(python_logging.ERROR)
-python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
+# Suppress noisy logs from Azure SDK internals using Python's stdlib logging levels
+stdlib_logging.getLogger("azure").setLevel(stdlib_logging.ERROR)
+stdlib_logging.getLogger("azure.identity").setLevel(stdlib_logging.DEBUG)
 
 SPECIAL_FIELDS = {"id", "embedding"}
 FIELD_TYPE_MAPPING = {
@@ -630,8 +631,9 @@ class AzureAISearchDocumentStore:
 
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
-                f"AzureAISearchDocumentStore only supports `DuplicatePolicy.OVERWRITE`"
-                f"but got {policy}. Overwriting duplicates is enabled by default."
+                "AzureAISearchDocumentStore only supports `DuplicatePolicy.OVERWRITE` but got {policy}. "
+                "Overwriting duplicates is enabled by default.",
+                policy=policy,
             )
         client = self.client
         documents_to_write = [self._convert_haystack_document_to_azure(doc) for doc in documents]
@@ -866,7 +868,7 @@ class AzureAISearchDocumentStore:
                 document = self.client.get_document(doc_id)
                 azure_documents.append(document)
             except ResourceNotFoundError:
-                logger.warning(f"Document with ID {doc_id} not found.")
+                logger.warning("Document with ID {doc_id} not found.", doc_id=doc_id)
         return azure_documents
 
     def _convert_haystack_document_to_azure(self, document: Document) -> dict[str, Any]:
