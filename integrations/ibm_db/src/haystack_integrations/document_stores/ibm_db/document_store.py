@@ -4,11 +4,12 @@
 
 """IBM Db2 Document Store for Haystack."""
 
+import asyncio
 import json
 import logging
 import threading
-from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager, suppress
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
@@ -17,6 +18,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from ibm_db_dbi import AsyncConnection  # type: ignore[import-untyped]
 
 from .filters import FilterTranslator
 
@@ -143,6 +145,10 @@ class IBMDb2DocumentStore:
         self._connection_lock = threading.Lock()
         self._table_initialized = False
 
+        self._async_connection: AsyncConnection | None = None
+        self._async_connection_lock: asyncio.Lock | None = None
+        self._async_table_initialized = False
+
     def _get_connection(self) -> ibm_db_dbi.Connection:
         """
         Get or create a persistent database connection and ensure the table exists.
@@ -206,6 +212,95 @@ class IBMDb2DocumentStore:
                 with suppress(Exception):
                     self._connection.close()
                 self._connection = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_connection_lock is None:
+            return
+        async with self._async_connection_lock:
+            if self._async_connection is not None:
+                with suppress(Exception):
+                    await self._async_connection.close()
+                self._async_connection = None
+            self._async_table_initialized = False
+
+    async def _get_async_connection(self) -> AsyncConnection:
+        """Get or create a persistent async database connection using ibm_db's AsyncConnection API (ibm_db >= 3.3.0).
+
+        Thread-safe lazy initialisation with SSL support.
+
+        :return: AsyncConnection object
+        """
+        if self._async_connection is not None and self._async_table_initialized:
+            return self._async_connection
+
+        if self._async_connection_lock is None:
+            self._async_connection_lock = asyncio.Lock()
+
+        async with self._async_connection_lock:
+            if self._async_connection is None:
+                dsn = (
+                    f"DATABASE={self.database};HOSTNAME={self.hostname};"
+                    f"PORT={self.port};PROTOCOL={self.protocol}"
+                )
+                if self.use_ssl:
+                    dsn += ";SECURITY=SSL"
+                    if self.ssl_certificate:
+                        dsn += f";SSLServerCertificate={self.ssl_certificate}"
+
+                conn_options = {ibm_db_dbi.SQL_ATTR_AUTOCOMMIT: ibm_db_dbi.SQL_AUTOCOMMIT_OFF}
+                if self.connection_options:
+                    conn_options.update(self.connection_options)
+
+                conn = await AsyncConnection.connect(
+                    dsn,
+                    self.username.resolve_value() or "",
+                    self.password.resolve_value() or "",
+                    conn_options=conn_options,
+                )
+
+                if self.schema:
+                    cursor = await conn.cursor()
+                    try:
+                        await cursor.execute(f"SET SCHEMA {self.schema}")
+                        await conn.commit()
+                    except Exception as e:
+                        await conn.rollback()
+                        await cursor.close()
+                        msg = f"Failed to set schema {self.schema}: {e}"
+                        raise RuntimeError(msg) from e
+                    await cursor.close()
+
+                self._async_connection = conn
+
+            if not self._async_table_initialized:
+                # Table is shared; ensure it exists via the sync path (one-time setup).
+                await asyncio.to_thread(self._get_connection)
+                self._async_table_initialized = True
+
+        return self._async_connection
+
+    @asynccontextmanager
+    async def _async_transaction(self, error_msg: str) -> AsyncIterator[Any]:
+        """
+        Yield an :class:`AsyncCursor` for a unit of work, committing on success.
+
+        On any error the transaction is rolled back and the exception is re-raised
+        as a :exc:`DocumentStoreError` prefixed with *error_msg*.
+        """
+        conn = await self._get_async_connection()
+        cursor = await conn.cursor()
+        try:
+            yield cursor
+            await conn.commit()
+        except Exception as e:
+            await conn.rollback()
+            msg = f"{error_msg}: {e}"
+            raise DocumentStoreError(msg) from e
+        finally:
+            await cursor.close()
 
     @contextmanager
     def _transaction(self, error_msg: str) -> Iterator[Any]:
@@ -934,6 +1029,236 @@ class IBMDb2DocumentStore:
                 ):
                     # For COSINE metric with zero vectors, return empty results
                     # This is an edge case that shouldn't happen in production
+                    rows = []
+                else:
+                    raise
+
+        documents = []
+        for row in rows:
+            doc_id, content, meta_json, embedding, score = row
+            meta = json.loads(meta_json) if meta_json else {}
+            embedding_list = _parse_embedding(embedding)
+            doc = Document(
+                id=doc_id,
+                content=content,
+                meta=meta,
+                embedding=embedding_list,
+                score=float(score),
+            )
+            documents.append(doc)
+
+        return documents
+
+    async def count_documents_async(self) -> int:
+        """
+        Asynchronously count all documents in the store.
+
+        :return: Number of documents.
+        """
+        async with self._async_transaction("Failed to count documents") as cur:
+            await cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+            result = await cur.fetchone()
+            return result[0] if result else 0
+
+    async def write_documents_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
+    ) -> int:
+        """
+        Asynchronously write documents to the store.
+
+        Uses ibm_db's :class:`AsyncConnection` / :class:`AsyncCursor` API
+        (ibm_db >= 3.3.0) so the event loop is not blocked.
+
+        :param documents: List of documents to write.
+        :param policy: Policy for handling duplicate documents.
+        :return: Number of documents written.
+        :raises ValueError: If *documents* is not a list of :class:`Document` objects.
+        :raises DuplicateDocumentError: If a duplicate is found under NONE/FAIL policy.
+        """
+        if not isinstance(documents, list):
+            msg = f"Expected a list of Document objects, got {type(documents)}"
+            raise ValueError(msg)
+        if not documents:
+            return 0
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"Expected Document objects, got {type(doc)}"
+                raise ValueError(msg)
+            if doc.embedding is not None:
+                try:
+                    self._validate_embedding(doc.embedding, allow_none=False)
+                except (ValueError, TypeError) as e:
+                    msg = f"Invalid embedding for document '{doc.id}': {e}"
+                    raise type(e)(msg) from e
+
+        if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
+            return await self._insert_documents_async(documents)
+        if policy == DuplicatePolicy.SKIP:
+            return await self._skip_duplicate_documents_async(documents)
+        if policy == DuplicatePolicy.OVERWRITE:
+            return await self._upsert_documents_async(documents)
+        msg = f"Unsupported duplicate policy: {policy}"
+        raise ValueError(msg)
+
+    async def _insert_documents_async(self, documents: list[Document]) -> int:
+        rows = [self._to_row(doc) for doc in documents]
+        conn = await self._get_async_connection()
+        cursor = await conn.cursor()
+        sql = (
+            f"INSERT INTO {self.table_name} (id, content, meta, embedding) "
+            f"VALUES (?, ?, SYSTOOLS.JSON2BSON(?), "
+            f"VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32))"
+        )
+        try:
+            await cursor.executemany(sql, rows)
+            await conn.commit()
+        except Exception as e:
+            await conn.rollback()
+            await cursor.close()
+            error_msg = str(e).lower()
+            duplicate_indicators = (
+                "duplicate", "unique", "sql0803n", "primary key", "sqlcode=-803", "sqlstate=23505"
+            )
+            if any(indicator in error_msg for indicator in duplicate_indicators):
+                msg = f"Document already exists. Use DuplicatePolicy.OVERWRITE or SKIP. Original error: {e}"
+                raise DuplicateDocumentError(msg) from e
+            raise
+        await cursor.close()
+        return len(documents)
+
+    async def _skip_duplicate_documents_async(self, documents: list[Document]) -> int:
+        rows = [self._to_row(doc) for doc in documents]
+        inserted_count = 0
+        merge_sql = (
+            f"MERGE INTO {self.table_name} AS t "
+            f"USING (VALUES (?, ?, SYSTOOLS.JSON2BSON(?), "
+            f"VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32))) "
+            f"AS s(id, content, meta, embedding) "
+            "ON t.id = s.id "
+            "WHEN NOT MATCHED THEN "
+            "INSERT (id, content, meta, embedding) "
+            "VALUES (s.id, s.content, s.meta, s.embedding)"
+        )
+        async with self._async_transaction("Failed to skip duplicate documents") as cur:
+            for row in rows:
+                await cur.execute(merge_sql, row)
+                if cur.rowcount > 0:
+                    inserted_count += 1
+        return inserted_count
+
+    async def _upsert_documents_async(self, documents: list[Document]) -> int:
+        rows = [self._to_row(doc) for doc in documents]
+        merge_sql = (
+            f"MERGE INTO {self.table_name} AS t "
+            f"USING (VALUES (?, ?, SYSTOOLS.JSON2BSON(?), "
+            f"VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32))) "
+            f"AS s(id, content, meta, embedding) "
+            "ON t.id = s.id "
+            "WHEN MATCHED THEN "
+            "UPDATE SET t.content = s.content, t.meta = s.meta, t.embedding = s.embedding "
+            "WHEN NOT MATCHED THEN "
+            "INSERT (id, content, meta, embedding) "
+            "VALUES (s.id, s.content, s.meta, s.embedding)"
+        )
+        async with self._async_transaction("Failed to upsert documents") as cur:
+            for row in rows:
+                await cur.execute(merge_sql, row)
+        return len(documents)
+
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Asynchronously filter documents using SQL-based metadata and field conditions.
+
+        Uses ibm_db's :class:`AsyncConnection` / :class:`AsyncCursor` API
+        (ibm_db >= 3.3.0) so the event loop is not blocked.
+
+        :param filters: Optional filter dictionary to constrain the returned documents.
+        :return: List of matching documents.
+        """
+        sql = f"SELECT id, content, SYSTOOLS.BSON2JSON(meta) AS meta, embedding FROM {self.table_name}"
+        params: list[Any] = []
+        if filters:
+            where_clause, params = self._build_where_clause(filters)
+            sql = f"{sql} {where_clause}"
+        sql = f"{sql} ORDER BY id"
+        async with self._async_transaction("Failed to filter documents") as cur:
+            await cur.execute(sql, params)
+            rows = await cur.fetchall()
+        return [_row_to_document(row) for row in rows]
+
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
+        """
+        Asynchronously delete documents by their IDs.
+
+        Uses ibm_db's :class:`AsyncConnection` / :class:`AsyncCursor` API
+        (ibm_db >= 3.3.0) so the event loop is not blocked.
+
+        :param document_ids: List of document IDs to delete.
+        """
+        if not document_ids:
+            return
+        placeholders = ", ".join("?" for _ in document_ids)
+        async with self._async_transaction("Failed to delete documents") as cur:
+            await cur.execute(
+                f"DELETE FROM {self.table_name} WHERE id IN ({placeholders})",
+                document_ids,
+            )
+
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: list[float],
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieve documents by embedding similarity.
+
+        Uses ibm_db's :class:`AsyncConnection` / :class:`AsyncCursor` API
+        (ibm_db >= 3.3.0) so the event loop is not blocked.
+
+        :param query_embedding: Query embedding vector.
+        :param filters: Optional filters to apply.
+        :param top_k: Number of documents to retrieve.
+        :return: List of documents with similarity scores.
+        :raises ValueError: If *query_embedding* is invalid.
+        """
+        self._validate_embedding(query_embedding, allow_none=False)
+
+        embedding_str = f"{query_embedding}"
+        where_clause, filter_params = self._build_where_clause(filters) if filters else ("", [])
+
+        null_check = "embedding IS NOT NULL"
+        if where_clause:
+            where_clause = f"{where_clause} AND {null_check}"
+        else:
+            where_clause = f"WHERE {null_check}"
+
+        sql = (
+            f"SELECT id, content, SYSTOOLS.BSON2JSON(meta) AS meta, embedding, "
+            f"VECTOR_DISTANCE(embedding, VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32), "
+            f"{self.distance_metric}) AS score "
+            f"FROM {self.table_name} "
+            f"{where_clause} "
+            f"ORDER BY score ASC FETCH FIRST ? ROWS ONLY"
+        )
+        params: list[Any] = [embedding_str, *filter_params, top_k]
+
+        async with self._async_transaction("Failed to retrieve documents by embedding") as cur:
+            await cur.execute(sql, params)
+            try:
+                rows = await cur.fetchall()
+            except BaseException as e:
+                error_msg = str(e)
+                cause_msg = str(e.__cause__) if hasattr(e, "__cause__") and e.__cause__ else ""
+                if (
+                    "SQL0801N" in error_msg
+                    or "Division by zero" in error_msg
+                    or "SQL0801N" in cause_msg
+                    or "Division by zero" in cause_msg
+                ):
                     rows = []
                 else:
                     raise

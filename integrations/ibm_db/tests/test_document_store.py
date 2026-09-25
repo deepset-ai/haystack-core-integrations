@@ -4,9 +4,10 @@
 
 """Integration tests for IBM DB2 Document Store using Haystack mixin tests."""
 
+import asyncio
 import math
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 from haystack.dataclasses import Document
@@ -711,3 +712,123 @@ class TestIBMDb2DocumentStoreUnit:
 
         assert values == []
         assert total_count == 0
+
+
+@pytest.fixture
+def async_mocked_store(unit_store) -> tuple:
+    """Fixture that wires an AsyncMock async connection into *unit_store*."""
+    async_conn = AsyncMock()
+    async_cursor = AsyncMock()
+    async_conn.cursor.return_value = async_cursor
+    async_cursor.rowcount = 1
+
+    unit_store._async_connection = async_conn
+    unit_store._async_table_initialized = True
+    return unit_store, async_conn, async_cursor
+
+
+class TestIBMDb2DocumentStoreAsync:
+    """Unit tests for the ibm_db AsyncConnection / AsyncCursor-based async methods."""
+
+    async def test_count_documents_async(self, async_mocked_store):
+        store, _, cur = async_mocked_store
+        cur.fetchone.return_value = (7,)
+
+        result = await store.count_documents_async()
+
+        assert result == 7
+        cur.execute.assert_awaited_once()
+        sql = cur.execute.call_args.args[0]
+        assert "SELECT COUNT(*)" in sql
+
+    async def test_count_documents_async_empty_table(self, async_mocked_store):
+        store, _, cur = async_mocked_store
+        cur.fetchone.return_value = None
+
+        result = await store.count_documents_async()
+
+        assert result == 0
+
+    async def test_write_documents_async_empty_list_returns_zero(self, async_mocked_store):
+        store, _, _ = async_mocked_store
+        result = await store.write_documents_async([])
+        assert result == 0
+
+    async def test_write_documents_async_inserts_documents(self, async_mocked_store):
+        store, conn, cur = async_mocked_store
+        docs = [Document(id="d1", content="hello", embedding=[0.1, 0.2, 0.3, 0.4])]
+
+        result = await store.write_documents_async(docs)
+
+        assert result == 1
+        cur.executemany.assert_awaited_once()
+        conn.commit.assert_awaited()
+
+    async def test_write_documents_async_raises_on_invalid_type(self, async_mocked_store):
+        store, _, _ = async_mocked_store
+        with pytest.raises(ValueError, match="Expected a list of Document objects"):
+            await store.write_documents_async("not a list")  # type: ignore[arg-type]
+
+    async def test_filter_documents_async_no_filters(self, async_mocked_store):
+        store, _, cur = async_mocked_store
+        cur.fetchall.return_value = [
+            ("id1", "content1", '{"k": "v"}', None),
+        ]
+
+        result = await store.filter_documents_async()
+
+        assert len(result) == 1
+        assert result[0].id == "id1"
+        cur.execute.assert_awaited_once()
+        sql = cur.execute.call_args.args[0]
+        assert "SELECT id" in sql
+        assert "ORDER BY id" in sql
+
+    async def test_filter_documents_async_with_filters(self, async_mocked_store):
+        store, _, cur = async_mocked_store
+        cur.fetchall.return_value = []
+
+        await store.filter_documents_async(filters={"operator": "==", "field": "meta.k", "value": "v"})
+
+        cur.execute.assert_awaited_once()
+        sql = cur.execute.call_args.args[0]
+        assert "WHERE" in sql
+
+    async def test_delete_documents_async_empty_list_is_noop(self, async_mocked_store):
+        store, _, cur = async_mocked_store
+        await store.delete_documents_async([])
+        cur.execute.assert_not_awaited()
+
+    async def test_delete_documents_async_generates_placeholders(self, async_mocked_store):
+        store, _, cur = async_mocked_store
+        await store.delete_documents_async(["id1", "id2", "id3"])
+
+        cur.execute.assert_awaited_once()
+        sql = cur.execute.call_args.args[0]
+        assert "DELETE FROM" in sql
+        assert sql.count("?") == 3
+
+    async def test_embedding_retrieval_async_uses_async_cursor(self, async_mocked_store):
+        store, _, cur = async_mocked_store
+        cur.fetchall.return_value = [
+            ("id1", "doc content", '{"k": "v"}', "[0.1, 0.2, 0.3, 0.4]", 0.12),
+        ]
+
+        docs = await store._embedding_retrieval_async([0.1, 0.2, 0.3, 0.4], top_k=5)
+
+        assert len(docs) == 1
+        assert docs[0].id == "id1"
+        assert docs[0].score == pytest.approx(0.12)
+        cur.execute.assert_awaited_once()
+        sql = cur.execute.call_args.args[0]
+        assert "VECTOR_DISTANCE" in sql
+        assert "FETCH FIRST ? ROWS ONLY" in sql
+
+    async def test_close_async_closes_connection(self, async_mocked_store):
+        store, conn, _ = async_mocked_store
+        store._async_connection_lock = asyncio.Lock()
+
+        await store.close_async()
+
+        conn.close.assert_awaited_once()
+        assert store._async_connection is None

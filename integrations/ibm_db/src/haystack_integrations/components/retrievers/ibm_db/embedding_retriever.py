@@ -76,6 +76,33 @@ class IBMDb2EmbeddingRetriever:
         )
         return {"documents": docs}
 
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self,
+        query_embedding: list[float],
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+    ) -> dict[str, list[Document]]:
+        """
+        Asynchronously retrieve documents by vector similarity.
+
+        This is the async variant of :meth:`run`. The underlying IBM Db2 operations are
+        offloaded to a thread pool via :func:`asyncio.to_thread` so that the event loop
+        is not blocked.
+
+        :param query_embedding: Dense float vector from an embedder component.
+        :param filters: Runtime filters, merged with constructor filters according to filter_policy.
+        :param top_k: Override the constructor top_k for this call.
+        :returns: A dictionary with key `documents` containing a list of matching :class:`Document` objects.
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        docs = await self.document_store._embedding_retrieval_async(
+            query_embedding,
+            filters=filters,
+            top_k=top_k if top_k is not None else self.top_k,
+        )
+        return {"documents": docs}
+
     def close(self) -> None:
         """
         Release the synchronous resources of the underlying Document Store.
