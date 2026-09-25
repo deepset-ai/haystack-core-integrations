@@ -19,7 +19,9 @@ from haystack.errors import FilterError
 from haystack.utils import Secret, deserialize_secrets_inplace
 from redis.exceptions import ResponseError
 
-import falkordb  # type: ignore[import-untyped,import-not-found]
+from falkordb import FalkorDB, Graph  # type: ignore[import-untyped]
+from falkordb.asyncio import FalkorDB as AsyncFalkorDB  # type: ignore[import-untyped]
+from falkordb.asyncio.graph import AsyncGraph  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +129,16 @@ class FalkorDBDocumentStore(DocumentStore):
         self.recreate_graph = recreate_graph
         self.verify_connectivity = verify_connectivity
 
-        # Lazy — populated on first use via ensure_connected().
-        self.client: Any = None
-        self.graph: Any = None
+        # Lazy — populated on first use via warm_up().
+        self.client: FalkorDB | None = None
+        self.graph: Graph | None = None
         self.initialized: bool = False
+        self.async_client: AsyncFalkorDB | None = None
+        self.async_graph: AsyncGraph | None = None
+        self.async_initialized: bool = False
 
         if verify_connectivity:
-            self._ensure_connected()
+            self.warm_up()
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -179,11 +184,22 @@ class FalkorDBDocumentStore(DocumentStore):
             self.graph = None
             self.initialized = False
 
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self.async_client is not None:
+            with suppress(Exception):
+                await self.async_client.aclose()
+            self.async_client = None
+            self.async_graph = None
+            self.async_initialized = False
+
     # ------------------------------------------------------------------
     # Internal connection helpers
     # ------------------------------------------------------------------
 
-    def _ensure_connected(self) -> None:
+    def warm_up(self) -> None:
         """
         Lazily open the FalkorDB connection and set up the graph schema.
 
@@ -195,7 +211,7 @@ class FalkorDBDocumentStore(DocumentStore):
 
         password_value = self.password.resolve_value() if self.password is not None else None
 
-        self.client = falkordb.FalkorDB(
+        client = FalkorDB(
             host=self.host,
             port=self.port,
             username=self.username,
@@ -205,11 +221,12 @@ class FalkorDBDocumentStore(DocumentStore):
         if self.recreate_graph:
             try:
                 # In falkordb-py, delete() is a method of the Graph object
-                self.client.select_graph(self.graph_name).delete()
+                client.select_graph(self.graph_name).delete()
             except Exception:
                 logger.debug("Graph '%s' could not be deleted (may not exist yet).", self.graph_name)
 
-        self.graph = self.client.select_graph(self.graph_name)
+        self.client = client
+        self.graph = client.select_graph(self.graph_name)
         self._ensure_schema()
         self.initialized = True
 
@@ -219,9 +236,14 @@ class FalkorDBDocumentStore(DocumentStore):
 
         Uses only standard OpenCypher / FalkorDB-native syntax — **no APOC**.
         """
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph must be initialized before ensuring the schema."
+            raise RuntimeError(msg)
+
         # Property index on (:node_label {id}) for fast MERGE lookups.
         try:
-            self.graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
+            graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
                 logger.debug("Property index on %s(id) already exists — skipping creation.", self.node_label)
@@ -235,7 +257,73 @@ class FalkorDBDocumentStore(DocumentStore):
                 f"ON (d.{self.embedding_field}) "
                 f"OPTIONS {{dimension: {self.embedding_dim}, similarityFunction: '{self.similarity}'}}"
             )
-            self.graph.query(cypher)
+            graph.query(cypher)
+        except ResponseError as e:
+            if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
+                logger.debug(
+                    "Vector index on %s(%s) already exists — skipping creation.",
+                    self.node_label,
+                    self.embedding_field,
+                )
+            else:
+                raise e
+
+    async def warm_up_async(self) -> None:
+        """
+        Lazily open the asynchronous FalkorDB connection and set up the graph schema.
+
+        Called at the start of every asynchronous public method so the store remains
+        serialisable without an active database connection.
+        """
+        if self.async_initialized:
+            return
+
+        password_value = self.password.resolve_value() if self.password is not None else None
+
+        async_client = AsyncFalkorDB(
+            host=self.host,
+            port=self.port,
+            username=self.username,
+            password=password_value,
+        )
+
+        if self.recreate_graph:
+            try:
+                await async_client.select_graph(self.graph_name).delete()
+            except Exception:
+                logger.debug("Graph '%s' could not be deleted (may not exist yet).", self.graph_name)
+
+        self.async_client = async_client
+        self.async_graph = async_client.select_graph(self.graph_name)
+        await self._ensure_schema_async()
+        self.async_initialized = True
+
+    async def _ensure_schema_async(self) -> None:
+        """
+        Create the property index and vector index if they do not already exist.
+
+        Uses only standard OpenCypher / FalkorDB-native syntax — **no APOC**.
+        """
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph must be initialized before ensuring the schema."
+            raise RuntimeError(msg)
+
+        try:
+            await graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
+        except ResponseError as e:
+            if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
+                logger.debug("Property index on %s(id) already exists — skipping creation.", self.node_label)
+            else:
+                raise e
+
+        try:
+            cypher = (
+                f"CREATE VECTOR INDEX FOR (d:{self.node_label}) "
+                f"ON (d.{self.embedding_field}) "
+                f"OPTIONS {{dimension: {self.embedding_dim}, similarityFunction: '{self.similarity}'}}"
+            )
+            await graph.query(cypher)
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
                 logger.debug(
@@ -256,8 +344,12 @@ class FalkorDBDocumentStore(DocumentStore):
 
         :returns: Integer count of document nodes.
         """
-        self._ensure_connected()
-        result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN count(d) AS n")
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        result = graph.query(f"MATCH (d:{self.node_label}) RETURN count(d) AS n")
         rows = result.result_set
         return int(rows[0][0]) if rows else 0
 
@@ -271,9 +363,13 @@ class FalkorDBDocumentStore(DocumentStore):
         :returns: List of matching :class:`haystack.dataclasses.Document` objects.
         :raises ValueError: If the filter dict is malformed.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         if not filters:
-            result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN d ORDER BY d.id")
+            result = graph.query(f"MATCH (d:{self.node_label}) RETURN d ORDER BY d.id")
             return [_node_to_document(row[0]) for row in result.result_set]
 
         if "operator" not in filters:
@@ -283,7 +379,7 @@ class FalkorDBDocumentStore(DocumentStore):
         where_clause, params = _convert_filters(filters)
         cypher = f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN d ORDER BY d.id"
 
-        result = self.graph.query(cypher, params)
+        result = graph.query(cypher, params)
         return [_node_to_document(row[0]) for row in result.result_set]
 
     def write_documents(
@@ -307,7 +403,11 @@ class FalkorDBDocumentStore(DocumentStore):
         :raises DocumentStoreError: If any other DB error occurs.
         :returns: Number of documents written or updated.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
 
         for doc in documents:
             if not isinstance(doc, Document):
@@ -321,17 +421,18 @@ class FalkorDBDocumentStore(DocumentStore):
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
-        document_objects = self._handle_duplicate_documents(documents, policy)
+        document_objects = self._handle_duplicate_documents(graph, documents, policy)
 
         written = 0
         for batch_start in range(0, len(document_objects), self.write_batch_size):
             batch = document_objects[batch_start : batch_start + self.write_batch_size]
-            written += self._write_batch(batch, policy)
+            written += self._write_batch(graph, batch, policy)
 
         return written
 
     def _handle_duplicate_documents(
         self,
+        graph: Graph,
         documents: list[Document],
         policy: DuplicatePolicy,
     ) -> list[Document]:
@@ -349,7 +450,7 @@ class FalkorDBDocumentStore(DocumentStore):
 
             # Step 2: find which IDs already exist in the DB.
             ids = [doc.id for doc in documents]
-            existing = self.graph.query(
+            existing = graph.query(
                 f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) RETURN d.id",
                 {"ids": ids},
             )
@@ -386,7 +487,7 @@ class FalkorDBDocumentStore(DocumentStore):
             seen_ids.add(doc.id)
         return unique
 
-    def _write_batch(self, documents: list[Document], policy: DuplicatePolicy) -> int:
+    def _write_batch(self, graph: Graph, documents: list[Document], policy: DuplicatePolicy) -> int:
         """
         Write a single batch of documents using a single UNWIND query.
 
@@ -419,7 +520,7 @@ RETURN count(d) AS n
 """
 
         try:
-            result = self.graph.query(cypher, {"docs": records})
+            result = graph.query(cypher, {"docs": records})
             rows = result.result_set
             written = int(rows[0][0]) if rows else 0
         except Exception as exc:
@@ -436,7 +537,7 @@ RETURN count(d) AS n
         if docs_with_emb:
             emb_rows = [{"id": doc.id, "emb": doc.embedding} for doc in docs_with_emb]
             try:
-                self.graph.query(
+                graph.query(
                     f"""
 UNWIND $docs AS doc
 MATCH (d:{self.node_label} {{id: doc.id}})
@@ -456,10 +557,14 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         :param document_ids: List of document IDs to remove from the graph.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         if not document_ids:
             return
-        self.graph.query(
+        graph.query(
             f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) DETACH DELETE d",
             {"ids": document_ids},
         )
@@ -468,8 +573,12 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         Delete all documents from the graph.
         """
-        self._ensure_connected()
-        self.graph.query(f"MATCH (d:{self.node_label}) DETACH DELETE d")
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        graph.query(f"MATCH (d:{self.node_label}) DETACH DELETE d")
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -478,14 +587,18 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param filters: Haystack filter dict.
         :returns: Number of documents deleted.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         where_clause, params = _convert_filters(filters)
-        count_result = self.graph.query(
+        count_result = graph.query(
             f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
             params,
         )
         count = int(count_result.result_set[0][0]) if count_result.result_set else 0
-        self.graph.query(
+        graph.query(
             f"MATCH (d:{self.node_label}) WHERE {where_clause} DETACH DELETE d",
             params,
         )
@@ -499,11 +612,15 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param meta: Metadata fields to set. Keys may include or omit the `meta.` prefix.
         :returns: Number of documents updated.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         where_clause, params = _convert_filters(filters)
         flat_meta = {k[5:] if k.startswith("meta.") else k: v for k, v in meta.items()}
         params["meta_update"] = flat_meta
-        result = self.graph.query(
+        result = graph.query(
             f"MATCH (d:{self.node_label}) WHERE {where_clause} SET d += $meta_update RETURN count(d) AS n",
             params,
         )
@@ -517,9 +634,13 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param filters: Haystack filter dict.
         :returns: Integer count of matching document nodes.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         where_clause, params = _convert_filters(filters)
-        result = self.graph.query(
+        result = graph.query(
             f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
             params,
         )
@@ -534,7 +655,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param metadata_fields: List of metadata field names. May include or omit the `meta.` prefix.
         :returns: Dict mapping each field name (without `meta.` prefix) to its unique value count.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         if filters:
             where_clause, params = _convert_filters(filters)
             match = f"MATCH (d:{self.node_label}) WHERE {where_clause}"
@@ -545,7 +670,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         result: dict[str, int] = {}
         for field in metadata_fields:
             actual = field[5:] if field.startswith("meta.") else field
-            res = self.graph.query(
+            res = graph.query(
                 f"{match} RETURN count(DISTINCT d.{actual}) AS n",
                 params,
             )
@@ -560,9 +685,13 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :returns: Dict mapping field names to a `{"type": <typename>}` dict.
             Type names are `"str"`, `"int"`, `"float"`, or `"bool"`.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         standard_fields = {"id", "content", "embedding", "score", "sparse_embedding"}
-        result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN keys(d)")
+        result = graph.query(f"MATCH (d:{self.node_label}) RETURN keys(d)")
         all_keys: set[str] = set()
         for row in result.result_set:
             all_keys.update(row[0])
@@ -570,7 +699,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         info: dict[str, dict[str, str]] = {}
         for key in sorted(all_keys):
-            res = self.graph.query(f"MATCH (d:{self.node_label}) WHERE d.{key} IS NOT NULL RETURN d.{key} LIMIT 1")
+            res = graph.query(f"MATCH (d:{self.node_label}) WHERE d.{key} IS NOT NULL RETURN d.{key} LIMIT 1")
             if not res.result_set:
                 continue
             val = res.result_set[0][0]
@@ -593,9 +722,13 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :returns: Dict with keys `"min"` and `"max"`. Values are `None` when no documents
             have a non-null value for the field.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-        result = self.graph.query(
+        result = graph.query(
             f"MATCH (d:{self.node_label}) WHERE d.{field} IS NOT NULL RETURN min(d.{field}), max(d.{field})"
         )
         if not result.result_set:
@@ -630,7 +763,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             `total_count` is the number of distinct values matching the filter, independent of
             pagination.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
 
         query_params: dict[str, Any] = {"from_": from_, "size": size}
@@ -655,7 +792,396 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             f"WITH collect(val) AS vals "
             f"RETURN vals[$from_..$from_ + $size] AS page, size(vals) AS total"
         )
-        result = self.graph.query(cypher, query_params)
+        result = graph.query(cypher, query_params)
+        if not result.result_set:
+            return [], 0
+        page, total = result.result_set[0]
+        return list(page), total
+
+    async def count_documents_async(self) -> int:
+        """
+        Return the number of documents currently stored in the graph asynchronously.
+
+        :returns: Integer count of document nodes.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        result = await graph.query(f"MATCH (d:{self.node_label}) RETURN count(d) AS n")
+        rows = result.result_set
+        return int(rows[0][0]) if rows else 0
+
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Retrieve all documents that match the provided Haystack filters asynchronously.
+
+        :param filters: Optional Haystack filter dict. When `None` all documents are returned.
+        :returns: List of matching Documents.
+        :raises FilterError: If the filter dict is malformed.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        if not filters:
+            result = await graph.query(f"MATCH (d:{self.node_label}) RETURN d ORDER BY d.id")
+            return [_node_to_document(row[0]) for row in result.result_set]
+
+        if "operator" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering"
+            raise FilterError(msg)
+
+        where_clause, params = _convert_filters(filters)
+        cypher = f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN d ORDER BY d.id"
+        result = await graph.query(cypher, params)
+        return [_node_to_document(row[0]) for row in result.result_set]
+
+    async def write_documents_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
+    ) -> int:
+        """
+        Write documents to the FalkorDB graph asynchronously using batched queries.
+
+        :param documents: List of Documents to write.
+        :param policy: How to handle documents whose `id` already exists.
+        :returns: Number of documents written or updated.
+        :raises ValueError: If `documents` contains non-Document elements.
+        :raises DuplicateDocumentError: If a duplicate is encountered under FAIL / NONE.
+        :raises DocumentStoreError: If any other DB error occurs.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"write_documents() expects a list of Documents but got an element of type {type(doc)}."
+                raise ValueError(msg)
+
+        if not documents:
+            logger.warning("Calling FalkorDBDocumentStore.write_documents() with an empty list.")
+            return 0
+
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
+
+        document_objects = await self._handle_duplicate_documents_async(graph, documents, policy)
+
+        written = 0
+        for batch_start in range(0, len(document_objects), self.write_batch_size):
+            batch = document_objects[batch_start : batch_start + self.write_batch_size]
+            written += await self._write_batch_async(graph, batch, policy)
+
+        return written
+
+    async def _handle_duplicate_documents_async(
+        self,
+        graph: AsyncGraph,
+        documents: list[Document],
+        policy: DuplicatePolicy,
+    ) -> list[Document]:
+        """Check for duplicate document IDs asynchronously."""
+        if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
+            documents = self._drop_duplicate_documents(documents)
+            ids = [doc.id for doc in documents]
+            existing = await graph.query(
+                f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) RETURN d.id",
+                {"ids": ids},
+            )
+            ids_exist_in_db: list[str] = [row[0] for row in existing.result_set]
+
+            if ids_exist_in_db and policy == DuplicatePolicy.FAIL:
+                msg = f"Document with ids '{', '.join(ids_exist_in_db)}' already exists in graph '{self.graph_name}'."
+                raise DuplicateDocumentError(msg)
+
+            if ids_exist_in_db:
+                existing_set = set(ids_exist_in_db)
+                documents = [d for d in documents if d.id not in existing_set]
+
+        return documents
+
+    async def _write_batch_async(self, graph: AsyncGraph, documents: list[Document], policy: DuplicatePolicy) -> int:
+        """Write a single batch of documents asynchronously."""
+        records = [_document_to_falkordb_record(doc) for doc in documents]
+
+        if policy == DuplicatePolicy.OVERWRITE:
+            cypher = f"""
+UNWIND $docs AS doc
+MERGE (d:{self.node_label} {{id: doc.id}})
+ON CREATE SET d += doc
+ON MATCH SET d = doc
+RETURN count(d) AS n
+"""
+        else:
+            cypher = f"""
+UNWIND $docs AS doc
+MERGE (d:{self.node_label} {{id: doc.id}})
+ON CREATE SET d += doc
+RETURN count(d) AS n
+"""
+
+        try:
+            result = await graph.query(cypher, {"docs": records})
+            rows = result.result_set
+            written = int(rows[0][0]) if rows else 0
+        except Exception as exc:
+            msg = f"Failed to write documents to FalkorDB: {exc}"
+            raise DocumentStoreError(msg) from exc
+
+        docs_with_emb = [doc for doc in documents if doc.embedding is not None]
+        if docs_with_emb:
+            emb_rows = [{"id": doc.id, "emb": doc.embedding} for doc in docs_with_emb]
+            try:
+                await graph.query(
+                    f"""
+UNWIND $docs AS doc
+MATCH (d:{self.node_label} {{id: doc.id}})
+SET d.{self.embedding_field} = vecf32(doc.emb)
+""",
+                    {"docs": emb_rows},
+                )
+            except Exception as exc:
+                msg = f"Failed to set embeddings in FalkorDB: {exc}"
+                raise DocumentStoreError(msg) from exc
+
+        return written
+
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
+        """
+        Delete documents by their IDs asynchronously.
+
+        :param document_ids: List of document IDs to remove from the graph.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        if not document_ids:
+            return
+        await graph.query(
+            f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) DETACH DELETE d",
+            {"ids": document_ids},
+        )
+
+    async def delete_all_documents_async(self) -> None:
+        """Delete all documents from the graph asynchronously."""
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        await graph.query(f"MATCH (d:{self.node_label}) DETACH DELETE d")
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Delete all documents that match the provided filters asynchronously.
+
+        :param filters: Haystack filter dict.
+        :returns: Number of documents deleted.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        where_clause, params = _convert_filters(filters)
+        count_result = await graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
+            params,
+        )
+        count = int(count_result.result_set[0][0]) if count_result.result_set else 0
+        await graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} DETACH DELETE d",
+            params,
+        )
+        return count
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Update metadata fields on matching documents asynchronously.
+
+        :param filters: Haystack filter dict selecting which documents to update.
+        :param meta: Metadata fields to set. Keys may include or omit the `meta.` prefix.
+        :returns: Number of documents updated.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        where_clause, params = _convert_filters(filters)
+        flat_meta = {k[5:] if k.startswith("meta.") else k: v for k, v in meta.items()}
+        params["meta_update"] = flat_meta
+        result = await graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} SET d += $meta_update RETURN count(d) AS n",
+            params,
+        )
+        rows = result.result_set
+        return int(rows[0][0]) if rows else 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Return the number of documents that match the provided filters asynchronously.
+
+        :param filters: Haystack filter dict.
+        :returns: Integer count of matching document nodes.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        where_clause, params = _convert_filters(filters)
+        result = await graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
+            params,
+        )
+        rows = result.result_set
+        return int(rows[0][0]) if rows else 0
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Count unique metadata values among matching documents asynchronously.
+
+        :param filters: Haystack filter dict. Pass an empty dict to count across all documents.
+        :param metadata_fields: Metadata field names, with or without the `meta.` prefix.
+        :returns: Mapping of field names to unique value counts.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        if filters:
+            where_clause, params = _convert_filters(filters)
+            match = f"MATCH (d:{self.node_label}) WHERE {where_clause}"
+        else:
+            params = {}
+            match = f"MATCH (d:{self.node_label})"
+
+        result: dict[str, int] = {}
+        for field in metadata_fields:
+            actual = field[5:] if field.startswith("meta.") else field
+            res = await graph.query(
+                f"{match} RETURN count(DISTINCT d.{actual}) AS n",
+                params,
+            )
+            rows = res.result_set
+            result[actual] = int(rows[0][0]) if rows else 0
+        return result
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Return metadata field type information asynchronously.
+
+        :returns: Mapping of field names to type information.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        standard_fields = {"id", "content", "embedding", "score", "sparse_embedding"}
+        result = await graph.query(f"MATCH (d:{self.node_label}) RETURN keys(d)")
+        all_keys: set[str] = set()
+        for row in result.result_set:
+            all_keys.update(row[0])
+        all_keys -= standard_fields
+
+        info: dict[str, dict[str, str]] = {}
+        for key in sorted(all_keys):
+            res = await graph.query(f"MATCH (d:{self.node_label}) WHERE d.{key} IS NOT NULL RETURN d.{key} LIMIT 1")
+            if not res.result_set:
+                continue
+            val = res.result_set[0][0]
+            if isinstance(val, bool):
+                type_name = "bool"
+            elif isinstance(val, int):
+                type_name = "int"
+            elif isinstance(val, float):
+                type_name = "float"
+            else:
+                type_name = "str"
+            info[key] = {"type": type_name}
+        return info
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Return the minimum and maximum metadata values asynchronously.
+
+        :param metadata_field: Metadata field name, with or without the `meta.` prefix.
+        :returns: Dict with `min` and `max` values.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+        result = await graph.query(
+            f"MATCH (d:{self.node_label}) WHERE d.{field} IS NOT NULL RETURN min(d.{field}), max(d.{field})"
+        )
+        if not result.result_set:
+            return {"min": None, "max": None}
+        row = result.result_set[0]
+        return {"min": row[0], "max": row[1]}
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
+        """
+        Return distinct metadata values with filtering and pagination asynchronously.
+
+        :param metadata_field: Metadata field name, with or without the `meta.` prefix.
+        :param search_term: Optional case-insensitive substring filter.
+        :param from_: Pagination offset.
+        :param size: Maximum values to return.
+        :param filters: Optional filters restricting the documents considered.
+        :returns: Tuple of values and total distinct value count.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        if graph is None:
+            msg = "The asynchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
+        field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+        query_params: dict[str, Any] = {"from_": from_, "size": size}
+        where_parts = [f"d.{field} IS NOT NULL"]
+
+        if filters:
+            filters_where_clause, filters_params = _convert_filters(filters)
+            where_parts.append(filters_where_clause)
+            query_params.update(filters_params)
+
+        if search_term:
+            where_parts.append(f"toLower(toString(d.{field})) CONTAINS toLower($search_term)")
+            query_params["search_term"] = search_term
+
+        where = " AND ".join(where_parts)
+        cypher = (
+            f"MATCH (d:{self.node_label}) WHERE {where} "
+            f"WITH DISTINCT d.{field} AS val "
+            f"ORDER BY val "
+            f"WITH collect(val) AS vals "
+            f"RETURN vals[$from_..$from_ + $size] AS page, size(vals) AS total"
+        )
+        result = await graph.query(cypher, query_params)
         if not result.result_set:
             return [], 0
         page, total = result.result_set[0]
@@ -689,7 +1215,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param scale_score: Whether to scale the raw similarity score to `[0, 1]`.
         :returns: List of :class:`Document` objects ordered by similarity (best first).
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
 
         if filters:
             where_clause, filter_params = _convert_filters(filters)
@@ -714,7 +1244,7 @@ ORDER BY score ASC, d.id ASC
 """
             params = {"top_k": top_k, "query_embedding": query_embedding}
 
-        result = self.graph.query(cypher, params)
+        result = graph.query(cypher, params)
         documents = []
         for row in result.result_set:
             node, score = row[0], row[1]
@@ -740,12 +1270,16 @@ ORDER BY score ASC, d.id ASC
         :returns: List of :class:`Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
-        self._ensure_connected()
+        self.warm_up()
+        graph = self.graph
+        if graph is None:
+            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
+            raise RuntimeError(msg)
 
         try:
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
-            result = self.graph.query(cypher_query, parameters or {})
+            result = graph.query(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
