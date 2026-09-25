@@ -143,6 +143,9 @@ class TestQdrantDocumentStoreAsyncUnit:
     @pytest.mark.parametrize(
         ("method_name", "args"),
         [
+            ("count_documents_async", ()),
+            ("delete_all_documents_async", (False,)),
+            ("delete_all_documents_async", (True,)),
             ("count_documents_by_filter_async", ({},)),
             ("get_metadata_fields_info_async", ()),
             ("get_metadata_field_min_max_async", ("score",)),
@@ -150,7 +153,7 @@ class TestQdrantDocumentStoreAsyncUnit:
             ("get_metadata_field_unique_values_async", ("category",)),
         ],
     )
-    async def test_metadata_methods_async_raise_on_client_errors(self, method_name, args):
+    async def test_operations_async_raise_on_client_errors(self, method_name, args):
         document_store = QdrantDocumentStore(location=":memory:")
         await document_store._initialize_async_client()
         err = ValueError("boom")
@@ -158,9 +161,11 @@ class TestQdrantDocumentStoreAsyncUnit:
             patch.object(document_store._async_client, "count", side_effect=err),
             patch.object(document_store._async_client, "scroll", side_effect=err),
             patch.object(document_store._async_client, "get_collection", side_effect=err),
+            patch.object(document_store._async_client, "delete", side_effect=err),
         ):
-            with pytest.raises(QdrantStoreError):
+            with pytest.raises(QdrantStoreError) as exc_info:
                 await getattr(document_store, method_name)(*args)
+            assert exc_info.value.__cause__ is err
 
     async def test_close_async(self):
         document_store = QdrantDocumentStore(location=":memory:")

@@ -379,6 +379,9 @@ class TestQdrantDocumentStoreUnit:
     @pytest.mark.parametrize(
         ("method_name", "args"),
         [
+            ("count_documents", ()),
+            ("delete_all_documents", (False,)),
+            ("delete_all_documents", (True,)),
             ("count_documents_by_filter", ({},)),
             ("get_metadata_fields_info", ()),
             ("get_metadata_field_min_max", ("score",)),
@@ -386,7 +389,7 @@ class TestQdrantDocumentStoreUnit:
             ("get_metadata_field_unique_values", ("category",)),
         ],
     )
-    def test_metadata_methods_raise_on_client_errors(self, method_name, args):
+    def test_operations_raise_on_client_errors(self, method_name, args):
         document_store = QdrantDocumentStore(location=":memory:")
         document_store._initialize_client()
         err = ValueError("boom")
@@ -394,9 +397,11 @@ class TestQdrantDocumentStoreUnit:
             patch.object(document_store._client, "count", side_effect=err),
             patch.object(document_store._client, "scroll", side_effect=err),
             patch.object(document_store._client, "get_collection", side_effect=err),
+            patch.object(document_store._client, "delete", side_effect=err),
         ):
-            with pytest.raises(QdrantStoreError):
+            with pytest.raises(QdrantStoreError) as exc_info:
                 getattr(document_store, method_name)(*args)
+            assert exc_info.value.__cause__ is err
 
     def test_close(self):
         document_store = QdrantDocumentStore(location=":memory:")
