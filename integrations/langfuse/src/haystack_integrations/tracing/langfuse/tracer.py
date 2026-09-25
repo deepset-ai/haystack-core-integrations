@@ -88,9 +88,14 @@ class LangfuseSpan(Span):
         """
         if not proxy_tracer.is_content_tracing_enabled:
             return
+        # Values aren't always dicts of ChatMessages: e.g. Agent tool results can be None, numbers, or strings
         if key.endswith(".input"):
-            if "messages" in value:
-                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in (value.get("messages") or [])]
+            messages = (
+                _to_openai_messages(value.get("messages") or [])
+                if isinstance(value, dict) and "messages" in value
+                else None
+            )
+            if messages is not None:
                 if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
                     self._span.update(input={"messages": messages, "generation_kwargs": gen_kwargs})
                 else:
@@ -99,13 +104,10 @@ class LangfuseSpan(Span):
                 coerced_value = tracing_utils.coerce_tag_value(value)
                 self._span.update(input=coerced_value)
         elif key.endswith(".output"):
-            if "replies" in value:
+            if isinstance(value, dict) and "replies" in value:
                 replies_list = value.get("replies") or []
-                if all(isinstance(r, ChatMessage) for r in replies_list):
-                    replies = [m.to_openai_dict_format(require_tool_call_ids=False) for m in replies_list]
-                else:
-                    replies = replies_list
-                self._span.update(output=replies)
+                replies = _to_openai_messages(replies_list)
+                self._span.update(output=replies if replies is not None else replies_list)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
                 self._span.update(output=coerced_value)
@@ -274,6 +276,22 @@ def _sanitize_usage_data(usage: dict[str, Any]) -> dict[str, Any]:
         sanitized["output_tokens"] = usage["completion_tokens"]
 
     return sanitized
+
+
+def _to_openai_messages(value: Any) -> list[dict[str, Any]] | None:
+    """
+    Convert a traced `messages` or `replies` value to OpenAI message format.
+
+    :param value: The traced value.
+    :returns: The converted messages, or None if the value is not a list of ChatMessages that can be converted.
+    """
+    if not isinstance(value, list) or not all(isinstance(m, ChatMessage) for m in value):
+        return None
+    try:
+        return [m.to_openai_dict_format(require_tool_call_ids=False) for m in value]
+    except ValueError:
+        # Some valid messages have no OpenAI representation, e.g. tool results containing images
+        return None
 
 
 class DefaultSpanHandler(SpanHandler):
