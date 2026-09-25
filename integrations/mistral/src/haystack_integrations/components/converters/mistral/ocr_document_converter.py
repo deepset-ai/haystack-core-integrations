@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import re
 from pathlib import Path
@@ -46,8 +50,8 @@ class MistralOCRDocumentConverter:
     **Usage Example:**
     ```python
     from haystack.utils import Secret
-    from haystack_integrations.mistral import MistralOCRDocumentConverter
-    from mistralai.models import DocumentURLChunk, ImageURLChunk, FileChunk
+    from haystack_integrations.components.converters.mistral import MistralOCRDocumentConverter
+    from mistralai.client.models import DocumentURLChunk, ImageURLChunk, FileChunk
 
     converter = MistralOCRDocumentConverter(
         api_key=Secret.from_env_var("MISTRAL_API_KEY"),
@@ -68,8 +72,9 @@ class MistralOCRDocumentConverter:
 
     **Structured Output Example:**
     ```python
+    from mistralai.client.models import DocumentURLChunk
     from pydantic import BaseModel, Field
-    from haystack_integrations.mistral import MistralOCRDocumentConverter
+    from haystack_integrations.components.converters.mistral import MistralOCRDocumentConverter
 
     # Define schema for structured image annotations
     class ImageAnnotation(BaseModel):
@@ -80,8 +85,8 @@ class MistralOCRDocumentConverter:
     # Define schema for structured document annotations
     class DocumentAnnotation(BaseModel):
         language: str = Field(..., description="Primary language of the document")
-        chapter_titles: List[str] = Field(..., description="Detected chapter or section titles")
-        urls: List[str] = Field(..., description="URLs found in the text")
+        chapter_titles: list[str] = Field(..., description="Detected chapter or section titles")
+        urls: list[str] = Field(..., description="URLs found in the text")
 
     converter = MistralOCRDocumentConverter(
         model="mistral-ocr-latest",
