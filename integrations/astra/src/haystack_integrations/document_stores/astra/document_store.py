@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from asyncio import Lock
 from collections.abc import Generator
 from typing import Any
+from warnings import warn
 
-from astrapy import DataAPIClient
+from astrapy import AsyncCollection, DataAPIClient
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
@@ -19,7 +21,10 @@ from .astra_client import (
     AstraClient,
     QueryResponse,
     _collection_definition,
-    _collection_exists,
+    _collection_indexing_warning,
+    _find_collection,
+    _format_query_response,
+    _vector_find_kwargs,
 )
 from .errors import AstraDocumentStoreFilterError
 from .filters import _convert_filters
@@ -82,8 +87,8 @@ class AstraDocumentStore:
               - `DuplicatePolicy.SKIP`: if a Document with the same ID already exists, it is skipped and not written.
               - `DuplicatePolicy.OVERWRITE`: if a Document with the same ID already exists, it is overwritten.
               - `DuplicatePolicy.FAIL`: if a Document with the same ID already exists, an error is raised.
-        :param similarity: Retained for compatibility. Collections use their existing metric, or the Astra DB
-            default metric for new collections; this parameter does not override it.
+        :param similarity: Similarity metric for new collections: `cosine`, `dot_product`, or `euclidean`.
+            Existing collections retain their configured metric.
         :param namespace: The keyspace containing the collection, or the SDK default when omitted.
 
         :raises ValueError: if the API endpoint or token is not set.
@@ -114,6 +119,8 @@ class AstraDocumentStore:
         self.similarity = similarity
         self.namespace = namespace
         self._index: AstraClient | None = None
+        self._async_collection: AsyncCollection | None = None
+        self._async_collection_lock = Lock()
 
     @property
     def index(self) -> AstraClient:
@@ -129,6 +136,42 @@ class AstraDocumentStore:
             )
         return self._index
 
+    async def _get_async_collection(self) -> AsyncCollection:
+        async with self._async_collection_lock:
+            if self._async_collection is None:
+                client = DataAPIClient(callers=[(CALLER_NAME, integration_version)], api_options=_API_OPTIONS)
+                async with client.get_async_database(
+                    api_endpoint=self.resolved_api_endpoint,
+                    token=self.resolved_token,
+                    keyspace=self.namespace,
+                ) as database:
+                    descriptor = _find_collection(self.collection_name, await database.list_collections())
+                    if descriptor is not None:
+                        warning = _collection_indexing_warning(descriptor)
+                        if warning is not None:
+                            warn(warning, UserWarning, stacklevel=3)
+                        self._async_collection = database.get_collection(self.collection_name)
+                    else:
+                        # Listing and creation are not atomic; propagate concurrent configuration conflicts.
+                        self._async_collection = await database.create_collection(
+                            name=self.collection_name,
+                            definition=_collection_definition(self.embedding_dimension, self.similarity),
+                        )
+            return self._async_collection
+
+    async def close_async(self) -> None:
+        """
+        Release the cached async collection connection without deleting documents.
+
+        Call this on the same event loop as `search_async`, after all searches have finished and before
+        closing the loop. Repeated calls are safe; a later search opens a new connection.
+        """
+        async with self._async_collection_lock:
+            if self._async_collection is not None:
+                # AstraPy 2 exposes connection cleanup through its async context manager protocol.
+                await self._async_collection.__aexit__()
+                self._async_collection = None
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AstraDocumentStore":
         """
@@ -138,10 +181,16 @@ class AstraDocumentStore:
             Dictionary to deserialize from.
         :returns:
             Deserialized component.
+        :raises ValueError: The serialized `duplicates_policy` is not a valid policy name.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
-        if isinstance(data["init_parameters"].get("duplicates_policy"), str):
-            data["init_parameters"]["duplicates_policy"] = DuplicatePolicy[data["init_parameters"]["duplicates_policy"]]
+        policy = data["init_parameters"].get("duplicates_policy")
+        if isinstance(policy, str):
+            try:
+                data["init_parameters"]["duplicates_policy"] = DuplicatePolicy[policy]
+            except KeyError as e:
+                msg = f"Invalid duplicates_policy '{policy}'. Expected one of {[p.name for p in DuplicatePolicy]}."
+                raise ValueError(msg) from e
         return default_from_dict(cls, data)
 
     def to_dict(self) -> dict[str, Any]:
@@ -482,8 +531,8 @@ class AstraDocumentStore:
         """
         Search using AstraPy's native async API.
 
-        Each call checks the collection and releases its database and collection connections on completion,
-        including on failure or cancellation. This adds a collection-listing request per search.
+        The collection connection is initialized lazily and reused across searches on the same event loop.
+        Call `close_async()` when finished, including after failures or cancellation, before closing the loop.
 
         :param query_embedding: A list of query embeddings.
         :param top_k: The number of results to return.
@@ -491,34 +540,15 @@ class AstraDocumentStore:
         :returns: Matching documents, including embeddings, metadata and similarity scores.
         """
         converted_filters = _convert_filters(filters)
-        client = DataAPIClient(callers=[(CALLER_NAME, integration_version)], api_options=_API_OPTIONS)
-        async with client.get_async_database(
-            api_endpoint=self.resolved_api_endpoint,
-            token=self.resolved_token,
-            keyspace=self.namespace,
-        ) as database:
-            if _collection_exists(self.collection_name, await database.list_collections()):
-                collection = database.get_collection(self.collection_name)
-            else:
-                collection = await database.create_collection(
-                    name=self.collection_name,
-                    definition=_collection_definition(self.embedding_dimension),
-                )
-            async with collection:
-                responses = [
-                    response
-                    async for response in collection.find(
-                        filter=converted_filters,
-                        sort={"$vector": query_embedding},
-                        limit=top_k,
-                        include_similarity=True,
-                        projection={"*": 1},
-                    )
-                ]
+        collection = await self._get_async_collection()
+        responses = [
+            response
+            async for response in collection.find(**_vector_find_kwargs(query_embedding, top_k, converted_filters))
+        ]
         if not responses:
             logger.warning("No documents found.")
         return self._get_result_to_documents(
-            AstraClient._format_query_response(responses, include_metadata=True, include_values=True)
+            _format_query_response(responses, include_metadata=True, include_values=True)
         )
 
     def delete_documents(self, document_ids: list[str]) -> None:

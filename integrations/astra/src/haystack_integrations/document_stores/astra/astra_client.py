@@ -19,40 +19,48 @@ logger = logging.getLogger(__name__)
 
 NON_INDEXED_FIELDS = ["metadata._node_content", "content"]
 CALLER_NAME = "haystack"
-# Binary encoding introduced in AstraPy 2 rounds embeddings to float32.
-_API_OPTIONS = APIOptions(serdes_options=SerdesOptions(binary_encode_vectors=False))
+# Preserve embedding precision and plain Python types when reading with AstraPy 2.
+_API_OPTIONS = APIOptions(serdes_options=SerdesOptions(binary_encode_vectors=False, custom_datatypes_in_reading=False))
 
 
-def _collection_definition(embedding_dimension: int) -> dict[str, Any]:
-    # Preserve the SDK-default metric used by existing versions of this integration.
-    return {"vector": {"dimension": embedding_dimension}, "indexing": {"deny": NON_INDEXED_FIELDS}}
+def _collection_definition(embedding_dimension: int, similarity: str) -> dict[str, Any]:
+    return {
+        "vector": {"dimension": embedding_dimension, "metric": similarity},
+        "indexing": {"deny": NON_INDEXED_FIELDS},
+    }
 
 
-def _collection_exists(collection_name: str, collections: list[CollectionDescriptor]) -> bool:
-    for descriptor in collections:
-        if descriptor.name != collection_name:
-            continue
-        indexing = descriptor.definition.indexing or {}
-        if not indexing:
-            warn(
-                f"Collection '{collection_name}' is detected as having indexing turned on for all fields "
-                "(either created manually or by older versions of this plugin). This implies stricter "
-                "limitations on the amount of text each entry can store. Consider indexing anew on a "
-                "fresh collection to be able to store longer texts.",
-                UserWarning,
-                stacklevel=3,
-            )
-        elif indexing != {"deny": NON_INDEXED_FIELDS}:
-            warn(
-                f"Collection '{collection_name}' has unexpected 'indexing' settings "
-                f"(options.indexing = {json.dumps(indexing)}). This can result in odd behaviour when running "
-                "metadata filtering and/or unwarranted limitations on storing long texts. "
-                "Consider indexing anew on a fresh collection.",
-                UserWarning,
-                stacklevel=3,
-            )
-        return True
-    return False
+def _find_collection(collection_name: str, collections: list[CollectionDescriptor]) -> CollectionDescriptor | None:
+    return next((descriptor for descriptor in collections if descriptor.name == collection_name), None)
+
+
+def _collection_indexing_warning(descriptor: CollectionDescriptor) -> str | None:
+    indexing = descriptor.definition.indexing or {}
+    if not indexing:
+        return (
+            f"Collection '{descriptor.name}' is detected as having indexing turned on for all fields "
+            "(either created manually or by older versions of this plugin). This implies stricter "
+            "limitations on the amount of text each entry can store. Consider indexing anew on a "
+            "fresh collection to be able to store longer texts."
+        )
+    if indexing != {"deny": NON_INDEXED_FIELDS}:
+        return (
+            f"Collection '{descriptor.name}' has unexpected 'indexing' settings "
+            f"(options.indexing = {json.dumps(indexing)}). This can result in odd behaviour when running "
+            "metadata filtering and/or unwarranted limitations on storing long texts. "
+            "Consider indexing anew on a fresh collection."
+        )
+    return None
+
+
+def _vector_find_kwargs(vector: list[float], top_k: int | None, filters: dict[str, Any] | None) -> dict[str, Any]:
+    return {
+        "filter": filters,
+        "sort": {"$vector": vector},
+        "limit": top_k,
+        "include_similarity": True,
+        "projection": {"*": 1},
+    }
 
 
 @dataclass
@@ -71,6 +79,24 @@ class QueryResponse:
     def get(self, key: str) -> Any:  # noqa: ANN401
         """Return the value for the given key."""
         return self.__dict__[key]
+
+
+def _format_query_response(
+    responses: list[dict[str, Any]] | None,
+    *,
+    include_metadata: bool | None,
+    include_values: bool | None,
+) -> QueryResponse:
+    final_res = []
+    for raw_response in responses or []:
+        response = raw_response.copy()
+        document_id = response.pop("_id")
+        score = response.pop("$similarity", None)
+        text = response.pop("content", None)
+        values = response.pop("$vector", None) if include_values else []
+        metadata = response if include_metadata else {}
+        final_res.append(Response(document_id, text, values, metadata, score))
+    return QueryResponse(final_res)
 
 
 class AstraClient:
@@ -122,12 +148,17 @@ class AstraClient:
         )
 
         # AstraPy 2 no longer checks for existing collections before creation.
-        if _collection_exists(collection_name, self._astra_db.list_collections()):
+        descriptor = _find_collection(collection_name, self._astra_db.list_collections())
+        if descriptor is not None:
+            warning = _collection_indexing_warning(descriptor)
+            if warning is not None:
+                warn(warning, UserWarning, stacklevel=2)
             self._astra_db_collection = self._astra_db.get_collection(collection_name)
         else:
+            # Listing and creation are not atomic; propagate concurrent configuration conflicts.
             self._astra_db_collection = self._astra_db.create_collection(
                 name=collection_name,
-                definition=_collection_definition(embedding_dimension),
+                definition=_collection_definition(embedding_dimension, similarity_function),
             )
 
     def query(
@@ -160,7 +191,7 @@ class AstraClient:
 
         # include_metadata means return all columns in the table (including text that got embedded)
         # include_values means return the vector of the embedding for the searched items
-        formatted_response = self._format_query_response(
+        formatted_response = _format_query_response(
             responses, include_metadata=include_metadata, include_values=include_values
         )
 
@@ -171,43 +202,13 @@ class AstraClient:
 
         return self.find_documents(query)
 
-    @staticmethod
-    def _format_query_response(
-        responses: list[dict[str, Any]] | None,
-        *,
-        include_metadata: bool | None,
-        include_values: bool | None,
-    ) -> QueryResponse:
-        final_res = []
-
-        if responses is None:
-            return QueryResponse(matches=[])
-
-        for response in responses:
-            _id = response.pop("_id")
-            score = response.pop("$similarity", None)
-            text = response.pop("content", None)
-            values = response.pop("$vector", None) if include_values else []
-
-            metadata = response if include_metadata else {}  # Add all remaining fields to the metadata
-
-            rsp = Response(_id, text, values, metadata, score)
-
-            final_res.append(rsp)
-
-        return QueryResponse(final_res)
-
     def _query(
         self, vector: list[float], top_k: int | None, filters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        query = {"sort": {"$vector": vector}, "limit": top_k, "includeSimilarity": True}
-
-        if filters is not None:
-            query["filter"] = filters
-
-        result = self.find_documents(query)
-
-        return result
+        responses = list(self._astra_db_collection.find(**_vector_find_kwargs(vector, top_k, filters)))
+        if not responses:
+            logger.warning("No documents found.")
+        return responses
 
     def find_documents(
         self, find_query: dict[str, Any], projection: dict[str, Any] | None = None
@@ -274,7 +275,7 @@ class AstraClient:
             if docs:
                 document_batch.extend(docs)
 
-        formatted_docs = self._format_query_response(document_batch, include_metadata=True, include_values=True)
+        formatted_docs = _format_query_response(document_batch, include_metadata=True, include_values=True)
 
         return formatted_docs
 

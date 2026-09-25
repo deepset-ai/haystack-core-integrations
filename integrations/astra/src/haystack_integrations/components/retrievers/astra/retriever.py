@@ -92,7 +92,8 @@ class AstraEmbeddingRetriever:
         """
         Retrieve documents from the AstraDocumentStore asynchronously.
 
-        Uses the native async Astra DB API and releases connections after each search.
+        Uses the native async Astra DB API with a reusable connection. Call `document_store.close_async()`
+        when finished, before closing the event loop.
 
         :param query_embedding: floats representing the query embedding
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on

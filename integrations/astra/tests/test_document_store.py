@@ -2,16 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import operator
 import os
 from copy import deepcopy
 from unittest import mock
-from uuid import uuid4
 
 import pytest
-from astrapy import AsyncCollection, AsyncDatabase, Collection, DataAPIClient
-from astrapy.info import CollectionDefinition, CollectionDescriptor
+from astrapy import Collection, DataAPIClient
 from haystack import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -27,12 +24,6 @@ from haystack.utils import Secret
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 from haystack_integrations.document_stores.astra.errors import AstraDocumentStoreFilterError
-
-
-@pytest.fixture
-def mock_auth(monkeypatch):
-    monkeypatch.setenv("ASTRA_DB_API_ENDPOINT", "http://example.com")
-    monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "test_token")
 
 
 @pytest.fixture
@@ -83,7 +74,15 @@ def test_configuration_round_trip(mock_auth, policy):  # noqa: ARG001
     assert restored.token.resolve_value() == "test_token"
 
 
-def test_native_sync_write_read_and_configuration(mock_auth):  # noqa: ARG001
+def test_from_dict_invalid_duplicates_policy(mock_auth):  # noqa: ARG001
+    serialized = AstraDocumentStore().to_dict()
+    serialized["init_parameters"]["duplicates_policy"] = "INVALID"
+    with pytest.raises(ValueError, match=r"Invalid duplicates_policy 'INVALID'\. Expected one of"):
+        AstraDocumentStore.from_dict(serialized)
+
+
+@pytest.fixture
+def native_sync_store(mock_auth):  # noqa: ARG001
     with mock.patch(
         "haystack_integrations.document_stores.astra.astra_client.AstraDBClient", autospec=DataAPIClient
     ) as client:
@@ -91,118 +90,61 @@ def test_native_sync_write_read_and_configuration(mock_auth):  # noqa: ARG001
         database.list_collections.return_value = []
         collection = mock.MagicMock(spec=Collection)
         database.create_collection.return_value = collection
-        collection.find.side_effect = [[], [{"_id": "1", "content": "text", "$vector": [0.1] * 4, "meta": {}}]]
-        collection.insert_many.return_value.inserted_ids = ["1"]
-        store = AstraDocumentStore(collection_name="custom", embedding_dimension=4, namespace="keyspace")
-        doc = Document(id="1", content="text", embedding=[0.1] * 4)
-        assert store.write_documents([doc]) == 1
-        assert store.get_documents_by_id(["1"]) == [doc]
-        assert client.call_args.kwargs["api_options"].serdes_options.binary_encode_vectors is False
-        client.return_value.get_database.assert_called_once_with(
-            api_endpoint="http://example.com", token="test_token", keyspace="keyspace"
+        store = AstraDocumentStore(
+            collection_name="custom", embedding_dimension=4, similarity="dot_product", namespace="keyspace"
         )
-        database.create_collection.assert_called_once_with(
-            name="custom",
-            definition={"vector": {"dimension": 4}, "indexing": {"deny": ["metadata._node_content", "content"]}},
-        )
-        inserted = collection.insert_many.call_args.kwargs["documents"][0]
-        assert inserted["_id"] == "1"
-        assert inserted["$vector"] == [0.1] * 4
-        assert doc.embedding == [0.1] * 4
-
-
-@pytest.fixture
-def native_async_store(mock_auth):  # noqa: ARG001
-    with mock.patch(
-        "haystack_integrations.document_stores.astra.document_store.DataAPIClient", autospec=DataAPIClient
-    ) as client:
-        database = mock.MagicMock(spec=AsyncDatabase)
-        collection = mock.MagicMock(spec=AsyncCollection)
-        database.__aenter__.return_value = database
-        collection.__aenter__.return_value = collection
-        database.list_collections.return_value = []
-        database.create_collection.return_value = collection
-        database.get_collection.return_value = collection
-        client.return_value.get_async_database.return_value = database
-        store = AstraDocumentStore(collection_name="custom", embedding_dimension=4, namespace="keyspace")
         yield store, client, database, collection
 
 
-@pytest.mark.parametrize("existing", [False, True])
-async def test_search_async_uses_native_api(native_async_store, existing):
-    store, client, database, collection = native_async_store
-    if existing:
-        database.list_collections.return_value = [
-            CollectionDescriptor(
-                name="custom",
-                definition=CollectionDefinition(indexing={"deny": ["metadata._node_content", "content"]}),
-                raw_descriptor={},
-            )
-        ]
-    collection.find.return_value.__aiter__.return_value = [
-        {"_id": "1", "content": "text", "$vector": [0.1] * 4, "meta": {"category": "news"}, "$similarity": 0.9}
-    ]
-    filters = {"field": "meta.category", "operator": "==", "value": "news"}
-    with mock.patch("asyncio.to_thread", side_effect=AssertionError("Thread fallback")):
-        result = await store.search_async([0.2] * 4, 2, filters)
-    assert result == [Document(id="1", content="text", embedding=[0.1] * 4, meta={"category": "news"}, score=0.9)]
-    assert store._index is None
-    assert client.call_args.kwargs["api_options"].serdes_options.binary_encode_vectors is False
-    client.return_value.get_database.assert_not_called()
-    client.return_value.get_async_database.assert_called_once_with(
+def test_native_sync_configuration(native_sync_store):
+    store, client, database, _ = native_sync_store
+    assert store.index is not None
+    serdes = client.call_args.kwargs["api_options"].serdes_options
+    assert serdes.binary_encode_vectors is False
+    assert serdes.custom_datatypes_in_reading is False
+    client.return_value.get_database.assert_called_once_with(
         api_endpoint="http://example.com", token="test_token", keyspace="keyspace"
     )
-    database.list_collections.assert_awaited_once()
-    if existing:
-        database.create_collection.assert_not_awaited()
-        database.get_collection.assert_called_once_with("custom")
-    else:
-        database.create_collection.assert_awaited_once_with(
-            name="custom",
-            definition={"vector": {"dimension": 4}, "indexing": {"deny": ["metadata._node_content", "content"]}},
-        )
+    database.create_collection.assert_called_once_with(
+        name="custom",
+        definition={
+            "vector": {"dimension": 4, "metric": "dot_product"},
+            "indexing": {"deny": ["metadata._node_content", "content"]},
+        },
+    )
+
+
+def test_native_sync_write_read(native_sync_store):
+    store, _, _, collection = native_sync_store
+    collection.find.side_effect = [[], [{"_id": "1", "content": "text", "$vector": [0.1] * 4, "meta": {}}]]
+    collection.insert_many.return_value.inserted_ids = ["1"]
+    doc = Document(id="1", content="text", embedding=[0.1] * 4)
+    assert store.write_documents([doc]) == 1
+    assert store.get_documents_by_id(["1"]) == [doc]
+
+
+@pytest.mark.parametrize("filters", [None, {"field": "meta.category", "operator": "==", "value": "news"}])
+def test_search_uses_native_api(native_sync_store, filters):
+    store, _, _, collection = native_sync_store
+    collection.find.return_value = [
+        {"_id": "1", "content": "text", "$vector": [0.1] * 4, "meta": {"category": "news"}, "$similarity": 0.9}
+    ]
+    result = store.search([0.2] * 4, 2, filters)
+    assert result == [Document(id="1", content="text", embedding=[0.1] * 4, meta={"category": "news"}, score=0.9)]
     collection.find.assert_called_once_with(
-        filter={"meta.category": {"$eq": "news"}},
+        filter={"meta.category": {"$eq": "news"}} if filters else None,
         sort={"$vector": [0.2] * 4},
         limit=2,
         include_similarity=True,
         projection={"*": 1},
     )
-    collection.__aexit__.assert_awaited_once()
-    database.__aexit__.assert_awaited_once()
 
 
-@pytest.mark.parametrize("failure", [RuntimeError("query failed"), asyncio.CancelledError()])
-async def test_search_async_releases_resources_on_failure(native_async_store, failure):
-    store, _, database, collection = native_async_store
-
-    async def failing_cursor():
-        yield {"_id": "1", "content": "first page"}
-        raise failure
-
-    collection.find.return_value = failing_cursor()
-    with pytest.raises(type(failure)):
-        await store.search_async([0.1] * 4, 2)
-    collection.__aexit__.assert_awaited_once()
-    database.__aexit__.assert_awaited_once()
-
-
-async def test_search_async_releases_database_on_initialization_failure(native_async_store):
-    store, _, database, collection = native_async_store
-    database.create_collection.side_effect = RuntimeError("creation failed")
-    with pytest.raises(RuntimeError, match="creation failed"):
-        await store.search_async([0.1] * 4, 2)
-    database.__aexit__.assert_awaited_once()
-    collection.__aenter__.assert_not_awaited()
-
-
-async def test_search_async_empty_results(native_async_store, caplog):
-    store, _, database, collection = native_async_store
-    collection.find.return_value.__aiter__.return_value = []
-    assert await store.search_async([0.1] * 4, 2) == []
+def test_search_empty_results(native_sync_store, caplog):
+    store, _, _, collection = native_sync_store
+    collection.find.return_value = []
+    assert store.search([0.1] * 4, 2) == []
     assert "No documents found" in caplog.text
-    collection.__aexit__.assert_awaited_once()
-    database.__aexit__.assert_awaited_once()
 
 
 def test_count_documents_by_filter(mocked_store):
@@ -393,15 +335,14 @@ class TestDocumentStore(
     @pytest.fixture(scope="class")
     def document_store(self):
         store = AstraDocumentStore(
-            collection_name=f"haystack_test_{uuid4().hex}",
+            collection_name="haystack_test_document_store",
             duplicates_policy=DuplicatePolicy.OVERWRITE,
             embedding_dimension=768,
         )
         try:
             yield store
         finally:
-            if store._index is not None:
-                store.index._astra_db.drop_collection(store.collection_name)
+            store.index._astra_db.drop_collection(store.collection_name)
 
     @pytest.fixture(autouse=True)
     def run_before_tests(self, document_store: AstraDocumentStore):

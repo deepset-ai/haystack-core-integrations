@@ -2,17 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from datetime import datetime
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
+from astrapy.data.utils.collection_converters import postprocess_collection_response
 from astrapy.exceptions import DataAPIResponseException
 from astrapy.info import CollectionDefinition, CollectionDescriptor
+from astrapy.utils.api_options import defaultAPIOptions
 
 from haystack_integrations.document_stores.astra.astra_client import (
+    _API_OPTIONS,
     AstraClient,
     QueryResponse,
     Response,
+    _format_query_response,
 )
 
 CLIENT_PATH = "haystack_integrations.document_stores.astra.astra_client.AstraDBClient"
@@ -44,11 +49,26 @@ def test_query_response_get_returns_value():
     assert QueryResponse(matches=[match]).get("matches") == [match]
 
 
+def test_api_options_read_plain_python_types():
+    serdes = defaultAPIOptions(environment="prod").with_override(_API_OPTIONS).serdes_options
+    doc = postprocess_collection_response(
+        {"_id": "1", "$vector": [0.12345678901234568, 0.2], "meta": {"d": {"$date": 0}}}, options=serdes
+    )
+    assert isinstance(doc["$vector"], list)
+    assert doc["$vector"] == [0.12345678901234568, 0.2]
+    assert isinstance(doc["meta"]["d"], datetime)
+
+
 class TestAstraClientInit:
-    def test_creates_collection(self, client):
-        client._astra_db.create_collection.assert_called_once_with(
+    @pytest.mark.parametrize("similarity", ["cosine", "dot_product", "euclidean"])
+    def test_creates_collection(self, mock_db, similarity):
+        client = AstraClient(**{**CLIENT_KWARGS, "similarity_function": similarity})
+        mock_db.create_collection.assert_called_once_with(
             name="my_collection",
-            definition={"vector": {"dimension": 4}, "indexing": {"deny": ["metadata._node_content", "content"]}},
+            definition={
+                "vector": {"dimension": 4, "metric": similarity},
+                "indexing": {"deny": ["metadata._node_content", "content"]},
+            },
         )
         assert client._astra_db_collection is client._astra_db.create_collection.return_value
 
@@ -86,7 +106,14 @@ class TestAstraClientInit:
     def test_collection_creation_error_propagates(self, mock_db):
         mock_db.create_collection.side_effect = DataAPIResponseException.from_response(
             command=None,
-            raw_response={"errors": [{"message": "incompatible collection", "errorCode": "INVALID_COLLECTION_NAME"}]},
+            raw_response={
+                "errors": [
+                    {
+                        "message": "Collection already exists with different settings",
+                        "errorCode": "EXISTING_COLLECTION_DIFFERENT_SETTINGS",
+                    }
+                ]
+            },
         )
         mock_db.list_collections.return_value = []
         with pytest.raises(DataAPIResponseException):
@@ -102,9 +129,7 @@ class TestAstraClientInit:
 )
 def test_format_query_response(include_metadata, include_values, expected_meta, expected_values):
     responses = [{"_id": "1", "$similarity": 0.5, "content": "hi", "$vector": [0.1], "meta": {"k": "v"}}]
-    result = AstraClient._format_query_response(
-        responses, include_metadata=include_metadata, include_values=include_values
-    )
+    result = _format_query_response(responses, include_metadata=include_metadata, include_values=include_values)
     match = result.matches[0]
     assert (match.document_id, match.score, match.text) == ("1", 0.5, "hi")
     assert match.values == expected_values
@@ -112,7 +137,7 @@ def test_format_query_response(include_metadata, include_values, expected_meta, 
 
 
 def test_format_query_response_with_none_returns_empty_matches():
-    assert AstraClient._format_query_response(None, include_metadata=True, include_values=True).matches == []
+    assert _format_query_response(None, include_metadata=True, include_values=True).matches == []
 
 
 class TestAstraClientMethods:

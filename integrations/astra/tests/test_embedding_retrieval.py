@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from uuid import uuid4
 
 import pytest
 from haystack import Document
@@ -22,15 +21,14 @@ class TestEmbeddingRetrieval:
     @pytest.fixture(scope="class")
     def document_store(self):
         store = AstraDocumentStore(
-            collection_name=f"haystack_test_{uuid4().hex}",
+            collection_name="haystack_test_embedding_retrieval",
             duplicates_policy=DuplicatePolicy.OVERWRITE,
             embedding_dimension=768,
         )
         try:
             yield store
         finally:
-            if store._index is not None:
-                store.index._astra_db.drop_collection(store.collection_name)
+            store.index._astra_db.drop_collection(store.collection_name)
 
     @pytest.fixture(autouse=True)
     def run_before_tests(self, document_store: AstraDocumentStore):
@@ -70,7 +68,12 @@ class TestEmbeddingRetrieval:
         retriever = AstraEmbeddingRetriever(document_store, filters=filters, top_k=1)
         expected = retriever.run(query_embedding=[0.1] * 768)
         assert expected["documents"][0].embedding == documents[0].embedding
-        assert await retriever.run_async(query_embedding=[0.1] * 768) == expected
         assert [doc.id for doc in expected["documents"]] == ["1"]
-        # A second invocation uses fresh resources after the previous search has closed them.
-        assert await retriever.run_async(query_embedding=[0.1] * 768) == expected
+        try:
+            assert await retriever.run_async(query_embedding=[0.1] * 768) == expected
+            assert await retriever.run_async(query_embedding=[0.1] * 768) == expected
+            await document_store.close_async()
+            assert await retriever.run_async(query_embedding=[0.1] * 768) == expected
+            assert sorted(document_store.get_documents_by_id(["1", "2"]), key=lambda doc: doc.id) == documents
+        finally:
+            await document_store.close_async()
