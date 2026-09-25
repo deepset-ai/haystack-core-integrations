@@ -29,7 +29,7 @@ class TestInitialization:
         converter = MistralOCRDocumentConverter()
 
         assert converter.api_key == Secret.from_env_var("MISTRAL_API_KEY")
-        assert converter.model == "mistral-ocr-2505"
+        assert converter.model == "mistral-ocr-4-1"
         assert converter.include_image_base64 is False
         assert converter.pages is None
         assert converter.image_limit is None
@@ -72,7 +72,7 @@ class TestSerialization:
                     "strict": True,
                     "type": "env_var",
                 },
-                "model": "mistral-ocr-2505",
+                "model": "mistral-ocr-4-1",
                 "include_image_base64": False,
                 "pages": None,
                 "image_limit": None,
@@ -111,7 +111,12 @@ class TestSerialization:
             },
         }
 
-    def test_from_dict(self, monkeypatch):
+        restored = MistralOCRDocumentConverter.from_dict(converter_dict)
+        assert restored.to_dict() == converter.to_dict()
+        assert restored.api_key.resolve_value() == "test-api-key"
+
+    @pytest.mark.parametrize("model", ["mistral-ocr-4-1", "mistral-ocr-2505"])
+    def test_from_dict(self, monkeypatch, model):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         converter_dict = {
             "type": self.CLASS_TYPE,
@@ -121,7 +126,7 @@ class TestSerialization:
                     "strict": True,
                     "type": "env_var",
                 },
-                "model": "mistral-ocr-2505",
+                "model": model,
                 "include_image_base64": False,
                 "pages": None,
                 "image_limit": None,
@@ -132,7 +137,7 @@ class TestSerialization:
 
         converter = MistralOCRDocumentConverter.from_dict(converter_dict)
 
-        assert converter.model == "mistral-ocr-2505"
+        assert converter.model == model
         assert converter.include_image_base64 is False
         assert converter.pages is None
         assert converter.image_limit is None
@@ -707,17 +712,23 @@ class TestRun:
     @pytest.mark.integration
     def test_integration_run_with_document_url(self):
         """Integration test with real API call using arxiv PDF"""
-        converter = MistralOCRDocumentConverter()
+        converter = MistralOCRDocumentConverter(pages=[0, 1])
 
         sources = [DocumentURLChunk(document_url="https://arxiv.org/pdf/1706.03762")]
-        result = converter.run(sources=sources)
+        try:
+            result = converter.run(sources=sources)
+        finally:
+            converter.close()
 
         assert len(result["documents"]) == 1
         assert isinstance(result["documents"][0], Document)
         assert len(result["documents"][0].content) > 0
-        assert result["documents"][0].meta["source_page_count"] > 0
-        assert "raw_mistral_response" in result
+        assert result["documents"][0].meta["source_page_count"] == 2
+        assert "attention is all you need" in result["documents"][0].content.lower()
         assert len(result["raw_mistral_response"]) == 1
+        pages = result["raw_mistral_response"][0]["pages"]
+        assert [page["index"] for page in pages] == [0, 1]
+        assert result["documents"][0].content == "\f".join(page["markdown"] for page in pages)
 
     @pytest.mark.skipif(
         not os.environ.get("MISTRAL_API_KEY"),
@@ -726,7 +737,8 @@ class TestRun:
     @pytest.mark.integration
     def test_integration_run_with_annotations(self):
         """Integration test with real API call using annotation schemas"""
-        converter = MistralOCRDocumentConverter(pages=[0])  # Only process first page for speed
+        # Page 3 contains the Transformer architecture figure, exercising bbox annotations too.
+        converter = MistralOCRDocumentConverter(pages=[2])
 
         # Define simple annotation schemas
         class ImageAnnotation(BaseModel):
@@ -739,15 +751,29 @@ class TestRun:
             language: str = Field(..., description="The primary language of the document")
 
         sources = [DocumentURLChunk(document_url="https://arxiv.org/pdf/1706.03762")]
-        result = converter.run(
-            sources=sources,
-            bbox_annotation_schema=ImageAnnotation,
-            document_annotation_schema=DocumentAnnotation,
-        )
+        try:
+            result = converter.run(
+                sources=sources,
+                bbox_annotation_schema=ImageAnnotation,
+                document_annotation_schema=DocumentAnnotation,
+            )
+        finally:
+            converter.close()
 
         assert len(result["documents"]) == 1
         doc = result["documents"][0]
         assert isinstance(doc, Document)
         assert len(doc.content) > 0
-        # Check if document annotation was added to metadata
-        assert "source_language" in doc.meta
+        assert doc.meta["source_language"].lower() == "english"
+        assert doc.meta["source_page_count"] == 1
+        assert doc.meta["source_total_images"] > 0
+        assert len(result["raw_mistral_response"]) == 1
+        response = result["raw_mistral_response"][0]
+        annotation = DocumentAnnotation.model_validate_json(response["document_annotation"])
+        assert doc.meta["source_language"] == annotation.language
+        assert response["pages"][0]["index"] == 2
+        for image in response["pages"][0]["images"]:
+            annotation = ImageAnnotation.model_validate_json(image["image_annotation"])
+            assert annotation.image_type
+            assert image["image_annotation"] in doc.content
+        assert "**Image Annotation:**" in doc.content

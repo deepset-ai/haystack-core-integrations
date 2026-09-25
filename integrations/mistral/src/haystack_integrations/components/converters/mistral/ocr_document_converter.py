@@ -51,7 +51,7 @@ class MistralOCRDocumentConverter:
 
     converter = MistralOCRDocumentConverter(
         api_key=Secret.from_env_var("MISTRAL_API_KEY"),
-        model="mistral-ocr-2505"
+        model="mistral-ocr-latest"
     )
 
     # Process multiple sources
@@ -84,7 +84,7 @@ class MistralOCRDocumentConverter:
         urls: List[str] = Field(..., description="URLs found in the text")
 
     converter = MistralOCRDocumentConverter(
-        model="mistral-ocr-2505",
+        model="mistral-ocr-latest",
     )
 
     sources = [DocumentURLChunk(document_url="https://example.com/report.pdf")]
@@ -100,10 +100,10 @@ class MistralOCRDocumentConverter:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
-        "mistral-ocr-2512",
+        "mistral-ocr-3-0",
+        "mistral-ocr-4-0",
+        "mistral-ocr-4-1",
         "mistral-ocr-latest",
-        "mistral-ocr-2503",
-        "mistral-ocr-2505",
     ]
     """A list of models supported by Mistral AI
     see [Mistral AI docs](https://docs.mistral.ai/getting-started/models) for more information
@@ -112,7 +112,7 @@ class MistralOCRDocumentConverter:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
-        model: str = "mistral-ocr-2505",
+        model: str = "mistral-ocr-4-1",
         include_image_base64: bool = False,
         pages: list[int] | None = None,
         image_limit: int | None = None,
@@ -125,8 +125,7 @@ class MistralOCRDocumentConverter:
         :param api_key:
             The Mistral API key. Defaults to the MISTRAL_API_KEY environment variable.
         :param model:
-            The OCR model to use. Default is "mistral-ocr-2505".
-            See more: https://docs.mistral.ai/getting-started/models/models_overview/
+            The OCR model to use. See more: https://docs.mistral.ai/getting-started/models/models_overview/
         :param include_image_base64:
             If True, includes base64 encoded images in the response.
             This may significantly increase response size and processing time.
