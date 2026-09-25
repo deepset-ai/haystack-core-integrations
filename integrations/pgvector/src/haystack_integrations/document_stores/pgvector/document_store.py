@@ -923,7 +923,7 @@ class PgvectorDocumentStore:
             )
             raise DocumentStoreError(error_msg) from e
 
-        # get the number of the inserted documents, inspired by psycopg3 docs
+        # executemany(returning=True) yields one result set per document, so walk them all with nextset()
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
         while True:
@@ -981,6 +981,7 @@ class PgvectorDocumentStore:
             raise DocumentStoreError(error_msg) from e
 
         # executemany(returning=True) yields one result set per document, so walk them all with nextset()
+        # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
         while True:
             if await self._async_cursor.fetchone():
