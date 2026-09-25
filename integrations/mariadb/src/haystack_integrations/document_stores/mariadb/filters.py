@@ -48,6 +48,10 @@ def _parse_logical_condition(condition: dict[str, Any]) -> tuple[str, list[Any]]
         msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR', 'NOT'"
         raise FilterError(msg)
 
+    if not condition["conditions"]:
+        msg = f"'conditions' must not be empty in {condition}"
+        raise FilterError(msg)
+
     parts, all_params = [], []
     for c in condition["conditions"]:
         if "field" in c:
