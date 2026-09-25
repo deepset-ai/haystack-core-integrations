@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v6.2.0] - 2026-09-24
+
+### 🚀 Features
+
+- Add thinking_display flattened generation_kwarg to Anthropic and Bedrock chat generators (#3993)
+
+
 ## [integrations/anthropic-v6.1.0] - 2026-09-22
 
 ### 🐛 Bug Fixes

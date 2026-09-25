@@ -1388,6 +1388,49 @@ class TestRun:
         assert result["replies"][0].tool_call.arguments == {"city": "Paris"}
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_empty_tools_override(self, mock_client, tools):
+        generator = OllamaChatGenerator(model="qwen3", tools=tools)
+
+        mock_response = ChatResponse(
+            model="qwen3",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        generator.run(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        _, kwargs = mock_client_instance.chat.call_args
+        assert kwargs["tools"] is None
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_with_empty_tools_override(self, mock_async_client, tools):
+        generator = OllamaChatGenerator(model="qwen3", tools=tools)
+
+        mock_response = ChatResponse(
+            model="qwen3",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(return_value=mock_response)
+
+        await generator.run_async(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        _, kwargs = mock_async_client_instance.chat.call_args
+        assert kwargs["tools"] is None
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming_at_runtime(self, mock_client):
         streaming_callback_called = False
 

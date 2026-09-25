@@ -349,6 +349,11 @@ class AnthropicChatGenerator:
 
     def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
+        # Copy the nested dicts the flattened kwargs write into; a shallow copy would share them with the
+        # component's init-time generation_kwargs, so a per-run flattened kwarg would persist across runs.
+        for key in ("tool_choice", "thinking", "output_config"):
+            if isinstance(generation_kwargs.get(key), dict):
+                generation_kwargs[key] = dict(generation_kwargs[key])
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
@@ -384,6 +389,13 @@ class AnthropicChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        thinking_display = generation_kwargs.pop("thinking_display", None)
+        if thinking_display is not None:
+            thinking = generation_kwargs.setdefault("thinking", {})
+            # `display` is only accepted with enabled or adaptive thinking, so it's dropped when thinking is disabled
+            if thinking.get("type") != "disabled":
+                thinking["display"] = thinking_display
 
         return generation_kwargs
 
