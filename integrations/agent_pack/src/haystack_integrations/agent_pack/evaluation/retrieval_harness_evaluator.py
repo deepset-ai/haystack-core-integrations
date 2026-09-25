@@ -41,7 +41,7 @@ class RetrievalEvalCaseMetrics:
     :param retrieved: Everything the run returned, which is separate from how deep it was scored: returning more
         than `k` is not a fault, it simply earns nothing for the documents past the cutoff.
     :param missed_document_ids: The expected documents the run did not return, sorted.
-    :param latency_ms: Measured wall-clock duration of the run.
+    :param duration: How long the run took, in seconds.
     """
 
     question: str
@@ -53,7 +53,7 @@ class RetrievalEvalCaseMetrics:
     precision_at_k: float
     retrieved: int
     missed_document_ids: tuple[str, ...]
-    latency_ms: float
+    duration: float
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible representation."""
@@ -122,7 +122,7 @@ def _score_retrieval_result(
     k: int | None = None,
     min_recall: float = 1.0,
     min_precision: float = 0.0,
-    latency_ms: float,
+    duration: float,
     component_output_sizes: dict[str, dict[str, int]] | None = None,
     component_output_samples: dict[str, dict[str, list[str]]] | None = None,
 ) -> RetrievalEvalCaseMetrics:
@@ -135,7 +135,7 @@ def _score_retrieval_result(
     :param k: Rank cutoff the run is scored at, or `None` to score everything it returned.
     :param min_recall: Share of the needed documents the run must find to pass.
     :param min_precision: Share of what the run returned that must be needed for it to pass.
-    :param latency_ms: Measured wall-clock duration of the run.
+    :param duration: How long the run took, in seconds.
     :param component_output_sizes: How many items each component emitted, by component name and output socket.
     :param component_output_samples: A capped sample of whatever each component emitted as text.
     :returns: The score, naming every expectation the run missed.
@@ -162,7 +162,7 @@ def _score_retrieval_result(
         precision_at_k=precision_at_k,
         retrieved=len(set(returned_ids)),
         missed_document_ids=tuple(sorted(eval_case.expected_document_ids - found)),
-        latency_ms=latency_ms,
+        duration=duration,
     )
 
 
@@ -189,7 +189,8 @@ class RetrievalHarnessEvaluator:
             by default, because returning more than was asked for is not itself a fault.
         :param max_concurrent_eval_cases: How many eval cases to measure at once. Eval cases are independent and
             each spends its time waiting on a model, so this decides wall-clock time rather than cost. Leave it at
-            1 when ranking by latency, or the objective measures contention rather than the configuration.
+            1 when comparing configurations on `durations`, since concurrent runs contend for the same rate
+            limits and each run's duration then reflects that contention rather than the configuration.
         :raises ValueError: If `max_concurrent_eval_cases` is below one.
         """
         if max_concurrent_eval_cases < 1:
@@ -243,7 +244,7 @@ class RetrievalHarnessEvaluator:
                     if isinstance(span, HarnessSpan) and span.collected is not None
                     else EvalCaseSummary(all_tokens_reported=False)
                 )
-            latency_ms = (time.perf_counter() - started) * 1000
+            duration = time.perf_counter() - started
             eval_case_metrics = _score_retrieval_result(
                 result=result,
                 eval_case=eval_case,
@@ -251,16 +252,16 @@ class RetrievalHarnessEvaluator:
                 k=self.k,
                 min_recall=self.min_recall,
                 min_precision=self.min_precision,
-                latency_ms=latency_ms,
+                duration=duration,
                 component_output_sizes=dict(eval_case_summary.component_output_sizes),
                 component_output_samples=dict(eval_case_summary.component_output_samples),
             )
             logger.info(
-                "eval case {position}/{total} {verdict} in {latency:.0f}ms: {question}",
+                "eval case {position}/{total} {verdict} in {duration:.1f}s: {question}",
                 position=position,
                 total=len(eval_cases),
                 verdict="passed" if eval_case_metrics.passed else f"FAILED ({', '.join(eval_case_metrics.failures)})",
-                latency=latency_ms,
+                duration=duration,
                 question=eval_case.question[:80],
             )
             return eval_case_metrics, eval_case_summary
@@ -286,7 +287,7 @@ class RetrievalHarnessEvaluator:
 
         :param target: The materialized candidate pipeline to score.
         :param eval_cases: The labelled expectations to score it against.
-        :returns: Mean latency and raw model usage, with `details` holding `mean_recall_at_k`,
+        :returns: Mean duration and raw model usage, with `details` holding `mean_recall_at_k`,
             `mean_precision_at_k`, `mean_retrieved`, `component_output_sizes`, `warnings`, and one record per eval
             case under `eval_cases`.
         :raises ValueError: If no eval cases were supplied, leaving nothing to score.
@@ -313,7 +314,7 @@ class RetrievalHarnessEvaluator:
                 model_usage[model] = model_usage.get(model, ModelTokenUsage()) + tokens
 
         return EvalMetrics(
-            latency_ms=sum(metric.latency_ms for metric in eval_metrics) / len(eval_metrics),
+            durations=[metric.duration for metric in eval_metrics],
             model_usage=model_usage,
             all_tokens_reported=all(summary.all_tokens_reported for _, summary in measured),
             details={

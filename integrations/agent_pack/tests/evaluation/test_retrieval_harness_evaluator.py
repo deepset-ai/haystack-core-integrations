@@ -143,6 +143,7 @@ class TestEvaluate:
         questions = [entry["question"] for entry in concurrent.details["eval_cases"]]
         assert questions == [entry["question"] for entry in sequential.details["eval_cases"]]
         assert concurrent.details["mean_recall_at_k"] == sequential.details["mean_recall_at_k"]
+        assert concurrent.durations == [entry["duration"] for entry in concurrent.details["eval_cases"]]
 
     def test_init_invalid_concurrency(self):
         with pytest.raises(ValueError, match="at least 1"):

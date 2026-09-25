@@ -38,7 +38,7 @@ class TestRetrievalEvalCase:
 class TestEvalMetrics:
     def test_serialization_roundtrip(self):
         metrics = EvalMetrics(
-            latency_ms=12.5,
+            durations=[12.5, 3.0],
             model_usage={"model": ModelTokenUsage(input_tokens=100, output_tokens=20)},
             all_tokens_reported=False,
             details={"mean_recall": 0.5},

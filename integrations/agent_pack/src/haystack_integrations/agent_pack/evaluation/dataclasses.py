@@ -120,7 +120,7 @@ class EvalMetrics:
     """
     Metrics produced by a harness evaluator for one target configuration.
 
-    :param latency_ms: Mean end-to-end evaluation latency in milliseconds.
+    :param durations: How long each run of the target took, in seconds, one per eval case in eval case order.
     :param all_tokens_reported: Whether every LLM call the evaluation made reported its token counts. False means
         `model_usage` understates what the evaluation actually spent.
     :param model_usage: Raw token usage keyed by model identifier.
@@ -129,7 +129,7 @@ class EvalMetrics:
         documents its own keys.
     """
 
-    latency_ms: float
+    durations: list[float]
     all_tokens_reported: bool
     model_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
     cost: float | None = None
@@ -138,7 +138,7 @@ class EvalMetrics:
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible representation."""
         return {
-            "latency_ms": self.latency_ms,
+            "durations": self.durations,
             "model_usage": {model: asdict(obj=usage) for model, usage in self.model_usage.items()},
             "all_tokens_reported": self.all_tokens_reported,
             "cost": self.cost,
@@ -155,7 +155,7 @@ class EvalMetrics:
         """
         cost = data.get("cost")
         return cls(
-            latency_ms=float(data["latency_ms"]),
+            durations=[float(duration) for duration in data["durations"]],
             model_usage={model: ModelTokenUsage(**usage) for model, usage in (data.get("model_usage") or {}).items()},
             all_tokens_reported=bool(data["all_tokens_reported"]),
             cost=None if cost is None else float(cost),

@@ -20,6 +20,7 @@
 #     hatch run test:python examples/retrieval_eval.py --max-eval-cases 20 --k 5
 
 import argparse
+from statistics import median
 
 from haystack import Pipeline
 from haystack.components.generators.chat.openai_responses import OpenAIResponsesChatGenerator
@@ -104,7 +105,7 @@ def main() -> None:
     print(
         f"  recall@{arguments.k}={metrics.details['mean_recall_at_k']:.2f}  "
         f"precision@{arguments.k}={metrics.details['mean_precision_at_k']:.2f}  "
-        f"latency={metrics.latency_ms:.0f}ms"
+        f"duration={median(metrics.durations):.1f}s median ({min(metrics.durations):.1f}-{max(metrics.durations):.1f}s)"
     )
     # How much each component emitted, which no configuration value states once a pipeline pools or deduplicates.
     for component, sockets in metrics.details["component_output_sizes"].items():
@@ -130,7 +131,7 @@ def main() -> None:
         )
         print(
             f"  recall@{arguments.k}: {reported['recall_at_k']:.2f}   precision@{arguments.k}: "
-            f"{reported['precision_at_k']:.2f}   time: {reported['latency_ms']:.0f}ms"
+            f"{reported['precision_at_k']:.2f}   duration: {reported['duration']:.1f}s"
         )
         # What the pipeline actually put to the store, under the same names section 3 counted. A recall
         # failure is usually explained by the queries rather than by how many of them there were.
