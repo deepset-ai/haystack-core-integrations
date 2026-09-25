@@ -4,12 +4,12 @@
 
 | Name                                                                 |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/astra/retriever.py  |       36 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/astra/astra\_client.py   |      133 |        0 |       32 |        1 |     99% | 294-\>292 |
-| src/haystack\_integrations/document\_stores/astra/document\_store.py |      314 |       34 |      150 |       22 |     87% |195-\>198, 198-\>206, 209-\>219, 264-\>262, 271-\>280, 278, 293-294, 298, 309, 311, 312-\>307, 318-\>305, 322, 365-366, 370, 373-389, 423-425, 435-440, 475-\>478, 500, 511-512, 515, 544, 598-\>601 |
+| src/haystack\_integrations/components/retrievers/astra/retriever.py  |       39 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/astra/astra\_client.py   |       37 |        0 |       10 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/astra/document\_store.py |      476 |       10 |      166 |       14 |     96% |197-\>exit, 215-\>221, 262-\>265, 265-\>270, 433, 444, 446, 447-\>442, 453-\>440, 457, 525, 529-532, 695, 888-\>891 |
 | src/haystack\_integrations/document\_stores/astra/errors.py          |        8 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/astra/filters.py         |      114 |        7 |       54 |        5 |     93% |68, 70, 74, 86-87, 108-109 |
-| **TOTAL**                                                            |  **605** |   **41** |  **240** |   **28** | **91%** |           |
+| **TOTAL**                                                            |  **674** |   **17** |  **234** |   **19** | **96%** |           |
 
 
 ## Setup coverage badge
