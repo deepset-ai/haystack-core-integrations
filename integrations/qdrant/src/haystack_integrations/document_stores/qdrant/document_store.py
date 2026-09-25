@@ -963,9 +963,8 @@ class QdrantDocumentStore:
                     wait=self.wait_result_from_api,
                 )
             except Exception as e:
-                logger.warning(
-                    f"Error {e} when calling QdrantDocumentStore.delete_all_documents()",
-                )
+                msg = f"Error when calling QdrantDocumentStore.delete_all_documents(): {e}"
+                raise QdrantStoreError(msg) from e
 
     async def delete_all_documents_async(self, recreate_index: bool = False) -> None:
         """
@@ -1014,9 +1013,8 @@ class QdrantDocumentStore:
                     wait=self.wait_result_from_api,
                 )
             except Exception as e:
-                logger.warning(
-                    f"Error {e} when calling QdrantDocumentStore.delete_all_documents_async()",
-                )
+                msg = f"Error when calling QdrantDocumentStore.delete_all_documents_async(): {e}"
+                raise QdrantStoreError(msg) from e
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -1038,8 +1036,8 @@ class QdrantDocumentStore:
             )
             return response.count
         except (UnexpectedResponse, ValueError) as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_documents_by_filter()")
-            return 0
+            msg = f"Error when calling QdrantDocumentStore.count_documents_by_filter(): {e}"
+            raise QdrantStoreError(msg) from e
 
     async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
         """
@@ -1062,8 +1060,8 @@ class QdrantDocumentStore:
             )
             return response.count
         except (UnexpectedResponse, ValueError) as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_documents_by_filter_async()")
-            return 0
+            msg = f"Error when calling QdrantDocumentStore.count_documents_by_filter_async(): {e}"
+            raise QdrantStoreError(msg) from e
 
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
@@ -1104,8 +1102,8 @@ class QdrantDocumentStore:
 
             return fields_info
         except (UnexpectedResponse, ValueError) as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info()")
-            return {}
+            msg = f"Error when calling QdrantDocumentStore.get_metadata_fields_info(): {e}"
+            raise QdrantStoreError(msg) from e
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
@@ -1146,8 +1144,8 @@ class QdrantDocumentStore:
 
             return fields_info
         except (UnexpectedResponse, ValueError) as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info_async()")
-            return {}
+            msg = f"Error when calling QdrantDocumentStore.get_metadata_fields_info_async(): {e}"
+            raise QdrantStoreError(msg) from e
 
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
@@ -1183,8 +1181,8 @@ class QdrantDocumentStore:
 
             return {"min": min_value, "max": max_value}
         except Exception as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max()")
-            return {"min": None, "max": None}
+            msg = f"Error when calling QdrantDocumentStore.get_metadata_field_min_max(): {e}"
+            raise QdrantStoreError(msg) from e
 
     async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
         """
@@ -1220,8 +1218,8 @@ class QdrantDocumentStore:
 
             return {"min": min_value, "max": max_value}
         except Exception as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max_async()")
-            return {"min": None, "max": None}
+            msg = f"Error when calling QdrantDocumentStore.get_metadata_field_min_max_async(): {e}"
+            raise QdrantStoreError(msg) from e
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
@@ -1257,8 +1255,8 @@ class QdrantDocumentStore:
 
             return {field: len(unique_values_by_field[field]) for field in metadata_fields}
         except Exception as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_unique_metadata_by_filter()")
-            return dict.fromkeys(metadata_fields, 0)
+            msg = f"Error when calling QdrantDocumentStore.count_unique_metadata_by_filter(): {e}"
+            raise QdrantStoreError(msg) from e
 
     async def count_unique_metadata_by_filter_async(
         self, filters: dict[str, Any], metadata_fields: list[str]
@@ -1298,8 +1296,8 @@ class QdrantDocumentStore:
 
             return {field: len(unique_values_by_field[field]) for field in metadata_fields}
         except Exception as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_unique_metadata_by_filter_async()")
-            return dict.fromkeys(metadata_fields, 0)
+            msg = f"Error when calling QdrantDocumentStore.count_unique_metadata_by_filter_async(): {e}"
+            raise QdrantStoreError(msg) from e
 
     def get_metadata_field_unique_values(
         self,
@@ -1353,8 +1351,8 @@ class QdrantDocumentStore:
             total_count = len(unique_values)
             return unique_values[from_ : from_ + size], total_count
         except Exception as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_unique_values()")
-            return [], 0
+            msg = f"Error when calling QdrantDocumentStore.get_metadata_field_unique_values(): {e}"
+            raise QdrantStoreError(msg) from e
 
     async def get_metadata_field_unique_values_async(
         self,
@@ -1408,8 +1406,8 @@ class QdrantDocumentStore:
             total_count = len(unique_values)
             return unique_values[from_ : from_ + size], total_count
         except Exception as e:
-            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_unique_values_async()")
-            return [], 0
+            msg = f"Error when calling QdrantDocumentStore.get_metadata_field_unique_values_async(): {e}"
+            raise QdrantStoreError(msg) from e
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "QdrantDocumentStore":

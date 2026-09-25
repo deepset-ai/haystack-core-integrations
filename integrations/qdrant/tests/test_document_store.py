@@ -377,17 +377,16 @@ class TestQdrantDocumentStoreUnit:
             document_store._query_by_sparse(query_sparse_embedding=sparse_embedding)
 
     @pytest.mark.parametrize(
-        ("method_name", "args", "expected"),
+        ("method_name", "args"),
         [
-            ("count_documents", (), 0),
-            ("count_documents_by_filter", ({},), 0),
-            ("get_metadata_fields_info", (), {}),
-            ("get_metadata_field_min_max", ("score",), {"min": None, "max": None}),
-            ("count_unique_metadata_by_filter", ({}, ["category"]), {"category": 0}),
-            ("get_metadata_field_unique_values", ("category",), ([], 0)),
+            ("count_documents_by_filter", ({},)),
+            ("get_metadata_fields_info", ()),
+            ("get_metadata_field_min_max", ("score",)),
+            ("count_unique_metadata_by_filter", ({}, ["category"])),
+            ("get_metadata_field_unique_values", ("category",)),
         ],
     )
-    def test_metadata_methods_swallow_client_errors(self, method_name, args, expected):
+    def test_metadata_methods_raise_on_client_errors(self, method_name, args):
         document_store = QdrantDocumentStore(location=":memory:")
         document_store._initialize_client()
         err = ValueError("boom")
@@ -396,7 +395,17 @@ class TestQdrantDocumentStoreUnit:
             patch.object(document_store._client, "scroll", side_effect=err),
             patch.object(document_store._client, "get_collection", side_effect=err),
         ):
-            assert getattr(document_store, method_name)(*args) == expected
+            with pytest.raises(QdrantStoreError):
+                getattr(document_store, method_name)(*args)
+
+    def test_count_documents_still_reports_zero_for_a_missing_collection(self):
+        """Left as it was on purpose: this handler's own comment says it exists for a collection that
+        is not there, which Qdrant local reports as ValueError and the server as UnexpectedResponse.
+        Zero documents is the right answer to that, and haystack's CountDocumentsTest relies on it."""
+        document_store = QdrantDocumentStore(location=":memory:")
+        document_store._initialize_client()
+        with patch.object(document_store._client, "count", side_effect=ValueError("collection not found")):
+            assert document_store.count_documents() == 0
 
     def test_close(self):
         document_store = QdrantDocumentStore(location=":memory:")

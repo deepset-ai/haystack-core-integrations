@@ -141,17 +141,16 @@ class TestQdrantDocumentStoreAsyncUnit:
             await document_store.delete_documents_async(["doc-1"])
 
     @pytest.mark.parametrize(
-        ("method_name", "args", "expected"),
+        ("method_name", "args"),
         [
-            ("count_documents_async", (), 0),
-            ("count_documents_by_filter_async", ({},), 0),
-            ("get_metadata_fields_info_async", (), {}),
-            ("get_metadata_field_min_max_async", ("score",), {"min": None, "max": None}),
-            ("count_unique_metadata_by_filter_async", ({}, ["category"]), {"category": 0}),
-            ("get_metadata_field_unique_values_async", ("category",), ([], 0)),
+            ("count_documents_by_filter_async", ({},)),
+            ("get_metadata_fields_info_async", ()),
+            ("get_metadata_field_min_max_async", ("score",)),
+            ("count_unique_metadata_by_filter_async", ({}, ["category"])),
+            ("get_metadata_field_unique_values_async", ("category",)),
         ],
     )
-    async def test_metadata_methods_async_absorb_client_errors(self, method_name, args, expected):
+    async def test_metadata_methods_async_raise_on_client_errors(self, method_name, args):
         document_store = QdrantDocumentStore(location=":memory:")
         await document_store._initialize_async_client()
         err = ValueError("boom")
@@ -160,7 +159,15 @@ class TestQdrantDocumentStoreAsyncUnit:
             patch.object(document_store._async_client, "scroll", side_effect=err),
             patch.object(document_store._async_client, "get_collection", side_effect=err),
         ):
-            assert await getattr(document_store, method_name)(*args) == expected
+            with pytest.raises(QdrantStoreError):
+                await getattr(document_store, method_name)(*args)
+
+    async def test_count_documents_async_still_reports_zero_for_a_missing_collection(self):
+        """The counterpart of the sync case: left as it was, for the same documented reason."""
+        document_store = QdrantDocumentStore(location=":memory:")
+        await document_store._initialize_async_client()
+        with patch.object(document_store._async_client, "count", side_effect=ValueError("collection not found")):
+            assert await document_store.count_documents_async() == 0
 
     async def test_close_async(self):
         document_store = QdrantDocumentStore(location=":memory:")
