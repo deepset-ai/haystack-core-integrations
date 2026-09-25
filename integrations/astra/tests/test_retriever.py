@@ -15,8 +15,7 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 def mocked_store(monkeypatch):
     monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "fake-token")
     monkeypatch.setenv("ASTRA_DB_API_ENDPOINT", "http://fake-url.apps.astra.datastax.com")
-    with patch("haystack_integrations.document_stores.astra.document_store.AstraClient"):
-        yield AstraDocumentStore()
+    return AstraDocumentStore()
 
 
 def _serialized_retriever(*, include_filter_policy: bool = True) -> dict:
@@ -114,11 +113,12 @@ def test_run_uses_runtime_top_k_and_filters(mocked_store):
 @pytest.mark.asyncio
 async def test_run_async(mocked_store):
     mock_doc = Document(content="test", id="1")
-    with patch.object(mocked_store, "search", return_value=[mock_doc]):
+    with patch.object(mocked_store, "search_async", return_value=[mock_doc]):
         retriever = AstraEmbeddingRetriever(mocked_store, top_k=5)
         result = await retriever.run_async(query_embedding=[0.1] * 768)
         assert result["documents"] == [mock_doc]
-        call_args = mocked_store.search.call_args
+        mocked_store.search_async.assert_awaited_once()
+        call_args = mocked_store.search_async.call_args
         assert call_args.args == ([0.1] * 768, 5)
         assert call_args.kwargs == {"filters": {}}
 
@@ -126,12 +126,13 @@ async def test_run_async(mocked_store):
 @pytest.mark.asyncio
 async def test_run_async_filters_replace(mocked_store):
     mock_doc = Document(content="test", id="1")
-    with patch.object(mocked_store, "search", return_value=[mock_doc]):
+    with patch.object(mocked_store, "search_async", return_value=[mock_doc]):
         retriever = AstraEmbeddingRetriever(
             mocked_store, top_k=5, filters={"lang": "en"}, filter_policy=FilterPolicy.REPLACE
         )
         await retriever.run_async(query_embedding=[0.1] * 768, filters={"year": 2024})
-        assert mocked_store.search.call_args.kwargs["filters"] == {"year": 2024}
+        mocked_store.search_async.assert_awaited_once()
+        assert mocked_store.search_async.call_args.kwargs["filters"] == {"year": 2024}
 
 
 @pytest.mark.asyncio
@@ -139,12 +140,25 @@ async def test_run_async_filters_merge(mocked_store):
     mock_doc = Document(content="test", id="1")
     init_filters = {"field": "lang", "operator": "==", "value": "en"}
     runtime_filters = {"field": "year", "operator": "==", "value": 2024}
-    with patch.object(mocked_store, "search", return_value=[mock_doc]):
+    with patch.object(mocked_store, "search_async", return_value=[mock_doc]):
         retriever = AstraEmbeddingRetriever(
             mocked_store, top_k=5, filters=init_filters, filter_policy=FilterPolicy.MERGE
         )
         await retriever.run_async(query_embedding=[0.1] * 768, filters=runtime_filters)
-        merged = mocked_store.search.call_args.kwargs["filters"]
+        mocked_store.search_async.assert_awaited_once()
+        merged = mocked_store.search_async.call_args.kwargs["filters"]
         assert merged["operator"] == "AND"
         assert init_filters in merged["conditions"]
         assert runtime_filters in merged["conditions"]
+
+
+def test_close_delegates_to_document_store(mocked_store):
+    with patch.object(mocked_store, "close") as mocked_close:
+        AstraEmbeddingRetriever(mocked_store).close()
+        mocked_close.assert_called_once_with()
+
+
+async def test_close_async_delegates_to_document_store(mocked_store):
+    with patch.object(mocked_store, "close_async") as mocked_close_async:
+        await AstraEmbeddingRetriever(mocked_store).close_async()
+        mocked_close_async.assert_awaited_once_with()

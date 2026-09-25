@@ -4,9 +4,13 @@
 
 import operator
 import os
+from copy import deepcopy
 from unittest import mock
 
 import pytest
+from astrapy import Collection, DataAPIClient
+from astrapy.exceptions import DataAPIResponseException
+from astrapy.info import CollectionDefinition, CollectionDescriptor
 from haystack import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -23,30 +27,25 @@ from haystack.utils import Secret
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 from haystack_integrations.document_stores.astra.errors import AstraDocumentStoreFilterError
 
-
-@pytest.fixture
-def mock_auth(monkeypatch):
-    monkeypatch.setenv("ASTRA_DB_API_ENDPOINT", "http://example.com")
-    monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "test_token")
+CLIENT_PATH = "haystack_integrations.document_stores.astra.astra_client.DataAPIClient"
 
 
 @pytest.fixture
 def mocked_store(mock_auth):  # noqa: ARG001
-    """Returns (store, mock_index) with AstraClient fully mocked out."""
-    with mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient") as mock_client:
-        mock_index = mock_client.return_value
-        store = AstraDocumentStore()
-        yield store, mock_index
+    """Returns (store, collection) with the astrapy collection mocked out."""
+    collection = mock.MagicMock(spec=Collection)
+    with mock.patch.object(AstraDocumentStore, "_get_collection", return_value=collection):
+        yield AstraDocumentStore(), collection
 
 
-@mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDBClient")
+@mock.patch(CLIENT_PATH)
 def test_init_is_lazy(_mock_client, mock_auth):  # noqa
     _ = AstraDocumentStore()
     _mock_client.assert_not_called()
 
 
 def test_to_dict(mock_auth):  # noqa
-    with mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDBClient"):
+    with mock.patch(CLIENT_PATH):
         ds = AstraDocumentStore()
         result = ds.to_dict()
         assert result["type"] == "haystack_integrations.document_stores.astra.document_store.AstraDocumentStore"
@@ -61,36 +60,189 @@ def test_to_dict(mock_auth):  # noqa
         }
 
 
+@pytest.mark.parametrize("policy", [DuplicatePolicy.SKIP, DuplicatePolicy.OVERWRITE, DuplicatePolicy.FAIL])
+def test_configuration_round_trip(mock_auth, policy):  # noqa: ARG001
+    store = AstraDocumentStore(
+        collection_name="custom_collection",
+        embedding_dimension=4,
+        duplicates_policy=policy,
+        similarity="dot_product",
+        namespace="custom_keyspace",
+    )
+    serialized = store.to_dict()
+    restored = AstraDocumentStore.from_dict(deepcopy(serialized))
+    assert restored.to_dict() == serialized
+    assert restored.duplicates_policy is policy
+    assert restored.api_endpoint.resolve_value() == "http://example.com"
+    assert restored.token.resolve_value() == "test_token"
+
+
+def test_from_dict_invalid_duplicates_policy(mock_auth):  # noqa: ARG001
+    serialized = AstraDocumentStore().to_dict()
+    serialized["init_parameters"]["duplicates_policy"] = "INVALID"
+    with pytest.raises(ValueError, match=r"Invalid duplicates_policy 'INVALID'\. Expected one of"):
+        AstraDocumentStore.from_dict(serialized)
+
+
+@pytest.fixture
+def native_sync_store(mock_auth):  # noqa: ARG001
+    with mock.patch(CLIENT_PATH, autospec=DataAPIClient) as client:
+        database = client.return_value.get_database.return_value
+        database.list_collections.return_value = []
+        collection = mock.MagicMock(spec=Collection)
+        database.create_collection.return_value = collection
+        store = AstraDocumentStore(
+            collection_name="custom", embedding_dimension=4, similarity="dot_product", namespace="keyspace"
+        )
+        yield store, client, database, collection
+
+
+def test_native_sync_configuration(native_sync_store):
+    store, client, database, collection = native_sync_store
+    assert store._get_collection() is collection
+    serdes = client.call_args.kwargs["api_options"].serdes_options
+    assert serdes.binary_encode_vectors is False
+    assert serdes.custom_datatypes_in_reading is False
+    client.return_value.get_database.assert_called_once_with(
+        api_endpoint="http://example.com", token="test_token", keyspace="keyspace"
+    )
+    database.create_collection.assert_called_once_with(
+        name="custom",
+        definition={
+            "vector": {"dimension": 4, "metric": "dot_product"},
+            "indexing": {"deny": ["metadata._node_content", "content"]},
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "indexing,warning_match",
+    [(None, "having indexing turned on"), ({"deny": ["something_else"]}, "unexpected 'indexing' settings")],
+)
+def test_existing_collection_with_unexpected_indexing_warns(native_sync_store, indexing, warning_match):
+    store, _, database, _ = native_sync_store
+    database.list_collections.return_value = [
+        CollectionDescriptor(name="custom", definition=CollectionDefinition(indexing=indexing), raw_descriptor={})
+    ]
+    with pytest.warns(UserWarning, match=warning_match):
+        assert store._get_collection() is database.get_collection.return_value
+    database.get_collection.assert_called_once_with("custom")
+    database.create_collection.assert_not_called()
+
+
+def test_existing_collection_with_expected_indexing_is_reused_silently(native_sync_store, recwarn):
+    store, _, database, _ = native_sync_store
+    database.list_collections.return_value = [
+        CollectionDescriptor(
+            name="custom",
+            definition=CollectionDefinition(indexing={"deny": ["metadata._node_content", "content"]}),
+            raw_descriptor={},
+        )
+    ]
+    store._get_collection()
+    store._get_collection()
+    assert not recwarn
+    database.list_collections.assert_called_once_with()
+    database.create_collection.assert_not_called()
+
+
+def test_collection_creation_error_propagates(native_sync_store):
+    store, _, database, _ = native_sync_store
+    database.create_collection.side_effect = DataAPIResponseException.from_response(
+        command=None,
+        raw_response={
+            "errors": [
+                {
+                    "message": "Collection already exists with different settings",
+                    "errorCode": "EXISTING_COLLECTION_DIFFERENT_SETTINGS",
+                }
+            ]
+        },
+    )
+    with pytest.raises(DataAPIResponseException):
+        store._get_collection()
+    assert store._collection is None
+
+
+def test_native_sync_write_read(native_sync_store):
+    store, _, _, collection = native_sync_store
+    collection.find_one.return_value = None
+    collection.find.return_value = [{"_id": "1", "content": "text", "$vector": [0.1] * 4, "meta": {}}]
+    collection.insert_many.return_value.inserted_ids = ["1"]
+    doc = Document(id="1", content="text", embedding=[0.1] * 4)
+    assert store.write_documents([doc]) == 1
+    assert store.get_documents_by_id(["1"]) == [doc]
+
+
+@pytest.mark.parametrize("filters", [None, {"field": "meta.category", "operator": "==", "value": "news"}])
+def test_search_uses_native_api(native_sync_store, filters):
+    store, _, _, collection = native_sync_store
+    collection.find.return_value = [
+        {"_id": "1", "content": "text", "$vector": [0.1] * 4, "meta": {"category": "news"}, "$similarity": 0.9}
+    ]
+    result = store.search([0.2] * 4, 2, filters)
+    assert result == [Document(id="1", content="text", embedding=[0.1] * 4, meta={"category": "news"}, score=0.9)]
+    collection.find.assert_called_once_with(
+        filter={"meta.category": {"$eq": "news"}} if filters else None,
+        sort={"$vector": [0.2] * 4},
+        limit=2,
+        include_similarity=True,
+        projection={"*": 1},
+    )
+
+
+def test_search_empty_results(native_sync_store, caplog):
+    store, _, _, collection = native_sync_store
+    collection.find.return_value = []
+    assert store.search([0.1] * 4, 2) == []
+    assert "No documents found" in caplog.text
+
+
+def test_close_drops_sync_collection_and_reopens(native_sync_store):
+    store, client, _, collection = native_sync_store
+    assert store._get_collection() is collection
+    store.close()
+    store.close()
+    assert store._collection is None
+    assert store._get_collection() is collection
+    assert client.call_count == 2
+
+
 def test_count_documents_by_filter(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.count_documents.return_value = 2
+    store, collection = mocked_store
+    collection.count_documents.return_value = 2
 
     count = store.count_documents_by_filter({"field": "meta.status", "operator": "==", "value": "draft"})
 
     assert count == 2
-    mock_index.count_documents.assert_called_once_with(
-        filters={"meta.status": {"$eq": "draft"}}, upper_bound=1_000_000_000
-    )
+    collection.count_documents.assert_called_once_with({"meta.status": {"$eq": "draft"}}, upper_bound=1_000_000_000)
+
+
+def test_count_documents(mocked_store):
+    store, collection = mocked_store
+    collection.count_documents.return_value = 7
+    assert store.count_documents() == 7
+    collection.count_documents.assert_called_once_with({}, upper_bound=10_000)
 
 
 def test_count_unique_metadata_by_filter(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.distinct.side_effect = [["news", "docs", ["docs", "faq"], None], [1, 2, 2]]
+    store, collection = mocked_store
+    collection.distinct.side_effect = [["news", "docs", ["docs", "faq"], None], [1, 2, 2]]
 
     counts = store.count_unique_metadata_by_filter(
         {"field": "meta.status", "operator": "==", "value": "published"}, ["category", "priority"]
     )
 
     assert counts == {"category": 3, "priority": 2}
-    assert mock_index.distinct.call_args_list == [
-        mock.call("meta.category", filters={"meta.status": {"$eq": "published"}}),
-        mock.call("meta.priority", filters={"meta.status": {"$eq": "published"}}),
+    assert collection.distinct.call_args_list == [
+        mock.call("meta.category", filter={"meta.status": {"$eq": "published"}}),
+        mock.call("meta.priority", filter={"meta.status": {"$eq": "published"}}),
     ]
 
 
 def test_get_metadata_fields_info(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.find_documents.return_value = [
+    store, collection = mocked_store
+    collection.find.return_value = [
         {"content": "Doc 1", "meta": {"category": "news", "priority": 1, "active": True}},
         {"content": "Doc 2", "meta": {"category": "docs", "priority": 2.5, "tags": ["a", "b"]}},
     ]
@@ -104,37 +256,74 @@ def test_get_metadata_fields_info(mocked_store):
         "active": {"type": "boolean"},
         "tags": {"type": "keyword"},
     }
-    mock_index.find_documents.assert_called_once_with({}, projection={"content": 1, "meta": 1})
+    collection.find.assert_called_once_with(projection={"content": 1, "meta": 1})
 
 
 def test_get_metadata_field_min_max(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.distinct.return_value = [10, 3, 7]
+    store, collection = mocked_store
+    collection.distinct.return_value = [10, 3, 7]
 
     assert store.get_metadata_field_min_max("priority") == {"min": 3, "max": 10}
-    mock_index.distinct.assert_called_once_with("meta.priority")
+    collection.distinct.assert_called_once_with("meta.priority")
 
 
 def test_get_metadata_field_unique_values(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.distinct.return_value = ["Beta", "alpha", ["gamma", "alphabet"], None]
+    store, collection = mocked_store
+    collection.distinct.return_value = ["Beta", "alpha", ["gamma", "alphabet"], None]
 
     values, total_count = store.get_metadata_field_unique_values("category", search_term="alp", from_=0, size=5)
 
     assert values == ["alpha", "alphabet"]
     assert total_count == 2
-    mock_index.distinct.assert_called_once_with("meta.category", filters=None)
+    collection.distinct.assert_called_once_with("meta.category", filter=None)
 
 
 def test_get_metadata_field_unique_values_preserves_non_string_types(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.distinct.return_value = [1, 2, 1, 3]
+    store, collection = mocked_store
+    collection.distinct.return_value = [1, 2, 1, 3]
 
     values, total_count = store.get_metadata_field_unique_values("priority")
 
     assert values == [1, 2, 3]
     assert total_count == 3
-    mock_index.distinct.assert_called_once_with("meta.priority", filters=None)
+    collection.distinct.assert_called_once_with("meta.priority", filter=None)
+
+
+def test_get_documents_by_id_batches_ids(mocked_store):
+    store, collection = mocked_store
+    collection.find.side_effect = [
+        [{"_id": str(i), "content": "a"} for i in range(20)],
+        [{"_id": "20", "content": "a"}],
+    ]
+    assert len(store.get_documents_by_id([str(i) for i in range(21)])) == 21
+    assert [c.kwargs["filter"] for c in collection.find.call_args_list] == [
+        {"_id": {"$in": [str(i) for i in range(20)]}},
+        {"_id": {"$in": ["20"]}},
+    ]
+
+
+def test_get_document_by_id_missing_raises(mocked_store):
+    store, collection = mocked_store
+    collection.find.return_value = []
+    with pytest.raises(MissingDocumentError, match="does not exist"):
+        store.get_document_by_id("missing")
+
+
+@pytest.mark.parametrize(
+    "filters,expected_kwargs",
+    [
+        (None, {"filter": None, "limit": 1000}),
+        (
+            {"field": "meta.k", "operator": "==", "value": "v"},
+            {"filter": {"meta.k": {"$eq": "v"}}, "limit": 1000},
+        ),
+    ],
+)
+def test_filter_documents_forwards_filters(mocked_store, filters, expected_kwargs):
+    store, collection = mocked_store
+    collection.find.return_value = [{"_id": "1", "content": "a", "meta": {"k": "v"}}]
+    assert store.filter_documents(filters) == [Document(id="1", content="a", meta={"k": "v"})]
+    collection.find.assert_called_once_with(**expected_kwargs, projection={"*": 1})
 
 
 @pytest.mark.parametrize(
@@ -174,27 +363,98 @@ def test_write_documents_input_validation_errors(mocked_store, doc, expected_exc
 
 
 def test_write_documents_fail_policy_raises_on_duplicate(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.find_documents.return_value = [{"_id": "1"}]
+    store, collection = mocked_store
+    collection.find_one.return_value = {"_id": "1"}
     with pytest.raises(DuplicateDocumentError, match="already exists"):
         store.write_documents([Document(id="1", content="a")], policy=DuplicatePolicy.FAIL)
+    collection.find_one.assert_called_once_with({"_id": "1"}, projection={"_id": True})
 
 
 def test_write_documents_sparse_embedding_is_dropped_with_warning(mocked_store, caplog):
-    store, mock_index = mocked_store
-    mock_index.find_documents.return_value = []
-    mock_index.insert.return_value = ["1"]
+    store, collection = mocked_store
+    collection.find_one.return_value = None
+    collection.insert_many.return_value.inserted_ids = ["1"]
     store.write_documents([{"_id": "1", "content": "x", "sparse_embedding": {"indices": [0], "values": [1.0]}}])
-    inserted = mock_index.insert.call_args.args[0][0]
+    inserted = collection.insert_many.call_args.kwargs["documents"][0]
     assert "sparse_embedding" not in inserted
     assert "sparse embeddings in Astra" in caplog.text
 
 
+@pytest.mark.parametrize("updated,expected_count", [({"_id": "1"}, 1), (None, 0)])
+def test_write_documents_overwrite_updates_existing(mocked_store, caplog, updated, expected_count):
+    store, collection = mocked_store
+    collection.find_one.return_value = {"_id": "1"}
+    collection.find_one_and_update.return_value = updated
+    doc = {"_id": "1", "content": "new", "meta": {"k": "v"}}
+    assert store.write_documents([doc], policy=DuplicatePolicy.OVERWRITE) == expected_count
+    collection.find_one_and_update.assert_called_once_with(
+        {"_id": "1"}, {"$set": {"content": "new", "meta": {"k": "v"}}}, projection={"_id": True}
+    )
+    collection.insert_many.assert_not_called()
+    assert doc["_id"] == "1"
+    assert ("not updated" in caplog.text) is (updated is None)
+
+
+def test_delete_documents_batches_ids(mocked_store):
+    store, collection = mocked_store
+    collection.find_one.return_value = {"_id": "x"}
+    collection.delete_many.return_value.deleted_count = 1
+    store.delete_documents([str(i) for i in range(21)])
+    assert [c.args[0] for c in collection.delete_many.call_args_list] == [
+        {"_id": {"$in": [str(i) for i in range(20)]}},
+        {"_id": {"$in": ["20"]}},
+    ]
+
+
+def test_delete_documents_missing_raises(mocked_store):
+    store, collection = mocked_store
+    collection.find_one.return_value = {"_id": "x"}
+    collection.delete_many.return_value.deleted_count = 0
+    with pytest.raises(MissingDocumentError, match="does not exist"):
+        store.delete_documents(["missing"])
+
+
+def test_delete_documents_empty_store_is_noop(mocked_store):
+    store, collection = mocked_store
+    collection.find_one.return_value = None
+    store.delete_documents(["1"])
+    collection.delete_many.assert_not_called()
+
+
+def test_delete_by_filter(mocked_store):
+    store, collection = mocked_store
+    collection.delete_many.return_value.deleted_count = 3
+    assert store.delete_by_filter({"field": "meta.k", "operator": "==", "value": "v"}) == 3
+    collection.delete_many.assert_called_once_with({"meta.k": {"$eq": "v"}})
+
+
 def test_delete_all_documents_wraps_exception(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.delete_all_documents.side_effect = RuntimeError("boom")
+    store, collection = mocked_store
+    collection.delete_many.side_effect = RuntimeError("boom")
     with pytest.raises(DocumentStoreError, match="Failed to delete all documents"):
         store.delete_all_documents()
+    collection.delete_many.assert_called_once_with({})
+
+
+def test_delete_all_documents_recreate_index(mocked_store):
+    store, collection = mocked_store
+    store.delete_all_documents(recreate_index=True)
+    collection.drop.assert_called_once_with()
+    collection.database.create_collection.assert_called_once_with(
+        "documents", definition=collection.options.return_value
+    )
+    collection.delete_many.assert_not_called()
+    assert store._collection is collection.database.create_collection.return_value
+
+
+def test_delete_all_documents_recreate_index_failure(mocked_store):
+    store, collection = mocked_store
+    store._collection = collection
+    collection.database.create_collection.side_effect = RuntimeError("boom")
+    with pytest.raises(DocumentStoreError, match="Failed to delete all documents"):
+        store.delete_all_documents(recreate_index=True)
+    # The next operation creates the collection again from the store settings.
+    assert store._collection is None
 
 
 @pytest.mark.parametrize(
@@ -211,16 +471,16 @@ def test_update_by_filter_validation_errors(mocked_store, filters, meta, match):
 
 
 def test_update_by_filter_applies_meta_with_dot_notation(mocked_store):
-    store, mock_index = mocked_store
-    mock_index.update.return_value = 4
+    store, collection = mocked_store
+    collection.update_many.return_value.update_info = {"nModified": 4}
     count = store.update_by_filter(
         filters={"field": "meta.category", "operator": "==", "value": "news"},
         meta={"reviewed": True, "priority": 1},
     )
     assert count == 4
-    kwargs = mock_index.update.call_args.kwargs
-    assert kwargs["filters"] == {"meta.category": {"$eq": "news"}}
-    assert kwargs["update"] == {"$set": {"meta.reviewed": True, "meta.priority": 1}}
+    collection.update_many.assert_called_once_with(
+        {"meta.category": {"$eq": "news"}}, {"$set": {"meta.reviewed": True, "meta.priority": 1}}
+    )
 
 
 def test_infer_metadata_field_type_mixed_types_warn_and_default_to_keyword(caplog):
@@ -247,12 +507,16 @@ class TestDocumentStore(
     """
 
     @pytest.fixture(scope="class")
-    def document_store(self) -> AstraDocumentStore:
-        return AstraDocumentStore(
-            collection_name="haystack_integration",
+    def document_store(self):
+        store = AstraDocumentStore(
+            collection_name="haystack_test_document_store",
             duplicates_policy=DuplicatePolicy.OVERWRITE,
             embedding_dimension=768,
         )
+        try:
+            yield store
+        finally:
+            store._get_collection().drop()
 
     @pytest.fixture(autouse=True)
     def run_before_tests(self, document_store: AstraDocumentStore):

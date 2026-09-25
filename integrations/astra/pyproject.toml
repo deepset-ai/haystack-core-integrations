@@ -24,10 +24,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "astrapy>=1.5.2,<2.0",
-  "haystack-ai>=2.26.1",
-  "pydantic",
-  "typing_extensions",
+  "astrapy>=2.0.0",
+  "haystack-ai>=2.28.0",
 ]
 
 [project.urls]
