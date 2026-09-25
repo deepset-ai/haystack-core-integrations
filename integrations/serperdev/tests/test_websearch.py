@@ -221,6 +221,11 @@ class TestSerperDevSearchAPI:
         assert all(isinstance(link, str) for link in links)
         assert all(link.startswith("http") for link in links)
 
+    def test_prepare_request_list_query(self) -> None:
+        ws = SerperDevWebSearch(api_key=Secret.from_token("test-api-key"))
+        payload, _ = ws._prepare_request(["site:example.com", "python"])
+        assert payload["q"] == "site:example.com python"
+
     @pytest.mark.usefixtures("mock_serper_dev_search_result_no_snippet")
     def test_no_snippet(self) -> None:
         ws = SerperDevWebSearch(api_key=Secret.from_token("test-api-key"), top_k=1)

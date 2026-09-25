@@ -218,6 +218,8 @@ class SerperDevWebSearch:
         return {"documents": documents[: self.top_k], "links": links[: self.top_k]}
 
     def _prepare_request(self, query: str) -> tuple[dict[str, Any], dict[str, str]]:
+        if isinstance(query, list):
+            query = " ".join(query)
         query_prepend = "OR ".join(f"site:{domain} " for domain in self.allowed_domains) if self.allowed_domains else ""
         payload = {"q": query_prepend + query, "gl": "us", "hl": "en", "autocorrect": True, **self.search_params}
         if (api_key := self.api_key.resolve_value()) is None:
