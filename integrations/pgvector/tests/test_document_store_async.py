@@ -71,6 +71,20 @@ class TestDocumentStoreAsync(
         with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
+    async def test_write_documents_async_counts_every_document(self, document_store: PgvectorDocumentStore):
+        docs = [Document(id="1"), Document(id="2"), Document(id="3")]
+        assert await document_store.write_documents_async(docs) == 3
+
+    async def test_write_documents_async_skip_counts_only_new_documents(self, document_store: PgvectorDocumentStore):
+        await document_store.write_documents_async([Document(id="1")])
+        docs = [Document(id="1"), Document(id="2"), Document(id="3")]
+        assert await document_store.write_documents_async(docs, DuplicatePolicy.SKIP) == 2
+
+    async def test_write_documents_async_overwrite_counts_every_document(self, document_store: PgvectorDocumentStore):
+        await document_store.write_documents_async([Document(id="1", content="old")])
+        docs = [Document(id="1", content="new"), Document(id="2"), Document(id="3")]
+        assert await document_store.write_documents_async(docs, DuplicatePolicy.OVERWRITE) == 3
+
     async def test_get_metadata_field_unique_values_distinct_types_async(self, document_store: PgvectorDocumentStore):
         """
         Override: the base mixin test stores int, float, str and bool under the *same* metadata field

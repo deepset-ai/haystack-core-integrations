@@ -66,6 +66,20 @@ class TestDocumentStore(
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
+    def test_write_documents_counts_every_document(self, document_store: PgvectorDocumentStore):
+        docs = [Document(id="1"), Document(id="2"), Document(id="3")]
+        assert document_store.write_documents(docs) == 3
+
+    def test_write_documents_skip_counts_only_new_documents(self, document_store: PgvectorDocumentStore):
+        document_store.write_documents([Document(id="1")])
+        docs = [Document(id="1"), Document(id="2"), Document(id="3")]
+        assert document_store.write_documents(docs, DuplicatePolicy.SKIP) == 2
+
+    def test_write_documents_overwrite_counts_every_document(self, document_store: PgvectorDocumentStore):
+        document_store.write_documents([Document(id="1", content="old")])
+        docs = [Document(id="1", content="new"), Document(id="2"), Document(id="3")]
+        assert document_store.write_documents(docs, DuplicatePolicy.OVERWRITE) == 3
+
     def test_get_metadata_field_unique_values_distinct_types(self, document_store: PgvectorDocumentStore):
         """
         Override: the base mixin test stores int, float, str and bool under the *same* metadata field
