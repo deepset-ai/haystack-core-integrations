@@ -1074,6 +1074,7 @@ class PgvectorDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
+        :raises FilterError: If `filters` is empty. Use `delete_all_documents()` to delete everything.
         """
         _validate_filters(filters)
         if not filters:
@@ -1088,10 +1089,8 @@ class PgvectorDocumentStore:
             table_name=Identifier(self.table_name),
         )
 
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            delete_sql += sql_where_clause
+        sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+        delete_sql += sql_where_clause
 
         self._ensure_db_setup()
         assert self._cursor is not None
@@ -1122,6 +1121,7 @@ class PgvectorDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
+        :raises FilterError: If `filters` is empty. Use `delete_all_documents()` to delete everything.
         """
         _validate_filters(filters)
         if not filters:
@@ -1136,10 +1136,8 @@ class PgvectorDocumentStore:
             table_name=Identifier(self.table_name),
         )
 
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            delete_sql += sql_where_clause
+        sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+        delete_sql += sql_where_clause
 
         await self._ensure_db_setup_async()
         assert self._async_cursor is not None
