@@ -46,34 +46,30 @@ EXPANSION_SCHEMA = {
 
 
 def parse_args() -> argparse.Namespace:
-    """Read the evaluation set size, the rank cutoff and how the question is expanded."""
+    """Read the evaluation set size, the rank cutoff and how many eval cases run at once."""
     parser = argparse.ArgumentParser(description="Score a retrieval pipeline on the MultiHopRAG evaluation set.")
     parser.add_argument("--max-eval-cases", type=int, default=10, help="How many labelled questions to score.")
     parser.add_argument("--eval-case-seed", type=int, default=0, help="Selects which eval cases are drawn.")
     parser.add_argument("--k", type=int, default=10, help="Rank cutoff, giving recall@k and precision@k.")
-    parser.add_argument("--top-k", type=int, default=10, help="How many documents one retrieval returns.")
-    parser.add_argument("--expansions", type=int, default=3, help="How many extra queries to expand into.")
-    parser.add_argument("--model", default="gpt-5.4", help="The model that expands the question.")
     parser.add_argument("--concurrency", type=int, default=4, help="How many eval cases to measure at once.")
     return parser.parse_args()
 
 
-def build_pipeline(store: DocumentStore, arguments: argparse.Namespace) -> Pipeline:
+def build_pipeline(store: DocumentStore) -> Pipeline:
     """
     Build the pipeline to score: an LLM query expansion pooled over one BM25 retrieval per query.
 
     :param store: The corpus to retrieve from.
-    :param arguments: The parsed command line, giving the expansion count, model and retrieval depth.
     :returns: A pipeline exposing a `query` input and a `documents` output, which is all the harness needs.
     """
-    retriever = build_bm25_retriever(store=store, top_k=arguments.top_k)
+    retriever = build_bm25_retriever(store=store, top_k=10)
     pipeline = Pipeline()
     expander = QueryExpander(
         chat_generator=OpenAIResponsesChatGenerator(
-            model=arguments.model,
+            model="gpt-5.4",
             generation_kwargs={"reasoning": {"effort": "low"}, "text": {"format": EXPANSION_SCHEMA}},
         ),
-        n_expansions=arguments.expansions,
+        n_expansions=3,
     )
     pipeline.add_component("expander", expander)
     # One retrieval per expanded query, pooled and ranked by score.
@@ -96,14 +92,10 @@ def main() -> None:
     print(f"  eval cases: {len(eval_cases)} labelled from evidence, scored at recall@{arguments.k}")
 
     # Any pipeline exposing a `query` input and a `documents` output can be scored, whatever runs in between.
-    pipeline = build_pipeline(store=store, arguments=arguments)
+    pipeline = build_pipeline(store=store)
 
     print("\n=== 2. evaluate ===")
     print(f"  pipeline: {' -> '.join(pipeline.graph.nodes)}")
-    print(
-        f"  {arguments.model} expanding into {arguments.expansions} extra queries, "
-        f"{arguments.top_k} documents retrieved per query"
-    )
     evaluator = RetrievalHarnessEvaluator(k=arguments.k, max_concurrent_eval_cases=arguments.concurrency)
     evaluator.validate(target=pipeline)
     metrics = evaluator.evaluate(target=pipeline, eval_cases=eval_cases)

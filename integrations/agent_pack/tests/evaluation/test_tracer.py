@@ -121,15 +121,18 @@ class TestHarnessTracer:
                 span.set_content_tag("haystack.component.output", {"replies": [ChatMessage.from_assistant("hi")]})
         assert not eval_case_span.collected.summarize().all_tokens_reported
 
-    def test_activate_restores_tracing(self):
-        tracer = HarnessTracer()
+    def test_activate_restores_the_previous_tracer(self):
+        """A tracer the caller had installed, such as a Langfuse one, is back in place once evaluation ends."""
+        original = tracing.tracer.actual_tracer
+        installed = HarnessTracer()
+        tracing.enable_tracing(installed)
         try:
-            with tracer.activate():
+            with pytest.raises(RuntimeError), HarnessTracer().activate():
                 msg = "evaluation failed"
                 raise RuntimeError(msg)
-        except RuntimeError:
-            pass
-        assert tracing.tracer.actual_tracer is not tracer
+            assert tracing.tracer.actual_tracer is installed
+        finally:
+            tracing.enable_tracing(original)
 
     def test_records_carry_parent_ids(self):
         """A record built from a stored trace has parent pointers, so a live one carries them too."""

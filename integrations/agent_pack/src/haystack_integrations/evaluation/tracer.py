@@ -229,9 +229,10 @@ class HarnessTracer(Tracer):
 
     @contextmanager
     def activate(self) -> Iterator[None]:
-        """Own global tracing for evaluation, disabling it afterward even on failure."""
+        """Own global tracing for evaluation, then put back whichever tracer was installed before, even on failure."""
+        previous = tracing.tracer.actual_tracer
         tracing.enable_tracing(self)
         try:
             yield
         finally:
-            tracing.disable_tracing()
+            tracing.enable_tracing(previous)

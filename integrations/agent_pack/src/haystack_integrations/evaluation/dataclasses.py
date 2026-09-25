@@ -56,10 +56,8 @@ class RetrievalEvalCase:
 
         :param document_ids: What the run returned, in the order it ranked them.
         :param k: Rank cutoff, or `None` to count everything returned.
-        :returns: Recall@k, or 0.0 when the eval case names no documents.
+        :returns: Recall@k.
         """
-        if not self.evidence:
-            return 0.0
         return len(self.found_at(document_ids=document_ids, k=k)) / len(self.evidence)
 
     def precision_at(self, document_ids: list[str], k: int | None = None) -> float:
