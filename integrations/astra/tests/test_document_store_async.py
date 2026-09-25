@@ -175,6 +175,7 @@ def test_search_async_across_event_loops(native_async_mocks):
     assert client.call_count == 2
 
 
+@pytest.mark.skipif(not hasattr(Pipeline, "close_async"), reason="Pipeline.close_async requires Haystack 3.x")
 async def test_pipeline_close_async_releases_collection(native_async_store):
     store, _, _, collection = native_async_store
     pipeline = Pipeline()
