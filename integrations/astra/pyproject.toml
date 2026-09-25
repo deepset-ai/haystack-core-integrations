@@ -26,7 +26,6 @@ classifiers = [
 dependencies = [
   "astrapy>=2.0.0",
   "haystack-ai>=2.26.1",
-  "pydantic",
   "typing_extensions",
 ]
 

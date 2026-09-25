@@ -15,8 +15,7 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 def mocked_store(monkeypatch):
     monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "fake-token")
     monkeypatch.setenv("ASTRA_DB_API_ENDPOINT", "http://fake-url.apps.astra.datastax.com")
-    with patch("haystack_integrations.document_stores.astra.document_store.AstraClient"):
-        yield AstraDocumentStore()
+    return AstraDocumentStore()
 
 
 def _serialized_retriever(*, include_filter_policy: bool = True) -> dict:

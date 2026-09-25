@@ -18,7 +18,7 @@ from haystack_integrations.document_stores.astra import AstraDocumentStore
 @pytest.fixture
 def native_async_mocks(mock_auth):  # noqa: ARG001
     with mock.patch(
-        "haystack_integrations.document_stores.astra.document_store.DataAPIClient", autospec=DataAPIClient
+        "haystack_integrations.document_stores.astra.astra_client.DataAPIClient", autospec=DataAPIClient
     ) as client:
         database = mock.MagicMock(spec=AsyncDatabase)
         collection = mock.MagicMock(spec=AsyncCollection)
@@ -54,7 +54,7 @@ async def test_async_configuration(native_async_store, existing):
             )
         ]
     assert await store._get_async_collection() is collection
-    assert store._index is None
+    assert store._collection is None
     serdes = client.call_args.kwargs["api_options"].serdes_options
     assert serdes.binary_encode_vectors is False
     assert serdes.custom_datatypes_in_reading is False

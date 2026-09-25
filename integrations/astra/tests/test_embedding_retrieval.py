@@ -28,7 +28,7 @@ class TestEmbeddingRetrieval:
         try:
             yield store
         finally:
-            store.index._astra_db.drop_collection(store.collection_name)
+            store._get_collection().drop()
 
     @pytest.fixture(autouse=True)
     def run_before_tests(self, document_store: AstraDocumentStore):
