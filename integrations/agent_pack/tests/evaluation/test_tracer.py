@@ -7,8 +7,8 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.evaluation.dataclasses import ModelTokenUsage
-from haystack_integrations.evaluation.tracer import (
+from haystack_integrations.agent_pack.evaluation.dataclasses import ModelTokenUsage
+from haystack_integrations.agent_pack.evaluation.tracer import (
     EVAL_CASE_SPAN,
     MAX_RECORDED_TEXT_CHARS,
     MAX_RECORDED_TEXTS,

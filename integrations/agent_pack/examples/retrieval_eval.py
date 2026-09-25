@@ -29,7 +29,7 @@ from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, build_eval_cases, prepare_corpus
 from util import build_bm25_retriever, preview
 
-from haystack_integrations.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
+from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
 
 # Expansion schema for the QueryExpander component
 EXPANSION_SCHEMA = {

@@ -5,7 +5,7 @@ from haystack import Document, Pipeline, component
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
-from haystack_integrations.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
+from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
 
 QUESTION = "What is CRISPR used for?"
 

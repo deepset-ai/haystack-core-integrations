@@ -1,6 +1,6 @@
 import pytest
 
-from haystack_integrations.evaluation import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
+from haystack_integrations.agent_pack.evaluation import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
 
 
 class TestRetrievalEvalCase:
