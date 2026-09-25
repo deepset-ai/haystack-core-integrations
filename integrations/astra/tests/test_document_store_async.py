@@ -9,8 +9,9 @@ from unittest import mock
 import pytest
 from astrapy import AsyncCollection, AsyncDatabase, DataAPIClient
 from astrapy.info import CollectionDefinition, CollectionDescriptor
-from haystack import Document
+from haystack import Document, Pipeline
 
+from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
 
@@ -153,6 +154,16 @@ def test_search_async_across_event_loops(native_async_mocks):
     assert asyncio.run(concurrent_searches()) is collections[0]
     assert asyncio.run(concurrent_searches()) is collections[1]
     assert client.call_count == 2
+
+
+async def test_pipeline_close_async_releases_collection(native_async_store):
+    store, _, _, collection = native_async_store
+    pipeline = Pipeline()
+    pipeline.add_component("retriever", AstraEmbeddingRetriever(store))
+    await pipeline.run_async({"retriever": {"query_embedding": [0.1] * 4}})
+    await pipeline.close_async()
+    collection.__aexit__.assert_awaited_once()
+    assert store._async_collection is None
 
 
 async def test_close_async_before_search_does_not_initialize(native_async_store):

@@ -147,6 +147,16 @@ def test_search_empty_results(native_sync_store, caplog):
     assert "No documents found" in caplog.text
 
 
+def test_close_drops_sync_client_and_reopens(native_sync_store):
+    store, client, _, _ = native_sync_store
+    assert store.index is not None
+    store.close()
+    store.close()
+    assert store._index is None
+    assert store.index is not None
+    assert client.call_count == 2
+
+
 def test_count_documents_by_filter(mocked_store):
     store, mock_index = mocked_store
     mock_index.count_documents.return_value = 2

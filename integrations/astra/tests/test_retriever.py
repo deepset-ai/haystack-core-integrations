@@ -151,3 +151,15 @@ async def test_run_async_filters_merge(mocked_store):
         assert merged["operator"] == "AND"
         assert init_filters in merged["conditions"]
         assert runtime_filters in merged["conditions"]
+
+
+def test_close_delegates_to_document_store(mocked_store):
+    with patch.object(mocked_store, "close") as mocked_close:
+        AstraEmbeddingRetriever(mocked_store).close()
+        mocked_close.assert_called_once_with()
+
+
+async def test_close_async_delegates_to_document_store(mocked_store):
+    with patch.object(mocked_store, "close_async") as mocked_close_async:
+        await AstraEmbeddingRetriever(mocked_store).close_async()
+        mocked_close_async.assert_awaited_once_with()

@@ -171,6 +171,15 @@ class AstraDocumentStore:
                         )
             return self._async_collection
 
+    def close(self) -> None:
+        """
+        Drop the cached synchronous client without deleting documents.
+
+        AstraPy 2 exposes no way to release synchronous connections, so this only discards the client; the next
+        synchronous operation creates a new one.
+        """
+        self._index = None
+
     async def close_async(self) -> None:
         """
         Release the cached async collection connection without deleting documents.
