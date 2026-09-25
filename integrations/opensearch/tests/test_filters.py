@@ -553,6 +553,113 @@ def test_or_of_ranges_on_same_nested_field_are_not_merged():
     }
 
 
+def test_and_of_same_operator_ranges_keeps_both_bounds():
+    # `price > 5 AND price > 1` must stay two separate range clauses under `must`.
+    # Merging them into a single range makes the second `gt` overwrite the first,
+    # silently dropping a bound and matching documents the filter excludes.
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.price", "operator": ">", "value": 5},
+            {"field": "meta.price", "operator": ">", "value": 1},
+        ],
+    }
+    assert normalize_filters(filters) == {
+        "bool": {
+            "must": [
+                {"range": {"price": {"gt": 5}}},
+                {"range": {"price": {"gt": 1}}},
+            ]
+        }
+    }
+
+
+def test_not_of_same_operator_ranges_keeps_both_bounds():
+    filters = {
+        "operator": "NOT",
+        "conditions": [
+            {"field": "meta.price", "operator": "<=", "value": 5},
+            {"field": "meta.price", "operator": "<=", "value": 1},
+        ],
+    }
+    assert normalize_filters(filters) == {
+        "bool": {
+            "must_not": [
+                {
+                    "bool": {
+                        "must": [
+                            {"range": {"price": {"lte": 5}}},
+                            {"range": {"price": {"lte": 1}}},
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+
+
+def test_and_of_same_side_bounds_keeps_both_clauses():
+    # `lt` and `lte` constrain the same side, and Elasticsearch keeps only one of them per
+    # clause, so they must not be merged even though the keys differ.
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.price", "operator": "<", "value": 3},
+            {"field": "meta.price", "operator": "<=", "value": 5},
+        ],
+    }
+    assert normalize_filters(filters) == {
+        "bool": {
+            "must": [
+                {"range": {"price": {"lt": 3}}},
+                {"range": {"price": {"lte": 5}}},
+            ]
+        }
+    }
+
+
+def test_and_of_same_operator_ranges_on_same_nested_field_keeps_both_bounds():
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.refs.score", "operator": ">", "value": 5},
+            {"field": "meta.refs.score", "operator": ">", "value": 1},
+        ],
+    }
+    assert normalize_filters(filters, nested_fields={"refs"}) == {
+        "bool": {
+            "must": [
+                {
+                    "nested": {
+                        "path": "refs",
+                        "query": {
+                            "bool": {
+                                "must": [
+                                    {"range": {"refs.score": {"gt": 5}}},
+                                    {"range": {"refs.score": {"gt": 1}}},
+                                ]
+                            }
+                        },
+                    }
+                }
+            ]
+        }
+    }
+
+
+def test_normalize_ranges_starts_a_new_clause_on_a_repeated_bound():
+    conditions = [
+        {"range": {"price": {"gt": 1}}},
+        {"range": {"price": {"gt": 5}}},
+        {"range": {"price": {"lt": 10}}},
+    ]
+    # The `lt` still merges into the first clause; only the repeated `gt` splits.
+    assert _normalize_ranges(conditions) == [
+        {"range": {"price": {"gt": 1, "lt": 10}}},
+        {"range": {"price": {"gt": 5}}},
+    ]
+
+
 @pytest.mark.parametrize("filters, nested_fields, expected", nested_filters_data)
 def test_normalize_filters_with_nested_fields(filters, nested_fields, expected):
     result = normalize_filters(filters, nested_fields=nested_fields)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/elasticsearch-v6.4.1] - 2026-09-24
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/elasticsearch-v6.4.0] - 2026-09-01
 
 ### 🚀 Features

@@ -615,10 +615,10 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                reasoning=ReasoningContent(
-                    reasoning_text=reasoning_text,
-                    extra=extra,
-                ),
+                # redactedContent-only deltas have no text or signature, skip them like the non-streaming path
+                reasoning=ReasoningContent(reasoning_text=reasoning_text, extra=extra)
+                if reasoning_text or extra
+                else None,
                 meta=base_meta,
             )
 
