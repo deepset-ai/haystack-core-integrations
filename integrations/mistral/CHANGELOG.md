@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mistral-v2.1.0] - 2026-09-25
+
+### 🧹 Chores
+
+- MistralOCRDocumentConverter - replace retired default model with Mistral OCR 4.1 (#4002)
+
+
 ## [integrations/mistral-v2.0.0] - 2026-09-08
 
 ### 🚀 Features
