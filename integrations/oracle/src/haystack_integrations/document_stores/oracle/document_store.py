@@ -6,7 +6,6 @@ import array as _array
 import asyncio
 import decimal
 import json
-import logging
 import re
 import threading
 from contextlib import suppress
@@ -14,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import oracledb
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -265,7 +264,7 @@ class OracleDocumentStore:
                 )
                 conn.commit()
         except oracledb.DatabaseError as e:
-            logger.debug("Could not create keyword index (may already exist): %s", e)
+            logger.debug("Could not create keyword index (may already exist): {error}", error=e)
 
     def create_keyword_index(self) -> None:
         """
@@ -523,7 +522,7 @@ class OracleDocumentStore:
             try:
                 cur.execute(sql)
             except oracledb.DatabaseError as e:
-                logger.debug("Failed to drop table. SQL: %s", sql)
+                logger.debug("Failed to drop table. SQL: {sql}", sql=sql)
                 msg = (
                     f"Failed to drop table '{self.table_name}'. Error: {e!r}. "
                     "You can find the SQL query in the debug logs."
@@ -536,7 +535,7 @@ class OracleDocumentStore:
             try:
                 cur.execute(sql)
             except oracledb.DatabaseError as e:
-                logger.debug("Failed to drop keyword index. SQL: %s", sql)
+                logger.debug("Failed to drop keyword index. SQL: {sql}", sql=sql)
                 msg = (
                     f"Failed to drop keyword index '{index_name}'. Error: {e!r}. "
                     "You can find the SQL query in the debug logs."
@@ -928,7 +927,7 @@ class OracleDocumentStore:
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
-                logger.debug("Embedding retrieval failed. SQL: %s\nParams: %s", sql, params)
+                logger.debug("Embedding retrieval failed. SQL: {sql}\nParams: {params}", sql=sql, params=params)
                 msg = (
                     f"Embedding retrieval failed. Error: {e!r}. "
                     "You can find the SQL query and the parameters in the debug logs."
@@ -979,7 +978,7 @@ class OracleDocumentStore:
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
-                logger.debug("Keyword retrieval failed. SQL: %s\nParams: %s", sql, params)
+                logger.debug("Keyword retrieval failed. SQL: {sql}\nParams: {params}", sql=sql, params=params)
                 msg = (
                     f"Keyword retrieval failed. Error: {e!r}. "
                     "You can find the SQL query and the parameters in the debug logs."

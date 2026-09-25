@@ -5,14 +5,13 @@
 """IBM Db2 Document Store for Haystack."""
 
 import json
-import logging
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -269,7 +268,7 @@ class IBMDb2DocumentStore:
                 try:
                     cur.execute(create_sql)
                     conn.commit()
-                    logger.info(f"Created table {self.table_name}")
+                    logger.info("Created table {table_name}", table_name=self.table_name)
                 except Exception:
                     conn.rollback()
                     # If it still fails, raise the error

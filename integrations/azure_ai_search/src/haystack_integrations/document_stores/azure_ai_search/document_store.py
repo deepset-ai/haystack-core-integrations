@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging as python_logging
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from datetime import datetime
@@ -105,8 +104,8 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
 )
 
 logger = logging.getLogger(__name__)
-python_logging.getLogger("azure").setLevel(python_logging.ERROR)
-python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
+logging.getLogger("azure").setLevel(logging.ERROR)
+logging.getLogger("azure.identity").setLevel(logging.DEBUG)
 
 SPECIAL_FIELDS = {"id", "embedding"}
 FIELD_TYPE_MAPPING = {

@@ -3,14 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-import logging
 from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -599,7 +598,7 @@ class FAISSDocumentStore:
         # Verify sync
         if len(self.documents) != len(self.id_map):
             logger.warning(
-                "Loaded %d documents but %d ID mappings. Index might be out of sync.",
-                len(self.documents),
-                len(self.id_map),
+                "Loaded {documents_count} documents but {mappings_count} ID mappings. Index might be out of sync.",
+                documents_count=len(self.documents),
+                mappings_count=len(self.id_map),
             )
