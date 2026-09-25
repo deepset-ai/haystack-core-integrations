@@ -182,6 +182,26 @@ def test_run(mock_document_store):
     )
 
 
+@pytest.mark.parametrize("param", ["distance", "certainty"])
+def test_run_honors_explicit_zero(param):
+    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store, **{param: 0.5})
+
+    retriever.run(query_embedding=[0.1, 0.2, 0.3], **{param: 0.0})
+
+    assert mock_document_store._embedding_retrieval.call_args.kwargs[param] == 0.0
+
+
+@pytest.mark.parametrize("param", ["distance", "certainty"])
+def test_run_honors_zero_set_at_init(param):
+    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store, **{param: 0.0})
+
+    retriever.run(query_embedding=[0.1, 0.2, 0.3])
+
+    assert mock_document_store._embedding_retrieval.call_args.kwargs[param] == 0.0
+
+
 def test_run_with_distance_and_certainty():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
     retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store)
