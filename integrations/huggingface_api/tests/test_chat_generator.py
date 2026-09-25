@@ -1252,7 +1252,7 @@ class TestReasoningIntegration:
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
             # We use together + openai/gpt-oss-20b since it actually returns reasoning content in the expected field
-            api_params={"model": "openai/gpt-oss-20b", "provider": "together"},
+            api_params={"model": "openai/gpt-oss-20b", "provider": "groq"},
             generation_kwargs={"max_tokens": 300},
         )
 
