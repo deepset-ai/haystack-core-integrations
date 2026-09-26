@@ -786,3 +786,199 @@ class TestSentenceTransformersDiversityRanker:
             config_kwargs=None,
             backend="torch",
         )
+
+
+_PROCESSOR_UTIL_LOGGER = "haystack_integrations.utils.sentence_transformers"
+_PROCESSOR_DEPRECATED_MESSAGE = "`tokenizer_kwargs` is deprecated. Use `processor_kwargs` instead."
+_PROCESSOR_CONFLICT_SUFFIX = " Both were provided; `processor_kwargs` takes precedence."
+_PROCESSOR_TYPE_NAME = "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_diversity.SentenceTransformersDiversityRanker"
+_PROCESSOR_PATCH_TARGET = (
+    "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_diversity.SentenceTransformer"
+)
+
+
+def _processor_util_warnings(caplog):
+    return [
+        record for record in caplog.records if record.name == _PROCESSOR_UTIL_LOGGER and record.levelname == "WARNING"
+    ]
+
+
+class TestSentenceTransformersDiversityRankerProcessorKwargs:
+    @pytest.mark.parametrize(
+        ("legacy", "canonical", "expect_warn", "expect_conflict"),
+        [
+            pytest.param(None, None, False, False, id="both-none"),
+            pytest.param({"model_max_length": 512}, None, True, False, id="legacy-only"),
+            pytest.param(None, {"model_max_length": 128}, False, False, id="canonical-only"),
+            pytest.param({}, None, True, False, id="legacy-empty"),
+            pytest.param(None, {}, False, False, id="canonical-empty"),
+            pytest.param({"model_max_length": 512}, {}, True, True, id="legacy-plus-canonical-empty"),
+            pytest.param({"model_max_length": 512}, {"model_max_length": 128}, True, True, id="both-nonempty"),
+            pytest.param({"model_max_length": 512}, None, True, False, id="legacy-plus-explicit-canonical-none"),
+        ],
+    )
+    def test_constructor_matrix(self, caplog, legacy, canonical, expect_warn, expect_conflict):
+        legacy_snapshot = None if legacy is None else dict(legacy)
+        canonical_snapshot = None if canonical is None else dict(canonical)
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersDiversityRanker(
+                model="model",
+                token=None,
+                device=ComponentDevice.from_str("cpu"),
+                tokenizer_kwargs=legacy,
+                processor_kwargs=canonical,
+            )
+        expected = canonical if canonical is not None else legacy
+        assert component.tokenizer_kwargs == expected
+        if expected is None:
+            assert component.tokenizer_kwargs is None
+        elif canonical is not None:
+            assert component.tokenizer_kwargs is canonical
+        else:
+            assert component.tokenizer_kwargs is legacy
+        assert not hasattr(component, "processor_kwargs")
+        assert legacy == legacy_snapshot
+        assert canonical == canonical_snapshot
+        records = _processor_util_warnings(caplog)
+        if expect_warn:
+            assert len(records) == 1
+            expected_message = _PROCESSOR_DEPRECATED_MESSAGE
+            if expect_conflict:
+                expected_message += _PROCESSOR_CONFLICT_SUFFIX
+            assert records[0].getMessage() == expected_message
+        else:
+            assert records == []
+
+    def test_to_dict_emits_legacy_key_only(self):
+        component = SentenceTransformersDiversityRanker(model="model", processor_kwargs={"model_max_length": 128})
+        data = component.to_dict()
+        assert data["init_parameters"]["tokenizer_kwargs"] == {"model_max_length": 128}
+        assert "processor_kwargs" not in data["init_parameters"]
+        legacy = SentenceTransformersDiversityRanker(model="model", tokenizer_kwargs={"model_max_length": 128})
+        assert set(data["init_parameters"]) == set(legacy.to_dict()["init_parameters"])
+
+    def test_from_dict_accepts_canonical_key_quietly(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {"model": "model", "processor_kwargs": {"model_max_length": 128}},
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersDiversityRanker.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 128}
+        assert _processor_util_warnings(caplog) == []
+
+    def test_from_dict_legacy_only_is_quiet(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {"model": "model", "tokenizer_kwargs": {"model_max_length": 512}},
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersDiversityRanker.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 512}
+        assert _processor_util_warnings(caplog) == []
+
+    def test_from_dict_both_keys_canonical_wins_with_warning(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {
+                "model": "model",
+                "tokenizer_kwargs": {"model_max_length": 512},
+                "processor_kwargs": {"model_max_length": 128},
+            },
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersDiversityRanker.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 128}
+        records = _processor_util_warnings(caplog)
+        assert len(records) == 1
+        assert records[0].getMessage() == _PROCESSOR_DEPRECATED_MESSAGE + _PROCESSOR_CONFLICT_SUFFIX
+        assert data["init_parameters"]["tokenizer_kwargs"] == {"model_max_length": 512}
+        assert data["init_parameters"]["processor_kwargs"] == {"model_max_length": 128}
+        reserialized = component.to_dict()
+        assert reserialized["init_parameters"]["tokenizer_kwargs"] == {"model_max_length": 128}
+        assert "processor_kwargs" not in reserialized["init_parameters"]
+
+    def test_from_dict_explicit_canonical_none_falls_back_quietly(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {
+                "model": "model",
+                "tokenizer_kwargs": {"model_max_length": 512},
+                "processor_kwargs": None,
+            },
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersDiversityRanker.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 512}
+        assert _processor_util_warnings(caplog) == []
+
+    def test_from_dict_canonical_empty_overrides_legacy(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {
+                "model": "model",
+                "tokenizer_kwargs": {"model_max_length": 512},
+                "processor_kwargs": {},
+            },
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersDiversityRanker.from_dict(data)
+        assert component.tokenizer_kwargs == {}
+        assert len(_processor_util_warnings(caplog)) == 1
+
+    def test_canonical_round_trip_is_quiet(self, caplog):
+        component = SentenceTransformersDiversityRanker(model="model", processor_kwargs={"model_max_length": 128})
+        data = component.to_dict()
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            restored = SentenceTransformersDiversityRanker.from_dict(data)
+        assert restored.tokenizer_kwargs == {"model_max_length": 128}
+        assert _processor_util_warnings(caplog) == []
+
+    @pytest.mark.parametrize(
+        ("legacy", "canonical", "expected"),
+        [
+            pytest.param(None, None, None, id="both-none"),
+            pytest.param({"model_max_length": 512}, None, {"model_max_length": 512}, id="legacy-only"),
+            pytest.param(None, {"model_max_length": 128}, {"model_max_length": 128}, id="canonical-only"),
+            pytest.param(
+                {"model_max_length": 512}, {"model_max_length": 128}, {"model_max_length": 128}, id="both-nonempty"
+            ),
+            pytest.param({"model_max_length": 512}, {}, {}, id="canonical-empty-wins"),
+        ],
+    )
+    @patch(_PROCESSOR_PATCH_TARGET)
+    def test_warmup_forwards_effective_as_canonical(self, mocked_sdk, legacy, canonical, expected):
+        ranker = SentenceTransformersDiversityRanker(
+            model="model",
+            token=None,
+            device=ComponentDevice.from_str("cpu"),
+            tokenizer_kwargs=legacy,
+            processor_kwargs=canonical,
+        )
+        ranker.warm_up()
+        mocked_sdk.assert_called_once_with(
+            model_name_or_path="model",
+            device="cpu",
+            token=None,
+            model_kwargs=None,
+            processor_kwargs=expected,
+            config_kwargs=None,
+            backend="torch",
+        )
+        assert "tokenizer_kwargs" not in mocked_sdk.call_args.kwargs
+
+    @patch(_PROCESSOR_PATCH_TARGET)
+    def test_warmup_repeated_does_not_reconstruct_or_warn(self, mocked_sdk, caplog):
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            ranker = SentenceTransformersDiversityRanker(model="model", tokenizer_kwargs={"model_max_length": 512})
+            ranker.warm_up()
+            ranker.warm_up()
+        mocked_sdk.assert_called_once()
+        assert len(_processor_util_warnings(caplog)) == 1
+
+    @patch(_PROCESSOR_PATCH_TARGET)
+    def test_legacy_reassignment_before_warmup_is_effective(self, mocked_sdk):
+        ranker = SentenceTransformersDiversityRanker(model="model", token=None, device=ComponentDevice.from_str("cpu"))
+        ranker.tokenizer_kwargs = {"model_max_length": 128}
+        ranker.warm_up()
+        assert mocked_sdk.call_args.kwargs["processor_kwargs"] == {"model_max_length": 128}

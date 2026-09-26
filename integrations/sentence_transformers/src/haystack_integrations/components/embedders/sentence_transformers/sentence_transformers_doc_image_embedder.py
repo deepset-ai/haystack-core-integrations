@@ -20,6 +20,7 @@ from haystack_integrations.components.embedders.sentence_transformers.embedding_
     _SentenceTransformersEmbeddingBackend,
     _SentenceTransformersEmbeddingBackendFactory,
 )
+from haystack_integrations.utils.sentence_transformers import _normalize_processor_kwargs, _resolve_processor_kwargs
 
 
 @component
@@ -72,6 +73,7 @@ class SentenceTransformersDocumentImageEmbedder:
         local_files_only: bool = False,
         model_kwargs: dict[str, Any] | None = None,
         tokenizer_kwargs: dict[str, Any] | None = None,
+        processor_kwargs: dict[str, Any] | None = None,
         config_kwargs: dict[str, Any] | None = None,
         precision: Literal["float32", "int8", "uint8", "binary", "ubinary"] = "float32",
         encode_kwargs: dict[str, Any] | None = None,
@@ -114,8 +116,18 @@ class SentenceTransformersDocumentImageEmbedder:
             Additional keyword arguments for `AutoModelForSequenceClassification.from_pretrained`
             when loading the model. Refer to specific model documentation for available kwargs.
         :param tokenizer_kwargs:
-            Additional keyword arguments for `AutoTokenizer.from_pretrained` when loading the tokenizer.
-            Refer to specific model documentation for available kwargs.
+            Deprecated alias for `processor_kwargs`. Kept working so existing code and stored pipelines
+            keep loading unchanged. When both are non-`None`, `processor_kwargs` takes precedence,
+            even when it is an empty dict. Explicit `None` (default) means unset.
+        :param processor_kwargs:
+            Additional keyword arguments for the processor/tokenizer loader of the Sentence Transformers
+            model, forwarded as `processor_kwargs`. For example, `{"model_max_length": 128}` shortens the
+            maximum sequence length and is applied to `model.max_seq_length` after warm-up.
+            Keys such as `padding`, `truncation` and `max_length` are per-call processing options and have
+            no effect here; configure per-call behavior through `encode_kwargs` instead.
+            Serialization keeps emitting the effective value under `tokenizer_kwargs` so pipelines stored
+            by this version remain loadable by older versions; deserialization accepts both names.
+            Refer to the installed Sentence Transformers documentation for supported loader kwargs.
         :param config_kwargs:
             Additional keyword arguments for `AutoConfig.from_pretrained` when loading the model configuration.
         :param precision:
@@ -143,7 +155,9 @@ class SentenceTransformersDocumentImageEmbedder:
         self.trust_remote_code = trust_remote_code
         self.local_files_only = local_files_only
         self.model_kwargs = model_kwargs
-        self.tokenizer_kwargs = tokenizer_kwargs
+        self.tokenizer_kwargs = _resolve_processor_kwargs(
+            tokenizer_kwargs=tokenizer_kwargs, processor_kwargs=processor_kwargs
+        )
         self.config_kwargs = config_kwargs
         self.encode_kwargs = encode_kwargs
         self.precision = precision
@@ -190,6 +204,7 @@ class SentenceTransformersDocumentImageEmbedder:
         :returns:
             Deserialized component.
         """
+        data = _normalize_processor_kwargs(data)
         init_params = data["init_parameters"]
         if init_params.get("model_kwargs") is not None:
             deserialize_hf_model_kwargs(init_params["model_kwargs"])
@@ -207,7 +222,7 @@ class SentenceTransformersDocumentImageEmbedder:
                 trust_remote_code=self.trust_remote_code,
                 local_files_only=self.local_files_only,
                 model_kwargs=self.model_kwargs,
-                tokenizer_kwargs=self.tokenizer_kwargs,
+                processor_kwargs=self.tokenizer_kwargs,
                 config_kwargs=self.config_kwargs,
                 backend=self.backend,
             )
