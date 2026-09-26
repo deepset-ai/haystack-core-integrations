@@ -9,6 +9,7 @@ import numpy as np
 from haystack.utils.auth import Secret
 from PIL.Image import Image
 
+from haystack_integrations.utils.sentence_transformers import _resolve_processor_kwargs
 from sentence_transformers import SentenceTransformer, quantize_embeddings
 
 
@@ -31,9 +32,13 @@ class _SentenceTransformersEmbeddingBackendFactory:
         truncate_dim: int | None = None,
         model_kwargs: dict[str, Any] | None = None,
         tokenizer_kwargs: dict[str, Any] | None = None,
+        processor_kwargs: dict[str, Any] | None = None,
         config_kwargs: dict[str, Any] | None = None,
         backend: Literal["torch", "onnx", "openvino"] = "torch",
     ) -> "_SentenceTransformersEmbeddingBackend":
+        effective_processor_kwargs = _resolve_processor_kwargs(
+            tokenizer_kwargs=tokenizer_kwargs, processor_kwargs=processor_kwargs
+        )
         cache_params = {
             "model": model,
             "device": device,
@@ -43,7 +48,7 @@ class _SentenceTransformersEmbeddingBackendFactory:
             "local_files_only": local_files_only,
             "truncate_dim": truncate_dim,
             "model_kwargs": model_kwargs,
-            "tokenizer_kwargs": tokenizer_kwargs,
+            "tokenizer_kwargs": effective_processor_kwargs,
             "config_kwargs": config_kwargs,
             "backend": backend,
         }
@@ -62,7 +67,7 @@ class _SentenceTransformersEmbeddingBackendFactory:
             local_files_only=local_files_only,
             truncate_dim=truncate_dim,
             model_kwargs=model_kwargs,
-            tokenizer_kwargs=tokenizer_kwargs,
+            processor_kwargs=effective_processor_kwargs,
             config_kwargs=config_kwargs,
             backend=backend,
         )
@@ -88,9 +93,13 @@ class _SentenceTransformersEmbeddingBackend:
         truncate_dim: int | None = None,
         model_kwargs: dict[str, Any] | None = None,
         tokenizer_kwargs: dict[str, Any] | None = None,
+        processor_kwargs: dict[str, Any] | None = None,
         config_kwargs: dict[str, Any] | None = None,
         backend: Literal["torch", "onnx", "openvino"] = "torch",
     ) -> None:
+        effective_processor_kwargs = _resolve_processor_kwargs(
+            tokenizer_kwargs=tokenizer_kwargs, processor_kwargs=processor_kwargs
+        )
         self.model = SentenceTransformer(
             model_name_or_path=model,
             device=device,
@@ -101,7 +110,7 @@ class _SentenceTransformersEmbeddingBackend:
             truncate_dim=truncate_dim,
             model_kwargs=model_kwargs,
             # `tokenizer_kwargs` was renamed to `processor_kwargs` in sentence-transformers 5.4.0
-            processor_kwargs=tokenizer_kwargs,
+            processor_kwargs=effective_processor_kwargs,
             config_kwargs=config_kwargs,
             backend=backend,
         )

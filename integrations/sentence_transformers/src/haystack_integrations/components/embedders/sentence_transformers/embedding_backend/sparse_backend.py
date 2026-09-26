@@ -8,6 +8,7 @@ from typing import Any, ClassVar, Literal
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.utils.auth import Secret
 
+from haystack_integrations.utils.sentence_transformers import _resolve_processor_kwargs
 from sentence_transformers import SparseEncoder
 
 
@@ -29,9 +30,13 @@ class _SentenceTransformersSparseEmbeddingBackendFactory:
         local_files_only: bool = False,
         model_kwargs: dict[str, Any] | None = None,
         tokenizer_kwargs: dict[str, Any] | None = None,
+        processor_kwargs: dict[str, Any] | None = None,
         config_kwargs: dict[str, Any] | None = None,
         backend: Literal["torch", "onnx", "openvino"] = "torch",
     ) -> "_SentenceTransformersSparseEncoderEmbeddingBackend":
+        effective_processor_kwargs = _resolve_processor_kwargs(
+            tokenizer_kwargs=tokenizer_kwargs, processor_kwargs=processor_kwargs
+        )
         cache_params = {
             "model": model,
             "device": device,
@@ -40,7 +45,7 @@ class _SentenceTransformersSparseEmbeddingBackendFactory:
             "revision": revision,
             "local_files_only": local_files_only,
             "model_kwargs": model_kwargs,
-            "tokenizer_kwargs": tokenizer_kwargs,
+            "tokenizer_kwargs": effective_processor_kwargs,
             "config_kwargs": config_kwargs,
             "backend": backend,
         }
@@ -58,7 +63,7 @@ class _SentenceTransformersSparseEmbeddingBackendFactory:
             revision=revision,
             local_files_only=local_files_only,
             model_kwargs=model_kwargs,
-            tokenizer_kwargs=tokenizer_kwargs,
+            processor_kwargs=effective_processor_kwargs,
             config_kwargs=config_kwargs,
             backend=backend,
         )
@@ -83,9 +88,13 @@ class _SentenceTransformersSparseEncoderEmbeddingBackend:
         local_files_only: bool = False,
         model_kwargs: dict[str, Any] | None = None,
         tokenizer_kwargs: dict[str, Any] | None = None,
+        processor_kwargs: dict[str, Any] | None = None,
         config_kwargs: dict[str, Any] | None = None,
         backend: Literal["torch", "onnx", "openvino"] = "torch",
     ) -> None:
+        effective_processor_kwargs = _resolve_processor_kwargs(
+            tokenizer_kwargs=tokenizer_kwargs, processor_kwargs=processor_kwargs
+        )
         self.model = SparseEncoder(
             model_name_or_path=model,
             device=device,
@@ -95,7 +104,7 @@ class _SentenceTransformersSparseEncoderEmbeddingBackend:
             local_files_only=local_files_only,
             model_kwargs=model_kwargs,
             # `tokenizer_kwargs` was renamed to `processor_kwargs` in sentence-transformers 5.4.0
-            processor_kwargs=tokenizer_kwargs,
+            processor_kwargs=effective_processor_kwargs,
             config_kwargs=config_kwargs,
             backend=backend,
         )
