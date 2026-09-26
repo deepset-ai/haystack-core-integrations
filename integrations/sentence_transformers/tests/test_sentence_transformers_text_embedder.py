@@ -262,7 +262,7 @@ class TestSentenceTransformersTextEmbedder:
             local_files_only=False,
             truncate_dim=None,
             model_kwargs=None,
-            tokenizer_kwargs={"model_max_length": 512},
+            processor_kwargs={"model_max_length": 512},
             config_kwargs=None,
             backend="torch",
         )
@@ -353,7 +353,7 @@ class TestSentenceTransformersTextEmbedder:
             local_files_only=False,
             truncate_dim=None,
             model_kwargs={"file_name": "onnx/model.onnx"},
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="onnx",
         )
@@ -382,7 +382,7 @@ class TestSentenceTransformersTextEmbedder:
             local_files_only=False,
             truncate_dim=None,
             model_kwargs={"file_name": "openvino/openvino_model.xml"},
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="openvino",
         )
@@ -409,7 +409,7 @@ class TestSentenceTransformersTextEmbedder:
             local_files_only=False,
             truncate_dim=None,
             model_kwargs=model_kwargs,
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="torch",
         )
@@ -468,3 +468,245 @@ class TestSentenceTransformersTextEmbedder:
         assert all(isinstance(el, int) for el in embedding)
         # without explicit ranges, a single text produces a degenerate all-equal embedding
         assert len(set(embedding)) > 1
+
+
+_PROCESSOR_UTIL_LOGGER = "haystack_integrations.utils.sentence_transformers"
+_PROCESSOR_DEPRECATED_MESSAGE = "`tokenizer_kwargs` is deprecated. Use `processor_kwargs` instead."
+_PROCESSOR_CONFLICT_SUFFIX = " Both were provided; `processor_kwargs` takes precedence."
+_PROCESSOR_TYPE_NAME = "haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder"
+_PROCESSOR_PATCH_TARGET = "haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_text_embedder._SentenceTransformersEmbeddingBackendFactory"
+
+
+def _processor_util_warnings(caplog):
+    return [
+        record for record in caplog.records if record.name == _PROCESSOR_UTIL_LOGGER and record.levelname == "WARNING"
+    ]
+
+
+class TestSentenceTransformersTextEmbedderProcessorKwargs:
+    @pytest.mark.parametrize(
+        ("legacy", "canonical", "expect_warn", "expect_conflict"),
+        [
+            pytest.param(None, None, False, False, id="both-none"),
+            pytest.param({"model_max_length": 512}, None, True, False, id="legacy-only"),
+            pytest.param(None, {"model_max_length": 128}, False, False, id="canonical-only"),
+            pytest.param({}, None, True, False, id="legacy-empty"),
+            pytest.param(None, {}, False, False, id="canonical-empty"),
+            pytest.param({"model_max_length": 512}, {}, True, True, id="legacy-plus-canonical-empty"),
+            pytest.param({"model_max_length": 512}, {"model_max_length": 128}, True, True, id="both-nonempty"),
+            pytest.param({"model_max_length": 512}, None, True, False, id="legacy-plus-explicit-canonical-none"),
+        ],
+    )
+    def test_constructor_matrix(self, caplog, legacy, canonical, expect_warn, expect_conflict):
+        legacy_snapshot = None if legacy is None else dict(legacy)
+        canonical_snapshot = None if canonical is None else dict(canonical)
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersTextEmbedder(
+                model="model",
+                token=None,
+                device=ComponentDevice.from_str("cpu"),
+                tokenizer_kwargs=legacy,
+                processor_kwargs=canonical,
+            )
+        expected = canonical if canonical is not None else legacy
+        assert component.tokenizer_kwargs == expected
+        if expected is None:
+            assert component.tokenizer_kwargs is None
+        elif canonical is not None:
+            assert component.tokenizer_kwargs is canonical
+        else:
+            assert component.tokenizer_kwargs is legacy
+        assert not hasattr(component, "processor_kwargs")
+        assert legacy == legacy_snapshot
+        assert canonical == canonical_snapshot
+        records = _processor_util_warnings(caplog)
+        if expect_warn:
+            assert len(records) == 1
+            expected_message = _PROCESSOR_DEPRECATED_MESSAGE
+            if expect_conflict:
+                expected_message += _PROCESSOR_CONFLICT_SUFFIX
+            assert records[0].getMessage() == expected_message
+        else:
+            assert records == []
+
+    def test_to_dict_emits_legacy_key_only(self):
+        component = SentenceTransformersTextEmbedder(model="model", processor_kwargs={"model_max_length": 128})
+        data = component.to_dict()
+        assert data["init_parameters"]["tokenizer_kwargs"] == {"model_max_length": 128}
+        assert "processor_kwargs" not in data["init_parameters"]
+        legacy = SentenceTransformersTextEmbedder(model="model", tokenizer_kwargs={"model_max_length": 128})
+        assert set(data["init_parameters"]) == set(legacy.to_dict()["init_parameters"])
+
+    def test_from_dict_accepts_canonical_key_quietly(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {"model": "model", "processor_kwargs": {"model_max_length": 128}},
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersTextEmbedder.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 128}
+        assert _processor_util_warnings(caplog) == []
+
+    def test_from_dict_legacy_only_is_quiet(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {"model": "model", "tokenizer_kwargs": {"model_max_length": 512}},
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersTextEmbedder.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 512}
+        assert _processor_util_warnings(caplog) == []
+
+    def test_from_dict_both_keys_canonical_wins_with_warning(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {
+                "model": "model",
+                "tokenizer_kwargs": {"model_max_length": 512},
+                "processor_kwargs": {"model_max_length": 128},
+            },
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersTextEmbedder.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 128}
+        records = _processor_util_warnings(caplog)
+        assert len(records) == 1
+        assert records[0].getMessage() == _PROCESSOR_DEPRECATED_MESSAGE + _PROCESSOR_CONFLICT_SUFFIX
+        assert data["init_parameters"]["tokenizer_kwargs"] == {"model_max_length": 512}
+        assert data["init_parameters"]["processor_kwargs"] == {"model_max_length": 128}
+        reserialized = component.to_dict()
+        assert reserialized["init_parameters"]["tokenizer_kwargs"] == {"model_max_length": 128}
+        assert "processor_kwargs" not in reserialized["init_parameters"]
+
+    def test_from_dict_explicit_canonical_none_falls_back_quietly(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {
+                "model": "model",
+                "tokenizer_kwargs": {"model_max_length": 512},
+                "processor_kwargs": None,
+            },
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersTextEmbedder.from_dict(data)
+        assert component.tokenizer_kwargs == {"model_max_length": 512}
+        assert _processor_util_warnings(caplog) == []
+
+    def test_from_dict_canonical_empty_overrides_legacy(self, caplog):
+        data = {
+            "type": _PROCESSOR_TYPE_NAME,
+            "init_parameters": {
+                "model": "model",
+                "tokenizer_kwargs": {"model_max_length": 512},
+                "processor_kwargs": {},
+            },
+        }
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            component = SentenceTransformersTextEmbedder.from_dict(data)
+        assert component.tokenizer_kwargs == {}
+        assert len(_processor_util_warnings(caplog)) == 1
+
+    def test_canonical_round_trip_is_quiet(self, caplog):
+        component = SentenceTransformersTextEmbedder(model="model", processor_kwargs={"model_max_length": 128})
+        data = component.to_dict()
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            restored = SentenceTransformersTextEmbedder.from_dict(data)
+        assert restored.tokenizer_kwargs == {"model_max_length": 128}
+        assert _processor_util_warnings(caplog) == []
+
+    @pytest.mark.parametrize(
+        ("legacy", "canonical", "expected"),
+        [
+            pytest.param(None, None, None, id="both-none"),
+            pytest.param({"model_max_length": 512}, None, {"model_max_length": 512}, id="legacy-only"),
+            pytest.param(None, {"model_max_length": 128}, {"model_max_length": 128}, id="canonical-only"),
+            pytest.param(
+                {"model_max_length": 512}, {"model_max_length": 128}, {"model_max_length": 128}, id="both-nonempty"
+            ),
+            pytest.param({"model_max_length": 512}, {}, {}, id="canonical-empty-wins"),
+        ],
+    )
+    @patch(_PROCESSOR_PATCH_TARGET)
+    def test_warmup_forwards_effective_as_canonical(self, mocked_factory, legacy, canonical, expected):
+        embedder = SentenceTransformersTextEmbedder(
+            model="model",
+            token=None,
+            device=ComponentDevice.from_str("cpu"),
+            tokenizer_kwargs=legacy,
+            processor_kwargs=canonical,
+        )
+        mocked_factory.get_embedding_backend.assert_not_called()
+        embedder.warm_up()
+        mocked_factory.get_embedding_backend.assert_called_once_with(
+            model="model",
+            device="cpu",
+            auth_token=None,
+            trust_remote_code=False,
+            revision=None,
+            local_files_only=False,
+            truncate_dim=None,
+            model_kwargs=None,
+            processor_kwargs=expected,
+            config_kwargs=None,
+            backend="torch",
+        )
+        assert "tokenizer_kwargs" not in mocked_factory.get_embedding_backend.call_args.kwargs
+
+    @patch(_PROCESSOR_PATCH_TARGET)
+    def test_warmup_repeated_does_not_reconstruct_or_warn(self, mocked_factory, caplog):
+        with caplog.at_level("WARNING", logger=_PROCESSOR_UTIL_LOGGER):
+            embedder = SentenceTransformersTextEmbedder(model="model", tokenizer_kwargs={"model_max_length": 512})
+            embedder.warm_up()
+            embedder.warm_up()
+        mocked_factory.get_embedding_backend.assert_called_once()
+        assert len(_processor_util_warnings(caplog)) == 1
+
+    @pytest.mark.parametrize(
+        ("legacy", "canonical", "expected_length"),
+        [
+            pytest.param({"model_max_length": 128}, None, 128, id="legacy-length"),
+            pytest.param(None, {"model_max_length": 128}, 128, id="canonical-length"),
+            pytest.param({"model_max_length": 512}, {"model_max_length": 128}, 128, id="canonical-override"),
+            pytest.param(None, None, None, id="both-none"),
+            pytest.param({}, None, None, id="legacy-empty"),
+            pytest.param({"model_max_length": 0}, None, None, id="legacy-zero"),
+            pytest.param({"other": "value"}, None, None, id="legacy-without-length"),
+            pytest.param({"model_max_length": 512}, {}, None, id="canonical-empty-suppresses"),
+        ],
+    )
+    @patch(_PROCESSOR_PATCH_TARGET)
+    def test_warmup_model_max_length_sync(self, mocked_factory, legacy, canonical, expected_length):
+        mocked_factory.get_embedding_backend.return_value.model.max_seq_length = 999
+        embedder = SentenceTransformersTextEmbedder(
+            model="model",
+            token=None,
+            device=ComponentDevice.from_str("cpu"),
+            tokenizer_kwargs=legacy,
+            processor_kwargs=canonical,
+        )
+        embedder.warm_up()
+        if expected_length is None:
+            assert mocked_factory.get_embedding_backend.return_value.model.max_seq_length == 999
+        else:
+            assert mocked_factory.get_embedding_backend.return_value.model.max_seq_length == expected_length
+
+    @patch(_PROCESSOR_PATCH_TARGET)
+    def test_legacy_reassignment_before_warmup_is_effective(self, mocked_factory):
+        embedder = SentenceTransformersTextEmbedder(model="model", token=None, device=ComponentDevice.from_str("cpu"))
+        embedder.tokenizer_kwargs = {"model_max_length": 128}
+        embedder.warm_up()
+        assert mocked_factory.get_embedding_backend.call_args.kwargs["processor_kwargs"] == {"model_max_length": 128}
+        assert embedder.to_dict()["init_parameters"]["tokenizer_kwargs"] == {"model_max_length": 128}
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("kwargs_name", ["tokenizer_kwargs", "processor_kwargs"])
+    def test_processor_kwargs_integration(self, kwargs_name, del_hf_env_vars_if_empty):
+        checkpoint = "sentence-transformers-testing/stsb-bert-tiny-safetensors"
+        embedder = SentenceTransformersTextEmbedder(
+            model=checkpoint, device=ComponentDevice.from_str("cpu"), **{kwargs_name: {"model_max_length": 128}}
+        )
+        embedder.warm_up()
+        assert embedder.embedding_backend is not None
+        assert embedder.embedding_backend.model.max_seq_length == 128
+        result = embedder.run(text="a nice text to embed")
+        assert len(result["embedding"]) == 128
