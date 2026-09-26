@@ -9,6 +9,7 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -163,6 +164,27 @@ class TestDocumentStore(
 
         assert document_store.count_documents() == 0
         assert document_store._connection is not None
+
+
+@pytest.mark.usefixtures("patches_for_unit_tests")
+def test_delete_by_filter_rejects_an_empty_filter(monkeypatch):
+    """An empty filter would compile to an unqualified DELETE and empty the table."""
+    monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
+    document_store = PgvectorDocumentStore(table_name="my_table")
+
+    with pytest.raises(FilterError, match="non-empty filter"):
+        document_store.delete_by_filter({})
+
+
+@pytest.mark.usefixtures("patches_for_unit_tests")
+@pytest.mark.asyncio
+async def test_delete_by_filter_async_rejects_an_empty_filter(monkeypatch):
+    """Same contract on the async path."""
+    monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
+    document_store = PgvectorDocumentStore(table_name="my_table")
+
+    with pytest.raises(FilterError, match="non-empty filter"):
+        await document_store.delete_by_filter_async({})
 
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
