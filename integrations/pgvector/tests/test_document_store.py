@@ -162,6 +162,7 @@ def test_delete_by_filter_rejects_an_empty_filter(monkeypatch):
         document_store.delete_by_filter({})
 
 
+@pytest.mark.usefixtures("patches_for_unit_tests")
 @pytest.mark.asyncio
 async def test_delete_by_filter_async_rejects_an_empty_filter(monkeypatch):
     """Same contract on the async path."""
@@ -172,6 +173,7 @@ async def test_delete_by_filter_async_rejects_an_empty_filter(monkeypatch):
         await document_store.delete_by_filter_async({})
 
 
+@pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
 
