@@ -33,12 +33,25 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
+def mock_falkordb(monkeypatch):
+    constructor = MagicMock()
+    client = MagicMock()
+    graph = MagicMock()
+    client.select_graph.return_value = graph
+    graph.query.return_value = MagicMock(result_set=[])
+    constructor.return_value = client
+    monkeypatch.setattr(document_store_module, "FalkorDB", constructor)
+    return constructor, client, graph
+
+
+@pytest.fixture
 def mock_async_falkordb(monkeypatch):
     constructor = MagicMock()
     client = MagicMock()
     graph = MagicMock()
     client.select_graph.return_value = graph
     client.aclose = AsyncMock()
+    graph.delete = AsyncMock()
     graph.query = AsyncMock(return_value=MagicMock(result_set=[]))
     constructor.return_value = client
     monkeypatch.setattr(document_store_module, "AsyncFalkorDB", constructor)
@@ -85,6 +98,30 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         assert store.async_graph is graph
         assert store.async_initialized is True
         assert graph.query.await_count == 4
+
+    @pytest.mark.asyncio
+    async def test_sync_then_async_warm_up_recreates_graph_once(self, mock_falkordb, mock_async_falkordb) -> None:
+        _, _, graph = mock_falkordb
+        _, _, async_graph = mock_async_falkordb
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        store.warm_up()
+        await store.warm_up_async()
+
+        graph.delete.assert_called_once_with()
+        async_graph.delete.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_async_then_sync_warm_up_recreates_graph_once(self, mock_falkordb, mock_async_falkordb) -> None:
+        _, _, graph = mock_falkordb
+        _, _, async_graph = mock_async_falkordb
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        await store.warm_up_async()
+        store.warm_up()
+
+        async_graph.delete.assert_awaited_once_with()
+        graph.delete.assert_not_called()
 
 
 @pytest.mark.integration
@@ -165,9 +202,11 @@ class TestFalkorDBDocumentStoreAsync(
         assert bool_values == [True] and type(bool_values[0]) is bool
 
     async def test_close_async_and_reopen(self, document_store: FalkorDBDocumentStore) -> None:
-        assert await document_store.count_documents_async() == 0
+        document = Document(content="hello")
+        await document_store.write_documents_async([document])
+
         await document_store.close_async()
         assert document_store.async_client is None
         await document_store.warm_up_async()
         assert document_store.async_client is not None
-        assert await document_store.count_documents_async() == 0
+        self.assert_documents_are_equal(await document_store.filter_documents_async(), [document])

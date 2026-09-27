@@ -574,12 +574,14 @@ class TestDocumentStore(
         assert bool_values == [True] and type(bool_values[0]) is bool
 
     def test_close_and_reopen(self, document_store):
-        assert document_store.count_documents() == 0
+        document = Document(content="hello")
+        document_store.write_documents([document])
+
         document_store.close()
         assert document_store.client is None
         document_store.warm_up()
         assert document_store.client is not None
-        assert document_store.count_documents() == 0
+        self.assert_documents_are_equal(document_store.filter_documents(), [document])
 
     @pytest.fixture
     def embedding_store(self):

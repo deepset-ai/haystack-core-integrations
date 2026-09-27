@@ -135,6 +135,7 @@ class FalkorDBDocumentStore(DocumentStore):
         self.async_client: AsyncFalkorDB | None = None
         self.async_graph: AsyncGraph | None = None
         self.async_initialized: bool = False
+        self._recreate_graph_applied: bool = False
 
         if verify_connectivity:
             self.warm_up()
@@ -217,7 +218,9 @@ class FalkorDBDocumentStore(DocumentStore):
             password=password_value,
         )
 
-        if self.recreate_graph:
+        if self.recreate_graph and not self._recreate_graph_applied:
+            # Recreation is shared by the sync and async connection lifecycles.
+            self._recreate_graph_applied = True
             try:
                 # In falkordb-py, delete() is a method of the Graph object
                 client.select_graph(self.graph_name).delete()
@@ -239,9 +242,7 @@ class FalkorDBDocumentStore(DocumentStore):
         Uses only standard OpenCypher / FalkorDB-native syntax — **no APOC**.
         """
         graph = self.graph
-        if graph is None:
-            msg = "The synchronous FalkorDB graph must be initialized before ensuring the schema."
-            raise RuntimeError(msg)
+        assert graph is not None  # noqa: S101
 
         # Property index on (:node_label {id}) for fast MERGE lookups.
         try:
@@ -292,7 +293,9 @@ class FalkorDBDocumentStore(DocumentStore):
             password=password_value,
         )
 
-        if self.recreate_graph:
+        if self.recreate_graph and not self._recreate_graph_applied:
+            # Set before awaiting so another warm-up cannot recreate the graph concurrently.
+            self._recreate_graph_applied = True
             try:
                 await async_client.select_graph(self.graph_name).delete()
             except Exception:
@@ -310,9 +313,7 @@ class FalkorDBDocumentStore(DocumentStore):
         Uses only standard OpenCypher / FalkorDB-native syntax — **no APOC**.
         """
         graph = self.async_graph
-        if graph is None:
-            msg = "The asynchronous FalkorDB graph must be initialized before ensuring the schema."
-            raise RuntimeError(msg)
+        assert graph is not None  # noqa: S101
 
         try:
             await graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
@@ -366,7 +367,7 @@ class FalkorDBDocumentStore(DocumentStore):
             returned. For filter syntax see
             [Metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: List of matching :class:`haystack.dataclasses.Document` objects.
-        :raises ValueError: If the filter dict is malformed.
+        :raises FilterError: If the filter dict is malformed.
         """
         self.warm_up()
         graph = self.graph
@@ -822,7 +823,9 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         Retrieve all documents that match the provided Haystack filters asynchronously.
 
-        :param filters: Optional Haystack filter dict. When `None` all documents are returned.
+        :param filters: Optional Haystack filter dict. When `None` all documents are
+            returned. For filter syntax see
+            [Metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: List of matching Documents.
         :raises FilterError: If the filter dict is malformed.
         """
@@ -850,14 +853,20 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
         """
-        Write documents to the FalkorDB graph asynchronously using batched queries.
+        Write documents to the FalkorDB graph asynchronously using `UNWIND` + `MERGE` for batching.
 
-        :param documents: List of Documents to write.
+        Document `meta` fields are stored **flat** at the same level as `id` and
+        `content` — no prefix is added. This matches the layout used by the
+        `neo4j-haystack` reference integration.
+
+        :param documents: List of :class:`haystack.dataclasses.Document` objects.
         :param policy: How to handle documents whose `id` already exists.
-        :returns: Number of documents written or updated.
+            Defaults to :attr:`DuplicatePolicy.NONE` (treated as FAIL).
         :raises ValueError: If `documents` contains non-Document elements.
-        :raises DuplicateDocumentError: If a duplicate is encountered under FAIL / NONE.
+        :raises DuplicateDocumentError: If `policy` is FAIL / NONE and a duplicate
+            ID is encountered.
         :raises DocumentStoreError: If any other DB error occurs.
+        :returns: Number of documents written or updated.
         """
         await self.warm_up_async()
         graph = self.async_graph
@@ -892,7 +901,14 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         documents: list[Document],
         policy: DuplicatePolicy,
     ) -> list[Document]:
-        """Check for duplicate document IDs asynchronously."""
+        """
+        Check for IDs that already exist in the database asynchronously.
+
+        :param documents: All documents to write.
+        :param policy: Duplicate handling policy.
+        :returns: Filtered list ready for batch writing.
+        :raises DuplicateDocumentError: When `policy` is FAIL and existing IDs are found.
+        """
         if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
             documents = self._drop_duplicate_documents(documents)
             ids = [doc.id for doc in documents]
@@ -913,7 +929,16 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         return documents
 
     async def _write_batch_async(self, graph: AsyncGraph, documents: list[Document], policy: DuplicatePolicy) -> int:
-        """Write a single batch of documents asynchronously."""
+        """
+        Write a single batch of documents using a single UNWIND query asynchronously.
+
+        By the time this is called, duplicate handling has already been performed by
+        :meth:`_handle_duplicate_documents_async`.
+
+        :param documents: Batch of Documents (≤ `write_batch_size`).
+        :param policy: Duplicate policy — only OVERWRITE needs a different Cypher template.
+        :returns: Number of nodes created or updated.
+        """
         records = [_document_to_falkordb_record(doc) for doc in documents]
 
         if policy == DuplicatePolicy.OVERWRITE:
@@ -977,7 +1002,9 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         )
 
     async def delete_all_documents_async(self) -> None:
-        """Delete all documents from the graph asynchronously."""
+        """
+        Delete all documents from the graph asynchronously.
+        """
         await self.warm_up_async()
         graph = self.async_graph
         if graph is None:
@@ -1150,14 +1177,23 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
-        Return distinct metadata values with filtering and pagination asynchronously.
+        Return distinct values for the given metadata field with optional filtering and pagination asynchronously.
 
-        :param metadata_field: Metadata field name, with or without the `meta.` prefix.
-        :param search_term: Optional case-insensitive substring filter.
-        :param from_: Pagination offset.
-        :param size: Maximum values to return.
-        :param filters: Optional filters restricting the documents considered.
-        :returns: Tuple of values and total distinct value count.
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: Cypher's `DISTINCT` treats a whole-number float (e.g. `1.0`) as identical to a
+        numerically equal int (`1`), so those two collapse into a single value. Floats with a fractional
+        part (e.g. `1.5`) are unaffected.
+
+        :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata
+            field's own value.
+        :param from_: The offset for pagination (0-based).
+        :param size: Maximum number of values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: Tuple of `(values, total_count)`. Values are returned in their original type.
+            `total_count` is the number of distinct values matching the filter, independent of
+            pagination.
         """
         await self.warm_up_async()
         graph = self.async_graph
