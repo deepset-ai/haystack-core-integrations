@@ -4,7 +4,7 @@
 
 import logging
 import os
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from haystack.dataclasses import Document
@@ -40,6 +40,26 @@ class TestFalkorDBEmbeddingRetriever:
         )
         assert res["documents"] == expected_docs
 
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        expected_docs = [Document(content="doc1"), Document(content="doc2")]
+        store._embedding_retrieval_async = AsyncMock(return_value=expected_docs)
+
+        retriever = FalkorDBEmbeddingRetriever(document_store=store, top_k=10)
+        result = await retriever.run_async(
+            query_embedding=[0.1, 0.2],
+            filters={"field": "year", "operator": "==", "value": 2024},
+            top_k=5,
+        )
+
+        store._embedding_retrieval_async.assert_awaited_once_with(
+            query_embedding=[0.1, 0.2],
+            top_k=5,
+            filters={"field": "year", "operator": "==", "value": 2024},
+        )
+        assert result["documents"] == expected_docs
+
     def test_filter_policy_replace(self):
         store = MagicMock(spec=FalkorDBDocumentStore)
         retriever = FalkorDBEmbeddingRetriever(
@@ -71,6 +91,25 @@ class TestFalkorDBEmbeddingRetriever:
 
         called_filters = store._embedding_retrieval.call_args[1]["filters"]
         # MERGE policy nests them in an AND
+        assert called_filters["operator"] == "AND"
+        assert len(called_filters["conditions"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_run_async_filter_policy_merge(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        store._embedding_retrieval_async = AsyncMock(return_value=[])
+        retriever = FalkorDBEmbeddingRetriever(
+            document_store=store,
+            filters={"field": "year", "operator": "==", "value": 2020},
+            filter_policy=FilterPolicy.MERGE,
+        )
+
+        await retriever.run_async(
+            query_embedding=[0.1],
+            filters={"field": "author", "operator": "==", "value": "Alice"},
+        )
+
+        called_filters = store._embedding_retrieval_async.await_args.kwargs["filters"]
         assert called_filters["operator"] == "AND"
         assert len(called_filters["conditions"]) == 2
 
@@ -111,6 +150,16 @@ class TestFalkorDBEmbeddingRetriever:
         store.close.assert_called_once()
         assert retriever.document_store is store
 
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        retriever = FalkorDBEmbeddingRetriever(document_store=store)
+
+        await retriever.close_async()
+
+        store.close_async.assert_awaited_once()
+        assert retriever.document_store is store
+
 
 class TestFalkorDBCypherRetriever:
     def test_init_invalid_store(self):
@@ -131,6 +180,34 @@ class TestFalkorDBCypherRetriever:
         )
         assert res["documents"] == expected_docs
 
+    @pytest.mark.asyncio
+    async def test_run_async_with_init_query(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        expected_docs = [Document(content="doc1")]
+        store._cypher_retrieval_async = AsyncMock(return_value=expected_docs)
+
+        retriever = FalkorDBCypherRetriever(document_store=store, custom_cypher_query="MATCH (d:Doc) RETURN d")
+        result = await retriever.run_async(parameters={"a": 1})
+
+        store._cypher_retrieval_async.assert_awaited_once_with(
+            cypher_query="MATCH (d:Doc) RETURN d",
+            parameters={"a": 1},
+        )
+        assert result["documents"] == expected_docs
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_runtime_query(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        store._cypher_retrieval_async = AsyncMock(return_value=[])
+
+        retriever = FalkorDBCypherRetriever(document_store=store, custom_cypher_query="MATCH (d:Doc) RETURN d")
+        await retriever.run_async(query="MATCH (d:Other) RETURN d")
+
+        store._cypher_retrieval_async.assert_awaited_once_with(
+            cypher_query="MATCH (d:Other) RETURN d",
+            parameters=None,
+        )
+
     def test_run_with_runtime_query(self):
         store = MagicMock(spec=FalkorDBDocumentStore)
         store._cypher_retrieval.return_value = []
@@ -150,6 +227,14 @@ class TestFalkorDBCypherRetriever:
 
         with pytest.raises(ValueError, match="query string must be provided"):
             retriever.run()
+
+    @pytest.mark.asyncio
+    async def test_run_async_no_query_raises(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        retriever = FalkorDBCypherRetriever(document_store=store)
+
+        with pytest.raises(ValueError, match="query string must be provided"):
+            await retriever.run_async()
 
     def test_to_dict_from_dict(self):
         store = FalkorDBDocumentStore(verify_connectivity=False)
@@ -181,6 +266,16 @@ class TestFalkorDBCypherRetriever:
         retriever.close()
 
         store.close.assert_called_once()
+        assert retriever.document_store is store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        retriever = FalkorDBCypherRetriever(document_store=store)
+
+        await retriever.close_async()
+
+        store.close_async.assert_awaited_once()
         assert retriever.document_store is store
 
 

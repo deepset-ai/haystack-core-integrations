@@ -388,6 +388,56 @@ class TestFalkorDBDocumentStoreAsyncUnit:
 
         assert await store.get_metadata_field_unique_values_async("category") == ([], 0)
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "similarity, raw_score, scale_score, filters, expected_score",
+        [
+            ("cosine", 0.4, True, None, 0.8),
+            ("euclidean", 1.0, True, {"field": "year", "operator": "==", "value": 2024}, 0.5),
+            ("cosine", 0.4, False, None, 0.4),
+        ],
+    )
+    async def test_embedding_retrieval_async(
+        self, warmed_async_store, similarity, raw_score, scale_score, filters, expected_score
+    ) -> None:
+        store, graph = warmed_async_store
+        store.similarity = similarity
+        node = SimpleNamespace(properties={"id": "doc-1", "content": "hello"})
+        graph.query.return_value = _result([[node, raw_score]])
+
+        documents = await store._embedding_retrieval_async(
+            query_embedding=[0.1, 0.2], top_k=3, filters=filters, scale_score=scale_score
+        )
+
+        assert len(documents) == 1
+        assert documents[0].content == "hello"
+        assert documents[0].score == pytest.approx(expected_score)
+        query, params = graph.query.await_args.args
+        assert params["top_k"] == 3
+        assert params["query_embedding"] == [0.1, 0.2]
+        assert ("WHERE" in query) is (filters is not None)
+        if filters is not None:
+            assert params["p0"] == 2024
+
+    @pytest.mark.asyncio
+    async def test_cypher_retrieval_async(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        node = SimpleNamespace(properties={"id": "doc-1", "content": "hello"})
+        graph.query.return_value = _result([[node]])
+
+        documents = await store._cypher_retrieval_async("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
+
+        assert [document.content for document in documents] == ["hello"]
+        graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
+
+    @pytest.mark.asyncio
+    async def test_cypher_retrieval_async_wraps_errors(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.side_effect = RuntimeError("query failed")
+
+        with pytest.raises(DocumentStoreError, match="Cypher query failed: query failed"):
+            await store._cypher_retrieval_async("INVALID")
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -454,6 +504,26 @@ class TestFalkorDBDocumentStoreAsync(
         assert str_values == ["1"] and type(str_values[0]) is str
         assert float_values == [1.5] and type(float_values[0]) is float
         assert bool_values == [True] and type(bool_values[0]) is bool
+
+    async def test_embedding_retrieval_async_integration(self, document_store: FalkorDBDocumentStore) -> None:
+        document = Document(content="hello", embedding=[0.1] * 768)
+        await document_store.write_documents_async([document])
+
+        documents = await document_store._embedding_retrieval_async([0.1] * 768, top_k=1)
+
+        assert len(documents) == 1
+        assert documents[0].id == document.id
+        assert documents[0].score == pytest.approx(1.0)
+
+    async def test_cypher_retrieval_async_integration(self, document_store: FalkorDBDocumentStore) -> None:
+        document = Document(content="hello")
+        await document_store.write_documents_async([document])
+
+        documents = await document_store._cypher_retrieval_async(
+            f"MATCH (d:{document_store.node_label} {{id: $id}}) RETURN d", {"id": document.id}
+        )
+
+        self.assert_documents_are_equal(documents, [document])
 
     async def test_close_async_and_reopen(self, document_store: FalkorDBDocumentStore) -> None:
         document = Document(content="hello")

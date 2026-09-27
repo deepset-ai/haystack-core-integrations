@@ -1258,9 +1258,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         self.warm_up()
         graph = self.graph
-        if graph is None:
-            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
-            raise RuntimeError(msg)
+        assert graph is not None  # noqa: S101
 
         if filters:
             where_clause, filter_params = _convert_filters(filters)
@@ -1295,6 +1293,67 @@ ORDER BY score ASC, d.id ASC
             documents.append(doc)
         return documents
 
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+        scale_score: bool = True,
+    ) -> list[Document]:
+        """
+        Retrieve documents asynchronously by vector similarity using FalkorDB's native vector index.
+
+        Uses `CALL db.idx.vector.queryNodes` — FalkorDB's OpenCypher extension for
+        ANN search. **No APOC is required.**
+
+        Cosine scores are returned as distance in `[0, 2]`; when `scale_score=True` they are
+        scaled to `[0, 1]` using the formula:
+        `1 - (score / 2)`. Euclidean scores are transformed with `1 / (1 + score)`.
+
+        :param query_embedding: Query vector as a plain Python list of floats.
+        :param top_k: Maximum number of results to return.
+        :param filters: Optional Haystack filters applied as a `WHERE` predicate
+            on the vector search result set (post-filter).
+        :param scale_score: Whether to scale the raw similarity score to `[0, 1]`.
+        :returns: List of `Document` objects ordered by similarity (best first).
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        assert graph is not None  # noqa: S101
+
+        if filters:
+            where_clause, filter_params = _convert_filters(filters)
+            cypher = f"""
+CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $top_k, vecf32($query_embedding))
+YIELD node AS d, score
+WHERE {where_clause}
+RETURN d, score
+ORDER BY score ASC, d.id ASC
+"""
+            params: dict[str, Any] = {
+                "top_k": top_k,
+                "query_embedding": query_embedding,
+                **filter_params,
+            }
+        else:
+            cypher = f"""
+CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $top_k, vecf32($query_embedding))
+YIELD node AS d, score
+RETURN d, score
+ORDER BY score ASC, d.id ASC
+"""
+            params = {"top_k": top_k, "query_embedding": query_embedding}
+
+        result = await graph.query(cypher, params)
+        documents = []
+        for row in result.result_set:
+            node, score = row[0], row[1]
+            doc = _node_to_document(node)
+            final_score = self._scale_to_unit_interval(float(score)) if scale_score else float(score)
+            doc = replace(doc, score=final_score)
+            documents.append(doc)
+        return documents
+
     def _cypher_retrieval(
         self,
         cypher_query: str,
@@ -1313,14 +1372,38 @@ ORDER BY score ASC, d.id ASC
         """
         self.warm_up()
         graph = self.graph
-        if graph is None:
-            msg = "The synchronous FalkorDB graph is unavailable after warm-up."
-            raise RuntimeError(msg)
+        assert graph is not None  # noqa: S101
 
         try:
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
             result = graph.query(cypher_query, parameters or {})
+            return [_node_to_document(row[0]) for row in result.result_set]
+        except Exception as exc:
+            msg = f"Cypher query failed: {exc}"
+            raise DocumentStoreError(msg) from exc
+
+    async def _cypher_retrieval_async(
+        self,
+        cypher_query: str,
+        parameters: dict[str, Any] | None = None,
+    ) -> list[Document]:
+        """
+        Execute an arbitrary OpenCypher query asynchronously and map the results to Documents.
+
+        The first element of each result row is converted to a `Document`.
+
+        :param cypher_query: A valid OpenCypher query string.
+        :param parameters: Optional query parameters (`$param` placeholders).
+        :returns: List of `Document` objects built from the query results.
+        :raises DocumentStoreError: If the query fails.
+        """
+        await self.warm_up_async()
+        graph = self.async_graph
+        assert graph is not None  # noqa: S101
+
+        try:
+            result = await graph.query(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
