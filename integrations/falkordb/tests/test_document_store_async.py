@@ -6,11 +6,15 @@ import logging
 import os
 import uuid
 from collections.abc import AsyncGenerator
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
 from haystack.dataclasses import Document
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
     CountDocumentsByFilterAsyncTest,
@@ -28,6 +32,8 @@ from haystack.testing.document_store_async import (
 
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 from haystack_integrations.document_stores.falkordb import document_store as document_store_module
+
+from .test_document_store_common import FalkorDBDocumentStoreTestMixin
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +62,20 @@ def mock_async_falkordb(monkeypatch):
     constructor.return_value = client
     monkeypatch.setattr(document_store_module, "AsyncFalkorDB", constructor)
     return constructor, client, graph
+
+
+def _result(rows):
+    return MagicMock(result_set=rows)
+
+
+@pytest.fixture
+def warmed_async_store(mock_async_falkordb):
+    _, client, graph = mock_async_falkordb
+    store = FalkorDBDocumentStore(write_batch_size=2)
+    store.async_client = client
+    store.async_graph = graph
+    store.async_initialized = True
+    return store, graph
 
 
 class TestFalkorDBDocumentStoreAsyncUnit:
@@ -123,10 +143,256 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         async_graph.delete.assert_awaited_once_with()
         graph.delete.assert_not_called()
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("rows, expected", [([[7]], 7), ([], 0)])
+    async def test_count_documents_async(self, warmed_async_store, rows, expected) -> None:
+        store, graph = warmed_async_store
+        graph.query.return_value = _result(rows)
+
+        assert await store.count_documents_async() == expected
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_without_filters(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        node = SimpleNamespace(properties={"id": "doc-1", "content": "hello"})
+        graph.query.return_value = _result([[node]])
+
+        documents = await store.filter_documents_async()
+
+        assert [document.content for document in documents] == ["hello"]
+        assert "WHERE" not in graph.query.await_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_passes_filter_params(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+
+        assert await store.filter_documents_async({"field": "year", "operator": "==", "value": 2024}) == []
+        assert "WHERE" in graph.query.await_args.args[0]
+        assert graph.query.await_args.args[1] == {"p0": 2024}
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_rejects_malformed_filter(self, warmed_async_store) -> None:
+        store, _ = warmed_async_store
+
+        with pytest.raises(FilterError, match="Invalid filter syntax"):
+            await store.filter_documents_async({"field": "year", "value": 2024})
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_rejects_non_documents(self, warmed_async_store) -> None:
+        store, _ = warmed_async_store
+
+        with pytest.raises(ValueError, match="expects a list of Documents"):
+            await store.write_documents_async(["not a document"])
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_empty_is_noop(self, warmed_async_store, caplog) -> None:
+        store, graph = warmed_async_store
+
+        with caplog.at_level(logging.WARNING):
+            assert await store.write_documents_async([]) == 0
+        assert "empty list" in caplog.text
+        graph.query.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_none_policy_fails_on_existing(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.return_value = _result([["a"]])
+
+        with pytest.raises(DuplicateDocumentError, match="already exists"):
+            await store.write_documents_async([Document(id="a", content="existing")])
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_skip_excludes_existing(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.side_effect = [_result([["a"]]), _result([[1]])]
+
+        written = await store.write_documents_async(
+            [Document(id="a", content="old"), Document(id="b", content="new")], policy=DuplicatePolicy.SKIP
+        )
+
+        assert written == 1
+        assert [record["id"] for record in graph.query.await_args_list[-1].args[1]["docs"]] == ["b"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("policy", [DuplicatePolicy.FAIL, DuplicatePolicy.OVERWRITE])
+    async def test_write_documents_async_batches_normal_and_overwrite(self, warmed_async_store, policy) -> None:
+        store, graph = warmed_async_store
+        batch_results = [_result([[2]]), _result([[1]])]
+        graph.query.side_effect = ([_result([])] if policy == DuplicatePolicy.FAIL else []) + batch_results
+        documents = [Document(id=str(index), content="text") for index in range(3)]
+
+        assert await store.write_documents_async(documents, policy=policy) == 3
+
+        write_calls = graph.query.await_args_list[-2:]
+        assert [len(call.args[1]["docs"]) for call in write_calls] == [2, 1]
+        assert ("ON MATCH SET d = doc" in write_calls[0].args[0]) is (policy == DuplicatePolicy.OVERWRITE)
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_writes_embeddings_separately(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.side_effect = [_result([[1]]), _result([])]
+
+        assert (
+            await store.write_documents_async(
+                [Document(id="a", content="text", embedding=[0.1, 0.2])], policy=DuplicatePolicy.OVERWRITE
+            )
+            == 1
+        )
+        embedding_call = graph.query.await_args_list[-1]
+        assert "vecf32" in embedding_call.args[0]
+        assert embedding_call.args[1]["docs"] == [{"id": "a", "emb": [0.1, 0.2]}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "side_effect, document, message",
+        [
+            ([RuntimeError("write failed")], Document(id="a"), "Failed to write documents"),
+            (
+                [_result([[1]]), RuntimeError("embedding failed")],
+                Document(id="a", embedding=[0.1]),
+                "Failed to set embeddings",
+            ),
+        ],
+    )
+    async def test_write_documents_async_wraps_database_errors(
+        self, warmed_async_store, side_effect, document, message
+    ) -> None:
+        store, graph = warmed_async_store
+        graph.query.side_effect = side_effect
+
+        with pytest.raises(DocumentStoreError, match=message):
+            await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE)
+
+    @pytest.mark.asyncio
+    async def test_delete_documents_async_empty_and_nonempty(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+
+        await store.delete_documents_async([])
+        graph.query.assert_not_awaited()
+        await store.delete_documents_async(["a", "b"])
+
+        assert "DETACH DELETE" in graph.query.await_args.args[0]
+        assert graph.query.await_args.args[1] == {"ids": ["a", "b"]}
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+
+        await store.delete_all_documents_async()
+
+        assert "DETACH DELETE" in graph.query.await_args.args[0]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("rows, expected", [([[3]], 3), ([], 0)])
+    async def test_delete_by_filter_async(self, warmed_async_store, rows, expected) -> None:
+        store, graph = warmed_async_store
+        graph.query.side_effect = [_result(rows), _result([])]
+
+        count = await store.delete_by_filter_async({"field": "year", "operator": "==", "value": 2024})
+
+        assert count == expected
+        assert "DETACH DELETE" in graph.query.await_args_list[-1].args[0]
+        assert graph.query.await_args_list[-1].args[1] == {"p0": 2024}
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async_flattens_metadata(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.return_value = _result([[2]])
+
+        count = await store.update_by_filter_async(
+            {"field": "year", "operator": "==", "value": 2024},
+            {"meta.status": "published", "owner": "team"},
+        )
+
+        assert count == 2
+        assert graph.query.await_args.args[1]["meta_update"] == {"status": "published", "owner": "team"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("rows, expected", [([[5]], 5), ([], 0)])
+    async def test_count_documents_by_filter_async(self, warmed_async_store, rows, expected) -> None:
+        store, graph = warmed_async_store
+        graph.query.return_value = _result(rows)
+
+        assert (
+            await store.count_documents_by_filter_async({"field": "year", "operator": ">", "value": 2020}) == expected
+        )
+        assert graph.query.await_args.args[1] == {"p0": 2020}
+
+    @pytest.mark.asyncio
+    async def test_count_unique_metadata_by_filter_async(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.side_effect = [_result([[3]]), _result([])]
+
+        counts = await store.count_unique_metadata_by_filter_async(
+            {"field": "year", "operator": ">=", "value": 2020}, ["meta.category", "status"]
+        )
+
+        assert counts == {"category": 3, "status": 0}
+        assert all(call.args[1] == {"p0": 2020} for call in graph.query.await_args_list)
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_fields_info_async_type_branches(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.side_effect = [
+            _result([[["id", "active", "category", "missing", "rating", "year"]]]),
+            _result([[True]]),
+            _result([["news"]]),
+            _result([]),
+            _result([[4.5]]),
+            _result([[2024]]),
+        ]
+
+        info = await store.get_metadata_fields_info_async()
+
+        assert info == {
+            "active": {"type": "bool"},
+            "category": {"type": "str"},
+            "rating": {"type": "float"},
+            "year": {"type": "int"},
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "rows, expected", [([[2020, 2024]], {"min": 2020, "max": 2024}), ([], {"min": None, "max": None})]
+    )
+    async def test_get_metadata_field_min_max_async(self, warmed_async_store, rows, expected) -> None:
+        store, graph = warmed_async_store
+        graph.query.return_value = _result(rows)
+
+        assert await store.get_metadata_field_min_max_async("meta.year") == expected
+        assert "d.year" in graph.query.await_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_with_filter_and_search(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.return_value = _result([[["Apple"], 1]])
+
+        values = await store.get_metadata_field_unique_values_async(
+            "meta.category",
+            search_term="app",
+            from_=2,
+            size=3,
+            filters={"field": "year", "operator": "==", "value": 2024},
+        )
+
+        assert values == (["Apple"], 1)
+        query, params = graph.query.await_args.args
+        assert "d.category" in query
+        assert "CONTAINS" in query
+        assert params == {"from_": 2, "size": 3, "p0": 2024, "search_term": "app"}
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_empty(self, warmed_async_store) -> None:
+        store, graph = warmed_async_store
+        graph.query.return_value = _result([])
+
+        assert await store.get_metadata_field_unique_values_async("category") == ([], 0)
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestFalkorDBDocumentStoreAsync(
+    FalkorDBDocumentStoreTestMixin,
     CountDocumentsAsyncTest,
     WriteDocumentsAsyncTest,
     DeleteDocumentsAsyncTest,
@@ -140,18 +406,6 @@ class TestFalkorDBDocumentStoreAsync(
     GetMetadataFieldMinMaxAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
 ):
-    @staticmethod
-    def assert_documents_are_equal(received: list[Document], expected: list[Document]) -> None:
-        """Compare documents while allowing for FalkorDB's float32 embeddings."""
-        assert len(received) == len(expected), f"Expected {len(expected)} documents but got {len(received)}"
-        received_sorted = sorted(received, key=lambda document: document.id)
-        expected_sorted = sorted(expected, key=lambda document: document.id)
-        for received_document, expected_document in zip(received_sorted, expected_sorted, strict=True):
-            assert received_document.id == expected_document.id
-            assert received_document.content == expected_document.content
-            assert received_document.meta == expected_document.meta
-            assert (received_document.embedding is None) == (expected_document.embedding is None)
-
     @pytest_asyncio.fixture
     async def document_store(self) -> AsyncGenerator[FalkorDBDocumentStore, None]:
         graph_name = f"test_async_graph_{uuid.uuid4().hex}"

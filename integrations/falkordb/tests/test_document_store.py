@@ -34,6 +34,8 @@ from haystack_integrations.document_stores.falkordb.document_store import (
     _convert_filters,
 )
 
+from .test_document_store_common import FalkorDBDocumentStoreTestMixin
+
 logger = logging.getLogger(__name__)
 
 
@@ -478,6 +480,7 @@ class TestFalkorDBDocumentStoreUnit:
 
 @pytest.mark.integration
 class TestDocumentStore(
+    FalkorDBDocumentStoreTestMixin,
     DocumentStoreBaseTests,
     DeleteAllTest,
     DeleteByFilterTest,
@@ -491,22 +494,6 @@ class TestDocumentStore(
     """
     Test FalkorDBDocumentStore against the standard Haystack DocumentStore tests.
     """
-
-    @staticmethod
-    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
-        """
-        FalkorDB stores embeddings as vecf32 (float32), so exact float64 round-trip
-        equality is not possible. Sort both lists by id to compensate for non-deterministic
-        graph traversal order, and compare only id/content/meta plus embedding presence.
-        """
-        assert len(received) == len(expected), f"Expected {len(expected)} documents but got {len(received)}"
-        received_sorted = sorted(received, key=lambda d: d.id)
-        expected_sorted = sorted(expected, key=lambda d: d.id)
-        for recv, exp in zip(received_sorted, expected_sorted, strict=True):
-            assert recv.id == exp.id
-            assert recv.content == exp.content
-            assert recv.meta == exp.meta
-            assert (recv.embedding is None) == (exp.embedding is None)
 
     @pytest.fixture
     def document_store(self, request):
