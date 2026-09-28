@@ -50,7 +50,10 @@ class TestInit:
         assert "no file system, network" in tool.description
         assert tool.parameters["properties"]["code"]["type"] == "string"
         assert tool.parameters["required"] == ["code"]
-        assert tool._resource_limits == {"max_feed_duration_secs": 30.0, "max_memory": 256 * 1024 * 1024}
+        assert tool.to_dict()["data"]["resource_limits"] == {
+            "max_feed_duration_secs": 30.0,
+            "max_memory": 256 * 1024 * 1024,
+        }
 
     def test_custom_name_and_description(self):
         tool = MontyPythonTool(name="python", description="Run some Python.")
@@ -61,7 +64,7 @@ class TestInit:
     def test_resource_limits_merged_over_defaults(self):
         tool = MontyPythonTool(resource_limits={"max_memory": None, "max_recursion_depth": 200})
 
-        assert tool._resource_limits == {
+        assert tool.to_dict()["data"]["resource_limits"] == {
             "max_feed_duration_secs": 30.0,
             "max_memory": None,
             "max_recursion_depth": 200,
@@ -227,13 +230,13 @@ class TestSerialization:
         assert restored.to_dict() == tool.to_dict()
         assert restored.name == "python"
         assert restored.description == "Run some Python."
-        assert restored._resource_limits == {
+        assert restored.to_dict()["data"]["resource_limits"] == {
             "max_feed_duration_secs": 5.0,
             "max_memory": 256 * 1024 * 1024,
             "max_recursion_depth": 200,
         }
-        assert restored._type_check is True
-        assert restored._max_output_chars == 500
+        assert restored.to_dict()["data"]["type_check"] is True
+        assert restored.to_dict()["data"]["max_output_chars"] == 500
 
     def test_agent_round_trip(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")

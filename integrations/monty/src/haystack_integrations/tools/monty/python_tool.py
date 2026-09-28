@@ -143,7 +143,7 @@ class MontyPythonTool(Tool):
             name=name,
             description=description or _DEFAULT_DESCRIPTION,
             parameters=parameters,
-            function=self._run,
+            function=self._invoke,
         )
 
     def warm_up(self) -> None:
@@ -171,7 +171,7 @@ class MontyPythonTool(Tool):
                 self._pool = pool
             return self._pool
 
-    def _run(self, code: str) -> str:
+    def _invoke(self, code: str) -> str:
         pool = self._get_pool()
         collector = CollectString()
         result = None
