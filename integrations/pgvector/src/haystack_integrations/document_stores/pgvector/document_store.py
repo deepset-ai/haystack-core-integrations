@@ -1119,7 +1119,7 @@ class PgvectorDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
-        :raises FilterError: If `filters` is empty. Use `delete_all_documents()` to delete everything.
+        :raises FilterError: If `filters` is empty. Use `delete_all_documents_async()` to delete everything.
         """
         _validate_filters(filters)
         if not filters:

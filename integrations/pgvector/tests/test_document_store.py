@@ -165,19 +165,11 @@ def test_delete_by_filter_rejects_an_empty_filter(monkeypatch):
 @pytest.mark.usefixtures("patches_for_unit_tests")
 @pytest.mark.asyncio
 async def test_delete_by_filter_async_rejects_an_empty_filter(monkeypatch):
-    """Same contract on the async path, and it must name the async methods.
-
-    Matching only "non-empty filter" passed while this raised the sync message, which
-    is how it reached review pointing users at `delete_all_documents()` from the async
-    path. The names are what the caller acts on, so the test pins them.
-    """
+    """Same contract on the async path, and the message names the async methods."""
     monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
     document_store = PgvectorDocumentStore(table_name="my_table")
 
-    with pytest.raises(FilterError, match="delete_by_filter_async requires a non-empty filter"):
-        await document_store.delete_by_filter_async({})
-
-    with pytest.raises(FilterError, match=r"delete_all_documents_async\(\)"):
+    with pytest.raises(FilterError, match=r"delete_by_filter_async requires .* delete_all_documents_async\(\)"):
         await document_store.delete_by_filter_async({})
 
 
