@@ -227,7 +227,8 @@ class IBMDb2DocumentStore:
             self._async_table_initialized = False
 
     async def _get_async_connection(self) -> AsyncConnection:
-        """Get or create a persistent async database connection using ibm_db's AsyncConnection API (ibm_db >= 3.3.0).
+        """
+        Get or create a persistent async database connection using ibm_db's AsyncConnection API (ibm_db >= 3.3.0).
 
         Thread-safe lazy initialisation with SSL support.
 
