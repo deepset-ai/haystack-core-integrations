@@ -181,7 +181,7 @@ jobs:
           nohup hatch run -- vllm serve ${{ env.VLLM_MULTIVECTOR_MODEL }} \
             --port 8003 \
             --runner pooling \
-            --pooler-config '{"task":"token_embed"}' \
+            --pooler-config '{{"task":"token_embed"}}' \
             --enforce-eager \
             --max-num-seqs 1 &
 
