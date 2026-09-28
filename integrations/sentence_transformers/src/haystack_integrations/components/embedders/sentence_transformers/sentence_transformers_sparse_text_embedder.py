@@ -76,8 +76,10 @@ class SentenceTransformersSparseTextEmbedder:
             Additional keyword arguments for `AutoModelForSequenceClassification.from_pretrained`
             when loading the model. Refer to specific model documentation for available kwargs.
         :param tokenizer_kwargs:
-            Additional keyword arguments for `AutoTokenizer.from_pretrained` when loading the tokenizer.
-            Refer to specific model documentation for available kwargs.
+            Additional keyword arguments forwarded as `processor_kwargs` to the underlying
+            sentence-transformers model (renamed upstream in 5.4.0).
+            `model_max_length` is honored at load time, while `padding`, `truncation` and
+            `max_length` have no effect at load time.
         :param config_kwargs:
             Additional keyword arguments for `AutoConfig.from_pretrained` when loading the model configuration.
         :param backend:
