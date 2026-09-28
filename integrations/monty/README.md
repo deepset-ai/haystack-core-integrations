@@ -11,5 +11,3 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
-
-The tests run the code in a local Monty sandbox and need no credentials or running services.
