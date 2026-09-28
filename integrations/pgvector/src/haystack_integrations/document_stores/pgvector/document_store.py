@@ -1078,9 +1078,7 @@ class PgvectorDocumentStore:
         """
         _validate_filters(filters)
         if not filters:
-            # An empty filter here would compile to an unqualified DELETE and empty the table.
-            # InMemoryDocumentStore raises FilterError for the same input, and delete_all_documents()
-            # exists for the case where wiping the table is what was meant.
+            # An empty filter would compile to an unqualified DELETE and empty the table
             msg = "delete_by_filter requires a non-empty filter. Use delete_all_documents() to delete every document."
             raise FilterError(msg)
 
@@ -1125,10 +1123,11 @@ class PgvectorDocumentStore:
         """
         _validate_filters(filters)
         if not filters:
-            # An empty filter here would compile to an unqualified DELETE and empty the table.
-            # InMemoryDocumentStore raises FilterError for the same input, and delete_all_documents()
-            # exists for the case where wiping the table is what was meant.
-            msg = "delete_by_filter requires a non-empty filter. Use delete_all_documents() to delete every document."
+            # An empty filter would compile to an unqualified DELETE and empty the table
+            msg = (
+                "delete_by_filter_async requires a non-empty filter. "
+                "Use delete_all_documents_async() to delete every document."
+            )
             raise FilterError(msg)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
