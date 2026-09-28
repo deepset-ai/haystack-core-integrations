@@ -32,6 +32,7 @@ env:
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
   VLLM_RANKER_MODEL: "BAAI/bge-reranker-base"
+  VLLM_MULTIVECTOR_MODEL: "answerdotai/answerai-colbert-small-v1"
   VLLM_TARGET_DEVICE: "cpu"
   VLLM_CPU_KVCACHE_SPACE: "4"
   # we only test on Ubuntu to keep vLLM server running simple
@@ -174,6 +175,31 @@ jobs:
           fi
 
           echo "vLLM ranker server started successfully."
+
+      - name: Start vLLM multivector server
+        run: |
+          nohup hatch run -- vllm serve ${{ env.VLLM_MULTIVECTOR_MODEL }} \
+            --port 8003 \
+            --runner pooling \
+            --pooler-config '{"task":"token_embed"}' \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM multivector server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8003/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM multivector server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM multivector server to start."
+            exit 1
+          fi
+
+          echo "vLLM multivector server started successfully."
+
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
