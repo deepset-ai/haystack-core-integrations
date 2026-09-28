@@ -1757,9 +1757,10 @@ class QdrantDocumentStore:
              groups to return.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+            The threshold is applied to the fused Reciprocal Rank Fusion (RRF) scores, so only documents with a
+            higher fused score are returned. RRF scores are not comparable to dense or sparse similarity scores,
+            so thresholds tuned for those retrievers don't carry over. With `group_by`, groups with no surviving
+            hits are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
@@ -2020,9 +2021,10 @@ class QdrantDocumentStore:
              groups to return.
         :param return_embedding: Whether to return the embeddings of the retrieved documents.
         :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+            The threshold is applied to the fused Reciprocal Rank Fusion (RRF) scores, so only documents with a
+            higher fused score are returned. RRF scores are not comparable to dense or sparse similarity scores,
+            so thresholds tuned for those retrievers don't carry over. With `group_by`, groups with no surviving
+            hits are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
