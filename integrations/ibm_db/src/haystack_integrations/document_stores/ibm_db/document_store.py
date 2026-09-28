@@ -242,10 +242,7 @@ class IBMDb2DocumentStore:
 
         async with self._async_connection_lock:
             if self._async_connection is None:
-                dsn = (
-                    f"DATABASE={self.database};HOSTNAME={self.hostname};"
-                    f"PORT={self.port};PROTOCOL={self.protocol}"
-                )
+                dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
                 if self.use_ssl:
                     dsn += ";SECURITY=SSL"
                     if self.ssl_certificate:
@@ -1119,9 +1116,7 @@ class IBMDb2DocumentStore:
             await conn.rollback()
             await cursor.close()
             error_msg = str(e).lower()
-            duplicate_indicators = (
-                "duplicate", "unique", "sql0803n", "primary key", "sqlcode=-803", "sqlstate=23505"
-            )
+            duplicate_indicators = ("duplicate", "unique", "sql0803n", "primary key", "sqlcode=-803", "sqlstate=23505")
             if any(indicator in error_msg for indicator in duplicate_indicators):
                 msg = f"Document already exists. Use DuplicatePolicy.OVERWRITE or SKIP. Original error: {e}"
                 raise DuplicateDocumentError(msg) from e
