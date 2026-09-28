@@ -14,10 +14,13 @@ from haystack.dataclasses import ChatMessage, ToolCall
 from haystack_integrations.tracing.langfuse.tracer import (
     _COMPONENT_OUTPUT_KEY,
     DefaultSpanHandler,
+    LangfuseContextToken,
     LangfuseSpan,
     LangfuseTracer,
     SpanContext,
     _sanitize_usage_data,
+    reset_langfuse_context,
+    set_langfuse_context,
     tracing_context_var,
 )
 
@@ -1008,3 +1011,70 @@ class TestLangfuseTracer:
 
         # Test 3: Verify span stack is cleaned up after exception
         assert tracer.current_span() is None
+
+
+class TestLangfuseContextHelpers:
+    def test_set_langfuse_context_sets_all_values(self):
+        token = tracing_context_var.set({"existing": "value"})
+        try:
+            new_token = set_langfuse_context(
+                trace_id="trace-123",
+                user_id="user-456",
+                session_id="session-789",
+                tags=["production"],
+                version="v1.0",
+            )
+            assert isinstance(new_token, LangfuseContextToken)
+
+            ctx = tracing_context_var.get()
+            assert ctx["trace_id"] == "trace-123"
+            assert ctx["user_id"] == "user-456"
+            assert ctx["session_id"] == "session-789"
+            assert ctx["tags"] == ["production"]
+            assert ctx["version"] == "v1.0"
+            assert ctx["existing"] == "value"
+        finally:
+            tracing_context_var.reset(token)
+
+    def test_set_langfuse_context_partial_update_preserves_existing(self):
+        token = tracing_context_var.set({"user_id": "existing-user", "tags": ["old"]})
+        try:
+            new_token = set_langfuse_context(session_id="session-abc")
+            ctx = tracing_context_var.get()
+            assert ctx["user_id"] == "existing-user"
+            assert ctx["tags"] == ["old"]
+            assert ctx["session_id"] == "session-abc"
+            assert "trace_id" not in ctx
+        finally:
+            reset_langfuse_context(new_token)
+            tracing_context_var.reset(token)
+
+    def test_reset_langfuse_context_with_token_restores_previous_context(self):
+        first_token = tracing_context_var.set({"user_id": "first"})
+        try:
+            second_token = set_langfuse_context(user_id="second")
+            assert tracing_context_var.get()["user_id"] == "second"
+
+            reset_langfuse_context(second_token)
+            assert tracing_context_var.get()["user_id"] == "first"
+        finally:
+            tracing_context_var.reset(first_token)
+
+    def test_reset_langfuse_context_without_token_clears_context(self):
+        token = tracing_context_var.set({"user_id": "user", "tags": ["prod"]})
+        try:
+            reset_langfuse_context()
+            assert tracing_context_var.get() == {}
+        finally:
+            tracing_context_var.reset(token)
+
+    def test_set_langfuse_context_none_values_do_not_overwrite(self):
+        token = tracing_context_var.set({"user_id": "user", "version": "v1"})
+        try:
+            new_token = set_langfuse_context(user_id=None, version=None)
+            ctx = tracing_context_var.get()
+            assert ctx["user_id"] == "user"
+            assert ctx["version"] == "v1"
+            reset_langfuse_context(new_token)
+        finally:
+            tracing_context_var.reset(token)
