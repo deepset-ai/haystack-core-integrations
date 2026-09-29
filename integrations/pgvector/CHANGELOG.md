@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v7.0.0] - 2026-09-29
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Pgvector - an empty filter must not delete every document (#4006)
+
+
 ## [integrations/pgvector-v6.6.1] - 2026-09-25
 
 ### 🐛 Bug Fixes
