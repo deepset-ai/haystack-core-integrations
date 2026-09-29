@@ -550,11 +550,6 @@ class AmazonBedrockChatGenerator:
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
             tool_choice.setdefault("type", "auto")  # default value
 
-        tool_choice_type = generation_kwargs.pop("tool_choice_type", None)
-        if tool_choice_type is not None:
-            tool_choice = generation_kwargs.setdefault("tool_choice", {})
-            tool_choice["type"] = tool_choice_type
-
         thinking_budget_tokens = generation_kwargs.pop("thinking_budget_tokens", None)
         if thinking_budget_tokens is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
@@ -571,12 +566,14 @@ class AmazonBedrockChatGenerator:
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
 
-        thinking_display = generation_kwargs.pop("thinking_display", None)
-        if thinking_display is not None:
-            thinking = generation_kwargs.setdefault("thinking", {})
-            # `display` is only accepted with enabled or adaptive thinking, so it's dropped when thinking is disabled
-            if thinking.get("type") != "disabled":
-                thinking["display"] = thinking_display
+        for nested_name in ("tool_choice", "thinking", "output_config"):
+            prefix = f"{nested_name}_"
+            for key in [k for k in generation_kwargs if k.startswith(prefix)]:
+                value = generation_kwargs.pop(key)
+                if value is not None:
+                    nested_key = key[len(prefix):]
+                    nested_dict = generation_kwargs.setdefault(nested_name, {})
+                    nested_dict[nested_key] = value
 
         return generation_kwargs
 
