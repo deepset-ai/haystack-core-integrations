@@ -6,7 +6,7 @@ import contextlib
 import os
 import sys
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -14,13 +14,13 @@ from datetime import datetime
 from typing import Any, Literal, cast
 
 from haystack import default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, FileContent, ImageContent, TextContent
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
 
 import langfuse
-from langfuse import LangfuseAgent, LangfuseGeneration, propagate_attributes
+from langfuse import LangfuseAgent, LangfuseGeneration, LangfuseTool, propagate_attributes
 from langfuse import LangfuseSpan as LangfuseClientSpan
 from langfuse.types import TraceContext
 
@@ -98,7 +98,12 @@ class LangfuseSpan(Span):
         if key.endswith(".input"):
             self._span.update(input=_format_chat_input(value) if is_chat else tracing_utils.coerce_tag_value(value))
         elif key.endswith(".output"):
-            self._span.update(output=_format_chat_output(value) if is_chat else tracing_utils.coerce_tag_value(value))
+            if is_chat:
+                self._span.update(output=_format_chat_output(value))
+            elif isinstance(self._span, LangfuseTool):
+                self._span.update(output=_format_tool_output(value))
+            else:
+                self._span.update(output=tracing_utils.coerce_tag_value(value))
 
         self._data[key] = value
 
@@ -266,6 +271,63 @@ def _sanitize_usage_data(usage: dict[str, Any]) -> dict[str, Any]:
     return sanitized
 
 
+def _to_openai_content_parts(parts: Sequence[TextContent | ImageContent | FileContent]) -> list[dict[str, Any]]:
+    """
+    Convert content parts to the `text`, `image_url` and `file` parts of OpenAI user messages.
+
+    :param parts: The content parts, e.g. the result of a tool.
+    :returns: The content parts in OpenAI format.
+    """
+    content: list[dict[str, Any]] = []
+    for part in parts:
+        if isinstance(part, TextContent):
+            content.append({"type": "text", "text": part.text})
+        elif isinstance(part, ImageContent):
+            image_url = f"data:{part.mime_type or 'image/jpeg'};base64,{part.base64_image}"
+            content.append({"type": "image_url", "image_url": {"url": image_url}})
+        elif isinstance(part, FileContent):
+            file_data = f"data:{part.mime_type or 'application/pdf'};base64,{part.base64_data}"
+            content.append({"type": "file", "file": {"file_data": file_data, "filename": part.filename}})
+    return content
+
+
+def _to_openai_message(message: ChatMessage) -> dict[str, Any]:
+    """
+    Convert a ChatMessage to OpenAI Chat Completions format for Langfuse.
+
+    Tool results made of content parts get `text`, `image_url` and `file` parts, as used in OpenAI user messages.
+
+    :param message: The ChatMessage to convert.
+    :returns: The message in OpenAI format.
+    :raises ValueError: If the message has no OpenAI format, e.g. because it has no content.
+    """
+    result = message.tool_call_result
+    if result is None or isinstance(result.result, str):
+        return message.to_openai_dict_format(require_tool_call_ids=False)
+
+    openai_message: dict[str, Any] = {"role": "tool", "content": _to_openai_content_parts(result.result)}
+    if result.origin.id is not None:
+        openai_message["tool_call_id"] = result.origin.id
+    return openai_message
+
+
+def _format_tool_output(value: Any) -> Any:
+    """
+    Format the result of a tool call for Langfuse.
+
+    :param value: The tool result.
+    :returns: The content parts in OpenAI format if the result is a list of content parts, e.g. text and images.
+        Any other result is returned as a coerced tag value.
+    """
+    if (
+        isinstance(value, list)
+        and value
+        and all(isinstance(part, (TextContent, ImageContent, FileContent)) for part in value)
+    ):
+        return _to_openai_content_parts(value)
+    return tracing_utils.coerce_tag_value(value)
+
+
 def _format_chat_input(value: Any) -> Any:
     """
     Format the input of a generation or agent span for Langfuse.
@@ -279,9 +341,8 @@ def _format_chat_input(value: Any) -> Any:
         return tracing_utils.coerce_tag_value(value)
     messages: Any
     try:
-        messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in (value.get("messages") or [])]
+        messages = [_to_openai_message(m) for m in (value.get("messages") or [])]
     except ValueError:
-        # Some messages have no OpenAI format, e.g. tool results containing images
         messages = tracing_utils.coerce_tag_value(value.get("messages"))
     if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
         return {"messages": messages, "generation_kwargs": gen_kwargs}
@@ -304,7 +365,7 @@ def _format_chat_output(value: Any) -> Any:
     if not all(isinstance(r, ChatMessage) for r in replies):
         return replies
     try:
-        return [m.to_openai_dict_format(require_tool_call_ids=False) for m in replies]
+        return [_to_openai_message(m) for m in replies]
     except ValueError:
         return tracing_utils.coerce_tag_value(replies)
 

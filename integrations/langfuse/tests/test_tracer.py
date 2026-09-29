@@ -10,9 +10,10 @@ import sys
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from haystack.dataclasses import ChatMessage, ImageContent, TextContent, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, FileContent, ImageContent, TextContent, ToolCall
 from haystack.tracing import utils as tracing_utils
-from langfuse import LangfuseAgent, LangfuseGeneration
+from langfuse import LangfuseAgent, LangfuseGeneration, LangfuseTool
+from langfuse import LangfuseSpan as LangfuseClientSpan
 
 from haystack_integrations.tracing.langfuse.tracer import (
     _COMPONENT_OUTPUT_KEY,
@@ -214,7 +215,8 @@ class TestLangfuseSpan:
         ],
     )
     def test_set_content_tag_non_chat_span_coerces_value(self, key, value, expected):
-        mock_context_manager = MockContextManager()
+        span_spec = LangfuseTool if key.startswith("haystack.agent.step.tool") else LangfuseClientSpan
+        mock_context_manager = MockContextManager(span=Mock(spec=span_spec))
         span = LangfuseSpan(mock_context_manager)
 
         with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
@@ -223,19 +225,68 @@ class TestLangfuseSpan:
         field = "input" if key.endswith(".input") else "output"
         mock_context_manager._span.update.assert_called_once_with(**{field: expected})
 
+    def test_set_content_tag_tool_result_with_image_and_file(self):
+        mock_context_manager = MockContextManager(span=Mock(spec=LangfuseGeneration))
+        span = LangfuseSpan(mock_context_manager)
+        png = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode()
+        pdf = base64.b64encode(b"%PDF-1.4").decode()
+        tool_message = ChatMessage.from_tool(
+            tool_result=[
+                TextContent("chart"),
+                ImageContent(base64_image=png, mime_type="image/png"),
+                FileContent(base64_data=pdf, mime_type="application/pdf", filename="report.pdf"),
+            ],
+            origin=ToolCall(tool_name="plot", arguments={}, id="call_1"),
+        )
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag("haystack.agent.step.llm.input", {"messages": [tool_message]})
+
+        mock_context_manager._span.update.assert_called_once_with(
+            input=[
+                {
+                    "role": "tool",
+                    "content": [
+                        {"type": "text", "text": "chart"},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{png}"}},
+                        {
+                            "type": "file",
+                            "file": {"file_data": f"data:application/pdf;base64,{pdf}", "filename": "report.pdf"},
+                        },
+                    ],
+                    "tool_call_id": "call_1",
+                }
+            ]
+        )
+
+    def test_set_content_tag_tool_output_with_image(self):
+        mock_context_manager = MockContextManager(span=Mock(spec=LangfuseTool))
+        span = LangfuseSpan(mock_context_manager)
+        png = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode()
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag(
+                "haystack.agent.step.tool.output",
+                [TextContent("chart"), ImageContent(base64_image=png, mime_type="image/png")],
+            )
+
+        mock_context_manager._span.update.assert_called_once_with(
+            output=[
+                {"type": "text", "text": "chart"},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{png}"}},
+            ]
+        )
+
     def test_set_content_tag_messages_without_openai_format_are_coerced(self):
         mock_context_manager = MockContextManager(span=Mock(spec=LangfuseGeneration))
         span = LangfuseSpan(mock_context_manager)
-        image = ImageContent(base64_image=base64.b64encode(b"\x89PNG\r\n\x1a\n").decode(), mime_type="image/png")
-        tool_message = ChatMessage.from_tool(
-            tool_result=[TextContent("chart"), image], origin=ToolCall(tool_name="plot", arguments={}, id="call_1")
-        )
-        value = {"messages": [tool_message]}
+        # A user message without content has no OpenAI format
+        messages = [ChatMessage.from_user("hi"), ChatMessage(_role=ChatRole.USER, _content=[])]
 
         with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
-            span.set_content_tag("haystack.agent.step.llm.input", value)
+            span.set_content_tag("haystack.agent.step.llm.input", {"messages": messages})
 
-        mock_context_manager._span.update.assert_called_once_with(input=tracing_utils.coerce_tag_value([tool_message]))
+        mock_context_manager._span.update.assert_called_once_with(input=tracing_utils.coerce_tag_value(messages))
 
 
 class TestSpanContext:
