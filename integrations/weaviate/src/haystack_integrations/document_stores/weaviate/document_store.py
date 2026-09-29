@@ -983,8 +983,8 @@ class WeaviateDocumentStore:
         matching). For case-insensitive matching, normalize the value before
         building the filter.
 
-        Note: The ``NOT`` operator is translated to Weaviate's native ``NOT``,
-        which requires Weaviate 1.33 or later.
+        Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
+        native ``NOT``, which requires Weaviate 1.33 or later.
 
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
@@ -1009,8 +1009,8 @@ class WeaviateDocumentStore:
         matching). For case-insensitive matching, normalize the value before
         building the filter.
 
-        Note: The ``NOT`` operator is translated to Weaviate's native ``NOT``,
-        which requires Weaviate 1.33 or later.
+        Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
+        native ``NOT``, which requires Weaviate 1.33 or later.
 
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.

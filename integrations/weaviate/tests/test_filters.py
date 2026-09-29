@@ -14,8 +14,15 @@ from haystack_integrations.document_stores.weaviate._filters import (
 )
 
 
-def test_not_wraps_its_conditions_in_a_single_negated_and():
-    """A NOT node negates the conjunction of its conditions, using Weaviate's native NOT operator."""
+def _uses_native_not(filter_) -> bool:
+    """Whether the filter tree contains Weaviate's native NOT, which older servers reject."""
+    if getattr(filter_, "operator", None) == _Operator.NOT:
+        return True
+    return any(_uses_native_not(f) for f in getattr(filter_, "filters", []))
+
+
+def test_not_inverts_its_conditions_with_de_morgan():
+    """A NOT node negates the conjunction of its conditions, applied client-side with De Morgan's laws."""
     filters = {
         "operator": "NOT",
         "conditions": [
@@ -33,18 +40,25 @@ def test_not_wraps_its_conditions_in_a_single_negated_and():
 
     result = convert_filters(filters)
 
-    assert result.operator == _Operator.NOT
-    [negated] = result.filters
-    assert negated.operator == _Operator.AND
-    number_eq, name_eq, nested_or = negated.filters
-    assert number_eq == weaviate.classes.query.Filter.by_property("number").equal(100)
-    assert name_eq == weaviate.classes.query.Filter.by_property("name").equal("name_0")
-    # Only leaf filters compare by value, so the nested OR is checked structurally.
-    assert nested_or.operator == _Operator.OR
-    assert nested_or.filters == [
-        weaviate.classes.query.Filter.by_property("name").equal("name_1"),
-        weaviate.classes.query.Filter.by_property("name").equal("name_2"),
+    # NOT(a AND b AND (c OR d)) == NOT(a) OR NOT(b) OR (NOT(c) AND NOT(d))
+    assert result.operator == _Operator.OR
+    number_ne, name_ne, nested_and = result.filters
+    # Only leaf filters compare by value, so composite filters are checked structurally.
+    # `!=` also matches Documents where the field is not set.
+    assert number_ne.operator == _Operator.OR
+    assert number_ne.filters == [
+        weaviate.classes.query.Filter.by_property("number").not_equal(100),
+        weaviate.classes.query.Filter.by_property("number").is_none(True),
     ]
+    assert name_ne.operator == _Operator.OR
+    assert name_ne.filters[0] == weaviate.classes.query.Filter.by_property("name").not_equal("name_0")
+    assert nested_and.operator == _Operator.AND
+    assert [f.filters[0] for f in nested_and.filters] == [
+        weaviate.classes.query.Filter.by_property("name").not_equal("name_1"),
+        weaviate.classes.query.Filter.by_property("name").not_equal("name_2"),
+    ]
+    # Invertible operators never need the native NOT, which Weaviate < 1.33 rejects.
+    assert not _uses_native_not(result)
 
 
 def test_nested_not_is_not_double_negated():
@@ -53,11 +67,35 @@ def test_nested_not_is_not_double_negated():
 
     result = convert_filters({"operator": "NOT", "conditions": [inner]})
 
-    # `Filter.all_of` collapses a single operand, so each NOT wraps its condition directly.
-    assert result.operator == _Operator.NOT
-    [inner_not] = result.filters
-    assert inner_not.operator == _Operator.NOT
-    assert inner_not.filters == [weaviate.classes.query.Filter.by_property("number").equal(100)]
+    # `Filter.any_of` and `Filter.all_of` collapse a single operand, leaving just the condition.
+    assert result == weaviate.classes.query.Filter.by_property("number").equal(100)
+
+
+def test_not_over_logical_operators():
+    """NOT(a OR b) == NOT(a) AND NOT(b)."""
+    filters = {
+        "operator": "NOT",
+        "conditions": [
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.number", "operator": ">", "value": 10},
+                    {"field": "meta.number", "operator": "in", "value": [1, 2]},
+                ],
+            }
+        ],
+    }
+
+    result = convert_filters(filters)
+
+    assert result.operator == _Operator.AND
+    number_lte, number_not_in = result.filters
+    assert number_lte == weaviate.classes.query.Filter.by_property("number").less_or_equal(10)
+    assert number_not_in.operator == _Operator.AND
+    assert number_not_in.filters == [
+        weaviate.classes.query.Filter.by_property("number").not_equal(1),
+        weaviate.classes.query.Filter.by_property("number").not_equal(2),
+    ]
 
 
 @pytest.mark.parametrize("operator", ["contains", "like"])
@@ -66,11 +104,19 @@ def test_not_over_operators_without_an_inverse(operator):
     filters = {"operator": "NOT", "conditions": [{"field": "meta.name", "operator": operator, "value": "x"}]}
 
     if operator == "contains":
-        # Supported, and now negatable because no inversion table is consulted.
-        assert convert_filters(filters).operator == _Operator.NOT
+        # Supported, and negated with Weaviate's native NOT since `contains` has no inverse.
+        result = convert_filters(filters)
+        assert result.operator == _Operator.NOT
+        assert result.filters == [weaviate.classes.query.Filter.by_property("name").like("*x*")]
     else:
         with pytest.raises(FilterError, match="Unknown comparison operator 'like'"):
             convert_filters(filters)
+
+
+def test_not_over_unknown_logical_operator():
+    filters = {"operator": "NOT", "conditions": [{"operator": "XOR", "conditions": []}]}
+    with pytest.raises(FilterError, match="Unknown logical operator 'XOR'"):
+        convert_filters(filters)
 
 
 def test_convert_filters_raises_on_non_dict():
