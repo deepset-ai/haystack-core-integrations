@@ -480,6 +480,11 @@ integration:twelvelabs:
       - any-glob-to-any-file: "integrations/twelvelabs/**/*"
       - any-glob-to-any-file: ".github/workflows/twelvelabs.yml"
 
+integration:typesafe:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/typesafe/**/*"
+      - any-glob-to-any-file: ".github/workflows/typesafe.yml"
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
