@@ -134,10 +134,9 @@ It's also a good excuse to start looking into the project and a safe space for e
 grasp of something, pick another one!
 
 > [!NOTE]
-> **First-time contributors can have at most one open pull request** in this repository until it has been approved by a
-> maintainer. Additional PRs opened in the meantime are closed automatically and can be reopened once your first PR is
-> approved. This lets us give each new contributor's first
-> contribution the attention it deserves while keeping the review queue manageable.
+> **Community contributors can have only one open pull request at a time** in this repository. Please wait until your
+> open PR is merged or closed before opening another one. This lets us give each contribution the attention it deserves
+> while keeping the review queue manageable.
 
 ### Setting up your development environment
 
