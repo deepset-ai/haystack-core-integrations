@@ -390,7 +390,7 @@ class AnthropicChatGenerator:
             for key in [k for k in generation_kwargs if k.startswith(prefix)]:
                 value = generation_kwargs.pop(key)
                 if value is not None:
-                    nested_key = key[len(prefix):]
+                    nested_key = key[len(prefix) :]
                     nested_dict = generation_kwargs.setdefault(nested_name, {})
                     nested_dict[nested_key] = value
 
