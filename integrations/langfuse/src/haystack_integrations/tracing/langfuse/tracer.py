@@ -15,6 +15,7 @@ from typing import Any, Literal, cast
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage, FileContent, ImageContent, TextContent
+from haystack.tools import flatten_tools_or_toolsets
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
@@ -42,6 +43,7 @@ _AGENT_STEP_OPERATION = "haystack.agent.step"
 _AGENT_STEP_LLM_OPERATION = "haystack.agent.step.llm"
 _AGENT_STEP_TOOL_OPERATION = "haystack.agent.step.tool"
 _AGENT_STEP_KEY = "haystack.agent.step"
+_AGENT_STEP_LLM_INPUT_KEY = "haystack.agent.step.llm.input"
 _AGENT_STEP_LLM_OUTPUT_KEY = "haystack.agent.step.llm.output"
 _TOOL_NAME_KEY = "haystack.tool.name"
 
@@ -333,7 +335,8 @@ def _format_chat_input(value: Any) -> Any:
     Format the input of a generation or agent span for Langfuse.
 
     :param value: The traced input, e.g. the inputs of a ChatGenerator.
-    :returns: The messages in OpenAI format, together with `generation_kwargs` if they are set.
+    :returns: The messages in OpenAI format. If `generation_kwargs` or `tools` are set, a dictionary with the
+        `messages` and the `generation_kwargs` and OpenAI tool definitions is returned instead.
         Messages that have no OpenAI format are returned as a coerced tag value.
         Inputs without `messages` are returned as a coerced tag value.
     """
@@ -344,9 +347,14 @@ def _format_chat_input(value: Any) -> Any:
         messages = [_to_openai_message(m) for m in (value.get("messages") or [])]
     except ValueError:
         messages = tracing_utils.coerce_tag_value(value.get("messages"))
+
+    formatted: dict[str, Any] = {"messages": messages}
     if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
-        return {"messages": messages, "generation_kwargs": gen_kwargs}
-    return messages
+        formatted["generation_kwargs"] = gen_kwargs
+    # Langfuse shows the tools of `{"messages": ..., "tools": ...}` inputs next to the messages
+    if tools := value.get("tools"):
+        formatted["tools"] = [{"type": "function", "function": t.tool_spec} for t in flatten_tools_or_toolsets(tools)]
+    return formatted if len(formatted) > 1 else messages
 
 
 def _format_chat_output(value: Any) -> Any:
@@ -370,31 +378,43 @@ def _format_chat_output(value: Any) -> Any:
         return tracing_utils.coerce_tag_value(replies)
 
 
-def _update_generation_details(span: LangfuseSpan, chat_generator_output: dict[str, Any]) -> None:
+def _update_generation_details(
+    span: LangfuseSpan, chat_generator_inputs: dict[str, Any], chat_generator_output: dict[str, Any]
+) -> None:
     """
-    Add the model, token usage and completion start time from the first reply of a ChatGenerator to the span.
+    Add the model details of a ChatGenerator call to the span.
+
+    The model, token usage and completion start time come from the first reply, the model parameters from the
+    `generation_kwargs` passed to the ChatGenerator.
 
     :param span: The generation span.
+    :param chat_generator_inputs: The inputs of the ChatGenerator.
     :param chat_generator_output: The outputs of the ChatGenerator.
     """
-    replies = chat_generator_output.get("replies")
-    if not replies:
-        return
-    meta = replies[0].meta
-    completion_start_time = meta.get("completion_start_time")
-    if completion_start_time:
-        try:
-            completion_start_time = datetime.fromisoformat(completion_start_time)
-        except ValueError:
-            logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
-            completion_start_time = None
-    usage = meta.get("usage")
-    sanitized_usage = _sanitize_usage_data(usage) if usage else None
-    span.raw_span().update(
-        usage_details=sanitized_usage,
-        model=meta.get("model"),
-        completion_start_time=completion_start_time,
-    )
+    update_kwargs: dict[str, Any] = {}
+    if replies := chat_generator_output.get("replies"):
+        meta = replies[0].meta
+        completion_start_time = meta.get("completion_start_time")
+        if completion_start_time:
+            try:
+                completion_start_time = datetime.fromisoformat(completion_start_time)
+            except ValueError:
+                logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
+                completion_start_time = None
+        usage = meta.get("usage")
+        update_kwargs["usage_details"] = _sanitize_usage_data(usage) if usage else None
+        update_kwargs["model"] = meta.get("model")
+        update_kwargs["completion_start_time"] = completion_start_time
+    if generation_kwargs := chat_generator_inputs.get("generation_kwargs"):
+        # Langfuse model parameters only take primitive values, so nested values like `response_format` are coerced
+        update_kwargs["model_parameters"] = {
+            key: value
+            if value is None or isinstance(value, tracing_utils.PRIMITIVE_TYPES)
+            else tracing_utils.coerce_tag_value(value)
+            for key, value in generation_kwargs.items()
+        }
+    if update_kwargs:
+        span.raw_span().update(**update_kwargs)
 
 
 class DefaultSpanHandler(SpanHandler):
@@ -472,9 +492,13 @@ class DefaultSpanHandler(SpanHandler):
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
             span.raw_span().update(input=coerced_input, output=coerced_output)
         if _AGENT_STEP_LLM_OUTPUT_KEY in span.get_data():
-            _update_generation_details(span, span.get_data()[_AGENT_STEP_LLM_OUTPUT_KEY])
+            _update_generation_details(
+                span, span.get_data().get(_AGENT_STEP_LLM_INPUT_KEY, {}), span.get_data()[_AGENT_STEP_LLM_OUTPUT_KEY]
+            )
         elif component_type and component_type.endswith("ChatGenerator"):
-            _update_generation_details(span, span.get_data().get(_COMPONENT_OUTPUT_KEY, {}))
+            _update_generation_details(
+                span, span.get_data().get(_COMPONENT_INPUT_KEY, {}), span.get_data().get(_COMPONENT_OUTPUT_KEY, {})
+            )
         elif component_type and component_type.endswith("Generator"):
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:

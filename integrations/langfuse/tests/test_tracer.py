@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole, FileContent, ImageContent, TextContent, ToolCall
+from haystack.tools import Tool, Toolset
 from haystack.tracing import utils as tracing_utils
 from langfuse import LangfuseAgent, LangfuseGeneration, LangfuseTool
 from langfuse import LangfuseSpan as LangfuseClientSpan
@@ -184,6 +185,38 @@ class TestLangfuseSpan:
             assert mock_context_manager._span.update.call_count == 1
             # check we handle properly string list replies
             assert mock_context_manager._span.update.call_args_list[0][1] == {"output": ["reply1", "reply2"]}
+
+    def test_set_content_tag_input_with_tools(self):
+        mock_context_manager = MockContextManager(span=Mock(spec=LangfuseGeneration))
+        span = LangfuseSpan(mock_context_manager)
+        weather = Tool(
+            name="weather",
+            description="Get the weather",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}},
+            function=lambda city: city,
+        )
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag(
+                "haystack.agent.step.llm.input",
+                {"messages": [ChatMessage.from_user("message")], "tools": Toolset([weather])},
+            )
+
+        mock_context_manager._span.update.assert_called_once_with(
+            input={
+                "messages": [{"role": "user", "content": "message"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "weather",
+                            "description": "Get the weather",
+                            "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+                        },
+                    }
+                ],
+            }
+        )
 
     def test_set_content_tag_messages_none_does_not_raise(self):
         mock_context_manager = MockContextManager(span=Mock(spec=LangfuseGeneration))
@@ -453,6 +486,27 @@ class TestDefaultSpanHandler:
 
         mock_span.update.assert_called_once_with(
             usage_details={"input_tokens": 10, "output_tokens": 5}, model="test_model", completion_start_time=None
+        )
+
+    def test_handle_agent_step_llm_model_parameters(self):
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+        mock_span.get_data.return_value = {
+            "haystack.agent.step.llm.input": {
+                "messages": [ChatMessage.from_user("message")],
+                "generation_kwargs": {"temperature": 0.2, "response_format": {"type": "json_object"}},
+            },
+            "haystack.agent.step.llm.output": {"replies": [ChatMessage.from_assistant("reply")]},
+        }
+
+        handler = DefaultSpanHandler()
+        handler.handle(mock_span, component_type=None)
+
+        mock_span.update.assert_called_once_with(
+            usage_details=None,
+            model=None,
+            completion_start_time=None,
+            model_parameters={"temperature": 0.2, "response_format": '{"type": "json_object"}'},
         )
 
     def test_handle_bad_completion_start_time(self, caplog):
