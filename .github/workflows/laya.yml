@@ -104,8 +104,9 @@ jobs:
           path: python-coverage-comment-action-laya.txt
 
       - name: Run integration tests
-        # Integration tests download the model checkpoint, so run them only on Linux and the minimum Python version
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
