@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.classifiers.laya.document_classifier
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Laya integration for Haystack
+  id: integrations-laya
+  filename: laya.md
+  title: Laya

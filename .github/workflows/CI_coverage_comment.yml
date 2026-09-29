@@ -51,6 +51,7 @@ on:
       - "Test / langdetect"
       - "Test / langfuse"
       - "Test / lara"
+      - "Test / laya"
       - "Test / libreoffice"
       - "Test / linkup"
       - "Test / litellm"

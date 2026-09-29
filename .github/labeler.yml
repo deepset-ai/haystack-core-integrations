@@ -240,6 +240,11 @@ integration:lara:
       - any-glob-to-any-file: "integrations/lara/**/*"
       - any-glob-to-any-file: ".github/workflows/lara.yml"
 
+integration:laya:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/laya/**/*"
+      - any-glob-to-any-file: ".github/workflows/laya.yml"
+
 integration:libreoffice:
   - changed-files:
       - any-glob-to-any-file: "integrations/libreoffice/**/*"
