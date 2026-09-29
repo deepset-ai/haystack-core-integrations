@@ -197,12 +197,11 @@ class ArcadeDBDocumentStore:
             except RuntimeError:
                 logger.debug("Database '{database}' already exists or cannot be created", database=self._database)
 
-        # 2. Optionally drop existing type
+        # 2. Optionally drop existing type. `IF EXISTS` already makes an absent type a non-error, so
+        # any failure here is a real one - and swallowing it leaves the old type in place while
+        # reporting a successful recreate, so every later write lands in stale data.
         if self._recreate_type:
-            try:
-                self._command(f"DROP TYPE `{self._type_name}` IF EXISTS UNSAFE")
-            except RuntimeError:
-                pass
+            self._command(f"DROP TYPE `{self._type_name}` IF EXISTS UNSAFE")
 
         # 3. Create vertex type + properties
         self._command(f"CREATE VERTEX TYPE `{self._type_name}` IF NOT EXISTS")
@@ -219,13 +218,13 @@ class ArcadeDBDocumentStore:
 
         # 5. LSM_VECTOR index on embedding (HNSW-based, ACID-compliant)
         metric = self._SIMILARITY_MAP.get(self._similarity_function, "COSINE")
-        try:
-            self._command(
-                f"CREATE INDEX IF NOT EXISTS ON `{self._type_name}` (embedding) LSM_VECTOR "
-                f"METADATA {{ dimensions: {self._embedding_dimension}, similarity: '{metric}' }}"
-            )
-        except RuntimeError:
-            logger.debug("Vector index on embedding already exists")
+        # `IF NOT EXISTS` covers the index already being there, so a failure means it was not created.
+        # `_embedding_retrieval` addresses that index by name through `vectorNeighbors`, so the store
+        # is unusable for retrieval either way - say so here rather than at the first search.
+        self._command(
+            f"CREATE INDEX IF NOT EXISTS ON `{self._type_name}` (embedding) LSM_VECTOR "
+            f"METADATA {{ dimensions: {self._embedding_dimension}, similarity: '{metric}' }}"
+        )
 
         self._initialized = True
         logger.info(
