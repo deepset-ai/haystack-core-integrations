@@ -6,8 +6,7 @@ import contextlib
 import os
 import sys
 from abc import ABC, abstractmethod
-from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -15,14 +14,15 @@ from datetime import datetime
 from typing import Any, Literal, cast
 
 from haystack import default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, FileContent, ImageContent, TextContent
+from haystack.tools import flatten_tools_or_toolsets
 from haystack.tracing import Span, Tracer
 from haystack.tracing import tracer as proxy_tracer
 from haystack.tracing import utils as tracing_utils
 
 import langfuse
+from langfuse import LangfuseAgent, LangfuseGeneration, LangfuseTool, propagate_attributes
 from langfuse import LangfuseSpan as LangfuseClientSpan
-from langfuse import propagate_attributes
 from langfuse.types import TraceContext
 
 logger = logging.getLogger(__name__)
@@ -39,9 +39,16 @@ _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
 _COMPONENT_OUTPUT_KEY = "haystack.component.output"
 _COMPONENT_INPUT_KEY = "haystack.component.input"
+_AGENT_STEP_OPERATION = "haystack.agent.step"
+_AGENT_STEP_LLM_OPERATION = "haystack.agent.step.llm"
+_AGENT_STEP_TOOL_OPERATION = "haystack.agent.step.tool"
+_AGENT_STEP_KEY = "haystack.agent.step"
+_AGENT_STEP_LLM_INPUT_KEY = "haystack.agent.step.llm.input"
+_AGENT_STEP_LLM_OUTPUT_KEY = "haystack.agent.step.llm.output"
+_TOOL_NAME_KEY = "haystack.tool.name"
 
 # Type alias for observation span types
-ObservationSpanType = Literal["tool", "agent", "retriever", "embedding", "generation"]
+ObservationSpanType = Literal["tool", "agent", "chain", "retriever", "embedding", "generation"]
 
 # External session metadata for trace correlation (Haystack system)
 # Stores trace_id, user_id, session_id, tags, version for root trace creation
@@ -88,27 +95,19 @@ class LangfuseSpan(Span):
         """
         if not proxy_tracer.is_content_tracing_enabled:
             return
+        # Only generation and agent observations carry chat messages, other spans like tool calls get a coerced value
+        is_chat = isinstance(self._span, (LangfuseGeneration, LangfuseAgent))
         if key.endswith(".input"):
-            if "messages" in value:
-                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in (value.get("messages") or [])]
-                if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
-                    self._span.update(input={"messages": messages, "generation_kwargs": gen_kwargs})
-                else:
-                    self._span.update(input=messages)
-            else:
-                coerced_value = tracing_utils.coerce_tag_value(value)
-                self._span.update(input=coerced_value)
+            self._span.update(
+                input=_format_chat_input(value=value) if is_chat else tracing_utils.coerce_tag_value(value)
+            )
         elif key.endswith(".output"):
-            if "replies" in value:
-                replies_list = value.get("replies") or []
-                if all(isinstance(r, ChatMessage) for r in replies_list):
-                    replies = [m.to_openai_dict_format(require_tool_call_ids=False) for m in replies_list]
-                else:
-                    replies = replies_list
-                self._span.update(output=replies)
+            if is_chat:
+                self._span.update(output=_format_chat_output(value=value))
+            elif isinstance(self._span, LangfuseTool):
+                self._span.update(output=_format_tool_output(value=value))
             else:
-                coerced_value = tracing_utils.coerce_tag_value(value)
-                self._span.update(output=coerced_value)
+                self._span.update(output=tracing_utils.coerce_tag_value(value))
 
         self._data[key] = value
 
@@ -276,6 +275,150 @@ def _sanitize_usage_data(usage: dict[str, Any]) -> dict[str, Any]:
     return sanitized
 
 
+def _to_openai_content_parts(parts: Sequence[TextContent | ImageContent | FileContent]) -> list[dict[str, Any]]:
+    """
+    Convert content parts to the `text`, `image_url` and `file` parts of OpenAI user messages.
+
+    :param parts: The content parts, e.g. the result of a tool.
+    :returns: The content parts in OpenAI format.
+    """
+    content: list[dict[str, Any]] = []
+    for part in parts:
+        if isinstance(part, TextContent):
+            content.append({"type": "text", "text": part.text})
+        elif isinstance(part, ImageContent):
+            image_url = f"data:{part.mime_type or 'image/jpeg'};base64,{part.base64_image}"
+            content.append({"type": "image_url", "image_url": {"url": image_url}})
+        elif isinstance(part, FileContent):
+            file_data = f"data:{part.mime_type or 'application/pdf'};base64,{part.base64_data}"
+            content.append({"type": "file", "file": {"file_data": file_data, "filename": part.filename}})
+    return content
+
+
+def _to_openai_message(message: ChatMessage) -> dict[str, Any]:
+    """
+    Convert a ChatMessage to OpenAI Chat Completions format for Langfuse.
+
+    Tool results made of content parts get `text`, `image_url` and `file` parts, as used in OpenAI user messages.
+
+    :param message: The ChatMessage to convert.
+    :returns: The message in OpenAI format.
+    :raises ValueError: If the message has no OpenAI format, e.g. because it has no content.
+    """
+    result = message.tool_call_result
+    if result is None or isinstance(result.result, str):
+        return message.to_openai_dict_format(require_tool_call_ids=False)
+
+    openai_message: dict[str, Any] = {"role": "tool", "content": _to_openai_content_parts(parts=result.result)}
+    if result.origin.id is not None:
+        openai_message["tool_call_id"] = result.origin.id
+    return openai_message
+
+
+def _format_tool_output(value: Any) -> Any:
+    """
+    Format the result of a tool call for Langfuse.
+
+    :param value: The tool result.
+    :returns: The content parts in OpenAI format if the result is a list of content parts, e.g. text and images.
+        Any other result is returned as a coerced tag value.
+    """
+    if (
+        isinstance(value, list)
+        and value
+        and all(isinstance(part, (TextContent, ImageContent, FileContent)) for part in value)
+    ):
+        return _to_openai_content_parts(parts=value)
+    return tracing_utils.coerce_tag_value(value)
+
+
+def _format_chat_input(value: Any) -> Any:
+    """
+    Format the input of a generation or agent span for Langfuse.
+
+    :param value: The traced input, e.g. the inputs of a ChatGenerator.
+    :returns: The messages in OpenAI format. If `generation_kwargs` or `tools` are set, a dictionary with the
+        `messages` and the `generation_kwargs` and OpenAI tool definitions is returned instead.
+        Messages that have no OpenAI format are returned as a coerced tag value.
+        Inputs without `messages` are returned as a coerced tag value.
+    """
+    if "messages" not in value:
+        return tracing_utils.coerce_tag_value(value)
+    messages: Any
+    try:
+        messages = [_to_openai_message(message=m) for m in (value.get("messages") or [])]
+    except ValueError:
+        messages = tracing_utils.coerce_tag_value(value.get("messages"))
+
+    formatted: dict[str, Any] = {"messages": messages}
+    if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
+        formatted["generation_kwargs"] = gen_kwargs
+    # Langfuse shows the tools of `{"messages": ..., "tools": ...}` inputs next to the messages
+    if tools := value.get("tools"):
+        formatted["tools"] = [{"type": "function", "function": t.tool_spec} for t in flatten_tools_or_toolsets(tools)]
+    return formatted if len(formatted) > 1 else messages
+
+
+def _format_chat_output(value: Any) -> Any:
+    """
+    Format the output of a generation or agent span for Langfuse.
+
+    :param value: The traced output, e.g. the outputs of a ChatGenerator.
+    :returns: The replies in OpenAI format. String replies are returned as they are.
+        Replies that have no OpenAI format are returned as a coerced tag value.
+        Outputs without `replies` are returned as a coerced tag value.
+    """
+    if "replies" not in value:
+        return tracing_utils.coerce_tag_value(value)
+    replies = value.get("replies") or []
+    # Generators that aren't ChatGenerators return string replies
+    if not all(isinstance(r, ChatMessage) for r in replies):
+        return replies
+    try:
+        return [_to_openai_message(message=m) for m in replies]
+    except ValueError:
+        return tracing_utils.coerce_tag_value(replies)
+
+
+def _update_generation_details(
+    span: LangfuseSpan, chat_generator_inputs: dict[str, Any], chat_generator_output: dict[str, Any]
+) -> None:
+    """
+    Add the model details of a ChatGenerator call to the span.
+
+    The model, token usage and completion start time come from the first reply, the model parameters from the
+    `generation_kwargs` passed to the ChatGenerator.
+
+    :param span: The generation span.
+    :param chat_generator_inputs: The inputs of the ChatGenerator.
+    :param chat_generator_output: The outputs of the ChatGenerator.
+    """
+    update_kwargs: dict[str, Any] = {}
+    if replies := chat_generator_output.get("replies"):
+        meta = replies[0].meta
+        completion_start_time = meta.get("completion_start_time")
+        if completion_start_time:
+            try:
+                completion_start_time = datetime.fromisoformat(completion_start_time)
+            except ValueError:
+                logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
+                completion_start_time = None
+        usage = meta.get("usage")
+        update_kwargs["usage_details"] = _sanitize_usage_data(usage=usage) if usage else None
+        update_kwargs["model"] = meta.get("model")
+        update_kwargs["completion_start_time"] = completion_start_time
+    if generation_kwargs := chat_generator_inputs.get("generation_kwargs"):
+        # Langfuse model parameters only take primitive values, so nested values like `response_format` are coerced
+        update_kwargs["model_parameters"] = {
+            key: value
+            if value is None or isinstance(value, tracing_utils.PRIMITIVE_TYPES)
+            else tracing_utils.coerce_tag_value(value)
+            for key, value in generation_kwargs.items()
+        }
+    if update_kwargs:
+        span.raw_span().update(**update_kwargs)
+
+
 class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
@@ -313,9 +456,19 @@ class DefaultSpanHandler(SpanHandler):
             return span
 
         span_type = None
+        name = context.name
 
-        if context.component_type == "ToolInvoker":
+        # Agent spans carry no component tags, so they're matched by operation name
+        if context.operation_name == _AGENT_STEP_OPERATION:
+            span_type = "chain"
+            name = f"agent step {context.tags.get(_AGENT_STEP_KEY)}"
+        elif context.operation_name == _AGENT_STEP_LLM_OPERATION:
+            span_type = "generation"
+            name = "llm"
+        elif context.operation_name == _AGENT_STEP_TOOL_OPERATION:
             span_type = "tool"
+            tool_name = context.tags.get(_TOOL_NAME_KEY)
+            name = f"tool - {tool_name}" if tool_name else "tool"
         elif context.operation_name == "haystack.agent.run":
             span_type = "agent"
         elif context.component_type and context.component_type.endswith("Retriever"):
@@ -327,12 +480,10 @@ class DefaultSpanHandler(SpanHandler):
 
         if span_type:
             return LangfuseSpan(
-                self.tracer.start_as_current_observation(
-                    name=context.name, as_type=cast(ObservationSpanType, span_type)
-                )
+                self.tracer.start_as_current_observation(name=name, as_type=cast(ObservationSpanType, span_type))
             )
         else:
-            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name))
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=name))
 
     def handle(self, span: LangfuseSpan, component_type: str | None) -> None:
         """Process and enrich a span after component execution."""
@@ -342,66 +493,18 @@ class DefaultSpanHandler(SpanHandler):
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
             span.raw_span().update(input=coerced_input, output=coerced_output)
-        # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
-        if component_type == "ToolInvoker":
-            tool_names: list[str] = []
-            tool_calls_input: list[dict[str, Any]] = []
-            messages = span.get_data().get(_COMPONENT_INPUT_KEY, {}).get("messages", [])
-            for message in messages:
-                if isinstance(message, ChatMessage) and message.tool_calls:
-                    for call in message.tool_calls:
-                        tool_names.append(call.tool_name)
-                        tool_calls_input.append({"tool_name": call.tool_name, "arguments": call.arguments})
-
-            if tool_names:
-                # Fallback to "ToolInvoker" if we can't retrieve component name
-                tool_invoker_name = span.get_data().get(_COMPONENT_NAME_KEY, "ToolInvoker")
-                tool_counts = Counter(tool_names)  # how many times each tool was called
-                formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in tool_counts.items()]
-                span.raw_span().update(name=f"{tool_invoker_name} - {sorted(formatted_names)}")
-
-            if tool_calls_input and proxy_tracer.is_content_tracing_enabled:
-                # Replace the noisy full message history with just the tool call arguments
-                span.raw_span().update(input=tool_calls_input)
-
-                output_messages = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("tool_messages", [])
-                tool_results: list[dict[str, Any]] = []
-                for message in output_messages:
-                    if isinstance(message, ChatMessage) and message.tool_call_results:
-                        for tcr in message.tool_call_results:
-                            origin = tcr.origin
-                            # Keys `name`, `arguments` and `id` let Langfuse detect these as tool
-                            # calls at ingestion and populate the Tool Call Name filter in the UI.
-                            tool_results.append(
-                                {
-                                    "id": origin.id if origin else None,
-                                    "name": origin.tool_name if origin else None,
-                                    "arguments": origin.arguments if origin else None,
-                                    "result": tcr.result,
-                                    "error": tcr.error,
-                                }
-                            )
-                if tool_results:
-                    span.raw_span().update(output=tool_results)
-
-        if component_type and component_type.endswith("ChatGenerator"):
-            replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
-            if replies:
-                meta = replies[0].meta
-                completion_start_time = meta.get("completion_start_time")
-                if completion_start_time:
-                    try:
-                        completion_start_time = datetime.fromisoformat(completion_start_time)
-                    except ValueError:
-                        logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
-                        completion_start_time = None
-                usage = meta.get("usage")
-                sanitized_usage = _sanitize_usage_data(usage) if usage else None
-                span.raw_span().update(
-                    usage_details=sanitized_usage,
-                    model=meta.get("model"),
-                    completion_start_time=completion_start_time,
-                )
+        if _AGENT_STEP_LLM_OUTPUT_KEY in span.get_data():
+            _update_generation_details(
+                span=span,
+                chat_generator_inputs=span.get_data().get(_AGENT_STEP_LLM_INPUT_KEY, {}),
+                chat_generator_output=span.get_data()[_AGENT_STEP_LLM_OUTPUT_KEY],
+            )
+        elif component_type and component_type.endswith("ChatGenerator"):
+            _update_generation_details(
+                span=span,
+                chat_generator_inputs=span.get_data().get(_COMPONENT_INPUT_KEY, {}),
+                chat_generator_output=span.get_data().get(_COMPONENT_OUTPUT_KEY, {}),
+            )
         elif component_type and component_type.endswith("Generator"):
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
             if meta:
