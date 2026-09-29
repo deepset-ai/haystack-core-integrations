@@ -2296,3 +2296,30 @@ class TestAmazonBedrockChatGeneratorUtils:
         chunk = _convert_event_to_streaming_chunk(event_str, model, component_info)
         assert chunk.tool_calls is not None
         assert chunk.tool_calls[0].arguments == '{"city": "Berlin"}'
+
+    def test_parse_streaming_response_redacted_reasoning_is_not_replayed(self):
+        # OpenAI models on Bedrock (e.g. GPT-6) stream reasoning only as redactedContent
+        model = "us.openai.gpt-6-sol"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"redactedContent": b"rsn_abc"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"contentBlockDelta": {"delta": {"text": "No."}, "contentBlockIndex": 1}},
+            {"contentBlockStop": {"contentBlockIndex": 1}},
+            {"messageStop": {"stopReason": "end_turn"}},
+        ]
+
+        replies = _parse_streaming_response(events, lambda chunk: None, model, ComponentInfo(type=type_))
+
+        assert replies[0].text == "No."
+        assert replies[0].reasoning is None
+        formatted_message = _format_messages([replies[0]])[1][0]
+        assert formatted_message == {"role": "assistant", "content": [{"text": "No."}]}

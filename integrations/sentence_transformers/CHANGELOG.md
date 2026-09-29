@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/sentence_transformers-v0.1.2] - 2026-09-23
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Sentence Transformers - fix types for 6.0 (#3822)
+- Respect falsy run() overrides in `SentenceTransformersSimilarityRanker` (#3855)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/sentence_transformers-v0.1.1] - 2026-07-07
 
 ### 🐛 Bug Fixes

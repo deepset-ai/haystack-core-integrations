@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/pgvector-v7.0.0] - 2026-09-29
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Pgvector - an empty filter must not delete every document (#4006)
+
+
+## [integrations/pgvector-v6.6.1] - 2026-09-25
+
+### 🐛 Bug Fixes
+
+- *(pgvector)* Raise FilterError on empty logical conditions (#3946)
+- *(pgvector)* Count every written document in write_documents_async (#3964)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/pgvector-v6.6.0] - 2026-08-26
 
 ### 🐛 Bug Fixes

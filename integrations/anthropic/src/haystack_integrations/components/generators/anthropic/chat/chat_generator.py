@@ -42,6 +42,8 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_MAX_TOKENS = 8192
+
 
 @component
 class AnthropicChatGenerator:
@@ -104,6 +106,7 @@ class AnthropicChatGenerator:
         "tool_choice",
         "max_tokens",
         "metadata",
+        "service_tier",
         "stop_sequences",
         "temperature",
         "top_p",
@@ -114,15 +117,17 @@ class AnthropicChatGenerator:
     ]
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "claude-fable-5-1",
+        "claude-fable-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
         "claude-opus-4-6",
-        "claude-sonnet-4-6",
-        "claude-haiku-4-5-20251001",
-        "claude-sonnet-4-5-20250929",
         "claude-opus-4-5-20251101",
-        "claude-opus-4-1-20250805",
-        "claude-sonnet-4-20250514",
-        "claude-opus-4-20250514",
-        "claude-3-haiku-20240307",
+        "claude-sonnet-5",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5-20250929",
+        "claude-haiku-4-5-20251001",
     ]
     """A non-exhaustive list of chat models supported by this component. See
      https://platform.claude.com/docs/en/about-claude/models/overview for the full list."""
@@ -153,8 +158,12 @@ class AnthropicChatGenerator:
 
             Supported generation_kwargs parameters are:
             - `system`: The system message to be passed to the model.
-            - `max_tokens`: The maximum number of tokens to generate.
+            - `max_tokens`: The maximum number of tokens to generate. Defaults to 8192. A response that hits
+                this limit is cut off; if the model was writing a tool call at the time, that call is dropped
+                and the reply carries a `length` finish reason.
             - `metadata`: A dictionary of metadata to be passed to the model.
+            - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
+                (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
             - `stop_sequences`: A list of strings that the model should stop generating at.
             - `temperature`: The temperature to use for sampling.
             - `top_p`: The top_p value to use for nucleus sampling.
@@ -316,7 +325,7 @@ class AnthropicChatGenerator:
         # prompt caching
 
         # tools management
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
 
@@ -340,6 +349,11 @@ class AnthropicChatGenerator:
 
     def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
+        # Copy the nested dicts the flattened kwargs write into; a shallow copy would share them with the
+        # component's init-time generation_kwargs, so a per-run flattened kwarg would persist across runs.
+        for key in ("tool_choice", "thinking", "output_config"):
+            if isinstance(generation_kwargs.get(key), dict):
+                generation_kwargs[key] = dict(generation_kwargs[key])
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
@@ -375,6 +389,13 @@ class AnthropicChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        thinking_display = generation_kwargs.pop("thinking_display", None)
+        if thinking_display is not None:
+            thinking = generation_kwargs.setdefault("thinking", {})
+            # `display` is only accepted with enabled or adaptive thinking, so it's dropped when thinking is disabled
+            if thinking.get("type") != "disabled":
+                thinking["display"] = thinking_display
 
         return generation_kwargs
 
@@ -587,7 +608,7 @@ class AnthropicChatGenerator:
             system=system_messages,
             tools=anthropic_tools,
             stream=streaming_callback is not None,
-            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            max_tokens=generation_kwargs.pop("max_tokens", _DEFAULT_MAX_TOKENS),
             **generation_kwargs,
         )
 
@@ -636,7 +657,7 @@ class AnthropicChatGenerator:
             system=system_messages,
             tools=anthropic_tools,
             stream=streaming_callback is not None,
-            max_tokens=generation_kwargs.pop("max_tokens", 1024),
+            max_tokens=generation_kwargs.pop("max_tokens", _DEFAULT_MAX_TOKENS),
             **generation_kwargs,
         )
 

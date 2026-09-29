@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/qdrant-v11.0.0] - 2026-09-25
+
+### 🚜 Refactor
+
+- [**breaking**] Qdrant - propagate errors on backend failures instead of empty responses (#3997)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/qdrant-v10.6.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

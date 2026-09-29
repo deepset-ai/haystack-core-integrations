@@ -643,7 +643,7 @@ class OllamaChatGenerator:
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        tools_to_use = tools or self.tools
+        tools_to_use = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools_to_use)
         _check_duplicate_tool_names(flattened_tools)
 
@@ -703,7 +703,7 @@ class OllamaChatGenerator:
         callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
 
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        tools_to_use = tools or self.tools
+        tools_to_use = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools_to_use)
         _check_duplicate_tool_names(flattened_tools)
 
