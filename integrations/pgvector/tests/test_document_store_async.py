@@ -9,6 +9,7 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
     CountDocumentsByFilterAsyncTest,
@@ -351,6 +352,13 @@ async def test_execute_sql_async_converts_psycopg_error_to_document_store_error(
 async def test_write_documents_async_rejects_non_document_items(mock_store):
     with pytest.raises(ValueError, match="must contain a list of objects of type Document"):
         await mock_store.write_documents_async([{"not": "a document"}])
+
+
+@pytest.mark.asyncio
+async def test_delete_by_filter_async_rejects_an_empty_filter(mock_store):
+    """Same contract as the sync path, and the message must name the async methods."""
+    with pytest.raises(FilterError, match=r"delete_by_filter_async requires .* delete_all_documents_async\(\)"):
+        await mock_store.delete_by_filter_async({})
 
 
 @pytest.mark.asyncio

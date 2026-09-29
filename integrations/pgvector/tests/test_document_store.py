@@ -152,25 +152,10 @@ class TestDocumentStore(
         assert document_store._connection is not None
 
 
-@pytest.mark.usefixtures("patches_for_unit_tests")
-def test_delete_by_filter_rejects_an_empty_filter(monkeypatch):
+def test_delete_by_filter_rejects_an_empty_filter(mock_store):
     """An empty filter would compile to an unqualified DELETE and empty the table."""
-    monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
-    document_store = PgvectorDocumentStore(table_name="my_table")
-
     with pytest.raises(FilterError, match="non-empty filter"):
-        document_store.delete_by_filter({})
-
-
-@pytest.mark.usefixtures("patches_for_unit_tests")
-@pytest.mark.asyncio
-async def test_delete_by_filter_async_rejects_an_empty_filter(monkeypatch):
-    """Same contract on the async path, and the message names the async methods."""
-    monkeypatch.setenv("PG_CONN_STR", "some_connection_string")
-    document_store = PgvectorDocumentStore(table_name="my_table")
-
-    with pytest.raises(FilterError, match=r"delete_by_filter_async requires .* delete_all_documents_async\(\)"):
-        await document_store.delete_by_filter_async({})
+        mock_store.delete_by_filter({})
 
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
