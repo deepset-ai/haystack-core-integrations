@@ -63,7 +63,6 @@ class TestSerialization:
             token=Secret.from_env_var("LAYA_HF_TOKEN"),
             min_confidence=0.6,
         )
-
         data = router.to_dict()
         assert data == {
             "type": COMPONENT_TYPE,
@@ -78,7 +77,6 @@ class TestSerialization:
                 "min_confidence": 0.6,
             },
         }
-
         restored = LayaTextRouter.from_dict(data)
         assert restored.labels == LABELS
         assert restored.instructions == "Which team should handle this?"
@@ -105,7 +103,6 @@ class TestWarmUp:
         )
         router.warm_up()
         router.warm_up()
-
         mock_load.assert_called_once_with(
             "convaiinnovations/laya", device="cpu", token="test-token", subfolder="multilingual", revision="abc123"
         )
@@ -117,9 +114,7 @@ class TestRun:
         router = LayaTextRouter(labels=LABELS, instructions="Which team should handle this?", min_confidence=0.6)
         router._agent = MagicMock()
         router._agent.predict.return_value = _result("billing")
-
         result = router.run(text="I was charged twice.")
-
         router._agent.predict.assert_called_once_with(
             "I was charged twice.",
             {"route": {"type": "choice", "instructions": "Which team should handle this?", "criteria": LABELS}},
@@ -131,7 +126,6 @@ class TestRun:
         router = LayaTextRouter(labels=LABELS, min_confidence=0.6)
         router._agent = MagicMock()
         router._agent.predict.return_value = _result("billing", low_confidence=True)
-
         assert router.run(text="Hello?") == {"low_confidence": "Hello?"}
 
     def test_run_wrong_input_type(self):
@@ -143,9 +137,7 @@ class TestRun:
     def test_run_warms_up(self, mock_load):
         mock_load.return_value.predict.return_value = _result("technical")
         router = LayaTextRouter(labels=LABELS)
-
         router.run(text="The app crashes.")
-
         mock_load.assert_called_once()
 
 
@@ -161,9 +153,7 @@ class TestLayaTextRouterInference:
                 device=ComponentDevice.from_str("cpu"),
             ),
         )
-
         billing = pipeline.run({"router": {"text": "I was charged twice, please refund the second payment."}})
         technical = pipeline.run({"router": {"text": "The app crashes every time I open the settings page."}})
-
         assert billing == {"router": {"billing": "I was charged twice, please refund the second payment."}}
         assert technical == {"router": {"technical": "The app crashes every time I open the settings page."}}

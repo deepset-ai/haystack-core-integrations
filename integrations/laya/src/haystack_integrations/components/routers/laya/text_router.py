@@ -104,12 +104,6 @@ class LayaTextRouter:
             outputs.append(_LOW_CONFIDENCE)
         component.set_output_types(self, **dict.fromkeys(outputs, str))
 
-    def _get_telemetry_data(self) -> dict[str, Any]:
-        """
-        Data that is sent to Posthog for usage analytics.
-        """
-        return {"model": self.model, "subfolder": self.subfolder}
-
     def warm_up(self) -> None:
         """
         Downloads and loads the Laya model.

@@ -71,7 +71,6 @@ class TestSerialization:
             batch_size=8,
             min_confidence=0.5,
         )
-
         data = component.to_dict()
         assert data == {
             "type": COMPONENT_TYPE,
@@ -88,7 +87,6 @@ class TestSerialization:
                 "min_confidence": 0.5,
             },
         }
-
         restored = LayaDocumentClassifier.from_dict(data)
         assert restored.questions == QUESTIONS
         assert restored.model == "my-org/laya-finetune"
@@ -117,7 +115,6 @@ class TestWarmUp:
         )
         component.warm_up()
         component.warm_up()
-
         mock_load.assert_called_once_with(
             "convaiinnovations/laya", device="cpu", token="test-token", subfolder="multilingual", revision="abc123"
         )
@@ -133,9 +130,7 @@ class TestRun:
             Document(content="I was charged twice.", meta={"source": "email"}),
             Document(content="The app crashes on startup."),
         ]
-
         result = component.run(documents=documents)
-
         component._agent.predict_batch.assert_called_once_with(
             ["I was charged twice.", "The app crashes on startup."], QUESTIONS, batch_size=4, min_confidence=0.5
         )
@@ -153,9 +148,7 @@ class TestRun:
             Document(content="ignored", meta={"summary": "Double charge"}),
             Document(content="no summary"),
         ]
-
         result = component.run(documents=documents)
-
         assert component._agent.predict_batch.call_args.args[0] == ["Double charge"]
         assert result["documents"][0].meta["laya"]["department"]["choice"] == "billing"
         assert result["documents"][1] is documents[1]
@@ -165,9 +158,7 @@ class TestRun:
         component = LayaDocumentClassifier(questions=QUESTIONS)
         component._agent = MagicMock()
         documents = [Document(content="")]
-
         result = component.run(documents=documents)
-
         assert result["documents"] == documents
         component._agent.predict_batch.assert_not_called()
 
@@ -175,9 +166,7 @@ class TestRun:
     def test_run_warms_up(self, mock_load):
         mock_load.return_value.predict_batch.return_value = [_result("billing")]
         component = LayaDocumentClassifier(questions=QUESTIONS)
-
         component.run(documents=[Document(content="I was charged twice.")])
-
         mock_load.assert_called_once()
 
 
@@ -185,14 +174,12 @@ class TestRun:
 class TestLayaDocumentClassifierInference:
     def test_run(self):
         component = LayaDocumentClassifier(questions=QUESTIONS, device=ComponentDevice.from_str("cpu"))
-
         result = component.run(
             documents=[
                 Document(content="I was charged twice for my subscription, please refund the second payment."),
                 Document(content="The app crashes every time I open the settings page."),
             ]
         )
-
         billing, technical = (document.meta["laya"] for document in result["documents"])
         assert billing["department"]["choice"] == "billing"
         assert technical["department"]["choice"] == "technical"

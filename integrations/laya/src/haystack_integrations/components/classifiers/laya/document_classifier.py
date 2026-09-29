@@ -168,12 +168,6 @@ class LayaDocumentClassifier:
         self.min_confidence = min_confidence
         self._agent: Agent | None = None
 
-    def _get_telemetry_data(self) -> dict[str, Any]:
-        """
-        Data that is sent to Posthog for usage analytics.
-        """
-        return {"model": self.model, "subfolder": self.subfolder}
-
     def warm_up(self) -> None:
         """
         Downloads and loads the Laya model.
