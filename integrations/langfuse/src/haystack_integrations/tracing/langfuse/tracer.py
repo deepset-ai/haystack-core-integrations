@@ -98,12 +98,14 @@ class LangfuseSpan(Span):
         # Only generation and agent observations carry chat messages, other spans like tool calls get a coerced value
         is_chat = isinstance(self._span, (LangfuseGeneration, LangfuseAgent))
         if key.endswith(".input"):
-            self._span.update(input=_format_chat_input(value) if is_chat else tracing_utils.coerce_tag_value(value))
+            self._span.update(
+                input=_format_chat_input(value=value) if is_chat else tracing_utils.coerce_tag_value(value)
+            )
         elif key.endswith(".output"):
             if is_chat:
-                self._span.update(output=_format_chat_output(value))
+                self._span.update(output=_format_chat_output(value=value))
             elif isinstance(self._span, LangfuseTool):
-                self._span.update(output=_format_tool_output(value))
+                self._span.update(output=_format_tool_output(value=value))
             else:
                 self._span.update(output=tracing_utils.coerce_tag_value(value))
 
@@ -307,7 +309,7 @@ def _to_openai_message(message: ChatMessage) -> dict[str, Any]:
     if result is None or isinstance(result.result, str):
         return message.to_openai_dict_format(require_tool_call_ids=False)
 
-    openai_message: dict[str, Any] = {"role": "tool", "content": _to_openai_content_parts(result.result)}
+    openai_message: dict[str, Any] = {"role": "tool", "content": _to_openai_content_parts(parts=result.result)}
     if result.origin.id is not None:
         openai_message["tool_call_id"] = result.origin.id
     return openai_message
@@ -326,7 +328,7 @@ def _format_tool_output(value: Any) -> Any:
         and value
         and all(isinstance(part, (TextContent, ImageContent, FileContent)) for part in value)
     ):
-        return _to_openai_content_parts(value)
+        return _to_openai_content_parts(parts=value)
     return tracing_utils.coerce_tag_value(value)
 
 
@@ -344,7 +346,7 @@ def _format_chat_input(value: Any) -> Any:
         return tracing_utils.coerce_tag_value(value)
     messages: Any
     try:
-        messages = [_to_openai_message(m) for m in (value.get("messages") or [])]
+        messages = [_to_openai_message(message=m) for m in (value.get("messages") or [])]
     except ValueError:
         messages = tracing_utils.coerce_tag_value(value.get("messages"))
 
@@ -373,7 +375,7 @@ def _format_chat_output(value: Any) -> Any:
     if not all(isinstance(r, ChatMessage) for r in replies):
         return replies
     try:
-        return [_to_openai_message(m) for m in replies]
+        return [_to_openai_message(message=m) for m in replies]
     except ValueError:
         return tracing_utils.coerce_tag_value(replies)
 
@@ -402,7 +404,7 @@ def _update_generation_details(
                 logger.error(f"Failed to parse completion_start_time: {completion_start_time}")
                 completion_start_time = None
         usage = meta.get("usage")
-        update_kwargs["usage_details"] = _sanitize_usage_data(usage) if usage else None
+        update_kwargs["usage_details"] = _sanitize_usage_data(usage=usage) if usage else None
         update_kwargs["model"] = meta.get("model")
         update_kwargs["completion_start_time"] = completion_start_time
     if generation_kwargs := chat_generator_inputs.get("generation_kwargs"):
@@ -493,11 +495,15 @@ class DefaultSpanHandler(SpanHandler):
             span.raw_span().update(input=coerced_input, output=coerced_output)
         if _AGENT_STEP_LLM_OUTPUT_KEY in span.get_data():
             _update_generation_details(
-                span, span.get_data().get(_AGENT_STEP_LLM_INPUT_KEY, {}), span.get_data()[_AGENT_STEP_LLM_OUTPUT_KEY]
+                span=span,
+                chat_generator_inputs=span.get_data().get(_AGENT_STEP_LLM_INPUT_KEY, {}),
+                chat_generator_output=span.get_data()[_AGENT_STEP_LLM_OUTPUT_KEY],
             )
         elif component_type and component_type.endswith("ChatGenerator"):
             _update_generation_details(
-                span, span.get_data().get(_COMPONENT_INPUT_KEY, {}), span.get_data().get(_COMPONENT_OUTPUT_KEY, {})
+                span=span,
+                chat_generator_inputs=span.get_data().get(_COMPONENT_INPUT_KEY, {}),
+                chat_generator_output=span.get_data().get(_COMPONENT_OUTPUT_KEY, {}),
             )
         elif component_type and component_type.endswith("Generator"):
             meta = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("meta")
