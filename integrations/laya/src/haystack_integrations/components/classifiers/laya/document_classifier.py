@@ -61,6 +61,45 @@ class LayaDocumentClassifier:
     #  'urgency': {'type': 'score', 'score': 1.948, 'probabilities': {'0': 0.0113, '1': 0.0295, '2': 0.9593}, ...},
     #  'refund': {'type': 'noul', 'noul': 0.9498, ...}}
     ```
+
+    ### Routing documents by their answers
+
+    Connect the classifier to a `MetadataRouter` and match on the nested answer fields:
+
+    ```python
+    from haystack import Document, Pipeline
+    from haystack.components.routers import MetadataRouter
+
+    from haystack_integrations.components.classifiers.laya import LayaDocumentClassifier
+
+    pipeline = Pipeline()
+    pipeline.add_component(
+        "classifier",
+        LayaDocumentClassifier(
+            questions={
+                "department": {
+                    "type": "choice",
+                    "instructions": "Which department should handle this ticket?",
+                    "criteria": ["billing", "technical"],
+                }
+            }
+        ),
+    )
+    pipeline.add_component(
+        "router",
+        MetadataRouter(
+            rules={
+                label: {"field": "meta.laya.department.choice", "operator": "==", "value": label}
+                for label in ["billing", "technical"]
+            }
+        ),
+    )
+    pipeline.connect("classifier.documents", "router.documents")
+
+    result = pipeline.run({"classifier": {"documents": [Document(content="The app crashes on startup.")]}})
+    print(result["router"])
+    # {'billing': [], 'technical': [Document(...)], 'unmatched': []}
+    ```
     """
 
     def __init__(
@@ -101,7 +140,8 @@ class LayaDocumentClassifier:
         :param batch_size:
             Maximum number of documents per forward pass. `None` sends all documents in one pass.
         :param min_confidence:
-            Confidence threshold between 0 and 1. Answers with a lower confidence get `"low_confidence": True`.
+            Threshold between 0 and 1 for each answer's `answer_confidence`. Answers below it get
+            `"low_confidence": True`.
         :raises ValueError:
             If `questions` is empty, or a question has an unknown `type` or no `instructions`.
         """

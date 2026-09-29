@@ -1,6 +1,7 @@
 loaders:
   - modules:
       - haystack_integrations.components.classifiers.laya.document_classifier
+      - haystack_integrations.components.routers.laya.text_router
     search_path: [../src]
 processors:
   - type: filter
