@@ -191,6 +191,41 @@ class TestInvoke:
         assert await tool.invoke_async(code="2 ** 10") == "result:\n1024"
 
 
+class TestDefaultDescriptionMatchesMonty:
+    """
+    Pin the Python subset that `_DEFAULT_DESCRIPTION` tells the LLM about.
+
+    When a new Monty release supports more of Python, these tests fail in the nightly run, which is the signal to
+    update the description and the tests.
+    """
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            pytest.param("class A:\n    pass\nclass B(A):\n    pass", id="class inheritance"),
+            pytest.param("class MyError(Exception):\n    pass", id="custom exception class"),
+            pytest.param("def gen():\n    yield 1", id="generators"),
+            pytest.param("match 1:\n    case 1:\n        pass", id="match"),
+            pytest.param("x = 1\ndel x", id="del"),
+            pytest.param("class A:\n    @property\n    def x(self):\n        return 1", id="property"),
+            pytest.param("class A:\n    @staticmethod\n    def x():\n        return 1", id="staticmethod"),
+        ],
+    )
+    def test_unsupported_features(self, tool, code):
+        assert "NotImplementedError: The monty syntax parser does not yet support" in tool.invoke(code=code)
+
+    def test_listed_modules_are_importable(self, tool):
+        listed = _DEFAULT_DESCRIPTION.split("some of them partially: ", 1)[1].split(".\n", 1)[0].split(", ")
+
+        for module in listed:
+            assert tool.invoke(code=f"import {module}") == "The code ran successfully and produced no output."
+
+    # Commonly used standard library modules that Monty doesn't implement yet
+    @pytest.mark.parametrize("module", ["bisect", "decimal", "enum", "heapq", "operator", "statistics", "string"])
+    def test_unlisted_modules_are_not_importable(self, tool, module):
+        assert f"ModuleNotFoundError: No module named '{module}'" in tool.invoke(code=f"import {module}")
+
+
 class TestLifecycle:
     def test_warm_up_is_idempotent(self, tool):
         tool.warm_up()
