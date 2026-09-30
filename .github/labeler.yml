@@ -305,6 +305,11 @@ integration:mongodb-atlas:
       - any-glob-to-any-file: "integrations/mongodb_atlas/**/*"
       - any-glob-to-any-file: ".github/workflows/mongodb_atlas.yml"
 
+integration:monty:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/monty/**/*"
+      - any-glob-to-any-file: ".github/workflows/monty.yml"
+
 integration:nvidia:
   - changed-files:
       - any-glob-to-any-file: "integrations/nvidia/**/*"
