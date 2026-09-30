@@ -95,6 +95,22 @@ class TestOpenRouterChatGeneratorAsyncUnit:
         assert component.async_client.api_key == "test-api-key"
         assert component.async_client.base_url == "https://openrouter.ai/api/v1/"
 
+    async def test_configured_tools_async_lifecycle(
+        self, tools, chat_messages, mock_async_chat_completion, monkeypatch
+    ):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key")
+        component = OpenRouterChatGenerator(tools=tools)
+        with (
+            patch.object(tools[0], "warm_up_async", new_callable=AsyncMock, create=True) as tool_warm_up_async,
+            patch.object(tools[0], "close_async", new_callable=AsyncMock, create=True) as tool_close_async,
+        ):
+            await component.run_async(chat_messages)
+            mock_async_chat_completion.assert_awaited_once()
+            tool_warm_up_async.assert_awaited_once_with()
+            tool_close_async.assert_not_awaited()
+            await component.close_async()
+            tool_close_async.assert_awaited_once_with()
+
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
         component = OpenRouterChatGenerator()

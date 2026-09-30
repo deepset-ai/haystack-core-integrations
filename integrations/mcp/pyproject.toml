@@ -60,6 +60,7 @@ fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
+extra-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@1592d3ca7d286ea52cf357807c5cc526733c6a74"]
 dependencies = [
     "pytest",
     "pytest-asyncio",

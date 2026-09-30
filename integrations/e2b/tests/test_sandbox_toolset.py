@@ -5,6 +5,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from haystack.components.agents import Agent
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.tools.errors import ToolInvocationError
 from haystack.utils import Secret
 
@@ -523,3 +525,23 @@ class TestListDirectoryTool:
         tool = ListDirectoryTool(sandbox=sb)
         with pytest.raises(ToolInvocationError, match="Failed to list directory"):
             tool.invoke(path="/nonexistent")
+
+
+class TestE2BToolsetLifecycle:
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
+    def test_agent_warms_up_and_closes_shared_sandbox(self, sandbox_create):
+        sandbox = _make_sandbox_mock()
+        sandbox_create.return_value = sandbox
+        toolset = E2BToolset(api_key=Secret.from_token("test-api-key"))
+        agent = Agent(chat_generator=OpenAIChatGenerator(api_key=Secret.from_token("test-key")), tools=toolset)
+
+        agent.warm_up()
+        agent.warm_up()
+        assert all(tool._e2b_sandbox is toolset.sandbox for tool in toolset.tools)
+        assert toolset.sandbox._sandbox is sandbox
+        sandbox_create.assert_called_once()
+
+        agent.close()
+        agent.close()
+        sandbox.kill.assert_called_once()
+        assert toolset.sandbox._sandbox is None
