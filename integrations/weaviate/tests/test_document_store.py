@@ -756,6 +756,27 @@ class TestWeaviateDocumentStore(
             ],
         )
 
+    def test_nested_not_operator(self, document_store, filterable_docs):
+        """NOT(NOT(x)) must select the same Documents as x, matching `document_matches_filter`."""
+        document_store.write_documents(filterable_docs)
+        inner = {"field": "meta.number", "operator": "==", "value": 100}
+        nested_not = {"operator": "NOT", "conditions": [{"operator": "NOT", "conditions": [inner]}]}
+
+        result = document_store.filter_documents(nested_not)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
+
+    def test_not_operator_over_contains(self, document_store, filterable_docs):
+        """`contains` has no inverted counterpart, so negating it used to raise a bare KeyError."""
+        document_store.write_documents(filterable_docs)
+        filters = {"operator": "NOT", "conditions": [{"field": "meta.name", "operator": "contains", "value": "name_0"}]}
+
+        result = document_store.filter_documents(filters)
+
+        self.assert_documents_are_equal(
+            result, [d for d in filterable_docs if "name_0" not in (d.meta.get("name") or "")]
+        )
+
     def test_split_overlap_preserved(self, document_store):
         """Split overlap meta is written and read back correctly."""
         overlap = [
