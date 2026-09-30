@@ -36,10 +36,13 @@ _DEFAULT_DESCRIPTION = (
 )
 
 
-def _truncate(text: str, max_chars: int) -> str:
+def _truncate(text: str, max_chars: int, *, keep_tail: bool = False) -> str:
     if len(text) <= max_chars:
         return text
-    return f"{text[:max_chars]}\n[... {len(text) - max_chars} characters truncated]"
+    note = f"[... {len(text) - max_chars} characters truncated]"
+    if keep_tail:
+        return f"{note}\n{text[-max_chars:]}"
+    return f"{text[:max_chars]}\n{note}"
 
 
 def _format_output(*, output: str, result: Any, error: str | None, max_chars: int) -> str:
@@ -50,7 +53,8 @@ def _format_output(*, output: str, result: Any, error: str | None, max_chars: in
     if result is not None:
         sections.append(f"result:\n{_truncate(repr(result), max_chars)}")
     if error is not None:
-        sections.append(f"error:\n{error}")
+        # The exception type and message are on the last line of a traceback, so keep the tail
+        sections.append(f"error:\n{_truncate(error, max_chars, keep_tail=True)}")
     return "\n\n".join(sections) or "The code ran successfully and produced no output."
 
 
@@ -106,8 +110,9 @@ class MontyPythonTool(Tool):
             to disable that limit. See `pydantic_monty.ResourceLimits` for the available keys.
         :param type_check: If `True`, type-check the code with Monty's bundled type checker before running it, and
             return type errors to the LLM instead of executing the code.
-        :param max_output_chars: Maximum number of characters kept from the printed output and from the result each
-            before they are returned to the LLM.
+        :param max_output_chars: Maximum number of characters kept from each of the printed output, the result, and
+            the error before they are returned to the LLM. The output and the result keep their beginning, the error
+            keeps its end, where the exception is.
         :raises ValueError: If `resource_limits` contains a key that Monty doesn't support, or `max_output_chars` is
             less than 1.
         """

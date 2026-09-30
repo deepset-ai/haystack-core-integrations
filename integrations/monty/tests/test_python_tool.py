@@ -168,6 +168,18 @@ class TestInvoke:
             f"output:\n{'a' * 10}\n[... 15 characters truncated]\n\nresult:\n'{'b' * 9}\n[... 17 characters truncated]"
         )
 
+    def test_error_truncated_keeps_tail(self):
+        tool = MontyPythonTool(max_output_chars=100)
+
+        # A deep call stack makes a long traceback that ends with the exception
+        output = tool.invoke(code="def f(n):\n    return f(n - 1) if n else 1 / 0\nf(50)")
+        tool.close()
+
+        assert output.startswith("error:\n[... ")
+        assert "characters truncated]\n" in output
+        assert output.endswith("ZeroDivisionError: division by zero")
+        assert len(output.split("truncated]\n", 1)[1]) == 100
+
     def test_concurrent_calls(self, tool):
         with ThreadPoolExecutor(max_workers=4) as executor:
             outputs = list(executor.map(lambda n: tool.invoke(code=f"sum(range({n}))"), range(10, 18)))
