@@ -23,12 +23,18 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.19.0", "e2b>=2.0.0"]
+dependencies = [
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@1592d3ca7d286ea52cf357807c5cc526733c6a74",
+    "e2b>=2.0.0",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/e2b#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/e2b"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
@@ -51,7 +57,6 @@ fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
-extra-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@1592d3ca7d286ea52cf357807c5cc526733c6a74"]
 dependencies = [
     "pytest",
     "pytest-asyncio",
