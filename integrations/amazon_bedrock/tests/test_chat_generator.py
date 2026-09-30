@@ -707,23 +707,27 @@ class TestAmazonBedrockChatGenerator:
                 },
             ),
             (
-                # thinking_display is dropped when thinking is disabled through a flattened kwarg
+                # thinking type in_between with effort
                 {
-                    "adaptive_thinking_effort": "none",
+                    "thinking_type": "in_between",
                     "thinking_display": "summarized",
+                    "output_config_effort": "high",
                 },
                 {
-                    "thinking": {"type": "disabled"},
+                    "thinking": {"type": "in_between", "display": "summarized"},
+                    "output_config": {"effort": "high"},
                 },
             ),
             (
-                # thinking_display is dropped when thinking is disabled through an explicit thinking dict
+                # thinking type adaptive with effort
                 {
-                    "thinking": {"type": "disabled"},
+                    "thinking_type": "adaptive",
                     "thinking_display": "summarized",
+                    "output_config_effort": "high",
                 },
                 {
-                    "thinking": {"type": "disabled"},
+                    "thinking": {"type": "adaptive", "display": "summarized"},
+                    "output_config": {"effort": "high"},
                 },
             ),
         ],
