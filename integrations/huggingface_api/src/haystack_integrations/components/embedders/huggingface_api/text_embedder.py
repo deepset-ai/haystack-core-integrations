@@ -18,9 +18,8 @@ from haystack_integrations.common.huggingface_api.utils import (
 )
 
 with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
-    import grpc
-
-    from haystack_integrations.components.embedders.huggingface_api._grpc import tei_pb2, tei_pb2_grpc
+    from grpc_requests import Client
+    from grpc_requests.aio import AsyncClient
 
 
 logger = logging.getLogger(__name__)
@@ -167,21 +166,18 @@ class HuggingFaceAPITextEmbedder:
         self.use_grpc = use_grpc
         self._client: InferenceClient | None = None
         self._async_client: AsyncInferenceClient | None = None
-        self._channel: grpc.Channel | None = None
-        self._async_channel: grpc.aio.Channel | None = None
-        self._stub: tei_pb2_grpc.EmbedStub | None = None
-        self._async_stub: tei_pb2_grpc.EmbedAsyncStub | None = None
+        self._grpc_client: Client | None = None
+        self._async_grpc_client: AsyncClient | None = None
 
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Hugging Face clients."""
         return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
 
     def warm_up(self) -> None:
-        """Create the synchronous Hugging Face client or gRPC channel."""
+        """Create the synchronous Hugging Face or reflection client."""
         if self.use_grpc:
-            if self._channel is None:
-                self._channel = grpc.insecure_channel(self._model_or_url)
-                self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            if self._grpc_client is None:
+                self._grpc_client = Client(self._model_or_url)
             return
 
         if self._client is None:
@@ -190,11 +186,10 @@ class HuggingFaceAPITextEmbedder:
             self._client = InferenceClient(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous Hugging Face client or gRPC channel."""
+        """Create the asynchronous Hugging Face or reflection client."""
         if self.use_grpc:
-            if self._async_channel is None:
-                self._async_channel = grpc.aio.insecure_channel(self._model_or_url)
-                self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
+            if self._async_grpc_client is None:
+                self._async_grpc_client = await AsyncClient.create(self._model_or_url)
             return
 
         if self._async_client is None:
@@ -207,20 +202,27 @@ class HuggingFaceAPITextEmbedder:
         if self._client is not None:
             self._client.close()
             self._client = None
-        if self._channel is not None:
-            self._channel.close()
-            self._channel = None
-            self._stub = None
+        if self._grpc_client is not None:
+            self._grpc_client.channel.close()
+            self._grpc_client = None
 
     async def close_async(self) -> None:
         """Close asynchronous HTTP and gRPC resources."""
         if self._async_client is not None:
             await self._async_client.close()
             self._async_client = None
-        if self._async_channel is not None:
-            await self._async_channel.close()
-            self._async_channel = None
-            self._async_stub = None
+        if self._async_grpc_client is not None:
+            await self._async_grpc_client.channel.close()
+            self._async_grpc_client = None
+
+    @staticmethod
+    def _grpc_request(text: str, truncate: bool | None, normalize: bool | None) -> dict[str, str | bool]:
+        request: dict[str, str | bool] = {"inputs": text}
+        if truncate is not None:
+            request["truncate"] = truncate
+        if normalize is not None:
+            request["normalize"] = normalize
+        return request
 
     def _prepare_input(self, text: str) -> tuple[str, bool | None, bool | None]:
         if not isinstance(text, str):
@@ -298,11 +300,13 @@ class HuggingFaceAPITextEmbedder:
         text_to_embed, truncate_val, normalize_val = self._prepare_input(text)
 
         if self.use_grpc:
-            assert self._stub is not None  # noqa: S101
-            response = self._stub.Embed(
-                tei_pb2.EmbedRequest(inputs=text_to_embed, truncate=truncate_val, normalize=normalize_val)
+            assert self._grpc_client is not None  # noqa: S101
+            response = self._grpc_client.unary_unary(
+                "tei.v1.Embed",
+                "Embed",
+                self._grpc_request(text_to_embed, truncate_val, normalize_val),
             )
-            return {"embedding": list(response.embeddings)}
+            return {"embedding": response["embeddings"]}
 
         assert self._client is not None  # noqa: S101
         np_embedding = self._client.feature_extraction(
@@ -339,11 +343,13 @@ class HuggingFaceAPITextEmbedder:
         text_to_embed, truncate_val, normalize_val = self._prepare_input(text)
 
         if self.use_grpc:
-            assert self._async_stub is not None  # noqa: S101
-            response = await self._async_stub.Embed(
-                tei_pb2.EmbedRequest(inputs=text_to_embed, truncate=truncate_val, normalize=normalize_val)
+            assert self._async_grpc_client is not None  # noqa: S101
+            response = await self._async_grpc_client.unary_unary(
+                "tei.v1.Embed",
+                "Embed",
+                self._grpc_request(text_to_embed, truncate_val, normalize_val),
             )
-            return {"embedding": list(response.embeddings)}
+            return {"embedding": response["embeddings"]}
 
         assert self._async_client is not None  # noqa: S101
         np_embedding = await self._async_client.feature_extraction(

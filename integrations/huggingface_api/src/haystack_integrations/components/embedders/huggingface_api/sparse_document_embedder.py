@@ -19,9 +19,8 @@ from tqdm import tqdm
 from .sparse_embedding_utils import _build_client_kwargs, _embed_sparse, _embed_sparse_async
 
 with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
-    import grpc
-
-    from haystack_integrations.components.embedders.huggingface_api._grpc import tei_pb2, tei_pb2_grpc
+    from grpc_requests import Client
+    from grpc_requests.aio import AsyncClient
 
 
 @component
@@ -30,7 +29,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
     Embeds Documents into sparse vectors using a Hugging Face Text Embeddings Inference (TEI) server.
 
     The component batches requests and returns copies of the input Documents with `sparse_embedding` set.
-    HTTP clients and gRPC channels are created lazily by `warm_up()` or `run()` and reused until `close()` is called.
+    HTTP and gRPC reflection clients are created lazily by `warm_up()` or `run()` and reused until `close()` is called.
     Async resources are owned independently and managed with `warm_up_async()` and `close_async()`.
 
     ### Usage example
@@ -108,28 +107,24 @@ class HuggingFaceAPISparseDocumentEmbedder:
         self.use_grpc = use_grpc
         self._client: httpx.Client | None = None
         self._async_client: httpx.AsyncClient | None = None
-        self._channel: grpc.Channel | None = None
-        self._async_channel: grpc.aio.Channel | None = None
-        self._stub: tei_pb2_grpc.EmbedStub | None = None
-        self._async_stub: tei_pb2_grpc.EmbedAsyncStub | None = None
+        self._grpc_client: Client | None = None
+        self._async_grpc_client: AsyncClient | None = None
 
     def warm_up(self) -> None:
-        """Create the synchronous HTTP client or gRPC channel if it has not been created yet."""
+        """Create the synchronous HTTP or gRPC reflection client if it has not been created yet."""
         if self.use_grpc:
-            if self._channel is None:
-                self._channel = grpc.insecure_channel(self.api_base_url)
-                self._stub = tei_pb2_grpc.EmbedStub(self._channel)
+            if self._grpc_client is None:
+                self._grpc_client = Client(self.api_base_url)
             return
 
         if self._client is None:
             self._client = httpx.Client(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous HTTP client or gRPC channel if it has not been created yet."""
+        """Create the asynchronous HTTP or gRPC reflection client if it has not been created yet."""
         if self.use_grpc:
-            if self._async_channel is None:
-                self._async_channel = grpc.aio.insecure_channel(self.api_base_url)
-                self._async_stub = tei_pb2_grpc.EmbedStub(self._async_channel)
+            if self._async_grpc_client is None:
+                self._async_grpc_client = await AsyncClient.create(self.api_base_url)
             return
 
         if self._async_client is None:
@@ -140,20 +135,18 @@ class HuggingFaceAPISparseDocumentEmbedder:
         if self._client is not None:
             self._client.close()
             self._client = None
-        if self._channel is not None:
-            self._channel.close()
-            self._channel = None
-            self._stub = None
+        if self._grpc_client is not None:
+            self._grpc_client.channel.close()
+            self._grpc_client = None
 
     async def close_async(self) -> None:
         """Close and reset asynchronous HTTP and gRPC resources."""
         if self._async_client is not None:
             await self._async_client.aclose()
             self._async_client = None
-        if self._async_channel is not None:
-            await self._async_channel.close()
-            self._async_channel = None
-            self._async_stub = None
+        if self._async_grpc_client is not None:
+            await self._async_grpc_client.channel.close()
+            self._async_grpc_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -199,12 +192,14 @@ class HuggingFaceAPISparseDocumentEmbedder:
         if not texts:
             return []
 
-        assert self._stub is not None  # noqa: S101
-        responses = self._stub.EmbedSparseStream(tei_pb2.EmbedSparseRequest(inputs=text) for text in texts)
+        assert self._grpc_client is not None  # noqa: S101
+        responses = self._grpc_client.stream_stream(
+            "tei.v1.Embed", "EmbedSparseStream", ({"inputs": text} for text in texts)
+        )
         embeddings = [
             SparseEmbedding(
-                indices=[sparse_value.index for sparse_value in response.sparse_embeddings],
-                values=[sparse_value.value for sparse_value in response.sparse_embeddings],
+                indices=[sparse_value["index"] for sparse_value in response["sparse_embeddings"]],
+                values=[sparse_value["value"] for sparse_value in response["sparse_embeddings"]],
             )
             for response in tqdm(
                 responses,
@@ -231,16 +226,16 @@ class HuggingFaceAPISparseDocumentEmbedder:
         progress = tqdm(total=stream_count, disable=not self.progress_bar, desc="Calculating sparse embeddings")
 
         async def embed_stream(stream_texts: list[str]) -> list[SparseEmbedding]:
-            async def requests() -> AsyncIterator[tei_pb2.EmbedSparseRequest]:
+            async def requests() -> AsyncIterator[dict[str, str]]:
                 for text in stream_texts:
-                    yield tei_pb2.EmbedSparseRequest(inputs=text)
+                    yield {"inputs": text}
 
-            assert self._async_stub is not None  # noqa: S101
-            responses = self._async_stub.EmbedSparseStream(requests())
+            assert self._async_grpc_client is not None  # noqa: S101
+            responses = await self._async_grpc_client.stream_stream("tei.v1.Embed", "EmbedSparseStream", requests())
             embeddings = [
                 SparseEmbedding(
-                    indices=[sparse_value.index for sparse_value in response.sparse_embeddings],
-                    values=[sparse_value.value for sparse_value in response.sparse_embeddings],
+                    indices=[sparse_value["index"] for sparse_value in response["sparse_embeddings"]],
+                    values=[sparse_value["value"] for sparse_value in response["sparse_embeddings"]],
                 )
                 async for response in responses
             ]
