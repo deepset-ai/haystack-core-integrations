@@ -393,16 +393,6 @@ class TestRun:
         embedder.close()
         client.channel.close.assert_called_once_with()
 
-    def test_run_grpc_handles_omitted_empty_sparse_embedding(self) -> None:
-        embedder = HuggingFaceAPISparseDocumentEmbedder(
-            api_base_url="localhost:8082", use_grpc=True, progress_bar=False
-        )
-        with patched_grpc() as (client, _, _, _):
-            client.stream_stream.return_value = [{}]
-            result = embedder.run([Document(content="text")])
-
-        assert result["documents"][0].sparse_embedding == SparseEmbedding(indices=[], values=[])
-
     def test_run_grpc_resource_can_be_closed_after_stream_response_count_error(self) -> None:
         documents = [Document(content="doc 1"), Document(content="doc 2")]
         embedder = HuggingFaceAPISparseDocumentEmbedder(

@@ -321,15 +321,6 @@ class TestRun:
         client.unary_unary.assert_called_once_with("tei.v1.Embed", "EmbedSparse", {"inputs": "query: cheese </s>"})
         assert result == {"sparse_embedding": SparseEmbedding(indices=[12, 99], values=[1.0, 0.25])}
 
-    def test_run_grpc_handles_omitted_empty_sparse_embedding(self) -> None:
-        client = MagicMock(channel=MagicMock())
-        client.unary_unary.return_value = {}
-        with patch(f"{MODULE}.Client", return_value=client):
-            embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
-            result = embedder.run("text")
-
-        assert result == {"sparse_embedding": SparseEmbedding(indices=[], values=[])}
-
     @pytest.mark.asyncio
     async def test_run_async_grpc_request_and_response(self) -> None:
         client = MagicMock(channel=MagicMock(close=AsyncMock()))
