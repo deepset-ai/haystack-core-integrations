@@ -8,7 +8,7 @@ processors:
     documented_only: true
     skip_empty_modules: true
 renderer:
-  description: Typesafe integration for Haystack
+  description: TypeSafe integration for Haystack
   id: integrations-typesafe
   filename: typesafe.md
-  title: Typesafe
+  title: TypeSafe

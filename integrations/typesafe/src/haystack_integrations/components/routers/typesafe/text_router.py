@@ -4,8 +4,8 @@
 
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import component, default_to_dict
+from haystack.utils import Secret
 from typesafe_sdk import AsyncTypeSafeClient, Choice, RetryPolicy, SystemOneResponse, TypeSafeClient
 
 _LOW_CONFIDENCE = "low_confidence"
@@ -75,9 +75,9 @@ class TypeSafeTextRouter:
             Threshold between 0 and 1 for the answer's `confidence`. Texts below it are sent to the `low_confidence`
             output. If `None`, every text goes to a label output.
         :param timeout:
-            Timeout in seconds for each request. If `None`, the SDK default of 10 seconds is used.
+            Timeout in seconds for each request attempt. If `None`, the SDK default of 10 seconds is used.
         :param max_retries:
-            Maximum number of retries after a failed request. If `None`, the SDK default of 2 is used.
+            Maximum number of retries after a failed request attempt. If `None`, the SDK default of 2 is used.
         :raises ValueError:
             If `labels` is empty or contains `low_confidence`, or if `min_confidence` is outside 0 to 1.
         """
@@ -112,12 +112,17 @@ class TypeSafeTextRouter:
         component.set_output_types(self, **dict.fromkeys(outputs, str))
 
     def _client_kwargs(self) -> dict[str, Any]:
+        # The SDK's retry budget defaults to 30 seconds in total, which would skip retries after a long attempt.
+        # `timeout` already bounds each attempt, so the budget is disabled.
+        retry_kwargs: dict[str, Any] = {"timeout": None}
+        if self.max_retries is not None:
+            retry_kwargs["max_retries"] = self.max_retries
         return {
             "api_key": self.api_key.resolve_value(),
             "base_url": self.api_base_url,
             "model": self.model,
             "timeout": self.timeout,
-            "retry": RetryPolicy(max_retries=self.max_retries) if self.max_retries is not None else None,
+            "retry": RetryPolicy(**retry_kwargs),
         }
 
     def warm_up(self) -> None:
@@ -162,27 +167,25 @@ class TypeSafeTextRouter:
             labels=self.labels,
             instructions=self.instructions,
             model=self.model,
-            api_key=self.api_key.to_dict(),
+            api_key=self.api_key,
             api_base_url=self.api_base_url,
             min_confidence=self.min_confidence,
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "TypeSafeTextRouter":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            Dictionary to deserialize from.
-        :returns:
-            Deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
-
     def _route(self, text: str, response: SystemOneResponse) -> dict[str, str]:
+        """
+        Picks the output for the text from the TypeSafe response.
+
+        :param text:
+            The routed text.
+        :param response:
+            The TypeSafe response for the text.
+        :returns:
+            A dictionary mapping `low_confidence` to the text if `min_confidence` is set and the answer's `confidence`
+            is below it, otherwise mapping the picked label to the text.
+        """
         answer = response.choices["route"]
         if self.min_confidence is not None and answer.confidence < self.min_confidence:
             return {_LOW_CONFIDENCE: text}
@@ -206,7 +209,8 @@ class TypeSafeTextRouter:
         self.warm_up()
         assert self._client is not None  # noqa: S101  # mypy: the client is created by warm_up above
 
-        return self._route(text, self._client.system_one(text, {"route": self._question}))
+        response = self._client.system_one(state=text, questions={"route": self._question})
+        return self._route(text=text, response=response)
 
     async def run_async(self, text: str) -> dict[str, str]:
         """
@@ -228,4 +232,5 @@ class TypeSafeTextRouter:
         await self.warm_up_async()
         assert self._async_client is not None  # noqa: S101  # mypy: the client is created by warm_up_async above
 
-        return self._route(text, await self._async_client.system_one(text, {"route": self._question}))
+        response = await self._async_client.system_one(state=text, questions={"route": self._question})
+        return self._route(text=text, response=response)

@@ -9,8 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack import Document, Pipeline
+from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
-from typesafe_sdk import SystemOneResponse
+from typesafe_sdk import Choice, Noul, SystemOneResponse, TypeSafeAPIConnectionError
 
 from haystack_integrations.components.classifiers.typesafe import TypeSafeDocumentClassifier
 
@@ -27,8 +28,8 @@ QUESTIONS = {
 }
 
 
-def _response_for(text: str, _questions: dict) -> SystemOneResponse:
-    return _response("billing" if "charged" in text else "technical")
+def _response_for(state: str, questions: dict) -> SystemOneResponse:  # noqa: ARG001
+    return _response(choice="billing" if "charged" in state else "technical")
 
 
 def _response(choice: str) -> SystemOneResponse:
@@ -77,17 +78,18 @@ class TestInit:
         assert component._async_client is None
 
     @pytest.mark.parametrize(
-        ("questions", "match"),
+        ("kwargs", "match"),
         [
-            ({}, "at least one question"),
-            ({"q": {"type": "yesno", "instructions": "?"}}, "has type 'yesno'"),
-            ({"q": {"type": "choice", "instructions": "?"}}, "needs `criteria`"),
-            ({"q": {"type": "score", "instructions": "?", "criteria": []}}, "needs `criteria`"),
+            ({"questions": {}}, "at least one question"),
+            ({"questions": {"q": {"type": "yesno", "instructions": "?"}}}, "has type 'yesno'"),
+            ({"questions": {"q": {"type": "choice", "instructions": "?"}}}, "needs `criteria`"),
+            ({"questions": {"q": {"type": "score", "instructions": "?", "criteria": []}}}, "needs `criteria`"),
+            ({"questions": QUESTIONS, "max_workers": 0}, "at least 1"),
         ],
     )
-    def test_init_invalid_questions(self, questions, match):
+    def test_init_invalid(self, kwargs, match):
         with pytest.raises(ValueError, match=match):
-            TypeSafeDocumentClassifier(questions=questions)
+            TypeSafeDocumentClassifier(**kwargs)
 
 
 @pytest.mark.usefixtures("api_key")
@@ -104,6 +106,7 @@ class TestSerialization:
             timeout=30.0,
             max_retries=5,
             max_workers=8,
+            raise_on_failure=True,
         )
         data = component.to_dict()
         assert data == {
@@ -118,9 +121,10 @@ class TestSerialization:
                 "timeout": 30.0,
                 "max_retries": 5,
                 "max_workers": 8,
+                "raise_on_failure": True,
             },
         }
-        restored = TypeSafeDocumentClassifier.from_dict(data)
+        restored = component_from_dict(TypeSafeDocumentClassifier, data, name="classifier")
         assert restored.questions == QUESTIONS
         assert restored.model == "laya"
         assert restored.api_key.resolve_value() == "local"
@@ -130,6 +134,23 @@ class TestSerialization:
         assert restored.timeout == 30.0
         assert restored.max_retries == 5
         assert restored.max_workers == 8
+        assert restored.raise_on_failure is True
+
+    def test_to_dict_with_question_objects(self):
+        component = TypeSafeDocumentClassifier(
+            questions={
+                "department": Choice(instructions="Which department?", criteria={"billing": None, "technical": None}),
+                "refund": Noul(instructions="Is this a refund request?"),
+            }
+        )
+        assert component.to_dict()["init_parameters"]["questions"] == {
+            "department": {
+                "type": "choice",
+                "instructions": "Which department?",
+                "criteria": {"billing": None, "technical": None},
+            },
+            "refund": {"type": "noul", "instructions": "Is this a refund request?"},
+        }
 
     def test_pipeline_round_trip(self):
         pipeline = Pipeline()
@@ -154,6 +175,8 @@ class TestWarmUp:
         assert kwargs["model"] == "laya"
         assert kwargs["timeout"] == 30.0
         assert kwargs["retry"].max_retries == 5
+        # The SDK's total retry budget is disabled so a long attempt can still be retried
+        assert kwargs["retry"].timeout is None
         assert component._client is mock_client.return_value
 
     @pytest.mark.asyncio
@@ -163,7 +186,8 @@ class TestWarmUp:
         await component.warm_up_async()
         await component.warm_up_async()
         mock_client.assert_called_once()
-        assert mock_client.call_args.kwargs["retry"] is None
+        assert mock_client.call_args.kwargs["retry"].max_retries == 2
+        assert mock_client.call_args.kwargs["retry"].timeout is None
         assert component._async_client is mock_client.return_value
 
     def test_close(self):
@@ -197,7 +221,7 @@ class TestRun:
             Document(content="The app crashes on startup."),
         ]
         result = component.run(documents=documents)
-        assert sorted(call.args[0] for call in component._client.system_one.call_args_list) == [
+        assert sorted(call.kwargs["state"] for call in component._client.system_one.call_args_list) == [
             "I was charged twice.",
             "The app crashes on startup.",
         ]
@@ -222,10 +246,11 @@ class TestRun:
             },
         }
         assert classified[1].meta["typesafe"]["department"]["choice"] == "technical"
+        assert result["failed_documents"] == []
         # Input documents are not mutated
         assert "typesafe" not in documents[0].meta
 
-    def test_run_classification_field_and_skipped_documents(self, caplog):
+    def test_run_classification_field_and_documents_without_text(self):
         component = TypeSafeDocumentClassifier(questions=QUESTIONS, classification_field="summary")
         component._client = MagicMock()
         component._client.system_one.return_value = _response("billing")
@@ -234,10 +259,34 @@ class TestRun:
             Document(content="no summary"),
         ]
         result = component.run(documents=documents)
-        component._client.system_one.assert_called_once_with("Double charge", QUESTIONS)
-        assert result["documents"][0].meta["typesafe"]["department"]["choice"] == "billing"
-        assert result["documents"][1] is documents[1]
-        assert "has no text to classify" in caplog.text
+        component._client.system_one.assert_called_once_with(state="Double charge", questions=QUESTIONS)
+        assert [document.meta["typesafe"]["department"]["choice"] for document in result["documents"]] == ["billing"]
+        assert [document.meta for document in result["failed_documents"]] == [
+            {"classification_error": "Document has no text to classify."}
+        ]
+
+    def test_run_records_failed_requests(self):
+        component = TypeSafeDocumentClassifier(questions=QUESTIONS)
+        component._client = MagicMock()
+        component._client.system_one.side_effect = [TypeSafeAPIConnectionError("connection refused")]
+        result = component.run(documents=[Document(content="I was charged twice.")])
+        assert result["documents"] == []
+        assert result["failed_documents"][0].meta["classification_error"] == "connection refused"
+
+    def test_run_clears_previous_error(self):
+        component = TypeSafeDocumentClassifier(questions=QUESTIONS)
+        component._client = MagicMock()
+        component._client.system_one.side_effect = _response_for
+        document = Document(content="I was charged twice.", meta={"classification_error": "connection refused"})
+        result = component.run(documents=[document])
+        assert "classification_error" not in result["documents"][0].meta
+
+    def test_run_raise_on_failure(self):
+        component = TypeSafeDocumentClassifier(questions=QUESTIONS, raise_on_failure=True)
+        component._client = MagicMock()
+        component._client.system_one.side_effect = TypeSafeAPIConnectionError("connection refused")
+        with pytest.raises(TypeSafeAPIConnectionError, match="connection refused"):
+            component.run(documents=[Document(content="I was charged twice.")])
 
     @pytest.mark.asyncio
     async def test_run_async(self):
@@ -247,23 +296,54 @@ class TestRun:
         documents = [Document(content="I was charged twice."), Document(content=""), Document(content="It crashes.")]
         result = await component.run_async(documents=documents)
         assert component._async_client.system_one.await_count == 2
-        classified = result["documents"]
-        assert classified[0].meta["typesafe"]["department"]["choice"] == "billing"
-        assert classified[1] is documents[1]
-        assert classified[2].meta["typesafe"]["department"]["choice"] == "technical"
+        choices = [document.meta["typesafe"]["department"]["choice"] for document in result["documents"]]
+        assert choices == ["billing", "technical"]
+        assert result["failed_documents"][0].meta == {"classification_error": "Document has no text to classify."}
+
+    @pytest.mark.asyncio
+    async def test_run_async_records_failed_requests(self):
+        component = TypeSafeDocumentClassifier(questions=QUESTIONS)
+        component._async_client = MagicMock()
+        component._async_client.system_one = AsyncMock(
+            side_effect=[_response("billing"), TypeSafeAPIConnectionError("connection refused")]
+        )
+        documents = [Document(content="I was charged twice."), Document(content="It crashes.")]
+        result = await component.run_async(documents=documents)
+        assert len(result["documents"]) == 1
+        assert result["failed_documents"][0].meta["classification_error"] == "connection refused"
+
+    @pytest.mark.asyncio
+    async def test_run_async_raise_on_failure_cancels_remaining_requests(self):
+        cancelled = asyncio.Event()
+
+        async def system_one(state, questions):  # noqa: ARG001
+            if state == "fails":
+                msg = "connection refused"
+                raise TypeSafeAPIConnectionError(msg)
+            try:
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+        component = TypeSafeDocumentClassifier(questions=QUESTIONS, raise_on_failure=True)
+        component._async_client = MagicMock(system_one=system_one)
+        with pytest.raises(TypeSafeAPIConnectionError, match="connection refused"):
+            await component.run_async(documents=[Document(content="slow"), Document(content="fails")])
+        assert cancelled.is_set()
 
     @pytest.mark.asyncio
     async def test_run_async_limits_concurrent_requests(self):
         in_flight = 0
         max_in_flight = 0
 
-        async def system_one(text, questions):
+        async def system_one(state, questions):
             nonlocal in_flight, max_in_flight
             in_flight += 1
             max_in_flight = max(max_in_flight, in_flight)
             await asyncio.sleep(0.01)
             in_flight -= 1
-            return _response_for(text, questions)
+            return _response_for(state=state, questions=questions)
 
         component = TypeSafeDocumentClassifier(questions=QUESTIONS, max_workers=2)
         component._async_client = MagicMock(system_one=system_one)

@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack import Pipeline
+from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
 from typesafe_sdk import Choice, SystemOneResponse
 
@@ -102,7 +103,7 @@ class TestSerialization:
                 "max_retries": 5,
             },
         }
-        restored = TypeSafeTextRouter.from_dict(data)
+        restored = component_from_dict(TypeSafeTextRouter, data, name="router")
         assert restored.labels == LABELS
         assert restored.instructions == "Which team should handle this?"
         assert restored.model == "laya"
@@ -133,6 +134,7 @@ class TestWarmUp:
         assert kwargs["model"] == "laya"
         assert kwargs["timeout"] is None
         assert kwargs["retry"].max_retries == 5
+        assert kwargs["retry"].timeout is None
         assert router._client is mock_client.return_value
 
     @pytest.mark.asyncio
@@ -176,8 +178,8 @@ class TestRun:
         router._client.system_one.return_value = _response("billing", confidence=confidence)
         result = router.run(text="I was charged twice.")
         router._client.system_one.assert_called_once_with(
-            "I was charged twice.",
-            {"route": Choice(instructions="Which team should handle this?", criteria=LABELS)},
+            state="I was charged twice.",
+            questions={"route": Choice(instructions="Which team should handle this?", criteria=LABELS)},
         )
         assert result == {expected_output: "I was charged twice."}
 
