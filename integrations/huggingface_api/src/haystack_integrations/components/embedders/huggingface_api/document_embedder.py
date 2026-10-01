@@ -19,8 +19,10 @@ from tqdm import tqdm
 from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
+    _build_grpc_embedding_request,
     _check_valid_model,
     _check_valid_model_async,
+    _grpc_metadata,
 )
 
 with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
@@ -127,9 +129,9 @@ class HuggingFaceAPIDocumentEmbedder:
         :param api_params:
             A dictionary with the following keys:
             - `model`: Hugging Face model ID. Required when `api_type` is `SERVERLESS_INFERENCE_API`.
-            - `url`: URL of the inference endpoint. Required when `api_type` is `INFERENCE_ENDPOINTS` or
-            `TEXT_EMBEDDINGS_INFERENCE`.
-        :param token: The Hugging Face token to use as HTTP bearer authorization.
+            - `url`: URL of the inference endpoint, or gRPC target. Required when `api_type` is
+            `INFERENCE_ENDPOINTS` or `TEXT_EMBEDDINGS_INFERENCE`.
+        :param token: The Hugging Face token to use as bearer authorization.
             Check your HF token in your [account settings](https://huggingface.co/settings/tokens).
         :param prefix:
             A string to add at the beginning of each text.
@@ -146,7 +148,7 @@ class HuggingFaceAPIDocumentEmbedder:
             if the backend uses Text Embeddings Inference.
             If `api_type` is `SERVERLESS_INFERENCE_API`, this parameter is ignored.
         :param batch_size:
-            Number of documents to process at once when using HTTP. This parameter is ignored when using gRPC.
+            Number of documents to process at once. Only used with HTTP.
         :param progress_bar:
             If `True`, shows a progress bar when running.
         :param meta_fields_to_embed:
@@ -154,16 +156,20 @@ class HuggingFaceAPIDocumentEmbedder:
         :param embedding_separator:
             Separator used to concatenate the metadata fields to the document text.
         :param concurrency_limit:
-            The maximum number of requests that should be allowed to run concurrently.
+            The maximum number of HTTP requests or gRPC streams that should be allowed to run concurrently.
             This parameter is only used in the `run_async` method.
         :param use_grpc:
-            Uses the gRPC API instead of HTTP. Requires installing the `grpc` optional dependency.
+            Use gRPC instead of HTTP. Requires `huggingface-api-haystack[grpc]`.
         :raises ValueError:
-            If the required `model` or `url` is missing from `api_params`, the `url` is invalid,
-            or the `api_type` is unknown.
+            If the required `model` or `url` is missing from `api_params`, the HTTP `url` is invalid,
+            or the `api_type` is unknown or is `SERVERLESS_INFERENCE_API` with `use_grpc=True`.
         """
         if isinstance(api_type, str):
             api_type = HFEmbeddingAPIType.from_str(api_type)
+
+        if use_grpc and api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            msg = "gRPC is not supported by the Serverless Inference API."
+            raise ValueError(msg)
 
         api_params = api_params or {}
 
@@ -216,7 +222,7 @@ class HuggingFaceAPIDocumentEmbedder:
         return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
 
     def warm_up(self) -> None:
-        """Create the synchronous Hugging Face or reflection client."""
+        """Create the synchronous client."""
         if self.use_grpc:
             if self._grpc_client is None:
                 self._grpc_client = Client(self._model_or_url)
@@ -228,7 +234,7 @@ class HuggingFaceAPIDocumentEmbedder:
             self._client = InferenceClient(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous Hugging Face or reflection client."""
+        """Create the asynchronous client."""
         if self.use_grpc:
             if self._async_grpc_client is None:
                 self._async_grpc_client = await AsyncClient.create(self._model_or_url)
@@ -240,7 +246,7 @@ class HuggingFaceAPIDocumentEmbedder:
             self._async_client = AsyncInferenceClient(**self._client_kwargs())
 
     def close(self) -> None:
-        """Close synchronous HTTP and gRPC resources."""
+        """Close the synchronous client."""
         if self._client is not None:
             self._client.close()
             self._client = None
@@ -249,7 +255,7 @@ class HuggingFaceAPIDocumentEmbedder:
             self._grpc_client = None
 
     async def close_async(self) -> None:
-        """Close asynchronous HTTP and gRPC resources."""
+        """Close the asynchronous client."""
         if self._async_client is not None:
             await self._async_client.close()
             self._async_client = None
@@ -328,15 +334,6 @@ class HuggingFaceAPIDocumentEmbedder:
                 normalize = None
         return truncate, normalize
 
-    @staticmethod
-    def _grpc_request(text: str, truncate: bool | None, normalize: bool | None) -> dict[str, str | bool]:
-        request: dict[str, str | bool] = {"inputs": text}
-        if truncate is not None:
-            request["truncate"] = truncate
-        if normalize is not None:
-            request["normalize"] = normalize
-        return request
-
     def _embed_batch_grpc(self, texts_to_embed: list[str]) -> list[list[float]]:
         """Embed all texts through a single gRPC stream."""
         if not texts_to_embed:
@@ -346,7 +343,8 @@ class HuggingFaceAPIDocumentEmbedder:
         responses = self._grpc_client.stream_stream(
             "tei.v1.Embed",
             "EmbedStream",
-            (self._grpc_request(text, self.truncate, self.normalize) for text in texts_to_embed),
+            (_build_grpc_embedding_request(text, self.truncate, self.normalize) for text in texts_to_embed),
+            metadata=_grpc_metadata(self.token),
         )
         embeddings = [
             response["embeddings"]
@@ -407,10 +405,12 @@ class HuggingFaceAPIDocumentEmbedder:
         async def _runner(texts: list[str]) -> list[list[float]]:
             async def _requests() -> AsyncIterator[dict[str, Any]]:
                 for text in texts:
-                    yield self._grpc_request(text, self.truncate, self.normalize)
+                    yield _build_grpc_embedding_request(text, self.truncate, self.normalize)
 
             assert self._async_grpc_client is not None  # noqa: S101
-            responses = await self._async_grpc_client.stream_stream("tei.v1.Embed", "EmbedStream", _requests())
+            responses = await self._async_grpc_client.stream_stream(
+                "tei.v1.Embed", "EmbedStream", _requests(), metadata=_grpc_metadata(self.token)
+            )
             embeddings = [response["embeddings"] async for response in responses]
             if len(embeddings) != len(texts):
                 msg = f"Expected {len(texts)} embeddings, got {len(embeddings)}"

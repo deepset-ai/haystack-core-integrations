@@ -13,8 +13,10 @@ from huggingface_hub import AsyncInferenceClient, InferenceClient
 from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
+    _build_grpc_embedding_request,
     _check_valid_model,
     _check_valid_model_async,
+    _grpc_metadata,
 )
 
 with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
@@ -103,9 +105,9 @@ class HuggingFaceAPITextEmbedder:
         :param api_params:
             A dictionary with the following keys:
             - `model`: Hugging Face model ID. Required when `api_type` is `SERVERLESS_INFERENCE_API`.
-            - `url`: URL of the inference endpoint. Required when `api_type` is `INFERENCE_ENDPOINTS` or
-            `TEXT_EMBEDDINGS_INFERENCE`.
-        :param token: The Hugging Face token to use as HTTP bearer authorization.
+            - `url`: URL of the inference endpoint, or gRPC target. Required when `api_type` is
+            `INFERENCE_ENDPOINTS` or `TEXT_EMBEDDINGS_INFERENCE`.
+        :param token: The Hugging Face token to use as bearer authorization.
             Check your HF token in your [account settings](https://huggingface.co/settings/tokens).
         :param prefix:
             A string to add at the beginning of each text.
@@ -122,13 +124,17 @@ class HuggingFaceAPITextEmbedder:
             if the backend uses Text Embeddings Inference.
             If `api_type` is `SERVERLESS_INFERENCE_API`, this parameter is ignored.
         :param use_grpc:
-            Uses the gRPC API instead of HTTP. Requires installing the `grpc` optional dependency.
+            Use gRPC instead of HTTP. Requires `huggingface-api-haystack[grpc]`.
         :raises ValueError:
-            If the required `model` or `url` is missing from `api_params`, the `url` is invalid,
-            or the `api_type` is unknown.
+            If the required `model` or `url` is missing from `api_params`, the HTTP `url` is invalid,
+            or the `api_type` is unknown or is `SERVERLESS_INFERENCE_API` with `use_grpc=True`.
         """
         if isinstance(api_type, str):
             api_type = HFEmbeddingAPIType.from_str(api_type)
+
+        if use_grpc and api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            msg = "gRPC is not supported by the Serverless Inference API."
+            raise ValueError(msg)
 
         if api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
             model = api_params.get("model")
@@ -174,7 +180,7 @@ class HuggingFaceAPITextEmbedder:
         return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
 
     def warm_up(self) -> None:
-        """Create the synchronous Hugging Face or reflection client."""
+        """Create the synchronous client."""
         if self.use_grpc:
             if self._grpc_client is None:
                 self._grpc_client = Client(self._model_or_url)
@@ -186,7 +192,7 @@ class HuggingFaceAPITextEmbedder:
             self._client = InferenceClient(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous Hugging Face or reflection client."""
+        """Create the asynchronous client."""
         if self.use_grpc:
             if self._async_grpc_client is None:
                 self._async_grpc_client = await AsyncClient.create(self._model_or_url)
@@ -198,7 +204,7 @@ class HuggingFaceAPITextEmbedder:
             self._async_client = AsyncInferenceClient(**self._client_kwargs())
 
     def close(self) -> None:
-        """Close synchronous HTTP and gRPC resources."""
+        """Close the synchronous client."""
         if self._client is not None:
             self._client.close()
             self._client = None
@@ -207,22 +213,13 @@ class HuggingFaceAPITextEmbedder:
             self._grpc_client = None
 
     async def close_async(self) -> None:
-        """Close asynchronous HTTP and gRPC resources."""
+        """Close the asynchronous client."""
         if self._async_client is not None:
             await self._async_client.close()
             self._async_client = None
         if self._async_grpc_client is not None:
             await self._async_grpc_client.channel.close()
             self._async_grpc_client = None
-
-    @staticmethod
-    def _grpc_request(text: str, truncate: bool | None, normalize: bool | None) -> dict[str, str | bool]:
-        request: dict[str, str | bool] = {"inputs": text}
-        if truncate is not None:
-            request["truncate"] = truncate
-        if normalize is not None:
-            request["normalize"] = normalize
-        return request
 
     def _prepare_input(self, text: str) -> tuple[str, bool | None, bool | None]:
         if not isinstance(text, str):
@@ -304,7 +301,8 @@ class HuggingFaceAPITextEmbedder:
             response = self._grpc_client.unary_unary(
                 "tei.v1.Embed",
                 "Embed",
-                self._grpc_request(text_to_embed, truncate_val, normalize_val),
+                _build_grpc_embedding_request(text_to_embed, truncate_val, normalize_val),
+                metadata=_grpc_metadata(self.token),
             )
             return {"embedding": response["embeddings"]}
 
@@ -347,7 +345,8 @@ class HuggingFaceAPITextEmbedder:
             response = await self._async_grpc_client.unary_unary(
                 "tei.v1.Embed",
                 "Embed",
-                self._grpc_request(text_to_embed, truncate_val, normalize_val),
+                _build_grpc_embedding_request(text_to_embed, truncate_val, normalize_val),
+                metadata=_grpc_metadata(self.token),
             )
             return {"embedding": response["embeddings"]}
 

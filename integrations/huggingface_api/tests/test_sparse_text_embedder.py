@@ -313,12 +313,21 @@ class TestRun:
         }
         with patch(f"{MODULE}.Client", return_value=client) as constructor:
             embedder = HuggingFaceAPISparseTextEmbedder(
-                api_base_url="localhost:8082", prefix="query: ", suffix=" </s>", use_grpc=True
+                api_base_url="localhost:8082",
+                prefix="query: ",
+                suffix=" </s>",
+                use_grpc=True,
+                token=Secret.from_token("grpc-test-key"),
             )
             result = embedder.run("cheese")
 
         constructor.assert_called_once_with("localhost:8082")
-        client.unary_unary.assert_called_once_with("tei.v1.Embed", "EmbedSparse", {"inputs": "query: cheese </s>"})
+        client.unary_unary.assert_called_once_with(
+            "tei.v1.Embed",
+            "EmbedSparse",
+            {"inputs": "query: cheese </s>"},
+            metadata=(("authorization", "Bearer grpc-test-key"),),
+        )
         assert result == {"sparse_embedding": SparseEmbedding(indices=[12, 99], values=[1.0, 0.25])}
 
     @pytest.mark.asyncio
@@ -327,12 +336,21 @@ class TestRun:
         client.unary_unary = AsyncMock(return_value={"sparse_embeddings": [{"index": 7, "value": 2.5}]})
         with patch(f"{MODULE}.AsyncClient.create", new=AsyncMock(return_value=client)) as create:
             embedder = HuggingFaceAPISparseTextEmbedder(
-                api_base_url="localhost:8082", prefix="query: ", suffix="!", use_grpc=True
+                api_base_url="localhost:8082",
+                prefix="query: ",
+                suffix="!",
+                use_grpc=True,
+                token=Secret.from_token("grpc-test-key"),
             )
             result = await embedder.run_async("input")
 
         create.assert_awaited_once_with("localhost:8082")
-        client.unary_unary.assert_awaited_once_with("tei.v1.Embed", "EmbedSparse", {"inputs": "query: input!"})
+        client.unary_unary.assert_awaited_once_with(
+            "tei.v1.Embed",
+            "EmbedSparse",
+            {"inputs": "query: input!"},
+            metadata=(("authorization", "Bearer grpc-test-key"),),
+        )
         assert result == {"sparse_embedding": SparseEmbedding(indices=[7], values=[2.5])}
 
     def test_token_is_refreshed_only_after_close(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -450,8 +468,12 @@ class TestRun:
             client.channel.close.assert_awaited_once_with()
 
     @pytest.mark.integration
-    def test_live_run_tei_grpc(self) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+    @pytest.mark.parametrize(
+        ("api_base_url", "use_grpc"),
+        [(API_BASE_URL, False), ("localhost:8082", True)],
+    )
+    def test_live_run_tei(self, api_base_url: str, use_grpc: bool) -> None:
+        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url=api_base_url, use_grpc=use_grpc)
         try:
             result = embedder.run("sparse retrieval")
         finally:
@@ -461,32 +483,13 @@ class TestRun:
         assert result["sparse_embedding"].indices
 
     @pytest.mark.integration
+    @pytest.mark.parametrize(
+        ("api_base_url", "use_grpc"),
+        [(API_BASE_URL, False), ("localhost:8082", True)],
+    )
     @pytest.mark.asyncio
-    async def test_live_run_async_tei_grpc(self) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
-        try:
-            result = await embedder.run_async("sparse retrieval")
-        finally:
-            await embedder.close_async()
-
-        assert isinstance(result["sparse_embedding"], SparseEmbedding)
-        assert result["sparse_embedding"].indices
-
-    @pytest.mark.integration
-    def test_live_run_tei(self) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url=API_BASE_URL)
-        try:
-            result = embedder.run("sparse retrieval")
-        finally:
-            embedder.close()
-
-        assert isinstance(result["sparse_embedding"], SparseEmbedding)
-        assert result["sparse_embedding"].indices
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_live_run_async_tei(self) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url=API_BASE_URL)
+    async def test_live_run_async_tei(self, api_base_url: str, use_grpc: bool) -> None:
+        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url=api_base_url, use_grpc=use_grpc)
         try:
             result = await embedder.run_async("sparse retrieval")
         finally:

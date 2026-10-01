@@ -16,6 +16,8 @@ from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 from tqdm import tqdm
 
+from haystack_integrations.common.huggingface_api.utils import _grpc_metadata, _parse_grpc_sparse_embedding
+
 from .sparse_embedding_utils import _build_client_kwargs, _embed_sparse, _embed_sparse_async
 
 with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
@@ -28,11 +30,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
     """
     Embeds Documents into sparse vectors using a Hugging Face Text Embeddings Inference (TEI) server.
 
-    The component batches requests and returns copies of the input Documents with `sparse_embedding` set.
-    HTTP and gRPC reflection clients are created lazily by `warm_up()` or `run()` and reused until `close()` is called.
-    Async resources are owned independently and managed with `warm_up_async()` and `close_async()`.
-
-    ### Usage example
+    The component returns copies of the input Documents with `sparse_embedding` set.
 
     ```python
     from haystack import Document
@@ -63,21 +61,18 @@ class HuggingFaceAPISparseDocumentEmbedder:
         """
         Create a sparse Document embedder backed by TEI.
 
-        :param api_base_url: Base URL of the TEI server.
-        :param token: Token sent to TEI as HTTP bearer authorization, if set. The token is resolved when an HTTP
-            client is first created by `warm_up()` or `warm_up_async()`, not during initialization.
-            Close and warm up the embedder again to pick up a changed token.
+        :param api_base_url: Base URL of the TEI server, or gRPC target.
+        :param token: Token sent to TEI as bearer authorization, if set.
         :param prefix: A string to add before each prepared Document text.
         :param suffix: A string to add after each prepared Document text.
-        :param batch_size: Number of Documents sent in each HTTP request. This parameter is ignored when using gRPC.
+        :param batch_size: Number of Documents sent in each request. Only used with HTTP.
         :param progress_bar: If `True`, show a progress bar while embedding.
         :param meta_fields_to_embed: Metadata fields to embed before the Document content.
         :param embedding_separator: Separator for metadata fields and Document content.
         :param timeout: HTTP request timeout in seconds. Set to `None` to disable it.
         :param headers: Additional HTTP headers to send with each request.
-        :param concurrency_limit: Maximum concurrent requests made by `run_async`.
-        :param use_grpc: Use the gRPC API instead of HTTP. This is supported only by TEI and requires installing the
-            `grpc` optional dependency. When enabled, `api_base_url` is used as the gRPC target.
+        :param concurrency_limit: Maximum concurrent HTTP requests or gRPC streams made by `run_async`.
+        :param use_grpc: Use gRPC instead of HTTP. Requires `huggingface-api-haystack[grpc]`.
         :raises ValueError: If `api_base_url` is invalid when using HTTP or a numeric parameter is not positive.
         """
         if not use_grpc and not is_valid_http_url(api_base_url):
@@ -111,7 +106,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
         self._async_grpc_client: AsyncClient | None = None
 
     def warm_up(self) -> None:
-        """Create the synchronous HTTP or gRPC reflection client if it has not been created yet."""
+        """Create the synchronous client."""
         if self.use_grpc:
             if self._grpc_client is None:
                 self._grpc_client = Client(self.api_base_url)
@@ -121,7 +116,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
             self._client = httpx.Client(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous HTTP or gRPC reflection client if it has not been created yet."""
+        """Create the asynchronous client."""
         if self.use_grpc:
             if self._async_grpc_client is None:
                 self._async_grpc_client = await AsyncClient.create(self.api_base_url)
@@ -131,7 +126,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
             self._async_client = httpx.AsyncClient(**self._client_kwargs())
 
     def close(self) -> None:
-        """Close and reset synchronous HTTP and gRPC resources."""
+        """Close the synchronous client."""
         if self._client is not None:
             self._client.close()
             self._client = None
@@ -140,7 +135,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
             self._grpc_client = None
 
     async def close_async(self) -> None:
-        """Close and reset asynchronous HTTP and gRPC resources."""
+        """Close the asynchronous client."""
         if self._async_client is not None:
             await self._async_client.aclose()
             self._async_client = None
@@ -194,13 +189,13 @@ class HuggingFaceAPISparseDocumentEmbedder:
 
         assert self._grpc_client is not None  # noqa: S101
         responses = self._grpc_client.stream_stream(
-            "tei.v1.Embed", "EmbedSparseStream", ({"inputs": text} for text in texts)
+            "tei.v1.Embed",
+            "EmbedSparseStream",
+            ({"inputs": text} for text in texts),
+            metadata=_grpc_metadata(self.token),
         )
         embeddings = [
-            SparseEmbedding(
-                indices=[sparse_value["index"] for sparse_value in response["sparse_embeddings"]],
-                values=[sparse_value["value"] for sparse_value in response["sparse_embeddings"]],
-            )
+            _parse_grpc_sparse_embedding(response.get("sparse_embeddings", []))
             for response in tqdm(
                 responses,
                 total=len(texts),
@@ -231,13 +226,11 @@ class HuggingFaceAPISparseDocumentEmbedder:
                     yield {"inputs": text}
 
             assert self._async_grpc_client is not None  # noqa: S101
-            responses = await self._async_grpc_client.stream_stream("tei.v1.Embed", "EmbedSparseStream", requests())
+            responses = await self._async_grpc_client.stream_stream(
+                "tei.v1.Embed", "EmbedSparseStream", requests(), metadata=_grpc_metadata(self.token)
+            )
             embeddings = [
-                SparseEmbedding(
-                    indices=[sparse_value["index"] for sparse_value in response["sparse_embeddings"]],
-                    values=[sparse_value["value"] for sparse_value in response["sparse_embeddings"]],
-                )
-                async for response in responses
+                _parse_grpc_sparse_embedding(response.get("sparse_embeddings", [])) async for response in responses
             ]
             if len(embeddings) != len(stream_texts):
                 msg = f"Expected {len(stream_texts)} sparse embeddings, got {len(embeddings)}"

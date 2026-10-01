@@ -8,7 +8,6 @@ services:
       - HF_TOKEN
     volumes:
       - tei-data:/data
-    restart: no
   tei-grpc:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3-grpc
     command: ["--model-id", "sentence-transformers/all-MiniLM-L6-v2"]
@@ -17,8 +16,7 @@ services:
     environment:
       - HF_TOKEN
     volumes:
-      - tei-grpc-data:/data
-    restart: no
+      - tei-data:/data
   tei-sparse-grpc:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3-grpc
     command: ["--model-id", "opensearch-project/opensearch-neural-sparse-encoding-doc-v2-mini", "--pooling", "splade"]
@@ -27,10 +25,26 @@ services:
     environment:
       - HF_TOKEN
     volumes:
-      - tei-sparse-grpc-data:/data
-    restart: no
+      - tei-data:/data
+
+  tei-ranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3
+    command: ["--model-id", "cross-encoder/ms-marco-TinyBERT-L2-v2", "--api-key", "tei-test-key"]
+    ports:
+      - "8083:80"
+    environment:
+      - HF_TOKEN
+    volumes:
+      - tei-data:/data
+  tei-ranker-grpc:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3-grpc
+    command: ["--model-id", "cross-encoder/ms-marco-TinyBERT-L2-v2", "--api-key", "tei-test-key"]
+    ports:
+      - "8084:80"
+    environment:
+      - HF_TOKEN
+    volumes:
+      - tei-data:/data
 
 volumes:
   tei-data:
-  tei-grpc-data:
-  tei-sparse-grpc-data:

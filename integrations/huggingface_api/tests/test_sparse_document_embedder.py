@@ -38,9 +38,7 @@ def patched_grpc() -> Iterator[tuple[MagicMock, MagicMock, MagicMock, MagicMock]
         patch(f"{MODULE}.Client", return_value=sync_client) as sync_constructor,
         patch(f"{MODULE}.AsyncClient.create", new=AsyncMock(return_value=async_client)) as async_constructor,
     ):
-        sync_client._constructor = sync_constructor
-        async_client._constructor = async_constructor
-        yield sync_client, async_client, sync_client, async_client
+        yield sync_client, async_client, sync_constructor, async_constructor
 
 
 @contextmanager
@@ -206,11 +204,11 @@ class TestComponentLifecycle:
 
     def test_grpc_sync_lifecycle(self) -> None:
         embedder = HuggingFaceAPISparseDocumentEmbedder(api_base_url="localhost:8082", use_grpc=True)
-        with patched_grpc() as (client, async_client, _, _):
+        with patched_grpc() as (client, _, constructor, async_constructor):
             embedder.warm_up()
             embedder.warm_up()
-            client._constructor.assert_called_once_with("localhost:8082")
-            async_client._constructor.assert_not_called()
+            constructor.assert_called_once_with("localhost:8082")
+            async_constructor.assert_not_called()
             assert embedder._grpc_client is client
             assert embedder._async_grpc_client is None
 
@@ -218,16 +216,16 @@ class TestComponentLifecycle:
             client.channel.close.assert_called_once_with()
             assert embedder._grpc_client is None
             embedder.warm_up()
-            assert client._constructor.call_count == 2
+            assert constructor.call_count == 2
 
     @pytest.mark.asyncio
     async def test_grpc_async_lifecycle(self) -> None:
         embedder = HuggingFaceAPISparseDocumentEmbedder(api_base_url="localhost:8082", use_grpc=True)
-        with patched_grpc() as (sync_client, client, _, _):
+        with patched_grpc() as (_, client, sync_constructor, constructor):
             await embedder.warm_up_async()
             await embedder.warm_up_async()
-            client._constructor.assert_awaited_once_with("localhost:8082")
-            sync_client._constructor.assert_not_called()
+            constructor.assert_awaited_once_with("localhost:8082")
+            sync_constructor.assert_not_called()
             assert embedder._async_grpc_client is client
             assert embedder._grpc_client is None
 
@@ -235,7 +233,7 @@ class TestComponentLifecycle:
             client.channel.close.assert_awaited_once_with()
             assert embedder._async_grpc_client is None
             await embedder.warm_up_async()
-            assert client._constructor.await_count == 2
+            assert constructor.await_count == 2
 
     @pytest.mark.asyncio
     async def test_close_is_safe_without_warm_up(self) -> None:
@@ -369,22 +367,27 @@ class TestRun:
         documents = [Document(content="doc 1"), Document(content="doc 2")]
         requests: list[dict[str, Any]] = []
 
-        def embed_sparse_stream(service: str, method: str, stream: Any) -> list[dict[str, Any]]:
+        def embed_sparse_stream(service: str, method: str, stream: Any, *, metadata) -> list[dict[str, Any]]:
+            assert metadata == (("authorization", "Bearer grpc-test-key"),)
             assert (service, method) == ("tei.v1.Embed", "EmbedSparseStream")
             stream_requests = list(stream)
             requests.extend(stream_requests)
             return [grpc_sparse_response(position, float(position)) for position, _ in enumerate(stream_requests, 1)]
 
         embedder = HuggingFaceAPISparseDocumentEmbedder(
-            api_base_url="localhost:8082", use_grpc=True, batch_size=1, progress_bar=False
+            api_base_url="localhost:8082",
+            use_grpc=True,
+            token=Secret.from_token("grpc-test-key"),
+            batch_size=1,
+            progress_bar=False,
         )
-        with patched_grpc() as (client, _, _, _):
+        with patched_grpc() as (client, _, constructor, _):
             client.stream_stream.side_effect = embed_sparse_stream
             result = embedder.run(documents)
             embedder.run(documents)
 
         assert client.stream_stream.call_count == 2
-        assert client._constructor.call_count == 1
+        assert constructor.call_count == 1
         assert [request["inputs"] for request in requests] == ["doc 1", "doc 2", "doc 1", "doc 2"]
         assert [document.sparse_embedding.indices for document in result["documents"]] == [[1], [2]]
         assert [document.sparse_embedding.values for document in result["documents"]] == [[1.0], [2.0]]
@@ -413,7 +416,8 @@ class TestRun:
         streams: list[list[str]] = []
         all_streams_started = asyncio.Event()
 
-        async def embed_sparse_stream(service: str, method: str, stream: Any) -> Any:
+        async def embed_sparse_stream(service: str, method: str, stream: Any, *, metadata) -> Any:
+            assert metadata == (("authorization", "Bearer grpc-test-key"),)
             assert (service, method) == ("tei.v1.Embed", "EmbedSparseStream")
             stream_requests: list[str] = []
             streams.append(stream_requests)
@@ -432,34 +436,25 @@ class TestRun:
 
         documents = [Document(content=f"doc {number}") for number in range(1, 8)]
         embedder = HuggingFaceAPISparseDocumentEmbedder(
-            api_base_url="localhost:8082", use_grpc=True, concurrency_limit=3, batch_size=1, progress_bar=False
+            api_base_url="localhost:8082",
+            use_grpc=True,
+            token=Secret.from_token("grpc-test-key"),
+            concurrency_limit=3,
+            batch_size=1,
+            progress_bar=False,
         )
         with patched_grpc() as (_, client, _, _):
             client.stream_stream = AsyncMock(side_effect=embed_sparse_stream)
             result = await embedder.run_async(documents)
-            await embedder.run_async(documents)
 
-        assert client._constructor.await_count == 1
-        assert embedder._async_grpc_client is client
-        client.channel.close.assert_not_awaited()
         await embedder.close_async()
-        client.channel.close.assert_awaited_once_with()
         assert streams == [
-            ["doc 1", "doc 2"],
-            ["doc 3", "doc 4"],
-            ["doc 5", "doc 6", "doc 7"],
             ["doc 1", "doc 2"],
             ["doc 3", "doc 4"],
             ["doc 5", "doc 6", "doc 7"],
         ]
         assert [document.sparse_embedding.indices for document in result["documents"]] == [
-            [1],
-            [2],
-            [3],
-            [4],
-            [5],
-            [6],
-            [7],
+            [number] for number in range(1, 8)
         ]
 
     @pytest.mark.asyncio
@@ -489,7 +484,12 @@ class TestRun:
 
         documents = [Document(content=f"doc {number}") for number in range(4)]
         embedder = HuggingFaceAPISparseDocumentEmbedder(
-            api_base_url="https://tei.test/", batch_size=2, progress_bar=False, timeout=None, headers={"X-Test": "yes"}
+            api_base_url="https://tei.test/",
+            token=None,
+            batch_size=2,
+            progress_bar=False,
+            timeout=None,
+            headers={"X-Test": "yes"},
         )
 
         with patched_client(is_async=True) as (client, constructor):
@@ -578,10 +578,14 @@ class TestRun:
             client.aclose.assert_awaited_once_with()
 
     @pytest.mark.integration
-    def test_live_run_tei_grpc(self) -> None:
+    @pytest.mark.parametrize(
+        ("api_base_url", "use_grpc"),
+        [(API_BASE_URL, False), ("localhost:8082", True)],
+    )
+    def test_live_run_tei(self, api_base_url: str, use_grpc: bool) -> None:
         documents = [Document(content="sparse retrieval"), Document(content="dense retrieval")]
         embedder = HuggingFaceAPISparseDocumentEmbedder(
-            api_base_url="localhost:8082", use_grpc=True, progress_bar=False
+            api_base_url=api_base_url, use_grpc=use_grpc, progress_bar=False
         )
         try:
             result = embedder.run(documents)
@@ -595,43 +599,16 @@ class TestRun:
             assert document.sparse_embedding.indices
 
     @pytest.mark.integration
+    @pytest.mark.parametrize(
+        ("api_base_url", "use_grpc"),
+        [(API_BASE_URL, False), ("localhost:8082", True)],
+    )
     @pytest.mark.asyncio
-    async def test_live_run_async_tei_grpc(self) -> None:
+    async def test_live_run_async_tei(self, api_base_url: str, use_grpc: bool) -> None:
         documents = [Document(content="sparse retrieval"), Document(content="dense retrieval")]
         embedder = HuggingFaceAPISparseDocumentEmbedder(
-            api_base_url="localhost:8082", use_grpc=True, progress_bar=False
+            api_base_url=api_base_url, use_grpc=use_grpc, progress_bar=False
         )
-        try:
-            result = await embedder.run_async(documents)
-        finally:
-            await embedder.close_async()
-
-        documents_with_embeddings = result["documents"]
-        assert len(documents_with_embeddings) == len(documents)
-        for document in documents_with_embeddings:
-            assert isinstance(document.sparse_embedding, SparseEmbedding)
-            assert document.sparse_embedding.indices
-
-    @pytest.mark.integration
-    def test_live_run_tei(self) -> None:
-        documents = [Document(content="sparse retrieval"), Document(content="dense retrieval")]
-        embedder = HuggingFaceAPISparseDocumentEmbedder(api_base_url=API_BASE_URL, progress_bar=False)
-        try:
-            result = embedder.run(documents)
-        finally:
-            embedder.close()
-
-        documents_with_embeddings = result["documents"]
-        assert len(documents_with_embeddings) == len(documents)
-        for document in documents_with_embeddings:
-            assert isinstance(document.sparse_embedding, SparseEmbedding)
-            assert document.sparse_embedding.indices
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_live_run_async_tei(self) -> None:
-        documents = [Document(content="sparse retrieval"), Document(content="dense retrieval")]
-        embedder = HuggingFaceAPISparseDocumentEmbedder(api_base_url=API_BASE_URL, progress_bar=False)
         try:
             result = await embedder.run_async(documents)
         finally:

@@ -52,6 +52,14 @@ class TestInitializationAndSerialization:
         assert embedder._grpc_client is None
         assert embedder._async_grpc_client is None
 
+    def test_init_serverless_rejects_grpc(self):
+        with pytest.raises(ValueError, match="gRPC is not supported by the Serverless Inference API"):
+            HuggingFaceAPITextEmbedder(
+                api_type="serverless_inference_api",
+                api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
+                use_grpc=True,
+            )
+
     def test_init_serverless_no_model(self):
         with pytest.raises(ValueError):
             HuggingFaceAPITextEmbedder(
@@ -217,6 +225,8 @@ class TestComponentLifecycle:
         client = mock_client_cls.return_value
 
         embedder.warm_up()
+        embedder.warm_up()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token="test-token")
         assert embedder._client is client
         assert embedder._async_client is None
 
@@ -239,6 +249,8 @@ class TestComponentLifecycle:
         mock_client_cls.return_value = client
 
         await embedder.warm_up_async()
+        await embedder.warm_up_async()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token="test-token")
         assert embedder._async_client is client
         assert embedder._client is None
 
@@ -248,29 +260,6 @@ class TestComponentLifecycle:
 
         await embedder.warm_up_async()
         assert mock_client_cls.call_count == 2
-
-    @patch("haystack_integrations.components.embedders.huggingface_api.text_embedder.InferenceClient")
-    def test_warm_up_is_idempotent(self, mock_client_cls):
-        embedder = HuggingFaceAPITextEmbedder(
-            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
-            api_params={"url": "https://example.com"},
-            token=None,
-        )
-        embedder.warm_up()
-        embedder.warm_up()
-        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
-
-    @pytest.mark.asyncio
-    @patch("haystack_integrations.components.embedders.huggingface_api.text_embedder.AsyncInferenceClient")
-    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
-        embedder = HuggingFaceAPITextEmbedder(
-            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
-            api_params={"url": "https://example.com"},
-            token=None,
-        )
-        await embedder.warm_up_async()
-        await embedder.warm_up_async()
-        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
 
     @pytest.mark.asyncio
     async def test_close_is_safe_without_warm_up(self):
@@ -408,10 +397,13 @@ class TestRun:
                 truncate=None,
                 normalize=None,
                 use_grpc=True,
+                token=Secret.from_token("grpc-test-key"),
             )
             result = embedder.run("text")
 
-        client.unary_unary.assert_called_once_with("tei.v1.Embed", "Embed", {"inputs": "query: text!"})
+        client.unary_unary.assert_called_once_with(
+            "tei.v1.Embed", "Embed", {"inputs": "query: text!"}, metadata=(("authorization", "Bearer grpc-test-key"),)
+        )
         assert result == {"embedding": [0.1, 0.2]}
 
     @pytest.mark.asyncio
@@ -426,11 +418,15 @@ class TestRun:
                 api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
                 api_params={"url": "localhost:8081"},
                 use_grpc=True,
+                token=Secret.from_token("grpc-test-key"),
             )
             result = await embedder.run_async("text")
 
         client.unary_unary.assert_awaited_once_with(
-            "tei.v1.Embed", "Embed", {"inputs": "text", "truncate": True, "normalize": False}
+            "tei.v1.Embed",
+            "Embed",
+            {"inputs": "text", "truncate": True, "normalize": False},
+            metadata=(("authorization", "Bearer grpc-test-key"),),
         )
         assert result == {"embedding": [0.1, 0.2]}
 

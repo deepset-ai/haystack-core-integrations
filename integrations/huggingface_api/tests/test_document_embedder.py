@@ -63,6 +63,14 @@ class TestInitializationAndSerialization:
         assert embedder._grpc_client is None
         assert embedder._async_grpc_client is None
 
+    def test_init_serverless_rejects_grpc(self):
+        with pytest.raises(ValueError, match="gRPC is not supported by the Serverless Inference API"):
+            HuggingFaceAPIDocumentEmbedder(
+                api_type="serverless_inference_api",
+                api_params={"model": "sentence-transformers/all-MiniLM-L6-v2"},
+                use_grpc=True,
+            )
+
     def test_init_serverless_no_model(self):
         with pytest.raises(ValueError):
             HuggingFaceAPIDocumentEmbedder(
@@ -254,6 +262,8 @@ class TestComponentLifecycle:
         client = mock_client_cls.return_value
 
         embedder.warm_up()
+        embedder.warm_up()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token="test-token")
         assert embedder._client is client
         assert embedder._async_client is None
 
@@ -276,6 +286,8 @@ class TestComponentLifecycle:
         mock_client_cls.return_value = client
 
         await embedder.warm_up_async()
+        await embedder.warm_up_async()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token="test-token")
         assert embedder._async_client is client
         assert embedder._client is None
 
@@ -285,29 +297,6 @@ class TestComponentLifecycle:
 
         await embedder.warm_up_async()
         assert mock_client_cls.call_count == 2
-
-    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.InferenceClient")
-    def test_warm_up_is_idempotent(self, mock_client_cls):
-        embedder = HuggingFaceAPIDocumentEmbedder(
-            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
-            api_params={"url": "https://example.com"},
-            token=None,
-        )
-        embedder.warm_up()
-        embedder.warm_up()
-        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
-
-    @pytest.mark.asyncio
-    @patch("haystack_integrations.components.embedders.huggingface_api.document_embedder.AsyncInferenceClient")
-    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
-        embedder = HuggingFaceAPIDocumentEmbedder(
-            api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
-            api_params={"url": "https://example.com"},
-            token=None,
-        )
-        await embedder.warm_up_async()
-        await embedder.warm_up_async()
-        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
 
     @pytest.mark.asyncio
     async def test_close_is_safe_without_warm_up(self):
@@ -551,7 +540,8 @@ class TestRun:
     def test_embed_batch_grpc(self):
         requests: list[dict[str, object]] = []
 
-        def embed_stream(service, method, batch):
+        def embed_stream(service, method, batch, *, metadata):
+            assert metadata == (("authorization", "Bearer grpc-test-key"),)
             assert (service, method) == ("tei.v1.Embed", "EmbedStream")
             batch_requests = list(batch)
             requests.extend(batch_requests)
@@ -563,6 +553,7 @@ class TestRun:
             api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
             api_params={"url": "localhost:8081"},
             use_grpc=True,
+            token=Secret.from_token("grpc-test-key"),
             progress_bar=False,
         )
         with patch(
@@ -577,9 +568,6 @@ class TestRun:
             {"inputs": "text 1", "truncate": True, "normalize": False},
             {"inputs": "text 2", "truncate": True, "normalize": False},
         ]
-
-    def test_grpc_request_omits_none_options(self):
-        assert HuggingFaceAPIDocumentEmbedder._grpc_request("text", None, None) == {"inputs": "text"}
 
     def test_adjust_api_parameters(self):
         truncate, normalize = HuggingFaceAPIDocumentEmbedder._adjust_api_parameters(
@@ -696,7 +684,8 @@ class TestRunAsync:
         streams: list[list[tuple[str, bool, bool]]] = []
         all_streams_started = asyncio.Event()
 
-        async def embed_stream(service, method, batch):
+        async def embed_stream(service, method, batch, *, metadata):
+            assert metadata == (("authorization", "Bearer grpc-test-key"),)
             assert (service, method) == ("tei.v1.Embed", "EmbedStream")
             stream_requests = [
                 (request["inputs"], request["truncate"], request["normalize"]) async for request in batch
@@ -718,6 +707,7 @@ class TestRunAsync:
             api_type=HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE,
             api_params={"url": "localhost:8081"},
             use_grpc=True,
+            token=Secret.from_token("grpc-test-key"),
             concurrency_limit=3,
             progress_bar=False,
         )
