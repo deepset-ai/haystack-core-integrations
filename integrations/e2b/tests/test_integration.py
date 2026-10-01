@@ -14,6 +14,9 @@ PRs, which have no access to repository secrets.
 import os
 
 import pytest
+from haystack.components.agents import Agent
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.utils import Secret
 
 from haystack_integrations.tools.e2b import (
     E2BSandbox,
@@ -95,14 +98,20 @@ class TestListDirectoryToolIntegration:
 
 @pytest.mark.integration
 class TestE2BToolsetIntegration:
-    def test_toolset_warm_up_and_close(self):
+    def test_agent_warm_up_and_close(self):
         ts = E2BToolset()
-        ts.warm_up()
-        # Verify sandbox is live by running a command through the bash tool
-        bash_tool = next(t for t in ts if t.name == "run_bash_command")
-        result = bash_tool.invoke(command="echo 'toolset ok'")
-        assert "toolset ok" in result
-        ts.close()
+        agent = Agent(chat_generator=OpenAIChatGenerator(api_key=Secret.from_token("unused")), tools=ts)
+        try:
+            agent.warm_up()
+            sandbox = ts.sandbox._sandbox
+            bash_tool = next(t for t in ts if t.name == "run_bash_command")
+            result = bash_tool.invoke(command="echo 'toolset ok'")
+            assert "toolset ok" in result
+        finally:
+            agent.close()
+
+        assert ts.sandbox._sandbox is None
+        assert not sandbox.is_running()
 
     def test_all_tools_share_sandbox(self):
         ts = E2BToolset()

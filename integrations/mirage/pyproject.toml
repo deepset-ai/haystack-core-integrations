@@ -30,7 +30,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
-    "haystack-ai>=2.23.0",
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@cf12a9f38e1f49214cf73dfd7c6d4aa3ae53f369",
     # Mirage is pre-1.0 and unstable, so we pin it
     "mirage-ai==0.0.3",
 ]
@@ -39,6 +39,9 @@ dependencies = [
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mirage#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mirage"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]

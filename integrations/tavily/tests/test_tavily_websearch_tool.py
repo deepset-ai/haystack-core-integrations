@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock
+import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -138,3 +139,43 @@ class TestTavilyWebSearchTool:
         message = tool.outputs_to_string["handler"](result[tool.outputs_to_string["source"]])
 
         assert message == "- Example Title\n  URL: https://example.com\n  Example content"
+
+    @pytest.mark.asyncio
+    async def test_invoke_async_and_close_use_only_async_client(self, search_response):
+        tool = TavilyWebSearchTool(api_key=Secret.from_token("test-key"))
+        client = AsyncMock()
+        client.search.return_value = search_response
+        with patch(
+            "haystack_integrations.components.websearch.tavily.tavily_websearch.AsyncTavilyClient",
+            return_value=client,
+        ) as client_class:
+            result = await tool.invoke_async(query="test query")
+            await tool.close_async()
+            await tool.close_async()
+
+        assert result["documents"][0].content == "Example content"
+        client_class.assert_called_once_with(api_key="test-key", client_name="haystack")
+        client.search.assert_awaited_once_with(query="test query", max_results=10)
+        client.close.assert_awaited_once()
+        assert tool._component._tavily_client is None
+        assert tool._component._async_tavily_client is None
+
+
+@pytest.mark.skipif(not os.environ.get("TAVILY_API_KEY"), reason="TAVILY_API_KEY not set")
+@pytest.mark.integration
+class TestTavilyWebSearchToolIntegration:
+    @pytest.mark.asyncio
+    async def test_invoke_async_and_close(self):
+        tool = TavilyWebSearchTool(top_k=1)
+        try:
+            result = await tool.invoke_async(query="What is Haystack by deepset?")
+            assert result["documents"]
+            assert tool._component._tavily_client is None
+            client = tool._component._async_tavily_client
+            assert client is not None
+            assert not client._client.is_closed
+        finally:
+            await tool.close_async()
+
+        assert client._client.is_closed
+        assert tool._component._async_tavily_client is None
