@@ -94,6 +94,26 @@ class TestOtariChatGenerator:
         with pytest.raises(ValueError, match="OTARI_API_KEY"):
             component.warm_up()
 
+    def test_warm_up_warns_once_about_eu_key_on_default_url(self, caplog):
+        component = OtariChatGenerator(api_key=Secret.from_token("otk_v1_eu_test"))
+        component.warm_up()
+        component.warm_up()
+        assert caplog.text.count("belongs to otari.ai's EU region") == 1
+        assert "https://eu.api.otari.ai/api/v1" in caplog.text
+
+    @pytest.mark.parametrize(
+        ("api_key", "api_base_url"),
+        [
+            ("otk_v1_eu_test", "https://eu.api.otari.ai/api/v1"),
+            ("otk_v1_us_test", DEFAULT_API_BASE_URL),
+            ("tk-local-gateway-key", DEFAULT_API_BASE_URL),
+        ],
+    )
+    def test_warm_up_does_not_warn_otherwise(self, caplog, api_key, api_base_url):
+        component = OtariChatGenerator(api_key=Secret.from_token(api_key), api_base_url=api_base_url)
+        component.warm_up()
+        assert "EU region" not in caplog.text
+
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("OTARI_API_KEY", "test-api-key")
         data = OtariChatGenerator().to_dict()

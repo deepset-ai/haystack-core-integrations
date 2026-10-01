@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
+from haystack.utils.auth import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from openai.types.completion_usage import CompletionUsage
@@ -49,6 +50,12 @@ def mock_async_chat_completion():
 
 @pytest.mark.asyncio
 class TestOtariChatGeneratorAsync:
+    async def test_warm_up_async_warns_once_about_eu_key_on_default_url(self, caplog):
+        component = OtariChatGenerator(api_key=Secret.from_token("otk_v1_eu_test"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        assert caplog.text.count("belongs to otari.ai's EU region") == 1
+
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):
         monkeypatch.setenv("OTARI_API_KEY", "fake-api-key")
         component = OtariChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
