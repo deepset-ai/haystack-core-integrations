@@ -234,37 +234,35 @@ class TestPerplexityChatGenerator:
         assert kwargs["headers"]["test-header"] == "test-value"
         assert kwargs["headers"]["X-Pplx-Integration"].startswith("haystack/")
 
-    def test_run_sends_attribution_header(self, chat_messages):
-        captured: list[httpx.Request] = []
-        component = PerplexityChatGenerator(
-            api_key=Secret.from_token("test-api-key"),
-            extra_headers={"test-header": "test-value"},
-            http_client_kwargs={"transport": _make_transport(captured)},
-        )
-
-        component.run(chat_messages)
-
-        assert len(captured) == 1
-        request = captured[0]
-        assert request.headers["Authorization"] == "Bearer test-api-key"
-        assert request.headers["X-Pplx-Integration"].startswith("haystack/")
-        assert request.headers["test-header"] == "test-value"
-
     @pytest.mark.asyncio
-    async def test_run_async_sends_attribution_header(self, chat_messages):
+    @pytest.mark.parametrize("use_async", [False, True])
+    @pytest.mark.parametrize("header_source", ["extra_headers", "http_client_kwargs"])
+    @pytest.mark.parametrize("header_name", [None, "X-Pplx-Integration", "x-pplx-integration", "X-PPLX-INTEGRATION"])
+    async def test_run_sends_attribution_header(self, chat_messages, use_async, header_source, header_name):
         captured: list[httpx.Request] = []
+        headers = {"test-header": "test-value"}
+        if header_name:
+            headers[header_name] = "custom"
         component = PerplexityChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            extra_headers={"test-header": "test-value"},
-            http_client_kwargs={"transport": _make_transport(captured)},
+            extra_headers=headers if header_source == "extra_headers" else None,
+            http_client_kwargs={
+                "transport": _make_transport(captured),
+                "headers": headers if header_source == "http_client_kwargs" else {},
+            },
         )
 
-        await component.run_async(chat_messages)
+        if use_async:
+            await component.run_async(chat_messages)
+        else:
+            component.run(chat_messages)
 
         assert len(captured) == 1
         request = captured[0]
         assert request.headers["Authorization"] == "Bearer test-api-key"
-        assert request.headers["X-Pplx-Integration"].startswith("haystack/")
+        integration_values = request.headers.get_list("X-Pplx-Integration")
+        assert len(integration_values) == 1
+        assert integration_values == ["custom"] if header_name else integration_values[0].startswith("haystack/")
         assert request.headers["test-header"] == "test-value"
 
 

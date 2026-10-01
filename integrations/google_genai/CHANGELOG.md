@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v6.0.1] - 2026-09-25
+
+### 🐛 Bug Fixes
+
+- Serialization of google genai thought signatures (#3995)
+
+
 ## [integrations/google_genai-v6.0.0] - 2026-09-15
 
 ### 📚 Documentation

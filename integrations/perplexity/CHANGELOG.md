@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/perplexity-v1.0.1] - 2026-09-30
+
+### 🐛 Bug Fixes
+
+- Preserve Perplexity attribution header overrides (#3974)
+
+
 ## [integrations/perplexity-v1.0.0] - 2026-09-09
 
 ### 🚀 Features

@@ -1247,12 +1247,10 @@ class TestReasoningIntegration:
         # Note: Using a model that supports reasoning AND a provider that actually follows the spec defined in
         # huggingface-hub. Reasoning content especially seems to be non-standard across providers and is either left
         # in the main response or put in a new field that is not part of the official API.
-        # One combo that does respect the spec is together + openai/gpt-oss-20b.
-        # together + openai/gpt-oss-20b actually uses the expected reasoning field in the response
+        # One combo that does respect the spec is groq + openai/gpt-oss-20b.
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            # We use together + openai/gpt-oss-20b since it actually returns reasoning content in the expected field
-            api_params={"model": "openai/gpt-oss-20b", "provider": "together"},
+            api_params={"model": "openai/gpt-oss-20b", "provider": "groq"},
             generation_kwargs={"max_tokens": 300},
         )
 

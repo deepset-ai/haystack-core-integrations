@@ -29,6 +29,7 @@ on:
       - "Test / docling"
       - "Test / docling_serve"
       - "Test / dspy"
+      - "Test / dynamodb"
       - "Test / e2b"
       - "Test / edenai"
       - "Test / elasticsearch"
@@ -40,6 +41,7 @@ on:
       - "Test / github"
       - "Test / google-genai"
       - "Test / google_drive"
+      - "Test / gotenberg"
       - "Test / hanlp"
       - "Test / hetzner"
       - "Test / huggingface_api"
@@ -61,6 +63,7 @@ on:
       - "Test / mirage"
       - "Test / mistral"
       - "Test / mongodb_atlas"
+      - "Test / monty"
       - "Test / nvidia"
       - "Test / oauth"
       - "Test / ollama"
@@ -120,7 +123,7 @@ jobs:
           # Workflow names follow "Test / <name>" convention; normalize hyphens to underscores to match directory names
           echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //' | tr '-' '_')" >> "$GITHUB_OUTPUT"
 
-      - uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
+      - uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
         with:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
