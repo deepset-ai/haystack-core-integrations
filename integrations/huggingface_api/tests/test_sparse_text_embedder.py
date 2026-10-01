@@ -10,7 +10,7 @@ import pytest
 from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 
-from haystack_integrations.components.embedders.huggingface_api import HuggingFaceAPISparseTextEmbedder
+from haystack_integrations.components.embedders.huggingface_api import HuggingFaceTEISparseTextEmbedder
 
 API_BASE_URL = "http://localhost:8080"
 MODULE = "haystack_integrations.components.embedders.huggingface_api.sparse_text_embedder"
@@ -34,18 +34,18 @@ def async_http_client(payload: Any = None) -> MagicMock:
     return client
 
 
-class TestHuggingFaceAPISparseTextEmbedder:
+class TestHuggingFaceTEISparseTextEmbedder:
     @pytest.mark.parametrize("api_base_url", ["not-a-url", "ftp://localhost/path", "localhost:8080"])
     def test_init_rejects_invalid_api_base_url(self, api_base_url: str) -> None:
         with pytest.raises(ValueError, match="api_base_url must be a valid HTTP URL"):
-            HuggingFaceAPISparseTextEmbedder(api_base_url=api_base_url)
+            HuggingFaceTEISparseTextEmbedder(api_base_url=api_base_url)
 
     def test_init_defaults_and_resources_are_none(self) -> None:
         with (
             patch(f"{MODULE}.httpx.Client") as sync_client_constructor,
             patch(f"{MODULE}.httpx.AsyncClient") as async_client_constructor,
         ):
-            embedder = HuggingFaceAPISparseTextEmbedder()
+            embedder = HuggingFaceTEISparseTextEmbedder()
 
         assert embedder.api_base_url == "http://localhost:8080"
         assert embedder.prefix == ""
@@ -65,7 +65,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
             patch(f"{MODULE}.Client") as sync_constructor,
             patch(f"{MODULE}.AsyncClient.create") as async_constructor,
         ):
-            embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+            embedder = HuggingFaceTEISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
 
         sync_constructor.assert_not_called()
         async_constructor.assert_not_called()
@@ -78,7 +78,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
 
     def test_to_dict_and_from_dict_preserve_env_secret(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CUSTOM_HF_TOKEN", "resolved-token")
-        embedder = HuggingFaceAPISparseTextEmbedder(
+        embedder = HuggingFaceTEISparseTextEmbedder(
             api_base_url="https://tei.example.test/base/",
             token=Secret.from_env_var("CUSTOM_HF_TOKEN"),
             prefix="query: ",
@@ -91,7 +91,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
 
         assert data == {
             "type": "haystack_integrations.components.embedders.huggingface_api.sparse_text_embedder."
-            "HuggingFaceAPISparseTextEmbedder",
+            "HuggingFaceTEISparseTextEmbedder",
             "init_parameters": {
                 "api_base_url": "https://tei.example.test/base/",
                 "token": {"type": "env_var", "env_vars": ["CUSTOM_HF_TOKEN"], "strict": True},
@@ -102,7 +102,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
                 "use_grpc": False,
             },
         }
-        restored = HuggingFaceAPISparseTextEmbedder.from_dict(data)
+        restored = HuggingFaceTEISparseTextEmbedder.from_dict(data)
         assert restored.api_base_url == embedder.api_base_url
         assert restored.prefix == "query: "
         assert restored.suffix == "!"
@@ -113,7 +113,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
         assert restored.token.resolve_value() == "resolved-token"
 
     def test_token_secret_cannot_be_serialized(self) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder(token=Secret.from_token("do-not-serialize"))
+        embedder = HuggingFaceTEISparseTextEmbedder(token=Secret.from_token("do-not-serialize"))
 
         with pytest.raises(ValueError, match="Cannot serialize token-based secret"):
             embedder.to_dict()
@@ -122,7 +122,7 @@ class TestHuggingFaceAPISparseTextEmbedder:
 class TestComponentLifecycle:
     def test_key_resolved_at_warm_up_not_init(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
-        embedder = HuggingFaceAPISparseTextEmbedder(token=Secret.from_env_var("MISSING_HF_TOKEN"))
+        embedder = HuggingFaceTEISparseTextEmbedder(token=Secret.from_env_var("MISSING_HF_TOKEN"))
 
         with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
             embedder.warm_up()
@@ -131,7 +131,7 @@ class TestComponentLifecycle:
         first_client = sync_http_client()
         second_client = sync_http_client()
         with patch(f"{MODULE}.httpx.Client", side_effect=[first_client, second_client]) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder(token=None)
+            embedder = HuggingFaceTEISparseTextEmbedder(token=None)
             constructor.assert_not_called()
 
             embedder.warm_up()
@@ -153,7 +153,7 @@ class TestComponentLifecycle:
         first_client = async_http_client()
         second_client = async_http_client()
         with patch(f"{MODULE}.httpx.AsyncClient", side_effect=[first_client, second_client]) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder(token=None)
+            embedder = HuggingFaceTEISparseTextEmbedder(token=None)
             constructor.assert_not_called()
 
             await embedder.warm_up_async()
@@ -174,7 +174,7 @@ class TestComponentLifecycle:
         first_client = MagicMock(channel=MagicMock())
         second_client = MagicMock(channel=MagicMock())
         with patch(f"{MODULE}.Client", side_effect=[first_client, second_client]) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+            embedder = HuggingFaceTEISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
             constructor.assert_not_called()
             embedder.warm_up()
             embedder.warm_up()
@@ -193,7 +193,7 @@ class TestComponentLifecycle:
         first_client = MagicMock(channel=MagicMock(close=AsyncMock()))
         second_client = MagicMock(channel=MagicMock(close=AsyncMock()))
         with patch(f"{MODULE}.AsyncClient.create", new=AsyncMock(side_effect=[first_client, second_client])) as create:
-            embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+            embedder = HuggingFaceTEISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
             create.assert_not_awaited()
             await embedder.warm_up_async()
             await embedder.warm_up_async()
@@ -209,7 +209,7 @@ class TestComponentLifecycle:
 
     @pytest.mark.asyncio
     async def test_close_is_safe_without_warm_up(self) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder()
+        embedder = HuggingFaceTEISparseTextEmbedder()
         embedder.close()
         await embedder.close_async()
         assert embedder._client is None
@@ -228,7 +228,7 @@ class TestComponentLifecycle:
             patch(f"{MODULE}.Client", return_value=sync_resource),
             patch(f"{MODULE}.AsyncClient.create", new=AsyncMock(return_value=async_resource)),
         ):
-            embedder = HuggingFaceAPISparseTextEmbedder(
+            embedder = HuggingFaceTEISparseTextEmbedder(
                 api_base_url="localhost:8082" if use_grpc else API_BASE_URL, use_grpc=use_grpc
             )
             embedder.warm_up()
@@ -250,7 +250,7 @@ class TestRun:
     @pytest.mark.parametrize("invalid_text", [None, 42, ["text"]])
     def test_run_rejects_non_string_input(self, invalid_text: Any) -> None:
         with patch(f"{MODULE}.httpx.Client", return_value=sync_http_client()):
-            embedder = HuggingFaceAPISparseTextEmbedder()
+            embedder = HuggingFaceTEISparseTextEmbedder()
             try:
                 with pytest.raises(TypeError, match="expects a string"):
                     embedder.run(invalid_text)
@@ -260,7 +260,7 @@ class TestRun:
     def test_run_http_request_and_response(self) -> None:
         client = sync_http_client([[{"index": 12, "value": 1}, {"index": 99, "value": 0.25}]])
         with patch(f"{MODULE}.httpx.Client", return_value=client) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder(
+            embedder = HuggingFaceTEISparseTextEmbedder(
                 api_base_url="https://tei.example.test/api/",
                 token=Secret.from_token("secret"),
                 prefix="query: ",
@@ -286,7 +286,7 @@ class TestRun:
     async def test_run_async_http_request_and_response(self) -> None:
         client = async_http_client([[{"index": 7, "value": 2.5}]])
         with patch(f"{MODULE}.httpx.AsyncClient", return_value=client) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder(
+            embedder = HuggingFaceTEISparseTextEmbedder(
                 api_base_url="http://tei:8080/",
                 token=Secret.from_token("token"),
                 timeout=9,
@@ -312,7 +312,7 @@ class TestRun:
             "sparse_embeddings": [{"index": 12, "value": 1.0}, {"index": 99, "value": 0.25}]
         }
         with patch(f"{MODULE}.Client", return_value=client) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder(
+            embedder = HuggingFaceTEISparseTextEmbedder(
                 api_base_url="localhost:8082",
                 prefix="query: ",
                 suffix=" </s>",
@@ -335,7 +335,7 @@ class TestRun:
         client = MagicMock(channel=MagicMock(close=AsyncMock()))
         client.unary_unary = AsyncMock(return_value={"sparse_embeddings": [{"index": 7, "value": 2.5}]})
         with patch(f"{MODULE}.AsyncClient.create", new=AsyncMock(return_value=client)) as create:
-            embedder = HuggingFaceAPISparseTextEmbedder(
+            embedder = HuggingFaceTEISparseTextEmbedder(
                 api_base_url="localhost:8082",
                 prefix="query: ",
                 suffix="!",
@@ -359,7 +359,7 @@ class TestRun:
         first_client = sync_http_client()
         second_client = sync_http_client()
         with patch(f"{MODULE}.httpx.Client", side_effect=[first_client, second_client]) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder()
+            embedder = HuggingFaceTEISparseTextEmbedder()
             try:
                 embedder.run("one")
                 monkeypatch.setenv("HF_TOKEN", "second-token")
@@ -379,7 +379,7 @@ class TestRun:
         monkeypatch.setenv("HF_TOKEN", "env-token")
         client = sync_http_client()
         with patch(f"{MODULE}.httpx.Client", return_value=client) as constructor:
-            embedder = HuggingFaceAPISparseTextEmbedder(headers={"Authorization": "Basic test-key"})
+            embedder = HuggingFaceTEISparseTextEmbedder(headers={"Authorization": "Basic test-key"})
             try:
                 embedder.run("text")
             finally:
@@ -401,7 +401,7 @@ class TestRun:
     def test_run_error_keeps_http_client_open_until_close(self, payload: Any) -> None:
         client = sync_http_client(payload)
         with patch(f"{MODULE}.httpx.Client", return_value=client):
-            embedder = HuggingFaceAPISparseTextEmbedder()
+            embedder = HuggingFaceTEISparseTextEmbedder()
             with pytest.raises(ValueError):
                 embedder.run("text")
 
@@ -415,7 +415,7 @@ class TestRun:
         client = sync_http_client()
         client.post.return_value = httpx.Response(503, request=request)
         with patch(f"{MODULE}.httpx.Client", return_value=client):
-            embedder = HuggingFaceAPISparseTextEmbedder()
+            embedder = HuggingFaceTEISparseTextEmbedder()
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 embedder.run("text")
 
@@ -431,7 +431,7 @@ class TestRun:
         client = async_http_client()
         client.post.return_value = httpx.Response(503, request=request)
         with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
-            embedder = HuggingFaceAPISparseTextEmbedder()
+            embedder = HuggingFaceTEISparseTextEmbedder()
             with pytest.raises(httpx.HTTPStatusError):
                 await embedder.run_async("text")
 
@@ -444,7 +444,7 @@ class TestRun:
         client = MagicMock(channel=MagicMock())
         client.unary_unary.side_effect = RuntimeError("request failed")
         with patch(f"{MODULE}.Client", return_value=client):
-            embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+            embedder = HuggingFaceTEISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
             with pytest.raises(RuntimeError, match="request failed"):
                 embedder.run("text")
 
@@ -458,7 +458,7 @@ class TestRun:
         client = MagicMock(channel=MagicMock(close=AsyncMock()))
         client.unary_unary = AsyncMock(side_effect=RuntimeError("request failed"))
         with patch(f"{MODULE}.AsyncClient.create", new=AsyncMock(return_value=client)):
-            embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
+            embedder = HuggingFaceTEISparseTextEmbedder(api_base_url="localhost:8082", use_grpc=True)
             with pytest.raises(RuntimeError, match="request failed"):
                 await embedder.run_async("text")
 
@@ -473,7 +473,7 @@ class TestRun:
         [(API_BASE_URL, False), ("localhost:8082", True)],
     )
     def test_live_run_tei(self, api_base_url: str, use_grpc: bool) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url=api_base_url, use_grpc=use_grpc)
+        embedder = HuggingFaceTEISparseTextEmbedder(api_base_url=api_base_url, use_grpc=use_grpc)
         try:
             result = embedder.run("sparse retrieval")
         finally:
@@ -489,7 +489,7 @@ class TestRun:
     )
     @pytest.mark.asyncio
     async def test_live_run_async_tei(self, api_base_url: str, use_grpc: bool) -> None:
-        embedder = HuggingFaceAPISparseTextEmbedder(api_base_url=api_base_url, use_grpc=use_grpc)
+        embedder = HuggingFaceTEISparseTextEmbedder(api_base_url=api_base_url, use_grpc=use_grpc)
         try:
             result = await embedder.run_async("sparse retrieval")
         finally:

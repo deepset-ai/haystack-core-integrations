@@ -21,16 +21,16 @@ with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc s
 
 
 @component
-class HuggingFaceAPISparseTextEmbedder:
+class HuggingFaceTEISparseTextEmbedder:
     """
     Embeds text into a sparse vector using a Hugging Face Text Embeddings Inference (TEI) server.
 
     The TEI server must be running a sparse embedding model and, when using HTTP, expose the `/embed_sparse` endpoint.
 
     ```python
-    from haystack_integrations.components.embedders.huggingface_api import HuggingFaceAPISparseTextEmbedder
+    from haystack_integrations.components.embedders.huggingface_api import HuggingFaceTEISparseTextEmbedder
 
-    embedder = HuggingFaceAPISparseTextEmbedder(api_base_url="http://localhost:8080")
+    embedder = HuggingFaceTEISparseTextEmbedder(api_base_url="http://localhost:8080")
     result = embedder.run("What is sparse retrieval?")
     print(result["sparse_embedding"])
     ```
@@ -92,7 +92,7 @@ class HuggingFaceAPISparseTextEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "HuggingFaceAPISparseTextEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "HuggingFaceTEISparseTextEmbedder":
         """Deserialize this component from a dictionary."""
         return default_from_dict(cls, data)
 
@@ -142,8 +142,8 @@ class HuggingFaceAPISparseTextEmbedder:
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):
             msg = (
-                "HuggingFaceAPISparseTextEmbedder expects a string as input. "
-                "To embed Documents, use HuggingFaceAPISparseDocumentEmbedder."
+                "HuggingFaceTEISparseTextEmbedder expects a string as input. "
+                "To embed Documents, use HuggingFaceTEISparseDocumentEmbedder."
             )
             raise TypeError(msg)
         return self.prefix + text + self.suffix

@@ -26,7 +26,7 @@ with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc s
 
 
 @component
-class HuggingFaceAPISparseDocumentEmbedder:
+class HuggingFaceTEISparseDocumentEmbedder:
     """
     Embeds Documents into sparse vectors using a Hugging Face Text Embeddings Inference (TEI) server.
 
@@ -34,9 +34,9 @@ class HuggingFaceAPISparseDocumentEmbedder:
 
     ```python
     from haystack import Document
-    from haystack_integrations.components.embedders.huggingface_api import HuggingFaceAPISparseDocumentEmbedder
+    from haystack_integrations.components.embedders.huggingface_api import HuggingFaceTEISparseDocumentEmbedder
 
-    embedder = HuggingFaceAPISparseDocumentEmbedder(api_base_url="http://localhost:8080")
+    embedder = HuggingFaceTEISparseDocumentEmbedder(api_base_url="http://localhost:8080")
     documents = embedder.run([Document(content="Sparse retrieval")])["documents"]
     print(documents[0].sparse_embedding)
     ```
@@ -162,7 +162,7 @@ class HuggingFaceAPISparseDocumentEmbedder:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "HuggingFaceAPISparseDocumentEmbedder":
+    def from_dict(cls, data: dict[str, Any]) -> "HuggingFaceTEISparseDocumentEmbedder":
         """Deserialize this component from a dictionary."""
         return default_from_dict(cls, data)
 
@@ -276,8 +276,8 @@ class HuggingFaceAPISparseDocumentEmbedder:
     def _validate_documents(documents: list[Document]) -> None:
         if not isinstance(documents, list) or any(not isinstance(document, Document) for document in documents):
             msg = (
-                "HuggingFaceAPISparseDocumentEmbedder expects a list of Documents as input. "
-                "To embed a string, use HuggingFaceAPISparseTextEmbedder."
+                "HuggingFaceTEISparseDocumentEmbedder expects a list of Documents as input. "
+                "To embed a string, use HuggingFaceTEISparseTextEmbedder."
             )
             raise TypeError(msg)
 
