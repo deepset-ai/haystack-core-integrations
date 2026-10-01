@@ -1,0 +1,30 @@
+# An ephemeral Otari gateway for the integration tests, storing its data in SQLite inside the container
+services:
+  otari:
+    image: mzdotai/otari:0.14.0
+    command: otari serve
+    ports:
+      - "8000:8000"
+    restart: "no"
+    environment:
+      OTARI_MASTER_KEY: otari-haystack-tests
+      # passed through from the shell when set, so that commands like `docker compose down` work without them
+      OPENAI_API_KEY:
+      COHERE_API_KEY:
+      # $${...} reaches Otari unexpanded, so Otari reads the keys from its environment
+      OTARI_CONFIG_YAML: |
+        default_pricing: true
+        # The bundled prices don't cover rerank models, so serve unpriced models instead of refusing them
+        require_pricing: false
+        # Provider copies of attached files need OTARI_PROVIDER_ACCOUNT_PEPPER; the tests attach no files
+        files_provider_upload_enabled: false
+        providers:
+          openai:
+            api_key: $${OPENAI_API_KEY}
+          cohere:
+            api_key: $${COHERE_API_KEY}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 2s
+      timeout: 5s
+      retries: 30

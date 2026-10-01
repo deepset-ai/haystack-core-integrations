@@ -1,0 +1,16 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.generators.otari.chat.chat_generator
+      - haystack_integrations.components.embedders.otari.text_embedder
+      - haystack_integrations.components.embedders.otari.document_embedder
+      - haystack_integrations.components.rankers.otari.ranker
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Otari integration for Haystack
+  id: integrations-otari
+  filename: otari.md
+  title: Otari
