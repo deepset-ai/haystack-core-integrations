@@ -116,6 +116,45 @@ class ModelTokenUsage:
 
 
 @dataclass(kw_only=True)
+class ModelPrice:
+    """
+    Informational token prices for one model deployment.
+
+    :param input_cost_per_million: Price of one million input tokens.
+    :param output_cost_per_million: Price of one million output tokens.
+    """
+
+    input_cost_per_million: float
+    output_cost_per_million: float
+
+
+def cost_of_model_usage(model_usage: dict[str, ModelTokenUsage], prices: dict[str, ModelPrice]) -> float | None:
+    """
+    Calculate what raw token usage costs at known prices.
+
+    Every input token is charged at full price. A provider that discounts tokens served from its prompt cache
+    charges less than this, so the result is an upper bound wherever caching is in play.
+
+    :param model_usage: Raw token usage keyed by model identifier.
+    :param prices: Token prices keyed by model identifier.
+    :returns: The total cost, or `None` when any model in the usage has no known price.
+    """
+    if any(model_id not in prices for model_id in model_usage):
+        return None
+    return sum(
+        (
+            (
+                (usage.input_tokens * prices[model_id].input_cost_per_million)
+                + (usage.output_tokens * prices[model_id].output_cost_per_million)
+            )
+            / 1_000_000
+            for model_id, usage in model_usage.items()
+        ),
+        start=0.0,
+    )
+
+
+@dataclass(kw_only=True)
 class EvalMetrics:
     """
     Metrics produced by a harness evaluator for one target configuration.
@@ -124,7 +163,8 @@ class EvalMetrics:
     :param all_tokens_reported: Whether every LLM call the evaluation made reported its token counts. False means
         `model_usage` understates what the evaluation actually spent.
     :param model_usage: Raw token usage keyed by model identifier.
-    :param cost: Cost derived from `model_usage`, or `None` when usage has not been priced or includes an unknown model.
+    :param eval_cases: One record per eval case measured, each in whatever shape its evaluator scores. Empty for
+        an evaluator that reports only an aggregate.
     :param details: What the harness evaluator scored and the diagnostics it collected. Each harness evaluator
         documents its own keys.
     """
@@ -132,7 +172,7 @@ class EvalMetrics:
     durations: list[float]
     all_tokens_reported: bool
     model_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
-    cost: float | None = None
+    eval_cases: list[dict[str, Any]] = field(default_factory=list)
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -141,7 +181,7 @@ class EvalMetrics:
             "durations": self.durations,
             "model_usage": {model: asdict(obj=usage) for model, usage in self.model_usage.items()},
             "all_tokens_reported": self.all_tokens_reported,
-            "cost": self.cost,
+            "eval_cases": self.eval_cases,
             "details": self.details,
         }
 
@@ -153,11 +193,10 @@ class EvalMetrics:
         :param data: Serialized eval metrics.
         :returns: The restored eval metrics.
         """
-        cost = data.get("cost")
         return cls(
             durations=[float(duration) for duration in data["durations"]],
             model_usage={model: ModelTokenUsage(**usage) for model, usage in (data.get("model_usage") or {}).items()},
             all_tokens_reported=bool(data["all_tokens_reported"]),
-            cost=None if cost is None else float(cost),
+            eval_cases=data.get("eval_cases") or [],
             details=data.get("details") or {},
         )

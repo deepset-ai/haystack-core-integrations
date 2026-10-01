@@ -1,5 +1,6 @@
 loaders:
   - modules:
+      - haystack_integrations.agent_pack.evaluation.harness_evaluator
       - haystack_integrations.agent_pack.evaluation.retrieval_harness_evaluator
       - haystack_integrations.agent_pack.evaluation.dataclasses
       - haystack_integrations.agent_pack.deep_research.agent
