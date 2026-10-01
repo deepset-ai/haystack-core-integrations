@@ -29,8 +29,9 @@ class OtariChatGenerator(OpenAIChatGenerator):
     Completes chats using models served through an [Otari](https://github.com/mozilla-ai/otari) gateway.
 
     Otari is an OpenAI-compatible LLM gateway that routes requests to many providers and applies API keys, budgets,
-    and usage tracking. By default, this component calls the otari.ai gateway. To call a gateway you run yourself,
-    set `api_base_url`, for example to `"http://localhost:8000/api/v1"`.
+    and usage tracking. By default, this component calls the otari.ai gateway. For an account in otari.ai's EU
+    region, whose API keys start with `otk_v1_eu_`, set `api_base_url` to `"https://eu.api.otari.ai/api/v1"`.
+    To call a gateway you run yourself, set `api_base_url`, for example to `"http://localhost:8000/api/v1"`.
 
     Name models with a selector the gateway accepts, such as `provider:model` (`"openai:gpt-5-mini"`,
     `"anthropic:claude-sonnet-4-6"`), a model alias, or a routing policy name. For details, see the
@@ -86,7 +87,8 @@ class OtariChatGenerator(OpenAIChatGenerator):
             The callback function accepts StreamingChunk as an argument.
         :param api_base_url:
             The OpenAI-compatible API root of the Otari gateway, including the `/api/v1` path.
-            Defaults to the otari.ai gateway.
+            Defaults to the otari.ai gateway. For an account in otari.ai's EU region, use
+            `"https://eu.api.otari.ai/api/v1"`.
         :param generation_kwargs:
             Other parameters to use for the model. These parameters are sent directly to the Otari endpoint.
             Some of the supported parameters:

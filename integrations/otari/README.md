@@ -29,3 +29,10 @@ hatch run test:integration
 ```
 
 Stop the gateway afterward with `docker compose down`.
+
+To run the chat generator tests against otari.ai instead, export an otari.ai API key as `OTARI_API_KEY` and the
+API root of your account's region as `OTARI_API_BASE_URL`, for example `https://eu.api.otari.ai/api/v1`, and run:
+
+```bash
+hatch run test:integration -k chat_generator
+```

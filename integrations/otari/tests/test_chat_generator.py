@@ -230,9 +230,9 @@ class TestOtariChatGenerator:
         assert "Paris" in message.text
         assert "gpt-5-mini" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
-        # the test gateway prices the default model with Otari's bundled prices
+        # the local test gateway prices the model with Otari's bundled prices, otari.ai with the organization's
         assert float(message.meta["usage"]["cost_usd"]) > 0
-        assert message.meta["usage"]["pricing_source"] == "defaults"
+        assert message.meta["usage"]["pricing_source"] in ("defaults", "deployment", "organization")
 
     @requires_api_key
     @pytest.mark.integration
