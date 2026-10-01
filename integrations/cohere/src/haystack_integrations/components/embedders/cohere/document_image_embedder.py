@@ -17,6 +17,7 @@ from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
 from cohere import AsyncClientV2, ClientV2
+from haystack_integrations.utils.cohere import validate_api_base_url
 
 from .embedding_types import EmbeddingTypes
 
@@ -101,7 +102,7 @@ class CohereDocumentImageEmbedder:
             The Cohere model to use for calculating embeddings.
             Read [Cohere documentation](https://docs.cohere.com/docs/models#embed) for a list of all supported models.
         :param api_base_url:
-            The Cohere API base URL.
+            The Cohere API base URL. The Cohere client appends the endpoint path to it.
         :param timeout:
             Request timeout in seconds.
         :param embedding_dimension:
@@ -114,7 +115,10 @@ class CohereDocumentImageEmbedder:
         :param progress_bar:
             Whether to show a progress bar or not. Can be helpful to disable in production deployments
             to keep the logs clean.
+
+        :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
+        validate_api_base_url(api_base_url)
 
         self.file_path_meta_field = file_path_meta_field
         self.root_path = root_path or ""

@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/microsoft_sharepoint-v1.2.0] - 2026-09-24
+
+### 🚀 Features
+
+- Add region parameter to MSSharePointRetriever (#3722)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- *(microsoft_sharepoint,google_drive)* Cancel and drain in-flight fetches when one fails (#3619)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/microsoft_sharepoint-v1.1.0] - 2026-06-25
 
 ### 🚀 Features

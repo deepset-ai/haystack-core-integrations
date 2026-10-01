@@ -188,9 +188,9 @@ class QdrantEmbeddingRetriever:
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            scale_score=scale_score or self._scale_score,
-            return_embedding=return_embedding or self._return_embedding,
-            score_threshold=score_threshold or self._score_threshold,
+            scale_score=scale_score if scale_score is not None else self._scale_score,
+            return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
+            score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
         )
@@ -243,9 +243,9 @@ class QdrantEmbeddingRetriever:
             query_embedding=query_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            scale_score=scale_score or self._scale_score,
-            return_embedding=return_embedding or self._return_embedding,
-            score_threshold=score_threshold or self._score_threshold,
+            scale_score=scale_score if scale_score is not None else self._scale_score,
+            return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
+            score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
         )
@@ -433,9 +433,9 @@ class QdrantSparseEmbeddingRetriever:
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            scale_score=scale_score or self._scale_score,
-            return_embedding=return_embedding or self._return_embedding,
-            score_threshold=score_threshold or self._score_threshold,
+            scale_score=scale_score if scale_score is not None else self._scale_score,
+            return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
+            score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
         )
@@ -493,9 +493,9 @@ class QdrantSparseEmbeddingRetriever:
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            scale_score=scale_score or self._scale_score,
-            return_embedding=return_embedding or self._return_embedding,
-            score_threshold=score_threshold or self._score_threshold,
+            scale_score=scale_score if scale_score is not None else self._scale_score,
+            return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
+            score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
         )
@@ -560,9 +560,10 @@ class QdrantHybridRetriever:
         :param return_embedding: Whether to return the embeddings of the retrieved Documents.
         :param filter_policy: Policy to determine how filters are applied.
         :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+            The threshold is applied to the fused Reciprocal Rank Fusion (RRF) scores, so only documents with a
+            higher fused score are returned. RRF scores are not comparable to dense or sparse similarity scores,
+            so thresholds tuned for those retrievers don't carry over. With `group_by`, groups with no surviving
+            hits are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
@@ -659,7 +660,7 @@ class QdrantHybridRetriever:
         rrf_weights: list[float] | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Run the Sparse Embedding Retriever on the given input data.
+        Run the Hybrid Retriever on the given input data.
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
@@ -670,9 +671,10 @@ class QdrantHybridRetriever:
              groups to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+            The threshold is applied to the fused Reciprocal Rank Fusion (RRF) scores, so only documents with a
+            higher fused score are returned. RRF scores are not comparable to dense or sparse similarity scores,
+            so thresholds tuned for those retrievers don't carry over. With `group_by`, groups with no surviving
+            hits are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
@@ -704,8 +706,8 @@ class QdrantHybridRetriever:
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            return_embedding=return_embedding or self._return_embedding,
-            score_threshold=score_threshold or self._score_threshold,
+            return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
+            score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
             rrf_k=rrf_k if rrf_k is not None else self._rrf_k,
@@ -729,7 +731,7 @@ class QdrantHybridRetriever:
         rrf_weights: list[float] | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Asynchronously run the Sparse Embedding Retriever on the given input data.
+        Asynchronously run the Hybrid Retriever on the given input data.
 
         :param query_embedding: Dense embedding of the query.
         :param query_sparse_embedding: Sparse embedding of the query.
@@ -740,9 +742,10 @@ class QdrantHybridRetriever:
              groups to return.
         :param return_embedding: Whether to return the embedding of the retrieved Documents.
         :param score_threshold: A minimal score threshold for the result.
-            Score of the returned result might be higher or smaller than the threshold
-             depending on the Distance function used.
-            E.g. for cosine similarity only higher scores will be returned.
+            The threshold is applied to the fused Reciprocal Rank Fusion (RRF) scores, so only documents with a
+            higher fused score are returned. RRF scores are not comparable to dense or sparse similarity scores,
+            so thresholds tuned for those retrievers don't carry over. With `group_by`, groups with no surviving
+            hits are dropped.
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
@@ -774,8 +777,8 @@ class QdrantHybridRetriever:
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
             top_k=top_k or self._top_k,
-            return_embedding=return_embedding or self._return_embedding,
-            score_threshold=score_threshold or self._score_threshold,
+            return_embedding=return_embedding if return_embedding is not None else self._return_embedding,
+            score_threshold=score_threshold if score_threshold is not None else self._score_threshold,
             group_by=group_by or self._group_by,
             group_size=group_size or self._group_size,
             rrf_k=rrf_k if rrf_k is not None else self._rrf_k,

@@ -27,7 +27,7 @@ classifiers = [
 # semantic conventions, the telemetry ContextVars, token extraction, the OTLP exporter and provider —
 # lives in the lightweight `rhesis` package. The SDK adds an evaluation stack (torch, transformers,
 # deepeval, langchain) that a tracing integration has no use for, and pins Python to >= 3.12.
-dependencies = ["haystack-ai>=2.22.0", "rhesis[telemetry]>=0.13.0"]
+dependencies = ["haystack-ai>=2.22.0", "rhesis[telemetry]>=0.17.1"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/rhesis#readme"
