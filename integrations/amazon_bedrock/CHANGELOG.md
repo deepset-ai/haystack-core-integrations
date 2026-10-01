@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v8.3.0] - 2026-10-01
+
+### 🚜 Refactor
+
+- Generalize flattened generation_kwargs for tool_choice/thinking/output_config (#4028)
+
 ## [integrations/amazon_bedrock-v8.2.0] - 2026-09-24
 
 ### 🚀 Features
