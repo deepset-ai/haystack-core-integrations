@@ -75,6 +75,7 @@ on:
       - "Test / optimum"
       - "Test / oracle"
       - "Test / orcarouter"
+      - "Test / otari"
       - "Test / paddleocr"
       - "Test / parallel"
       - "Test / perplexity"
