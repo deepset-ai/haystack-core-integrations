@@ -25,9 +25,14 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.optimization.tools import (
-    WORKSPACE_TOOLS,
     _make_haystack_documentation_toolset,
+    edit_config,
+    finish,
     inspect_component,
+    read_config,
+    restore_candidate,
+    submit_candidate,
+    validate_config,
 )
 from haystack_integrations.agent_pack.optimization.workspace import (
     ConfigurationWorkspace,
@@ -109,7 +114,15 @@ def create_harness_optimizer_agent(
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n## This harness\n\n{additional_instructions.strip()}"
     llm = llm or _default_llm("gpt-5.6-terra")
-    tools: list[Tool | Toolset] = [*WORKSPACE_TOOLS, inspect_component]
+    tools: list[Tool | Toolset] = [
+        read_config,
+        edit_config,
+        validate_config,
+        submit_candidate,
+        restore_candidate,
+        finish,
+        inspect_component,
+    ]
     if documentation_tools:
         tools.append(_make_haystack_documentation_toolset())
     return Agent(

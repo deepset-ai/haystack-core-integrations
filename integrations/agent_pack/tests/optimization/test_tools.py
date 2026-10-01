@@ -5,11 +5,18 @@ import pytest
 from haystack.core.errors import DeserializationError
 
 from haystack_integrations.agent_pack.optimization.tools import (
-    WORKSPACE_TOOLS,
     _documentation_result,
     _make_haystack_documentation_toolset,
+    edit_config,
+    finish,
     inspect_component,
+    read_config,
+    restore_candidate,
+    submit_candidate,
+    validate_config,
 )
+
+WORKSPACE_TOOLS = (read_config, edit_config, validate_config, submit_candidate, restore_candidate, finish)
 
 
 def docs_payload(**body):

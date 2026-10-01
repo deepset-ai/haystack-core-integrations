@@ -99,6 +99,8 @@ def inspect_component(
     }
 
 
+# The workspace tools change the `ConfigurationWorkspace` passed to `Agent.run` as `workspace`. Each reads it
+# from `state.data`, since `State.get` returns a deep copy and the tools have to change the caller's workspace
 @tool
 def read_config(state: State) -> dict[str, str]:
     """Read the entire editable YAML and its revision for subsequent edits."""
@@ -168,8 +170,3 @@ def finish(
 ) -> str:
     """End optimization when no hypothesis worth measuring remains."""
     return state.data["workspace"]._finish(reason=reason)
-
-
-# The tools that read and change the `ConfigurationWorkspace` passed to `Agent.run` as `workspace`. Each reads it
-# from `state.data`, since `State.get` returns a deep copy and the tools have to change the caller's workspace
-WORKSPACE_TOOLS = [read_config, edit_config, validate_config, submit_candidate, restore_candidate, finish]
