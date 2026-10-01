@@ -199,6 +199,39 @@ class TestQdrantSparseEmbeddingRetriever:
         mock_store._query_by_sparse_async.assert_awaited_once()
         assert res["documents"][0].content == "doc"
 
+    def test_run_falsy_runtime_values_override_init(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_by_sparse.return_value = []
+        sparse = SparseEmbedding(indices=[0, 5], values=[0.1, 0.7])
+
+        retriever = QdrantSparseEmbeddingRetriever(
+            document_store=mock_store, scale_score=True, return_embedding=True, score_threshold=0.5
+        )
+        retriever.run(query_sparse_embedding=sparse, scale_score=False, return_embedding=False, score_threshold=0.0)
+
+        call_kwargs = mock_store._query_by_sparse.call_args.kwargs
+        assert call_kwargs["scale_score"] is False
+        assert call_kwargs["return_embedding"] is False
+        assert call_kwargs["score_threshold"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_run_async_falsy_runtime_values_override_init(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_by_sparse_async = AsyncMock(return_value=[])
+        sparse = SparseEmbedding(indices=[0, 5], values=[0.1, 0.7])
+
+        retriever = QdrantSparseEmbeddingRetriever(
+            document_store=mock_store, scale_score=True, return_embedding=True, score_threshold=0.5
+        )
+        await retriever.run_async(
+            query_sparse_embedding=sparse, scale_score=False, return_embedding=False, score_threshold=0.0
+        )
+
+        call_kwargs = mock_store._query_by_sparse_async.call_args.kwargs
+        assert call_kwargs["scale_score"] is False
+        assert call_kwargs["return_embedding"] is False
+        assert call_kwargs["score_threshold"] == 0.0
+
     def test_run_raises_when_merge_with_native_filter(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
         retriever = QdrantSparseEmbeddingRetriever(
