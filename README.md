@@ -4,15 +4,15 @@
 
 | Name                                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/common/huggingface\_api/utils.py                                    |       65 |        2 |       10 |        1 |     96% |   141-142 |
-| src/haystack\_integrations/components/embedders/huggingface\_api/document\_embedder.py         |      152 |        6 |       46 |        5 |     94% |179-180, 288-\>292, 292-\>296, 389-393, 425-429 |
-| src/haystack\_integrations/components/embedders/huggingface\_api/sparse\_document\_embedder.py |       83 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/common/huggingface\_api/utils.py                                    |       78 |        2 |       14 |        1 |     97% |   142-143 |
+| src/haystack\_integrations/components/embedders/huggingface\_api/document\_embedder.py         |      212 |       12 |       76 |        9 |     93% |195-196, 327-\>331, 331-\>335, 340, 359-360, 394, 416-417, 488-492, 526-530 |
+| src/haystack\_integrations/components/embedders/huggingface\_api/sparse\_document\_embedder.py |      162 |        4 |       48 |        3 |     97% |188, 214, 236-237 |
 | src/haystack\_integrations/components/embedders/huggingface\_api/sparse\_embedding\_utils.py   |       42 |        0 |       14 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/huggingface\_api/sparse\_text\_embedder.py     |       41 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/huggingface\_api/text\_embedder.py             |      108 |        4 |       40 |        6 |     93% |143-144, 198-\>208, 199-\>203, 203-\>208, 304, 306 |
+| src/haystack\_integrations/components/embedders/huggingface\_api/sparse\_text\_embedder.py     |       93 |        0 |       30 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/huggingface\_api/text\_embedder.py             |      142 |        4 |       60 |        5 |     96% |158-159, 236-\>240, 240-\>245, 360, 362 |
 | src/haystack\_integrations/components/generators/huggingface\_api/chat/chat\_generator.py      |      260 |        8 |       96 |       13 |     94% |136-\>140, 138-\>140, 188, 221-\>223, 422-423, 519, 626-627, 682, 704-\>709, 737-\>730, 741-\>744, 758, 777-\>782 |
-| src/haystack\_integrations/components/rankers/huggingface\_api/ranker.py                       |       91 |        9 |       24 |        2 |     90% |234-236, 276-277, 284, 301-303 |
-| **TOTAL**                                                                                      |  **842** |   **29** |  **246** |   **27** | **95%** |           |
+| src/haystack\_integrations/components/rankers/huggingface\_api/ranker.py                       |      132 |       10 |       42 |        3 |     93% |293-295, 335-336, 343, 348, 374-376 |
+| **TOTAL**                                                                                      | **1121** |   **40** |  **380** |   **34** | **95%** |           |
 
 
 ## Setup coverage badge
