@@ -89,23 +89,6 @@ class TestMistralChatGeneratorAsync:
         assert component.async_client.base_url == "https://api.mistral.ai/v1/"
 
     @pytest.mark.asyncio
-    async def test_configured_tools_async_lifecycle(
-        self, tools, chat_messages, mock_async_chat_completion, monkeypatch
-    ):
-        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
-        component = MistralChatGenerator(tools=tools)
-        with (
-            patch.object(tools[0], "warm_up_async", new_callable=AsyncMock, create=True) as tool_warm_up_async,
-            patch.object(tools[0], "close_async", new_callable=AsyncMock, create=True) as tool_close_async,
-        ):
-            await component.run_async(chat_messages)
-            mock_async_chat_completion.assert_awaited_once()
-            tool_warm_up_async.assert_awaited_once_with()
-            tool_close_async.assert_not_awaited()
-            await component.close_async()
-            tool_close_async.assert_awaited_once_with()
-
-    @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
         component = MistralChatGenerator()

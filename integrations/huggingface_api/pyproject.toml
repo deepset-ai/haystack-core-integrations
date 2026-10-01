@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@1592d3ca7d286ea52cf357807c5cc526733c6a74",
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@cf12a9f38e1f49214cf73dfd7c6d4aa3ae53f369",
     "httpx>=0.27.0",
     "huggingface_hub[inference]>=1.0.0",
 ]

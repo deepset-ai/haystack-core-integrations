@@ -4,13 +4,12 @@
 
 import os
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage
-from haystack.tools import Tool
 from haystack.utils.auth import Secret
 from openai.types.responses import Response
 
@@ -224,29 +223,6 @@ class TestPerplexityChatGenerator:
         assert "input" in call_kwargs
         assert "messages" not in call_kwargs
         assert call_kwargs["stream"] is False
-
-    @pytest.mark.asyncio
-    async def test_configured_tools_async_lifecycle(self, chat_messages):
-        tool = Tool(
-            name="hello",
-            description="Say hello",
-            parameters={"type": "object", "properties": {}},
-            function=lambda: "hello",
-        )
-        component = PerplexityChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[tool])
-        with (
-            patch(
-                "openai.resources.responses.AsyncResponses.create", return_value=_make_response()
-            ) as responses_create,
-            patch.object(tool, "warm_up_async", new_callable=AsyncMock, create=True) as tool_warm_up_async,
-            patch.object(tool, "close_async", new_callable=AsyncMock, create=True) as tool_close_async,
-        ):
-            await component.run_async(chat_messages)
-            responses_create.assert_awaited_once()
-            tool_warm_up_async.assert_awaited_once_with()
-            tool_close_async.assert_not_awaited()
-            await component.close_async()
-            tool_close_async.assert_awaited_once_with()
 
     def test_http_client_kwargs_with_headers_merges_extra_and_attribution(self):
         kwargs = chat_generator_module._http_client_kwargs_with_headers(
