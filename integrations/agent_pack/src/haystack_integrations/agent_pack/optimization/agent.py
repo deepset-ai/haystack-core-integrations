@@ -25,6 +25,7 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.optimization.tools import (
+    WORKSPACE_TOOLS,
     _make_haystack_documentation_toolset,
     inspect_component,
 )
@@ -99,22 +100,24 @@ def create_harness_optimizer_agent(
     :param documentation_tools: Give the agent read-only search over the public Haystack documentation, so it can
         look up a component's parameters and serialized shape. Requires `mcp-haystack`, and reaches the
         documentation server over the network.
-    :returns: The harness optimizer `Agent`. Pass it to `propose_candidate`, which clones it each turn with the
-        workspace's editing tools and its exit conditions; running it directly gives it no configuration to edit.
+    :returns: The harness optimizer `Agent`. Its tools edit the `ConfigurationWorkspace` passed to `run` as
+        `workspace`, and a run ends when the optimizer calls `submit_candidate` or `finish`. `propose_candidate`
+        runs one turn with the prompt built from the experiment so far.
     """
     instructions = system_prompt or prompts.HARNESS_OPTIMIZER_SYSTEM_PROMPT
     instructions = f"{instructions}\n\n## This environment\n\n{_describe_environment()}"
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n## This harness\n\n{additional_instructions.strip()}"
     llm = llm or _default_llm("gpt-5.6-terra")
-    tools: list[Tool | Toolset] = [inspect_component]
+    tools: list[Tool | Toolset] = [*WORKSPACE_TOOLS, inspect_component]
     if documentation_tools:
         tools.append(_make_haystack_documentation_toolset())
     return Agent(
         chat_generator=llm,
         tools=tools,
         system_prompt=instructions,
-        exit_conditions=["text"],
+        exit_conditions=["submit_candidate", "finish"],
+        state_schema={"workspace": {"type": ConfigurationWorkspace}},
         max_agent_steps=max_agent_steps,
     )
 
@@ -268,7 +271,7 @@ def propose_candidate(
     """
     Let the optimizer edit, validate and submit one YAML candidate.
 
-    :param optimizer_agent: Agent supplying generator, instructions and optional documentation tools.
+    :param optimizer_agent: The agent from `create_harness_optimizer_agent`.
     :param workspace: The editable configuration file and its snapshots.
     :param reference: Reference configuration supplying tool specifications, when it has any.
     :param prices: Known token prices keyed by model identifier.
@@ -337,24 +340,19 @@ def propose_candidate(
         ]
     )
 
-    # A fresh clone per turn, with this turn's workspace tools and exit conditions
-    agent = optimizer_agent.clone(
-        tools=[*optimizer_agent.tools, *workspace.tools()],
-        tool_concurrency_limit=1,
-        exit_conditions=["submit_candidate", "finish"],
-    )
-    result = agent.run(
+    result = optimizer_agent.run(
         messages=[
             ChatMessage.from_user(text=context),
             ChatMessage.from_user(text=outcomes),
             ChatMessage.from_user(text=current),
-        ]
+        ],
+        workspace=workspace,
     )
 
     logger.info(
         "optimizer turn: steps={steps}/{budget} exit={exit_reason} calls={calls} usage={usage}",
         steps=result.get("step_count"),
-        budget=agent.max_agent_steps,
+        budget=optimizer_agent.max_agent_steps,
         exit_reason=result.get("exit_reason"),
         calls=[call.tool_name for message in result.get("messages") or [] for call in message.tool_calls],
         usage=result.get("token_usage"),

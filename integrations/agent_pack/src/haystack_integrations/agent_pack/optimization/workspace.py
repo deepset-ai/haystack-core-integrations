@@ -7,12 +7,11 @@ from collections.abc import Callable
 from difflib import unified_diff
 from pathlib import Path
 from threading import RLock
-from typing import Annotated, Any
+from typing import Any
 
 from haystack import Pipeline
 from haystack.components.agents import Agent
-from haystack.tools import Tool, flatten_tools_or_toolsets
-from haystack.tools.from_function import create_tool_from_function
+from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.optimization.dataclasses import CandidateConfiguration
 from haystack_integrations.agent_pack.optimization.utils import (
@@ -26,9 +25,9 @@ class ConfigurationWorkspace:
     """
     Holds the configuration the optimizer edits during an experiment.
 
-    The configuration lives in one YAML file. `tools()` returns the tools the optimizer uses to read, edit, validate
-    and submit it. The reference and every submitted candidate are kept as snapshots, and `begin_turn` starts each
-    proposal turn from one of them.
+    The configuration lives in one YAML file, which the optimizer reads, edits, validates and submits through the
+    workspace tools in `optimization/tools.py`. The reference and every submitted candidate are kept as snapshots,
+    and `begin_turn` starts each proposal turn from one of them.
     """
 
     def __init__(
@@ -92,25 +91,13 @@ class ConfigurationWorkspace:
         os.replace(temporary, self.path)
 
     def _read_config(self) -> dict[str, str]:
-        """Read the entire editable YAML and its revision for subsequent edits."""
+        """Return the current YAML, its revision and the snapshot it was edited from."""
         with self._lock:
             text = self._read()
             return {"yaml": text, "revision": content_digest(payload=text), "parent_id": self.parent_id}
 
-    def _edit_config(
-        self,
-        old: Annotated[
-            str,
-            "Nonempty text to replace, matched literally and occurring exactly once in the current YAML. Include "
-            "enough surrounding lines to be unique: a bare 'top_k: 2' or a type line repeated across components "
-            "matches more than once and is rejected. Pass the entire YAML to rewrite the whole file.",
-        ],
-        new: Annotated[str, "Text replacing that block verbatim, or empty text to delete it."],
-        expected_revision: Annotated[
-            str, "The revision returned by read_config or by the preceding edit, which must still be current."
-        ],
-    ) -> dict[str, str]:
-        """Replace one exact text block. Use the entire current YAML as old for a full rewrite."""
+    def _edit_config(self, old: str, new: str, expected_revision: str) -> dict[str, str]:
+        """Replace the one occurrence of `old` with `new` and return the new revision."""
         with self._lock:
             text = self._read()
             if not old or text.count(old) != 1:
@@ -119,7 +106,7 @@ class ConfigurationWorkspace:
             return self._write(text=text.replace(old, new, 1), expected_revision=expected_revision)
 
     def _validate_config(self) -> dict[str, Any]:
-        """Check the YAML loads as the expected Agent or Pipeline and passes the evaluator's checks, without running."""
+        """Load the current YAML with `loader` and run `validator` on it, recording the revision when it passes."""
         with self._lock:
             text = self._read()
             revision = content_digest(payload=text)
@@ -141,18 +128,8 @@ class ConfigurationWorkspace:
             self.validated_revision = revision
             return {"valid": True, "revision": revision, "tools": specs}
 
-    def _submit_candidate(
-        self,
-        expected_revision: Annotated[
-            str, "The revision returned by a successful validate_config, which must still be current."
-        ],
-        rationale: Annotated[
-            str,
-            "The hypothesis this candidate tests: what was changed and what it is expected to move. Read back "
-            "alongside the score, so name the change rather than restating the goal.",
-        ],
-    ) -> dict[str, str]:
-        """Submit this validated revision for evaluation and end the proposal turn."""
+    def _submit_candidate(self, expected_revision: str, rationale: str) -> dict[str, str]:
+        """Snapshot the validated revision as `submitted` and end the turn."""
         with self._lock:
             text = self._read()
             if self.finished or self.submitted is not None:
@@ -179,14 +156,8 @@ class ConfigurationWorkspace:
             self.snapshots[candidate_id] = text
             return {"candidate_id": candidate_id}
 
-    def _restore_candidate(
-        self,
-        candidate_id: Annotated[
-            str, "A candidate ID from the outcomes so far, or 'reference' for the original configuration."
-        ],
-        expected_revision: Annotated[str, "The current workspace revision, from read_config or the last edit."],
-    ) -> dict[str, str]:
-        """Restore a submitted candidate or the reference as the base for further edits."""
+    def _restore_candidate(self, candidate_id: str, expected_revision: str) -> dict[str, str]:
+        """Reset the file to a snapshot, `"reference"` included, and make it the parent of further edits."""
         with self._lock:
             key = self.reference_id if candidate_id == "reference" else candidate_id
             if key not in self.snapshots:
@@ -196,15 +167,8 @@ class ConfigurationWorkspace:
             self.parent_id = key
             return result
 
-    def _finish(
-        self,
-        reason: Annotated[
-            str,
-            "What was considered and why none of it is worth measuring. This ends the experiment with the "
-            "remaining evaluations unspent, and is the only record of why.",
-        ],
-    ) -> str:
-        """End optimization when no hypothesis worth measuring remains."""
+    def _finish(self, reason: str) -> str:
+        """End the experiment without a submission, recording `reason`."""
         with self._lock:
             if self.submitted is None:
                 self.finished = True
@@ -228,14 +192,3 @@ class ConfigurationWorkspace:
                 self.parent_id = self.submitted.candidate_id
             self.submitted = None
             self.validated_revision = None
-
-    def tools(self) -> list[Tool]:
-        """Build the small tool interface bound to this workspace."""
-        return [
-            create_tool_from_function(function=self._read_config, name="read_config"),
-            create_tool_from_function(function=self._edit_config, name="edit_config"),
-            create_tool_from_function(function=self._validate_config, name="validate_config"),
-            create_tool_from_function(function=self._submit_candidate, name="submit_candidate"),
-            create_tool_from_function(function=self._restore_candidate, name="restore_candidate"),
-            create_tool_from_function(function=self._finish, name="finish"),
-        ]

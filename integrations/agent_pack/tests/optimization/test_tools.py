@@ -5,6 +5,7 @@ import pytest
 from haystack.core.errors import DeserializationError
 
 from haystack_integrations.agent_pack.optimization.tools import (
+    WORKSPACE_TOOLS,
     _documentation_result,
     _make_haystack_documentation_toolset,
     inspect_component,
@@ -83,3 +84,36 @@ class TestInspectComponent:
     def test_tool_name(self):
         """The system prompt refers to the tool by this name."""
         assert inspect_component.name == "inspect_component"
+
+
+class TestWorkspaceTools:
+    def test_tool_names(self):
+        """The system prompt refers to the tools by these names."""
+        assert [tool.name for tool in WORKSPACE_TOOLS] == [
+            "read_config",
+            "edit_config",
+            "validate_config",
+            "submit_candidate",
+            "restore_candidate",
+            "finish",
+        ]
+
+    def test_workspace_comes_from_state(self):
+        """The optimizer never sees the state, the workspace or a path: the agent injects its live state."""
+        for workspace_tool in WORKSPACE_TOOLS:
+            assert not {"state", "workspace", "path"} & set(workspace_tool.parameters.get("properties", {}))
+
+    def test_every_parameter_is_described(self):
+        """
+        `create_tool_from_function` builds the schema from `Annotated` metadata and never reads `:param` lines, so a
+        parameter documented only in the docstring reaches the model as a bare string with no explanation of it.
+        """
+        described = {
+            f"{workspace_tool.name}.{name}": specification.get("description")
+            for workspace_tool in WORKSPACE_TOOLS
+            for name, specification in workspace_tool.parameters.get("properties", {}).items()
+        }
+        assert described
+        assert [parameter for parameter, description in described.items() if not description] == []
+        # The constraint that actually fails at runtime has to be in the schema, not only in the error it raises.
+        assert "exactly once" in described["edit_config.old"]

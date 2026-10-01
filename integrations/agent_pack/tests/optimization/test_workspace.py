@@ -54,10 +54,6 @@ class TestEdit:
         with pytest.raises(ValueError, match="Validate"):
             workspace._submit_candidate(repaired["revision"], "stale validation")
 
-    def test_only_the_bound_file(self, tmp_path):
-        workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
-        assert all("path" not in tool.parameters.get("properties", {}) for tool in workspace.tools())
-
     def test_rejects_a_symlinked_path(self, tmp_path):
         outside = tmp_path / "outside.yaml"
         outside.write_text("untouched")
@@ -156,33 +152,3 @@ class TestLoad:
         workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
         workspace.begin_turn(base_id="never-measured")
         assert workspace._read_config()["parent_id"] == workspace.reference_id
-
-
-class TestTools:
-    def test_tool_names(self, tmp_path):
-        """The system prompt refers to the tools by these names."""
-        workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
-        assert [tool.name for tool in workspace.tools()] == [
-            "read_config",
-            "edit_config",
-            "validate_config",
-            "submit_candidate",
-            "restore_candidate",
-            "finish",
-        ]
-
-    def test_every_parameter_is_described(self, tmp_path):
-        """
-        `create_tool_from_function` builds the schema from `Annotated` metadata and never reads `:param` lines, so a
-        parameter documented only in the docstring reaches the model as a bare string with no explanation of it.
-        """
-        workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
-        described = {
-            f"{tool.name}.{name}": specification.get("description")
-            for tool in workspace.tools()
-            for name, specification in tool.parameters.get("properties", {}).items()
-        }
-        assert described
-        assert [parameter for parameter, description in described.items() if not description] == []
-        # The constraint that actually fails at runtime has to be in the schema, not only in the error it raises.
-        assert "exactly once" in described["edit_config.old"]

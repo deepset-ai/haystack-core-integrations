@@ -54,17 +54,78 @@ class TestCreateOptimizerAgent:
         assert agent.system_prompt.endswith("Keep the corpus.")
         assert agent.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}
 
-    def test_inspect_component_is_always_attached(self, monkeypatch):
+    def test_complete_agent(self, monkeypatch):
+        """The factory's agent is the one that runs: no tools or exit conditions are added per turn."""
         monkeypatch.setenv("OPENAI_API_KEY", "test")
         agent = create_harness_optimizer_agent()
-        assert [tool.name for tool in agent.tools] == ["inspect_component"]
+        assert [tool.name for tool in agent.tools] == [
+            "read_config",
+            "edit_config",
+            "validate_config",
+            "submit_candidate",
+            "restore_candidate",
+            "finish",
+            "inspect_component",
+        ]
+        assert agent.exit_conditions == ["submit_candidate", "finish"]
+        assert "workspace" in agent.state_schema
+
+    def test_run_directly(self, tmp_path):
+        """Called without `propose_candidate`, the agent edits whatever workspace it is given."""
+        workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+        calls = iter(
+            [
+                ToolCall("read_config", {}, id="read"),
+                ToolCall("finish", {"reason": "nothing worth measuring"}, id="finish"),
+            ]
+        )
+        agent = create_harness_optimizer_agent(
+            llm=MockChatGenerator(response_fn=lambda _messages: ChatMessage.from_assistant(tool_calls=[next(calls)]))
+        )
+        agent.run(messages=[ChatMessage.from_user("Propose the next candidate.")], workspace=workspace)
+        # The tools changed the caller's workspace, not a copy of it
+        assert workspace.finished
+        assert workspace.finish_reason == "nothing worth measuring"
+
+    def test_workspace_tools_run_in_call_order(self, tmp_path):
+        """An edit and a validation requested in one step run in that order, so the validation sees the edit."""
+        workspace = ConfigurationWorkspace(tmp_path / "candidate.yaml", agent_yaml())
+        revision = workspace._read_config()["revision"]
+        steps = iter(
+            [
+                [
+                    ToolCall(
+                        "edit_config",
+                        {"old": "model: reference", "new": "model: cheap", "expected_revision": revision},
+                        id="edit",
+                    ),
+                    ToolCall("validate_config", {}, id="validate"),
+                ],
+                [ToolCall("finish", {"reason": "done"}, id="finish")],
+            ]
+        )
+        agent = create_harness_optimizer_agent(
+            llm=MockChatGenerator(response_fn=lambda _messages: ChatMessage.from_assistant(tool_calls=next(steps)))
+        )
+        agent.run(messages=[ChatMessage.from_user("Propose the next candidate.")], workspace=workspace)
+        edited = workspace._read_config()
+        assert "model: cheap" in edited["yaml"]
+        # The validation ran after the edit, so it validated the edited revision
+        assert workspace.validated_revision == edited["revision"]
+
+    def test_serialization_roundtrip(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test")
+        restored = Agent.from_dict(create_harness_optimizer_agent().to_dict())
+        assert [tool.name for tool in restored.tools][-1] == "inspect_component"
+        assert restored.exit_conditions == ["submit_candidate", "finish"]
+        assert restored.state_schema["workspace"]["type"] is ConfigurationWorkspace
 
     def test_documentation_tools(self, monkeypatch):
         mcp = pytest.importorskip("haystack_integrations.tools.mcp")
         monkeypatch.setenv("OPENAI_API_KEY", "test")
         agent = create_harness_optimizer_agent(documentation_tools=True)
-        assert agent.tools[0].name == "inspect_component"
-        assert isinstance(agent.tools[1], mcp.MCPToolset)
+        assert agent.tools[-2].name == "inspect_component"
+        assert isinstance(agent.tools[-1], mcp.MCPToolset)
 
 
 class TestProposeCandidate:
