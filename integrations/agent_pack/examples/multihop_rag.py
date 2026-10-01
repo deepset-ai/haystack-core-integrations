@@ -30,13 +30,13 @@ from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.lazy_imports import LazyImport
 
 with LazyImport(message='Run "pip install datasets" to build the MultiHopRAG evaluation set.') as datasets_import:
-    from datasets import load_dataset
+    from datasets import load_dataset  # type: ignore[import-untyped]
 
 with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
     from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
-@dataclass(frozen=True)
+@dataclass
 class LabelledQuestion:
     """
     One question the dataset labels, with the evidence an answer needs.
@@ -66,7 +66,7 @@ CORPUS_KEY = "multihop-rag"
 # means 926 of them are present in two adjacent chunks, so a query can no longer retrieve just a single expected
 # document, so the query is dropped rather than scored loosely. So we end up with 1,432 of the 2,255 queries as
 # valid eval points.
-SPLIT_BY = "word"
+SPLIT_BY: Literal["word"] = "word"
 SPLIT_LENGTH = 350
 SPLIT_OVERLAP = 90
 
@@ -78,7 +78,7 @@ ARTICLE_METADATA = ("title", "category", "source", "author", "published_at", "ur
 ANSWERABLE_QUESTION_TYPES = ("comparison_query", "inference_query", "temporal_query")
 
 
-@dataclass(frozen=True)
+@dataclass
 class Article:
     """One article's body and its chunks, in the order they appear in it."""
 
@@ -226,7 +226,9 @@ def exact_eval_case_candidates(articles: dict[str, Article]) -> dict[str, list[L
             f"them. Lower SPLIT_LENGTH or raise SPLIT_OVERLAP until every fact fits inside one chunk."
         )
         raise ValueError(msg)
-    return {name: sorted(cases, key=lambda case: case.question) for name, cases in candidates.items()}
+    return {
+        name: sorted(eval_cases, key=lambda eval_case: eval_case.question) for name, eval_cases in candidates.items()
+    }
 
 
 def build_eval_cases(articles: dict[str, Article], limit: int, seed: int = 0) -> list[LabelledQuestion]:
@@ -244,13 +246,13 @@ def build_eval_cases(articles: dict[str, Article], limit: int, seed: int = 0) ->
         raise ValueError(msg)
     candidates = exact_eval_case_candidates(articles=articles)
 
-    def rank(case: LabelledQuestion) -> str:
+    def rank(eval_case: LabelledQuestion) -> str:
         """Order eval cases by a hash of the seed and the question, which the same seed reproduces exactly."""
-        return hashlib.sha256(f"{seed}:{case.question}".encode()).hexdigest()
+        return hashlib.sha256(f"{seed}:{eval_case.question}".encode()).hexdigest()
 
     # Sorted by a hash rather than seeded with `random`, whose ordering for a given seed can change between Python
     # versions.
-    ordered = {name: sorted(cases, key=rank) for name, cases in candidates.items()}
+    ordered = {name: sorted(eval_cases, key=rank) for name, eval_cases in candidates.items()}
 
     # Take one eval case per question type in turn, so stopping at the limit still leaves the types balanced.
     selected: list[LabelledQuestion] = []
@@ -263,7 +265,7 @@ def build_eval_cases(articles: dict[str, Article], limit: int, seed: int = 0) ->
     return selected
 
 
-def _report(store: DocumentStore, articles: dict[str, Article], cases: list[LabelledQuestion]) -> None:
+def _report(store: DocumentStore, articles: dict[str, Article], eval_cases: list[LabelledQuestion]) -> None:
     """Describe what was built, including the checks that make the eval cases scoreable."""
     chunks = [chunk for article in articles.values() for chunk in article.chunks]
     lengths = sorted(len(chunk.content or "") for chunk in chunks)
@@ -275,29 +277,29 @@ def _report(store: DocumentStore, articles: dict[str, Article], cases: list[Labe
         f"author={len(metadata['author'])} distinct values"
     )
     print(f"  published: {min(metadata['published_at'])} .. {max(metadata['published_at'])}")
-    print(f"\n  eval cases selected: {len(cases)}")
+    print(f"\n  eval cases selected: {len(eval_cases)}")
     # Listed rather than given as a range, since the sizes present need not be contiguous.
-    sizes = sorted({len(case.expected_document_ids) for case in cases})
+    sizes = sorted({len(eval_case.expected_document_ids) for eval_case in eval_cases})
     listed = str(sizes[0]) if len(sizes) == 1 else f"{', '.join(str(size) for size in sizes[:-1])} or {sizes[-1]}"
     print(f"    expected documents per eval case: {listed}")
-    print(f"    with a ground-truth answer:  {sum(1 for case in cases if case.answer)}")
+    print(f"    with a ground-truth answer:  {sum(1 for eval_case in eval_cases if eval_case.answer)}")
     print("    example questions:")
-    for case in cases[:3]:
-        print(f"      - {case.question[:96]}")
+    for eval_case in eval_cases[:3]:
+        print(f"      - {eval_case.question[:96]}")
 
 
 def main() -> None:
     """Build the corpus and evaluation set, and report what came out."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
-    parser.add_argument("--max-cases", type=int, default=20)
-    parser.add_argument("--case-seed", type=int, default=0)
+    parser.add_argument("--max-eval-cases", type=int, default=20)
+    parser.add_argument("--eval-case-seed", type=int, default=0)
     arguments = parser.parse_args()
 
     print(f"=== preparing {DATASET_ID} on {arguments.store} ===")
     store, articles = prepare_corpus(backend=arguments.store)
-    cases = build_eval_cases(articles=articles, limit=arguments.max_cases, seed=arguments.case_seed)
-    _report(store=store, articles=articles, cases=cases)
+    eval_cases = build_eval_cases(articles=articles, limit=arguments.max_eval_cases, seed=arguments.eval_case_seed)
+    _report(store=store, articles=articles, eval_cases=eval_cases)
 
     available = exact_eval_case_candidates(articles=articles)
     print(f"\n  eval cases available in total: {sum(len(pool) for pool in available.values())}")

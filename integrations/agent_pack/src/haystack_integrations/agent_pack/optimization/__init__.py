@@ -11,14 +11,28 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateOutcome,
     OptimizationObjectives,
 )
+from haystack_integrations.agent_pack.optimization.experiment import (
+    CandidateEvaluation,
+    CandidateProgress,
+    ExperimentJournal,
+    ExperimentRecommendation,
+    ExperimentResult,
+    HarnessOptimizationExperiment,
+)
 from haystack_integrations.agent_pack.optimization.workspace import (
     ConfigurationWorkspace,
 )
 
 __all__ = [
     "CandidateConfiguration",
+    "CandidateEvaluation",
     "CandidateOutcome",
+    "CandidateProgress",
     "ConfigurationWorkspace",
+    "ExperimentJournal",
+    "ExperimentRecommendation",
+    "ExperimentResult",
+    "HarnessOptimizationExperiment",
     "OptimizationObjectives",
     "create_harness_optimizer_agent",
     "propose_candidate",
