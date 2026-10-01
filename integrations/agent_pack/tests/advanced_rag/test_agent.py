@@ -43,13 +43,14 @@ def store():
     return document_store
 
 
-def test_default_llm_applies_pack_settings():
-    llm = _default_llm("gpt-5.4")
-    assert isinstance(llm, OpenAIResponsesChatGenerator)
-    assert llm.model == "gpt-5.4"
-    assert llm.timeout == 180.0
-    assert llm.max_retries == 5
-    assert llm.generation_kwargs == {"reasoning": {"effort": "low"}}
+class TestDefaultLlm:
+    def test_applies_pack_settings(self):
+        llm = _default_llm("gpt-5.4")
+        assert isinstance(llm, OpenAIResponsesChatGenerator)
+        assert llm.model == "gpt-5.4"
+        assert llm.timeout == 180.0
+        assert llm.max_retries == 5
+        assert llm.generation_kwargs == {"reasoning": {"effort": "low"}}
 
 
 class TestFactoryValidation:
