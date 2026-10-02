@@ -397,6 +397,48 @@ def mock_searchapi_search_result_async() -> Generator[MagicMock, None, None]:
         yield mock_get
 
 
+EXAMPLE_AI_ANSWER_RESPONSE = {
+    "search_metadata": {"id": "search_ai_answer", "status": "Success", "created_at": "2026-10-01T00:00:00Z"},
+    "search_parameters": {"engine": "perplexity", "q": "What is pgvector?"},
+    "text_blocks": [
+        {"type": "header", "answer": "pgvector"},
+        {
+            "type": "paragraph",
+            "answer": "pgvector adds vector similarity search to PostgreSQL.",
+            "reference_indexes": [0],
+        },
+        {
+            "type": "unordered_list",
+            "answer": "It supports:",
+            "items": [
+                {"type": "paragraph", "answer": "HNSW indexes"},
+                {"type": "paragraph", "answer": "IVFFlat indexes"},
+            ],
+        },
+        {"type": "table", "table": {"headers": ["Index", "Recall"], "rows": [["HNSW", "0.75"], ["IVFFlat", "0.70"]]}},
+    ],
+    "markdown": "## pgvector\n\npgvector adds vector similarity search to PostgreSQL.[1]",
+    "reference_links": [
+        {
+            "index": 0,
+            "title": "pgvector on GitHub",
+            "link": "https://github.com/pgvector/pgvector",
+            "snippet": "Open-source vector similarity search for Postgres.",
+            "source": "GitHub",
+        },
+        {"index": 1, "title": "Vectors in Postgres", "link": "https://example.com/vectors", "source": "Example"},
+    ],
+    "related_questions": [{"question": "How does HNSW work?"}],
+}
+
+
+@pytest.fixture
+def mock_searchapi_ai_answer_result() -> Generator[MagicMock, None, None]:
+    with patch("haystack_integrations.components.websearch.searchapi.websearch.httpx.get") as mock_get:
+        mock_get.return_value = Mock(status_code=200, json=lambda: EXAMPLE_AI_ANSWER_RESPONSE)
+        yield mock_get
+
+
 class TestSearchApiSearchAPI:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("SEARCHAPI_API_KEY", raising=False)
@@ -442,6 +484,80 @@ class TestSearchApiSearchAPI:
         assert len(documents) == 1
         assert documents[0].content == "Satya Nadella"
         assert links == []
+
+    def test_parse_ai_answer_response(self) -> None:
+        documents, links = SearchApiWebSearch._parse_ai_answer(EXAMPLE_AI_ANSWER_RESPONSE)
+
+        assert documents[0].content == EXAMPLE_AI_ANSWER_RESPONSE["markdown"]
+        assert documents[0].meta["title"] == "What is pgvector?"
+        assert documents[0].meta["engine"] == "perplexity"
+        assert documents[0].meta["type"] == "ai_answer"
+
+        assert [doc.meta["link"] for doc in documents[1:]] == [
+            "https://github.com/pgvector/pgvector",
+            "https://example.com/vectors",
+        ]
+        assert documents[1].content == "Open-source vector similarity search for Postgres."
+        assert documents[1].meta["source"] == "GitHub"
+        assert documents[2].content == ""
+        assert links == ["https://github.com/pgvector/pgvector", "https://example.com/vectors"]
+
+    def test_parse_ai_answer_without_markdown_renders_text_blocks(self) -> None:
+        response = {key: value for key, value in EXAMPLE_AI_ANSWER_RESPONSE.items() if key != "markdown"}
+        documents, _ = SearchApiWebSearch._parse_ai_answer(response)
+
+        content = documents[0].content
+        assert content.startswith("## pgvector")
+        assert "pgvector adds vector similarity search to PostgreSQL." in content
+        assert "It supports:" in content
+        assert "- HNSW indexes" in content
+        assert "- IVFFlat indexes" in content
+        assert "| Index | Recall |" in content
+        assert "| HNSW | 0.75 |" in content
+
+    def test_parse_ai_answer_includes_web_results_after_references(self) -> None:
+        response = {
+            **EXAMPLE_AI_ANSWER_RESPONSE,
+            "search_parameters": {"engine": "google_ai_mode", "q": "What is pgvector?"},
+            "web_results": [
+                {
+                    "title": "A web result",
+                    "link": "https://example.com/web",
+                    "displayed_link": "example.com",
+                    "source": "Example",
+                    "snippet": "Web snippet.",
+                }
+            ],
+        }
+        documents, links = SearchApiWebSearch._parse_ai_answer(response)
+
+        assert documents[-1].meta["link"] == "https://example.com/web"
+        assert documents[-1].content == "Web snippet."
+        assert links == [
+            "https://github.com/pgvector/pgvector",
+            "https://example.com/vectors",
+            "https://example.com/web",
+        ]
+
+    def test_parse_ai_answer_without_answer_or_references(self) -> None:
+        documents, links = SearchApiWebSearch._parse_ai_answer(
+            {"search_parameters": {"engine": "gemini", "q": "nothing"}, "reference_links": []}
+        )
+        assert documents == []
+        assert links == []
+
+    @pytest.mark.usefixtures("mock_searchapi_ai_answer_result")
+    def test_web_search_ai_answer_engine(self) -> None:
+        ws = SearchApiWebSearch(
+            top_k=2, api_key=Secret.from_token("test-api-key"), search_params={"engine": "perplexity"}
+        )
+        results = ws.run(query="What is pgvector?")
+
+        documents = results["documents"]
+        assert len(documents) == 2
+        assert documents[0].meta["type"] == "ai_answer"
+        assert documents[1].meta["link"] == "https://github.com/pgvector/pgvector"
+        assert results["links"] == ["https://github.com/pgvector/pgvector", "https://example.com/vectors"]
 
     @pytest.mark.parametrize("top_k", [1, 5, 7])
     @pytest.mark.usefixtures("mock_searchapi_search_result")

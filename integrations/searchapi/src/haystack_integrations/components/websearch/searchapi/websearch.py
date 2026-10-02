@@ -34,6 +34,11 @@ class SearchApiWebSearch:
     assert results["documents"]
     assert results["links"]
     ```
+
+    SearchApi's AI answer engines are supported through `search_params`. With `{"engine": "perplexity"}`,
+    `{"engine": "google_ai_mode"}`, `{"engine": "chatgpt"}`, `{"engine": "gemini"}` or `{"engine": "bing_copilot"}`
+    the first document holds the synthesized answer as Markdown and the following documents and `links` hold the
+    reference links it cites.
     """
 
     def __init__(
@@ -182,6 +187,11 @@ class SearchApiWebSearch:
     def _parse_response(response: httpx.Response) -> tuple[list[Document], list[str]]:
         json_result = response.json()
 
+        # AI answer engines (google_ai_mode, perplexity, chatgpt, gemini, bing_copilot) return a
+        # synthesized answer instead of organic results
+        if any(key in json_result for key in ("text_blocks", "markdown", "reference_links")):
+            return SearchApiWebSearch._parse_ai_answer(json_result)
+
         # organic results are the main results from the search engine
         organic_results = []
         if "organic_results" in json_result:
@@ -231,3 +241,102 @@ class SearchApiWebSearch:
 
         links = [result["link"] for result in json_result.get("organic_results", [])]
         return documents, links
+
+    @staticmethod
+    def _parse_ai_answer(json_result: dict[str, Any]) -> tuple[list[Document], list[str]]:
+        """
+        Parse the shared AI answer shape returned by SearchApi's answer engines.
+
+        Engines such as `google_ai_mode`, `perplexity`, `chatgpt`, `gemini` and `bing_copilot` return the answer
+        as `markdown` plus typed `text_blocks`, the sources it cites as `reference_links`, and for Google AI Mode
+        the `web_results` it drew from. The answer becomes the first document, each reference link a document
+        after it, followed by any web results. Links are the reference links, then the web result links.
+        """
+        parameters = json_result.get("search_parameters", {})
+        documents: list[Document] = []
+
+        answer = json_result.get("markdown") or _text_blocks_to_markdown(json_result.get("text_blocks", []))
+        if answer:
+            documents.append(
+                Document.from_dict(
+                    {
+                        "title": parameters.get("q", ""),
+                        "content": answer,
+                        "engine": parameters.get("engine", ""),
+                        "type": "ai_answer",
+                    }
+                )
+            )
+
+        links: list[str] = []
+        for result in json_result.get("reference_links", []) or []:
+            documents.append(
+                Document.from_dict(
+                    {
+                        "title": result.get("title", ""),
+                        "content": result.get("snippet", ""),
+                        "link": result.get("link", ""),
+                        "source": result.get("source", ""),
+                    }
+                )
+            )
+            if result.get("link"):
+                links.append(result["link"])
+
+        for result in json_result.get("web_results", []) or []:
+            documents.append(
+                Document.from_dict(
+                    {
+                        "title": result.get("title", ""),
+                        "content": result.get("snippet", ""),
+                        "link": result.get("link", ""),
+                    }
+                )
+            )
+            if result.get("link") and result["link"] not in links:
+                links.append(result["link"])
+
+        return documents, links
+
+
+def _text_blocks_to_markdown(blocks: list[dict[str, Any]], depth: int = 0) -> str:
+    """Render SearchApi `text_blocks` as Markdown, for responses that carry no `markdown` field."""
+    lines: list[str] = []
+    indent = "  " * depth
+    for block in blocks or []:
+        kind = block.get("type")
+        answer = block.get("answer")
+        if kind == "header" and answer:
+            lines.append(f"## {answer}")
+        elif kind in ("paragraph", None) and answer:
+            lines.append(f"{indent}{answer}")
+        elif kind in ("unordered_list", "ordered_list"):
+            lines.extend(_list_block_lines(block, kind, indent, depth))
+        elif kind == "table":
+            lines.extend(_table_block_lines(block.get("table") or {}))
+        elif kind == "code_blocks" and block.get("code"):
+            lines.append(f"```{block.get('language') or ''}\n{block['code']}\n```")
+    return "\n".join(lines)
+
+
+def _list_block_lines(block: dict[str, Any], kind: str, indent: str, depth: int) -> list[str]:
+    lines: list[str] = []
+    if block.get("answer"):
+        lines.append(f"{indent}{block['answer']}")
+    for position, item in enumerate(block.get("items") or [], start=1):
+        marker = f"{position}." if kind == "ordered_list" else "-"
+        lines.append(f"{indent}{marker} {item.get('answer', '')}".rstrip())
+        if item.get("items"):
+            lines.append(_text_blocks_to_markdown(item["items"], depth + 1))
+    return lines
+
+
+def _table_block_lines(table: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    headers = table.get("headers") or []
+    if headers:
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("|" + "---|" * len(headers))
+    for row in table.get("rows") or []:
+        lines.append("| " + " | ".join(str(cell) for cell in row) + " |")
+    return lines
