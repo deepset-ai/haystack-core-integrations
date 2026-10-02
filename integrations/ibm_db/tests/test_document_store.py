@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -27,7 +28,6 @@ from haystack.testing.document_store import (
     UpdateByFilterTest,
     WriteDocumentsTest,
 )
-from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.ibm_db import IBMDb2DocumentStore
@@ -254,10 +254,7 @@ class TestDocumentStore(
         test is independent of the default `document_store` fixture.
         All Db2 distance metrics return scores ordered ASC (smaller = more similar).
         """
-        table_name = (
-            f"haystack_metric_{metric.lower()}"
-            f"_{sys.version_info.major}_{sys.version_info.minor}"
-        )
+        table_name = f"haystack_metric_{metric.lower()}_{sys.version_info.major}_{sys.version_info.minor}"
         store = IBMDb2DocumentStore(
             **connection_config,
             table_name=table_name,
@@ -271,14 +268,14 @@ class TestDocumentStore(
             #   most_similar  == query  → distance 0 (or near 0) for all metrics
             #   second_best   is close  → small distance
             #   least_similar is far    → large distance
-            query          = [1.0, 1.0, 1.0, 1.0]
-            most_similar   = [1.0, 1.0, 1.0, 1.0]
-            second_best    = [1.0, 1.0, 0.5, 0.5]
-            least_similar  = [0.0, 0.0, 0.0, 1.0]
+            query = [1.0, 1.0, 1.0, 1.0]
+            most_similar = [1.0, 1.0, 1.0, 1.0]
+            second_best = [1.0, 1.0, 0.5, 0.5]
+            least_similar = [0.0, 0.0, 0.0, 1.0]
 
             docs = [
-                Document(content="most_similar",  embedding=most_similar),
-                Document(content="second_best",   embedding=second_best),
+                Document(content="most_similar", embedding=most_similar),
+                Document(content="second_best", embedding=second_best),
                 Document(content="least_similar", embedding=least_similar),
             ]
             store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
@@ -290,12 +287,8 @@ class TestDocumentStore(
 
             # most_similar must be in the top-2; least_similar must be excluded
             contents = [r.content for r in results]
-            assert "most_similar" in contents, (
-                f"[{metric}] 'most_similar' missing from top-2: {contents}"
-            )
-            assert "least_similar" not in contents, (
-                f"[{metric}] 'least_similar' appeared in top-2: {contents}"
-            )
+            assert "most_similar" in contents, f"[{metric}] 'most_similar' missing from top-2: {contents}"
+            assert "least_similar" not in contents, f"[{metric}] 'least_similar' appeared in top-2: {contents}"
 
             # Scores must be finite floats and ordered ASC (ORDER BY score ASC)
             for doc in results:
@@ -315,7 +308,7 @@ class TestDocumentStore(
                 with conn.cursor() as cur:
                     cur.execute(f"DROP TABLE {store.table_name}")
                     conn.commit()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             store.close()
 
@@ -327,10 +320,7 @@ class TestDocumentStore(
         """
         Verify that metadata filters work correctly alongside each distance metric.
         """
-        table_name = (
-            f"haystack_metric_flt_{metric.lower()}"
-            f"_{sys.version_info.major}_{sys.version_info.minor}"
-        )
+        table_name = f"haystack_metric_flt_{metric.lower()}_{sys.version_info.major}_{sys.version_info.minor}"
         store = IBMDb2DocumentStore(
             **connection_config,
             table_name=table_name,
@@ -342,9 +332,9 @@ class TestDocumentStore(
         try:
             query = [1.0, 1.0, 1.0, 1.0]
             docs = [
-                Document(content="in_1",   embedding=[1.0, 1.0, 1.0, 1.0], meta={"cat": "A"}),
-                Document(content="in_2",   embedding=[0.9, 0.9, 0.9, 0.9], meta={"cat": "A"}),
-                Document(content="out",    embedding=[1.0, 1.0, 1.0, 1.0], meta={"cat": "B"}),
+                Document(content="in_1", embedding=[1.0, 1.0, 1.0, 1.0], meta={"cat": "A"}),
+                Document(content="in_2", embedding=[0.9, 0.9, 0.9, 0.9], meta={"cat": "A"}),
+                Document(content="out", embedding=[1.0, 1.0, 1.0, 1.0], meta={"cat": "B"}),
             ]
             store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
 
@@ -353,9 +343,7 @@ class TestDocumentStore(
 
             assert len(results) == 2, f"[{metric}] Expected 2 filtered results, got {len(results)}"
             for doc in results:
-                assert doc.meta.get("cat") == "A", (
-                    f"[{metric}] Doc with wrong category returned: {doc.meta}"
-                )
+                assert doc.meta.get("cat") == "A", f"[{metric}] Doc with wrong category returned: {doc.meta}"
 
         finally:
             try:
@@ -363,7 +351,7 @@ class TestDocumentStore(
                 with conn.cursor() as cur:
                     cur.execute(f"DROP TABLE {store.table_name}")
                     conn.commit()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
             store.close()
 
