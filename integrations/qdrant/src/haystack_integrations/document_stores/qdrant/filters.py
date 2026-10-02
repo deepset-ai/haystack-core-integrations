@@ -144,7 +144,7 @@ def _build_in_condition(key: str, value: list[models.ValueVariants]) -> models.C
         should=[
             (
                 models.FieldCondition(key=key, match=models.MatchText(text=item))
-                if isinstance(item, str) and " " not in item
+                if isinstance(item, str) and " " in item
                 else models.FieldCondition(key=key, match=models.MatchValue(value=item))
             )
             for item in value
@@ -157,7 +157,7 @@ def _build_ne_condition(key: str, value: models.ValueVariants) -> models.Conditi
         must_not=[
             (
                 models.FieldCondition(key=key, match=models.MatchText(text=value))
-                if isinstance(value, str) and " " not in value
+                if isinstance(value, str) and " " in value
                 else models.FieldCondition(key=key, match=models.MatchValue(value=value))
             )
         ]
