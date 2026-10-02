@@ -29,6 +29,8 @@ dependencies = [
     "torchaudio",
     # numba is a transitive dependency of funasr. We pin it to avoid installing versions without 3.14 support.
     "numba>=0.63",
+    # avoid older tokenizers versions whose source builds fail on supported Python versions
+    "tokenizers>=0.21.0",
 ]
 
 [project.urls]
