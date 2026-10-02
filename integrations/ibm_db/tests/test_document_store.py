@@ -5,12 +5,14 @@
 """Integration tests for IBM DB2 Document Store using Haystack mixin tests."""
 
 import math
+import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, Mock
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -238,6 +240,120 @@ class TestDocumentStore(
 
         assert [doc.id for doc in results] == ["a", "c"]
         assert all(doc.score is not None for doc in results)
+
+    @pytest.mark.parametrize(
+        "metric",
+        ["COSINE", "DOT", "EUCLIDEAN", "EUCLIDEAN_SQUARED", "HAMMING", "MANHATTAN"],
+    )
+    def test_all_distance_metrics_return_ranked_results(self, metric: str, connection_config):
+        """
+        Verify that _embedding_retrieval works correctly for each of the 6 Db2
+        distance metrics: correct ranking, finite scores, top_k respected.
+
+        A fresh store with embedding_dim=4 is created for each metric so the
+        test is independent of the default `document_store` fixture.
+        All Db2 distance metrics return scores ordered ASC (smaller = more similar).
+        """
+        table_name = f"haystack_metric_{metric.lower()}_{sys.version_info.major}_{sys.version_info.minor}"
+        store = IBMDb2DocumentStore(
+            **connection_config,
+            table_name=table_name,
+            embedding_dim=4,
+            distance_metric=metric,
+            recreate_table=True,
+        )
+
+        try:
+            # Embeddings chosen so ranking is unambiguous for every metric:
+            #   most_similar  == query  → distance 0 (or near 0) for all metrics
+            #   second_best   is close  → small distance
+            #   least_similar is far    → large distance
+            query = [1.0, 1.0, 1.0, 1.0]
+            most_similar = [1.0, 1.0, 1.0, 1.0]
+            second_best = [1.0, 1.0, 0.5, 0.5]
+            least_similar = [0.0, 0.0, 0.0, 1.0]
+
+            docs = [
+                Document(content="most_similar", embedding=most_similar),
+                Document(content="second_best", embedding=second_best),
+                Document(content="least_similar", embedding=least_similar),
+            ]
+            store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
+
+            results = store._embedding_retrieval(query_embedding=query, top_k=2)
+
+            # Exactly top_k documents returned
+            assert len(results) == 2, f"[{metric}] Expected 2 results, got {len(results)}"
+
+            # most_similar must be in the top-2; least_similar must be excluded
+            contents = [r.content for r in results]
+            assert "most_similar" in contents, f"[{metric}] 'most_similar' missing from top-2: {contents}"
+            assert "least_similar" not in contents, f"[{metric}] 'least_similar' appeared in top-2: {contents}"
+
+            # Scores must be finite floats and ordered ASC (ORDER BY score ASC)
+            for doc in results:
+                assert doc.score is not None, f"[{metric}] score is None"
+                assert math.isfinite(doc.score), f"[{metric}] non-finite score: {doc.score}"
+            assert results[0].content == "most_similar", (
+                f"[{metric}] Expected 'most_similar' at rank-1, got '{results[0].content}' "
+                f"(scores: {[r.score for r in results]})"
+            )
+            assert results[0].score <= results[1].score, (
+                f"[{metric}] Score ordering wrong: {results[0].score} > {results[1].score}"
+            )
+
+        finally:
+            try:
+                conn = store._get_connection()
+                with conn.cursor() as cur:
+                    cur.execute(f"DROP TABLE {store.table_name}")
+                    conn.commit()
+            except Exception:
+                pass
+            store.close()
+
+    @pytest.mark.parametrize(
+        "metric",
+        ["COSINE", "DOT", "EUCLIDEAN", "EUCLIDEAN_SQUARED", "HAMMING", "MANHATTAN"],
+    )
+    def test_all_distance_metrics_respect_filters(self, metric: str, connection_config):
+        """
+        Verify that metadata filters work correctly alongside each distance metric.
+        """
+        table_name = f"haystack_metric_flt_{metric.lower()}_{sys.version_info.major}_{sys.version_info.minor}"
+        store = IBMDb2DocumentStore(
+            **connection_config,
+            table_name=table_name,
+            embedding_dim=4,
+            distance_metric=metric,
+            recreate_table=True,
+        )
+
+        try:
+            query = [1.0, 1.0, 1.0, 1.0]
+            docs = [
+                Document(content="in_1", embedding=[1.0, 1.0, 1.0, 1.0], meta={"cat": "A"}),
+                Document(content="in_2", embedding=[0.9, 0.9, 0.9, 0.9], meta={"cat": "A"}),
+                Document(content="out", embedding=[1.0, 1.0, 1.0, 1.0], meta={"cat": "B"}),
+            ]
+            store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
+
+            filters = {"field": "meta.cat", "operator": "==", "value": "A"}
+            results = store._embedding_retrieval(query_embedding=query, top_k=5, filters=filters)
+
+            assert len(results) == 2, f"[{metric}] Expected 2 filtered results, got {len(results)}"
+            for doc in results:
+                assert doc.meta.get("cat") == "A", f"[{metric}] Doc with wrong category returned: {doc.meta}"
+
+        finally:
+            try:
+                conn = store._get_connection()
+                with conn.cursor() as cur:
+                    cur.execute(f"DROP TABLE {store.table_name}")
+                    conn.commit()
+            except Exception:
+                pass
+            store.close()
 
     def test_get_metadata_field_unique_values_pagination(self, document_store: IBMDb2DocumentStore):
         docs = [
@@ -541,6 +657,34 @@ class TestIBMDb2DocumentStoreUnit:
         assert isinstance(new_store.username, Secret)
         assert isinstance(new_store.password, Secret)
 
+    @pytest.mark.parametrize(
+        "metric",
+        [
+            "COSINE",
+            "DOT",
+            "EUCLIDEAN",
+            "EUCLIDEAN_SQUARED",
+            "HAMMING",
+            "MANHATTAN",
+        ],
+    )
+    def test_supported_distance_metrics(self, metric, monkeypatch):
+        """Test that all 6 supported Db2 distance metrics can be configured and serialized."""
+        monkeypatch.setenv("DB2_USERNAME", "db2inst1")
+        monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
+        store = IBMDb2DocumentStore(
+            database="testdb",
+            hostname="localhost",
+            username=Secret.from_env_var("DB2_USERNAME"),
+            password=Secret.from_env_var("DB2_PASSWORD"),
+            distance_metric=metric,
+        )
+        assert store.distance_metric == metric
+        data = store.to_dict()
+        assert data["init_parameters"]["distance_metric"] == metric
+        restored = IBMDb2DocumentStore.from_dict(data)
+        assert restored.distance_metric == metric
+
     def test_to_row_with_none_metadata(self, unit_store):
         """Test _to_row with None metadata."""
         doc = Document(id="1", content="test", meta=None, embedding=[0.1] * 768)
@@ -637,6 +781,30 @@ class TestIBMDb2DocumentStoreUnit:
 
         executed_sql = cur.execute.call_args.args[0]
         assert "AND embedding IS NOT NULL" in executed_sql
+
+    @pytest.mark.parametrize(
+        "metric",
+        [
+            "COSINE",
+            "DOT",
+            "EUCLIDEAN",
+            "EUCLIDEAN_SQUARED",
+            "HAMMING",
+            "MANHATTAN",
+        ],
+    )
+    def test_embedding_retrieval_uses_configured_metric(self, mocked_store, metric):
+        store, _, cur = mocked_store
+        store.distance_metric = metric
+        cur.fetchall.return_value = []
+
+        store._embedding_retrieval([0.1, 0.2], top_k=5)
+
+        executed_sql = cur.execute.call_args.args[0]
+        expected_fragment = (
+            f"VECTOR_DISTANCE(embedding, VECTOR(CAST(? AS CLOB(100000)), {store.embedding_dim}, FLOAT32), {metric})"
+        )
+        assert expected_fragment in executed_sql
 
     @pytest.mark.parametrize(
         "fetch_error",
