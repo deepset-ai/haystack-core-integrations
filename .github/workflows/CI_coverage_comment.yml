@@ -23,6 +23,7 @@ on:
       - "Test / cognee"
       - "Test / cohere"
       - "Test / cometapi"
+      - "Test / darkmoon"
       - "Test / datadog"
       - "Test / ddgs"
       - "Test / deepeval"
