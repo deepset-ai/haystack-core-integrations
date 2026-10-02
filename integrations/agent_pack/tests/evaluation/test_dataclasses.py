@@ -1,6 +1,14 @@
 import pytest
 
-from haystack_integrations.agent_pack.evaluation import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
+from haystack_integrations.agent_pack.evaluation import (
+    EvalMetrics,
+    ModelPrice,
+    ModelTokenUsage,
+    RetrievalEvalCase,
+    cost_of_model_usage,
+)
+
+PRICES = {"known": ModelPrice(input_cost_per_million=2.0, output_cost_per_million=4.0)}
 
 
 class TestRetrievalEvalCase:
@@ -41,6 +49,17 @@ class TestEvalMetrics:
             durations=[12.5, 3.0],
             model_usage={"model": ModelTokenUsage(input_tokens=100, output_tokens=20)},
             all_tokens_reported=False,
+            eval_cases=[{"question": "q", "passed": True}],
             details={"mean_recall": 0.5},
         )
         assert EvalMetrics.from_dict(data=metrics.to_dict()) == metrics
+
+
+class TestCostOfModelUsage:
+    def test_known_models(self):
+        usage = {"known": ModelTokenUsage(input_tokens=100, output_tokens=20)}
+        assert cost_of_model_usage(model_usage=usage, prices=PRICES) == (100 * 2.0 + 20 * 4.0) / 1_000_000
+
+    def test_unknown_model(self):
+        usage = {"known": ModelTokenUsage(input_tokens=100), "unknown": ModelTokenUsage(input_tokens=100)}
+        assert cost_of_model_usage(model_usage=usage, prices=PRICES) is None

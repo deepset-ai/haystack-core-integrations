@@ -7,6 +7,7 @@ from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
+from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.evaluation.tracer import HarnessTracer
 
 QUESTION = "What is CRISPR used for?"
@@ -40,6 +41,15 @@ class MultiRetriever:
         return {"documents": list(found.values())}
 
 
+@component
+class NeedsFilters:
+    """A retriever that cannot run without filters, which the harness never supplies."""
+
+    @component.output_types(documents=list[Document])
+    def run(self, query: str, filters: dict):  # noqa: ARG002
+        return {"documents": []}
+
+
 @pytest.fixture
 def store():
     documents = [Document(content=f"chunk {index}: CRISPR gene editing corrects blindness") for index in range(10)]
@@ -66,6 +76,13 @@ def eval_case(wanted, question=QUESTION, **overrides):
     return RetrievalEvalCase(question=question, evidence={wanted.id: "gene editing"}, **overrides)
 
 
+class TestProtocolConformance:
+    def test_evaluator_satisfies_the_protocol(self):
+        """The experiment reaches these by name, so one spelled differently is only found at runtime."""
+        evaluator: HarnessEvaluator = RetrievalHarnessEvaluator()
+        assert all(callable(getattr(evaluator, name)) for name in ("evaluate", "evaluate_async", "validate"))
+
+
 class TestValidate:
     def test_valid_pipeline(self, store):
         RetrievalHarnessEvaluator().validate(target=retrieval_pipeline(store))
@@ -84,6 +101,12 @@ class TestValidate:
         with pytest.raises(ValueError, match="at least one unconnected 'query' input"):
             RetrievalHarnessEvaluator().validate(target=no_query)
 
+    def test_unconnected_mandatory_input(self):
+        pipeline = Pipeline()
+        pipeline.add_component("retriever", NeedsFilters())
+        with pytest.raises(ValueError, match=r"mandatory inputs: \['retriever.filters'\]"):
+            RetrievalHarnessEvaluator().validate(target=pipeline)
+
 
 class TestEvaluate:
     def test_finds_renamed_sockets(self, store, wanted):
@@ -101,24 +124,24 @@ class TestEvaluate:
         pipeline = retrieval_pipeline(store, top_k=10)
         deep = RetrievalHarnessEvaluator(k=10).evaluate(target=pipeline, eval_cases=[eval_case(wanted)])
         shallow = RetrievalHarnessEvaluator(k=1).evaluate(target=pipeline, eval_cases=[eval_case(wanted)])
-        assert deep.details["eval_cases"][0]["recall_at_k"] == 1.0
-        assert shallow.details["eval_cases"][0]["retrieved"] == deep.details["eval_cases"][0]["retrieved"]
+        assert deep.eval_cases[0]["recall_at_k"] == 1.0
+        assert shallow.eval_cases[0]["retrieved"] == deep.eval_cases[0]["retrieved"]
         # Scored one deep, precision is either 1 or 0, and recall follows whichever document ranked first.
-        assert shallow.details["eval_cases"][0]["precision_at_k"] in (0.0, 1.0)
+        assert shallow.eval_cases[0]["precision_at_k"] in (0.0, 1.0)
 
     def test_below_min_recall(self, store):
         missing = RetrievalEvalCase(question=QUESTION, evidence={"never retrieved": "x"})
         metrics = RetrievalHarnessEvaluator().evaluate(target=retrieval_pipeline(store), eval_cases=[missing])
         assert metrics.details["mean_recall_at_k"] == 0.0
-        assert metrics.details["eval_cases"][0]["failures"] == ["recall_below_1"]
-        assert metrics.details["eval_cases"][0]["missed_document_ids"] == ["never retrieved"]
+        assert metrics.eval_cases[0]["failures"] == ["recall_below_1"]
+        assert metrics.eval_cases[0]["missed_document_ids"] == ["never retrieved"]
 
     def test_min_recall(self, store):
         """The threshold decides which eval cases are reported as failures; the recall is reported either way."""
         missing = RetrievalEvalCase(question=QUESTION, evidence={"never retrieved": "x"})
         evaluator = RetrievalHarnessEvaluator(min_recall=0.0)
         metrics = evaluator.evaluate(target=retrieval_pipeline(store), eval_cases=[missing])
-        assert metrics.details["eval_cases"][0]["failures"] == []
+        assert metrics.eval_cases[0]["failures"] == []
         assert metrics.details["mean_recall_at_k"] == 0.0
 
     def test_untraced_run_is_not_vouched_for(self, store, wanted, monkeypatch):
@@ -140,10 +163,10 @@ class TestEvaluate:
         concurrent = RetrievalHarnessEvaluator(max_concurrent_eval_cases=4).evaluate(
             target=retrieval_pipeline(store), eval_cases=cases
         )
-        questions = [entry["question"] for entry in concurrent.details["eval_cases"]]
-        assert questions == [entry["question"] for entry in sequential.details["eval_cases"]]
+        questions = [entry["question"] for entry in concurrent.eval_cases]
+        assert questions == [entry["question"] for entry in sequential.eval_cases]
         assert concurrent.details["mean_recall_at_k"] == sequential.details["mean_recall_at_k"]
-        assert concurrent.durations == [entry["duration"] for entry in concurrent.details["eval_cases"]]
+        assert concurrent.durations == [entry["duration"] for entry in concurrent.eval_cases]
 
     def test_init_invalid_concurrency(self):
         with pytest.raises(ValueError, match="at least 1"):
