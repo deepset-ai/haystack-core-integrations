@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.tools.darkmoon.toolset
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Darkmoon integration for Haystack
+  id: integrations-darkmoon
+  filename: darkmoon.md
+  title: Darkmoon
