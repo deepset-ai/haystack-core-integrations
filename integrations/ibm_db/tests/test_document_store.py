@@ -541,6 +541,34 @@ class TestIBMDb2DocumentStoreUnit:
         assert isinstance(new_store.username, Secret)
         assert isinstance(new_store.password, Secret)
 
+    @pytest.mark.parametrize(
+        "metric",
+        [
+            "COSINE",
+            "DOT",
+            "EUCLIDEAN",
+            "EUCLIDEAN_SQUARED",
+            "HAMMING",
+            "MANHATTAN",
+        ],
+    )
+    def test_supported_distance_metrics(self, metric, monkeypatch):
+        """Test that all 6 supported Db2 distance metrics can be configured and serialized."""
+        monkeypatch.setenv("DB2_USERNAME", "db2inst1")
+        monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
+        store = IBMDb2DocumentStore(
+            database="testdb",
+            hostname="localhost",
+            username=Secret.from_env_var("DB2_USERNAME"),
+            password=Secret.from_env_var("DB2_PASSWORD"),
+            distance_metric=metric,
+        )
+        assert store.distance_metric == metric
+        data = store.to_dict()
+        assert data["init_parameters"]["distance_metric"] == metric
+        restored = IBMDb2DocumentStore.from_dict(data)
+        assert restored.distance_metric == metric
+
     def test_to_row_with_none_metadata(self, unit_store):
         """Test _to_row with None metadata."""
         doc = Document(id="1", content="test", meta=None, embedding=[0.1] * 768)
@@ -637,6 +665,30 @@ class TestIBMDb2DocumentStoreUnit:
 
         executed_sql = cur.execute.call_args.args[0]
         assert "AND embedding IS NOT NULL" in executed_sql
+
+    @pytest.mark.parametrize(
+        "metric",
+        [
+            "COSINE",
+            "DOT",
+            "EUCLIDEAN",
+            "EUCLIDEAN_SQUARED",
+            "HAMMING",
+            "MANHATTAN",
+        ],
+    )
+    def test_embedding_retrieval_uses_configured_metric(self, mocked_store, metric):
+        store, _, cur = mocked_store
+        store.distance_metric = metric
+        cur.fetchall.return_value = []
+
+        store._embedding_retrieval([0.1, 0.2], top_k=5)
+
+        executed_sql = cur.execute.call_args.args[0]
+        expected_fragment = (
+            f"VECTOR_DISTANCE(embedding, VECTOR(CAST(? AS CLOB(100000)), {store.embedding_dim}, FLOAT32), {metric})"
+        )
+        assert expected_fragment in executed_sql
 
     @pytest.mark.parametrize(
         "fetch_error",
