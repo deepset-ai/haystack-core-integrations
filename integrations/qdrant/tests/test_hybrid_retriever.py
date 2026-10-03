@@ -81,6 +81,7 @@ class TestQdrantHybridRetriever:
                         "write_batch_size": 100,
                         "scroll_size": 10000,
                         "payload_fields_to_index": None,
+                        "client_kwargs": {},
                     },
                 },
                 "filters": None,

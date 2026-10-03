@@ -43,6 +43,7 @@ def test_to_dict():
             "write_batch_size": 100,
             "scroll_size": 10000,
             "payload_fields_to_index": None,
+            "client_kwargs": {},
         },
     }
 
@@ -73,6 +74,7 @@ def test_from_dict():
                 "write_batch_size": 1000,
                 "scroll_size": 10000,
                 "payload_fields_to_index": None,
+                "client_kwargs": {"check_compatibility": False},
             },
         }
     )
@@ -102,5 +104,6 @@ def test_from_dict():
             document_store.scroll_size == 10000,
             document_store.api_key == Secret.from_env_var("ENV_VAR", strict=False),
             document_store.payload_fields_to_index is None,
+            document_store.client_kwargs == {"check_compatibility": False},
         ]
     )

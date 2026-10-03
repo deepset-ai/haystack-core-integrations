@@ -35,6 +35,19 @@ from haystack_integrations.document_stores.qdrant.document_store import (
 
 @pytest.mark.asyncio
 class TestQdrantDocumentStoreAsyncUnit:
+    async def test_client_kwargs_are_forwarded_async(self):
+        document_store = QdrantDocumentStore(location=":memory:", client_kwargs={"check_compatibility": False})
+
+        with (
+            patch(
+                "haystack_integrations.document_stores.qdrant.document_store.qdrant_client.AsyncQdrantClient"
+            ) as client,
+            patch.object(document_store, "_set_up_collection_async", new_callable=AsyncMock),
+        ):
+            await document_store._initialize_async_client()
+
+        assert client.call_args.kwargs["check_compatibility"] is False
+
     async def test_query_hybrid_search_batch_failure_async(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
         await document_store._initialize_async_client()
