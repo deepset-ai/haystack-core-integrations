@@ -29,6 +29,7 @@ from haystack.testing.document_store_async import (
     UpdateByFilterAsyncTest,
     WriteDocumentsAsyncTest,
 )
+from redis.exceptions import ResponseError
 
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 from haystack_integrations.document_stores.falkordb import document_store as document_store_module
@@ -118,6 +119,39 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         assert store.async_graph is graph
         assert store.async_initialized is True
         assert graph.query.await_count == 4
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async_suppresses_missing_graph_error(self, mock_async_falkordb) -> None:
+        _, _, graph = mock_async_falkordb
+        graph.delete.side_effect = ResponseError("Invalid graph operation on empty key")
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        await store.warm_up_async()
+
+        assert store._recreate_graph_applied is True
+        assert store.async_initialized is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [ResponseError("unexpected response"), ConnectionError("connection lost")],
+        ids=["response-error", "connection-error"],
+    )
+    async def test_warm_up_async_retries_graph_deletion_after_error(self, mock_async_falkordb, error) -> None:
+        _, _, graph = mock_async_falkordb
+        graph.delete.side_effect = [error, None]
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        with pytest.raises(type(error), match=str(error)):
+            await store.warm_up_async()
+
+        assert store._recreate_graph_applied is False
+
+        await store.warm_up_async()
+
+        assert graph.delete.await_count == 2
+        assert store._recreate_graph_applied is True
+        assert store.async_initialized is True
 
     @pytest.mark.asyncio
     async def test_sync_then_async_warm_up_recreates_graph_once(self, mock_falkordb, mock_async_falkordb) -> None:

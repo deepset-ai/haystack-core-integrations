@@ -23,6 +23,7 @@ from haystack.testing.document_store import (
     GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
 )
+from redis.exceptions import ResponseError
 
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
@@ -203,6 +204,37 @@ class TestFalkorDBDocumentStoreUnit:
         assert store.graph is graph
         assert store.initialized is True
         assert graph.query.call_count == 4
+
+    def test_warm_up_suppresses_missing_graph_error(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.delete.side_effect = ResponseError("Invalid graph operation on empty key")
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        store.warm_up()
+
+        assert store._recreate_graph_applied is True
+        assert store.initialized is True
+
+    @pytest.mark.parametrize(
+        "error",
+        [ResponseError("unexpected response"), ConnectionError("connection lost")],
+        ids=["response-error", "connection-error"],
+    )
+    def test_warm_up_retries_graph_deletion_after_error(self, mock_falkordb, error):
+        _, _, graph = mock_falkordb
+        graph.delete.side_effect = [error, None]
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        with pytest.raises(type(error), match=str(error)):
+            store.warm_up()
+
+        assert store._recreate_graph_applied is False
+
+        store.warm_up()
+
+        assert graph.delete.call_count == 2
+        assert store._recreate_graph_applied is True
+        assert store.initialized is True
 
     @pytest.mark.parametrize("rows, expected", [([[42]], 42), ([], 0)])
     def test_count_documents(self, mock_falkordb, rows, expected):
