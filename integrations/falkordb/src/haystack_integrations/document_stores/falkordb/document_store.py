@@ -228,7 +228,7 @@ class FalkorDBDocumentStore(DocumentStore):
                 if "invalid graph operation on empty key" not in str(error).lower():
                     self._recreate_graph_applied = False
                     raise
-                logger.debug("Graph '%s' does not exist yet; skipping deletion.", self.graph_name)
+                logger.debug("Graph '{graph_name}' does not exist yet; skipping deletion.", graph_name=self.graph_name)
             except Exception:
                 self._recreate_graph_applied = False
                 raise
@@ -269,9 +269,9 @@ class FalkorDBDocumentStore(DocumentStore):
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
                 logger.debug(
-                    "Vector index on %s(%s) already exists — skipping creation.",
-                    self.node_label,
-                    self.embedding_field,
+                    "Vector index on {node_label}({embedding_field}) already exists — skipping creation.",
+                    node_label=self.node_label,
+                    embedding_field=self.embedding_field,
                 )
             else:
                 raise e
@@ -304,7 +304,7 @@ class FalkorDBDocumentStore(DocumentStore):
                 if "invalid graph operation on empty key" not in str(error).lower():
                     self._recreate_graph_applied = False
                     raise
-                logger.debug("Graph '%s' does not exist yet; skipping deletion.", self.graph_name)
+                logger.debug("Graph '{graph_name}' does not exist yet; skipping deletion.", graph_name=self.graph_name)
             except Exception:
                 self._recreate_graph_applied = False
                 raise
@@ -326,7 +326,10 @@ class FalkorDBDocumentStore(DocumentStore):
             await self.async_graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
-                logger.debug("Property index on %s(id) already exists — skipping creation.", self.node_label)
+                logger.debug(
+                    "Property index on {node_label}(id) already exists — skipping creation.",
+                    node_label=self.node_label,
+                )
             else:
                 raise e
 
