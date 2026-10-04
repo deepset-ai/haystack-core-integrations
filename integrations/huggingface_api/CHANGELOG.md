@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/huggingface_api-v2.0.0] - 2026-10-01
+
+### 🚀 Features
+
+- [**breaking**] Add grpc support for the huggingface TEI components; rename HuggingFace API Sparse Embedders -> Hugging Face TEI Sparse Embedders (#3870)
+
+### 🧪 Testing
+
+- HF API - use Groq for gpt-oss-20b (#4001)
+
+
 ## [integrations/huggingface_api-v1.0.0] - 2026-09-07
 
 ### 🚀 Features

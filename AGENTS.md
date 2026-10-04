@@ -78,6 +78,10 @@ Changelogs are auto-generated per integration and not meant to be edited manuall
 
 Follow the instructions in the "Create a new integration" section of `CONTRIBUTING.md`.
 
+## Pull Requests
+
+Community contributors can have only one open pull request at a time in this repository. Before opening a PR on the user's behalf, check whether they already have one open (`gh pr list --author @me`); if so, tell them instead of opening another.
+
 In addition, there are rules inferred from previous code reviews. Follow them like a
 reviewer's note: they encode reasons, not ceremony, so when a rule genuinely does not
 fit the change at hand, say why rather than contorting the code to satisfy it.

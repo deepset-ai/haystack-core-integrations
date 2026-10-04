@@ -4,14 +4,13 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
@@ -207,7 +206,10 @@ class FalkorDBDocumentStore(DocumentStore):
                 # In falkordb-py, delete() is a method of the Graph object
                 self.client.select_graph(self.graph_name).delete()
             except Exception:
-                logger.debug("Graph '%s' could not be deleted (may not exist yet).", self.graph_name)
+                logger.debug(
+                    "Graph '{graph_name}' could not be deleted (may not exist yet).",
+                    graph_name=self.graph_name,
+                )
 
         self.graph = self.client.select_graph(self.graph_name)
         self._ensure_schema()
@@ -224,7 +226,10 @@ class FalkorDBDocumentStore(DocumentStore):
             self.graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
-                logger.debug("Property index on %s(id) already exists — skipping creation.", self.node_label)
+                logger.debug(
+                    "Property index on {node_label}(id) already exists — skipping creation.",
+                    node_label=self.node_label,
+                )
             else:
                 raise e
 
@@ -239,9 +244,9 @@ class FalkorDBDocumentStore(DocumentStore):
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
                 logger.debug(
-                    "Vector index on %s(%s) already exists — skipping creation.",
-                    self.node_label,
-                    self.embedding_field,
+                    "Vector index on {node_label}({embedding_field}) already exists — skipping creation.",
+                    node_label=self.node_label,
+                    embedding_field=self.embedding_field,
                 )
             else:
                 raise e
@@ -378,8 +383,8 @@ class FalkorDBDocumentStore(DocumentStore):
         for doc in documents:
             if doc.id in seen_ids:
                 logger.info(
-                    "Duplicate Documents: Document with id '%s' already present in the batch — skipping.",
-                    doc.id,
+                    "Duplicate Documents: Document with id '{id}' already present in the batch — skipping.",
+                    id=doc.id,
                 )
                 continue
             unique.append(doc)

@@ -29,7 +29,7 @@ class TestInitialization:
         converter = MistralOCRDocumentConverter()
 
         assert converter.api_key == Secret.from_env_var("MISTRAL_API_KEY")
-        assert converter.model == "mistral-ocr-2505"
+        assert converter.model == "mistral-ocr-4-1"
         assert converter.include_image_base64 is False
         assert converter.pages is None
         assert converter.image_limit is None
@@ -72,7 +72,7 @@ class TestSerialization:
                     "strict": True,
                     "type": "env_var",
                 },
-                "model": "mistral-ocr-2505",
+                "model": "mistral-ocr-4-1",
                 "include_image_base64": False,
                 "pages": None,
                 "image_limit": None,

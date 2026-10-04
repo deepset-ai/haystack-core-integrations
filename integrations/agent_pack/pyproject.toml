@@ -60,6 +60,8 @@ dependencies = [
     "pip",
     # deep_research agent
     "tavily-haystack>=0.4.0",
+    # the examples build their evaluation corpus from a Hugging Face dataset
+    "datasets",
     "trafilatura",
     "pypdf",
     "arrow",

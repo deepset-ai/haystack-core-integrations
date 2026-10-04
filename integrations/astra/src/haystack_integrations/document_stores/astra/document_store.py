@@ -2,16 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from asyncio import AbstractEventLoop, Lock, get_running_loop
 from collections.abc import Generator
 from typing import Any
+from warnings import warn
 
+from astrapy import AsyncCollection, AsyncDatabase, Collection, Database
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .astra_client import AstraClient, QueryResponse
+from .astra_client import (
+    _collection_definition,
+    _collection_indexing_warning,
+    _data_api_client,
+    _find_collection,
+    _find_kwargs,
+    _to_documents,
+)
 from .errors import AstraDocumentStoreFilterError
 from .filters import _convert_filters
 
@@ -73,7 +83,9 @@ class AstraDocumentStore:
               - `DuplicatePolicy.SKIP`: if a Document with the same ID already exists, it is skipped and not written.
               - `DuplicatePolicy.OVERWRITE`: if a Document with the same ID already exists, it is overwritten.
               - `DuplicatePolicy.FAIL`: if a Document with the same ID already exists, an error is raised.
-        :param similarity: the similarity function used to compare document vectors.
+        :param similarity: Similarity metric for new collections: `cosine`, `dot_product`, or `euclidean`.
+            Existing collections retain their configured metric.
+        :param namespace: The keyspace containing the collection, or the SDK default when omitted.
 
         :raises ValueError: if the API endpoint or token is not set.
         """
@@ -102,21 +114,90 @@ class AstraDocumentStore:
         self.duplicates_policy = duplicates_policy
         self.similarity = similarity
         self.namespace = namespace
-        self._index: AstraClient | None = None
+        self._collection: Collection | None = None
+        self._async_collection: AsyncCollection | None = None
+        self._async_collection_lock = Lock()
+        self._async_loop: AbstractEventLoop | None = None
 
-    @property
-    def index(self) -> AstraClient:
-        """Return the AstraClient index, initializing it if necessary."""
-        if self._index is None:
-            self._index = AstraClient(
-                self.resolved_api_endpoint,
-                self.resolved_token,
-                self.collection_name,
-                self.embedding_dimension,
-                self.similarity,
-                self.namespace,
-            )
-        return self._index
+    def _database(self) -> Database:
+        return _data_api_client().get_database(
+            api_endpoint=self.resolved_api_endpoint, token=self.resolved_token, keyspace=self.namespace
+        )
+
+    def _async_database(self) -> AsyncDatabase:
+        return _data_api_client().get_async_database(
+            api_endpoint=self.resolved_api_endpoint, token=self.resolved_token, keyspace=self.namespace
+        )
+
+    def _get_collection(self) -> Collection:
+        if self._collection is None:
+            database = self._database()
+            descriptor = _find_collection(self.collection_name, database.list_collections())
+            if descriptor is not None:
+                warning = _collection_indexing_warning(descriptor)
+                if warning is not None:
+                    warn(warning, UserWarning, stacklevel=3)
+                self._collection = database.get_collection(self.collection_name)
+            else:
+                # Listing and creation are not atomic; propagate concurrent configuration conflicts.
+                self._collection = database.create_collection(
+                    name=self.collection_name,
+                    definition=_collection_definition(self.embedding_dimension, self.similarity),
+                )
+        return self._collection
+
+    def _reset_async_state_on_loop_change(self) -> None:
+        # The cached collection's HTTP client and the lock are bound to the loop that first used them, e.g.
+        # repeated `asyncio.run(...)` calls each get a new loop. A stale collection can't be closed from
+        # another loop, so it is dropped.
+        loop = get_running_loop()
+        if self._async_loop is not loop:
+            self._async_collection = None
+            self._async_collection_lock = Lock()
+            self._async_loop = loop
+
+    async def _get_async_collection(self) -> AsyncCollection:
+        self._reset_async_state_on_loop_change()
+        async with self._async_collection_lock:
+            if self._async_collection is None:
+                async with self._async_database() as database:
+                    descriptor = _find_collection(self.collection_name, await database.list_collections())
+                    if descriptor is not None:
+                        warning = _collection_indexing_warning(descriptor)
+                        if warning is not None:
+                            warn(warning, UserWarning, stacklevel=3)
+                        self._async_collection = database.get_collection(self.collection_name)
+                    else:
+                        # Listing and creation are not atomic; propagate concurrent configuration conflicts.
+                        self._async_collection = await database.create_collection(
+                            name=self.collection_name,
+                            definition=_collection_definition(self.embedding_dimension, self.similarity),
+                        )
+            return self._async_collection
+
+    def close(self) -> None:
+        """
+        Drop the cached synchronous collection without deleting documents.
+
+        AstraPy 2 exposes no way to release synchronous connections, so this only discards the collection; the next
+        synchronous operation creates a new one.
+        """
+        self._collection = None
+
+    async def close_async(self) -> None:
+        """
+        Release the cached async collection connection without deleting documents.
+
+        Call this on the same event loop as the async methods, after they have finished and before
+        closing the loop. Repeated calls are safe; a later call opens a new connection. Calls on a new
+        event loop open a new connection automatically.
+        """
+        self._reset_async_state_on_loop_change()
+        async with self._async_collection_lock:
+            if self._async_collection is not None:
+                # AstraPy 2 exposes connection cleanup through its async context manager protocol.
+                await self._async_collection.__aexit__()
+                self._async_collection = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AstraDocumentStore":
@@ -127,8 +208,16 @@ class AstraDocumentStore:
             Dictionary to deserialize from.
         :returns:
             Deserialized component.
+        :raises ValueError: The serialized `duplicates_policy` is not a valid policy name.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
+        policy = data["init_parameters"].get("duplicates_policy")
+        if isinstance(policy, str):
+            try:
+                data["init_parameters"]["duplicates_policy"] = DuplicatePolicy[policy]
+            except KeyError as e:
+                msg = f"Invalid duplicates_policy '{policy}'. Expected one of {[p.name for p in DuplicatePolicy]}."
+                raise ValueError(msg) from e
         return default_from_dict(cls, data)
 
     def to_dict(self) -> dict[str, Any]:
@@ -149,6 +238,63 @@ class AstraDocumentStore:
             similarity=self.similarity,
             namespace=self.namespace,
         )
+
+    def _resolve_policy(self, policy: DuplicatePolicy | None) -> DuplicatePolicy:
+        if policy is None or policy == DuplicatePolicy.NONE:
+            if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
+                return self.duplicates_policy
+            return DuplicatePolicy.SKIP
+        return policy
+
+    @staticmethod
+    def _convert_input_document(document: dict | Document) -> dict[str, Any]:
+        if isinstance(document, Document):
+            document_dict = document.to_dict(flatten=False)
+        elif isinstance(document, dict):
+            document_dict = document
+        else:
+            msg = f"Unsupported type for documents, documents is of type {type(document)}."
+            raise ValueError(msg)
+
+        if "id" in document_dict:
+            if "_id" not in document_dict:
+                document_dict["_id"] = document_dict.pop("id")
+            elif "_id" in document_dict:
+                msg = f"Duplicate id definitions, both 'id' and '_id' present in document {document_dict}"
+                raise Exception(msg)
+        if "_id" in document_dict:
+            if not isinstance(document_dict["_id"], str):
+                msg = f"Document id {document_dict['_id']} is not a string, but is of type {type(document_dict['_id'])}"
+                raise Exception(msg)
+
+        if embedding := document_dict.pop("embedding", []):
+            document_dict["$vector"] = embedding
+
+        if "sparse_embedding" in document_dict:
+            sparse_embedding = document_dict.pop("sparse_embedding", None)
+            if sparse_embedding:
+                logger.warning(
+                    "Document {id} has the `sparse_embedding` field set,"
+                    "but storing sparse embeddings in Astra is not currently supported."
+                    "The `sparse_embedding` field will be ignored.",
+                    id=document_dict["_id"],
+                )
+
+        return document_dict
+
+    @staticmethod
+    def _overwrite_operation(document: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        fields = {key: value for key, value in document.items() if key != "_id"}
+        return {"_id": document["_id"]}, {"$set": fields}
+
+    @staticmethod
+    def _log_written(policy: DuplicatePolicy, inserted_ids: list[str], updated_ids: list[str]) -> None:
+        if inserted_ids:
+            logger.info("write_documents inserted documents with id {ids}", ids=inserted_ids)
+        else:
+            logger.warning("No documents written. Argument policy set to {policy}", policy=policy.name)
+        if policy == DuplicatePolicy.OVERWRITE:
+            logger.info("write_documents updated documents with id {ids}", ids=updated_ids)
 
     def write_documents(
         self,
@@ -172,112 +318,92 @@ class AstraDocumentStore:
         :raises DuplicateDocumentError: if a document with the same ID already exists and policy is set to FAIL.
         :raises Exception: if the document ID is not a string or if `id` and `_id` are both present in the document.
         """
-        if policy is None or policy == DuplicatePolicy.NONE:
-            if self.duplicates_policy is not None and self.duplicates_policy != DuplicatePolicy.NONE:
-                policy = self.duplicates_policy
-            else:
-                policy = DuplicatePolicy.SKIP
+        policy = self._resolve_policy(policy)
+        documents_to_write = [self._convert_input_document(doc) for doc in documents]
+        collection = self._get_collection()
 
-        batch_size = MAX_BATCH_SIZE
-
-        def _convert_input_document(document: dict | Document) -> dict[str, Any]:
-            if isinstance(document, Document):
-                document_dict = document.to_dict(flatten=False)
-            elif isinstance(document, dict):
-                document_dict = document
-            else:
-                msg = f"Unsupported type for documents, documents is of type {type(document)}."
-                raise ValueError(msg)
-
-            if "id" in document_dict:
-                if "_id" not in document_dict:
-                    document_dict["_id"] = document_dict.pop("id")
-                elif "_id" in document_dict:
-                    msg = f"Duplicate id definitions, both 'id' and '_id' present in document {document_dict}"
-                    raise Exception(msg)
-            if "_id" in document_dict:
-                if not isinstance(document_dict["_id"], str):
-                    msg = (
-                        f"Document id {document_dict['_id']} is not a string, "
-                        f"but is of type {type(document_dict['_id'])}"
-                    )
-                    raise Exception(msg)
-
-            if embedding := document_dict.pop("embedding", []):
-                document_dict["$vector"] = embedding
-
-            if "sparse_embedding" in document_dict:
-                sparse_embedding = document_dict.pop("sparse_embedding", None)
-                if sparse_embedding:
-                    logger.warning(
-                        "Document {id} has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in Astra is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        id=document_dict["_id"],
-                    )
-
-            return document_dict
-
-        documents_to_write = [_convert_input_document(doc) for doc in documents]
-
-        duplicate_documents = []
-        new_documents: list[dict] = []
-        i = 0
-        while i < len(documents_to_write):
-            doc = documents_to_write[i]
-            # check to see if this ID already exists in our new_documents array
-            exists = [d for d in new_documents if d["_id"] == doc["_id"]]
-            # check to see if this ID is already in the DB
-            response = self.index.find_documents({"filter": {"_id": doc["_id"]}})
-            if response or exists:
+        new_documents: list[dict[str, Any]] = []
+        duplicate_documents: list[dict[str, Any]] = []
+        for doc in documents_to_write:
+            in_batch = any(d["_id"] == doc["_id"] for d in new_documents)
+            if in_batch or collection.find_one({"_id": doc["_id"]}, projection={"_id": True}) is not None:
                 if policy == DuplicatePolicy.FAIL:
                     msg = f"ID '{doc['_id']}' already exists."
                     raise DuplicateDocumentError(msg)
                 duplicate_documents.append(doc)
             else:
                 new_documents.append(doc)
-            i = i + 1
 
-        insertion_counter = 0
-        if policy == DuplicatePolicy.SKIP:
-            if len(new_documents) > 0:
-                for batch in _batches(new_documents, batch_size):
-                    inserted_ids = self.index.insert(batch)
-                    insertion_counter += len(inserted_ids)
-                    logger.info(f"write_documents inserted documents with id {inserted_ids}")
+        inserted_ids: list[str] = []
+        for batch in _batches(new_documents, MAX_BATCH_SIZE):
+            inserted_ids.extend(str(_id) for _id in collection.insert_many(documents=batch).inserted_ids)
+
+        updated_ids: list[str] = []
+        if policy == DuplicatePolicy.OVERWRITE:
+            for doc in duplicate_documents:
+                filter_, update = self._overwrite_operation(doc)
+                if collection.find_one_and_update(filter_, update, projection={"_id": True}) is None:
+                    logger.warning("Document {document_id} not updated in Astra DB.", document_id=doc["_id"])
+                else:
+                    updated_ids.append(doc["_id"])
+
+        self._log_written(policy, inserted_ids, updated_ids)
+        return len(inserted_ids) + len(updated_ids)
+
+    async def write_documents_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
+    ) -> int:
+        """
+        Asynchronously indexes documents for later queries.
+
+        :param documents: a list of Haystack Document objects.
+        :param policy: handle duplicate documents based on DuplicatePolicy parameter options.
+            Parameter options : (`SKIP`, `OVERWRITE`, `FAIL`, `NONE`)
+            - `DuplicatePolicy.NONE`: Default policy, If a Document with the same ID already exists,
+                it is skipped and not written.
+            - `DuplicatePolicy.SKIP`: If a Document with the same ID already exists,
+                it is skipped and not written.
+            - `DuplicatePolicy.OVERWRITE`: If a Document with the same ID already exists, it is overwritten.
+            - `DuplicatePolicy.FAIL`: If a Document with the same ID already exists, an error is raised.
+        :returns: number of documents written.
+        :raises ValueError: if the documents are not of type Document or dict.
+        :raises DuplicateDocumentError: if a document with the same ID already exists and policy is set to FAIL.
+        :raises Exception: if the document ID is not a string or if `id` and `_id` are both present in the document.
+        """
+        policy = self._resolve_policy(policy)
+        documents_to_write = [self._convert_input_document(doc) for doc in documents]
+        collection = await self._get_async_collection()
+
+        new_documents: list[dict[str, Any]] = []
+        duplicate_documents: list[dict[str, Any]] = []
+        for doc in documents_to_write:
+            in_batch = any(d["_id"] == doc["_id"] for d in new_documents)
+            if in_batch or await collection.find_one({"_id": doc["_id"]}, projection={"_id": True}) is not None:
+                if policy == DuplicatePolicy.FAIL:
+                    msg = f"ID '{doc['_id']}' already exists."
+                    raise DuplicateDocumentError(msg)
+                duplicate_documents.append(doc)
             else:
-                logger.warning("No documents written. Argument policy set to SKIP")
+                new_documents.append(doc)
 
-        elif policy == DuplicatePolicy.OVERWRITE:
-            if len(new_documents) > 0:
-                for batch in _batches(new_documents, batch_size):
-                    inserted_ids = self.index.insert(batch)
-                    insertion_counter += len(inserted_ids)
-                    logger.info(f"write_documents inserted documents with id {inserted_ids}")
-            else:
-                logger.warning("No documents written. Argument policy set to OVERWRITE")
+        inserted_ids: list[str] = []
+        for batch in _batches(new_documents, MAX_BATCH_SIZE):
+            result = await collection.insert_many(documents=batch)
+            inserted_ids.extend(str(_id) for _id in result.inserted_ids)
 
-            if len(duplicate_documents) > 0:
-                updated_ids = []
-                for duplicate_doc in duplicate_documents:
-                    updated = self.index.update_document(duplicate_doc, "_id")
-                    if updated:
-                        updated_ids.append(duplicate_doc["_id"])
-                insertion_counter = insertion_counter + len(updated_ids)
-                logger.info(f"write_documents updated documents with id {updated_ids}")
-            else:
-                logger.info("No documents updated. Argument policy set to OVERWRITE")
+        updated_ids: list[str] = []
+        if policy == DuplicatePolicy.OVERWRITE:
+            for doc in duplicate_documents:
+                filter_, update = self._overwrite_operation(doc)
+                if await collection.find_one_and_update(filter_, update, projection={"_id": True}) is None:
+                    logger.warning("Document {document_id} not updated in Astra DB.", document_id=doc["_id"])
+                else:
+                    updated_ids.append(doc["_id"])
 
-        elif policy == DuplicatePolicy.FAIL:
-            if len(new_documents) > 0:
-                for batch in _batches(new_documents, batch_size):
-                    inserted_ids = self.index.insert(batch)
-                    insertion_counter = insertion_counter + len(inserted_ids)
-                    logger.info(f"write_documents inserted documents with id {inserted_ids}")
-            else:
-                logger.warning("No documents written. Argument policy set to FAIL")
-
-        return insertion_counter
+        self._log_written(policy, inserted_ids, updated_ids)
+        return len(inserted_ids) + len(updated_ids)
 
     def count_documents(self) -> int:
         """
@@ -285,7 +411,16 @@ class AstraDocumentStore:
 
         :returns: the number of documents in the document store.
         """
-        return self.index.count_documents()
+        return self._get_collection().count_documents({}, upper_bound=10_000)
+
+    async def count_documents_async(self) -> int:
+        """
+        Asynchronously counts the number of documents in the document store.
+
+        :returns: the number of documents in the document store.
+        """
+        collection = await self._get_async_collection()
+        return await collection.count_documents({}, upper_bound=10_000)
 
     @staticmethod
     def _normalize_new_filter_input(filters: dict[str, Any]) -> dict[str, Any]:
@@ -350,8 +485,51 @@ class AstraDocumentStore:
                     normalized_values.append(item)
         return sorted(normalized_values, key=lambda value: (type(value).__name__, str(value)))
 
-    def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
-        return self.index.find_documents({}, projection={"content": 1, "meta": 1})
+    # The find helpers take the collection so that public methods fetch it themselves: this keeps the
+    # legacy-indexing warning's `stacklevel` pointing at the caller of the public method.
+    @staticmethod
+    def _find_documents(
+        collection: Collection,
+        filters: dict[str, Any] | None,
+        *,
+        vector: list[float] | None = None,
+        limit: int | None = None,
+    ) -> list[Document]:
+        responses = list(collection.find(**_find_kwargs(filters, vector=vector, limit=limit)))
+        return _to_documents(responses)
+
+    @staticmethod
+    async def _find_documents_async(
+        collection: AsyncCollection,
+        filters: dict[str, Any] | None,
+        *,
+        vector: list[float] | None = None,
+        limit: int | None = None,
+    ) -> list[Document]:
+        responses = [
+            response async for response in collection.find(**_find_kwargs(filters, vector=vector, limit=limit))
+        ]
+        return _to_documents(responses)
+
+    @staticmethod
+    def _filter_queries(filters: dict[str, Any] | None) -> list[tuple[dict[str, Any] | None, list[float] | None]]:
+        # Returns one (converted filters, query vector) pair per `find` call that `filter_documents` needs.
+        if not isinstance(filters, dict) and filters is not None:
+            msg = "Filters must be a dictionary or None"
+            raise AstraDocumentStoreFilterError(msg)
+        if filters is None:
+            return [(None, None)]
+
+        filters = filters.copy()
+        if "id" in filters:
+            filters["_id"] = filters.pop("id")
+        if "embedding" not in filters:
+            return [(_convert_filters(filters), None)]
+
+        embedding = filters.pop("embedding")
+        vectors = embedding["$in"] if "$in" in embedding else [embedding]
+        converted_filters = _convert_filters(filters)
+        return [(converted_filters, vector) for vector in vectors]
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -361,56 +539,26 @@ class AstraDocumentStore:
         :returns: matching documents.
         :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported by this class.
         """
-        if not isinstance(filters, dict) and filters is not None:
-            msg = "Filters must be a dictionary or None"
-            raise AstraDocumentStoreFilterError(msg)
-
-        if filters is not None:
-            if "id" in filters:
-                filters["_id"] = filters.pop("id")
-        vector = None
-        if filters is not None and "embedding" in filters.keys():
-            if "$in" in filters["embedding"]:
-                embeds = filters.pop("embedding")
-                vectors = embeds["$in"]
-            else:
-                filters["$vector"] = filters.pop("embedding")
-                vectors = [filters.pop("$vector")]
-            documents = []
-            for vector in vectors:
-                converted_filters = _convert_filters(filters)
-                results = self.index.query(
-                    vector=vector,
-                    query_filter=converted_filters,
-                    top_k=1000,
-                    include_values=True,
-                    include_metadata=True,
-                )
-                documents.extend(self._get_result_to_documents(results))
-        else:
-            converted_filters = _convert_filters(filters)
-            results = self.index.query(
-                vector=vector, query_filter=converted_filters, top_k=1000, include_values=True, include_metadata=True
-            )
-            documents = self._get_result_to_documents(results)
+        queries = self._filter_queries(filters)
+        collection = self._get_collection()
+        documents = []
+        for converted_filters, vector in queries:
+            documents.extend(self._find_documents(collection, converted_filters, vector=vector, limit=1000))
         return documents
 
-    @staticmethod
-    def _get_result_to_documents(results: QueryResponse) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Asynchronously returns at most 1000 documents that match the filter.
+
+        :param filters: filters to apply.
+        :returns: matching documents.
+        :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported by this class.
+        """
+        queries = self._filter_queries(filters)
+        collection = await self._get_async_collection()
         documents = []
-        for match in results.matches:
-            metadata = match.metadata
-            blob = metadata.pop("blob", None) if metadata else None
-            meta = metadata.pop("meta", {}) if metadata else {}
-            document = Document(
-                content=match.text,
-                id=match.document_id,
-                embedding=match.values,
-                blob=blob,
-                meta=meta,
-                score=match.score,
-            )
-            documents.append(document)
+        for converted_filters, vector in queries:
+            documents.extend(await self._find_documents_async(collection, converted_filters, vector=vector, limit=1000))
         return documents
 
     def get_documents_by_id(self, ids: list[str]) -> list[Document]:
@@ -420,9 +568,31 @@ class AstraDocumentStore:
         :param ids: the IDs of the documents to retrieve.
         :returns: the matching documents.
         """
-        results = self.index.get_documents(ids=ids)
-        ret = self._get_result_to_documents(results)
-        return ret
+        collection = self._get_collection()
+        documents = []
+        for batch in _batches(ids, MAX_BATCH_SIZE):
+            documents.extend(self._find_documents(collection, {"_id": {"$in": batch}}))
+        return documents
+
+    async def get_documents_by_id_async(self, ids: list[str]) -> list[Document]:
+        """
+        Asynchronously gets documents by their IDs.
+
+        :param ids: the IDs of the documents to retrieve.
+        :returns: the matching documents.
+        """
+        collection = await self._get_async_collection()
+        documents = []
+        for batch in _batches(ids, MAX_BATCH_SIZE):
+            documents.extend(await self._find_documents_async(collection, {"_id": {"$in": batch}}))
+        return documents
+
+    @staticmethod
+    def _single_document(documents: list[Document], document_id: str) -> Document:
+        if not documents:
+            msg = f"Document {document_id} does not exist"
+            raise MissingDocumentError(msg)
+        return documents[0]
 
     def get_document_by_id(self, document_id: str) -> Document:
         """
@@ -432,12 +602,20 @@ class AstraDocumentStore:
         :returns: the found document
         :raises MissingDocumentError: if the document is not found
         """
-        document = self.index.get_documents(ids=[document_id])
-        ret = self._get_result_to_documents(document)
-        if not ret:
-            msg = f"Document {document_id} does not exist"
-            raise MissingDocumentError(msg)
-        return ret[0]
+        documents = self._find_documents(self._get_collection(), {"_id": {"$in": [document_id]}})
+        return self._single_document(documents, document_id)
+
+    async def get_document_by_id_async(self, document_id: str) -> Document:
+        """
+        Asynchronously gets a document by its ID.
+
+        :param document_id: the ID to filter by
+        :returns: the found document
+        :raises MissingDocumentError: if the document is not found
+        """
+        collection = await self._get_async_collection()
+        documents = await self._find_documents_async(collection, {"_id": {"$in": [document_id]}})
+        return self._single_document(documents, document_id)
 
     def search(self, query_embedding: list[float], top_k: int, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -449,19 +627,32 @@ class AstraDocumentStore:
         :returns: matching documents.
         """
         converted_filters = _convert_filters(filters)
+        return self._find_documents(self._get_collection(), converted_filters, vector=query_embedding, limit=top_k)
 
-        result = self._get_result_to_documents(
-            self.index.query(
-                vector=query_embedding,
-                top_k=top_k,
-                query_filter=converted_filters,
-                include_metadata=True,
-                include_values=True,
-            )
-        )
-        logger.debug(f"Raw responses: {result}")  # leaving for debugging
+    async def search_async(
+        self, query_embedding: list[float], top_k: int, filters: dict[str, Any] | None = None
+    ) -> list[Document]:
+        """
+        Search using AstraPy's native async API.
 
-        return result
+        The collection connection is initialized lazily and reused across searches on the same event loop.
+        Call `close_async()` when finished, including after failures or cancellation, before closing the loop.
+
+        :param query_embedding: A list of query embeddings.
+        :param top_k: The number of results to return.
+        :param filters: Filters to apply during search.
+        :returns: Matching documents, including embeddings, metadata and similarity scores.
+        """
+        converted_filters = _convert_filters(filters)
+        collection = await self._get_async_collection()
+        return await self._find_documents_async(collection, converted_filters, vector=query_embedding, limit=top_k)
+
+    @staticmethod
+    def _check_deleted(document_ids: list[str], deletion_counter: int) -> None:
+        logger.info("{count} documents deleted", count=deletion_counter)
+        if document_ids and deletion_counter == 0:
+            msg = f"Document {document_ids} does not exist"
+            raise MissingDocumentError(msg)
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
@@ -470,34 +661,92 @@ class AstraDocumentStore:
         :param document_ids: IDs of the documents to delete.
         :raises MissingDocumentError: if no document was deleted but document IDs were provided.
         """
-        if self.index.find_one_document({"filter": {}}) is not None:
-            deletion_counter = 0
-            if document_ids is not None:
-                for batch in _batches(document_ids, MAX_BATCH_SIZE):
-                    deletion_counter += self.index.delete(ids=batch)
-            logger.info(f"{deletion_counter} documents deleted")
-
-            if document_ids is not None and deletion_counter == 0:
-                msg = f"Document {document_ids} does not exist"
-                raise MissingDocumentError(msg)
-        else:
+        collection = self._get_collection()
+        if collection.find_one({}, projection={"_id": True}) is None:
             logger.info("No documents in document store")
+            return
+        deletion_counter = 0
+        for batch in _batches(document_ids, MAX_BATCH_SIZE):
+            deletion_counter += collection.delete_many({"_id": {"$in": batch}}).deleted_count
+        self._check_deleted(document_ids, deletion_counter)
 
-    def delete_all_documents(self) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
-        Deletes all documents from the document store.
+        Asynchronously deletes documents from the document store.
+
+        :param document_ids: IDs of the documents to delete.
+        :raises MissingDocumentError: if no document was deleted but document IDs were provided.
         """
+        collection = await self._get_async_collection()
+        if await collection.find_one({}, projection={"_id": True}) is None:
+            logger.info("No documents in document store")
+            return
+        deletion_counter = 0
+        for batch in _batches(document_ids, MAX_BATCH_SIZE):
+            deletion_counter += (await collection.delete_many({"_id": {"$in": batch}})).deleted_count
+        self._check_deleted(document_ids, deletion_counter)
 
-        try:
-            deletion_counter = self.index.delete_all_documents()
-        except Exception as e:
-            msg = f"Failed to delete all documents from Astra: {e!s}"
-            raise DocumentStoreError(msg) from e
-
+    @staticmethod
+    def _log_delete_all(deletion_counter: int) -> None:
+        # The Data API reports -1 when all documents of a collection are deleted.
         if deletion_counter == -1:
             logger.info("All documents deleted")
         else:
             logger.error("Could not delete all documents")
+
+    def delete_all_documents(self, *, recreate_index: bool = False) -> None:
+        """
+        Deletes all documents from the document store.
+
+        :param recreate_index: If `True`, drops the collection and recreates it with its current definition (vector
+            dimension, metric and indexing settings) instead of deleting its documents. Dropping and creating a
+            collection takes several seconds and is not atomic: if the creation fails, the next operation creates the
+            collection from this store's settings.
+        :raises DocumentStoreError: if the documents could not be deleted or the collection could not be recreated.
+        """
+        deletion_counter = -1
+        try:
+            collection = self._get_collection()
+            if recreate_index:
+                definition = collection.options()
+                collection.drop()
+                self._collection = None
+                self._collection = collection.database.create_collection(self.collection_name, definition=definition)
+            else:
+                deletion_counter = collection.delete_many({}).deleted_count
+        except Exception as e:
+            msg = f"Failed to delete all documents from Astra: {e!s}"
+            raise DocumentStoreError(msg) from e
+        self._log_delete_all(deletion_counter)
+
+    async def delete_all_documents_async(self, *, recreate_index: bool = False) -> None:
+        """
+        Asynchronously deletes all documents from the document store.
+
+        :param recreate_index: If `True`, drops the collection and recreates it with its current definition (vector
+            dimension, metric and indexing settings) instead of deleting its documents. Dropping and creating a
+            collection takes several seconds and is not atomic: if the creation fails, the next operation creates the
+            collection from this store's settings.
+        :raises DocumentStoreError: if the documents could not be deleted or the collection could not be recreated.
+        """
+        deletion_counter = -1
+        try:
+            collection = await self._get_async_collection()
+            if recreate_index:
+                definition = await collection.options()
+                await collection.drop()
+                self._async_collection = None
+                # The database used to open the cached collection is already closed, so open a new one.
+                async with self._async_database() as database:
+                    recreated = await database.create_collection(self.collection_name, definition=definition)
+                await collection.__aexit__()
+                self._async_collection = recreated
+            else:
+                deletion_counter = (await collection.delete_many({})).deleted_count
+        except Exception as e:
+            msg = f"Failed to delete all documents from Astra: {e!s}"
+            raise DocumentStoreError(msg) from e
+        self._log_delete_all(deletion_counter)
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -507,18 +756,36 @@ class AstraDocumentStore:
         :returns: The number of documents deleted.
         :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported.
         """
-        if not isinstance(filters, dict):
-            msg = "Filters must be a dictionary"
-            raise AstraDocumentStoreFilterError(msg)
-
-        if "id" in filters:
-            filters["_id"] = filters.pop("id")
-
-        converted_filters = _convert_filters(filters)
-        deletion_count = self.index.delete(filters=converted_filters)
-
-        logger.info(f"{deletion_count} documents deleted by filter")
+        converted_filters = _convert_filters(self._normalize_new_filter_input(filters))
+        deletion_count = self._get_collection().delete_many(converted_filters or {}).deleted_count
+        logger.info("{count} documents deleted by filter", count=deletion_count)
         return deletion_count
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes documents that match the provided filters.
+
+        :param filters: The filters to apply to find documents to delete.
+        :returns: The number of documents deleted.
+        :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported.
+        """
+        converted_filters = _convert_filters(self._normalize_new_filter_input(filters))
+        collection = await self._get_async_collection()
+        deletion_count = (await collection.delete_many(converted_filters or {})).deleted_count
+        logger.info("{count} documents deleted by filter", count=deletion_count)
+        return deletion_count
+
+    @staticmethod
+    def _update_by_filter_operation(
+        filters: dict[str, Any], meta: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
+        if not isinstance(meta, dict):
+            msg = "Meta must be a dictionary"
+            raise AstraDocumentStoreFilterError(msg)
+        # use dot notation to update nested fields in the meta-object - ensures fields are created if they don't exist
+        update_fields = {f"meta.{key}": value for key, value in meta.items()}
+        return _convert_filters(normalized_filters) or {}, {"$set": update_fields}
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
         """
@@ -532,26 +799,27 @@ class AstraDocumentStore:
 
         :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported.
         """
-        if not isinstance(filters, dict):
-            msg = "Filters must be a dictionary"
-            raise AstraDocumentStoreFilterError(msg)
+        filter_, update = self._update_by_filter_operation(filters, meta)
+        update_count = self._get_collection().update_many(filter_, update).update_info["nModified"]
+        logger.info("{count} documents updated by filter", count=update_count)
+        return update_count
 
-        if not isinstance(meta, dict):
-            msg = "Meta must be a dictionary"
-            raise AstraDocumentStoreFilterError(msg)
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously updates documents that match the provided filters with the given metadata.
 
-        if "id" in filters:
-            filters["_id"] = filters.pop("id")
+        :param filters: The filters to apply to find documents to update.
+        :param meta: The metadata fields to update. This will be merged with existing metadata.
 
-        converted_filters = _convert_filters(filters)
+        :returns:
+            The number of documents updated.
 
-        # use dot notation to update nested fields in the meta-object - ensures fields are created if they don't exist
-        update_fields = {f"meta.{key}": value for key, value in meta.items()}
-        update_operation = {"$set": update_fields}
-        update_count = self.index.update(filters=converted_filters, update=update_operation)  # type: ignore
-
-        logger.info(f"{update_count} documents updated by filter")
-
+        :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported.
+        """
+        filter_, update = self._update_by_filter_operation(filters, meta)
+        collection = await self._get_async_collection()
+        update_count = (await collection.update_many(filter_, update)).update_info["nModified"]
+        logger.info("{count} documents updated by filter", count=update_count)
         return update_count
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
@@ -561,9 +829,19 @@ class AstraDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: The number of documents that match the filter.
         """
-        normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
-        converted_filters = _convert_filters(normalized_filters)
-        return self.index.count_documents(filters=converted_filters, upper_bound=1_000_000_000)
+        converted_filters = _convert_filters(self._normalize_new_filter_input(filters))
+        return self._get_collection().count_documents(converted_filters or {}, upper_bound=1_000_000_000)
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously applies a filter and counts the documents that matched it.
+
+        :param filters: The filters to apply to the document list.
+        :returns: The number of documents that match the filter.
+        """
+        converted_filters = _convert_filters(self._normalize_new_filter_input(filters))
+        collection = await self._get_async_collection()
+        return await collection.count_documents(converted_filters or {}, upper_bound=1_000_000_000)
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
@@ -574,27 +852,39 @@ class AstraDocumentStore:
         :returns: A dictionary where the keys are the metadata field names and the values are the count of unique
             values.
         """
-        normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
-        converted_filters = _convert_filters(normalized_filters)
+        converted_filters = _convert_filters(self._normalize_new_filter_input(filters))
+        collection = self._get_collection()
+        return {
+            field: len(self._normalize_distinct_values(collection.distinct(f"meta.{field}", filter=converted_filters)))
+            for field in metadata_fields
+        }
 
-        counts = {}
-        for field in metadata_fields:
-            distinct_values = self.index.distinct(f"meta.{field}", filters=converted_filters)
-            counts[field] = len(AstraDocumentStore._normalize_distinct_values(distinct_values))
-        return counts
-
-    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
         """
-        Returns the metadata fields and the corresponding types.
+        Asynchronously counts the unique values of each meta field across the documents matching a filter.
 
-        :returns: A dictionary mapping field names to dictionaries with a `type` key.
+        :param filters: The filters to apply to the document list.
+        :param metadata_fields: The metadata fields to count unique values for.
+        :returns: A dictionary where the keys are the metadata field names and the values are the count of unique
+            values.
         """
-        documents = self._get_metadata_projection_documents()
+        converted_filters = _convert_filters(self._normalize_new_filter_input(filters))
+        collection = await self._get_async_collection()
+        return {
+            field: len(
+                self._normalize_distinct_values(await collection.distinct(f"meta.{field}", filter=converted_filters))
+            )
+            for field in metadata_fields
+        }
+
+    @staticmethod
+    def _metadata_fields_info(documents: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
         if not documents:
             return {}
 
         fields_info: dict[str, dict[str, str]] = {}
-
         if any(document.get("content") is not None for document in documents):
             fields_info["content"] = {"type": "text"}
 
@@ -604,9 +894,35 @@ class AstraDocumentStore:
                 field_values.setdefault(field, []).append(value)
 
         for field, values in field_values.items():
-            fields_info[field] = {"type": self._infer_metadata_field_type(values)}
+            fields_info[field] = {"type": AstraDocumentStore._infer_metadata_field_type(values)}
 
         return fields_info
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns the metadata fields and the corresponding types.
+
+        :returns: A dictionary mapping field names to dictionaries with a `type` key.
+        """
+        documents = list(self._get_collection().find(projection={"content": 1, "meta": 1}))
+        return self._metadata_fields_info(documents)
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Asynchronously returns the metadata fields and the corresponding types.
+
+        :returns: A dictionary mapping field names to dictionaries with a `type` key.
+        """
+        collection = await self._get_async_collection()
+        documents = [document async for document in collection.find(projection={"content": 1, "meta": 1})]
+        return self._metadata_fields_info(documents)
+
+    @staticmethod
+    def _min_max(distinct_values: list[Any]) -> dict[str, Any]:
+        comparable_values = [value for value in distinct_values if isinstance(value, str | int | float | bool)]
+        if not comparable_values:
+            return {"min": None, "max": None}
+        return {"min": min(comparable_values), "max": max(comparable_values)}
 
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
@@ -615,14 +931,37 @@ class AstraDocumentStore:
         :param metadata_field: The metadata field to inspect.
         :returns: A dictionary with `min` and `max`.
         """
-
         field = metadata_field.removeprefix("meta.")
-        distinct_values = self.index.distinct(f"meta.{field}")
-        comparable_values = [value for value in distinct_values if isinstance(value, str | int | float | bool)]
-        if not comparable_values:
-            return {"min": None, "max": None}
+        return self._min_max(self._get_collection().distinct(f"meta.{field}"))
 
-        return {"min": min(comparable_values), "max": max(comparable_values)}
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously, for a given metadata field, find its max and min value.
+
+        :param metadata_field: The metadata field to inspect.
+        :returns: A dictionary with `min` and `max`.
+        """
+        field = metadata_field.removeprefix("meta.")
+        collection = await self._get_async_collection()
+        return self._min_max(await collection.distinct(f"meta.{field}"))
+
+    @staticmethod
+    def _unique_values_query(metadata_field: str, filters: dict[str, Any] | None) -> tuple[str, dict[str, Any] | None]:
+        field = metadata_field.removeprefix("meta.")
+        converted_filters = None
+        if filters:
+            converted_filters = _convert_filters(AstraDocumentStore._normalize_new_filter_input(filters))
+        return f"meta.{field}", converted_filters
+
+    @staticmethod
+    def _paginate_unique_values(
+        distinct_values: list[Any], search_term: str | None, from_: int, size: int
+    ) -> tuple[list[Any], int]:
+        values = AstraDocumentStore._normalize_distinct_values(distinct_values)
+        if search_term:
+            search_term_lower = search_term.lower()
+            values = [value for value in values if search_term_lower in str(value).lower()]
+        return values[from_ : from_ + size], len(values)
 
     def get_metadata_field_unique_values(
         self,
@@ -651,17 +990,38 @@ class AstraDocumentStore:
         :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing the paginated values (in their original type) and the total count.
         """
-        field = metadata_field.removeprefix("meta.")
-        converted_filters = None
-        if filters:
-            normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
-            converted_filters = _convert_filters(normalized_filters)
-        values = AstraDocumentStore._normalize_distinct_values(
-            self.index.distinct(f"meta.{field}", filters=converted_filters)
-        )
-        if search_term:
-            search_term_lower = search_term.lower()
-            values = [value for value in values if search_term_lower in str(value).lower()]
+        key, converted_filters = self._unique_values_query(metadata_field, filters)
+        distinct_values = self._get_collection().distinct(key, filter=converted_filters)
+        return self._paginate_unique_values(distinct_values, search_term, from_, size)
 
-        total_count = len(values)
-        return values[from_ : from_ + size], total_count
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
+        """
+        Asynchronously retrieves unique values for a field, optionally matching a search term.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception.
+        AstraDB's Data API canonicalizes any whole-number float (e.g. `1.0`) to an int on storage, unconditionally so a
+        whole-number float is always returned back as an int, never as a float.
+        Example: 1.0 (float) is sent to storage and comes back a 1 (int)
+
+        Exception are floats with a fractional part (e.g. `1.5`) are unaffected and round-trip normally.
+
+        :param metadata_field: The metadata field to inspect.
+        :param search_term: Optional case-insensitive substring search term.
+        :param from_: The starting index for pagination.
+        :param size: The number of values to return.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing the paginated values (in their original type) and the total count.
+        """
+        key, converted_filters = self._unique_values_query(metadata_field, filters)
+        collection = await self._get_async_collection()
+        distinct_values = await collection.distinct(key, filter=converted_filters)
+        return self._paginate_unique_values(distinct_values, search_term, from_, size)

@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v8.3.0] - 2026-10-01
+
+### 🚜 Refactor
+
+- Generalize flattened generation_kwargs for tool_choice/thinking/output_config (#4028)
+
+## [integrations/amazon_bedrock-v8.2.0] - 2026-09-24
+
+### 🚀 Features
+
+- Add thinking_display flattened generation_kwarg to Anthropic and Bedrock chat generators (#3993)
+
+
+## [integrations/amazon_bedrock-v8.1.1] - 2026-09-23
+
+### 🐛 Bug Fixes
+
+- Serialize missing init params in `to_dict` (transformers, amazon_bedrock) (#3873)
+
+
 ## [integrations/amazon_bedrock-v8.1.0] - 2026-09-04
 
 ### 🚀 Features

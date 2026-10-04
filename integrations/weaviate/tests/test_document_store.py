@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
+import importlib.metadata
 import logging
 import os
 from collections.abc import Generator
@@ -43,6 +44,7 @@ from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
 from haystack_integrations.document_stores.weaviate.document_store import (
     DOCUMENT_COLLECTION_PROPERTIES,
     WeaviateDocumentStore,
+    _integration_header_value,
 )
 
 
@@ -81,7 +83,10 @@ def test_client_connects_to_weaviate_cloud(mock_connect, monkeypatch):
 
     mock_connect.assert_called_once()
     _args, kwargs = mock_connect.call_args
-    assert kwargs["headers"] == {"X-HuggingFace-Api-Key": "k"}
+    assert kwargs["headers"] == {
+        "X-HuggingFace-Api-Key": "k",
+        "X-Weaviate-Client-Integration": _integration_header_value(),
+    }
 
 
 @pytest.mark.asyncio
@@ -100,9 +105,84 @@ async def test_async_client_connects_to_weaviate_cloud(mock_connect, monkeypatch
     mock_client.collections.exists = exists
     mock_connect.return_value = mock_client
 
-    ds = WeaviateDocumentStore(url="rAnD0m.something.weaviate.cloud", auth_client_secret=AuthApiKey())
+    ds = WeaviateDocumentStore(
+        url="rAnD0m.something.weaviate.cloud",
+        auth_client_secret=AuthApiKey(),
+        additional_headers={"X-HuggingFace-Api-Key": "k"},
+    )
     assert await ds.async_client is mock_client
+
     mock_connect.assert_called_once()
+    _args, kwargs = mock_connect.call_args
+    assert kwargs["headers"] == {
+        "X-HuggingFace-Api-Key": "k",
+        "X-Weaviate-Client-Integration": _integration_header_value(),
+    }
+
+
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
+def test_client_sends_integration_header(mock_weaviate_client_class):
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_weaviate_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="http://localhost:8080")
+    ds.client  # noqa: B018
+
+    headers = mock_weaviate_client_class.call_args.kwargs["additional_headers"]
+    assert headers["X-Weaviate-Client-Integration"].startswith("haystack-python/")
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateAsyncClient")
+async def test_async_client_sends_integration_header(mock_weaviate_async_client_class):
+    mock_client = MagicMock()
+
+    async def connect() -> None:
+        return None
+
+    async def exists(_name: str) -> bool:
+        return True
+
+    mock_client.connect = connect
+    mock_client.collections.exists = exists
+    mock_weaviate_async_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="http://localhost:8080")
+    await ds.async_client
+
+    headers = mock_weaviate_async_client_class.call_args.kwargs["additional_headers"]
+    assert headers["X-Weaviate-Client-Integration"].startswith("haystack-python/")
+
+
+@pytest.mark.parametrize("header_name", ["X-Weaviate-Client-Integration", "x-weaviate-client-integration"])
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
+def test_user_supplied_integration_header_wins(mock_weaviate_client_class, header_name):
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_weaviate_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="http://localhost:8080", additional_headers={header_name: "custom/1.0"})
+    ds.client  # noqa: B018
+
+    headers = mock_weaviate_client_class.call_args.kwargs["additional_headers"]
+    assert headers == {header_name: "custom/1.0"}
+
+
+def test_integration_header_value_falls_back_to_unknown_version(monkeypatch):
+    def raise_package_not_found(_package_name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError
+
+    monkeypatch.setattr(importlib.metadata, "version", raise_package_not_found)
+
+    assert _integration_header_value() == "haystack-python/unknown"
+
+
+def test_integration_header_is_not_serialized():
+    assert WeaviateDocumentStore().to_dict()["init_parameters"]["additional_headers"] is None
+
+    ds = WeaviateDocumentStore(additional_headers={"X-HuggingFace-Api-Key": "k"})
+    assert ds.to_dict()["init_parameters"]["additional_headers"] == {"X-HuggingFace-Api-Key": "k"}
 
 
 def test_to_data_object_with_sparse_embedding_logs_warning(caplog):
@@ -325,7 +405,10 @@ class TestWeaviateDocumentStore(
         mock_weaviate_client_class.assert_called_once_with(
             auth_client_secret=AuthApiKey().resolve_value(),
             connection_params=None,
-            additional_headers={"X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY"},
+            additional_headers={
+                "X-HuggingFace-Api-Key": "MY_HUGGINGFACE_KEY",
+                "X-Weaviate-Client-Integration": _integration_header_value(),
+            },
             embedded_options=EmbeddedOptions(
                 persistence_data_path=DEFAULT_PERSISTENCE_DATA_PATH,
                 binary_path=DEFAULT_BINARY_PATH,
@@ -671,6 +754,27 @@ class TestWeaviateDocumentStore(
                 if d.meta.get("date") is not None
                 and parser.isoparse(d.meta["date"]) <= parser.isoparse("1969-07-21T20:17:40Z")
             ],
+        )
+
+    def test_nested_not_operator(self, document_store, filterable_docs):
+        """NOT(NOT(x)) must select the same Documents as x, matching `document_matches_filter`."""
+        document_store.write_documents(filterable_docs)
+        inner = {"field": "meta.number", "operator": "==", "value": 100}
+        nested_not = {"operator": "NOT", "conditions": [{"operator": "NOT", "conditions": [inner]}]}
+
+        result = document_store.filter_documents(nested_not)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
+
+    def test_not_operator_over_contains(self, document_store, filterable_docs):
+        """`contains` has no inverted counterpart, so negating it used to raise a bare KeyError."""
+        document_store.write_documents(filterable_docs)
+        filters = {"operator": "NOT", "conditions": [{"field": "meta.name", "operator": "contains", "value": "name_0"}]}
+
+        result = document_store.filter_documents(filters)
+
+        self.assert_documents_are_equal(
+            result, [d for d in filterable_docs if "name_0" not in (d.meta.get("name") or "")]
         )
 
     def test_split_overlap_preserved(self, document_store):
