@@ -18,7 +18,6 @@ from haystack_integrations.document_stores.weaviate.document_store import (
     WeaviateDocumentStore,
 )
 
-
 DOCUMENTS = [
     Document(content="The quick brown fox", meta={"category": "animals"}, embedding=[1.0, 0.0, 0.0, 0.0]),
     Document(content="A lazy dog sleeps", meta={"category": "animals"}, embedding=[0.0, 1.0, 0.0, 0.0]),

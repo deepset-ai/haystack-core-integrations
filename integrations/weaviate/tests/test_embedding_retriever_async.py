@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import AsyncMock, create_autospec
+from unittest.mock import create_autospec
 
 import pytest
 
@@ -13,7 +13,6 @@ from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 @pytest.mark.asyncio
 async def test_close_async():
     mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
-    mock_document_store.close_async = AsyncMock()
     retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store)
 
     await retriever.close_async()
@@ -25,7 +24,7 @@ async def test_close_async():
 @pytest.mark.asyncio
 async def test_run_async_calls_async_retrieval():
     mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
-    mock_document_store._embedding_retrieval_async = AsyncMock(return_value=[])
+    mock_document_store._embedding_retrieval_async.return_value = []
 
     retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store)
 
@@ -58,7 +57,7 @@ async def test_run_async_distance_and_certainty_error():
 @pytest.mark.parametrize("param", ["distance", "certainty"])
 async def test_run_async_honors_explicit_zero(param):
     mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
-    mock_document_store._embedding_retrieval_async = AsyncMock(return_value=[])
+    mock_document_store._embedding_retrieval_async.return_value = []
     retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store, **{param: 0.5})
 
     await retriever.run_async(query_embedding=[0.1, 0.2, 0.3], **{param: 0.0})
@@ -70,7 +69,7 @@ async def test_run_async_honors_explicit_zero(param):
 @pytest.mark.parametrize("param", ["distance", "certainty"])
 async def test_run_async_honors_zero_set_at_init(param):
     mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
-    mock_document_store._embedding_retrieval_async = AsyncMock(return_value=[])
+    mock_document_store._embedding_retrieval_async.return_value = []
     retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store, **{param: 0.0})
 
     await retriever.run_async(query_embedding=[0.1, 0.2, 0.3])

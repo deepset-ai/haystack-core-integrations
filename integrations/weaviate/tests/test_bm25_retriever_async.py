@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import AsyncMock, create_autospec
+from unittest.mock import create_autospec
 
 import pytest
 
@@ -13,7 +13,6 @@ from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 @pytest.mark.asyncio
 async def test_close_async():
     mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
-    mock_document_store.close_async = AsyncMock()
     retriever = WeaviateBM25Retriever(document_store=mock_document_store)
 
     await retriever.close_async()
@@ -25,7 +24,7 @@ async def test_close_async():
 @pytest.mark.asyncio
 async def test_run_async_calls_async_retrieval():
     mock_document_store = create_autospec(WeaviateDocumentStore, instance=True)
-    mock_document_store._bm25_retrieval_async = AsyncMock(return_value=[])
+    mock_document_store._bm25_retrieval_async.return_value = []
 
     retriever = WeaviateBM25Retriever(document_store=mock_document_store)
 
