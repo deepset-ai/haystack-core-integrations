@@ -7,7 +7,6 @@ import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import falkordb as _falkordb_module
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -24,15 +23,19 @@ from haystack.testing.document_store import (
     GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
 )
+from redis.exceptions import ResponseError
 
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
     FalkorDBEmbeddingRetriever,
 )
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
+from haystack_integrations.document_stores.falkordb import document_store as document_store_module
 from haystack_integrations.document_stores.falkordb.document_store import (
     _convert_filters,
 )
+
+from .test_document_store_common import FalkorDBDocumentStoreTestMixin
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +78,7 @@ def mock_falkordb(monkeypatch):
     constructor.return_value = client
     client.select_graph.return_value = graph
     graph.query.return_value = _result([])
-    monkeypatch.setattr(_falkordb_module, "FalkorDB", constructor)
+    monkeypatch.setattr(document_store_module, "FalkorDB", constructor)
     return constructor, client, graph
 
 
@@ -164,6 +167,74 @@ class TestFalkorDBDocumentStoreUnit:
     def test_convert_filters_errors(self, filter_node, match):
         with pytest.raises(FilterError, match=match):
             _convert_filters(filter_node)
+
+    def test_warm_up_initializes_client_and_schema(self, mock_falkordb):
+        constructor, client, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+
+        store.warm_up()
+
+        constructor.assert_called_once()
+        assert store.client is client
+        assert store.graph is graph
+        assert store.initialized is True
+        assert graph.query.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_falkordb):
+        constructor, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+
+        store.warm_up()
+        store.warm_up()
+
+        constructor.assert_called_once()
+        assert graph.query.call_count == 2
+
+    def test_close_then_warm_up_reopens(self, mock_falkordb):
+        constructor, client, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+
+        store.close()
+        store.warm_up()
+
+        assert constructor.call_count == 2
+        client.close.assert_called_once()
+        assert store.client is client
+        assert store.graph is graph
+        assert store.initialized is True
+        assert graph.query.call_count == 4
+
+    def test_warm_up_suppresses_missing_graph_error(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.delete.side_effect = ResponseError("Invalid graph operation on empty key")
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        store.warm_up()
+
+        assert store._recreate_graph_applied is True
+        assert store.initialized is True
+
+    @pytest.mark.parametrize(
+        "error",
+        [ResponseError("unexpected response"), ConnectionError("connection lost")],
+        ids=["response-error", "connection-error"],
+    )
+    def test_warm_up_retries_graph_deletion_after_error(self, mock_falkordb, error):
+        _, _, graph = mock_falkordb
+        graph.delete.side_effect = [error, None]
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        with pytest.raises(type(error), match=str(error)):
+            store.warm_up()
+
+        assert store._recreate_graph_applied is False
+
+        store.warm_up()
+
+        assert graph.delete.call_count == 2
+        assert store._recreate_graph_applied is True
+        assert store.initialized is True
 
     @pytest.mark.parametrize("rows, expected", [([[42]], 42), ([], 0)])
     def test_count_documents(self, mock_falkordb, rows, expected):
@@ -441,6 +512,7 @@ class TestFalkorDBDocumentStoreUnit:
 
 @pytest.mark.integration
 class TestDocumentStore(
+    FalkorDBDocumentStoreTestMixin,
     DocumentStoreBaseTests,
     DeleteAllTest,
     DeleteByFilterTest,
@@ -454,22 +526,6 @@ class TestDocumentStore(
     """
     Test FalkorDBDocumentStore against the standard Haystack DocumentStore tests.
     """
-
-    @staticmethod
-    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
-        """
-        FalkorDB stores embeddings as vecf32 (float32), so exact float64 round-trip
-        equality is not possible. Sort both lists by id to compensate for non-deterministic
-        graph traversal order, and compare only id/content/meta plus embedding presence.
-        """
-        assert len(received) == len(expected), f"Expected {len(expected)} documents but got {len(received)}"
-        received_sorted = sorted(received, key=lambda d: d.id)
-        expected_sorted = sorted(expected, key=lambda d: d.id)
-        for recv, exp in zip(received_sorted, expected_sorted, strict=True):
-            assert recv.id == exp.id
-            assert recv.content == exp.content
-            assert recv.meta == exp.meta
-            assert (recv.embedding is None) == (exp.embedding is None)
 
     @pytest.fixture
     def document_store(self, request):
@@ -537,10 +593,14 @@ class TestDocumentStore(
         assert bool_values == [True] and type(bool_values[0]) is bool
 
     def test_close_and_reopen(self, document_store):
-        assert document_store.count_documents() == 0
+        document = Document(content="hello")
+        document_store.write_documents([document])
+
         document_store.close()
         assert document_store.client is None
-        assert document_store.count_documents() == 0
+        document_store.warm_up()
+        assert document_store.client is not None
+        self.assert_documents_are_equal(document_store.filter_documents(), [document])
 
     @pytest.fixture
     def embedding_store(self):
