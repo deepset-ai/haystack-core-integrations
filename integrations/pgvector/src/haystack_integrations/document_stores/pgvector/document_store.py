@@ -9,6 +9,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from psycopg import AsyncConnection, Connection, Cursor, Error, IntegrityError
 from psycopg.cursor_async import AsyncCursor
@@ -923,7 +924,7 @@ class PgvectorDocumentStore:
             )
             raise DocumentStoreError(error_msg) from e
 
-        # get the number of the inserted documents, inspired by psycopg3 docs
+        # executemany(returning=True) yields one result set per document, so walk them all with nextset()
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
         while True:
@@ -980,9 +981,14 @@ class PgvectorDocumentStore:
             )
             raise DocumentStoreError(error_msg) from e
 
+        # executemany(returning=True) yields one result set per document, so walk them all with nextset()
+        # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
-        async for _ in self._async_cursor:
-            written_docs += 1
+        while True:
+            if await self._async_cursor.fetchone():
+                written_docs += 1
+            if not self._async_cursor.nextset():
+                break
 
         return written_docs
 
@@ -1073,18 +1079,21 @@ class PgvectorDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
+        :raises FilterError: If `filters` is empty. Use `delete_all_documents()` to delete everything.
         """
         _validate_filters(filters)
+        if not filters:
+            # An empty filter would compile to an unqualified DELETE and empty the table
+            msg = "delete_by_filter requires a non-empty filter. Use delete_all_documents() to delete every document."
+            raise FilterError(msg)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
         )
 
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            delete_sql += sql_where_clause
+        sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+        delete_sql += sql_where_clause
 
         self._ensure_db_setup()
         assert self._cursor is not None
@@ -1115,18 +1124,24 @@ class PgvectorDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
+        :raises FilterError: If `filters` is empty. Use `delete_all_documents_async()` to delete everything.
         """
         _validate_filters(filters)
+        if not filters:
+            # An empty filter would compile to an unqualified DELETE and empty the table
+            msg = (
+                "delete_by_filter_async requires a non-empty filter. "
+                "Use delete_all_documents_async() to delete every document."
+            )
+            raise FilterError(msg)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
         )
 
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            delete_sql += sql_where_clause
+        sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+        delete_sql += sql_where_clause
 
         await self._ensure_db_setup_async()
         assert self._async_cursor is not None

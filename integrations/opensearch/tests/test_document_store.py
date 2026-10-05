@@ -1708,3 +1708,70 @@ class TestDocumentStore(
             assert "count" in fields_info
         finally:
             client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    @pytest.mark.parametrize(
+        "filters, expected_prices",
+        [
+            pytest.param(
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.price", "operator": ">", "value": 5},
+                        {"field": "meta.price", "operator": ">", "value": 1},
+                    ],
+                },
+                [6],
+                id="and_same_operator",
+            ),
+            pytest.param(
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.price", "operator": "<", "value": 3},
+                        {"field": "meta.price", "operator": "<=", "value": 5},
+                    ],
+                },
+                [0, 1, 2],
+                id="and_same_side",
+            ),
+            pytest.param(
+                {
+                    "operator": "NOT",
+                    "conditions": [
+                        {"field": "meta.price", "operator": "<=", "value": 1},
+                        {"field": "meta.price", "operator": "<=", "value": 5},
+                    ],
+                },
+                [2, 3, 4, 5, 6],
+                id="not_same_operator",
+            ),
+        ],
+    )
+    def test_filter_documents_same_field_ranges_keep_every_bound(
+        self, document_store: OpenSearchDocumentStore, filters, expected_prices
+    ):
+        document_store.write_documents([Document(content=f"doc {price}", meta={"price": price}) for price in range(7)])
+
+        result = document_store.filter_documents(filters=filters)
+
+        assert sorted(doc.meta["price"] for doc in result) == expected_prices
+
+    def test_filter_documents_same_field_date_ranges_keep_every_bound(self, document_store: OpenSearchDocumentStore):
+        # the shape FilterPolicy.MERGE produces from init filters and runtime filters on the same field
+        document_store.write_documents(
+            [
+                Document(content="march", meta={"date": "2021-03-01"}),
+                Document(content="september", meta={"date": "2021-09-01"}),
+            ]
+        )
+        filters = {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.date", "operator": ">=", "value": "2021-06-01"},
+                {"field": "meta.date", "operator": ">=", "value": "2021-01-01"},
+            ],
+        }
+
+        result = document_store.filter_documents(filters=filters)
+
+        assert [doc.meta["date"] for doc in result] == ["2021-09-01"]

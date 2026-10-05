@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cohere-v10.1.0] - 2026-09-28
+
+### 🚀 Features
+
+- *(cohere)* Add utility for API base URL validation (#4015)
+
+
 ## [integrations/cohere-v10.0.1] - 2026-09-10
 
 ### 🐛 Bug Fixes

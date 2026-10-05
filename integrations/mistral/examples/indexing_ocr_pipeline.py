@@ -1,6 +1,11 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # To run this example, you will need to:
 # 1. Set a `MISTRAL_API_KEY` environment variable
 # 2. Place a PDF file named `sample.pdf` in the same directory as this script
+# 3. Run this example from that directory
 #
 # This example demonstrates OCR document processing with structured annotations,
 # embedding the extracted documents using Mistral embeddings, and storing them
@@ -13,7 +18,7 @@
 from haystack import Pipeline
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from mistralai.models import DocumentURLChunk
+from mistralai.client.models import DocumentURLChunk
 from pydantic import BaseModel, Field
 
 from haystack_integrations.components.converters.mistral.ocr_document_converter import (

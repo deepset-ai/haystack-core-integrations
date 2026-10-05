@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/arcadedb-v1.6.1] - 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Fixing ArcadeDB delete_all_documents (#3989)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/arcadedb-v1.6.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
