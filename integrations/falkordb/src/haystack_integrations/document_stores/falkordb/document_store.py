@@ -15,7 +15,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.errors import FilterError
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from redis.exceptions import ResponseError
 
 import falkordb  # type: ignore[import-untyped,import-not-found]
@@ -164,7 +164,6 @@ class FalkorDBDocumentStore(DocumentStore):
         :param data: Serialised store dictionary.
         :returns: Reconstructed `FalkorDBDocumentStore` instance.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["password"])
         return default_from_dict(cls, data)
 
     def close(self) -> None:

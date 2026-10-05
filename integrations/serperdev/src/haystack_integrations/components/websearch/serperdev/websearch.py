@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 from haystack import ComponentError, Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,6 @@ class SerperDevWebSearch:
         :returns:
             The deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _is_domain_allowed(self, url: str) -> bool:
