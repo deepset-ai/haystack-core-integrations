@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
@@ -125,7 +126,7 @@ class TestSerialization:
                 "timeout": 45.0,
             },
         }
-        component = NvidiaDocumentEmbedder.from_dict(data)
+        component = component_from_dict(NvidiaDocumentEmbedder, data, name="component")
         assert component.model == "nvidia/nv-embedqa-e5-v5"
         assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
@@ -143,7 +144,7 @@ class TestSerialization:
             "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
             "init_parameters": {},
         }
-        component = NvidiaDocumentEmbedder.from_dict(data)
+        component = component_from_dict(NvidiaDocumentEmbedder, data, name="component")
         ## updating this as model set to None as the warm_up is not done
         ## default model will be set post warm_up()
         assert component.model is None

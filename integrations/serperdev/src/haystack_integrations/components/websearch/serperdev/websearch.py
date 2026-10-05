@@ -6,7 +6,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from haystack import ComponentError, Document, component, default_from_dict, default_to_dict, logging
+from haystack import ComponentError, Document, component, default_to_dict, logging
 from haystack.utils import Secret
 
 logger = logging.getLogger(__name__)
@@ -96,18 +96,6 @@ class SerperDevWebSearch:
             search_params=self.search_params,
             api_key=self.api_key.to_dict(),
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SerperDevWebSearch":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        return default_from_dict(cls, data)
 
     def _is_domain_allowed(self, url: str) -> bool:
         """

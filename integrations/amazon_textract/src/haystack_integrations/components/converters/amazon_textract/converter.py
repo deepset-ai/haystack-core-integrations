@@ -8,7 +8,7 @@ from typing import Any
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, default_to_dict, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
@@ -253,15 +253,3 @@ class AmazonTextractConverter:
             store_full_path=self.store_full_path,
             boto3_config=self.boto3_config,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AmazonTextractConverter":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        return default_from_dict(cls, data)

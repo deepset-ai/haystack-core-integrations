@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 from mistralai.client.models import DocumentURLChunk, FileChunk, ImageURLChunk
@@ -130,7 +131,7 @@ class TestSerialization:
             },
         }
 
-        converter = MistralOCRDocumentConverter.from_dict(converter_dict)
+        converter = component_from_dict(MistralOCRDocumentConverter, converter_dict, name="converter")
 
         assert converter.model == "mistral-ocr-2505"
         assert converter.include_image_base64 is False
@@ -158,7 +159,7 @@ class TestSerialization:
             },
         }
 
-        converter = MistralOCRDocumentConverter.from_dict(converter_dict)
+        converter = component_from_dict(MistralOCRDocumentConverter, converter_dict, name="converter")
 
         assert converter.model == "mistral-ocr-custom"
         assert converter.include_image_base64 is True

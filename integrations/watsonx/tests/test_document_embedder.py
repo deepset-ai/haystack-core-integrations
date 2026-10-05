@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonxDocumentEmbedder
@@ -87,7 +88,7 @@ class TestInitializationAndSerialization:
             },
         }
 
-        component = WatsonxDocumentEmbedder.from_dict(data)
+        component = component_from_dict(WatsonxDocumentEmbedder, data, name="component")
 
         assert component.model == "ibm/slate-125m-english-rtrvr"
         assert component.api_base_url == "https://custom-url.ibm.com"

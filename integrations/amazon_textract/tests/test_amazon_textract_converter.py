@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
+from haystack.core.serialization import component_from_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 
@@ -132,7 +133,7 @@ class TestAmazonTextractConverterSerialization:
             },
         }
 
-        converter = AmazonTextractConverter.from_dict(data)
+        converter = component_from_dict(AmazonTextractConverter, data, name="converter")
 
         assert converter.feature_types == ["TABLES", "FORMS"]
         assert converter.store_full_path is False
@@ -147,7 +148,7 @@ class TestAmazonTextractConverterSerialization:
         )
 
         data = converter.to_dict()
-        restored = AmazonTextractConverter.from_dict(data)
+        restored = component_from_dict(AmazonTextractConverter, data, name="restored")
 
         assert restored.feature_types == converter.feature_types
         assert restored.store_full_path == converter.store_full_path

@@ -5,6 +5,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
 from ibm_watsonx_ai.wml_client_error import ApiRequestFailure
 
@@ -71,7 +72,7 @@ class TestInitializationAndSerialization:
             },
         }
 
-        component = WatsonxTextEmbedder.from_dict(data)
+        component = component_from_dict(WatsonxTextEmbedder, data, name="component")
 
         assert component.model == "ibm/slate-125m-english-rtrvr"
         assert component.api_base_url == "https://custom-url.ibm.com"

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
 
 from haystack_integrations.components.rankers.nvidia import NvidiaRanker
@@ -63,7 +64,8 @@ class TestSerialization:
         }
 
     def test_from_dict(self) -> None:
-        client = NvidiaRanker.from_dict(
+        client = component_from_dict(
+            NvidiaRanker,
             {
                 "type": "haystack_integrations.components.rankers.nvidia.ranker.NvidiaRanker",
                 "init_parameters": {
@@ -78,7 +80,8 @@ class TestSerialization:
                     "embedding_separator": "\n",
                     "timeout": 45.0,
                 },
-            }
+            },
+            name="client",
         )
         assert client.model == "nvidia/nv-rerankqa-mistral-4b-v3"
         assert client.top_k == 5
@@ -92,11 +95,13 @@ class TestSerialization:
         assert client.timeout == 45.0
 
     def test_from_dict_defaults(self) -> None:
-        client = NvidiaRanker.from_dict(
+        client = component_from_dict(
+            NvidiaRanker,
             {
                 "type": "haystack_integrations.components.rankers.nvidia.ranker.NvidiaRanker",
                 "init_parameters": {},
-            }
+            },
+            name="client",
         )
         assert client.model is None
         assert client.top_k == 5
