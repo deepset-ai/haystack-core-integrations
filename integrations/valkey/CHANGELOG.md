@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/valkey-v0.5.0] - 2026-10-05
+
+### 🚀 Features
+
+- *(valkey)* Set client_info_tag for CLIENT SETINFO LIB-NAME attribution (#4044)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/valkey-v0.4.0] - 2026-09-01
 
 ### 🐛 Bug Fixes
