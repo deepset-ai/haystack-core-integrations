@@ -18,7 +18,6 @@ from haystack.tools import (
 from haystack.utils import (
     Secret,
     deserialize_callable,
-    deserialize_secrets_inplace,
     serialize_callable,
 )
 
@@ -258,7 +257,6 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             The deserialized component instance.
         """
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
 
         init_params = data.get("init_parameters", {})
         if serialized_callback := init_params.get("streaming_callback"):

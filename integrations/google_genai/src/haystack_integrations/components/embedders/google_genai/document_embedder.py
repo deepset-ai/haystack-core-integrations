@@ -8,7 +8,7 @@ from typing import Any, Literal
 from google.genai import Client, types
 from google.genai.client import AsyncClient
 from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from tqdm import tqdm
 
 from haystack_integrations.common.google_genai.utils import _get_client
@@ -221,7 +221,6 @@ class GoogleGenAIDocumentEmbedder:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
