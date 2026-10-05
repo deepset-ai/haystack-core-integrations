@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from contextlib import suppress
 from dataclasses import replace
@@ -135,6 +136,7 @@ class FalkorDBDocumentStore(DocumentStore):
         self.async_client: AsyncFalkorDB | None = None
         self.async_graph: AsyncGraph | None = None
         self.async_initialized: bool = False
+        self._async_warm_up_lock = asyncio.Lock()
         self._recreate_graph_applied: bool = False
 
         if verify_connectivity:
@@ -286,33 +288,41 @@ class FalkorDBDocumentStore(DocumentStore):
         if self.async_initialized:
             return
 
-        password_value = self.password.resolve_value() if self.password is not None else None
+        # Concurrent first calls must wait for a single warm-up: otherwise each creates its own client, and
+        # they can query the graph while another one is still deleting it.
+        async with self._async_warm_up_lock:
+            if self.async_initialized:
+                return
 
-        async_client = AsyncFalkorDB(
-            host=self.host,
-            port=self.port,
-            username=self.username,
-            password=password_value,
-        )
+            password_value = self.password.resolve_value() if self.password is not None else None
 
-        if self.recreate_graph and not self._recreate_graph_applied:
-            # Set before awaiting so another warm-up cannot recreate the graph concurrently.
-            self._recreate_graph_applied = True
-            try:
-                await async_client.select_graph(self.graph_name).delete()
-            except ResponseError as error:
-                if "invalid graph operation on empty key" not in str(error).lower():
+            async_client = AsyncFalkorDB(
+                host=self.host,
+                port=self.port,
+                username=self.username,
+                password=password_value,
+            )
+
+            if self.recreate_graph and not self._recreate_graph_applied:
+                # Recreation is shared by the sync and async connection lifecycles.
+                self._recreate_graph_applied = True
+                try:
+                    await async_client.select_graph(self.graph_name).delete()
+                except ResponseError as error:
+                    if "invalid graph operation on empty key" not in str(error).lower():
+                        self._recreate_graph_applied = False
+                        raise
+                    logger.debug(
+                        "Graph '{graph_name}' does not exist yet; skipping deletion.", graph_name=self.graph_name
+                    )
+                except Exception:
                     self._recreate_graph_applied = False
                     raise
-                logger.debug("Graph '{graph_name}' does not exist yet; skipping deletion.", graph_name=self.graph_name)
-            except Exception:
-                self._recreate_graph_applied = False
-                raise
 
-        self.async_client = async_client
-        self.async_graph = async_client.select_graph(self.graph_name)
-        await self._ensure_schema_async()
-        self.async_initialized = True
+            self.async_client = async_client
+            self.async_graph = async_client.select_graph(self.graph_name)
+            await self._ensure_schema_async()
+            self.async_initialized = True
 
     async def _ensure_schema_async(self) -> None:
         """
@@ -1039,11 +1049,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Count unique metadata values among matching documents asynchronously.
+        Return the number of unique values for each metadata field among matching documents asynchronously.
 
         :param filters: Haystack filter dict. Pass an empty dict to count across all documents.
-        :param metadata_fields: Metadata field names, with or without the `meta.` prefix.
-        :returns: Mapping of field names to unique value counts.
+        :param metadata_fields: List of metadata field names. May include or omit the `meta.` prefix.
+        :returns: Dict mapping each field name (without `meta.` prefix) to its unique value count.
         """
         await self.warm_up_async()
         assert self.async_graph is not None  # noqa: S101
@@ -1067,9 +1077,10 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
-        Return metadata field type information asynchronously.
+        Return type information for each metadata field present on document nodes asynchronously.
 
-        :returns: Mapping of field names to type information.
+        :returns: Dict mapping field names to a `{"type": <typename>}` dict.
+            Type names are `"str"`, `"int"`, `"float"`, or `"bool"`.
         """
         await self.warm_up_async()
         assert self.async_graph is not None  # noqa: S101
@@ -1101,10 +1112,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
     async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
         """
-        Return the minimum and maximum metadata values asynchronously.
+        Return the minimum and maximum values for the given metadata field asynchronously.
 
-        :param metadata_field: Metadata field name, with or without the `meta.` prefix.
-        :returns: Dict with `min` and `max` values.
+        :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
+        :returns: Dict with keys `"min"` and `"max"`. Values are `None` when no documents
+            have a non-null value for the field.
         """
         await self.warm_up_async()
         assert self.async_graph is not None  # noqa: S101

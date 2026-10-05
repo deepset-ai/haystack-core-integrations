@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import logging
 import os
 import uuid
@@ -176,6 +177,25 @@ class TestFalkorDBDocumentStoreAsyncUnit:
 
         async_graph.delete.assert_awaited_once_with()
         graph.delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_warm_up_async_initializes_once(self, mock_async_falkordb) -> None:
+        constructor, _, graph = mock_async_falkordb
+
+        # Plain AsyncMocks never suspend; yield like real I/O so the warm-ups interleave.
+        async def yield_to_other_tasks(*_args):
+            await asyncio.sleep(0)
+            return _result([])
+
+        graph.delete.side_effect = yield_to_other_tasks
+        graph.query.side_effect = yield_to_other_tasks
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        await asyncio.gather(*(store.warm_up_async() for _ in range(5)))
+
+        constructor.assert_called_once()
+        graph.delete.assert_awaited_once_with()
+        assert graph.query.await_count == 2
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("rows, expected", [([[7]], 7), ([], 0)])
