@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/funasr-v0.1.0] - 2026-10-05
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+### 🌀 Miscellaneous
+
+- Funasr - pin numba to avoid errors when testing lowest supported deps (#3491)
+- Funasr - pin tokenizers>=0.21.0 (#4043)
+
 ## [integrations/funasr-v0.0.1] - 2026-06-04
 
 ### 🚀 Features
