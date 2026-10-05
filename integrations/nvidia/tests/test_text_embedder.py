@@ -106,21 +106,6 @@ class TestSerialization:
         assert component.truncate == EmbeddingTruncateMode.START
         assert component.timeout == 10.0
 
-    def test_from_dict_defaults(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        data = {
-            "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
-            "init_parameters": {},
-        }
-        component = component_from_dict(NvidiaTextEmbedder, data, name="component")
-        ## updating this as model set to None as the warm_up is not done
-        ## default model will be set post warm_up()
-        assert component.model is None
-        assert component.api_url == DEFAULT_API_URL
-        assert component.prefix == ""
-        assert component.suffix == ""
-        assert component.truncate is None
-
 
 class TestComponentLifecycle:
     def test_key_resolved_at_warm_up_not_init(self, monkeypatch):

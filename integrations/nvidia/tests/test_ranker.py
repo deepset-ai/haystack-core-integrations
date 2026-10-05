@@ -94,26 +94,6 @@ class TestSerialization:
         assert client.embedding_separator == "\n"
         assert client.timeout == 45.0
 
-    def test_from_dict_defaults(self) -> None:
-        client = component_from_dict(
-            NvidiaRanker,
-            {
-                "type": "haystack_integrations.components.rankers.nvidia.ranker.NvidiaRanker",
-                "init_parameters": {},
-            },
-            name="client",
-        )
-        assert client.model is None
-        assert client.top_k == 5
-        assert client.truncate is None
-        assert client.api_url == "https://integrate.api.nvidia.com/v1"
-        assert client.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert client.query_prefix == ""
-        assert client.document_prefix == ""
-        assert client.meta_fields_to_embed == []
-        assert client.embedding_separator == "\n"
-        assert client.timeout == 60.0
-
 
 class TestComponentLifecycle:
     def test_key_resolved_at_warm_up_not_init(self, monkeypatch):

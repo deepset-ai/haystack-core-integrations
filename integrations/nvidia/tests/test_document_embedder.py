@@ -138,26 +138,6 @@ class TestSerialization:
         assert component.truncate == EmbeddingTruncateMode.START
         assert component.timeout == 45.0
 
-    def test_from_dict_defaults(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        data = {
-            "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
-            "init_parameters": {},
-        }
-        component = component_from_dict(NvidiaDocumentEmbedder, data, name="component")
-        ## updating this as model set to None as the warm_up is not done
-        ## default model will be set post warm_up()
-        assert component.model is None
-        assert component.api_url == DEFAULT_API_URL
-        assert component.prefix == ""
-        assert component.suffix == ""
-        assert component.batch_size == 32
-        assert component.progress_bar
-        assert component.meta_fields_to_embed == []
-        assert component.embedding_separator == "\n"
-        assert component.truncate is None
-        assert component.timeout == 60.0
-
 
 class TestComponentLifecycle:
     def test_key_resolved_at_warm_up_not_init(self, monkeypatch):

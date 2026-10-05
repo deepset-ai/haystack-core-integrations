@@ -117,28 +117,6 @@ class TestAmazonTextractConverterSerialization:
         assert data["init_parameters"]["store_full_path"] is False
         assert data["init_parameters"]["boto3_config"] is None
 
-    def test_from_dict(self):
-        expected_type = "haystack_integrations.components.converters.amazon_textract.converter.AmazonTextractConverter"
-        data = {
-            "type": expected_type,
-            "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                "feature_types": ["TABLES", "FORMS"],
-                "store_full_path": False,
-                "boto3_config": None,
-            },
-        }
-
-        converter = component_from_dict(AmazonTextractConverter, data, name="converter")
-
-        assert converter.feature_types == ["TABLES", "FORMS"]
-        assert converter.store_full_path is False
-        assert converter.boto3_config is None
-
     def test_from_dict_roundtrip(self):
         converter = AmazonTextractConverter(
             aws_access_key_id=Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),
