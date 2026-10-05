@@ -13,7 +13,7 @@ from haystack.components.converters.image.image_utils import (
     _PDFPageInfo,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from tqdm import tqdm
 
 from cohere import AsyncClientV2, ClientV2
@@ -188,7 +188,6 @@ class CohereDocumentImageEmbedder:
             Deserialized component.
         """
         init_params = data["init_parameters"]
-        deserialize_secrets_inplace(init_params, keys=["api_key"])
         init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])
 
         return default_from_dict(cls, data)
