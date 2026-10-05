@@ -854,11 +854,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         for doc in documents:
             if not isinstance(doc, Document):
-                msg = f"write_documents() expects a list of Documents but got an element of type {type(doc)}."
+                msg = f"write_documents_async() expects a list of Documents but got an element of type {type(doc)}."
                 raise ValueError(msg)
 
         if not documents:
-            logger.warning("Calling FalkorDBDocumentStore.write_documents() with an empty list.")
+            logger.warning("Calling FalkorDBDocumentStore.write_documents_async() with an empty list.")
             return 0
 
         if policy == DuplicatePolicy.NONE:
