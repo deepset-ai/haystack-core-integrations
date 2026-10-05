@@ -137,6 +137,7 @@ class TestSerialization:
         assert component.embedding_separator == " | "
         assert component.truncate == EmbeddingTruncateMode.START
         assert component.timeout == 45.0
+        assert component.api_key == Secret.from_env_var("NVIDIA_API_KEY")
 
 
 class TestComponentLifecycle:

@@ -131,6 +131,11 @@ class TestAmazonTextractConverterSerialization:
         assert restored.feature_types == converter.feature_types
         assert restored.store_full_path == converter.store_full_path
         assert restored.boto3_config == converter.boto3_config
+        assert restored.aws_access_key_id == converter.aws_access_key_id
+        assert restored.aws_secret_access_key == converter.aws_secret_access_key
+        assert restored.aws_session_token == converter.aws_session_token
+        assert restored.aws_region_name == converter.aws_region_name
+        assert restored.aws_profile_name == converter.aws_profile_name
 
 
 class TestComponentLifecycle:

@@ -78,6 +78,7 @@ class TestInitializationAndSerialization:
         assert component.api_base_url == "https://custom-url.ibm.com"
         assert isinstance(component.project_id, Secret)
         assert component.project_id == Secret.from_env_var("WATSONX_PROJECT_ID")
+        assert component.api_key == Secret.from_env_var("WATSONX_API_KEY")
         assert component.prefix == "prefix "
         assert component.suffix == " suffix"
 

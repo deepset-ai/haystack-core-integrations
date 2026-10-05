@@ -139,6 +139,7 @@ class TestSerialization:
         assert converter.image_limit == 10
         assert converter.image_min_size == 100
         assert converter.cleanup_uploaded_files is False
+        assert converter.api_key == Secret.from_env_var("MISTRAL_API_KEY")
 
 
 class TestComponentLifecycle:
