@@ -18,8 +18,6 @@ from haystack_integrations.document_stores.weaviate.document_store import (
     WeaviateDocumentStore,
 )
 
-# The retriever components were previously only exercised against mocks, so nothing checked that the
-# calls they make actually work against Weaviate. These tests run the components end to end.
 
 DOCUMENTS = [
     Document(content="The quick brown fox", meta={"category": "animals"}, embedding=[1.0, 0.0, 0.0, 0.0]),
