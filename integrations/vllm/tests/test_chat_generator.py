@@ -143,6 +143,16 @@ def mock_async_chat_completion_with_reasoning(completion_with_reasoning):
         yield mock
 
 
+@pytest.fixture
+def tools():
+    @tool
+    def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
+        """Get the weather in a given city."""
+        return f"The weather in {city} is sunny"
+
+    return [weather]
+
+
 class TestConvertChatCompletionToChatMessage:
     def test_without_reasoning(self, completion):
         message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
@@ -446,6 +456,21 @@ class TestRun:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
+    def test_run_with_empty_tools_override(self, mock_chat_completion, tools):
+        # an empty runtime list must disable the init tools for this call, not fall back to them
+        component = VLLMChatGenerator(model=MODEL, tools=tools)
+        component.run([ChatMessage.from_user("Hello")], tools=[])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert "tools" not in kwargs
+
+    def test_run_with_init_tools(self, mock_chat_completion, tools):
+        component = VLLMChatGenerator(model=MODEL, tools=tools)
+        component.run([ChatMessage.from_user("Hello")])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
+
     def test_run_empty_messages(self):
         component = VLLMChatGenerator(model=MODEL)
         assert component.run([]) == {"replies": []}
@@ -532,6 +557,20 @@ class TestRunAsync:
         _, kwargs = mock_async_chat_completion.call_args
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.9
+
+    async def test_run_async_with_empty_tools_override(self, mock_async_chat_completion, tools):
+        component = VLLMChatGenerator(model=MODEL, tools=tools)
+        await component.run_async([ChatMessage.from_user("Hello")], tools=[])
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert "tools" not in kwargs
+
+    async def test_run_async_with_init_tools(self, mock_async_chat_completion, tools):
+        component = VLLMChatGenerator(model=MODEL, tools=tools)
+        await component.run_async([ChatMessage.from_user("Hello")])
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
 
     async def test_run_async(self, mock_async_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model=MODEL)
