@@ -4,6 +4,7 @@
 
 """Integration tests for IBM DB2 Document Store using Haystack mixin tests."""
 
+import logging
 import math
 import sys
 from datetime import datetime, timedelta, timezone
@@ -892,3 +893,400 @@ class TestIBMDb2DocumentStoreUnit:
 
         assert values == []
         assert total_count == 0
+
+
+class TestIBMDb2DocumentStoreVectorIndex:
+    """Unit tests for the create_vector_index / _ensure_vector_index_exists behaviour."""
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _make_store(
+        self, monkeypatch, *, create_vector_index: bool = True, distance_metric: str = "COSINE"
+    ) -> IBMDb2DocumentStore:
+        monkeypatch.setenv("DB2_USERNAME", "db2inst1")
+        monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
+        store = IBMDb2DocumentStore(
+            database="testdb",
+            hostname="localhost",
+            username=Secret.from_env_var("DB2_USERNAME"),
+            password=Secret.from_env_var("DB2_PASSWORD"),
+            embedding_dim=4,
+            distance_metric=distance_metric,
+            create_vector_index=create_vector_index,
+        )
+        conn = MagicMock()
+        cursor_cm = conn.cursor.return_value
+        cursor_cm.__exit__.return_value = False
+        store._connection = conn
+        store._table_initialized = True
+        return store, conn, cursor_cm.__enter__.return_value
+
+    # ------------------------------------------------------------------
+    # __init__ and to_dict / from_dict
+    # ------------------------------------------------------------------
+
+    def test_create_vector_index_defaults_to_false(self, monkeypatch):
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(database="d", hostname="h")
+        assert store.create_vector_index is False
+
+    def test_create_vector_index_roundtrips_to_dict(self, monkeypatch):
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(database="d", hostname="h", create_vector_index=True)
+        data = store.to_dict()
+        assert data["init_parameters"]["create_vector_index"] is True
+        restored = IBMDb2DocumentStore.from_dict(data)
+        assert restored.create_vector_index is True
+
+    # ------------------------------------------------------------------
+    # Unsupported distance metric
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("metric", ["MANHATTAN", "DOT", "HAMMING"])
+    def test_unsupported_metric_logs_warning_and_skips(self, monkeypatch, caplog, metric):
+        store, conn, _ = self._make_store(monkeypatch, distance_metric=metric)
+        with caplog.at_level(logging.WARNING, logger="haystack_integrations.document_stores.ibm_db.document_store"):
+            store._ensure_vector_index_exists(conn)
+
+        assert "not supported" in caplog.text
+        # No DDL should have been executed
+        conn.cursor.return_value.__enter__.return_value.execute.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Index already exists — idempotency
+    # ------------------------------------------------------------------
+
+    def test_skips_creation_when_index_already_exists(self, monkeypatch):
+        store, conn, cur = self._make_store(monkeypatch)
+        # Simulate CURRENT SCHEMA query then index-exists query returning count=1
+        cur.fetchone.side_effect = [("DB2INST1",), (1,)]
+
+        store._ensure_vector_index_exists(conn)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        assert not any("CREATE VECTOR INDEX" in sql for sql in executed_sqls)
+        conn.commit.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Index does not exist — creation path
+    # ------------------------------------------------------------------
+
+    def test_creates_index_when_absent(self, monkeypatch):
+        store, conn, cur = self._make_store(monkeypatch)
+        # CURRENT SCHEMA → count=0 (no existing index)
+        cur.fetchone.side_effect = [("DB2INST1",), (0,)]
+
+        store._ensure_vector_index_exists(conn)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        create_sqls = [s for s in executed_sqls if "CREATE VECTOR INDEX" in s]
+        assert len(create_sqls) == 1
+        assert "haystack_documents_embedding_idx" in create_sqls[0]
+        assert "WITH DISTANCE COSINE" in create_sqls[0]
+        conn.commit.assert_called_once()
+
+    def test_index_name_uses_table_name(self, monkeypatch):
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(
+            database="d", hostname="h",
+            table_name="my_custom_table",
+            create_vector_index=True,
+        )
+        conn = MagicMock()
+        cursor_cm = conn.cursor.return_value
+        cursor_cm.__exit__.return_value = False
+        cur = cursor_cm.__enter__.return_value
+        cur.fetchone.side_effect = [("MYSCHEMA",), (0,)]
+
+        store._ensure_vector_index_exists(conn)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        create_sqls = [s for s in executed_sqls if "CREATE VECTOR INDEX" in s]
+        assert len(create_sqls) == 1
+        assert "my_custom_table_embedding_idx" in create_sqls[0]
+        assert "ON my_custom_table" in create_sqls[0]
+
+    @pytest.mark.parametrize("metric", ["EUCLIDEAN", "EUCLIDEAN_SQUARED"])
+    def test_supported_metric_used_in_index_ddl(self, monkeypatch, metric):
+        store, conn, cur = self._make_store(monkeypatch, distance_metric=metric)
+        cur.fetchone.side_effect = [("DB2INST1",), (0,)]
+
+        store._ensure_vector_index_exists(conn)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        create_sqls = [s for s in executed_sqls if "CREATE VECTOR INDEX" in s]
+        assert f"WITH DISTANCE {metric}" in create_sqls[0]
+
+    # ------------------------------------------------------------------
+    # Schema-qualified catalog lookup
+    # ------------------------------------------------------------------
+
+    def test_catalog_query_includes_schema_when_set(self, monkeypatch):
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(
+            database="d", hostname="h",
+            schema="MYSCHEMA",
+            create_vector_index=True,
+        )
+        conn = MagicMock()
+        cursor_cm = conn.cursor.return_value
+        cursor_cm.__exit__.return_value = False
+        cur = cursor_cm.__enter__.return_value
+        # schema is set on store, so no CURRENT SCHEMA query; count=0 → create
+        cur.fetchone.return_value = (0,)
+
+        store._ensure_vector_index_exists(conn)
+
+        # The SYSCAT query should include TABSCHEMA parameter
+        syscat_call = cur.execute.call_args_list[0]
+        syscat_sql = syscat_call.args[0]
+        syscat_params = syscat_call.args[1]
+        assert "TABSCHEMA" in syscat_sql
+        assert "MYSCHEMA" in syscat_params
+
+    # ------------------------------------------------------------------
+    # Driver error wrapping
+    # ------------------------------------------------------------------
+
+    def test_driver_error_raises_document_store_error(self, monkeypatch):
+        store, conn, cur = self._make_store(monkeypatch)
+        cur.fetchone.side_effect = [("DB2INST1",), (0,)]
+        cur.execute.side_effect = [None, None, Exception("SQL1585N unsupported platform")]
+
+        with pytest.raises(DocumentStoreError, match="Failed to create vector index"):
+            store._ensure_vector_index_exists(conn)
+
+        conn.rollback.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # _ensure_table_exists integration
+    # ------------------------------------------------------------------
+
+    def test_create_table_uses_not_null_embedding_when_index_enabled(self, monkeypatch):
+        """embedding column must be NOT NULL when create_vector_index=True."""
+        store, _, cur = self._make_store(monkeypatch)
+        # Table doesn't exist — SELECT COUNT(*) raises → CREATE TABLE is executed
+        cur.execute.side_effect = [
+            Exception("table not found"),  # SELECT COUNT(*) — table absent
+            None,                           # CREATE TABLE
+            None,                           # VALUES CURRENT SCHEMA
+            None,                           # SELECT COUNT(*) from SYSCAT
+            None,                           # CREATE VECTOR INDEX
+        ]
+        cur.fetchone.side_effect = [("DB2INST1",), (0,)]
+
+        store._ensure_table_exists(recreate=False)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        create_table_sqls = [s for s in executed_sqls if "CREATE TABLE" in s]
+        assert len(create_table_sqls) == 1
+        assert "NOT NULL" in create_table_sqls[0], "embedding column must be NOT NULL"
+
+    def test_create_table_allows_null_embedding_when_index_disabled(self, monkeypatch):
+        """embedding column must remain nullable when create_vector_index=False."""
+        store, _, cur = self._make_store(monkeypatch, create_vector_index=False)
+        cur.execute.side_effect = [
+            Exception("table not found"),  # SELECT COUNT(*) — table absent
+            None,                           # CREATE TABLE
+        ]
+
+        store._ensure_table_exists(recreate=False)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        create_table_sqls = [s for s in executed_sqls if "CREATE TABLE" in s]
+        assert len(create_table_sqls) == 1
+        # Trailing whitespace from empty nullability string is acceptable; just no NOT NULL
+        assert "NOT NULL" not in create_table_sqls[0].split("FLOAT32")[1], (
+            "embedding column must be nullable when create_vector_index=False"
+        )
+
+    def test_ensure_table_exists_calls_vector_index_when_enabled(self, monkeypatch):
+        store, _, cur = self._make_store(monkeypatch)
+        # The table-existence check in _ensure_table_exists uses execute() + exception
+        # (no fetchone call).  fetchone is called only inside _ensure_vector_index_exists:
+        #   1. CURRENT SCHEMA query → ("DB2INST1",)
+        #   2. SYSCAT.INDEXES count → (0,) meaning index absent → triggers CREATE
+        cur.execute.return_value = None
+        cur.fetchone.side_effect = [("DB2INST1",), (0,)]
+
+        store._ensure_table_exists(recreate=False)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        assert any("CREATE VECTOR INDEX" in sql for sql in executed_sqls)
+
+    def test_ensure_table_exists_skips_vector_index_when_disabled(self, monkeypatch):
+        store, _, cur = self._make_store(monkeypatch, create_vector_index=False)
+        cur.execute.return_value = None
+
+        store._ensure_table_exists(recreate=False)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        assert not any("CREATE VECTOR INDEX" in sql for sql in executed_sqls)
+
+    def test_ensure_table_exists_recreate_drops_then_creates_index(self, monkeypatch):
+        """recreate=True drops + recreates the table and then creates the vector index."""
+        store, _, cur = self._make_store(monkeypatch)
+        # DROP TABLE succeeds, then SELECT COUNT(*) raises (table gone), then
+        # CREATE TABLE succeeds.  After that, _ensure_vector_index_exists runs:
+        #   CURRENT SCHEMA → index absent → CREATE VECTOR INDEX.
+        cur.execute.side_effect = [
+            None,                        # DROP TABLE
+            Exception("table not found"),# SELECT COUNT(*) — table doesn't exist yet
+            None,                        # CREATE TABLE
+            None,                        # VALUES CURRENT SCHEMA
+            None,                        # SELECT COUNT(*) from SYSCAT
+            None,                        # CREATE VECTOR INDEX
+        ]
+        cur.fetchone.side_effect = [("DB2INST1",), (0,)]
+
+        store._ensure_table_exists(recreate=True)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        assert any("DROP TABLE" in sql for sql in executed_sqls)
+        assert any("CREATE TABLE" in sql for sql in executed_sqls)
+        assert any("CREATE VECTOR INDEX" in sql for sql in executed_sqls)
+
+    def test_index_name_strips_schema_prefix(self, monkeypatch):
+        """Index name must use only the bare table name, not a schema-qualified one."""
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(
+            database="d", hostname="h",
+            table_name="myschema.mytable",
+            create_vector_index=True,
+        )
+        conn = MagicMock()
+        cursor_cm = conn.cursor.return_value
+        cursor_cm.__exit__.return_value = False
+        cur = cursor_cm.__enter__.return_value
+        cur.fetchone.side_effect = [("MYSCHEMA",), (0,)]
+
+        store._ensure_vector_index_exists(conn)
+
+        executed_sqls = [call.args[0] for call in cur.execute.call_args_list]
+        create_sqls = [s for s in executed_sqls if "CREATE VECTOR INDEX" in s]
+        assert len(create_sqls) == 1
+        # Index name must be "mytable_embedding_idx", not "myschema.mytable_embedding_idx"
+        assert "mytable_embedding_idx" in create_sqls[0]
+        assert "myschema.mytable_embedding_idx" not in create_sqls[0]
+
+
+@pytest.mark.integration
+class TestVectorIndexIntegration:
+    """
+    Integration tests for create_vector_index against a real Db2 server.
+
+    These tests require the Db2 server to be version 12.1.5 or later on LinuxAMD64.
+    They use a dedicated table name to avoid interfering with the main test suite.
+    """
+
+    _TABLE = "haystack_vidx_integ_test"
+
+    @pytest.fixture(autouse=True)
+    def _cleanup(self, connection_config):
+        """Drop the test table before and after each test."""
+        def _drop():
+            try:
+                store = IBMDb2DocumentStore(**connection_config, table_name=self._TABLE)
+                conn = store._get_connection()
+                with conn.cursor() as cur:
+                    cur.execute(f"DROP TABLE {self._TABLE}")
+                    conn.commit()
+                store.close()
+            except Exception:
+                pass
+
+        _drop()
+        yield
+        _drop()
+
+    def test_create_vector_index_creates_index_in_syscat(self, connection_config):
+        """create_vector_index=True should result in an entry in SYSCAT.INDEXES."""
+        store = IBMDb2DocumentStore(
+            **connection_config,
+            table_name=self._TABLE,
+            embedding_dim=4,
+            distance_metric="COSINE",
+            recreate_table=True,
+            create_vector_index=True,
+        )
+        store._get_connection()  # triggers table + index creation
+
+        conn = store._connection
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM SYSCAT.INDEXES "
+                "WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
+                (f"{self._TABLE}_embedding_idx", self._TABLE),
+            )
+            row = cur.fetchone()
+
+        store.close()
+        assert row is not None and row[0] == 1, "Vector index not found in SYSCAT.INDEXES"
+
+    def test_create_vector_index_is_idempotent(self, connection_config):
+        """Initialising the same store twice must not raise and must leave exactly one index."""
+        kwargs = {
+            **connection_config,
+            "table_name": self._TABLE,
+            "embedding_dim": 4,
+            "distance_metric": "COSINE",
+            "create_vector_index": True,
+        }
+
+        store1 = IBMDb2DocumentStore(**kwargs, recreate_table=True)
+        store1._get_connection()
+        store1.close()
+
+        # Second init — table already exists, index already exists; must be silent.
+        store2 = IBMDb2DocumentStore(**kwargs, recreate_table=False)
+        store2._get_connection()
+
+        conn = store2._connection
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM SYSCAT.INDEXES "
+                "WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
+                (f"{self._TABLE}_embedding_idx", self._TABLE),
+            )
+            row = cur.fetchone()
+
+        store2.close()
+        assert row is not None and row[0] == 1, "Expected exactly one index after two inits"
+
+    def test_create_vector_index_rebuilt_after_recreate_table(self, connection_config):
+        """recreate_table=True drops the table (and its index) then rebuilds both."""
+        kwargs = {
+            **connection_config,
+            "table_name": self._TABLE,
+            "embedding_dim": 4,
+            "distance_metric": "COSINE",
+            "create_vector_index": True,
+        }
+
+        # First init — creates table + index.
+        store1 = IBMDb2DocumentStore(**kwargs, recreate_table=True)
+        store1._get_connection()
+        store1.close()
+
+        # Second init with recreate_table=True — must drop + recreate table and index.
+        store2 = IBMDb2DocumentStore(**kwargs, recreate_table=True)
+        store2._get_connection()
+
+        conn = store2._connection
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM SYSCAT.INDEXES "
+                "WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
+                (f"{self._TABLE}_embedding_idx", self._TABLE),
+            )
+            row = cur.fetchone()
+
+        store2.close()
+        assert row is not None and row[0] == 1, "Vector index not found after recreate_table=True"
