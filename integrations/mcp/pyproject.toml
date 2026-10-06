@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=1.24.0",
-    "haystack-ai>=2.23.0",
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@cf12a9f38e1f49214cf73dfd7c6d4aa3ae53f369",
     "exceptiongroup",  # Backport of ExceptionGroup for Python < 3.11
 ]
 
@@ -38,6 +38,9 @@ dependencies = [
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mcp#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mcp"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]

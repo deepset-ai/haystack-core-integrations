@@ -1,6 +1,6 @@
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -10,6 +10,7 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.core.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
+from haystack.utils import Secret
 
 from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
 from haystack_integrations.tools.mcp.mcp_tool import (
@@ -108,6 +109,26 @@ async def calculator_toolset_with_state_config(mcp_tool_cleanup):
     return mcp_tool_cleanup(toolset)
 
 
+class TestMCPToolsetSync:
+    def test_agent_selects_lazy_tools_by_name(self, mcp_tool_cleanup):
+        toolset = mcp_tool_cleanup(
+            MCPToolset(server_info=InMemoryServerInfo(server=calculator_mcp._mcp_server), eager_connect=False)
+        )
+        generator = OpenAIChatGenerator(api_key=Secret.from_token("test-key"))
+        agent = Agent(chat_generator=generator, tools=toolset)
+        with patch.object(
+            generator, "run", return_value={"replies": [ChatMessage.from_assistant("done")]}
+        ) as generator_run:
+            agent.run(messages=[ChatMessage.from_user("hello")], tools=["add"])
+
+        selected_tools = generator_run.call_args.kwargs["tools"]
+        assert [tool.name for tool in selected_tools] == ["add"]
+        assert json.loads(selected_tools[0].invoke(a=2, b=3))["isError"] is False
+        with patch.object(toolset._worker, "stop", wraps=toolset._worker.stop) as worker_stop:
+            agent.close()
+            worker_stop.assert_called_once_with()
+
+
 @pytest.mark.asyncio
 class TestMCPToolset:
     """Tests for the MCPToolset class."""
@@ -194,6 +215,24 @@ class TestMCPToolset:
 
         toolset.warm_up()
         assert [tool.name for tool in toolset.tools] == warmed_tool_names
+
+    async def test_agent_selects_lazy_tools_by_name_async(self, mcp_tool_cleanup):
+        toolset = mcp_tool_cleanup(
+            MCPToolset(server_info=InMemoryServerInfo(server=calculator_mcp._mcp_server), eager_connect=False)
+        )
+        generator = OpenAIChatGenerator(api_key=Secret.from_token("test-key"))
+        agent = Agent(chat_generator=generator, tools=toolset)
+        with patch.object(
+            generator, "run_async", new=AsyncMock(return_value={"replies": [ChatMessage.from_assistant("done")]})
+        ) as generator_run_async:
+            await agent.run_async(messages=[ChatMessage.from_user("hello")], tools=["add"])
+
+        selected_tools = generator_run_async.call_args.kwargs["tools"]
+        assert [tool.name for tool in selected_tools] == ["add"]
+        assert json.loads(await selected_tools[0].invoke_async(a=2, b=3))["isError"] is False
+        with patch.object(toolset._worker, "stop", wraps=toolset._worker.stop) as worker_stop:
+            await agent.close_async()
+            worker_stop.assert_called_once_with()
 
     async def test_toolset_serde(self, calculator_toolset):
         """Test serialization and deserialization of MCPToolset."""

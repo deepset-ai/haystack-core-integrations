@@ -23,7 +23,11 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=3.0.0", "httpx>=0.27.0", "huggingface_hub[inference]>=1.0.0"]
+dependencies = [
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@cf12a9f38e1f49214cf73dfd7c6d4aa3ae53f369",
+    "httpx>=0.27.0",
+    "huggingface_hub[inference]>=1.0.0",
+]
 
 [project.optional-dependencies]
 grpc = [
@@ -34,6 +38,9 @@ grpc = [
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/huggingface_api#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/huggingface_api"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
