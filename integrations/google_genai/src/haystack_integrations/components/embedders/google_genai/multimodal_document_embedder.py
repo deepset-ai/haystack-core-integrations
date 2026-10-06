@@ -18,7 +18,7 @@ from haystack.components.converters.image.image_utils import (
     _PDFPageInfo,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 from typing_extensions import NotRequired, TypedDict
@@ -331,6 +331,7 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _extract_parts_to_embed(self, documents: list[Document]) -> list[Part]:

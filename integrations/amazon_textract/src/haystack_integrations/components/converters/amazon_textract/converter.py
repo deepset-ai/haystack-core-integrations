@@ -11,7 +11,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .errors import AmazonTextractConfigurationError
 
@@ -264,4 +264,14 @@ class AmazonTextractConverter:
         :returns:
             The deserialized component.
         """
+        deserialize_secrets_inplace(
+            data["init_parameters"],
+            keys=[
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "aws_region_name",
+                "aws_profile_name",
+            ],
+        )
         return default_from_dict(cls, data)

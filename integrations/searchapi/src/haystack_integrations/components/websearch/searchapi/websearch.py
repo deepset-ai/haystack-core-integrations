@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 from haystack import ComponentError, Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,7 @@ class SearchApiWebSearch:
         :returns:
             The deserialized component.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document], links=list[str])

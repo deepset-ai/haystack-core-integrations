@@ -13,7 +13,7 @@ from haystack.components.converters.utils import (
     normalize_metadata,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from mistralai.client import Mistral
 from mistralai.client.models import (
     DocumentURLChunk,
@@ -194,6 +194,7 @@ class MistralOCRDocumentConverter:
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document], raw_mistral_response=list[dict[str, Any]])

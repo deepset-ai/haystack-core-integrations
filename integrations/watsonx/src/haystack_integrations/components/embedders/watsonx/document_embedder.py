@@ -8,7 +8,7 @@ from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import Embeddings
 
@@ -168,6 +168,7 @@ class WatsonxDocumentEmbedder:
         :returns:
             The deserialized component instance.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:

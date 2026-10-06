@@ -7,7 +7,7 @@ import warnings
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, NimBackend, url_validation
@@ -184,6 +184,9 @@ class NvidiaTextEmbedder:
         :returns:
             The deserialized component.
         """
+        init_parameters = data.get("init_parameters", {})
+        if init_parameters:
+            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
