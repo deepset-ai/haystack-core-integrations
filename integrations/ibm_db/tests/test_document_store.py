@@ -685,6 +685,19 @@ class TestIBMDb2DocumentStoreUnit:
         restored = IBMDb2DocumentStore.from_dict(data)
         assert restored.distance_metric == metric
 
+    def test_invalid_distance_metric_raises(self, monkeypatch):
+        """Test that an invalid distance_metric raises ValueError at construction time."""
+        monkeypatch.setenv("DB2_USERNAME", "db2inst1")
+        monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
+        with pytest.raises(ValueError, match="Invalid distance_metric"):
+            IBMDb2DocumentStore(
+                database="testdb",
+                hostname="localhost",
+                username=Secret.from_env_var("DB2_USERNAME"),
+                password=Secret.from_env_var("DB2_PASSWORD"),
+                distance_metric="L2",  # type: ignore[arg-type]
+            )
+
     def test_to_row_with_none_metadata(self, unit_store):
         """Test _to_row with None metadata."""
         doc = Document(id="1", content="test", meta=None, embedding=[0.1] * 768)

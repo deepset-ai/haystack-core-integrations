@@ -22,6 +22,8 @@ from .filters import FilterTranslator
 
 logger = logging.getLogger(__name__)
 
+VALID_DISTANCE_METRICS = frozenset({"COSINE", "DOT", "EUCLIDEAN", "EUCLIDEAN_SQUARED", "HAMMING", "MANHATTAN"})
+
 
 def _parse_embedding(embedding: Any) -> list[float] | None:
     """
@@ -144,6 +146,9 @@ class IBMDb2DocumentStore:
         self.connection_options = connection_options
         self.table_name = table_name
         self.embedding_dim = embedding_dim
+        if distance_metric not in VALID_DISTANCE_METRICS:
+            msg = f"Invalid distance_metric '{distance_metric}'. Must be one of {sorted(VALID_DISTANCE_METRICS)}."
+            raise ValueError(msg)
         self.distance_metric = distance_metric
         self.recreate_table = recreate_table
 
