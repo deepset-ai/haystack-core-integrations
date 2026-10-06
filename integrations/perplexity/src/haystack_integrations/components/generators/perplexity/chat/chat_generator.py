@@ -31,7 +31,8 @@ def _http_client_kwargs_with_headers(
 ) -> dict[str, Any]:
     kwargs = dict(http_client_kwargs or {})
     headers = {**kwargs.get("headers", {}), **(extra_headers or {})}
-    headers["X-Pplx-Integration"] = _attribution_header()
+    if not any(name.lower() == "x-pplx-integration" for name in headers):
+        headers["X-Pplx-Integration"] = _attribution_header()
     kwargs["headers"] = headers
     return kwargs
 
@@ -130,9 +131,8 @@ class PerplexityChatGenerator(OpenAIResponsesChatGenerator):
             tools_strict=tools_strict,
             http_client_kwargs=_http_client_kwargs_with_headers(http_client_kwargs, extra_headers),
         )
-        # self.http_client_kwargs carries the attribution (and extra) headers so that the parent bakes them into
-        # the httpx client whether it is built eagerly (haystack-ai 2.x) or at warm-up (haystack-ai >= 3.0);
-        # the user-provided value is preserved for serialization
+        # self.http_client_kwargs carries the attribution (and extra) headers so that the parent includes them when
+        # building the HTTP clients at warm-up; the user-provided value is preserved for serialization
         self._http_client_kwargs = http_client_kwargs
 
     def to_dict(self) -> dict[str, Any]:

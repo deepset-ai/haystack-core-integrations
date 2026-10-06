@@ -1,6 +1,5 @@
 loaders:
   - modules:
-      - haystack_integrations.components.generators.llama_cpp.generator
       - haystack_integrations.components.generators.llama_cpp.chat.chat_generator
     search_path: [../src]
 processors:

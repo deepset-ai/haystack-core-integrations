@@ -67,6 +67,7 @@ def test_to_dict(monkeypatch):
                     }
                 ],
             },
+            "include_search_metadata": False,
         },
     }
 
@@ -93,6 +94,7 @@ def test_to_dict_with_params(monkeypatch):
         },
         encryption_key=encryption_key,
         analyzers=[analyzer],
+        include_search_metadata=True,
     )
 
     res = document_store.to_dict()
@@ -130,6 +132,7 @@ def test_to_dict_with_params(monkeypatch):
                     }
                 ],
             },
+            "include_search_metadata": True,
         },
     }
 
@@ -219,6 +222,7 @@ def test_from_dict_with_params(monkeypatch):
                     }
                 ],
             },
+            "include_search_metadata": True,
         },
     }
     document_store = AzureAISearchDocumentStore.from_dict(data)
@@ -235,6 +239,7 @@ def test_from_dict_with_params(monkeypatch):
     assert document_store._index_creation_kwargs["analyzers"][0].token_filters == ["lowercase"]
     assert "CustomAnalyzer" in document_store._index_creation_kwargs["analyzers"][0].odata_type
     assert document_store._vector_search_configuration.as_dict() == DEFAULT_VECTOR_SEARCH.as_dict()
+    assert document_store._include_search_metadata is True
 
 
 @patch("haystack_integrations.document_stores.azure_ai_search.document_store.AzureAISearchDocumentStore")

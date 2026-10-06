@@ -61,11 +61,18 @@ class OpenAPIConnector:
         self.credentials = credentials
         self.service_kwargs = service_kwargs or {}
 
-        self.client = OpenAPIClient.from_spec(
-            openapi_spec=openapi_spec,
-            credentials=credentials.resolve_value() if credentials else None,
-            **self.service_kwargs,
-        )
+        self.client: OpenAPIClient | None = None
+
+    def warm_up(self) -> None:
+        """
+        Initialize the OpenAPI client.
+        """
+        if self.client is None:
+            self.client = OpenAPIClient.from_spec(
+                openapi_spec=self.openapi_spec,
+                credentials=self.credentials.resolve_value() if self.credentials else None,
+                **self.service_kwargs,
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -91,6 +98,9 @@ class OpenAPIConnector:
         :param arguments: Optional parameters for the endpoint (query, path, or body parameters)
         :return: Dictionary containing the service response
         """
+        self.warm_up()
+        assert self.client is not None  # noqa: S101
+
         payload = {"name": operation_id, "arguments": arguments or {}}
 
         # Invoke the endpoint using openapi-llm client

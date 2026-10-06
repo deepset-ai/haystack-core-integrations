@@ -40,8 +40,7 @@ class TestTavilyWebSearchTool:
             ]
         }
 
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("TAVILY_API_KEY", "test-key")
+    def test_init_default(self):
         tool = TavilyWebSearchTool()
 
         assert tool.api_key is None
@@ -54,7 +53,7 @@ class TestTavilyWebSearchTool:
         assert tool.parameters["properties"]["query"]["type"] == "string"
         # unset parameters fall back to the component defaults
         assert tool._component.top_k == 10
-        assert tool._component.api_key.resolve_value() == "test-key"
+        assert tool._component.api_key == Secret.from_env_var("TAVILY_API_KEY")
         assert tool._component.search_params is None
 
     def test_init_with_params(self):
@@ -92,8 +91,7 @@ class TestTavilyWebSearchTool:
             "description": tool.description,
         }
 
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("TAVILY_API_KEY", "test-key")
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.tools.tavily.websearch_tool.TavilyWebSearchTool",
             "data": {

@@ -10,9 +10,9 @@ from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
-from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs, _with_hf_token
 from transformers import Pipeline as HfPipeline
+from transformers import pipeline
 
 
 @dataclass
@@ -97,15 +97,10 @@ class TransformersNamedEntityExtractor:
             huggingface_pipeline_kwargs=pipeline_kwargs or {},
             model=model,
             task="ner",
-            supported_tasks=["ner"],
             device=self.device,
-            token=token,
         )
 
-        self.tokenizer: Any = None
-        self.model: AutoModelForTokenClassification | None = None
         self.pipeline: HfPipeline | None = None
-        self._warmed_up: bool = False
 
     def warm_up(self) -> None:
         """
@@ -114,24 +109,13 @@ class TransformersNamedEntityExtractor:
         :raises ComponentError:
             If the component fails to initialize successfully.
         """
-        if self._warmed_up:
+        if self.pipeline is not None:
             return
 
         try:
-            token = self.pipeline_kwargs.get("token", None)
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, token=token)
-            self.model = AutoModelForTokenClassification.from_pretrained(self.model_name_or_path, token=token)
-
-            pipeline_params: dict[str, Any] = {
-                "task": "ner",
-                "model": self.model,
-                "tokenizer": self.tokenizer,
-                "aggregation_strategy": "simple",
-            }
-            pipeline_params.update({k: v for k, v in self.pipeline_kwargs.items() if k not in pipeline_params})
-            self.device.update_hf_kwargs(pipeline_params, overwrite=False)
-            self.pipeline = pipeline(**pipeline_params)
-            self._warmed_up = True
+            pipeline_kwargs = _with_hf_token(self.pipeline_kwargs, self.token)
+            pipeline_kwargs.setdefault("aggregation_strategy", "simple")
+            self.pipeline = pipeline(**pipeline_kwargs)
         except Exception as e:
             msg = f"{self.__class__.__name__} failed to initialize."
             raise ComponentError(msg) from e
@@ -150,8 +134,8 @@ class TransformersNamedEntityExtractor:
         :raises ComponentError:
             If the model fails to process a document.
         """
-        if not self._warmed_up:
-            self.warm_up()
+        self.warm_up()
+        assert self.pipeline is not None  # noqa: S101
 
         texts = [doc.content if doc.content is not None else "" for doc in documents]
         annotations = self._annotate(texts, batch_size=batch_size)
@@ -182,11 +166,10 @@ class TransformersNamedEntityExtractor:
         :returns:
             NER annotations.
         """
-        if not self.initialized:
+        if self.pipeline is None:
             msg = "NER model was not initialized - Did you call `warm_up()`?"
             raise ComponentError(msg)
 
-        assert self.pipeline is not None  # noqa: S101
         outputs = self.pipeline(texts, batch_size=batch_size)
         return [
             [
@@ -246,7 +229,7 @@ class TransformersNamedEntityExtractor:
         """
         Returns if the extractor is ready to annotate text.
         """
-        return (self.tokenizer is not None and self.model is not None) or self.pipeline is not None
+        return self.pipeline is not None
 
     @classmethod
     def get_stored_annotations(cls, document: Document) -> list[NamedEntityAnnotation] | None:

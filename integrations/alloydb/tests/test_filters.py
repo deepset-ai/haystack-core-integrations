@@ -188,6 +188,15 @@ def test_validate_filters_invalid_type():
         _validate_filters("not a dict")
 
 
+def test_convert_filters_to_where_clause_and_params_value_equal_to_no_value_sentinel():
+    # the literal "no_value" must not be mistaken for the internal NO_VALUE marker and dropped from params
+    filters = {"field": "meta.tag", "operator": "==", "value": "no_value"}
+    where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
+    assert _render(where_clause) == " WHERE meta->>'tag' = %s"
+    assert params == ("no_value",)
+
+
 def test_convert_simple_equality_filter():
     filters = {"field": "meta.type", "operator": "==", "value": "article"}
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)

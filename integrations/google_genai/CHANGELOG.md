@@ -1,5 +1,44 @@
 # Changelog
 
+## [integrations/google_genai-v6.0.1] - 2026-09-25
+
+### 🐛 Bug Fixes
+
+- Serialization of google genai thought signatures (#3995)
+
+
+## [integrations/google_genai-v6.0.0] - 2026-09-15
+
+### 📚 Documentation
+
+- *(gemini)* Default to gemini-3.8-flash, deprecate old models (#3959)
+
+
+## [integrations/google_genai-v5.0.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- Google GenAI - allow empty assistant messages (#3953)
+
+
+## [integrations/google_genai-v5.0.0] - 2026-09-07
+
+### 🚀 Features
+
+- [**breaking**] Google GenAI - add lifecycle handling (#3915)
+
+
+## [integrations/google_genai-v4.9.0] - 2026-09-04
+
+### 🚀 Features
+
+- Add GoogleGenAITokenCounter to google-genai integration (#3868)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/google_genai-v4.8.0] - 2026-08-24
 
 ### 🚀 Features

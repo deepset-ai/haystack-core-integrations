@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/togetherai-v4.0.0] - 2026-09-11
+
+### 🐛 Bug Fixes
+
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- TogetherAI - replace gpt-oss-20b with 120b (#3405)
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+- Fix tests for integrations that inherit from the OpenAIChatGenerator (#3583)
+- Fix tests for openai>=3.0.0 (#3801)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+- [**breaking**] Remove deprecated `TogetherAIGenerator` (use `TogetherAIChatGenerator` instead) (#3887)
+
+
 ## [integrations/togetherai-v3.1.0] - 2026-06-05
 
 ### 📚 Documentation

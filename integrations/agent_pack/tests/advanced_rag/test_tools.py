@@ -191,13 +191,15 @@ class TestMetadataToolContract:
 
     @pytest.mark.parametrize("tool_cls", TOOL_CLASSES)
     def test_serialization_roundtrip(self, store, tool_cls):
-        tool = tool_cls(store)
+        tool = tool_cls(store, description="Call this one first.")
         data = tool.to_dict()
         assert data["type"].endswith(tool_cls.__name__)
+        assert data["data"]["description"] == "Call this one first."
 
         restored = tool_cls.from_dict(data)
         assert isinstance(restored, tool_cls)
         assert restored.name == tool.name
+        assert restored.description == "Call this one first."
         assert isinstance(restored.document_store, InMemoryDocumentStore)
 
 

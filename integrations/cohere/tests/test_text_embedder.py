@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from unittest.mock import patch
 
 import pytest
 from haystack.utils import Secret
@@ -12,7 +13,7 @@ from haystack_integrations.components.embedders.cohere.embedding_types import Em
 COHERE_API_URL = "https://api.cohere.com"
 
 
-class TestCohereTextEmbedder:
+class TestInitializationAndSerialization:
     def test_supported_models(self) -> None:
         """SUPPORTED_MODELS is a non-empty list of strings."""
         models = CohereTextEmbedder.SUPPORTED_MODELS
@@ -33,6 +34,8 @@ class TestCohereTextEmbedder:
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
         assert embedder.timeout == 120
+        assert embedder._client is None
+        assert embedder._async_client is None
 
     def test_init_with_parameters(self):
         """
@@ -128,6 +131,49 @@ class TestCohereTextEmbedder:
         assert embedder.embedding_type == EmbeddingTypes.FLOAT
         assert not hasattr(embedder, "use_async_client")
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_COHERE_API_KEY", raising=False)
+        component = CohereTextEmbedder(api_key=Secret.from_env_var("MISSING_COHERE_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_COHERE_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.embedders.cohere.text_embedder.ClientV2")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = CohereTextEmbedder(api_key=Secret.from_token("test-api-key"))
+
+        component.warm_up()
+        component.warm_up()
+
+        mock_client_cls.assert_called_once_with(
+            api_key="test-api-key",
+            base_url=COHERE_API_URL,
+            timeout=120.0,
+            client_name="haystack",
+        )
+        assert component._client is mock_client_cls.return_value
+        assert component._async_client is None
+
+    @patch("haystack_integrations.components.embedders.cohere.text_embedder.AsyncClientV2")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = CohereTextEmbedder(api_key=Secret.from_token("test-api-key"))
+
+        await component.warm_up_async()
+        await component.warm_up_async()
+
+        mock_client_cls.assert_called_once_with(
+            api_key="test-api-key",
+            base_url=COHERE_API_URL,
+            timeout=120.0,
+            client_name="haystack",
+        )
+        assert component._async_client is mock_client_cls.return_value
+        assert component._client is None
+
+
+class TestRun:
     def test_run_wrong_input_format(self):
         """
         Test for checking incorrect input when creating embedding.

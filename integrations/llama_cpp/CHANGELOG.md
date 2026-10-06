@@ -1,5 +1,36 @@
 # Changelog
 
+## [integrations/llama_cpp-v3.0.0] - 2026-09-08
+
+### 🚀 Features
+
+- Llama.cpp - add close method (#3924)
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in anthropic, llama_cpp, olama, pinecone tests (#3551)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### ⚙️ CI
+
+- Add hf token to CI env (#3427)
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- [**breaking**] Remove deprecated `LlamaCppGenerator` (use `LlamaCppChatGenerator` instead) (#3888)
+
+
 ## [integrations/llama_cpp-v2.3.0] - 2026-06-04
 
 ### 🚀 Features

@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/astra-v5.0.0] - 2026-09-25
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🌀 Miscellaneous
+
+- #3657 : refactor(astra): upgrade astrapy and use native async retrieval (#3986)
+
 ## [integrations/astra-v4.4.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

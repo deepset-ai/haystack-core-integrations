@@ -89,3 +89,21 @@ Answering:
   "No matching information was found" and briefly state what you checked (e.g. which field or
   value does not exist).
 {% endmessage %}"""
+
+LIST_METADATA_FIELDS_TOOL_DESCRIPTION = (
+    "Returns all metadata fields available on the documents and their types "
+    "(e.g. keyword, int, float). Call this FIRST to learn what fields you can filter on. "
+    "Returned field names do NOT include the 'meta.' prefix — add it when building a "
+    "filter (field 'year' becomes 'meta.year')."
+)
+
+GET_METADATA_FIELD_VALUES_TOOL_DESCRIPTION = (
+    "Returns the distinct values of a metadata field. Use it before filtering on a "
+    "keyword or boolean field, so your filter uses values that actually exist "
+    "(filter values are matched exactly)."
+)
+
+GET_METADATA_FIELD_RANGE_TOOL_DESCRIPTION = (
+    "Returns the minimum and maximum values of a metadata field. Use it before "
+    "filtering on numeric fields (int, float) or orderable ones such as ISO dates."
+)

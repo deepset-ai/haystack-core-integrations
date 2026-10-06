@@ -105,21 +105,27 @@ class WatsonxDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
-        # Initialize the embeddings client
-        credentials = Credentials(api_key=api_key.resolve_value(), url=api_base_url)
+        self.embedder: Embeddings | None = None
+
+    def warm_up(self) -> None:
+        """Create the Watsonx embeddings client."""
+        if self.embedder is not None:
+            return
+
+        credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
 
         params = {}
-        if truncate_input_tokens is not None:
-            params["truncate_input_tokens"] = truncate_input_tokens
+        if self.truncate_input_tokens is not None:
+            params["truncate_input_tokens"] = self.truncate_input_tokens
 
         self.embedder = Embeddings(
-            model_id=model,
+            model_id=self.model,
             credentials=credentials,
-            project_id=project_id.resolve_value(),
+            project_id=self.project_id.resolve_value(),
             params=params if params else None,  # type: ignore[arg-type]
-            batch_size=batch_size,
-            concurrency_limit=concurrency_limit,
-            max_retries=max_retries,
+            batch_size=self.batch_size,
+            concurrency_limit=self.concurrency_limit,
+            max_retries=self.max_retries,
         )
 
     def _get_telemetry_data(self) -> dict[str, Any]:
@@ -203,6 +209,8 @@ class WatsonxDocumentEmbedder:
             raise TypeError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
+        self.warm_up()
+        assert self.embedder is not None  # noqa: S101
         embeddings = self.embedder.embed_documents(texts_to_embed)
 
         new_documents = []

@@ -68,10 +68,16 @@ def tools():
 
 @pytest.fixture
 def mock_check_valid_model():
-    with patch(
-        "haystack_integrations.components.generators.huggingface_api.chat.chat_generator._check_valid_model",
-        MagicMock(return_value=None),
-    ) as mock:
+    with (
+        patch(
+            "haystack_integrations.components.generators.huggingface_api.chat.chat_generator._check_valid_model",
+            MagicMock(return_value=None),
+        ) as mock,
+        patch(
+            "haystack_integrations.components.generators.huggingface_api.chat.chat_generator._check_valid_model_async",
+            AsyncMock(return_value=None),
+        ),
+    ):
         yield mock
 
 
@@ -129,12 +135,12 @@ def streaming_callback_handler(x):
     return x
 
 
-class TestHuggingFaceAPIChatGenerator:
+class TestInitializationAndSerialization:
     def test_init_invalid_api_type(self):
         with pytest.raises(ValueError):
             HuggingFaceAPIChatGenerator(api_type="invalid_api_type", api_params={})
 
-    def test_init_serverless(self, mock_check_valid_model):
+    def test_init_serverless(self):
         model = "HuggingFaceH4/zephyr-7b-alpha"
         generation_kwargs = {"temperature": 0.6}
         stop_words = ["stop"]
@@ -155,11 +161,10 @@ class TestHuggingFaceAPIChatGenerator:
         assert generator.streaming_callback == streaming_callback
         assert generator.tools is None
 
-        # check that client and async_client are initialized
-        assert generator._client.model == model
-        assert generator._async_client.model == model
+        assert generator._client is None
+        assert generator._async_client is None
 
-    def test_init_serverless_with_tools(self, mock_check_valid_model, tools):
+    def test_init_serverless_with_tools(self, tools):
         model = "HuggingFaceH4/zephyr-7b-alpha"
         generation_kwargs = {"temperature": 0.6}
         stop_words = ["stop"]
@@ -181,15 +186,8 @@ class TestHuggingFaceAPIChatGenerator:
         assert generator.streaming_callback == streaming_callback
         assert generator.tools == tools
 
-        assert generator._client.model == model
-        assert generator._async_client.model == model
-
-    def test_init_serverless_invalid_model(self, mock_check_valid_model):
-        mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id", response=MagicMock())
-        with pytest.raises(RepositoryNotFoundError):
-            HuggingFaceAPIChatGenerator(
-                api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API, api_params={"model": "invalid_model_id"}
-            )
+        assert generator._client is None
+        assert generator._async_client is None
 
     def test_init_serverless_no_model(self):
         with pytest.raises(ValueError):
@@ -218,8 +216,8 @@ class TestHuggingFaceAPIChatGenerator:
         assert generator.streaming_callback == streaming_callback
         assert generator.tools is None
 
-        assert generator._client.model == url
-        assert generator._async_client.model == url
+        assert generator._client is None
+        assert generator._async_client is None
 
     def test_init_tgi_invalid_url(self):
         with pytest.raises(ValueError):
@@ -233,7 +231,7 @@ class TestHuggingFaceAPIChatGenerator:
                 api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE, api_params={"param": "irrelevant"}
             )
 
-    def test_init_fail_with_duplicate_tool_names(self, mock_check_valid_model, tools):
+    def test_init_fail_with_duplicate_tool_names(self, tools):
         duplicate_tools = [tools[0], tools[0]]
         with pytest.raises(ValueError):
             HuggingFaceAPIChatGenerator(
@@ -242,7 +240,7 @@ class TestHuggingFaceAPIChatGenerator:
                 tools=duplicate_tools,
             )
 
-    def test_init_fail_with_tools_and_streaming(self, mock_check_valid_model, tools):
+    def test_init_fail_with_tools_and_streaming(self, tools):
         with pytest.raises(ValueError):
             HuggingFaceAPIChatGenerator(
                 api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
@@ -251,7 +249,7 @@ class TestHuggingFaceAPIChatGenerator:
                 streaming_callback=streaming_callback_handler,
             )
 
-    def test_to_dict(self, mock_check_valid_model):
+    def test_to_dict(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
         generator = HuggingFaceAPIChatGenerator(
@@ -275,7 +273,7 @@ class TestHuggingFaceAPIChatGenerator:
         loaded = HuggingFaceAPIChatGenerator.from_dict(result)
         assert loaded.tools == [tool]
 
-    def test_from_dict(self, mock_check_valid_model):
+    def test_from_dict(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
         generator = HuggingFaceAPIChatGenerator(
@@ -297,7 +295,7 @@ class TestHuggingFaceAPIChatGenerator:
         assert generator_2.streaming_callback is None
         assert generator_2.tools == [tool]
 
-    def test_serde_in_pipeline(self, mock_check_valid_model):
+    def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
         generator = HuggingFaceAPIChatGenerator(
@@ -343,6 +341,130 @@ class TestHuggingFaceAPIChatGenerator:
         new_pipeline = Pipeline.loads(pipeline_yaml)
         assert new_pipeline == pipeline
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=Secret.from_env_var("MISSING_HF_TOKEN"),
+        )
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            generator.warm_up()
+
+    def test_invalid_model_is_checked_at_warm_up(self, mock_check_valid_model):
+        mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id", response=MagicMock())
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API, api_params={"model": "invalid_model_id"}
+        )
+        with pytest.raises(RepositoryNotFoundError):
+            generator.warm_up()
+
+    @patch("haystack_integrations.components.generators.huggingface_api.chat.chat_generator.InferenceClient")
+    def test_sync_lifecycle(self, mock_client_cls):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=Secret.from_token("test-token"),
+        )
+        client = mock_client_cls.return_value
+
+        generator.warm_up()
+        assert generator._client is client
+        assert generator._async_client is None
+
+        generator.close()
+        client.close.assert_called_once_with()
+        assert generator._client is None
+
+        generator.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.huggingface_api.chat.chat_generator.AsyncInferenceClient")
+    async def test_async_lifecycle(self, mock_client_cls):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=Secret.from_token("test-token"),
+        )
+        client = MagicMock(close=AsyncMock())
+        mock_client_cls.return_value = client
+
+        await generator.warm_up_async()
+        assert generator._async_client is client
+        assert generator._client is None
+
+        await generator.close_async()
+        client.close.assert_awaited_once_with()
+        assert generator._async_client is None
+
+        await generator.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.generators.huggingface_api.chat.chat_generator.InferenceClient")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        generator.warm_up()
+        generator.warm_up()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.huggingface_api.chat.chat_generator.AsyncInferenceClient")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        await generator.warm_up_async()
+        await generator.warm_up_async()
+        mock_client_cls.assert_called_once_with(model="https://example.com", token=None)
+
+    @pytest.mark.asyncio
+    async def test_close_is_safe_without_warm_up(self):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        generator.close()
+        await generator.close_async()
+        assert generator._client is None
+        assert generator._async_client is None
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.huggingface_api.chat.chat_generator.AsyncInferenceClient")
+    @patch("haystack_integrations.components.generators.huggingface_api.chat.chat_generator.InferenceClient")
+    async def test_close_and_close_async_are_independent(self, mock_sync_cls, mock_async_cls):
+        sync_client = mock_sync_cls.return_value
+        async_client = MagicMock(close=AsyncMock())
+        mock_async_cls.return_value = async_client
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.TEXT_GENERATION_INFERENCE,
+            api_params={"url": "https://example.com"},
+            token=None,
+        )
+        generator.warm_up()
+        await generator.warm_up_async()
+
+        generator.close()
+        assert generator._client is None
+        assert generator._async_client is async_client
+        async_client.close.assert_not_awaited()
+
+        await generator.close_async()
+        assert generator._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestRun:
     def test_run(self, mock_check_valid_model, mock_chat_completion, chat_messages):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
@@ -755,11 +877,13 @@ class TestHuggingFaceAPIChatGenerator:
         expected_stream_chunk.meta.pop("received_at", None)
         assert converted_stream_chunk == expected_stream_chunk
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestSyncIntegration:
     def test_live_run_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
@@ -788,11 +912,6 @@ class TestHuggingFaceAPIChatGenerator:
         assert meta["model"] == "Qwen/Qwen3.5-9B"
         assert meta["finish_reason"] is not None
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
     def test_live_run_serverless_streaming(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
@@ -825,11 +944,6 @@ class TestHuggingFaceAPIChatGenerator:
         assert response_meta["model"] == "Qwen/Qwen3.5-9B"
         assert response_meta["finish_reason"] is not None
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
     def test_live_run_with_tools(self, tools):
         """
         We test the round trip: generate tool call, pass tool message, generate response.
@@ -867,11 +981,6 @@ class TestHuggingFaceAPIChatGenerator:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower() and "22" in final_message.text
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
     def test_live_run_multimodal(self, test_files_path):
         image_path = test_files_path / "apple.jpg"
         # Resize the image to keep this test fast
@@ -894,6 +1003,8 @@ class TestHuggingFaceAPIChatGenerator:
         assert len(message.text) > 0
         assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
 
+
+class TestRunAsync:
     @pytest.mark.asyncio
     async def test_run_async(self, mock_check_valid_model, mock_chat_completion_async, chat_messages):
         generator = HuggingFaceAPIChatGenerator(
@@ -1079,11 +1190,13 @@ class TestHuggingFaceAPIChatGenerator:
             "usage": {"completion_tokens": 30, "prompt_tokens": 426},
         }
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestAsyncIntegration:
     @pytest.mark.asyncio
     async def test_live_run_async_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
@@ -1113,14 +1226,15 @@ class TestHuggingFaceAPIChatGenerator:
             assert meta["model"] == "Qwen/Qwen3.5-9B"
             assert meta["finish_reason"] is not None
         finally:
-            await generator._async_client.close()
+            await generator.close_async()
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("HF_TOKEN", None),
-        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
-    )
-    @pytest.mark.flaky(reruns=2, reruns_delay=10)
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("HF_TOKEN", None),
+    reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
+)
+class TestReasoningIntegration:
     def test_live_run_multi_turn_with_reasoning_model(self):
         """
         Test multi-turn conversation with a reasoning model.
@@ -1133,12 +1247,10 @@ class TestHuggingFaceAPIChatGenerator:
         # Note: Using a model that supports reasoning AND a provider that actually follows the spec defined in
         # huggingface-hub. Reasoning content especially seems to be non-standard across providers and is either left
         # in the main response or put in a new field that is not part of the official API.
-        # One combo that does respect the spec is together + openai/gpt-oss-20b.
-        # together + openai/gpt-oss-20b actually uses the expected reasoning field in the response
+        # One combo that does respect the spec is groq + openai/gpt-oss-20b.
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            # We use together + openai/gpt-oss-20b since it actually returns reasoning content in the expected field
-            api_params={"model": "openai/gpt-oss-20b", "provider": "together"},
+            api_params={"model": "openai/gpt-oss-20b", "provider": "groq"},
             generation_kwargs={"max_tokens": 300},
         )
 
@@ -1168,7 +1280,9 @@ class TestHuggingFaceAPIChatGenerator:
         assert follow_up_response["replies"][0].text is not None
         assert follow_up_response["replies"][0].reasoning is not None
 
-    def test_hugging_face_api_generator_with_toolset_initialization(self, mock_check_valid_model, tools):
+
+class TestTools:
+    def test_hugging_face_api_generator_with_toolset_initialization(self, tools):
         """Test that the HuggingFaceAPIChatGenerator can be initialized with a Toolset."""
         toolset = Toolset(tools)
         generator = HuggingFaceAPIChatGenerator(
@@ -1176,7 +1290,7 @@ class TestHuggingFaceAPIChatGenerator:
         )
         assert generator.tools == toolset
 
-    def test_from_dict_with_toolset(self, mock_check_valid_model, tools):
+    def test_from_dict_with_toolset(self, tools):
         """Test that the HuggingFaceAPIChatGenerator can be deserialized from a dictionary with a Toolset."""
         toolset = Toolset(tools)
         component = HuggingFaceAPIChatGenerator(
@@ -1190,7 +1304,7 @@ class TestHuggingFaceAPIChatGenerator:
         assert len(deserialized_component.tools) == len(tools)
         assert all(isinstance(tool, Tool) for tool in deserialized_component.tools)
 
-    def test_to_dict_with_toolset(self, mock_check_valid_model, tools):
+    def test_to_dict_with_toolset(self, tools):
         """Test that the HuggingFaceAPIChatGenerator can be serialized to a dictionary with a Toolset."""
         toolset = Toolset(tools[:1])
         generator = HuggingFaceAPIChatGenerator(
@@ -1220,115 +1334,8 @@ class TestHuggingFaceAPIChatGenerator:
         assert hf_tools[0].function.description == "useful to determine the weather in a given location"
         assert hf_tools[0].function.parameters == {"city": {"type": "string"}}
 
-    def test_warm_up_with_tools(self, mock_check_valid_model):
-        """Test that warm_up() calls warm_up on tools and is idempotent."""
 
-        # Create a mock tool that tracks if warm_up() was called
-        class MockTool(Tool):
-            warm_up_call_count = 0  # Class variable to track calls
-
-            def __init__(self):
-                super().__init__(
-                    name="mock_tool",
-                    description="A mock tool for testing",
-                    parameters={"x": {"type": "string"}},
-                    function=lambda x: x,
-                )
-
-            def warm_up(self):
-                MockTool.warm_up_call_count += 1
-
-        # Reset the class variable before test
-        MockTool.warm_up_call_count = 0
-        mock_tool = MockTool()
-
-        # Create HuggingFaceAPIChatGenerator with the mock tool
-        component = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "HuggingFaceH4/zephyr-7b-alpha"},
-            tools=[mock_tool],
-        )
-
-        # Verify initial state - warm_up not called yet
-        assert MockTool.warm_up_call_count == 0
-        assert not component._is_warmed_up
-
-        # Call warm_up() on the generator
-        component.warm_up()
-
-        # Assert that the tool's warm_up() was called
-        assert MockTool.warm_up_call_count == 1
-        assert component._is_warmed_up
-
-        # Call warm_up() again and verify it's idempotent (only warms up once)
-        component.warm_up()
-
-        # The tool's warm_up should still only have been called once
-        assert MockTool.warm_up_call_count == 1
-        assert component._is_warmed_up
-
-    def test_warm_up_with_no_tools(self, mock_check_valid_model):
-        """Test that warm_up() works when no tools are provided."""
-        component = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API, api_params={"model": "HuggingFaceH4/zephyr-7b-alpha"}
-        )
-
-        # Verify initial state
-        assert not component._is_warmed_up
-        assert component.tools is None
-
-        # Call warm_up() - should not raise an error
-        component.warm_up()
-
-        # Verify the component is warmed up
-        assert component._is_warmed_up
-
-        # Call warm_up() again - should be idempotent
-        component.warm_up()
-        assert component._is_warmed_up
-
-    def test_warm_up_with_multiple_tools(self, mock_check_valid_model):
-        """Test that warm_up() works with multiple tools."""
-        # Track warm_up calls
-        warm_up_calls = []
-
-        class MockTool(Tool):
-            def __init__(self, tool_name):
-                super().__init__(
-                    name=tool_name,
-                    description=f"Mock tool {tool_name}",
-                    parameters={"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
-                    function=lambda x: f"{tool_name} result: {x}",
-                )
-
-            def warm_up(self):
-                warm_up_calls.append(self.name)
-
-        mock_tool1 = MockTool("tool1")
-        mock_tool2 = MockTool("tool2")
-
-        # Use a LIST of tools, not a Toolset
-        component = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "HuggingFaceH4/zephyr-7b-alpha"},
-            tools=[mock_tool1, mock_tool2],
-        )
-
-        # Call warm_up()
-        component.warm_up()
-
-        # Assert that both tools' warm_up() were called
-        assert "tool1" in warm_up_calls
-        assert "tool2" in warm_up_calls
-        assert component._is_warmed_up
-
-        # Track count
-        call_count = len(warm_up_calls)
-
-        # Verify idempotency
-        component.warm_up()
-        assert len(warm_up_calls) == call_count
-
+class TestReasoning:
     def test_run_with_reasoning_non_streaming(self, mock_check_valid_model, chat_messages):
         """Test that reasoning content is correctly extracted from non-streaming responses."""
         with patch("huggingface_hub.InferenceClient.chat_completion", autospec=True) as mock_chat_completion:
@@ -1649,6 +1656,8 @@ class TestHuggingFaceAPIChatGenerator:
         assert streaming_chunk.content == "Hello"
         assert streaming_chunk.reasoning is None
 
+
+class TestToolSchema:
     def test_resolve_schema_refs_no_defs(self):
         """Schema without $defs is returned as-is."""
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}

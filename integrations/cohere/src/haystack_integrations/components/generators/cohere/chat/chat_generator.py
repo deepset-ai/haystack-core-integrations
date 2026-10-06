@@ -29,6 +29,7 @@ from httpx import AsyncHTTPTransport, HTTPTransport
 from httpx import Client as HTTPXClient
 
 from cohere import AsyncClientV2, ChatResponse, ClientV2, StreamedChatResponseV2
+from haystack_integrations.utils.cohere import validate_api_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -544,7 +545,7 @@ class CohereChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk)
             as an argument.
-        :param api_base_url: The base URL of the Cohere API.
+        :param api_base_url: The base URL of the Cohere API. The Cohere client appends the endpoint path to it.
         :param generation_kwargs: Other parameters to use for the model during generation. For a list of parameters,
             see [Cohere Chat endpoint](https://docs.cohere.com/reference/chat).
             Some of the parameters are:
@@ -564,11 +565,13 @@ class CohereChatGenerator:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Cohere client.
 
+        :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         if not api_base_url:
             api_base_url = "https://api.cohere.com"
+        validate_api_base_url(api_base_url)
 
         self.api_key = api_key
         self.model = model
@@ -579,22 +582,35 @@ class CohereChatGenerator:
         self.timeout = timeout
         self.max_retries = max_retries
 
+        self.client: ClientV2 | None = None
+        self.async_client: AsyncClientV2 | None = None
+
+    def _client_kwargs(self, *, async_client: bool) -> dict[str, Any]:
+        """Build the keyword arguments used to create a Cohere client."""
         client_kwargs: dict[str, Any] = {
             "api_key": self.api_key.resolve_value(),
             "base_url": self.api_base_url,
             "client_name": "haystack",
         }
-        if timeout is not None:
-            client_kwargs["timeout"] = timeout
+        if self.timeout is not None:
+            client_kwargs["timeout"] = self.timeout
 
-        sync_kwargs = {**client_kwargs}
-        async_kwargs = {**client_kwargs}
-        if max_retries is not None:
-            sync_kwargs["httpx_client"] = HTTPXClient(transport=HTTPTransport(retries=max_retries))
-            async_kwargs["httpx_client"] = AsyncHTTPXClient(transport=AsyncHTTPTransport(retries=max_retries))
+        if self.max_retries is not None:
+            if async_client:
+                client_kwargs["httpx_client"] = AsyncHTTPXClient(transport=AsyncHTTPTransport(retries=self.max_retries))
+            else:
+                client_kwargs["httpx_client"] = HTTPXClient(transport=HTTPTransport(retries=self.max_retries))
+        return client_kwargs
 
-        self.client = ClientV2(**sync_kwargs)
-        self.async_client = AsyncClientV2(**async_kwargs)
+    def warm_up(self) -> None:
+        """Create the synchronous Cohere client."""
+        if self.client is None:
+            self.client = ClientV2(**self._client_kwargs(async_client=False))
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Cohere client."""
+        if self.async_client is None:
+            self.async_client = AsyncClientV2(**self._client_kwargs(async_client=True))
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -665,6 +681,8 @@ class CohereChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+        self.warm_up()
+        assert self.client is not None
         messages = _normalize_messages(messages)
 
         # update generation kwargs by merging with the generation kwargs passed to the run method
@@ -732,6 +750,8 @@ class CohereChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+        await self.warm_up_async()
+        assert self.async_client is not None
         messages = _normalize_messages(messages)
 
         # update generation kwargs by merging with the generation kwargs passed to the run method

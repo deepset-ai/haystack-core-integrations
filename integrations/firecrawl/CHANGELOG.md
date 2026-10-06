@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/firecrawl-v1.2.0] - 2026-09-04
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🚜 Refactor
+
+- Firecrawl - decouple sync/async clients creation (#3914)
+
+### 📚 Documentation
+
+- Fix FirecrawlCrawler wrong name in docstrings (#3560)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN type annotations to faiss, fastembed, firecrawl, github, google_ai (#2988)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+- Improve consistency of integrations folder structure (#3430)
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/firecrawl-v1.1.0] - 2026-03-09
 
 ### 🚀 Features

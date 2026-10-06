@@ -20,13 +20,6 @@ def mock_boto3_session():
         yield mock_client
 
 
-# create a fixture with mocked aiobotocore session
-@pytest.fixture
-def mock_aioboto3_session():
-    with patch("aiobotocore.session.AioSession") as mock_client:
-        yield mock_client
-
-
 @pytest.fixture()
 def test_files_path():
     return Path(__file__).parent / "test_files"

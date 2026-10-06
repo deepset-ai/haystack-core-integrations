@@ -62,8 +62,30 @@ class OllamaTextEmbedder:
         self.model = model
         self.dimensions = dimensions
 
-        self._client = Client(host=self.url, timeout=self.timeout)
-        self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
+        self._client: Client | None = None
+        self._async_client: AsyncClient | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Ollama client."""
+        if self._client is None:
+            self._client = Client(host=self.url, timeout=self.timeout)
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Ollama client."""
+        if self._async_client is None:
+            self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
+
+    def close(self) -> None:
+        """Close the synchronous Ollama client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Ollama client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
     def run(
@@ -82,6 +104,9 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         result = self._client.embed(
             model=self.model,
             input=text,
@@ -109,6 +134,9 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         result = await self._async_client.embed(
             model=self.model,
             input=text,

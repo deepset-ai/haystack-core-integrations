@@ -4,7 +4,8 @@
 
 from typing import Any, Literal
 
-from google.genai import types
+from google.genai import Client, types
+from google.genai.client import AsyncClient
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -129,14 +130,45 @@ class GoogleGenAITextEmbedder:
         self._config = config
         self._timeout = timeout
         self._max_retries = max_retries
-        self._client = _get_client(
-            api_key=api_key,
-            api=api,
-            vertex_ai_project=vertex_ai_project,
-            vertex_ai_location=vertex_ai_location,
-            timeout=timeout,
-            max_retries=max_retries,
-        )
+        self._client: Client | None = None
+        self._async_client: AsyncClient | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Google Gen AI client."""
+        if self._client is None:
+            self._client = _get_client(
+                api_key=self._api_key,
+                api=self._api,
+                vertex_ai_project=self._vertex_ai_project,
+                vertex_ai_location=self._vertex_ai_location,
+                timeout=self._timeout,
+                max_retries=self._max_retries,
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Google Gen AI client."""
+        if self._async_client is None:
+            self._async_client = _get_client(
+                api_key=self._api_key,
+                api=self._api,
+                vertex_ai_project=self._vertex_ai_project,
+                vertex_ai_location=self._vertex_ai_location,
+                timeout=self._timeout,
+                max_retries=self._max_retries,
+                async_client=True,
+            )
+
+    def close(self) -> None:
+        """Close the synchronous Google Gen AI client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Google Gen AI client."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -206,6 +238,9 @@ class GoogleGenAITextEmbedder:
             - `embedding`: The embedding of the input text.
             - `meta`: Information about the usage of the model.
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         create_kwargs = self._prepare_input(text=text)
         response = self._client.models.embed_content(**create_kwargs)
         return self._prepare_output(result=response)
@@ -226,6 +261,9 @@ class GoogleGenAITextEmbedder:
             - `embedding`: The embedding of the input text.
             - `meta`: Information about the usage of the model.
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         create_kwargs = self._prepare_input(text=text)
-        response = await self._client.aio.models.embed_content(**create_kwargs)
+        response = await self._async_client.models.embed_content(**create_kwargs)
         return self._prepare_output(result=response)

@@ -5,6 +5,7 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import AsyncClientV2, ClientV2
+from haystack_integrations.utils.cohere import validate_api_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -48,18 +49,21 @@ class CohereRanker:
         :param model: Cohere model name. Check the list of supported models in the [Cohere documentation](https://docs.cohere.com/docs/models).
         :param top_k: The maximum number of documents to return.
         :param api_key: Cohere API key.
-        :param api_base_url: the base URL of the Cohere API.
+        :param api_base_url: the base URL of the Cohere API. The Cohere client appends the endpoint path to it.
         :param meta_fields_to_embed: List of meta fields that should be concatenated
             with the document content for reranking.
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
         :param max_tokens_per_doc: The maximum number of tokens to embed for each document defaults to 4096.
 
-        :raises ValueError: If `top_k` is not > 0.
+        :raises ValueError: If `top_k` is not > 0, or if `api_base_url` is a full endpoint URL rather than a
+            base URL.
         """
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+
+        validate_api_base_url(api_base_url)
 
         self.model_name = model
         self.api_key = api_key
@@ -69,12 +73,22 @@ class CohereRanker:
         self.meta_data_separator = meta_data_separator
         self.max_tokens_per_doc = max_tokens_per_doc
 
-        self._cohere_client = ClientV2(
-            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
-        )
-        self._cohere_async_client = AsyncClientV2(
-            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
-        )
+        self._cohere_client: ClientV2 | None = None
+        self._cohere_async_client: AsyncClientV2 | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Cohere client."""
+        if self._cohere_client is None:
+            self._cohere_client = ClientV2(
+                api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Cohere client."""
+        if self._cohere_async_client is None:
+            self._cohere_async_client = AsyncClientV2(
+                api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -172,6 +186,8 @@ class CohereRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
+        self.warm_up()
+        assert self._cohere_client is not None
         cohere_input_docs, top_k = self._prepare_cohere_input_docs(documents, top_k)
 
         response = self._cohere_client.rerank(
@@ -205,6 +221,8 @@ class CohereRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
+        await self.warm_up_async()
+        assert self._cohere_async_client is not None
         cohere_input_docs, top_k = self._prepare_cohere_input_docs(documents, top_k)
 
         response = await self._cohere_async_client.rerank(

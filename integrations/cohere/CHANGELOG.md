@@ -1,5 +1,35 @@
 # Changelog
 
+## [integrations/cohere-v10.1.0] - 2026-09-28
+
+### 🚀 Features
+
+- *(cohere)* Add utility for API base URL validation (#4015)
+
+
+## [integrations/cohere-v10.0.1] - 2026-09-10
+
+### 🐛 Bug Fixes
+
+- Batch CohereDocumentEmbedder.run_async like the sync path (#3926)
+
+
+## [integrations/cohere-v10.0.0] - 2026-09-04
+
+### 🚜 Refactor
+
+- [**breaking**] Cohere - create clients in warm up methods (#3911)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- [**breaking**] Remove deprecated `CohereGenerator` (use `CohereChatGenerator` instead) (#3885)
+
+
 ## [integrations/cohere-v9.5.0] - 2026-08-11
 
 ### 🐛 Bug Fixes

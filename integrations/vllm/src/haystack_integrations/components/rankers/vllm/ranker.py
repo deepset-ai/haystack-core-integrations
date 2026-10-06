@@ -109,24 +109,45 @@ class VLLMRanker:
         self.http_client_kwargs = http_client_kwargs
         self.extra_parameters = extra_parameters
 
-        self._headers = {"Content-Type": "application/json"}
-        if self.api_key is not None and (resolved_key := self.api_key.resolve_value()):
-            self._headers["Authorization"] = f"Bearer {resolved_key}"
-
         self._client: httpx.Client | None = None
         self._async_client: httpx.AsyncClient | None = None
-        self._is_warmed_up = False
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create HTTP clients."""
+        headers = httpx.Headers((self.http_client_kwargs or {}).get("headers"))
+        headers["Content-Type"] = "application/json"
+        if self.api_key is not None and (resolved_key := self.api_key.resolve_value()):
+            headers["Authorization"] = f"Bearer {resolved_key}"
+
+        client_kwargs = self.http_client_kwargs.copy() if self.http_client_kwargs else {}
+        client_kwargs["headers"] = headers
+        return client_kwargs
 
     def warm_up(self) -> None:
-        """Create the httpx clients."""
-        if self._is_warmed_up:
-            return
+        """Create the synchronous HTTP client."""
+        if self._client is None:
+            client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=False)
+            assert client is not None  # noqa: S101
+            self._client = client
 
-        client = init_http_client(self.http_client_kwargs, async_client=False)
-        async_client = init_http_client(self.http_client_kwargs, async_client=True)
-        self._client = client if client is not None else httpx.Client()
-        self._async_client = async_client if async_client is not None else httpx.AsyncClient()
-        self._is_warmed_up = True
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous HTTP client."""
+        if self._async_client is None:
+            client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=True)
+            assert client is not None  # noqa: S101
+            self._async_client = client
+
+    def close(self) -> None:
+        """Close the synchronous HTTP client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous HTTP client."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
 
     def _prepare_texts(self, documents: list[Document]) -> list[str]:
         """Concatenate each Document's text with the selected meta fields."""
@@ -210,13 +231,12 @@ class VLLMRanker:
 
         top_k, score_threshold = self._resolve_run_params(top_k, score_threshold)
 
-        if not self._is_warmed_up:
-            self.warm_up()
+        self.warm_up()
         assert self._client is not None  # noqa: S101
 
         body = self._prepare_request(query, documents, top_k)
         url = f"{self.api_base_url.rstrip('/')}/rerank"
-        response = self._client.post(url, json=body, headers=self._headers)
+        response = self._client.post(url, json=body)
         return self._parse_response(response.json(), documents, score_threshold)
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
@@ -246,11 +266,10 @@ class VLLMRanker:
 
         top_k, score_threshold = self._resolve_run_params(top_k, score_threshold)
 
-        if not self._is_warmed_up:
-            self.warm_up()
+        await self.warm_up_async()
         assert self._async_client is not None  # noqa: S101
 
         body = self._prepare_request(query, documents, top_k)
         url = f"{self.api_base_url.rstrip('/')}/rerank"
-        response = await self._async_client.post(url, json=body, headers=self._headers)
+        response = await self._async_client.post(url, json=body)
         return self._parse_response(response.json(), documents, score_threshold)

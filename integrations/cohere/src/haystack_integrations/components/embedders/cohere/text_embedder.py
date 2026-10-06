@@ -7,6 +7,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from cohere import AsyncClientV2, ClientV2
+from haystack_integrations.utils.cohere import validate_api_base_url
 
 from .embedding_types import EmbeddingTypes
 from .utils import get_async_response, get_response
@@ -60,7 +61,7 @@ class CohereTextEmbedder:
             Read [Cohere documentation](https://docs.cohere.com/docs/models#embed) for a list of all supported models.
         :param input_type: specifies the type of input you're giving to the model. Supported values are
         "search_document", "search_query", "classification" and "clustering".
-        :param api_base_url: the Cohere API Base url.
+        :param api_base_url: the Cohere API Base url. The Cohere client appends the endpoint path to it.
         :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END").
             Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
@@ -68,7 +69,10 @@ class CohereTextEmbedder:
         :param timeout: request timeout in seconds.
         :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
             Note that int8, uint8, binary, and ubinary are only valid for v3 models.
+
+        :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
+        validate_api_base_url(api_base_url)
 
         self.api_key = api_key
         self.model = model
@@ -78,19 +82,28 @@ class CohereTextEmbedder:
         self.timeout = timeout
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
 
-        self._client = ClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
+        self._client: ClientV2 | None = None
+        self._async_client: AsyncClientV2 | None = None
 
-        self._async_client = AsyncClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            timeout=self.timeout,
-            client_name="haystack",
-        )
+    def warm_up(self) -> None:
+        """Create the synchronous Cohere client."""
+        if self._client is None:
+            self._client = ClientV2(
+                api_key=self.api_key.resolve_value(),
+                base_url=self.api_base_url,
+                timeout=self.timeout,
+                client_name="haystack",
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Cohere client."""
+        if self._async_client is None:
+            self._async_client = AsyncClientV2(
+                api_key=self.api_key.resolve_value(),
+                base_url=self.api_base_url,
+                timeout=self.timeout,
+                client_name="haystack",
+            )
 
     def _validate_input(self, text: str) -> None:
         if not isinstance(text, str):
@@ -155,6 +168,8 @@ class CohereTextEmbedder:
             If the input is not a string.
         """
         self._validate_input(text=text)
+        self.warm_up()
+        assert self._client is not None
 
         embedding, metadata = get_response(
             cohere_client=self._client,
@@ -187,6 +202,8 @@ class CohereTextEmbedder:
             If the input is not a string.
         """
         self._validate_input(text=text)
+        await self.warm_up_async()
+        assert self._async_client is not None
 
         embedding, metadata = await get_async_response(
             cohere_async_client=self._async_client,

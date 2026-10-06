@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock, patch
+from dataclasses import replace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -60,13 +61,20 @@ class TestHuggingFaceTEIRanker:
         assert data["init_parameters"]["max_retries"] == 4
         assert data["init_parameters"]["retry_status_codes"] == [500, 502]
 
-    def test_raw_scores_survives_a_serialization_round_trip(self, del_hf_env_vars_if_empty):
+    @pytest.mark.parametrize("use_grpc", [False, True])
+    def test_raw_scores_survives_a_serialization_round_trip(self, del_hf_env_vars_if_empty, use_grpc):
         """raw_scores goes into the request payload, so losing it changes what the API returns."""
-        ranker = HuggingFaceTEIRanker(url="https://api.my-tei-service.com", raw_scores=True)
+        ranker = HuggingFaceTEIRanker(
+            url="localhost:8081" if use_grpc else "https://api.my-tei-service.com",
+            raw_scores=True,
+            use_grpc=use_grpc,
+        )
 
         restored = HuggingFaceTEIRanker.from_dict(ranker.to_dict())
 
         assert restored.raw_scores is True
+        assert restored.use_grpc is use_grpc
+        assert restored.url == ranker.url
 
     def test_from_dict(self, del_hf_env_vars_if_empty):
         """Test deserialization from dict with environment variable token"""
@@ -89,6 +97,36 @@ class TestHuggingFaceTEIRanker:
         assert component.timeout == 30
         assert component.max_retries == 4
         assert component.retry_status_codes == [500, 502]
+
+    @patch("haystack_integrations.components.rankers.huggingface_api.ranker.Client")
+    def test_grpc_lifecycle(self, mock_client):
+        ranker = HuggingFaceTEIRanker(url="localhost:8081", use_grpc=True)
+        mock_client.assert_not_called()
+
+        ranker.warm_up()
+        ranker.warm_up()
+        mock_client.assert_called_once_with("localhost:8081")
+
+        ranker.close()
+        ranker.close()
+        mock_client.return_value.channel.close.assert_called_once()
+        assert ranker._grpc_client is None
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.rankers.huggingface_api.ranker.AsyncClient.create")
+    async def test_grpc_lifecycle_async(self, mock_create):
+        mock_create.return_value.channel.close = AsyncMock()
+        ranker = HuggingFaceTEIRanker(url="localhost:8081", use_grpc=True)
+        mock_create.assert_not_called()
+
+        await ranker.warm_up_async()
+        await ranker.warm_up_async()
+        mock_create.assert_awaited_once_with("localhost:8081")
+
+        await ranker.close_async()
+        await ranker.close_async()
+        mock_create.return_value.channel.close.assert_awaited_once()
+        assert ranker._async_grpc_client is None
 
     def test_empty_documents(self, del_hf_env_vars_if_empty):
         """Test that empty documents list returns empty result"""
@@ -157,6 +195,49 @@ class TestHuggingFaceTEIRanker:
         assert result["documents"][1].score == 0.85
         assert result["documents"][2].content == "Document A"
         assert result["documents"][2].score == 0.75
+
+    @patch("haystack_integrations.components.rankers.huggingface_api.ranker.Client")
+    def test_run_grpc(self, mock_client):
+        client = mock_client.return_value
+        client.unary_unary.return_value = {"ranks": [{"index": 1, "score": 0.9}, {"index": 0, "score": 0.2}]}
+        ranker = HuggingFaceTEIRanker(
+            url="localhost:8081",
+            use_grpc=True,
+            raw_scores=True,
+            timeout=12,
+            token=Secret.from_token("grpc-test-key"),
+        )
+        documents = [Document(content="Bananas are yellow."), Document(content="Paris is in France.")]
+
+        result = ranker.run(query="Where is Paris?", documents=documents)
+
+        client.unary_unary.assert_called_once_with(
+            "tei.v1.Rerank",
+            "Rerank",
+            {"query": "Where is Paris?", "texts": [doc.content for doc in documents], "raw_scores": True},
+            timeout=12,
+            metadata=(("authorization", "Bearer grpc-test-key"),),
+        )
+        assert result["documents"] == [replace(documents[1], score=0.9), replace(documents[0], score=0.2)]
+
+    @pytest.mark.parametrize(
+        ("direction", "expected"),
+        [
+            (TruncationDirection.LEFT, "TRUNCATION_DIRECTION_LEFT"),
+            (TruncationDirection.RIGHT, "TRUNCATION_DIRECTION_RIGHT"),
+        ],
+    )
+    @patch("haystack_integrations.components.rankers.huggingface_api.ranker.Client")
+    def test_run_grpc_with_truncation_direction(self, mock_client, direction, expected):
+        client = mock_client.return_value
+        client.unary_unary.return_value = {"ranks": [{"index": 0, "score": 0.9}]}
+        ranker = HuggingFaceTEIRanker(url="localhost:8081", use_grpc=True, token=None)
+
+        ranker.run(query="query", documents=[Document(content="document")], truncation_direction=direction)
+
+        payload = client.unary_unary.call_args.args[2]
+        assert payload["truncate"] is True
+        assert payload["truncation_direction"] == expected
 
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
     def test_run_with_truncation_direction(self, mock_request, del_hf_env_vars_if_empty):
@@ -258,6 +339,18 @@ class TestHuggingFaceTEIRanker:
         assert result["documents"][0].content == "unique"
         assert result["documents"][1].content == "keep me"
 
+    @pytest.mark.parametrize(
+        ("rank", "score"),
+        [({"score": 0.9}, 0.9), ({"index": 0}, 0.0), ({}, 0.0)],
+    )
+    def test_compose_grpc_response_restores_defaults(self, rank, score):
+        ranker = HuggingFaceTEIRanker(url="localhost:8081", use_grpc=True)
+        document = Document(content="document")
+
+        result = ranker._compose_grpc_response({"ranks": [rank]}, top_k=None, documents=[document])
+
+        assert result == {"documents": [replace(document, score=score)]}
+
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
     def test_error_handling(self, mock_request, del_hf_env_vars_if_empty):
         """Test error handling in the ranker"""
@@ -331,6 +424,31 @@ class TestHuggingFaceTEIRanker:
         assert result["documents"][2].score == 0.75
 
     @pytest.mark.asyncio
+    @patch("haystack_integrations.components.rankers.huggingface_api.ranker.AsyncClient.create")
+    async def test_run_async_grpc(self, mock_client):
+        client = mock_client.return_value
+        client.unary_unary.return_value = {"ranks": [{"index": 1, "score": 0.9}, {"index": 0, "score": 0.2}]}
+        ranker = HuggingFaceTEIRanker(
+            url="localhost:8081",
+            use_grpc=True,
+            raw_scores=True,
+            timeout=12,
+            token=Secret.from_token("grpc-test-key"),
+        )
+        documents = [Document(content="Bananas are yellow."), Document(content="Paris is in France.")]
+
+        result = await ranker.run_async(query="Where is Paris?", documents=documents)
+
+        client.unary_unary.assert_awaited_once_with(
+            "tei.v1.Rerank",
+            "Rerank",
+            {"query": "Where is Paris?", "texts": [doc.content for doc in documents], "raw_scores": True},
+            timeout=12,
+            metadata=(("authorization", "Bearer grpc-test-key"),),
+        )
+        assert result["documents"] == [replace(documents[1], score=0.9), replace(documents[0], score=0.2)]
+
+    @pytest.mark.asyncio
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.async_request_with_retry")
     async def test_run_async_deduplicates_documents(self, mock_request, del_hf_env_vars_if_empty):
         """Test that duplicate documents are removed before sending to the API."""
@@ -371,3 +489,56 @@ class TestHuggingFaceTEIRanker:
         # Check that no API call was made
         mock_request.assert_not_called()
         assert result == {"documents": []}
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize(
+        ("url", "use_grpc"),
+        [("http://localhost:8083", False), ("localhost:8084", True)],
+    )
+    def test_live_run_tei(self, url, use_grpc):
+        ranker = HuggingFaceTEIRanker(
+            url=url,
+            use_grpc=use_grpc,
+            token=Secret.from_token("tei-test-key"),
+            top_k=1,
+        )
+        documents = [
+            Document(content="Bananas are yellow."),
+            Document(content="The capital of France is Paris."),
+        ]
+        try:
+            result = ranker.run(query="What is the capital of France?", documents=documents)
+        finally:
+            ranker.close()
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].id == documents[1].id
+        assert isinstance(result["documents"][0].score, float)
+        assert all(doc.score is None for doc in documents)
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("url", "use_grpc"),
+        [("http://localhost:8083", False), ("localhost:8084", True)],
+    )
+    async def test_live_run_async_tei(self, url, use_grpc):
+        ranker = HuggingFaceTEIRanker(
+            url=url,
+            use_grpc=use_grpc,
+            token=Secret.from_token("tei-test-key"),
+            top_k=1,
+        )
+        documents = [
+            Document(content="Bananas are yellow."),
+            Document(content="The capital of France is Paris."),
+        ]
+        try:
+            result = await ranker.run_async(query="What is the capital of France?", documents=documents)
+        finally:
+            await ranker.close_async()
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].id == documents[1].id
+        assert isinstance(result["documents"][0].score, float)
+        assert all(doc.score is None for doc in documents)

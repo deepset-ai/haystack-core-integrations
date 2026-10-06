@@ -4,7 +4,6 @@ loaders:
       - haystack_integrations.components.embedders.cohere.document_image_embedder
       - haystack_integrations.components.embedders.cohere.text_embedder
       - haystack_integrations.components.embedders.cohere.utils
-      - haystack_integrations.components.generators.cohere.generator
       - haystack_integrations.components.generators.cohere.chat.chat_generator
       - haystack_integrations.components.rankers.cohere.ranker
     search_path: [../src]

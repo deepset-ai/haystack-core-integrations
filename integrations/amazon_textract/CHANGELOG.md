@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/amazon_textract-v1.1.0] - 2026-09-07
+
+### 🚀 Features
+
+- Amazon Textract - add lifecycle handling (#3905)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/amazon_textract-v1.0.0] - 2026-05-22
 
 ### 🚀 Features

@@ -7,13 +7,39 @@ from unittest.mock import Mock
 
 import pytest
 import torch
+from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
 from transformers import AutoTokenizer, PreTrainedTokenizerFast
 
 from haystack_integrations.common.transformers.utils import (
     _resolve_hf_device_map,
     _StopWordsCriteria,
+    _with_hf_token,
 )
+
+
+def test_with_hf_token_resolves_token_without_mutating_kwargs():
+    hf_kwargs = {"model": "model"}
+    token = Mock(spec=Secret)
+    token.resolve_value.return_value = "resolved-token"
+
+    resolved_kwargs = _with_hf_token(hf_kwargs, token)
+
+    assert resolved_kwargs == {"model": "model", "token": "resolved-token"}
+    assert hf_kwargs == {"model": "model"}
+
+
+def test_with_hf_token_preserves_explicit_token_without_resolving_secret():
+    token = Mock(spec=Secret)
+
+    resolved_kwargs = _with_hf_token({"token": "explicit-token"}, token)
+
+    assert resolved_kwargs == {"token": "explicit-token"}
+    token.resolve_value.assert_not_called()
+
+
+def test_with_hf_token_adds_none_when_token_is_not_provided():
+    assert _with_hf_token({}, None) == {"token": None}
 
 
 def test_resolve_hf_device_map_only_device():

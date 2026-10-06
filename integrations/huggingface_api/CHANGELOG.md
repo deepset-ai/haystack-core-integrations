@@ -1,5 +1,38 @@
 # Changelog
 
+## [integrations/huggingface_api-v2.1.0] - 2026-10-06
+
+### 🚜 Refactor
+
+- [**breaking**] HF API - Stop warming up tools in Chat Generator (#4056)
+
+
+## [integrations/huggingface_api-v2.0.0] - 2026-10-01
+
+### 🚀 Features
+
+- [**breaking**] Add grpc support for the huggingface TEI components; rename HuggingFace API Sparse Embedders -> Hugging Face TEI Sparse Embedders (#3870)
+
+### 🧪 Testing
+
+- HF API - use Groq for gpt-oss-20b (#4001)
+
+
+## [integrations/huggingface_api-v1.0.0] - 2026-09-07
+
+### 🚀 Features
+
+- [**breaking**] HF API - add lifecycle handling (#3917)
+
+### 🧪 Testing
+
+- Replace retired Qwen2.5 models in `huggingface_api` live tests (#3866)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/huggingface_api-v0.6.0] - 2026-08-27
 
 ### 🚀 Features

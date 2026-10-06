@@ -2,6 +2,5 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .chat.chat_generator import AmazonBedrockChatGenerator
-from .generator import AmazonBedrockGenerator
 
-__all__ = ["AmazonBedrockChatGenerator", "AmazonBedrockGenerator"]
+__all__ = ["AmazonBedrockChatGenerator"]

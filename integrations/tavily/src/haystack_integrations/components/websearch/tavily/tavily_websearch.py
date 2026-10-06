@@ -66,14 +66,29 @@ class TavilyWebSearch:
 
     def warm_up(self) -> None:
         """
-        Initialize the Tavily sync and async clients.
+        Initialize the Tavily sync client.
 
         Called automatically on first use. Can be called explicitly to avoid cold-start latency.
         """
         if self._tavily_client is None:
             self._tavily_client = TavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
+
+    async def warm_up_async(self) -> None:
+        """Initialize the Tavily async client."""
         if self._async_tavily_client is None:
             self._async_tavily_client = AsyncTavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
+
+    def close(self) -> None:
+        """Close the Tavily sync client."""
+        if self._tavily_client is not None:
+            self._tavily_client.close()
+            self._tavily_client = None
+
+    async def close_async(self) -> None:
+        """Close the Tavily async client."""
+        if self._async_tavily_client is not None:
+            await self._async_tavily_client.close()
+            self._async_tavily_client = None
 
     @component.output_types(documents=list[Document], links=list[str])
     def run(
@@ -92,11 +107,8 @@ class TavilyWebSearch:
             - `documents`: List of Documents containing search result content.
             - `links`: List of URLs from the search results.
         """
-        if self._tavily_client is None:
-            self.warm_up()
-        if self._tavily_client is None:
-            msg = "TavilyWebSearch client failed to initialize."
-            raise RuntimeError(msg)
+        self.warm_up()
+        assert self._tavily_client is not None  # noqa: S101
 
         params = (search_params if search_params is not None else self.search_params or {}).copy()
         if "max_results" not in params and self.top_k is not None:
@@ -122,11 +134,8 @@ class TavilyWebSearch:
             - `documents`: List of Documents containing search result content.
             - `links`: List of URLs from the search results.
         """
-        if self._async_tavily_client is None:
-            self.warm_up()
-        if self._async_tavily_client is None:
-            msg = "TavilyWebSearch async client failed to initialize."
-            raise RuntimeError(msg)
+        await self.warm_up_async()
+        assert self._async_tavily_client is not None  # noqa: S101
 
         params = (search_params if search_params is not None else self.search_params or {}).copy()
         if "max_results" not in params and self.top_k is not None:

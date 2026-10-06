@@ -23,7 +23,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "httpx>=0.27.0", "huggingface_hub[inference]>=0.35.0"]
+dependencies = ["haystack-ai>=3.0.0", "httpx>=0.27.0", "huggingface_hub[inference]>=1.0.0"]
+
+[project.optional-dependencies]
+grpc = [
+  "grpc-requests>=0.1.21",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/huggingface_api#readme"
@@ -58,6 +63,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "grpc-requests>=0.1.21",
     "numpy",
     "pillow",  # image resizing in multimodal tests
 ]
@@ -78,6 +84,10 @@ install_types = true
 non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["grpc_requests", "grpc_requests.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120

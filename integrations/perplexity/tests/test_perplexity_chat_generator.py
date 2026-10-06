@@ -80,16 +80,16 @@ class TestPerplexityChatGenerator:
 
         assert chat_generator_module._attribution_header() == "haystack/unknown"
 
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
-
+    def test_init_default(self):
         component = PerplexityChatGenerator()
 
-        assert component.api_key.resolve_value() == "test-api-key"
+        assert component.api_key == Secret.from_env_var("PERPLEXITY_API_KEY")
         assert component.model == "openai/gpt-5.4"
         assert component.api_base_url == "https://api.perplexity.ai/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+        assert component.client is None
+        assert component.async_client is None
 
     def test_init_with_parameters(self):
         component = PerplexityChatGenerator(
@@ -126,12 +126,13 @@ class TestPerplexityChatGenerator:
     def test_warm_up(self, monkeypatch):
         monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
         component = PerplexityChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+
+        component.warm_up()
+
+        assert component.client is not None
         assert component.client.api_key == "test-api-key"
 
-    def test_to_dict_default_round_trip(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
-
+    def test_to_dict_default_round_trip(self):
         component = PerplexityChatGenerator()
         data = component.to_dict()
 
@@ -161,8 +162,7 @@ class TestPerplexityChatGenerator:
         assert deserialized.api_key == Secret.from_env_var("PERPLEXITY_API_KEY")
         assert deserialized.extra_headers is None
 
-    def test_to_dict_with_parameters_round_trip(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test-api-key")
+    def test_to_dict_with_parameters_round_trip(self):
         component = PerplexityChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
             model="xai/grok-4-1",
@@ -234,37 +234,35 @@ class TestPerplexityChatGenerator:
         assert kwargs["headers"]["test-header"] == "test-value"
         assert kwargs["headers"]["X-Pplx-Integration"].startswith("haystack/")
 
-    def test_run_sends_attribution_header(self, chat_messages):
-        captured: list[httpx.Request] = []
-        component = PerplexityChatGenerator(
-            api_key=Secret.from_token("test-api-key"),
-            extra_headers={"test-header": "test-value"},
-            http_client_kwargs={"transport": _make_transport(captured)},
-        )
-
-        component.run(chat_messages)
-
-        assert len(captured) == 1
-        request = captured[0]
-        assert request.headers["Authorization"] == "Bearer test-api-key"
-        assert request.headers["X-Pplx-Integration"].startswith("haystack/")
-        assert request.headers["test-header"] == "test-value"
-
     @pytest.mark.asyncio
-    async def test_run_async_sends_attribution_header(self, chat_messages):
+    @pytest.mark.parametrize("use_async", [False, True])
+    @pytest.mark.parametrize("header_source", ["extra_headers", "http_client_kwargs"])
+    @pytest.mark.parametrize("header_name", [None, "X-Pplx-Integration", "x-pplx-integration", "X-PPLX-INTEGRATION"])
+    async def test_run_sends_attribution_header(self, chat_messages, use_async, header_source, header_name):
         captured: list[httpx.Request] = []
+        headers = {"test-header": "test-value"}
+        if header_name:
+            headers[header_name] = "custom"
         component = PerplexityChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            extra_headers={"test-header": "test-value"},
-            http_client_kwargs={"transport": _make_transport(captured)},
+            extra_headers=headers if header_source == "extra_headers" else None,
+            http_client_kwargs={
+                "transport": _make_transport(captured),
+                "headers": headers if header_source == "http_client_kwargs" else {},
+            },
         )
 
-        await component.run_async(chat_messages)
+        if use_async:
+            await component.run_async(chat_messages)
+        else:
+            component.run(chat_messages)
 
         assert len(captured) == 1
         request = captured[0]
         assert request.headers["Authorization"] == "Bearer test-api-key"
-        assert request.headers["X-Pplx-Integration"].startswith("haystack/")
+        integration_values = request.headers.get_list("X-Pplx-Integration")
+        assert len(integration_values) == 1
+        assert integration_values == ["custom"] if header_name else integration_values[0].startswith("haystack/")
         assert request.headers["test-header"] == "test-value"
 
 

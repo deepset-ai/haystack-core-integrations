@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mariadb-v0.1.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- *(alloydb,mariadb)* NO_VALUE sentinel collides with 'no_value' (#3951)
+
+
 ## [integrations/mariadb-v0.1.0] - 2026-08-18
 
 ### 🐛 Bug Fixes

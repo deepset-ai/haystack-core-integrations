@@ -38,87 +38,81 @@ def tools():
     ]
 
 
-class TestWatsonxChatGenerator:
-    @pytest.fixture
-    def mock_watsonx(self, monkeypatch) -> Generator[dict[str, AsyncMock | MagicMock], None]:
-        """Fixture for setting up common mocks"""
-        monkeypatch.setenv("WATSONX_API_KEY", "fake-api-key")
-        monkeypatch.setenv("WATSONX_PROJECT_ID", "fake-project-id")
+@pytest.fixture
+def mock_watsonx() -> Generator[dict[str, MagicMock], None]:
+    """Fixture for setting up common mocks"""
+    with patch("haystack_integrations.components.generators.watsonx.chat.chat_generator.ModelInference") as mock_model:
+        mock_model_instance = MagicMock()
+        mock_model_instance.chat = MagicMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {"content": "This is a generated response", "role": "assistant"},
+                        "index": 0,
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            }
+        )
+        mock_model_instance.achat = AsyncMock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {"content": "Async generated response", "role": "assistant"},
+                        "index": 0,
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            }
+        )
+        mock_model_instance.chat_stream = MagicMock(
+            return_value=[
+                {"choices": [{"delta": {"content": "Streaming"}, "index": 0, "finish_reason": None}]},
+                {"choices": [{"delta": {"content": " response"}, "index": 0, "finish_reason": "stop"}]},
+            ]
+        )
 
-        with (
-            patch(
-                "haystack_integrations.components.generators.watsonx.chat.chat_generator.ModelInference"
-            ) as mock_model,
-            patch(
-                "haystack_integrations.components.generators.watsonx.chat.chat_generator.select_streaming_callback"
-            ) as mock_select_callback,
-        ):
-            mock_select_callback.side_effect = lambda init_callback, runtime_callback, requires_async: (
-                runtime_callback if runtime_callback is not None else init_callback
-            )
+        async def mock_achat_stream(messages=None, params=None, tools=None):
+            class MockAsyncGenerator:
+                def __init__(self):
+                    self._count = 0
 
-            mock_model_instance = MagicMock()
-            mock_model_instance.chat = MagicMock(
-                return_value={
-                    "choices": [
-                        {
-                            "message": {"content": "This is a generated response", "role": "assistant"},
-                            "index": 0,
-                            "finish_reason": "stop",
+                def __aiter__(self):
+                    return self
+
+                async def __anext__(self):
+                    self._count += 1
+                    if self._count == 1:
+                        return {
+                            "choices": [{"delta": {"content": "Async streaming"}, "finish_reason": None, "index": 0}]
                         }
-                    ],
-                    "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-                }
-            )
-            mock_model_instance.achat = AsyncMock(
-                return_value={
-                    "choices": [
-                        {
-                            "message": {"content": "Async generated response", "role": "assistant"},
-                            "index": 0,
-                            "finish_reason": "stop",
-                        }
-                    ],
-                    "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-                }
-            )
-            mock_model_instance.chat_stream = MagicMock(
-                return_value=[
-                    {"choices": [{"delta": {"content": "Streaming"}, "index": 0, "finish_reason": None}]},
-                    {"choices": [{"delta": {"content": " response"}, "index": 0, "finish_reason": "stop"}]},
-                ]
-            )
+                    elif self._count == 2:
+                        return {"choices": [{"delta": {"content": " response"}, "finish_reason": "stop", "index": 0}]}
+                    else:
+                        raise StopAsyncIteration
 
-            async def mock_achat_stream(messages=None, params=None, tools=None):
-                class MockAsyncGenerator:
-                    def __init__(self):
-                        self._count = 0
+            return MockAsyncGenerator()
 
-                    def __aiter__(self):
-                        return self
+        mock_model_instance.achat_stream = mock_achat_stream
+        mock_model.return_value = mock_model_instance
 
-                    async def __anext__(self):
-                        self._count += 1
-                        if self._count == 1:
-                            return {
-                                "choices": [
-                                    {"delta": {"content": "Async streaming"}, "finish_reason": None, "index": 0}
-                                ]
-                            }
-                        elif self._count == 2:
-                            return {
-                                "choices": [{"delta": {"content": " response"}, "finish_reason": "stop", "index": 0}]
-                            }
-                        else:
-                            raise StopAsyncIteration
+        yield {"model_instance": mock_model_instance}
 
-                return MockAsyncGenerator()
 
-            mock_model_instance.achat_stream = mock_achat_stream
-            mock_model.return_value = mock_model_instance
+@pytest.fixture
+def mock_select_callback() -> Generator[MagicMock, None]:
+    with patch(
+        "haystack_integrations.components.generators.watsonx.chat.chat_generator.select_streaming_callback"
+    ) as select_callback:
+        select_callback.side_effect = lambda init_callback, runtime_callback, requires_async: (
+            runtime_callback if runtime_callback is not None else init_callback
+        )
+        yield select_callback
 
-            yield {"model": mock_model, "model_instance": mock_model_instance, "select_callback": mock_select_callback}
 
+class TestInitialization:
     def test_supported_models(self) -> None:
         """SUPPORTED_MODELS is a non-empty list of strings."""
         models = WatsonxChatGenerator.SUPPORTED_MODELS
@@ -126,21 +120,17 @@ class TestWatsonxChatGenerator:
         assert len(models) > 0
         assert all(isinstance(m, str) for m in models)
 
-    def test_init_default(self, mock_watsonx):
+    def test_init_default(self):
         generator = WatsonxChatGenerator(project_id=Secret.from_token("fake-project-id"))
 
-        _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-4-h-small"
-        assert kwargs["project_id"] == "fake-project-id"
-        assert kwargs["verify"] is None
-
+        assert generator.client is None
         assert generator.model == "ibm/granite-4-h-small"
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "fake-project-id"
         assert generator.api_base_url == "https://us-south.ml.cloud.ibm.com"
         assert generator.tools is None
 
-    def test_init_with_all_params(self, mock_watsonx: dict[str, AsyncMock | MagicMock]) -> None:
+    def test_init_with_all_params(self) -> None:
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=weather)
 
         generator = WatsonxChatGenerator(
@@ -152,27 +142,29 @@ class TestWatsonxChatGenerator:
             tools=[tool],
         )
 
-        _, kwargs = mock_watsonx["model"].call_args
-        assert kwargs["model_id"] == "ibm/granite-4-h-small"
-        assert kwargs["project_id"] == "test-project"
-        assert kwargs["verify"] is False
-
+        assert generator.client is None
         assert isinstance(generator.project_id, Secret)
         assert generator.project_id.resolve_value() == "test-project"
         assert generator.tools == [tool]
 
-    def test_init_with_toolset(self, mock_watsonx: dict[str, AsyncMock | MagicMock], tools: list[Tool]) -> None:
+    def test_init_with_toolset(self, tools: list[Tool]) -> None:
         toolset = Toolset(tools)
         generator = WatsonxChatGenerator(project_id=Secret.from_token("fake-project-id"), tools=toolset)
         assert generator.tools == toolset
 
-    def test_init_fails_without_project(self, mock_watsonx):
-        os.environ.pop("WATSONX_PROJECT_ID", None)
+    def test_init_with_streaming_callback(self):
+        def custom_callback(chunk: StreamingChunk):
+            pass
 
-        with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
-            WatsonxChatGenerator(api_key=Secret.from_token("test-api-key"))
+        generator = WatsonxChatGenerator(
+            project_id=Secret.from_token("test-project"),
+            streaming_callback=custom_callback,
+        )
+        assert generator.streaming_callback is custom_callback
 
-    def test_to_dict(self, mock_watsonx: dict[str, AsyncMock | MagicMock]) -> None:
+
+class TestSerialization:
+    def test_to_dict(self) -> None:
         generator = WatsonxChatGenerator(
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"), generation_kwargs={"max_tokens": 100}
         )
@@ -196,7 +188,7 @@ class TestWatsonxChatGenerator:
         }
         assert data == expected
 
-    def test_to_dict_with_params(self, mock_watsonx: dict[str, AsyncMock | MagicMock], tools: list[Tool]) -> None:
+    def test_to_dict_with_params(self, tools: list[Tool]) -> None:
         generator = WatsonxChatGenerator(
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             generation_kwargs={"max_tokens": 100},
@@ -231,8 +223,7 @@ class TestWatsonxChatGenerator:
         loaded = WatsonxChatGenerator.from_dict(generator.to_dict())
         assert loaded.tools == tools
 
-    def test_from_dict(self, mock_watsonx):
-        assert mock_watsonx is not None
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
@@ -246,10 +237,10 @@ class TestWatsonxChatGenerator:
         generator = WatsonxChatGenerator.from_dict(data)
         assert generator.model == "ibm/granite-4-h-small"
         assert isinstance(generator.project_id, Secret)
-        assert generator.project_id.resolve_value() == "fake-project-id"
+        assert generator.project_id == Secret.from_env_var("WATSONX_PROJECT_ID")
         assert generator.generation_kwargs == {"max_tokens": 100}
 
-    def test_from_dict_with_callback(self, mock_watsonx):
+    def test_from_dict_with_callback(self):
         callback_str = "haystack.components.generators.utils.print_streaming_chunk"
         data = {
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
@@ -264,7 +255,7 @@ class TestWatsonxChatGenerator:
         generator = WatsonxChatGenerator.from_dict(data)
         assert generator.streaming_callback is print_streaming_chunk
 
-    def test_from_dict_with_tools(self, mock_watsonx: dict[str, AsyncMock | MagicMock], tools: list[Tool]) -> None:
+    def test_from_dict_with_tools(self, tools: list[Tool]) -> None:
         data = {
             "type": "haystack_integrations.components.generators.watsonx.chat.chat_generator.WatsonxChatGenerator",
             "init_parameters": {
@@ -297,6 +288,54 @@ class TestWatsonxChatGenerator:
         assert len(generator.tools) == len(tools)
         assert all(isinstance(tool, Tool) for tool in generator.tools)
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("WATSONX_API_KEY", raising=False)
+        generator = WatsonxChatGenerator(project_id=Secret.from_token("fake-project-id"))
+
+        assert generator.client is None
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+            generator.warm_up()
+
+    def test_project_id_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
+        generator = WatsonxChatGenerator(api_key=Secret.from_token("fake-api-key"))
+
+        assert generator.client is None
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+            generator.warm_up()
+
+    def test_warm_up_is_idempotent(self):
+        with (
+            patch("haystack_integrations.components.generators.watsonx.chat.chat_generator.Credentials") as credentials,
+            patch(
+                "haystack_integrations.components.generators.watsonx.chat.chat_generator.ModelInference"
+            ) as model_inference,
+        ):
+            generator = WatsonxChatGenerator(
+                api_key=Secret.from_token("fake-api-key"),
+                project_id=Secret.from_token("fake-project-id"),
+                api_base_url="https://custom-url.ibm.com",
+                verify=False,
+                max_retries=5,
+            )
+            generator.warm_up()
+            client = generator.client
+            generator.warm_up()
+
+        credentials.assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com")
+        model_inference.assert_called_once_with(
+            model_id="ibm/granite-4-h-small",
+            credentials=credentials.return_value,
+            project_id="fake-project-id",
+            verify=False,
+            max_retries=5,
+        )
+        assert generator.client is client
+
+
+class TestRun:
     def test_run_single_message(self, mock_watsonx):
         generator = WatsonxChatGenerator(
             api_key=Secret.from_token("test-api-key"),
@@ -331,15 +370,17 @@ class TestWatsonxChatGenerator:
             tools=None,
         )
 
-    def test_run_with_streaming(self, mock_watsonx):
+    def test_run_with_streaming(self, mock_watsonx, mock_select_callback):
         """Test streaming with callback through parent class"""
-        generator = WatsonxChatGenerator(project_id=Secret.from_token("test-project"))
+        generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"), project_id=Secret.from_token("test-project")
+        )
 
         mock_callback = MagicMock()
         messages = [ChatMessage.from_user("Test prompt")]
         result = generator.run(messages=messages, streaming_callback=mock_callback)
 
-        mock_watsonx["select_callback"].assert_called_once_with(
+        mock_select_callback.assert_called_once_with(
             init_callback=None, runtime_callback=mock_callback, requires_async=False
         )
 
@@ -390,7 +431,7 @@ class TestWatsonxChatGenerator:
             messages=[{"role": "user", "content": "What's the capital of France?"}], params={}, tools=None
         )
 
-    def test_run_with_empty_messages(self, mock_watsonx):
+    def test_run_with_empty_messages(self):
         generator = WatsonxChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             project_id=Secret.from_token("test-project"),
@@ -399,17 +440,7 @@ class TestWatsonxChatGenerator:
         result = generator.run(messages=[])
         assert result["replies"] == []
 
-    def test_init_with_streaming_callback(self, mock_watsonx):
-        def custom_callback(chunk: StreamingChunk):
-            pass
-
-        generator = WatsonxChatGenerator(
-            project_id=Secret.from_token("test-project"),
-            streaming_callback=custom_callback,
-        )
-        assert generator.streaming_callback is custom_callback
-
-    def test_streaming_callback_priority(self, mock_watsonx):
+    def test_streaming_callback_priority(self, mock_watsonx, mock_select_callback):
         def init_callback(chunk: StreamingChunk):
             pass
 
@@ -417,6 +448,7 @@ class TestWatsonxChatGenerator:
             pass
 
         generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
             project_id=Secret.from_token("test-project"),
             streaming_callback=init_callback,
         )
@@ -424,7 +456,7 @@ class TestWatsonxChatGenerator:
         # Run with different callback - should use the runtime callback
         generator.run(messages=[ChatMessage.from_user("test")], streaming_callback=run_callback)
 
-        mock_watsonx["select_callback"].assert_called_once_with(
+        mock_select_callback.assert_called_once_with(
             init_callback=init_callback, runtime_callback=run_callback, requires_async=False
         )
 
@@ -461,7 +493,7 @@ class TestWatsonxChatGenerator:
         )
 
     @pytest.mark.asyncio
-    async def test_run_async_streaming(self, mock_watsonx):
+    async def test_run_async_streaming(self, mock_watsonx, mock_select_callback):
         generator = WatsonxChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             project_id=Secret.from_token("test-project"),
@@ -474,9 +506,7 @@ class TestWatsonxChatGenerator:
         messages = [ChatMessage.from_user("Test prompt")]
 
         result = await generator.run_async(messages=messages, streaming_callback=mock_callback)
-        mock_watsonx["select_callback"].assert_called_with(
-            init_callback=None, runtime_callback=mock_callback, requires_async=True
-        )
+        mock_select_callback.assert_called_with(init_callback=None, runtime_callback=mock_callback, requires_async=True)
         assert len(received_chunks) == 2
 
         assert received_chunks[0].content == "Async streaming"
@@ -485,8 +515,9 @@ class TestWatsonxChatGenerator:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Async streaming response"
 
-    # Multimodal Tests
-    def test_prepare_api_call_with_image(self, mock_watsonx):
+
+class TestMessageConversionAndMultimodal:
+    def test_prepare_api_call_with_image(self):
         """Test that a ChatMessage with ImageContent is converted to WatsonX format correctly."""
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -519,7 +550,7 @@ class TestWatsonxChatGenerator:
         assert "url" in watsonx_message["content"][1]["image_url"]
         assert watsonx_message["content"][1]["image_url"]["url"] == f"data:image/png;base64,{base64_image}"
 
-    def test_prepare_api_call_with_unsupported_mime_type(self, mock_watsonx):
+    def test_prepare_api_call_with_unsupported_mime_type(self):
         """Test that a ChatMessage with unsupported mime type raises ValueError."""
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -535,7 +566,7 @@ class TestWatsonxChatGenerator:
         with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
             generator._prepare_api_call(messages=[message])
 
-    def test_prepare_api_call_with_none_mime_type(self, mock_watsonx):
+    def test_prepare_api_call_with_none_mime_type(self):
         """Test that a ChatMessage with None mime type raises ValueError."""
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -553,7 +584,7 @@ class TestWatsonxChatGenerator:
         with pytest.raises(ValueError, match="Unsupported image format: None"):
             generator._prepare_api_call(messages=[message])
 
-    def test_prepare_api_call_image_in_non_user_message(self, mock_watsonx):
+    def test_prepare_api_call_image_in_non_user_message(self):
         """Test that images in non-user messages raise ValueError."""
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -571,9 +602,7 @@ class TestWatsonxChatGenerator:
         with pytest.raises(ValueError, match="Image content is only supported for user messages"):
             generator._prepare_api_call(messages=[message])
 
-    def test_convert_chunk_to_streaming_chunk_real_example(
-        self, mock_watsonx: dict[str, AsyncMock | MagicMock]
-    ) -> None:
+    def test_convert_chunk_to_streaming_chunk_real_example(self) -> None:
         component = WatsonxChatGenerator(
             project_id=Secret.from_token("test-project"), model="meta-llama/llama-3-2-11b-vision-instruct"
         )
@@ -693,6 +722,7 @@ class TestWatsonxChatGenerator:
 
         generator = WatsonxChatGenerator(
             model="meta-llama/llama-3-2-11b-vision-instruct",
+            api_key=Secret.from_token("test-api-key"),
             project_id=Secret.from_token("test-project"),
         )
 
@@ -715,7 +745,7 @@ class TestWatsonxChatGenerator:
         assert messages_arg[0]["content"][0]["type"] == "text"
         assert messages_arg[0]["content"][1]["type"] == "image_url"
 
-    def test_supported_image_formats(self, mock_watsonx):
+    def test_supported_image_formats(self):
         """Test that all supported image formats work correctly."""
         supported_formats = ["image/jpeg", "image/png"]
         base64_image = (
@@ -735,7 +765,7 @@ class TestWatsonxChatGenerator:
             api_call = generator._prepare_api_call(messages=[message])
             assert api_call is not None
 
-    def test_multiple_images_in_single_message(self, mock_watsonx):
+    def test_multiple_images_in_single_message(self):
         """Test handling multiple images in a single message."""
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -761,11 +791,11 @@ class TestWatsonxChatGenerator:
 
 
 @pytest.mark.integration
-class TestWatsonxChatGeneratorIntegration:
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
+@pytest.mark.skipif(
+    not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
+    reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
+)
+class TestIntegration:
     def test_live_run(self):
         generator = WatsonxChatGenerator(
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -782,10 +812,6 @@ class TestWatsonxChatGeneratorIntegration:
         assert len(results["replies"][0].text) > 0
         assert isinstance(generator.project_id, Secret)
 
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     def test_live_run_with_toolset(self, tools: list[Tool]) -> None:
         """Test that WatsonxChatGenerator can run with a Toolset."""
         toolset = Toolset(tools)
@@ -821,10 +847,6 @@ class TestWatsonxChatGeneratorIntegration:
             "Response does not contain Paris or weather"
         )
 
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     def test_live_run_streaming(self):
         generator = WatsonxChatGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
         collected_chunks = []
@@ -843,10 +865,6 @@ class TestWatsonxChatGeneratorIntegration:
         assert len(collected_chunks) > 0
         assert all(isinstance(chunk, StreamingChunk) for chunk in collected_chunks)
 
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     def test_live_run_with_tools_streaming(self, tools: list[Tool]) -> None:
         """
         Integration test that the WatsonxChatGenerator component can run with tools and streaming.
@@ -879,10 +897,6 @@ class TestWatsonxChatGeneratorIntegration:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
 
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     def test_live_run_with_mixed_tools(self) -> None:
         """
         Integration test that verifies WatsonxChatGenerator works with mixed Tool and Toolset.
@@ -964,10 +978,6 @@ class TestWatsonxChatGeneratorIntegration:
         assert "paris" in final_message.text.lower()
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     async def test_live_run_async(self):
         generator = WatsonxChatGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"))
         messages = [ChatMessage.from_user("What's the capital of Germany? Answer concisely.")]
@@ -981,10 +991,6 @@ class TestWatsonxChatGeneratorIntegration:
         assert len(results["replies"][0].text) > 0
 
     @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     async def test_live_run_async_with_tools(self, tools: list[Tool]) -> None:
         """Test async version with tools."""
         component = WatsonxChatGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"), tools=tools)
@@ -1006,10 +1012,6 @@ class TestWatsonxChatGeneratorIntegration:
         assert tool_message.tool_calls[0].arguments == {"city": "Paris"}
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
-    @pytest.mark.skipif(
-        not os.environ.get("WATSONX_API_KEY") or not os.environ.get("WATSONX_PROJECT_ID"),
-        reason="WATSONX_API_KEY or WATSONX_PROJECT_ID not set",
-    )
     def test_live_run_multimodal(self):
         generator = WatsonxChatGenerator(
             model="meta-llama/llama-4-maverick-17b-128e-instruct-fp8",

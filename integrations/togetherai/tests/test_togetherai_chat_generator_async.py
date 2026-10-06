@@ -77,7 +77,7 @@ def mock_async_chat_completion():
                 "total_tokens": 97,
             },
         )
-        # For async mocks, the return value should be awaitable
+        # AsyncMock returns this completion when awaited
         mock_chat_completion_create.return_value = completion
         yield mock_chat_completion_create
 
@@ -87,9 +87,7 @@ class TestTogetherAIChatGeneratorAsync:
     async def test_warm_up_async(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIChatGenerator()
-        if hasattr(component, "warm_up_async"):
-            # haystack-ai >= 3.0 creates the async client during async warm-up
-            await component.warm_up_async()
+        await component.warm_up_async()
 
         assert isinstance(component.async_client, AsyncOpenAI)
         assert component.async_client.api_key == "test-api-key"
@@ -106,7 +104,7 @@ class TestTogetherAIChatGeneratorAsync:
         assert "replies" in response
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+        assert isinstance(response["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_async_chat_completion, monkeypatch):
@@ -124,7 +122,7 @@ class TestTogetherAIChatGeneratorAsync:
         assert "replies" in response
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+        assert isinstance(response["replies"][0], ChatMessage)
 
     @pytest.mark.skipif(
         not os.environ.get("TOGETHER_API_KEY", None),
