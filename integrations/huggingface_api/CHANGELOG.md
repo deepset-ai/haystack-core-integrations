@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/huggingface_api-v2.1.0] - 2026-10-06
+
+### 🚜 Refactor
+
+- [**breaking**] HF API - Stop warming up tools in Chat Generator (#4056)
+
+
 ## [integrations/huggingface_api-v2.0.0] - 2026-10-01
 
 ### 🚀 Features
