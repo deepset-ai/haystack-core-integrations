@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
 from httpx import ConnectTimeout, HTTPStatusError, Request, RequestError, Response
 
@@ -430,7 +431,7 @@ class TestSearchApiSearchAPI:
                 "search_params": {"param": "test params", "engine": "google"},
             },
         }
-        component = SearchApiWebSearch.from_dict(data)
+        component = component_from_dict(SearchApiWebSearch, data, name="component")
         assert component.api_key == Secret.from_env_var("SEARCHAPI_API_KEY")
         assert component.top_k == 10
         assert component.allowed_domains == ["testdomain.com"]
