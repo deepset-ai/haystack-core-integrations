@@ -1,5 +1,32 @@
 # Changelog
 
+## [integrations/openrouter-v1.3.0] - 2026-10-07
+
+### 🚀 Features
+
+- *(openrouter)* Add reasoning support for streaming responses (#4063)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- Fix tests for integrations that inherit from the OpenAIChatGenerator (#3583)
+- Make OpenRouter tests declare max_tokens + refactor (#3730)
+- Fix tests for openai>=3.0.0 (#3801)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/openrouter-v1.2.0] - 2026-07-06
 
 ### 🐛 Bug Fixes
