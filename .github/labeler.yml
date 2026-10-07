@@ -119,6 +119,11 @@ integration:docling:
       - any-glob-to-any-file: "integrations/docling/**/*"
       - any-glob-to-any-file: ".github/workflows/docling.yml"
 
+integration:docling-graph:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/docling_graph/**/*"
+      - any-glob-to-any-file: ".github/workflows/docling_graph.yml"
+
 integration:docling-serve:
   - changed-files:
       - any-glob-to-any-file: "integrations/docling_serve/**/*"
