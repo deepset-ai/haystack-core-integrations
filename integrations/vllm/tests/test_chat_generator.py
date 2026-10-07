@@ -251,7 +251,6 @@ class TestInitialization:
 
         assert component._client is None
         assert component._async_client is None
-        assert not component._tools_warmed_up
         assert component.tools is None
         assert component.http_client_kwargs is None
         assert component.streaming_callback is None
