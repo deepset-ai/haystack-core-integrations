@@ -15,7 +15,7 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
-from haystack.tools import Tool, Toolset, flatten_tools_or_toolsets, warm_up_tools
+from haystack.tools import Tool, Toolset, ToolsType, flatten_tools_or_toolsets, warm_up_tools
 
 from haystack_integrations.agent_pack.evaluation.dataclasses import EvalMetrics, ModelPrice, cost_of_model_usage
 from haystack_integrations.agent_pack.optimization import prompts
@@ -24,18 +24,10 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateOutcome,
     OptimizationObjectives,
 )
+from haystack_integrations.agent_pack.optimization.editor import ConfigurationEditor
 from haystack_integrations.agent_pack.optimization.tools import (
     _make_haystack_documentation_toolset,
-    edit_config,
-    finish,
     inspect_component,
-    read_config,
-    restore_candidate,
-    submit_candidate,
-    validate_config,
-)
-from haystack_integrations.agent_pack.optimization.workspace import (
-    ConfigurationWorkspace,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,24 +97,17 @@ def create_harness_optimizer_agent(
     :param documentation_tools: Give the agent read-only search over the public Haystack documentation, so it can
         look up a component's parameters and serialized shape. Requires `mcp-haystack`, and reaches the
         documentation server over the network.
-    :returns: The harness optimizer `Agent`. Its tools edit the `ConfigurationWorkspace` passed to `run` as
-        `workspace`, and a run ends when the optimizer calls `submit_candidate` or `finish`. `propose_candidate`
-        runs one turn with the prompt built from the experiment so far.
+    :returns: The harness optimizer `Agent`, holding `inspect_component` and the documentation tools. The editing
+        tools come from the `ConfigurationEditor` passed in `tools` for each run, and a run ends when the optimizer
+        calls `submit_candidate` or `finish`. `propose_candidate` runs one turn with the prompt built from the
+        experiment so far.
     """
     instructions = system_prompt or prompts.HARNESS_OPTIMIZER_SYSTEM_PROMPT
     instructions = f"{instructions}\n\n## This environment\n\n{_describe_environment()}"
     if additional_instructions is not None:
         instructions = f"{instructions}\n\n## This harness\n\n{additional_instructions.strip()}"
     llm = llm or _default_llm("gpt-5.6-terra")
-    tools: list[Tool | Toolset] = [
-        read_config,
-        edit_config,
-        validate_config,
-        submit_candidate,
-        restore_candidate,
-        finish,
-        inspect_component,
-    ]
+    tools: list[Tool | Toolset] = [inspect_component]
     if documentation_tools:
         tools.append(_make_haystack_documentation_toolset())
     return Agent(
@@ -130,9 +115,20 @@ def create_harness_optimizer_agent(
         tools=tools,
         system_prompt=instructions,
         exit_conditions=["submit_candidate", "finish"],
-        state_schema={"workspace": {"type": ConfigurationWorkspace}},
         max_agent_steps=max_agent_steps,
     )
+
+
+def _as_list(tools: ToolsType | None) -> list[Tool | Toolset]:
+    """
+    Return an agent's configured tools as a list, so more can be added for one run.
+
+    :param tools: The tools as the agent holds them.
+    :returns: The same tools in a list, or an empty list when there are none.
+    """
+    if tools is None:
+        return []
+    return [tools] if isinstance(tools, Toolset) else list(tools)
 
 
 def _tool_specifications(reference: Agent | Pipeline) -> list[dict[str, Any]]:
@@ -271,7 +267,7 @@ def _render_outcomes(history: list[CandidateOutcome]) -> str:
 
 def propose_candidate(
     optimizer_agent: Agent,
-    workspace: ConfigurationWorkspace,
+    editor: ConfigurationEditor,
     reference: Agent | Pipeline,
     prices: dict[str, ModelPrice],
     objectives: OptimizationObjectives,
@@ -279,13 +275,12 @@ def propose_candidate(
     history: list[CandidateOutcome],
     history_digest_window: int = 1,
     remaining_evaluations: int | None = None,
-    base_id: str | None = None,
 ) -> CandidateConfiguration | None:
     """
     Let the optimizer edit, validate and submit one YAML candidate.
 
     :param optimizer_agent: The agent from `create_harness_optimizer_agent`.
-    :param workspace: The editable configuration file and its snapshots.
+    :param editor: This turn's editor, holding the configuration the edits start from.
     :param reference: Reference configuration supplying tool specifications, when it has any.
     :param prices: Known token prices keyed by model identifier.
     :param objectives: Quality gates and ranking objective.
@@ -294,12 +289,9 @@ def propose_candidate(
     :param history_digest_window: How many of the most recent outcomes are shown in full.
     :param remaining_evaluations: How many candidates, including this one, the experiment can still measure. Shown
         to the optimizer as its budget, or as unknown when None.
-    :param base_id: The candidate this turn's edits start from. When None, the turn continues from the last
-        submitted candidate.
     :returns: Submitted snapshot, or None after finish or exhaustion of the proposal step budget.
     """
-    workspace.begin_turn(base_id=base_id)
-    configuration = workspace._read_config()
+    configuration = editor.read_config()
 
     # The three messages go from least to most often changing, so each turn reuses as much of the prompt cache as
     # possible.
@@ -345,7 +337,7 @@ def propose_candidate(
                 body="\n\n".join(json.dumps(outcome.to_dict()) for outcome in recent),
             ),
             _section(
-                title="candidate.yaml",
+                title="Candidate YAML",
                 body=f"revision `{configuration['revision']}`, edited from `{configuration['parent_id'][:12]}`\n\n"
                 # Shown verbatim, since the editing tools match against this exact text
                 + _fenced(text=configuration["yaml"], language="yaml"),
@@ -359,7 +351,8 @@ def propose_candidate(
             ChatMessage.from_user(text=outcomes),
             ChatMessage.from_user(text=current),
         ],
-        workspace=workspace,
+        # The editor's tools are added to the agent's own for this run only
+        tools=[editor, *_as_list(tools=optimizer_agent.tools)],
     )
 
     logger.info(
@@ -370,4 +363,4 @@ def propose_candidate(
         calls=[call.tool_name for message in result.get("messages") or [] for call in message.tool_calls],
         usage=result.get("token_usage"),
     )
-    return workspace.submitted
+    return editor.submitted

@@ -13,7 +13,7 @@ from haystack_integrations.agent_pack.optimization.utils import (
     load_agent,
 )
 
-from .test_workspace import agent_yaml
+from .test_editor import agent_yaml
 
 
 class TestDumpAndLoad:

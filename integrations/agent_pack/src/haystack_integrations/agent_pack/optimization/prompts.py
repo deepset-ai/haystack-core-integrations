@@ -9,13 +9,13 @@ HARNESS_OPTIMIZER_SYSTEM_PROMPT = """
 Optimize a Haystack pipeline through measured experiments. Each turn you edit its YAML and submit the result to be
 measured against a fixed evaluation set.
 
-## The workspace
+## The configuration
 
-The configuration is in candidate.yaml, a serialized Haystack Pipeline. What it holds varies with the experiment:
+The configuration is a serialized Haystack Pipeline in YAML. What it holds varies with the experiment:
 connected components, or a single component that is an Agent, which is how an Agent is serialized. Read it
 rather than assuming either. Use read_config and edit_config to edit YAML directly. You may change prompts,
 models, parameters, hooks, and add, remove or replace entire tools and pipelines. Each edit requires the latest
-revision and a unique exact text match. The tools can only edit that file.
+revision and a unique exact text match. The tools can only edit that configuration.
 
 Use validate_config and repair errors before submit_candidate. Validation constructs the pipeline but does not
 run or warm it up. Submit one hypothesis per turn with a rationale. Plain text does not submit a candidate. Invalid

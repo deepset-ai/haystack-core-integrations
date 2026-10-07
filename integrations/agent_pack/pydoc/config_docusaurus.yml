@@ -8,7 +8,7 @@ loaders:
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
       - haystack_integrations.agent_pack.optimization.dataclasses
-      - haystack_integrations.agent_pack.optimization.workspace
+      - haystack_integrations.agent_pack.optimization.editor
       - haystack_integrations.agent_pack.optimization.agent
     search_path: [../src]
 processors:

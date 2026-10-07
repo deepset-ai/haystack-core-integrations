@@ -6,7 +6,6 @@ import inspect
 import json
 from typing import TYPE_CHECKING, Annotated, Any
 
-from haystack.components.agents.state import State
 from haystack.core.errors import DeserializationError
 from haystack.core.serialization import import_class_by_name
 from haystack.lazy_imports import LazyImport
@@ -97,76 +96,3 @@ def inspect_component(
         if hasattr(cls, "to_dict")
         else "Default Haystack serialization",
     }
-
-
-# The workspace tools change the `ConfigurationWorkspace` passed to `Agent.run` as `workspace`. Each reads it
-# from `state.data`, since `State.get` returns a deep copy and the tools have to change the caller's workspace
-@tool
-def read_config(state: State) -> dict[str, str]:
-    """Read the entire editable YAML and its revision for subsequent edits."""
-    return state.data["workspace"]._read_config()
-
-
-@tool
-def edit_config(
-    state: State,
-    old: Annotated[
-        str,
-        "Nonempty text to replace, matched literally and occurring exactly once in the current YAML. Include "
-        "enough surrounding lines to be unique: a bare 'top_k: 2' or a type line repeated across components "
-        "matches more than once and is rejected. Pass the entire YAML to rewrite the whole file.",
-    ],
-    new: Annotated[str, "Text replacing that block verbatim, or empty text to delete it."],
-    expected_revision: Annotated[
-        str, "The revision returned by read_config or by the preceding edit, which must still be current."
-    ],
-) -> dict[str, str]:
-    """Replace one exact text block. Use the entire current YAML as old for a full rewrite."""
-    return state.data["workspace"]._edit_config(old=old, new=new, expected_revision=expected_revision)
-
-
-@tool
-def validate_config(state: State) -> dict[str, Any]:
-    """Check the YAML loads as the expected Agent or Pipeline and passes the evaluator's checks, without running."""
-    return state.data["workspace"]._validate_config()
-
-
-@tool
-def submit_candidate(
-    state: State,
-    expected_revision: Annotated[
-        str, "The revision returned by a successful validate_config, which must still be current."
-    ],
-    rationale: Annotated[
-        str,
-        "The hypothesis this candidate tests: what was changed and what it is expected to move. Read back "
-        "alongside the score, so name the change rather than restating the goal.",
-    ],
-) -> dict[str, str]:
-    """Submit this validated revision for evaluation and end the proposal turn."""
-    return state.data["workspace"]._submit_candidate(expected_revision=expected_revision, rationale=rationale)
-
-
-@tool
-def restore_candidate(
-    state: State,
-    candidate_id: Annotated[
-        str, "A candidate ID from the outcomes so far, or 'reference' for the original configuration."
-    ],
-    expected_revision: Annotated[str, "The current workspace revision, from read_config or the last edit."],
-) -> dict[str, str]:
-    """Restore a submitted candidate or the reference as the base for further edits."""
-    return state.data["workspace"]._restore_candidate(candidate_id=candidate_id, expected_revision=expected_revision)
-
-
-@tool
-def finish(
-    state: State,
-    reason: Annotated[
-        str,
-        "What was considered and why none of it is worth measuring. This ends the experiment with the "
-        "remaining evaluations unspent, and is the only record of why.",
-    ],
-) -> str:
-    """End optimization when no hypothesis worth measuring remains."""
-    return state.data["workspace"]._finish(reason=reason)

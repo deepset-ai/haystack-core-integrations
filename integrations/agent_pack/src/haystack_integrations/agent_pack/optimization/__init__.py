@@ -11,14 +11,12 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateOutcome,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.workspace import (
-    ConfigurationWorkspace,
-)
+from haystack_integrations.agent_pack.optimization.editor import ConfigurationEditor
 
 __all__ = [
     "CandidateConfiguration",
     "CandidateOutcome",
-    "ConfigurationWorkspace",
+    "ConfigurationEditor",
     "OptimizationObjectives",
     "create_harness_optimizer_agent",
     "propose_candidate",

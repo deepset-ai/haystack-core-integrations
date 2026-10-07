@@ -93,9 +93,7 @@ class OptimizationObjectives:
 @dataclass
 class CandidateConfiguration:
     """
-    One configuration the optimizer submitted, copied out of the `ConfigurationWorkspace`.
-
-    Later edits to the workspace file leave it unchanged.
+    One configuration the optimizer submitted through a `ConfigurationEditor`.
 
     :param candidate_id: Digest of the parsed YAML, which ignores formatting.
     :param parent_id: Identifier of the snapshot the edits started from, the reference's ID when that is the
