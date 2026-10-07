@@ -4,10 +4,10 @@
 
 | Name                                                                                 |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/mistral/ocr\_document\_converter.py |      110 |        2 |       26 |        0 |     99% |   449-450 |
+| src/haystack\_integrations/components/converters/mistral/ocr\_document\_converter.py |      110 |        2 |       26 |        0 |     99% |   451-452 |
 | src/haystack\_integrations/components/embedders/mistral/document\_embedder.py        |       12 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/mistral/text\_embedder.py            |       12 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/mistral/chat/chat\_generator.py     |      130 |        5 |       58 |        7 |     94% |46-\>45, 48-\>40, 307, 373-\>380, 390-391, 445-\>452, 462-463 |
+| src/haystack\_integrations/components/generators/mistral/chat/chat\_generator.py     |      130 |        5 |       58 |        7 |     94% |46-\>45, 48-\>40, 293, 359-\>366, 376-377, 431-\>438, 448-449 |
 | **TOTAL**                                                                            |  **264** |    **7** |   **84** |    **7** | **96%** |           |
 
 
