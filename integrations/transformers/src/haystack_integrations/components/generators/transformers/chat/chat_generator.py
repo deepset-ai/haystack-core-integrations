@@ -24,7 +24,6 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.tools.utils import warm_up_tools
 from haystack.utils import ComponentDevice, Secret, deserialize_callable, serialize_callable
 from haystack.utils.hf import convert_message_to_hf_format, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 from huggingface_hub import model_info
@@ -238,7 +237,7 @@ class TransformersChatGenerator:
 
     def warm_up(self) -> None:
         """
-        Initializes the component and warms up tools if provided.
+        Initializes the Transformers pipeline and the executor owned by the component.
         """
         if self.pipeline is None:
             pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
@@ -251,10 +250,7 @@ class TransformersChatGenerator:
                 raise ValueError(msg)
             pipeline_kwargs["task"] = task
 
-            hf_pipeline = pipeline(**pipeline_kwargs)
-            if self.tools:
-                warm_up_tools(self.tools)
-            self.pipeline = hf_pipeline
+            self.pipeline = pipeline(**pipeline_kwargs)
 
         if self._owns_executor and self.executor is None:
             self.executor = ThreadPoolExecutor(
