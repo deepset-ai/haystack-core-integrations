@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mcp-v1.5.2] - 2026-10-07
+
+### 🐛 Bug Fixes
+
+- MCP - warm_up must reopen connections after close (#4065)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/mcp-v1.5.1] - 2026-09-01
 
 ### 🚀 Features
