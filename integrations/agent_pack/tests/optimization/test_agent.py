@@ -7,6 +7,7 @@ from haystack.components.generators.chat import MockChatGenerator, OpenAIRespons
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.tools import flatten_tools_or_toolsets
 
 from haystack_integrations.agent_pack.evaluation import ModelPrice
 from haystack_integrations.agent_pack.evaluation.dataclasses import EvalMetrics, ModelTokenUsage
@@ -222,6 +223,37 @@ class TestProposeCandidate:
         assert later["eval_case_summary"] == {"total": 2, "passed": 1, "failures": {"r": 1}}
         # The measurement itself is untouched; only what the request carries changes.
         assert baseline.eval_cases[0]["passed"] is True
+
+    def test_offers_the_editor_and_the_agents_own_tools(self):
+        """Tools passed to `Agent.run` replace the configured ones, so `propose_candidate` has to pass both."""
+        offered = []
+
+        def respond(_messages, tools):
+            offered.append(sorted(tool.name for tool in flatten_tools_or_toolsets(tools)))
+            return ChatMessage.from_assistant("done")
+
+        propose_candidate(
+            optimizer_agent=create_harness_optimizer_agent(
+                llm=MockChatGenerator(response_fn=respond), max_agent_steps=1
+            ),
+            editor=ConfigurationEditorToolset(reference_yaml=agent_yaml()),
+            reference=Agent(chat_generator=MockChatGenerator()),
+            prices={},
+            objectives=OptimizationObjectives(quality_metric="quality"),
+            baseline=measured(quality=1, durations=[1]),
+            history=[],
+        )
+        assert offered == [
+            [
+                "edit_config",
+                "finish",
+                "inspect_component",
+                "read_config",
+                "restore_candidate",
+                "submit_candidate",
+                "validate_config",
+            ]
+        ]
 
     def test_plain_text_does_not_submit(self):
         editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
