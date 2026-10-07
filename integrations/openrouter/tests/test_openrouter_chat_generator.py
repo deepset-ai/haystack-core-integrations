@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 from datetime import datetime
 from types import SimpleNamespace
@@ -24,7 +23,18 @@ from haystack_integrations.components.generators.openrouter.chat.chat_generator 
     OpenRouterChatGenerator,
     _convert_openrouter_completion_to_chat_message,
     _extract_reasoning,
+    _merge_reasoning_details,
 )
+
+
+def _chunk(delta: ChoiceDelta, finish_reason: str | None = None) -> ChatCompletionChunk:
+    return ChatCompletionChunk(
+        id="gen-1",
+        choices=[ChoiceChunk(delta=delta, index=0, finish_reason=finish_reason)],
+        created=1750162525,
+        model="anthropic/claude-sonnet-4.5",
+        object="chat.completion.chunk",
+    )
 
 
 class CalendarEvent(BaseModel):
@@ -449,14 +459,19 @@ class TestOpenRouterChatGeneratorIntegration:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
-    def test_live_run_with_reasoning(self):
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run_with_reasoning(self, streaming):
+        callback = CollectorCallback() if streaming else None
         chat_messages = [ChatMessage.from_user("If x + 3 = 7, what is x?")]
         component = OpenRouterChatGenerator(
             model="deepseek/deepseek-r1",
+            streaming_callback=callback,
             generation_kwargs={"reasoning": {"effort": "high"}, "max_tokens": 1000},
         )
         results = component.run(chat_messages)
 
+        if callback:
+            assert any(chunk.reasoning for chunk in callback.chunks)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert message.reasoning is not None
@@ -1169,22 +1184,136 @@ class TestReasoningSupport:
             assert len(response["replies"]) == 1
             assert response["replies"][0].text == "Paris."
 
-    def test_streaming_with_reasoning_logs_warning(self, monkeypatch, caplog):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(
-            generation_kwargs={"reasoning": {"effort": "high"}},
-            streaming_callback=print_streaming_chunk,
+    def test_handle_stream_response_with_reasoning(self):
+        # mirrors OpenRouter's stream shape: `role` on every chunk, reasoning in both `reasoning` and
+        # `reasoning_details`, and the signature arriving in a separate final fragment
+        fmt = "anthropic-claude-v1"
+        chunks = [
+            _chunk(
+                ChoiceDelta(
+                    content="",
+                    role="assistant",
+                    reasoning="Compare ",
+                    reasoning_details=[{"type": "reasoning.text", "text": "Compare ", "format": fmt, "index": 0}],
+                )
+            ),
+            _chunk(
+                ChoiceDelta(
+                    content="",
+                    role="assistant",
+                    reasoning="9.9 and 9.11.",
+                    reasoning_details=[{"type": "reasoning.text", "text": "9.9 and 9.11.", "format": fmt, "index": 0}],
+                )
+            ),
+            _chunk(
+                ChoiceDelta(
+                    content="",
+                    role="assistant",
+                    reasoning_details=[
+                        {"type": "reasoning.text", "text": "", "signature": "sig-123", "format": fmt, "index": 0}
+                    ],
+                )
+            ),
+            _chunk(ChoiceDelta(content="9.9 is bigger.", role="assistant")),
+            _chunk(ChoiceDelta(content="", role="assistant"), finish_reason="stop"),
+            ChatCompletionChunk(
+                id="gen-1",
+                choices=[],
+                created=1750162525,
+                model="anthropic/claude-sonnet-4.5",
+                object="chat.completion.chunk",
+                usage=CompletionUsage(
+                    completion_tokens=30,
+                    prompt_tokens=20,
+                    total_tokens=50,
+                    completion_tokens_details=CompletionTokensDetails(reasoning_tokens=12),
+                ),
+            ),
+        ]
+
+        callback = CollectorCallback()
+        llm = OpenRouterChatGenerator(api_key=Secret.from_token("test-api-key"))
+        result = llm._handle_stream_response(chunks, callback=callback)[0]  # type: ignore[arg-type]
+
+        streamed = callback.chunks
+        assert len(streamed) == 6
+        assert [c.reasoning.reasoning_text for c in streamed[:3]] == ["Compare ", "9.9 and 9.11.", ""]
+        assert [c.start for c in streamed[:3]] == [True, False, False]
+        assert [c.index for c in streamed[:3]] == [0, 0, 0]
+        assert all(c.content == "" for c in streamed[:3])
+        assert streamed[2].reasoning.extra["reasoning_details"][0]["signature"] == "sig-123"
+        assert streamed[3].content == "9.9 is bigger."
+        assert streamed[3].reasoning is None
+        assert streamed[3].start is True
+        assert streamed[4].finish_reason == "stop"
+        assert streamed[5].meta["usage"]["completion_tokens"] == 30
+
+        assert result.text == "9.9 is bigger."
+        assert result.reasoning is not None
+        assert result.reasoning.reasoning_text == "Compare 9.9 and 9.11."
+        assert result.reasoning.extra["reasoning_details"] == [
+            {
+                "type": "reasoning.text",
+                "text": "Compare 9.9 and 9.11.",
+                "signature": "sig-123",
+                "format": fmt,
+                "index": 0,
+            }
+        ]
+        assert result.meta["finish_reason"] == "stop"
+        assert result.meta["usage"]["completion_tokens_details"]["reasoning_tokens"] == 12
+        assert result.meta["completion_start_time"] is not None
+
+    def test_handle_stream_response_splits_delta_with_reasoning_and_tool_call(self):
+        tool_call = ChoiceDeltaToolCall(
+            index=0,
+            id="call_1",
+            function=ChoiceDeltaToolCallFunction(name="weather", arguments='{"city": "Paris"}'),
+            type="function",
         )
+        chunks = [
+            _chunk(ChoiceDelta(role="assistant", reasoning="I need the weather.")),
+            # a StreamingChunk can't hold both, so this delta must be split instead of dropping either part
+            _chunk(ChoiceDelta(role="assistant", reasoning=" Calling the tool.", tool_calls=[tool_call])),
+            _chunk(ChoiceDelta(role="assistant"), finish_reason="tool_calls"),
+        ]
 
-        # _prepare_api_call is patched to fail fast: we only care that the warning is emitted beforehand.
-        with (
-            caplog.at_level(logging.WARNING),
-            patch.object(component, "_prepare_api_call", side_effect=RuntimeError),
-            pytest.raises(RuntimeError),
-        ):
-            component.run([ChatMessage.from_user("test")])
+        callback = CollectorCallback()
+        llm = OpenRouterChatGenerator(api_key=Secret.from_token("test-api-key"))
+        result = llm._handle_stream_response(chunks, callback=callback)[0]  # type: ignore[arg-type]
 
-        assert "Reasoning content will not be captured during streaming" in caplog.text
+        streamed = callback.chunks
+        assert len(streamed) == 4
+        assert [c.reasoning.reasoning_text for c in streamed[:2]] == ["I need the weather.", " Calling the tool."]
+        assert [c.start for c in streamed[:2]] == [True, False]
+        assert streamed[1].finish_reason is None
+        assert streamed[2].reasoning is None
+        assert streamed[2].tool_calls[0].tool_name == "weather"
+        assert streamed[2].start is True
+        assert streamed[3].finish_reason == "tool_calls"
+
+        assert result.text is None
+        assert result.reasoning is not None
+        assert result.reasoning.reasoning_text == "I need the weather. Calling the tool."
+        # no `reasoning_details` were streamed, so there is nothing to send back in later turns
+        assert result.reasoning.extra == {}
+        assert result.tool_calls == [ToolCall(id="call_1", tool_name="weather", arguments={"city": "Paris"})]
+        assert result.meta["finish_reason"] == "tool_calls"
+
+    def test_merge_reasoning_details(self):
+        details = [
+            {"type": "reasoning.summary", "summary": "First ", "format": "openai-responses-v1", "index": 0},
+            {"type": "reasoning.summary", "summary": "second.", "format": "openai-responses-v1", "index": 0},
+            {"type": "reasoning.encrypted", "data": "abc", "id": None, "index": 1},
+            {"type": "reasoning.encrypted", "data": "def", "id": "rs_1", "index": 1},
+        ]
+
+        assert _merge_reasoning_details(details) == [
+            {"type": "reasoning.summary", "summary": "First second.", "format": "openai-responses-v1", "index": 0},
+            {"type": "reasoning.encrypted", "data": "abcdef", "id": "rs_1", "index": 1},
+        ]
+        # the streamed fragments are left untouched
+        assert details[0]["summary"] == "First "
 
     def test_prepare_api_call_preserves_reasoning(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")

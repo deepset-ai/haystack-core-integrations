@@ -11,8 +11,10 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool, Toolset
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
+from openai.types.chat.chat_completion_chunk import ChoiceDelta
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
@@ -179,6 +181,66 @@ class TestOpenRouterChatGeneratorAsyncUnit:
             assert reply.reasoning is not None
             assert "capitals" in reply.reasoning.reasoning_text
             assert reply.reasoning.extra["reasoning_details"][0]["type"] == "reasoning.text"
+
+    async def test_run_async_streaming_with_reasoning(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+
+        def chunk(delta: ChoiceDelta, finish_reason: str | None = None) -> ChatCompletionChunk:
+            return ChatCompletionChunk(
+                id="gen-1",
+                choices=[ChoiceChunk(delta=delta, index=0, finish_reason=finish_reason)],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            )
+
+        async def stream():
+            for delta in [
+                ChoiceDelta(
+                    content="",
+                    role="assistant",
+                    reasoning="France's capital ",
+                    reasoning_details=[{"type": "reasoning.text", "text": "France's capital ", "index": 0}],
+                ),
+                ChoiceDelta(
+                    content="",
+                    role="assistant",
+                    reasoning="is Paris.",
+                    reasoning_details=[{"type": "reasoning.text", "text": "is Paris.", "index": 0}],
+                ),
+                ChoiceDelta(content="Paris.", role="assistant"),
+            ]:
+                yield chunk(delta)
+            yield chunk(ChoiceDelta(content="", role="assistant"), finish_reason="stop")
+
+        streamed: list[StreamingChunk] = []
+
+        async def callback(streaming_chunk: StreamingChunk) -> None:
+            streamed.append(streaming_chunk)
+
+        with patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new_callable=AsyncMock,
+            return_value=stream(),
+        ):
+            component = OpenRouterChatGenerator(model="deepseek/deepseek-r1", streaming_callback=callback)
+            response = await component.run_async([ChatMessage.from_user("What's the capital of France?")])
+
+        assert len(streamed) == 4
+        assert [c.reasoning.reasoning_text for c in streamed[:2]] == ["France's capital ", "is Paris."]
+        assert [c.start for c in streamed[:2]] == [True, False]
+        assert streamed[2].content == "Paris."
+        assert streamed[2].start is True
+        assert streamed[3].finish_reason == "stop"
+
+        reply = response["replies"][0]
+        assert reply.text == "Paris."
+        assert reply.reasoning is not None
+        assert reply.reasoning.reasoning_text == "France's capital is Paris."
+        assert reply.reasoning.extra["reasoning_details"] == [
+            {"type": "reasoning.text", "text": "France's capital is Paris.", "index": 0}
+        ]
+        assert reply.meta["finish_reason"] == "stop"
 
     async def test_run_async_empty_messages(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
