@@ -6,10 +6,10 @@
 |--------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/astra/retriever.py  |       39 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/astra/astra\_client.py   |       37 |        0 |       10 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/astra/document\_store.py |      476 |       10 |      166 |       14 |     96% |197-\>exit, 215-\>221, 262-\>265, 265-\>270, 433, 444, 446, 447-\>442, 453-\>440, 457, 525, 529-532, 695, 888-\>891 |
+| src/haystack\_integrations/document\_stores/astra/document\_store.py |      475 |       10 |      166 |       14 |     96% |197-\>exit, 214-\>220, 261-\>264, 264-\>269, 432, 443, 445, 446-\>441, 452-\>439, 456, 524, 528-531, 694, 887-\>890 |
 | src/haystack\_integrations/document\_stores/astra/errors.py          |        8 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/astra/filters.py         |      114 |        7 |       54 |        5 |     93% |68, 70, 74, 86-87, 108-109 |
-| **TOTAL**                                                            |  **674** |   **17** |  **234** |   **19** | **96%** |           |
+| **TOTAL**                                                            |  **673** |   **17** |  **234** |   **19** | **96%** |           |
 
 
 ## Setup coverage badge
