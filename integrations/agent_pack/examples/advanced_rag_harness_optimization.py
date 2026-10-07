@@ -333,9 +333,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workspace", type=Path, default=WORKSPACE, help="Directory for runs and YAML artifacts.")
     parser.add_argument("--candidate-model", action="append", dest="candidate_models")
     parser.add_argument(
-        "--config", type=Path, help="Optional editable YAML file; created from the reference if absent."
-    )
-    parser.add_argument(
         "--max-eval-cases",
         type=int,
         default=20,
@@ -475,7 +472,6 @@ def main() -> None:
             additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE,
         ),
         max_iterations=arguments.max_iterations,
-        config_path=arguments.config,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()

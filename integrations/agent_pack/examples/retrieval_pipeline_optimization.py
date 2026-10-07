@@ -512,7 +512,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
     parser.add_argument("--expander-model", default=EXPANDER_MODEL)
     parser.add_argument("--workspace", type=Path, default=WORKSPACE, help="Directory for runs and YAML artifacts.")
-    parser.add_argument("--config", type=Path, help="Optional editable YAML file; created from the reference.")
     parser.add_argument(
         "--max-eval-cases",
         type=int,
@@ -640,7 +639,6 @@ def main() -> None:
             max_agent_steps=arguments.optimizer_steps,
         ),
         max_iterations=arguments.max_iterations,
-        config_path=arguments.config,
         on_baseline=print_baseline,
         on_candidate=print_candidate,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",

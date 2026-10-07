@@ -23,7 +23,7 @@ from haystack_integrations.agent_pack.optimization.utils import load_agent, load
 
 
 def prompt_configuration(messages):
-    """Return the YAML and revision the turn's prompt shows under `candidate.yaml`."""
+    """Return the YAML and revision the turn's prompt shows as the candidate YAML."""
     text = [message.text for message in messages if message.is_from("user")][-1]
     revision = re.search(r"revision `([0-9a-f]+)`", text).group(1)
     return re.search(r"```yaml\n(.*?)\n```", text, re.DOTALL).group(1), revision
@@ -205,14 +205,6 @@ class TestRun:
         assert "evaluation_failed" in histories[1]
         rows = [json.loads(line) for line in experiment.journal.path_for(result.run_id).read_text().splitlines()]
         assert rows[1]["failure"] == result.candidates[0].failure
-
-    def test_supplied_draft_is_left_alone(self, tmp_path):
-        """A file the caller pointed at is theirs, not an artifact the experiment cleans up."""
-        draft = tmp_path / "mine.yaml"
-        experiment, _ = configured(tmp_path, ["cheap", None])
-        experiment.config_path = draft
-        experiment.run()
-        assert draft.exists()
 
     def test_no_eval_cases_raises_error(self):
         """Quality is a fraction over the eval cases, so an empty set has to be refused before it is computed."""
@@ -416,8 +408,6 @@ class TestJournal:
         assert two.run_id == "run-2"
         assert one.artifact_directory.name == "run-1"
         assert first.journal.path_for("run-1").exists()
-        # The editable draft is scratch, so a completed run leaves only its record behind.
-        assert not (one.artifact_directory / "candidate.yaml").exists()
         assert (one.artifact_directory / "reference.yaml").exists()
 
     def test_repeated_experiments_stay_separate(self, tmp_path):

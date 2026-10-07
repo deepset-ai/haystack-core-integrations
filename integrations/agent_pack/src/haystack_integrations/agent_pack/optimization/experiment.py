@@ -28,15 +28,14 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateOutcome,
     OptimizationObjectives,
 )
+from haystack_integrations.agent_pack.optimization.editor import ConfigurationEditor
 from haystack_integrations.agent_pack.optimization.utils import (
+    _configuration_id,
     content_digest,
     dump_agent,
     dump_pipeline,
     load_agent,
     load_pipeline,
-)
-from haystack_integrations.agent_pack.optimization.workspace import (
-    ConfigurationWorkspace,
 )
 
 logger = logging.getLogger(__name__)
@@ -274,7 +273,6 @@ class HarnessOptimizationExperiment:
         configuration_key: str | None = None,
         max_iterations: int = 8,
         history_digest_window: int = 1,
-        config_path: str | Path | None = None,
         on_baseline: Callable[[EvalMetrics, float | None], None] | None = None,
         on_candidate: Callable[[CandidateProgress], None] | None = None,
     ) -> None:
@@ -295,7 +293,6 @@ class HarnessOptimizationExperiment:
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
         :param history_digest_window: How many of the most recent outcomes are shown to the optimizer in full.
-        :param config_path: Optional editable YAML draft, created if absent. Defaults to the artifact directory.
         :param on_baseline: Called with the reference measurement and its cost before the search starts.
         :param on_candidate: Called with each candidate's `CandidateProgress` right after it is measured, priced
             and gated.
@@ -303,7 +300,6 @@ class HarnessOptimizationExperiment:
         if max_iterations < 0:
             msg = "max_iterations must be nonnegative."
             raise ValueError(msg)
-        self.config_path = config_path
         self.reference = reference
         self.evaluator = evaluator
         self.eval_cases = list(eval_cases)
@@ -333,17 +329,11 @@ class HarnessOptimizationExperiment:
         }
         context = content_digest(payload=json.dumps(payload, sort_keys=True, default=str))
 
-        # Claim a run directory and open the single file the optimizer is allowed to edit.
+        # Claim a run directory for this run's artifacts
         run_id, artifacts = self.journal.claim_run()
         (artifacts / "reference.yaml").write_text(reference_yaml, encoding="utf-8")
+        reference_id = _configuration_id(reference_yaml)
         validator = getattr(self.evaluator, "validate", None)
-        draft = artifacts / "candidate.yaml"
-        workspace = ConfigurationWorkspace(
-            self.config_path or draft,
-            reference_yaml,
-            validator=validator if callable(validator) else None,
-            loader=load,
-        )
 
         # Measure the reference, which every candidate is ranked and gated against.
         ref_target = load(reference_yaml)
@@ -356,7 +346,7 @@ class HarnessOptimizationExperiment:
             CandidateEvaluation(
                 measurement_context=context,
                 run_id=run_id,
-                candidate_id=workspace.reference_id,
+                candidate_id=reference_id,
                 configuration=None,
                 metrics=ref_eval_metrics,
                 cost=ref_cost,
@@ -376,11 +366,25 @@ class HarnessOptimizationExperiment:
         optimizer_usage: dict[str, ModelTokenUsage] = {}
         optimizer_tracer = HarnessTracer()
         while len(outcomes) < self.max_iterations:
+            # Each turn gets a fresh editor that starts from the best candidate so far, or from the last one
+            # submitted when none has cleared the gates yet, and can restore any configuration already tried
+            last_id = outcomes[-1].candidate_id if outcomes else None
+            editor = ConfigurationEditor(
+                reference_yaml=reference_yaml,
+                candidates={
+                    outcome.candidate_id: outcome.configuration.yaml
+                    for outcome in outcomes
+                    if outcome.configuration is not None
+                },
+                base_id=best_id or last_id,
+                validator=validator if callable(validator) else None,
+                loader=load,
+            )
             # Trace the optimizer's own model calls, so the search's spend can be reported
             with optimizer_tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as turn_span:
                 proposed = propose_candidate(
                     optimizer_agent=self.optimizer_agent,
-                    workspace=workspace,
+                    editor=editor,
                     reference=self.reference,
                     prices=self.prices,
                     objectives=self.objectives,
@@ -388,14 +392,13 @@ class HarnessOptimizationExperiment:
                     history=history,
                     history_digest_window=self.history_digest_window,
                     remaining_evaluations=self.max_iterations - len(outcomes),
-                    base_id=best_id,
                 )
             # An empty summary when a HarnessTracer was not the active tracer.
             collected = turn_span.collected if isinstance(turn_span, HarnessSpan) else None
             for model, tokens in (collected.summarize().model_usage if collected is not None else {}).items():
                 optimizer_usage[model] = optimizer_usage.get(model, ModelTokenUsage()) + tokens
             # Journal drafts that failed validation, so the run shows what the optimizer had to repair
-            for failure in workspace.validation_failures:
+            for failure in editor.validation_failures:
                 self.journal.append(
                     CandidateEvaluation(
                         measurement_context=context,
@@ -406,14 +409,13 @@ class HarnessOptimizationExperiment:
                         failure=failure["error"],
                     )
                 )
-            workspace.validation_failures.clear()
 
             if proposed is None:
                 logger.info(
                     "optimizer ended the search with {remaining} of {total} evaluations unused: {reason}",
                     remaining=self.max_iterations - len(outcomes),
                     total=self.max_iterations,
-                    reason=workspace.finish_reason or "no reason recorded",
+                    reason=editor.finish_reason or "no reason recorded",
                 )
                 break
 
@@ -531,10 +533,6 @@ class HarnessOptimizationExperiment:
             ),
             encoding="utf-8",
         )
-
-        # Remove the internal draft; a caller-supplied `config_path` is kept
-        if self.config_path is None:
-            draft.unlink(missing_ok=True)
 
         return ExperimentResult(
             baseline=ref_eval_metrics,
