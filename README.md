@@ -6,9 +6,9 @@
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/azure\_documentdb/embedding\_retriever.py  |       41 |        0 |        6 |        1 |     98% |   73-\>75 |
 | src/haystack\_integrations/components/retrievers/azure\_documentdb/full\_text\_retriever.py |       41 |        2 |        6 |        1 |     94% |73-\>75, 79, 83 |
-| src/haystack\_integrations/document\_stores/azure\_documentdb/document\_store.py            |      404 |       24 |      102 |       19 |     92% |153-\>155, 204-205, 220, 233, 235, 241-\>exit, 249-\>exit, 262, 354, 370, 407, 424-\>exit, 435-\>exit, 559-560, 576-578, 599-600, 616-618, 674-675, 680-681, 738-\>740, 759 |
+| src/haystack\_integrations/document\_stores/azure\_documentdb/document\_store.py            |      403 |       24 |      102 |       19 |     91% |153-\>155, 204-205, 220, 233, 235, 241-\>exit, 249-\>exit, 262, 353, 369, 406, 423-\>exit, 434-\>exit, 558-559, 575-577, 598-599, 615-617, 673-674, 679-680, 737-\>739, 758 |
 | src/haystack\_integrations/document\_stores/azure\_documentdb/filters.py                    |       65 |        0 |       28 |        0 |    100% |           |
-| **TOTAL**                                                                                   |  **551** |   **26** |  **142** |   **21** | **93%** |           |
+| **TOTAL**                                                                                   |  **550** |   **26** |  **142** |   **21** | **93%** |           |
 
 
 ## Setup coverage badge
