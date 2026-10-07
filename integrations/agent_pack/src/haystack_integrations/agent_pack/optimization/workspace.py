@@ -23,11 +23,13 @@ from haystack_integrations.agent_pack.optimization.utils import (
 
 class ConfigurationWorkspace:
     """
-    Holds the configuration the optimizer edits during an experiment.
+    The YAML file the optimizer edits during an experiment, and the snapshots of everything it submitted.
 
-    The configuration lives in one YAML file, which the optimizer reads, edits, validates and submits through the
-    workspace tools in `optimization/tools.py`. The reference and every submitted candidate are kept as snapshots,
-    and `begin_turn` starts each proposal turn from one of them.
+    The optimizer reads, edits, validates and submits the file through the workspace tools in
+    `optimization/tools.py`. Submitting copies the file into a `CandidateConfiguration`, held in `submitted` until
+    the turn ends, so the workspace is what changes while a `CandidateConfiguration` is one fixed result of it.
+    The reference and every submitted YAML are kept as snapshots, and `begin_turn` resets the file to one of them
+    to start the next proposal turn.
     """
 
     def __init__(
