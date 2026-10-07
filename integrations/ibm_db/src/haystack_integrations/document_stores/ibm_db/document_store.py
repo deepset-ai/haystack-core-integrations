@@ -21,6 +21,8 @@ from .filters import FilterTranslator
 
 logger = logging.getLogger(__name__)
 
+VALID_DISTANCE_METRICS = frozenset({"COSINE", "DOT", "EUCLIDEAN", "EUCLIDEAN_SQUARED", "HAMMING", "MANHATTAN"})
+
 
 def _parse_embedding(embedding: Any) -> list[float] | None:
     """
@@ -102,7 +104,14 @@ class IBMDb2DocumentStore:
         connection_options: dict[str, Any] | None = None,
         table_name: str = "haystack_documents",
         embedding_dim: int = 768,
-        distance_metric: Literal["EUCLIDEAN", "COSINE", "MANHATTAN"] = "COSINE",
+        distance_metric: Literal[
+            "COSINE",
+            "DOT",
+            "EUCLIDEAN",
+            "EUCLIDEAN_SQUARED",
+            "HAMMING",
+            "MANHATTAN",
+        ] = "COSINE",
         recreate_table: bool = False,
     ):
         """
@@ -120,7 +129,8 @@ class IBMDb2DocumentStore:
         :param connection_options: Additional connection options as dict (optional)
         :param table_name: Name of the table to store documents (default: "haystack_documents")
         :param embedding_dim: Dimension of embedding vectors (default: 768)
-        :param distance_metric: Distance metric for similarity search (default: "COSINE")
+        :param distance_metric: Distance metric for similarity search (default: "COSINE"). Supported metrics in Db2:
+            "COSINE", "DOT", "EUCLIDEAN", "EUCLIDEAN_SQUARED", "HAMMING", "MANHATTAN".
         :param recreate_table: If True, drop and recreate the table (default: False)
         """
         self.database = database
@@ -135,6 +145,9 @@ class IBMDb2DocumentStore:
         self.connection_options = connection_options
         self.table_name = table_name
         self.embedding_dim = embedding_dim
+        if distance_metric not in VALID_DISTANCE_METRICS:
+            msg = f"Invalid distance_metric '{distance_metric}'. Must be one of {sorted(VALID_DISTANCE_METRICS)}."
+            raise ValueError(msg)
         self.distance_metric = distance_metric
         self.recreate_table = recreate_table
 
