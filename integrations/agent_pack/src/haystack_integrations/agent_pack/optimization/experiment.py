@@ -28,7 +28,7 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateOutcome,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.editor import ConfigurationEditor
+from haystack_integrations.agent_pack.optimization.tools import ConfigurationEditorToolset
 from haystack_integrations.agent_pack.optimization.utils import (
     _configuration_id,
     content_digest,
@@ -369,7 +369,7 @@ class HarnessOptimizationExperiment:
             # Each turn gets a fresh editor that starts from the best candidate so far, or from the last one
             # submitted when none has cleared the gates yet, and can restore any configuration already tried
             last_id = outcomes[-1].candidate_id if outcomes else None
-            editor = ConfigurationEditor(
+            editor = ConfigurationEditorToolset(
                 reference_yaml=reference_yaml,
                 candidates={
                     outcome.candidate_id: outcome.configuration.yaml

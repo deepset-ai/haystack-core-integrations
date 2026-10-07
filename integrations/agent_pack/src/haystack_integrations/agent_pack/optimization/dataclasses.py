@@ -93,7 +93,7 @@ class OptimizationObjectives:
 @dataclass
 class CandidateConfiguration:
     """
-    One configuration the optimizer submitted through a `ConfigurationEditor`.
+    One configuration the optimizer submitted through a `ConfigurationEditorToolset`.
 
     :param candidate_id: Digest of the parsed YAML, which ignores formatting.
     :param parent_id: Identifier of the snapshot the edits started from, the reference's ID when that is the
