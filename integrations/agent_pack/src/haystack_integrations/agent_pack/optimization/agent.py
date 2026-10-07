@@ -24,8 +24,8 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateOutcome,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.editor import ConfigurationEditor
 from haystack_integrations.agent_pack.optimization.tools import (
+    ConfigurationEditorToolset,
     _make_haystack_documentation_toolset,
     inspect_component,
 )
@@ -98,9 +98,9 @@ def create_harness_optimizer_agent(
         look up a component's parameters and serialized shape. Requires `mcp-haystack`, and reaches the
         documentation server over the network.
     :returns: The harness optimizer `Agent`, holding `inspect_component` and the documentation tools. The editing
-        tools come from the `ConfigurationEditor` passed in `tools` for each run, and a run ends when the optimizer
-        calls `submit_candidate` or `finish`. `propose_candidate` runs one turn with the prompt built from the
-        experiment so far.
+        tools come from the `ConfigurationEditorToolset` passed in `tools` for each run, and a run ends when the
+        optimizer calls `submit_candidate` or `finish`. `propose_candidate` runs one turn with the prompt built from
+        the experiment so far.
     """
     instructions = system_prompt or prompts.HARNESS_OPTIMIZER_SYSTEM_PROMPT
     instructions = f"{instructions}\n\n## This environment\n\n{_describe_environment()}"
@@ -267,7 +267,7 @@ def _render_outcomes(history: list[CandidateOutcome]) -> str:
 
 def propose_candidate(
     optimizer_agent: Agent,
-    editor: ConfigurationEditor,
+    editor: ConfigurationEditorToolset,
     reference: Agent | Pipeline,
     prices: dict[str, ModelPrice],
     objectives: OptimizationObjectives,
@@ -291,7 +291,7 @@ def propose_candidate(
         to the optimizer as its budget, or as unknown when None.
     :returns: Submitted snapshot, or None after finish or exhaustion of the proposal step budget.
     """
-    configuration = editor.read_config()
+    configuration = editor._read_config()
 
     # The three messages go from least to most often changing, so each turn reuses as much of the prompt cache as
     # possible.
