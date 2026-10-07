@@ -6,8 +6,8 @@
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/embedders/watsonx/document\_embedder.py    |       60 |        1 |       10 |        0 |     99% |       135 |
 | src/haystack\_integrations/components/embedders/watsonx/text\_embedder.py        |       46 |        5 |        6 |        0 |     90% |117, 172-175 |
-| src/haystack\_integrations/components/generators/watsonx/chat/chat\_generator.py |      177 |       15 |       56 |       10 |     88% |339, 374-375, 398-\>395, 411, 418, 491, 537, 543-\>535, 573-578, 583, 592 |
-| **TOTAL**                                                                        |  **283** |   **21** |   **72** |   **10** | **90%** |           |
+| src/haystack\_integrations/components/generators/watsonx/chat/chat\_generator.py |      176 |       15 |       56 |       10 |     88% |338, 373-374, 397-\>394, 410, 417, 490, 536, 542-\>534, 572-577, 582, 591 |
+| **TOTAL**                                                                        |  **282** |   **21** |   **72** |   **10** | **90%** |           |
 
 
 ## Setup coverage badge
