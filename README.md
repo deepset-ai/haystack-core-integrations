@@ -5,8 +5,8 @@
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/dynamodb/embedding\_retriever.py |       41 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/dynamodb/document\_store.py           |      492 |       34 |      166 |       12 |     90% |156-158, 168-171, 210, 235, 246, 252-254, 338, 382-385, 432, 448, 451, 481, 599, 857, 985-988, 998-1003 |
-| **TOTAL**                                                                         |  **533** |   **34** |  **172** |   **12** | **91%** |           |
+| src/haystack\_integrations/document\_stores/dynamodb/document\_store.py           |      491 |       34 |      166 |       12 |     90% |156-158, 168-171, 210, 235, 246, 252-254, 338, 382-385, 432, 448, 451, 481, 599, 857, 981-984, 994-999 |
+| **TOTAL**                                                                         |  **532** |   **34** |  **172** |   **12** | **91%** |           |
 
 
 ## Setup coverage badge
