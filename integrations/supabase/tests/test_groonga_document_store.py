@@ -126,6 +126,29 @@ class TestDocumentStore:
         assert store.supabase_url == "https://fake-project.supabase.co"
         assert store._client is None
 
+    def test_filter_documents_paginates_until_empty_page(self, groonga_store, mock_supabase_client):
+        mock_table = mock_supabase_client.table.return_value
+        mock_table.order.return_value = mock_table
+        mock_table.range.return_value = mock_table
+        # A server whose row cap (500) is below the page size must not end pagination early.
+        mock_table.execute.side_effect = [
+            MagicMock(data=[{"id": f"{i}", "content": "c", "meta": {}} for i in range(500)]),
+            MagicMock(data=[{"id": f"{i}", "content": "c", "meta": {}} for i in range(500, 700)]),
+            MagicMock(data=[]),
+        ]
+
+        docs = groonga_store.filter_documents()
+
+        assert [d.id for d in docs] == [f"{i}" for i in range(700)]
+        assert [c.args for c in mock_table.range.call_args_list] == [(0, 999), (500, 1499), (700, 1699)]
+        mock_table.order.assert_called_with("id")
+
+    def test_delete_documents_batches_ids(self, groonga_store, mock_supabase_client):
+        ids = [f"{i}" for i in range(250)]
+        groonga_store.delete_documents(ids)
+        in_calls = mock_supabase_client.table.return_value.in_.call_args_list
+        assert [c.args[1] for c in in_calls] == [ids[:100], ids[100:200], ids[200:]]
+
 
 @pytest.fixture
 def mock_async_supabase_client():
@@ -181,6 +204,31 @@ class TestDocumentStoreAsync:
     async def test_delete_documents_async_empty(self, groonga_store_async, mock_async_supabase_client):
         await groonga_store_async.delete_documents_async([])
         mock_async_supabase_client.table.return_value.delete.assert_not_called()
+
+    async def test_filter_documents_async_paginates_until_empty_page(
+        self, groonga_store_async, mock_async_supabase_client
+    ):
+        mock_table = mock_async_supabase_client.table.return_value
+        mock_table.order.return_value = mock_table
+        mock_table.range.return_value = mock_table
+        mock_table.execute = AsyncMock(
+            side_effect=[
+                MagicMock(data=[{"id": f"{i}", "content": "c", "meta": {}} for i in range(1000)]),
+                MagicMock(data=[{"id": "1000", "content": "c", "meta": {}}]),
+                MagicMock(data=[]),
+            ]
+        )
+
+        docs = await groonga_store_async.filter_documents_async()
+
+        assert len(docs) == 1001
+        assert [c.args for c in mock_table.range.call_args_list] == [(0, 999), (1000, 1999), (1001, 2000)]
+
+    async def test_delete_documents_async_batches_ids(self, groonga_store_async, mock_async_supabase_client):
+        ids = [f"{i}" for i in range(250)]
+        await groonga_store_async.delete_documents_async(ids)
+        in_calls = mock_async_supabase_client.table.return_value.in_.call_args_list
+        assert [c.args[1] for c in in_calls] == [ids[:100], ids[100:200], ids[200:]]
 
     async def test_async_client_initialized_only_once(self, mock_async_supabase_client, monkeypatch):  # noqa: ARG002
         """_initialize_async_client must not replace the client on subsequent calls."""

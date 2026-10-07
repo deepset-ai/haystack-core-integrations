@@ -18,6 +18,13 @@ from supabase import AsyncClient, Client, acreate_client, create_client
 
 logger = logging.getLogger(__name__)
 
+# PostgREST caps every response at its `max-rows` setting (1000 on Supabase by default) without
+# signalling truncation, so reads are paginated explicitly.
+_READ_PAGE_SIZE = 1000
+# Document IDs to delete go into the URL as `id=in.(...)`; batching keeps the URL under common
+# proxy limits (8 KB on nginx) even with 64-character Haystack document IDs.
+_DELETE_BATCH_SIZE = 100
+
 
 class SupabaseGroongaDocumentStore(DocumentStore):
     """
@@ -203,13 +210,19 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
 
-        query = self._client.table(self.table_name).select("*")
-
-        if filters:
-            query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
-
-        result = query.execute()
-        return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
+        documents: list[Document] = []
+        offset = 0
+        while True:
+            # Query builders accumulate params, so build a fresh one for each page.
+            query = self._client.table(self.table_name).select("*").order("id")
+            if filters:
+                query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
+            result = query.range(offset, offset + _READ_PAGE_SIZE - 1).execute()
+            if not result.data:
+                return documents
+            documents.extend(self._to_haystack_document(row) for row in result.data if isinstance(row, dict))
+            # Advance by what the server returned: its row cap may be lower than the page size.
+            offset += len(result.data)
 
     async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -220,13 +233,17 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :raises FilterError: If the filter structure is malformed or uses an unsupported operator.
         """
         await self._initialize_async_client()
-        query = self._async_client.table(self.table_name).select("*")  # type: ignore[union-attr]
-
-        if filters:
-            query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
-
-        result = await query.execute()
-        return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
+        documents: list[Document] = []
+        offset = 0
+        while True:
+            query = self._async_client.table(self.table_name).select("*").order("id")  # type: ignore[union-attr]
+            if filters:
+                query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
+            result = await query.range(offset, offset + _READ_PAGE_SIZE - 1).execute()
+            if not result.data:
+                return documents
+            documents.extend(self._to_haystack_document(row) for row in result.data if isinstance(row, dict))
+            offset += len(result.data)
 
     @staticmethod
     def _meta_col(field: str, value: Any) -> str:
@@ -618,9 +635,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
 
-        if not document_ids:
-            return
-        self._client.table(self.table_name).delete().in_("id", document_ids).execute()
+        for start in range(0, len(document_ids), _DELETE_BATCH_SIZE):
+            batch = document_ids[start : start + _DELETE_BATCH_SIZE]
+            self._client.table(self.table_name).delete().in_("id", batch).execute()
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
@@ -631,7 +648,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         if not document_ids:
             return
         await self._initialize_async_client()
-        await self._async_client.table(self.table_name).delete().in_("id", document_ids).execute()  # type: ignore[union-attr]
+        for start in range(0, len(document_ids), _DELETE_BATCH_SIZE):
+            batch = document_ids[start : start + _DELETE_BATCH_SIZE]
+            await self._async_client.table(self.table_name).delete().in_("id", batch).execute()  # type: ignore[union-attr]
 
     def _groonga_retrieval(
         self,
