@@ -4,12 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      223 |        7 |      100 |       11 |     94% |249, 315, 362-363, 425-\>428, 448-\>454, 450, 510-\>513, 526-\>500, 536-\>542, 538, 544-\>546, 547 |
-| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       69 |        3 |       20 |        4 |     92% |198, 203, 264-\>266, 267 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      222 |        7 |      100 |       11 |     94% |249, 314, 361-362, 424-\>427, 447-\>453, 449, 509-\>512, 525-\>499, 535-\>541, 537, 543-\>545, 546 |
+| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       68 |        3 |       20 |        4 |     92% |197, 202, 262-\>264, 265 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      297 |       27 |      186 |       24 |     88% |89-\>79, 96, 98, 101-\>79, 189-\>200, 198-199, 270-274, 287-\>280, 291-295, 296-\>289, 306-307, 311, 319, 339-\>338, 379-\>384, 384-\>387, 430-431, 437-438, 507, 572-580, 585-\>587, 588, 590, 607-608 |
 | src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       52 |        0 |       10 |        1 |     98% | 216-\>219 |
-| src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       50 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
-| **TOTAL**                                                                                   |  **691** |   **41** |  **332** |   **43** | **91%** |           |
+| src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       49 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
+| **TOTAL**                                                                                   |  **688** |   **41** |  **332** |   **43** | **91%** |           |
 
 
 ## Setup coverage badge
