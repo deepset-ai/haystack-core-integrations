@@ -153,9 +153,28 @@ def _convert_openrouter_chunk_to_streaming_chunks(
         streaming_chunks.append(reasoning_chunk)
         last_block = reasoning_chunk
 
-    if streaming_chunk.content and last_block is not None and last_block.reasoning is not None:
-        # the parent converter only marks the first chunk of a stream as start, not the text following reasoning
-        streaming_chunk = replace(streaming_chunk, start=True)
+    if streaming_chunk.content:
+        # the parent converter marks the second chunk of a stream as start, assuming the first one only carries `role`,
+        # and gives text chunks index None when `role` is set. OpenRouter sets `role` on every chunk and can stream text
+        # in the first one, so derive start and index from the previous block instead. Text after tool calls keeps the
+        # parent's start and index, so the whitespace some models stream between tool calls gets no header.
+        if last_block is None:
+            streaming_chunk = replace(streaming_chunk, start=True)
+        elif last_block.reasoning is not None:
+            streaming_chunk = replace(streaming_chunk, start=True, index=(last_block.index or 0) + 1)
+        elif last_block.content:
+            streaming_chunk = replace(streaming_chunk, start=False, index=last_block.index)
+    elif streaming_chunk.tool_calls and last_block is not None:
+        # the parent converter uses the provider's tool call index as chunk index, which collides with the reasoning
+        # or text block before the tool calls, so shift the chunk index past that block. Later tool calls keep the
+        # shift of the first one, even if text is streamed between them. `ToolCallDelta.index` keeps the provider's
+        # index, which the tool calls are assembled by.
+        previous_tool_chunk = next((c for c in reversed(previous_chunks) if c.tool_calls), None)
+        if previous_tool_chunk is not None and previous_tool_chunk.tool_calls:
+            offset = (previous_tool_chunk.index or 0) - previous_tool_chunk.tool_calls[0].index
+        else:
+            offset = (last_block.index or 0) + 1
+        streaming_chunk = replace(streaming_chunk, index=streaming_chunk.tool_calls[0].index + offset)
     streaming_chunks.append(streaming_chunk)
     return streaming_chunks
 

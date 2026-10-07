@@ -231,6 +231,7 @@ class TestOpenRouterChatGeneratorAsyncUnit:
         assert [c.start for c in streamed[:2]] == [True, False]
         assert streamed[2].content == "Paris."
         assert streamed[2].start is True
+        assert streamed[2].index == 1
         assert streamed[3].finish_reason == "stop"
 
         reply = response["replies"][0]
