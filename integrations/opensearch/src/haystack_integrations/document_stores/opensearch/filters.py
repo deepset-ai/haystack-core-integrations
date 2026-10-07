@@ -145,7 +145,6 @@ def _equal(field: str, value: Any) -> dict[str, Any]:
             "terms_set": {
                 field: {
                     "terms": value,
-                    # Bind the field as a param: interpolating it into the source would allow script injection.
                     "minimum_should_match_script": {
                         "source": "Math.max(params.num_terms, doc[params.field].size())",
                         "params": {"field": field},
