@@ -5,9 +5,9 @@
 | Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/ibm\_db/embedding\_retriever.py |       33 |        0 |        6 |        2 |     95% |111-\>113, 113-\>115 |
-| src/haystack\_integrations/document\_stores/ibm\_db/document\_store.py           |      431 |       35 |      130 |       16 |     91% |157-\>193, 164-\>168, 186-189, 252, 257-\>exit, 331, 361, 372-374, 413, 496, 511, 549-550, 553, 677, 680-681, 712-728, 750, 755, 763-765, 780, 809-\>807 |
+| src/haystack\_integrations/document\_stores/ibm\_db/document\_store.py           |      435 |       35 |      132 |       16 |     91% |170-\>206, 177-\>181, 199-202, 265, 270-\>exit, 344, 374, 385-387, 426, 509, 524, 562-563, 566, 690, 693-694, 725-741, 763, 768, 776-778, 793, 822-\>820 |
 | src/haystack\_integrations/document\_stores/ibm\_db/filters.py                   |       82 |        0 |       38 |        0 |    100% |           |
-| **TOTAL**                                                                        |  **546** |   **35** |  **174** |   **18** | **92%** |           |
+| **TOTAL**                                                                        |  **550** |   **35** |  **176** |   **18** | **92%** |           |
 
 
 ## Setup coverage badge
