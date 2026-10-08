@@ -17,6 +17,7 @@ from haystack.tools.from_function import tool
 from haystack_integrations.tools.mcp import (
     MCPTool,
     MCPToolNotFoundError,
+    SSEServerInfo,
     StdioServerInfo,
 )
 from haystack_integrations.tools.mcp.mcp_tool import (
@@ -364,6 +365,20 @@ class TestMCPTool:
         assert "a" in tool.parameters["properties"]
         assert "b" in tool.parameters["properties"]
         assert mock_connect.call_count == 1
+
+    @pytest.mark.parametrize("eager_connect", [False, True])
+    def test_mcp_tool_reopens_after_close(self, eager_connect, mcp_calculator_server, mcp_tool_cleanup):
+        port = mcp_calculator_server("sse")
+        server_info = SSEServerInfo(url=f"http://127.0.0.1:{port}/sse", max_retries=0)
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info, eager_connect=eager_connect))
+
+        tool.warm_up()
+        assert json.loads(tool.invoke(a=2, b=3))["content"][0]["text"] == "5"
+
+        tool.close()
+
+        tool.warm_up()
+        assert json.loads(tool.invoke(a=2, b=3))["content"][0]["text"] == "5"
 
     @pytest.mark.asyncio
     async def test_mcp_tool_ainvoke_matches_invoke_with_outputs_to_state(self, mcp_tool_cleanup):

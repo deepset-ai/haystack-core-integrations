@@ -12,7 +12,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from .astra_client import (
     _collection_definition,
@@ -210,7 +210,6 @@ class AstraDocumentStore:
             Deserialized component.
         :raises ValueError: The serialized `duplicates_policy` is not a valid policy name.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_endpoint", "token"])
         policy = data["init_parameters"].get("duplicates_policy")
         if isinstance(policy, str):
             try:

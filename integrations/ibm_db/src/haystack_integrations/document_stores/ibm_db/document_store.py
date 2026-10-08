@@ -15,11 +15,13 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from .filters import FilterTranslator
 
 logger = logging.getLogger(__name__)
+
+VALID_DISTANCE_METRICS = frozenset({"COSINE", "DOT", "EUCLIDEAN", "EUCLIDEAN_SQUARED", "HAMMING", "MANHATTAN"})
 
 
 def _parse_embedding(embedding: Any) -> list[float] | None:
@@ -102,7 +104,14 @@ class IBMDb2DocumentStore:
         connection_options: dict[str, Any] | None = None,
         table_name: str = "haystack_documents",
         embedding_dim: int = 768,
-        distance_metric: Literal["EUCLIDEAN", "COSINE", "MANHATTAN"] = "COSINE",
+        distance_metric: Literal[
+            "COSINE",
+            "DOT",
+            "EUCLIDEAN",
+            "EUCLIDEAN_SQUARED",
+            "HAMMING",
+            "MANHATTAN",
+        ] = "COSINE",
         recreate_table: bool = False,
     ):
         """
@@ -120,7 +129,8 @@ class IBMDb2DocumentStore:
         :param connection_options: Additional connection options as dict (optional)
         :param table_name: Name of the table to store documents (default: "haystack_documents")
         :param embedding_dim: Dimension of embedding vectors (default: 768)
-        :param distance_metric: Distance metric for similarity search (default: "COSINE")
+        :param distance_metric: Distance metric for similarity search (default: "COSINE"). Supported metrics in Db2:
+            "COSINE", "DOT", "EUCLIDEAN", "EUCLIDEAN_SQUARED", "HAMMING", "MANHATTAN".
         :param recreate_table: If True, drop and recreate the table (default: False)
         """
         self.database = database
@@ -135,6 +145,9 @@ class IBMDb2DocumentStore:
         self.connection_options = connection_options
         self.table_name = table_name
         self.embedding_dim = embedding_dim
+        if distance_metric not in VALID_DISTANCE_METRICS:
+            msg = f"Invalid distance_metric '{distance_metric}'. Must be one of {sorted(VALID_DISTANCE_METRICS)}."
+            raise ValueError(msg)
         self.distance_metric = distance_metric
         self.recreate_table = recreate_table
 
@@ -871,7 +884,6 @@ class IBMDb2DocumentStore:
         :param data: Dictionary representation
         :return: IBMDb2DocumentStore instance
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["username", "password"])
         return default_from_dict(cls, data)
 
     def _embedding_retrieval(

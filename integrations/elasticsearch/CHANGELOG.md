@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/elasticsearch-v6.4.2] - 2026-10-08
+
+### 🐛 Bug Fixes
+
+- *(elasticsearch,opensearch)* Keep every bound when merging same-field ranges (#3984)
+- Elasticsearch painless script injection (#4068)
+
+### 🧪 Testing
+
+- Elastisearch/OpenSearch - explicitly set the embedding model in Hybrid Retriever tests (#4053)
+
+
 ## [integrations/elasticsearch-v6.4.1] - 2026-09-24
 
 ### ⚙️ CI

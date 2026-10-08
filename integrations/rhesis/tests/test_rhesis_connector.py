@@ -11,7 +11,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from rhesis.telemetry.constants import ConversationContext, TestExecutionContext
 
@@ -24,6 +24,19 @@ _PROVIDER_PATH = "haystack_integrations.components.connectors.rhesis.rhesis_conn
 
 class CustomSpanHandler(DefaultSpanHandler):
     def handle(self, span, component_type=None):
+        pass
+
+
+class _FailingExporter(SpanExporter):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def export(self, spans):
+        self.calls += 1
+        msg = "backend unreachable"
+        raise ConnectionError(msg)
+
+    def shutdown(self) -> None:
         pass
 
 
@@ -166,6 +179,23 @@ class TestRhesisConnector:
         ):
             RhesisConnector(name="Chat example")
             mock_enable.assert_called_once()
+
+    def test_failed_export_does_not_break_the_pipeline(self, monkeypatch):
+        monkeypatch.setenv("RHESIS_API_KEY", "test-key")
+        exporter = _FailingExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+        with patch(_PROVIDER_PATH, return_value=provider):
+            pipe = Pipeline()
+            pipe.add_component("tracer", RhesisConnector("Chat example"))
+            pipe.add_component("prompt_builder", ChatPromptBuilder())
+            pipe.add_component("llm", _Echo())
+            pipe.connect("prompt_builder.prompt", "llm.messages")
+            response = pipe.run({"prompt_builder": {"template": [ChatMessage.from_user("Tell me about Berlin")]}})
+
+        assert exporter.calls > 0
+        assert response["llm"]["replies"][0].text == "ok"
 
 
 class TestProviderOwnership:

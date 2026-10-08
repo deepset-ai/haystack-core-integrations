@@ -105,8 +105,10 @@ class MistralOCRDocumentConverter:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "mistral-ocr-2512",
+        "mistral-ocr-3",
         "mistral-ocr-3-0",
-        "mistral-ocr-4-0",
+        "mistral-ocr-4",
         "mistral-ocr-4-1",
         "mistral-ocr-latest",
     ]

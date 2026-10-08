@@ -67,7 +67,7 @@ class TestOpenSearchHybridRetriever:
                     "type": "haystack.components.embedders.openai_text_embedder.OpenAITextEmbedder",
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["OPENAI_API_KEY"], "strict": True},
-                        "model": "text-embedding-ada-002",
+                        "model": "text-embedding-3-small",
                         "dimensions": None,
                         "api_base_url": None,
                         "organization": None,
@@ -103,7 +103,7 @@ class TestOpenSearchHybridRetriever:
 
     def test_to_dict(self, serialised) -> None:
         doc_store = OpenSearchDocumentStore()
-        embedder = OpenAITextEmbedder()  # we use actual embedder here for the de/serialization
+        embedder = OpenAITextEmbedder(model="text-embedding-3-small")
         hybrid_retriever = OpenSearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
         assert result == serialised
@@ -116,7 +116,7 @@ class TestOpenSearchHybridRetriever:
 
     def test_to_dict_with_extra_args(self, serialised):
         doc_store = OpenSearchDocumentStore()
-        embedder = OpenAITextEmbedder()  # an actual embedder here for the de/serialization
+        embedder = OpenAITextEmbedder(model="text-embedding-3-small")
         hybrid_retriever = OpenSearchHybridRetriever(
             document_store=doc_store, embedder=embedder, embedding_retriever={"raise_on_failure": True}
         )

@@ -1775,3 +1775,22 @@ class TestDocumentStore(
         result = document_store.filter_documents(filters=filters)
 
         assert [doc.meta["date"] for doc in result] == ["2021-09-01"]
+
+    @pytest.mark.parametrize("key", ["file-name", "x = 1; ctx.op = 'delete'; //"])
+    def test_update_by_filter_treats_meta_keys_as_data(self, document_store: OpenSearchDocumentStore, key: str):
+        # Keys that aren't valid Painless identifiers must neither break the update script nor be executed by it.
+        docs = [
+            Document(content="a", meta={"tenant": "t1"}),
+            Document(content="b", meta={"tenant": "t1"}),
+            Document(content="c", meta={"tenant": "t2"}),
+        ]
+        document_store.write_documents(docs)
+
+        updated = document_store.update_by_filter(
+            filters={"field": "meta.tenant", "operator": "==", "value": "t1"}, meta={key: "v"}, refresh=True
+        )
+
+        assert updated == 2
+        assert document_store.count_documents() == 3
+        result = document_store.filter_documents(filters={"field": "meta.tenant", "operator": "==", "value": "t1"})
+        assert [doc.meta[key] for doc in result] == ["v", "v"]

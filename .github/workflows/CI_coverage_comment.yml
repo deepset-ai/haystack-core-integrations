@@ -99,6 +99,7 @@ on:
       - "Test / togetherai"
       - "Test / transformers"
       - "Test / twelvelabs"
+      - "Test / typesafe"
       - "Test / unstructured"
       - "Test / valkey"
       - "Test / vespa"

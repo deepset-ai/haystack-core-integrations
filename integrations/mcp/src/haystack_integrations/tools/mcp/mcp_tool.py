@@ -1155,7 +1155,7 @@ class MCPTool(Tool):
         return set(properties.keys())
 
     def warm_up(self) -> None:
-        """Connect and fetch the tool schema if eager_connect is turned off."""
+        """Connect and fetch the tool schema unless already connected."""
         with self._lock:
             if self._client is not None:
                 return
@@ -1266,6 +1266,9 @@ class MCPTool(Tool):
                     self._worker.stop()
             except Exception as e:
                 logger.debug(f"TOOL: Error during synchronous worker stop: {e!s}")
+            finally:
+                self._client = None
+                self._worker = None
 
     def __del__(self) -> None:
         """Cleanup resources when the tool is garbage collected."""
