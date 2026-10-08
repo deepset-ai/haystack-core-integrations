@@ -9,9 +9,8 @@
 #
 #     QueryExpander.queries -> MultiQueryTextRetriever.queries -> documents
 #
-# Nothing generates an answer. The MultiHopRAG eval cases already name the documents an answer needs, so retrieval is
-# scored directly against those IDs. Quality is the mean of the per-eval-case recall, so a configuration that finds
-# more of the evidence measures as better even while no eval case yet finds all of it.
+# Each MultiHopRAG eval case names the documents its answer needs, and quality is the mean recall over those
+# documents.
 #
 # Run from `integrations/agent_pack` with `OPENAI_API_KEY` set. The corpus requires `datasets`:
 #
@@ -20,21 +19,17 @@
 #     hatch run test:python examples/retrieval_pipeline_optimization.py --docs-mcp
 
 import argparse
-import logging
 import os
-import re
 import shutil
-import sys
 from pathlib import Path
-from statistics import median
 
 from haystack import Pipeline
-from haystack.components.generators.chat import OpenAIChatGenerator, OpenAIResponsesChatGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.query import QueryExpander
 from haystack.components.retrievers import MultiQueryTextRetriever
 from haystack.document_stores.types import DocumentStore
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
-from util import build_bm25_retriever, quiet_hub_warnings
+from util import ExperimentPrinter, build_bm25_retriever, build_optimizer_generator, enable_progress_reporting, paint
 
 from haystack_integrations.agent_pack.evaluation import (
     EvalMetrics,
@@ -43,13 +38,10 @@ from haystack_integrations.agent_pack.evaluation import (
     RetrievalHarnessEvaluator,
 )
 from haystack_integrations.agent_pack.optimization import (
-    CandidateProgress,
     ExperimentJournal,
-    ExperimentResult,
     HarnessOptimizationExperiment,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
 EXPANDER_MODEL = "gpt-5.6-luna"
@@ -157,12 +149,11 @@ POOR_EXPANSIONS = 1
 POOR_TOP_K = 2
 
 
-def build_reference_pipeline(store: DocumentStore, model: str) -> Pipeline:
+def build_reference_pipeline(store: DocumentStore) -> Pipeline:
     """
     Build the under-configured retrieval pipeline whose complete configuration will be optimized.
 
     :param store: The corpus to retrieve from.
-    :param model: The model the query expander reasons with.
     :returns: The reference pipeline.
     """
     pipeline = Pipeline()
@@ -170,7 +161,7 @@ def build_reference_pipeline(store: DocumentStore, model: str) -> Pipeline:
     # In this case we use OpenAIChatGenerator instead of OpenAIResponsesChatGenerator, and we set  n_expansions to 1.
     pipeline.add_component(
         "expander",
-        QueryExpander(chat_generator=OpenAIChatGenerator(model=model), n_expansions=POOR_EXPANSIONS),
+        QueryExpander(chat_generator=OpenAIChatGenerator(model=EXPANDER_MODEL), n_expansions=POOR_EXPANSIONS),
     )
     # The retriever is also poorly configured, with a top_k of 2.
     pipeline.add_component(
@@ -189,15 +180,7 @@ def build_prices() -> dict[str, ModelPrice]:
 
 
 def retrieval_guidance(k: int) -> str:
-    """
-    State the rank cutoff the harness scores at, alongside the rest of what it knows about itself.
-
-    The cutoff is the harness's own setting, and an optimizer that is not told it has to find it by measurement,
-    spending an evaluation to learn a number the harness could simply have stated.
-
-    :param k: The rank cutoff cases are scored at.
-    :returns: The harness guidance with its cutoff filled in.
-    """
+    """Return the optimizer guidance for this harness, with the rank cutoff `k` it scores at filled in."""
     cutoff = (
         f"Each eval case is scored at recall@{k}: only the first {k} documents the pipeline returns count towards "
         f"its score, in the order it returned them. Returning more than {k} is not penalized, it simply earns "
@@ -205,31 +188,6 @@ def retrieval_guidance(k: int) -> str:
         f"every query costs a model call and wall-clock time, and both are measured."
     )
     return f"{_RETRIEVAL_OPTIMIZER_GUIDANCE}\n\n{cutoff}"
-
-
-def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator | None:
-    """
-    Build the optimizer's generator on a named model, leaving everything else as the default.
-
-    Only the model differs from what the library would build, so a run that changes it measures the model rather
-    than the settings around it.
-
-    :param model: Model to reason with, or None to accept the library default.
-    :returns: The generator, or None to let the experiment choose the default optimizer model.
-    """
-    if model is None:
-        return None
-    return OpenAIResponsesChatGenerator(
-        model=model,
-        timeout=180.0,
-        max_retries=5,
-        generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY, "reasoning": {"effort": "low"}},
-    )
-
-
-def format_cost(cost: float | None) -> str:
-    """Format a measured cost that may be unavailable for an optimizer-selected model."""
-    return "unpriced" if cost is None else f"${cost:.6f}"
 
 
 def _components(details: dict) -> str:
@@ -248,268 +206,28 @@ def _components(details: dict) -> str:
     return " → ".join(entries) if entries else "not recorded"
 
 
-# Colour is worth having on a terminal and only noise in a redirected log.
-_STYLE = {
-    "bold": "\033[1m",
-    "dim": "\033[2m",
-    "green": "\033[32m",
-    "red": "\033[31m",
-    "cyan": "\033[36m",
-    "off": "\033[0m",
-}
-
-
-def _paint(text: str, *names: str) -> str:
+def retrieval_details(metrics: EvalMetrics, baseline: EvalMetrics | None) -> list[str]:  # noqa: ARG001
     """
-    Apply terminal styles, or none when stdout is redirected.
-
-    :param text: The text to style.
-    :param names: Style names to apply.
-    :returns: The text, wrapped in escape codes only when a terminal is reading them.
-    """
-    if not sys.stdout.isatty():
-        return text
-    return "".join(_STYLE[name] for name in names) + text + _STYLE["off"]
-
-
-def _rule(label: str) -> str:
-    """
-    Draw a labelled separator the width of the terminal.
-
-    :param label: What the section below the rule is.
-    :returns: The rule, padded to the terminal width.
-    """
-    width = min(shutil.get_terminal_size(fallback=(100, 24)).columns, 110)
-    return _paint(f"── {label} " + "─" * max(width - len(label) - 6, 4), "dim")
-
-
-def _delta(current: float, baseline: float, *, digits: int = 2, prefix: str = "", more_is_better: bool = True) -> str:
-    """
-    Render a change against the baseline, coloured by whether it is an improvement.
-
-    :param current: The candidate's value.
-    :param baseline: The reference's value.
-    :param digits: Decimal places to show.
-    :param prefix: Unit to put in front of the number, such as a currency symbol.
-    :param more_is_better: Whether a rise is the good direction, which it is for quality and is not for spend.
-    :returns: A signed change, or an empty string when nothing moved.
-    """
-    change = current - baseline
-    if abs(change) < 10**-digits / 2:
-        return ""
-    rendered = f"{prefix}{abs(change):.{digits}f}"
-    improved = change > 0 if more_is_better else change < 0
-    return _paint(f"  ({'+' if change > 0 else '-'}{rendered})", "green" if improved else "red")
-
-
-# Serialized Haystack keys are lower snake case. Prose headings inside a rewritten prompt are not, which is
-# what tells the two apart in a hunk that does not show the block scalar those headings sit under.
-_SETTING = re.compile(r"^[+-]\s*([a-z_][a-z0-9_.]*):\s*(.*)$")
-
-
-def _summarize(value: str, limit: int = 28) -> str:
-    """
-    Reduce one YAML value to something that fits on a shared line.
-
-    :param value: The value as it appears in the diff.
-    :param limit: How many characters to keep.
-    :returns: The value, or a word standing in for one too long to show.
-    """
-    collapsed = " ".join(value.split())
-    # A block scalar marker names no value; what follows it is the rewritten text itself.
-    if not collapsed or collapsed.startswith("|") or collapsed.startswith(">"):
-        return ""
-    # A dotted class path is only worth its last segment on a shared line.
-    if "." in collapsed and " " not in collapsed:
-        collapsed = collapsed.rsplit(".", 1)[-1]
-    return collapsed if len(collapsed) <= limit else "rewritten"
-
-
-def _changes(diff: str, limit: int = 5) -> str:
-    """
-    Reduce a unified diff to the settings it actually changed.
-
-    A candidate's diff is mostly re-indented YAML and rewritten prompts. What a reader wants from it is which
-    knobs moved, so keys are paired across the removed and added sides, prose inside a rewritten prompt is
-    skipped, and anything past the limit is counted.
-
-    :param diff: The unified diff between this candidate and its parent.
-    :param limit: How many changed settings to name before counting the rest.
-    :returns: One line naming the changes, or a note when the diff holds none of this shape.
-    """
-    removed: dict[str, str] = {}
-    added: dict[str, str] = {}
-    order: list[str] = []
-    skipped_prose = False
-    # A key with no value of its own opens a subtree, and a block scalar opens prose. Both read as a wall of
-    # settings when what changed is one component or one prompt, so everything indented under them is skipped.
-    skip_below: dict[str, int | None] = {"+": None, "-": None}
-    for line in diff.splitlines():
-        if line.startswith(("+++", "---", "@@")) or line[:1] not in {"+", "-"}:
-            # A prompt is usually edited in place, so its own key stays as context and only the prose moves.
-            # That context line is the only thing saying the lines under it are prose rather than settings.
-            opener = _SETTING.match(f"+{line[1:]}") if line[:1] == " " else None
-            depth = len(line[1:]) - len(line[1:].lstrip())
-            carries_text = opener is not None and not _summarize(value=opener.group(2))
-            skip_below = {"+": depth, "-": depth} if carries_text else {"+": None, "-": None}
-            continue
-        side, body = line[0], line[1:]
-        indent = len(body) - len(body.lstrip())
-        opened = skip_below[side]
-        if opened is not None and (not body.strip() or indent > opened):
-            skipped_prose = skipped_prose or bool(body.strip())
-            continue
-        skip_below[side] = None
-        match = _SETTING.match(line)
-        if match is None:
-            continue
-        key, raw = match.group(1), match.group(2)
-        value = _summarize(value=raw)
-        if not value or raw.strip().startswith(("|", ">")):
-            skip_below[side] = indent
-        if key not in order:
-            order.append(key)
-        (added if side == "+" else removed)[key] = value
-
-    entries = []
-    for key in order:
-        was, now = removed.get(key), added.get(key)
-        if was is not None and now is not None:
-            entries.append(f"{key} {was} → {now}" if was and now else f"{key} rewritten")
-        elif now is not None:
-            entries.append(_paint(f"+ {key}", "green") + (f" {now}" if now else ""))
-        else:
-            entries.append(_paint(f"- {key}", "red"))
-    if skipped_prose:
-        entries.append(_paint("prompt text", "dim"))
-    if not entries:
-        return _paint("whitespace and formatting only", "dim")
-    shown = "  ·  ".join(entries[:limit])
-    return shown if len(entries) <= limit else f"{shown}  ·  {_paint(f'+{len(entries) - limit} more', 'dim')}"
-
-
-def _measurements(
-    metrics: EvalMetrics,
-    cost: float | None,
-    baseline: EvalMetrics | None = None,
-    baseline_cost: float | None = None,
-) -> list[str]:
-    """
-    Render one measurement as aligned lines, against the baseline when there is one.
+    Render what the retrieval harness evaluator reports beyond recall.
 
     :param metrics: The measurement to render.
-    :param cost: Its cost, or None when it could not be priced.
-    :param baseline: The reference measurement, or None for the reference itself.
-    :param baseline_cost: The reference's cost, or None when it could not be priced.
-    :returns: The lines to print, already labelled.
+    :param baseline: The reference measurement, which these lines are not compared against.
+    :returns: The precision and returned-document line, and the component output sizes.
     """
     details = metrics.details
-    reference = baseline.details if baseline is not None else None
-    recall = f"{details['mean_recall_at_k']:.2f}" + (
-        _delta(details["mean_recall_at_k"], reference["mean_recall_at_k"]) if reference else ""
-    )
-    spend = format_cost(cost=cost)
-    if cost is not None and baseline_cost is not None:
-        spend += _delta(cost, baseline_cost, digits=4, prefix="$", more_is_better=False)
-    duration = f"{median(metrics.durations):.1f}s" + (
-        _delta(median(metrics.durations), median(baseline.durations), digits=1, more_is_better=False)
-        if baseline
-        else ""
-    )
-    scores = (
-        f"    {_paint('recall@k', 'bold')} {recall}   "
-        f"precision@k {details['mean_precision_at_k']:.2f}   returned {details['mean_retrieved']:.1f}"
-    )
     return [
-        scores,
-        f"    {_paint('spend   ', 'bold')} {spend}   median duration {duration}",
-        f"    {_paint('shape   ', 'bold')} {_components(details=details)}",
+        (
+            f"    {paint('scores  ', 'bold')} precision@k {details['mean_precision_at_k']:.2f}   "
+            f"returned {details['mean_retrieved']:.1f}"
+        ),
+        f"    {paint('shape   ', 'bold')} {_components(details=details)}",
     ]
-
-
-def print_baseline(metrics: EvalMetrics, cost: float | None) -> None:
-    """
-    Print the reference measurement every candidate is ranked against.
-
-    :param metrics: The reference measurement.
-    :param cost: Its cost, or None when it could not be priced.
-    """
-    print()
-    print(_rule("baseline · the reference pipeline"))
-    for line in _measurements(metrics=metrics, cost=cost):
-        print(line)
-
-
-def print_candidate(progress: CandidateProgress) -> None:
-    """
-    Print one candidate as the search measures it, so a long run can be watched.
-
-    :param progress: The measured candidate, its gates, and whether it now leads.
-    """
-    evaluation = progress.evaluation
-    print()
-    print(_rule(f"candidate {progress.position}/{progress.total} · {evaluation.candidate_id}"))
-    if evaluation.configuration is not None:
-        print(f"    {_paint('why     ', 'bold')} {evaluation.configuration.rationale}")
-        print(f"    {_paint('changed ', 'bold')} {_changes(diff=evaluation.configuration.diff)}")
-    if evaluation.metrics is None:
-        print(f"    {_paint('verdict ', 'bold')} {_paint('did not run: ' + str(evaluation.failure), 'red')}")
-        return
-    for line in _measurements(
-        metrics=evaluation.metrics,
-        cost=evaluation.cost,
-        baseline=progress.baseline,
-        baseline_cost=progress.baseline_cost,
-    ):
-        print(line)
-    verdict = (
-        _paint("cleared every gate", "green")
-        if not progress.gate_failures
-        else _paint("gated: " + ", ".join(progress.gate_failures), "red")
-    )
-    if progress.is_best:
-        verdict += _paint("  ← best so far", "cyan", "bold")
-    print(f"    {_paint('verdict ', 'bold')} {verdict}")
-
-
-def report(result: ExperimentResult) -> None:
-    """Print what the search cost and what it recommends, the candidates having printed as they were measured."""
-    print()
-    print(_rule("what the search itself cost"))
-    usage = ", ".join(
-        f"{model}: {tokens.input_tokens} in / {tokens.output_tokens} out"
-        for model, tokens in result.optimizer_usage.items()
-    )
-    print(f"    {_paint('optimizer', 'bold')} {usage or 'none recorded'}")
-    print(f"    {_paint('priced at', 'bold')} {format_cost(cost=result.optimizer_cost)} (input charged at full price)")
-
-    print()
-    print(_rule("recommendation"))
-    if result.recommendation is None:
-        print(f"    {_paint('none', 'red')}: no candidate cleared every gate and improved on the reference")
-        return
-    recommendation = result.recommendation
-    measured = recommendation.evaluation.metrics
-    if measured is not None:
-        print(
-            f"    {_paint('candidate', 'bold')} {recommendation.evaluation.candidate_id}   "
-            f"recall@k {measured.details[QUALITY_METRIC]:.2f}"
-            f"{_delta(measured.details[QUALITY_METRIC], result.baseline.details[QUALITY_METRIC])}   "
-            f"cost {format_cost(cost=recommendation.evaluation.cost)}"
-        )
-    print(f"    {_paint('why      ', 'bold')} {recommendation.configuration.rationale}")
-    print(f"    {_paint('reasons  ', 'bold')} {', '.join(recommendation.reasons)}")
-    print(f"    {_paint('config   ', 'bold')} {result.artifact_directory / 'recommended.yaml'}")
-    print(
-        f"\n    {_paint('Nothing was deployed. Approving this recommendation is a separate, human decision.', 'dim')}"
-    )
 
 
 def parse_args() -> argparse.Namespace:
     """Parse the PoC command line."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
-    parser.add_argument("--expander-model", default=EXPANDER_MODEL)
     parser.add_argument("--workspace", type=Path, default=WORKSPACE, help="Directory for runs and YAML artifacts.")
     parser.add_argument(
         "--max-eval-cases",
@@ -551,41 +269,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-class _Narrate(logging.Filter):
-    """Drop what this script now prints itself, and shorten what it keeps to what a reader is watching for."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        # The candidate block prints all of this, together with the change and rationale that produced it.
-        if hasattr(record, "candidate_id") and hasattr(record, "gates"):
-            return False
-        # The search cost is reported once at the end.
-        if hasattr(record, "turns") and hasattr(record, "cost"):
-            return False
-        # Each measurement is summarized in its own block, so the eval-case-by-eval-case progress is noise here.
-        if hasattr(record, "verdict") and hasattr(record, "question"):
-            return False
-        if hasattr(record, "steps") and hasattr(record, "calls"):
-            record.msg = _paint(f"optimizer · {record.steps} steps · {' → '.join(record.calls)}", "dim")
-        return True
-
-
-def enable_progress_reporting() -> None:
-    """Route library progress to stdout, line buffered, so a redirected run reports as it goes."""
-    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
-    quiet_hub_warnings()
-    handler = logging.StreamHandler(stream=sys.stdout)
-    handler.setFormatter(logging.Formatter("    %(message)s"))
-    handler.addFilter(_Narrate())
-    progress = logging.getLogger("haystack_integrations.agent_pack")
-    progress.handlers.clear()
-    progress.addHandler(handler)
-    progress.setLevel(logging.INFO)
-    progress.propagate = False
-    # An edit the optimizer repairs within its turn is normal, and Haystack logs the whole rejected call with it.
-    # The repair is visible in the turn's step count, so the dump only buries the measurements.
-    logging.getLogger("haystack.components.agents.tool_calling").setLevel(logging.CRITICAL)
-
-
 def main() -> None:
     """Build the experiment and run it end to end."""
     arguments = parse_args()
@@ -612,14 +295,15 @@ def main() -> None:
     expected = sum(len(eval_case.expected_document_ids) for eval_case in eval_cases)
     print(f"  cases: {len(eval_cases)} labelled from evidence, expecting {expected} documents in total")
 
-    reference = build_reference_pipeline(store=store, model=arguments.expander_model)
+    reference = build_reference_pipeline(store=store)
     print(
-        f"  reference: n_expansions={POOR_EXPANSIONS} top_k={POOR_TOP_K} model={arguments.expander_model}; "
+        f"  reference: n_expansions={POOR_EXPANSIONS} top_k={POOR_TOP_K} model={EXPANDER_MODEL}; "
         f"scored at recall@{arguments.k}"
     )
 
     print("\n=== 2. optimization experiment ===")
     evaluator = RetrievalHarnessEvaluator(k=arguments.k, max_concurrent_eval_cases=arguments.max_concurrent_eval_cases)
+    printer = ExperimentPrinter(quality_metric=QUALITY_METRIC, quality_label="recall@k", detail_lines=retrieval_details)
     experiment = HarnessOptimizationExperiment(
         reference=reference,
         eval_cases=eval_cases,
@@ -636,17 +320,17 @@ def main() -> None:
         optimizer_max_agent_steps=arguments.optimizer_steps,
         optimizer_documentation_tools=arguments.docs_mcp,
         max_iterations=arguments.max_iterations,
-        on_baseline=print_baseline,
-        on_candidate=print_candidate,
+        on_baseline=printer.on_baseline,
+        on_candidate=printer.on_candidate,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()
 
     print("\n=== 3. outcome ===")
-    report(result=result)
+    printer.report(result=result)
     print()
-    print(_paint(f"    journal  {experiment.journal.path_for(result.run_id)}", "dim"))
-    print(_paint(f"    context  {result.measurement_context} · {result.run_id}", "dim"))
+    print(paint(f"    journal  {experiment.journal.path_for(result.run_id)}", "dim"))
+    print(paint(f"    context  {result.measurement_context} · {result.run_id}", "dim"))
 
 
 if __name__ == "__main__":
