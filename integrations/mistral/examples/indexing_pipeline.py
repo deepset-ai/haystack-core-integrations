@@ -1,5 +1,9 @@
-# To run this example, you will need an to set a `MISTRAL_API_KEY` environment variable.
-# This example streams chat replies to the console.
+# SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# To run this example, set the `MISTRAL_API_KEY` environment variable
+# and install `trafilatura`, used by HTMLToDocument: `pip install trafilatura`
 
 from haystack import Pipeline
 from haystack.components.converters import HTMLToDocument

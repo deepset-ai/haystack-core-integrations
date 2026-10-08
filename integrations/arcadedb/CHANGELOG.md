@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/arcadedb-v1.7.0] - 2026-10-06
+
+### 🐛 Bug Fixes
+
+-  fix: handle changed NULL semantics in arcadedb 26.10.1 (#4054)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+
+
+## [integrations/arcadedb-v1.6.1] - 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Fixing ArcadeDB delete_all_documents (#3989)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/arcadedb-v1.6.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

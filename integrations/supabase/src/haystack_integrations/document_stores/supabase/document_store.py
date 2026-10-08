@@ -5,7 +5,7 @@
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -136,5 +136,4 @@ class SupabasePgvectorDocumentStore(PgvectorDocumentStore):
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
         return default_from_dict(cls, data)

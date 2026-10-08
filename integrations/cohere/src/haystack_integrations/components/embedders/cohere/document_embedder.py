@@ -5,9 +5,10 @@ from dataclasses import replace
 from typing import Any, ClassVar
 
 from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from cohere import AsyncClientV2, ClientV2
+from haystack_integrations.utils.cohere import validate_api_base_url
 
 from .embedding_types import EmbeddingTypes
 from .utils import get_async_response, get_response
@@ -68,7 +69,7 @@ class CohereDocumentEmbedder:
             Read [Cohere documentation](https://docs.cohere.com/docs/models#embed) for a list of all supported models.
         :param input_type: specifies the type of input you're giving to the model. Supported values are
             "search_document", "search_query", "classification" and "clustering".
-        :param api_base_url: the Cohere API Base url.
+        :param api_base_url: the Cohere API Base url. The Cohere client appends the endpoint path to it.
         :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END").
             Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
             cases, input is discarded until the remaining input is exactly the maximum input token length for the model.
@@ -81,7 +82,10 @@ class CohereDocumentEmbedder:
         :param embedding_separator: separator used to concatenate the meta fields to the Document text.
         :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
             Note that int8, uint8, binary, and ubinary are only valid for v3 models.
+
+        :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
+        validate_api_base_url(api_base_url)
 
         self.api_key = api_key
         self.model = model
@@ -154,8 +158,6 @@ class CohereDocumentEmbedder:
 
         # drop legacy use_async_client parameter
         init_params.pop("use_async_client", None)
-
-        deserialize_secrets_inplace(init_params, ["api_key"])
 
         # Convert embedding_type string to EmbeddingTypes enum value
         init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])

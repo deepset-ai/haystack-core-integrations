@@ -31,7 +31,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.utils import Secret, deserialize_callable, serialize_callable
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import ModelInference
 
@@ -250,7 +250,6 @@ class WatsonxChatGenerator:
         :returns:
             The deserialized component instance.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback = init_params.get("streaming_callback")

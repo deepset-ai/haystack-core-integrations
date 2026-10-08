@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.classifiers.typesafe.document_classifier
+      - haystack_integrations.components.routers.typesafe.text_router
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: TypeSafe integration for Haystack
+  id: integrations-typesafe
+  filename: typesafe.md
+  title: TypeSafe

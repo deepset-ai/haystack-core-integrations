@@ -12,7 +12,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 
 import mariadb
 
@@ -204,7 +204,6 @@ class MariaDBDocumentStore:
         :param data: Dictionary to deserialize from.
         :returns: Deserialized document store.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["user", "password"])
         return default_from_dict(cls, data)
 
     def _ensure_connection(self) -> None:

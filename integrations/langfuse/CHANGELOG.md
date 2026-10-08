@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/langfuse-v7.0.0] - 2026-09-29
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Langfuse - trace Haystack 3 Agent step, LLM and tool spans (#4020)
+
+
 ## [integrations/langfuse-v6.0.0] - 2026-09-11
 
 ### 🐛 Bug Fixes

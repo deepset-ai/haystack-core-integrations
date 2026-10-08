@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/vllm-v2.1.0] - 2026-10-07
+
+### 🚜 Refactor
+
+- [**breaking**] VLLM - stop warming up tools in the Chat Generator (#4055)
+
+
 ## [integrations/vllm-v2.0.0] - 2026-09-10
 
 ### 🚀 Features

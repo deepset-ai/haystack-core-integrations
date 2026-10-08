@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opendataloader_pdf-v0.1.2] - 2026-09-22
+
+### 🚀 Features
+
+- Add ability to extract images for OpenDataLoader PDF integration to better support multimodal pipelines (#3922)
+
+
 ## [integrations/opendataloader_pdf-v0.1.1] - 2026-08-24
 
 ### 📚 Documentation
