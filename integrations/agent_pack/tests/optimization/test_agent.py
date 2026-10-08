@@ -7,13 +7,12 @@ from haystack.components.generators.chat import MockChatGenerator, OpenAIRespons
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.tools import flatten_tools_or_toolsets
 
-from haystack_integrations.agent_pack.evaluation import ModelPrice
+from haystack_integrations.agent_pack.evaluation import ModelPrice, RetrievalHarnessEvaluator
 from haystack_integrations.agent_pack.evaluation.dataclasses import EvalMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.optimization import (
     CandidateOutcome,
-    ConfigurationEditorToolset,
+    ConfigurationDraft,
     OptimizationObjectives,
     create_harness_optimizer_agent,
     propose_candidate,
@@ -23,9 +22,14 @@ from haystack_integrations.agent_pack.optimization.agent import (
     _render_outcomes,
     _summarized_metrics,
 )
-from haystack_integrations.agent_pack.optimization.utils import dump_pipeline, load_pipeline
+from haystack_integrations.agent_pack.optimization.utils import (
+    _configuration_id,
+    content_digest,
+    dump_pipeline,
+    load_pipeline,
+)
 
-from .test_tools import agent_yaml
+from .test_tools import AcceptEvaluator, agent_yaml, model_yaml, turn_start
 
 
 def outcome(passed, failures):
@@ -35,6 +39,19 @@ def outcome(passed, failures):
         "failures": failures,
         "recall": 1.0,
     }
+
+
+def latest_revision(messages, yaml):
+    """The revision the last successful edit returned, or the starting YAML's when nothing was edited yet."""
+    for message in reversed(messages):
+        result = message.tool_call_result
+        if result is not None and result.origin.tool_name == "edit_config" and not result.error:
+            return result.result
+    return content_digest(payload=yaml)
+
+
+def optimizer(llm, **kwargs):
+    return create_harness_optimizer_agent(evaluator=AcceptEvaluator(), llm=llm, **kwargs)
 
 
 def measured(quality, all_tokens_reported=True, details=None, **fields):
@@ -47,7 +64,7 @@ def measured(quality, all_tokens_reported=True, details=None, **fields):
 class TestCreateOptimizerAgent:
     def test_defaults_and_environment(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test")
-        agent = create_harness_optimizer_agent(additional_instructions="Keep the corpus.")
+        agent = create_harness_optimizer_agent(evaluator=AcceptEvaluator(), additional_instructions="Keep the corpus.")
         assert isinstance(agent.chat_generator, OpenAIResponsesChatGenerator)
         # Pinned so that changing what the search itself costs stays a deliberate decision.
         assert agent.chat_generator.model == "gpt-5.6-terra"
@@ -55,35 +72,41 @@ class TestCreateOptimizerAgent:
         assert agent.system_prompt.endswith("Keep the corpus.")
         assert agent.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}
 
-    def test_tools_and_exit_conditions(self, monkeypatch):
-        """The editing tools come from the editor passed for each run, so the agent holds only its own."""
+    def test_complete_agent(self, monkeypatch):
+        """Every tool the exit conditions name is the agent's own, along with the state those tools share."""
         monkeypatch.setenv("OPENAI_API_KEY", "test")
-        agent = create_harness_optimizer_agent()
-        assert [tool.name for tool in agent.tools] == ["inspect_component"]
+        agent = create_harness_optimizer_agent(evaluator=AcceptEvaluator())
+        assert [tool.name for tool in agent.tools] == [
+            "read_config",
+            "edit_config",
+            "validate_config",
+            "submit_candidate",
+            "restore_candidate",
+            "finish",
+            "inspect_component",
+        ]
         assert agent.exit_conditions == ["submit_candidate", "finish"]
-        assert agent.tool_concurrency_limit == 1
+        assert {"draft", "known", "submitted", "finish_reason", "validation_failures"} <= set(agent.state_schema)
 
     def test_run_directly(self):
-        """Called without `propose_candidate`, the agent edits whatever editor it is given."""
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
+        """Called without `propose_candidate`, the agent edits whatever draft it is given."""
+        draft, known = turn_start()
         calls = iter(
             [
                 ToolCall("read_config", {}, id="read"),
                 ToolCall("finish", {"reason": "nothing worth measuring"}, id="finish"),
             ]
         )
-        agent = create_harness_optimizer_agent(
+        agent = optimizer(
             llm=MockChatGenerator(response_fn=lambda _messages: ChatMessage.from_assistant(tool_calls=[next(calls)]))
         )
-        agent.run(messages=[ChatMessage.from_user("Propose the next candidate.")], tools=[editor, *agent.tools])
-        # The tools changed the editor that was passed in, not a copy of it
-        assert editor.finished
-        assert editor.finish_reason == "nothing worth measuring"
+        result = agent.run(messages=[ChatMessage.from_user("Propose the next candidate.")], draft=draft, known=known)
+        assert result["finish_reason"] == "nothing worth measuring"
 
     def test_editing_tools_run_in_call_order(self):
         """An edit and a validation requested in one step run in that order, so the validation sees the edit."""
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
-        revision = editor._read_config()["revision"]
+        draft, known = turn_start()
+        revision = draft.revision
         steps = iter(
             [
                 [
@@ -97,25 +120,28 @@ class TestCreateOptimizerAgent:
                 [ToolCall("finish", {"reason": "done"}, id="finish")],
             ]
         )
-        agent = create_harness_optimizer_agent(
+        agent = optimizer(
             llm=MockChatGenerator(response_fn=lambda _messages: ChatMessage.from_assistant(tool_calls=next(steps)))
         )
-        agent.run(messages=[ChatMessage.from_user("Propose the next candidate.")], tools=[editor, *agent.tools])
-        edited = editor._read_config()
-        assert "model: cheap" in edited["yaml"]
+        result = agent.run(messages=[ChatMessage.from_user("Propose the next candidate.")], draft=draft, known=known)
+        assert "model: cheap" in result["draft"].yaml
         # The validation ran after the edit, so it validated the edited revision
-        assert editor.validated_revision == edited["revision"]
+        assert result["draft"].validated_revision == result["draft"].revision
 
     def test_serialization_roundtrip(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test")
-        restored = Agent.from_dict(create_harness_optimizer_agent().to_dict())
-        assert [tool.name for tool in restored.tools][-1] == "inspect_component"
+        agent = create_harness_optimizer_agent(evaluator=RetrievalHarnessEvaluator(k=3), loader=load_pipeline)
+        restored = Agent.from_dict(agent.to_dict())
+        assert [tool.name for tool in restored.tools] == [tool.name for tool in agent.tools]
         assert restored.exit_conditions == ["submit_candidate", "finish"]
+        validate = restored.tools[2]
+        assert (validate.evaluator.k, validate.loader) == (3, load_pipeline)
+        assert restored.state_schema["draft"]["type"] is ConfigurationDraft
 
     def test_documentation_tools(self, monkeypatch):
         mcp = pytest.importorskip("haystack_integrations.tools.mcp")
         monkeypatch.setenv("OPENAI_API_KEY", "test")
-        agent = create_harness_optimizer_agent(documentation_tools=True)
+        agent = create_harness_optimizer_agent(evaluator=AcceptEvaluator(), documentation_tools=True)
         assert agent.tools[-2].name == "inspect_component"
         assert isinstance(agent.tools[-1], mcp.MCPToolset)
 
@@ -123,45 +149,41 @@ class TestCreateOptimizerAgent:
 class TestProposeCandidate:
     def test_repairs_yaml_before_submitting(self):
         reference = Agent(chat_generator=MockChatGenerator(model="reference"))
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml(reference))
+        reference_yaml = agent_yaml(reference)
         stage = iter(["break", "validate", "repair", "validate", "submit"])
 
-        def respond(_messages):
-            current = editor._read_config()
+        def respond(messages):
+            revision = latest_revision(messages=messages, yaml=reference_yaml)
             action = next(stage)
             if action in ("break", "repair"):
                 old, new = (
                     ("model: reference", "model: [broken") if action == "break" else ("model: [broken", "model: cheap")
                 )
-                call = ToolCall(
-                    "edit_config", {"old": old, "new": new, "expected_revision": current["revision"]}, id=action
-                )
+                call = ToolCall("edit_config", {"old": old, "new": new, "expected_revision": revision}, id=action)
             elif action == "validate":
                 call = ToolCall("validate_config", {}, id=action)
             else:
                 call = ToolCall(
                     "submit_candidate",
-                    {"expected_revision": current["revision"], "rationale": "reduce cost"},
+                    {"expected_revision": revision, "rationale": "reduce cost"},
                     id=action,
                 )
             return ChatMessage.from_assistant(tool_calls=[call])
 
         result = propose_candidate(
-            optimizer_agent=create_harness_optimizer_agent(llm=MockChatGenerator(response_fn=respond)),
-            editor=editor,
+            optimizer_agent=optimizer(llm=MockChatGenerator(response_fn=respond)),
             reference=reference,
+            reference_yaml=reference_yaml,
             prices={},
             objectives=OptimizationObjectives(quality_metric="quality"),
             baseline=measured(quality=1, durations=[1]),
             history=[],
         )
-        assert result is not None
-        assert "model: cheap" in result.yaml
-        assert len(editor.validation_failures) == 1
+        assert "model: cheap" in result.candidate.yaml
+        assert len(result.validation_failures) == 1
 
     def test_reports_remaining_measurements(self):
         """A submission costs a full pass over the evaluation set, so the budget has to be visible to economize."""
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
         seen = []
 
         def respond(messages):
@@ -169,10 +191,8 @@ class TestProposeCandidate:
             return ChatMessage.from_assistant("done")
 
         propose_candidate(
-            optimizer_agent=create_harness_optimizer_agent(
-                llm=MockChatGenerator(response_fn=respond), max_agent_steps=1
-            ),
-            editor=editor,
+            optimizer_agent=optimizer(llm=MockChatGenerator(response_fn=respond), max_agent_steps=1),
+            reference_yaml=agent_yaml(),
             reference=Agent(chat_generator=MockChatGenerator()),
             prices={},
             objectives=OptimizationObjectives(quality_metric="quality"),
@@ -188,7 +208,6 @@ class TestProposeCandidate:
 
     def test_only_the_latest_run_is_described_in_full(self):
         """On the first turn that is the reference; once a candidate has been measured, the reference is summarized."""
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
         baseline = measured(
             quality=0.5,
             durations=[1],
@@ -204,10 +223,8 @@ class TestProposeCandidate:
 
         def propose(history):
             propose_candidate(
-                optimizer_agent=create_harness_optimizer_agent(
-                    llm=MockChatGenerator(response_fn=respond), max_agent_steps=1
-                ),
-                editor=editor,
+                optimizer_agent=optimizer(llm=MockChatGenerator(response_fn=respond), max_agent_steps=1),
+                reference_yaml=agent_yaml(),
                 reference=Agent(chat_generator=MockChatGenerator()),
                 prices={"reference": ModelPrice(input_cost_per_million=0.25, output_cost_per_million=0.0)},
                 objectives=OptimizationObjectives(quality_metric="quality"),
@@ -225,85 +242,84 @@ class TestProposeCandidate:
         # The measurement itself is untouched; only what the request carries changes.
         assert baseline.eval_cases[0]["passed"] is True
 
-    def test_offers_the_editor_and_the_agents_own_tools(self):
-        """Tools passed to `Agent.run` replace the configured ones, so `propose_candidate` has to pass both."""
-        offered = []
+    def test_starts_from_the_base(self):
+        cheap = model_yaml("cheap")
+        cheap_id = _configuration_id(cheap)
+        seen = []
 
-        def respond(_messages, tools):
-            offered.append(sorted(tool.name for tool in flatten_tools_or_toolsets(tools)))
+        def respond(messages):
+            seen.append(messages[-1].text or "")
             return ChatMessage.from_assistant("done")
 
         propose_candidate(
-            optimizer_agent=create_harness_optimizer_agent(
-                llm=MockChatGenerator(response_fn=respond), max_agent_steps=1
-            ),
-            editor=ConfigurationEditorToolset(reference_yaml=agent_yaml()),
+            optimizer_agent=optimizer(llm=MockChatGenerator(response_fn=respond), max_agent_steps=1),
             reference=Agent(chat_generator=MockChatGenerator()),
+            reference_yaml=agent_yaml(),
             prices={},
             objectives=OptimizationObjectives(quality_metric="quality"),
             baseline=measured(quality=1, durations=[1]),
             history=[],
+            candidates={cheap_id: cheap},
+            base_id=cheap_id,
         )
-        assert offered == [
-            [
-                "edit_config",
-                "finish",
-                "inspect_component",
-                "read_config",
-                "restore_candidate",
-                "submit_candidate",
-                "validate_config",
-            ]
-        ]
+        assert f"edited from `{cheap_id}`" in seen[0]
+        assert "model: cheap" in seen[0]
+
+    def test_unknown_base(self):
+        with pytest.raises(ValueError, match="Unknown base"):
+            propose_candidate(
+                optimizer_agent=optimizer(llm=MockChatGenerator("done")),
+                reference=Agent(chat_generator=MockChatGenerator()),
+                reference_yaml=agent_yaml(),
+                prices={},
+                objectives=OptimizationObjectives(quality_metric="quality"),
+                baseline=measured(quality=1, durations=[1]),
+                history=[],
+                base_id="never-measured",
+            )
 
     def test_plain_text_does_not_submit(self):
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
         result = propose_candidate(
-            optimizer_agent=create_harness_optimizer_agent(llm=MockChatGenerator("done"), max_agent_steps=2),
-            editor=editor,
+            optimizer_agent=optimizer(llm=MockChatGenerator("done"), max_agent_steps=2),
+            reference_yaml=agent_yaml(),
             reference=Agent(chat_generator=MockChatGenerator()),
             prices={},
             objectives=OptimizationObjectives(quality_metric="quality"),
             baseline=measured(quality=1, durations=[1]),
             history=[],
         )
-        assert result is None
-        assert editor.submitted is None
+        assert result.candidate is None
+        assert result.finish_reason is None
 
     def test_failed_submission_allows_repair(self):
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
-        current = editor._read_config()
-        editor._edit_config("model: reference", "model: cheap", current["revision"])
-        steps = iter(["submit_candidate", "validate_config", "submit_candidate"])
+        reference_yaml = agent_yaml()
+        steps = iter(["edit_config", "submit_candidate", "validate_config", "submit_candidate"])
 
-        def respond(_messages):
+        def respond(messages):
             name = next(steps)
-            arguments = (
-                {}
-                if name == "validate_config"
-                else {
-                    "expected_revision": editor._read_config()["revision"],
-                    "rationale": "test validation gate",
-                }
-            )
+            revision = latest_revision(messages=messages, yaml=reference_yaml)
+            arguments = {
+                "edit_config": {"old": "model: reference", "new": "model: cheap", "expected_revision": revision},
+                "validate_config": {},
+                "submit_candidate": {"expected_revision": revision, "rationale": "test validation gate"},
+            }[name]
             return ChatMessage.from_assistant(tool_calls=[ToolCall(name, arguments, id=name)])
 
         result = propose_candidate(
-            optimizer_agent=create_harness_optimizer_agent(llm=MockChatGenerator(response_fn=respond)),
-            editor=editor,
+            optimizer_agent=optimizer(llm=MockChatGenerator(response_fn=respond)),
             reference=Agent(chat_generator=MockChatGenerator()),
+            reference_yaml=reference_yaml,
             prices={},
             objectives=OptimizationObjectives(quality_metric="quality"),
             baseline=measured(quality=1, durations=[1]),
             history=[],
         )
-        assert result is not None
+        assert result.candidate is not None
 
     def test_reference_without_tools(self):
         """A Pipeline that is not an Agent has no tools, and a heading over an empty list only costs cached prefix."""
         pipeline = Pipeline()
         pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=InMemoryDocumentStore()))
-        editor = ConfigurationEditorToolset(reference_yaml=dump_pipeline(pipeline), loader=load_pipeline)
         seen = []
 
         def respond(messages):
@@ -313,10 +329,13 @@ class TestProposeCandidate:
 
         propose_candidate(
             optimizer_agent=create_harness_optimizer_agent(
-                llm=MockChatGenerator(response_fn=respond), max_agent_steps=1
+                evaluator=AcceptEvaluator(),
+                llm=MockChatGenerator(response_fn=respond),
+                max_agent_steps=1,
+                loader=load_pipeline,
             ),
-            editor=editor,
             reference=pipeline,
+            reference_yaml=dump_pipeline(pipeline),
             prices={},
             objectives=OptimizationObjectives(quality_metric="quality"),
             baseline=measured(quality=1, durations=[1]),

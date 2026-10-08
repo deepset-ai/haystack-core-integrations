@@ -9,15 +9,21 @@ from haystack_integrations.agent_pack.optimization.agent import (
 from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateConfiguration,
     CandidateOutcome,
+    ConfigurationDraft,
+    KnownConfigurations,
     OptimizationObjectives,
+    ProposalResult,
 )
-from haystack_integrations.agent_pack.optimization.tools import ConfigurationEditorToolset
+from haystack_integrations.agent_pack.optimization.tools import ValidateConfig
 
 __all__ = [
     "CandidateConfiguration",
     "CandidateOutcome",
-    "ConfigurationEditorToolset",
+    "ConfigurationDraft",
+    "KnownConfigurations",
     "OptimizationObjectives",
+    "ProposalResult",
+    "ValidateConfig",
     "create_harness_optimizer_agent",
     "propose_candidate",
 ]

@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from statistics import median_low
 from typing import Any
 
-from haystack import Document, Pipeline, logging, tracing
+from haystack import Document, Pipeline, default_from_dict, default_to_dict, logging, tracing
 
 from .dataclasses import EvalMetrics, ModelTokenUsage, RetrievalEvalCase
 from .harness_log_collector import HarnessLogCollector
@@ -212,6 +212,30 @@ class RetrievalHarnessEvaluator:
         self.min_recall = min_recall
         self.min_precision = min_precision
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize the evaluator.
+
+        :returns: The evaluator's `type` and its settings.
+        """
+        return default_to_dict(
+            self,
+            k=self.k,
+            min_recall=self.min_recall,
+            min_precision=self.min_precision,
+            max_concurrent_eval_cases=self.max_concurrent_eval_cases,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RetrievalHarnessEvaluator":
+        """
+        Restore an evaluator from what `to_dict` returned.
+
+        :param data: The serialized evaluator.
+        :returns: The restored evaluator.
+        """
+        return default_from_dict(cls, data)
 
     def validate(self, target: Pipeline) -> None:
         """

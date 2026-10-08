@@ -8,16 +8,24 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.components.rankers import LLMRanker
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.core.errors import DeserializationError
+from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
+from haystack_integrations.agent_pack.evaluation import RetrievalHarnessEvaluator
+from haystack_integrations.agent_pack.optimization.dataclasses import ConfigurationDraft, KnownConfigurations
 from haystack_integrations.agent_pack.optimization.tools import (
-    ConfigurationEditorToolset,
+    ValidateConfig,
     _documentation_result,
     _make_haystack_documentation_toolset,
+    edit_config,
+    finish,
     inspect_component,
+    read_config,
+    restore_candidate,
+    submit_candidate,
 )
-from haystack_integrations.agent_pack.optimization.utils import _configuration_id, load_agent
+from haystack_integrations.agent_pack.optimization.utils import _configuration_id, load_agent, load_pipeline
 
 
 def agent_yaml(agent=None):
@@ -28,6 +36,46 @@ def agent_yaml(agent=None):
 
 def model_yaml(model):
     return agent_yaml(Agent(chat_generator=MockChatGenerator(model=model)))
+
+
+class AcceptEvaluator:
+    """A harness evaluator whose check accepts every configuration."""
+
+    def validate(self, target):
+        pass
+
+    def to_dict(self):
+        return default_to_dict(self)
+
+    @classmethod
+    def from_dict(cls, data):
+        return default_from_dict(cls, data)
+
+
+class OnlyCheapEvaluator(AcceptEvaluator):
+    """A harness evaluator whose check rejects every model but `cheap`."""
+
+    def validate(self, target):
+        if target.chat_generator.model != "cheap":
+            msg = "Only the cheap model is allowed."
+            raise ValueError(msg)
+
+
+def turn_start(yaml=None, candidates=None, base_id=None):
+    """The draft and known configurations a turn starts from, as `propose_candidate` builds them."""
+    yaml = yaml or agent_yaml()
+    reference_id = _configuration_id(yaml)
+    known = KnownConfigurations(reference_id=reference_id, yaml_by_id={reference_id: yaml, **(candidates or {})})
+    parent_id = base_id or reference_id
+    return ConfigurationDraft(yaml=known.yaml_by_id[parent_id], parent_id=parent_id), known
+
+
+def edited(draft, old, new):
+    return edit_config.function(old=old, new=new, expected_revision=draft.revision, draft=draft)["draft"]
+
+
+def validated(draft, evaluator=None):
+    return ValidateConfig(evaluator=evaluator or AcceptEvaluator()).function(draft=draft)["draft"]
 
 
 def docs_payload(**body):
@@ -104,40 +152,71 @@ class TestInspectComponent:
         assert inspect_component.name == "inspect_component"
 
 
-class TestEditorEdits:
-    def test_requires_unique_match_and_revision(self):
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
-        original = editor._read_config()
+class TestReadConfig:
+    def test_returns_the_draft(self):
+        draft, _ = turn_start()
+        assert read_config.function(draft=draft) == {
+            "yaml": draft.yaml,
+            "revision": draft.revision,
+            "parent_id": draft.parent_id,
+        }
+
+
+class TestEditConfig:
+    def test_requires_unique_match_and_current_revision(self):
+        draft, _ = turn_start()
         with pytest.raises(ValueError, match="exactly once"):
-            editor._edit_config("", "x", original["revision"])
-        changed = editor._edit_config("model: reference", "model: cheap", original["revision"])
+            edit_config.function(old="", new="x", expected_revision=draft.revision, draft=draft)
+        changed = edited(draft, "model: reference", "model: cheap")
+        assert "model: cheap" in changed.yaml
         with pytest.raises(ValueError, match="Stale"):
-            editor._edit_config("model: cheap", "model: other", original["revision"])
-        assert changed["revision"] != original["revision"]
-        assert editor._validate_config()["valid"]
-        editor._submit_candidate(changed["revision"], "cheaper model")
-        assert load_agent(editor.submitted.yaml).chat_generator.model == "cheap"
+            edit_config.function(
+                old="model: cheap", new="model: other", expected_revision=draft.revision, draft=changed
+            )
 
-    def test_revalidates_on_every_edit(self):
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
-        revision = editor._read_config()["revision"]
-        changed = editor._edit_config("model: reference", "model: [broken", revision)
-        assert editor._validate_config()["valid"] is False
-        with pytest.raises(ValueError, match="Validate"):
-            editor._submit_candidate(changed["revision"], "broken")
-        repaired = editor._edit_config("model: [broken", "model: cheap", changed["revision"])
-        assert editor._validate_config()["valid"]
-        editor._edit_config("model: cheap", "model: other", repaired["revision"])
-        with pytest.raises(ValueError, match="Validate"):
-            editor._submit_candidate(repaired["revision"], "stale validation")
+    def test_clears_the_validation(self):
+        draft = validated(turn_start()[0])
+        assert draft.validated_revision == draft.revision
+        assert edited(draft, "model: reference", "model: cheap").validated_revision is None
 
-    def test_turn_ends_on_submit(self):
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml())
-        changed = editor._edit_config("model: reference", "model: cheap", editor._read_config()["revision"])
-        editor._validate_config()
-        editor._submit_candidate(changed["revision"], "cheaper model")
-        with pytest.raises(ValueError, match="has ended"):
-            editor._edit_config("model: cheap", "model: other", changed["revision"])
+
+class TestValidateConfig:
+    def test_records_the_valid_revision(self):
+        draft, _ = turn_start()
+        result = ValidateConfig(evaluator=AcceptEvaluator()).function(draft=draft)
+        assert result["result"] == {"valid": True, "revision": draft.revision, "tools": []}
+        assert result["draft"].validated_revision == draft.revision
+        assert result["validation_failures"] == []
+
+    def test_records_a_failure(self):
+        draft = edited(turn_start()[0], "model: reference", "model: [broken")
+        result = ValidateConfig(evaluator=AcceptEvaluator()).function(draft=draft)
+        assert result["result"]["valid"] is False
+        assert result["draft"].validated_revision is None
+        assert result["validation_failures"] == [{"revision": draft.revision, "error": result["result"]["error"]}]
+
+    def test_runs_the_evaluators_check(self):
+        validate = ValidateConfig(evaluator=OnlyCheapEvaluator())
+        draft, _ = turn_start()
+        assert validate.function(draft=draft)["result"]["error"] == "ValueError: Only the cheap model is allowed."
+        cheap = edited(draft, "model: reference", "model: cheap")
+        assert validate.function(draft=cheap)["result"]["valid"] is True
+
+    def test_requires_a_serializable_evaluator(self):
+        class Unserializable:
+            def validate(self, target):
+                pass
+
+        with pytest.raises(TypeError, match="to_dict, from_dict"):
+            ValidateConfig(evaluator=Unserializable())
+
+    def test_serialization_roundtrip(self):
+        restored = ValidateConfig.from_dict(
+            ValidateConfig(evaluator=RetrievalHarnessEvaluator(k=3), loader=load_pipeline).to_dict()
+        )
+        assert isinstance(restored.evaluator, RetrievalHarnessEvaluator)
+        assert restored.evaluator.k == 3
+        assert restored.loader is load_pipeline
 
     def test_replacing_a_retriever_and_repairing_it(self):
         store = InMemoryDocumentStore()
@@ -149,7 +228,7 @@ class TestEditorEdits:
             llm=MockChatGenerator("ok"),
             backup_answer_llm=MockChatGenerator("ok"),
         )
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml(reference))
+        draft, _ = turn_start(yaml=agent_yaml(reference))
         pipeline = Pipeline()
         pipeline.add_component("bm25", InMemoryBM25Retriever(document_store=store, top_k=20))
         pipeline.add_component(
@@ -169,55 +248,84 @@ class TestEditorEdits:
             backup_answer_llm=MockChatGenerator("ok"),
         )
         proposed = agent_yaml(upgraded)
-        current = editor._read_config()
-        changed = editor._edit_config(
-            current["yaml"], proposed.replace("ranker.documents", "ranker.missing"), current["revision"]
-        )
-        assert not editor._validate_config()["valid"]
-        current = editor._read_config()
-        changed = editor._edit_config(current["yaml"], proposed, changed["revision"])
-        assert editor._validate_config()["valid"]
-        editor._submit_candidate(changed["revision"], "retrieve more, rerank to three")
-        tool = load_agent(editor.submitted.yaml).tools[-1]
+        broken = validated(edited(draft, draft.yaml, proposed.replace("ranker.documents", "ranker.missing")))
+        assert broken.validated_revision is None
+        repaired = validated(edited(broken, broken.yaml, proposed))
+        assert repaired.validated_revision == repaired.revision
+        tool = load_agent(repaired.yaml).tools[-1]
         assert tool.invoke(query="Berlin")["documents"][0].id == document.id
         assert tool.outputs_to_state["documents"]["source"] == "documents"
 
 
-class TestEditorEarlierCandidates:
-    def test_starts_from_the_base(self):
-        cheap = model_yaml("cheap")
-        cheap_id = _configuration_id(cheap)
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml(), candidates={cheap_id: cheap}, base_id=cheap_id)
-        assert editor._read_config() == {**editor._read_config(), "yaml": cheap, "parent_id": cheap_id}
+class TestSubmitCandidate:
+    def test_requires_the_current_revision_to_be_validated(self):
+        draft, known = turn_start()
+        changed = edited(draft, "model: reference", "model: cheap")
+        with pytest.raises(ValueError, match="Validate"):
+            submit_candidate.function(expected_revision=changed.revision, rationale="r", draft=changed, known=known)
 
-    def test_unknown_base(self):
-        with pytest.raises(ValueError, match="Unknown base"):
-            ConfigurationEditorToolset(reference_yaml=agent_yaml(), base_id="never-measured")
+    def test_submits_with_its_parent_and_diff(self):
+        draft, known = turn_start()
+        changed = validated(edited(draft, "model: reference", "model: cheap"))
+        submitted = submit_candidate.function(
+            expected_revision=changed.revision, rationale="cheaper model", draft=changed, known=known
+        )["submitted"]
+        assert submitted.parent_id == known.reference_id
+        assert submitted.rationale == "cheaper model"
+        assert "+          model: cheap" in submitted.diff
+        assert load_agent(submitted.yaml).chat_generator.model == "cheap"
 
-    def test_restore_and_refuse_duplicates(self):
+    def test_refuses_known_configurations(self):
         cheap = model_yaml("cheap")
-        cheap_id = _configuration_id(cheap)
-        editor = ConfigurationEditorToolset(reference_yaml=agent_yaml(), candidates={cheap_id: cheap}, base_id=cheap_id)
-        restored = editor._restore_candidate("reference", editor._read_config()["revision"])
-        assert editor.parent_id == editor.reference_id
-        assert "model: reference" in editor._read_config()["yaml"]
-        # A formatting-only change is the same configuration
-        text = editor._read_config()["yaml"]
-        changed = editor._edit_config(text, "# comment\n" + text, restored["revision"])
-        editor._validate_config()
+        draft, known = turn_start(candidates={_configuration_id(cheap): cheap})
+        # A formatting-only change is the same configuration as the reference
+        commented = validated(edited(draft, draft.yaml, "# comment\n" + draft.yaml))
         with pytest.raises(ValueError, match="duplicate_or_no_op"):
-            editor._submit_candidate(changed["revision"], "same config")
+            submit_candidate.function(expected_revision=commented.revision, rationale="r", draft=commented, known=known)
         # So is a candidate submitted on an earlier turn
-        restored = editor._restore_candidate(cheap_id, changed["revision"])
-        editor._validate_config()
+        again = validated(edited(draft, "model: reference", "model: cheap"))
         with pytest.raises(ValueError, match="duplicate_or_no_op"):
-            editor._submit_candidate(restored["revision"], "resubmitted")
+            submit_candidate.function(expected_revision=again.revision, rationale="r", draft=again, known=known)
 
 
-class TestEditorTools:
+class TestRestoreCandidate:
+    def test_restores_the_reference_and_earlier_candidates(self):
+        cheap = model_yaml("cheap")
+        cheap_id = _configuration_id(cheap)
+        draft, known = turn_start(candidates={cheap_id: cheap}, base_id=cheap_id)
+        restored = restore_candidate.function(
+            candidate_id="reference", expected_revision=draft.revision, draft=draft, known=known
+        )["draft"]
+        assert (restored.yaml, restored.parent_id) == (known.yaml_by_id[known.reference_id], known.reference_id)
+        back = restore_candidate.function(
+            candidate_id=cheap_id, expected_revision=restored.revision, draft=restored, known=known
+        )["draft"]
+        assert (back.yaml, back.parent_id) == (cheap, cheap_id)
+
+    def test_unknown_candidate(self):
+        draft, known = turn_start()
+        with pytest.raises(ValueError, match="Unknown candidate"):
+            restore_candidate.function(candidate_id="nope", expected_revision=draft.revision, draft=draft, known=known)
+
+
+class TestFinish:
+    def test_records_the_reason(self):
+        assert finish.function(reason="nothing left")["finish_reason"] == "nothing left"
+
+
+class TestEditingTools:
+    TOOLS = (
+        read_config,
+        edit_config,
+        ValidateConfig(evaluator=AcceptEvaluator()),
+        submit_candidate,
+        restore_candidate,
+        finish,
+    )
+
     def test_tool_names(self):
         """The system prompt refers to the tools by these names."""
-        assert [tool.name for tool in ConfigurationEditorToolset(reference_yaml=agent_yaml())] == [
+        assert [tool.name for tool in self.TOOLS] == [
             "read_config",
             "edit_config",
             "validate_config",
@@ -226,10 +334,10 @@ class TestEditorTools:
             "finish",
         ]
 
-    def test_methods_are_bound(self):
-        """The tools are the editor's own methods, so the optimizer never sees `self`."""
-        for editing_tool in ConfigurationEditorToolset(reference_yaml=agent_yaml()):
-            assert "self" not in editing_tool.parameters.get("properties", {})
+    def test_state_is_never_shown(self):
+        """The draft and known configurations come from the agent's state, so the optimizer never passes them."""
+        for editing_tool in self.TOOLS:
+            assert not {"draft", "known"} & set(editing_tool.parameters.get("properties", {}))
 
     def test_every_parameter_is_described(self):
         """
@@ -238,7 +346,7 @@ class TestEditorTools:
         """
         described = {
             f"{editing_tool.name}.{name}": specification.get("description")
-            for editing_tool in ConfigurationEditorToolset(reference_yaml=agent_yaml())
+            for editing_tool in self.TOOLS
             for name, specification in editing_tool.parameters.get("properties", {}).items()
         }
         assert described
