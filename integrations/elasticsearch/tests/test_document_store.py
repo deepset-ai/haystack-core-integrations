@@ -1445,6 +1445,20 @@ class TestDocumentStore(
 
         assert [doc.meta["date"] for doc in result] == ["2021-09-01"]
 
+    def test_filter_documents_equal_with_list_matches_exact_set(self, document_store: ElasticsearchDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="exact", meta={"tags": ["a", "b"]}),
+                Document(content="exact, other order", meta={"tags": ["b", "a"]}),
+                Document(content="subset", meta={"tags": ["a"]}),
+                Document(content="superset", meta={"tags": ["a", "b", "c"]}),
+            ]
+        )
+
+        result = document_store.filter_documents(filters={"field": "meta.tags", "operator": "==", "value": ["a", "b"]})
+
+        assert sorted(doc.content for doc in result) == ["exact", "exact, other order"]
+
 
 def test_hybrid_retrieval_inference_builds_body_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
