@@ -40,34 +40,29 @@ def _convert_stackit_completion_to_chat_message(completion: ChatCompletion, choi
     )
 
 
-def _convert_chunk(
+def _convert_stackit_chunk_to_streaming_chunk(
     chunk: ChatCompletionChunk, previous_chunks: list[StreamingChunk], component_info: ComponentInfo | None = None
-) -> list[StreamingChunk]:
-    converted = _convert_chat_completion_chunk_to_streaming_chunk(
+) -> StreamingChunk:
+    streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
         chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
     )
     reasoning = _get_reasoning(chunk.choices[0].delta) if chunk.choices else None
     if reasoning:
-        reasoning_chunk = replace(
-            converted,
-            content="",
-            tool_calls=[],
+        return replace(
+            streaming_chunk,
             reasoning=reasoning,
             index=0,
             start=not any(previous.reasoning for previous in previous_chunks),
         )
-        if not converted.content and not converted.tool_calls:
-            return [reasoning_chunk]
-        # A StreamingChunk holds one payload; keep finish and usage on the final chunk.
-        reasoning_chunk = replace(
-            reasoning_chunk,
-            finish_reason=None,
-            meta={**reasoning_chunk.meta, "finish_reason": None, "usage": None},
+
+    # Text after reasoning belongs to a separate content block.
+    if streaming_chunk.content and any(previous.reasoning for previous in previous_chunks):
+        return replace(
+            streaming_chunk,
+            index=1,
+            start=not any(previous.content for previous in previous_chunks),
         )
-        previous_chunks = [*previous_chunks, reasoning_chunk]
-    if converted.content and not converted.tool_calls and any(previous.reasoning for previous in previous_chunks):
-        converted = replace(converted, start=not any(previous.content for previous in previous_chunks))
-    return [reasoning_chunk, converted] if reasoning else [converted]
+    return streaming_chunk
 
 
 @component
@@ -220,9 +215,11 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         chunks: list[StreamingChunk] = []
         for chunk in chat_completion:
             assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."
-            for chunk_delta in _convert_chunk(chunk=chunk, previous_chunks=chunks, component_info=component_info):
-                chunks.append(chunk_delta)
-                callback(chunk_delta)
+            chunk_delta = _convert_stackit_chunk_to_streaming_chunk(
+                chunk=chunk, previous_chunks=chunks, component_info=component_info
+            )
+            chunks.append(chunk_delta)
+            callback(chunk_delta)
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     async def _handle_async_stream_response(
@@ -233,12 +230,14 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         try:
             async for chunk in chat_completion:
                 assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."
-                for chunk_delta in _convert_chunk(chunk=chunk, previous_chunks=chunks, component_info=component_info):
-                    chunks.append(chunk_delta)
-                    # Equivalent to the core helper, which is unavailable in Haystack 2.22.
-                    result = callback(chunk_delta)
-                    if inspect.isawaitable(result):
-                        await result
+                chunk_delta = _convert_stackit_chunk_to_streaming_chunk(
+                    chunk=chunk, previous_chunks=chunks, component_info=component_info
+                )
+                chunks.append(chunk_delta)
+                # Equivalent to the core helper, which is unavailable in Haystack 2.22.
+                result = callback(chunk_delta)
+                if inspect.isawaitable(result):
+                    await result
 
         except asyncio.CancelledError:
             await asyncio.shield(chat_completion.close())

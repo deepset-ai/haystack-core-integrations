@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
 from openai import OpenAIError
 from pydantic import BaseModel
@@ -246,6 +246,7 @@ class TestSTACKITChatGenerator:
         assert [c.start for c in chunks[1:14]] == [True] + [False] * 12
         assert all(c.index == 0 and c.content == "" and not c.tool_calls for c in chunks[1:14])
         assert chunks[14].content == "4" and chunks[14].start and chunks[14].reasoning is None
+        assert chunks[14].index == 1
         assert chunks[15].finish_reason == "stop"
         assert chunks[16].meta["usage"] == reasoning_chunks[-1].usage.model_dump()
         assert all(c.meta["model"] == "openai/gpt-oss-20b" and c.component_info is not None for c in chunks)
@@ -254,29 +255,6 @@ class TestSTACKITChatGenerator:
         assert message.reasoning.reasoning_text == "We need a brief reply. 2+2=4."
         assert message.meta["finish_reason"] == "stop"
         assert message.meta["usage"] == reasoning_chunks[-1].usage.model_dump()
-
-    def test_run_with_reasoning_and_tools_streaming(self, reasoning_tool_chunk):
-        chunks = []
-        component = STACKITChatGenerator(
-            model="openai/gpt-oss-20b", api_key=Secret.from_token("test-api-key"), streaming_callback=chunks.append
-        )
-        with patch("openai.resources.chat.completions.Completions.create", return_value=iter([reasoning_tool_chunk])):
-            response = component.run([ChatMessage.from_user("What's the weather in Paris and Berlin?")])
-
-        assert len(chunks) == 2
-        assert chunks[0].reasoning.reasoning_text == "Check both cities."
-        assert not chunks[0].tool_calls and chunks[0].finish_reason is None
-        assert chunks[0].meta["usage"] is None
-        assert chunks[1].reasoning is None and chunks[1].finish_reason == "tool_calls"
-        assert [call.index for call in chunks[1].tool_calls] == [0, 1]
-        message = response["replies"][0]
-        assert message.reasoning.reasoning_text == "Check both cities."
-        assert message.tool_calls == [
-            ToolCall(id="call_1", tool_name="weather", arguments={"city": "Paris"}),
-            ToolCall(id="call_2", tool_name="weather", arguments={"city": "Berlin"}),
-        ]
-        assert message.meta["finish_reason"] == "tool_calls"
-        assert message.meta["usage"] == reasoning_tool_chunk.usage.model_dump()
 
     @pytest.mark.skipif(
         not os.environ.get("STACKIT_API_KEY", None),

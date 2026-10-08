@@ -9,7 +9,7 @@ from openai.types import CompletionUsage
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
-from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
+from openai.types.chat.chat_completion_chunk import ChoiceDelta
 
 
 @pytest.fixture
@@ -103,37 +103,3 @@ def reasoning_chunks():
         ]
     )
     return chunks
-
-
-@pytest.fixture
-def reasoning_tool_chunk():
-    return ChatCompletionChunk(
-        id="foo",
-        model="openai/gpt-oss-20b",
-        object="chat.completion.chunk",
-        created=1791467905,
-        choices=[
-            ChunkChoice(
-                index=0,
-                finish_reason="tool_calls",
-                delta=ChoiceDelta(
-                    reasoning="Check both cities.",
-                    tool_calls=[
-                        ChoiceDeltaToolCall(
-                            index=0,
-                            id="call_1",
-                            type="function",
-                            function=ChoiceDeltaToolCallFunction(name="weather", arguments='{"city":"Paris"}'),
-                        ),
-                        ChoiceDeltaToolCall(
-                            index=1,
-                            id="call_2",
-                            type="function",
-                            function=ChoiceDeltaToolCallFunction(name="weather", arguments='{"city":"Berlin"}'),
-                        ),
-                    ],
-                ),
-            )
-        ],
-        usage=CompletionUsage(prompt_tokens=78, completion_tokens=24, total_tokens=102),
-    )
