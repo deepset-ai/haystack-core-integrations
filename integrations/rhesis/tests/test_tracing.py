@@ -2,23 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-End-to-end tests against a live Rhesis backend.
-
-The exporter logs and swallows every failure (bad key, wrong URL, rejected payload), so a run that
-completes proves nothing. These tests read each trace back from the Rhesis API and assert on what
-the backend actually stored.
-"""
-
 import os
 import time
 import uuid
-from collections.abc import Iterator
+from importlib.metadata import version
 from typing import Any
 
 import pytest
 import requests
 from haystack import Pipeline, component
+from haystack.components.agents import Agent
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.tools import Tool
@@ -28,16 +21,7 @@ from rhesis.telemetry.constants import ConversationContext
 from haystack_integrations.components.connectors.rhesis import RhesisConnector
 from haystack_integrations.tracing.rhesis import DEFAULT_TURN_SPAN_NAME, RhesisTracing, rhesis_invocation_context
 
-RHESIS_CLOUD_URL = "https://api.rhesis.ai"
-
-# Ingestion is acknowledged before post-processing, so a trace can take a moment to become readable.
-TRACE_POLL_TIMEOUT_S = 60
-TRACE_POLL_INTERVAL_S = 2
-
-requires_api_key = pytest.mark.skipif(
-    not os.environ.get("RHESIS_API_KEY"),
-    reason="Missing required environment variable: RHESIS_API_KEY",
-)
+BASE_URL = os.environ.get("RHESIS_BASE_URL", "https://api.rhesis.ai")
 
 
 @component
@@ -70,7 +54,12 @@ class ScriptedChatGenerator:
 
 
 class RhesisAPI:
-    """Reads traces back through the same API the Rhesis UI uses."""
+    """
+    Reads traces back from Rhesis.
+
+    The exporter only logs failed exports, so a pipeline run completing proves nothing; the tests
+    assert on what the backend actually stored.
+    """
 
     def __init__(self, base_url: str, api_key: str) -> None:
         self.base_url = base_url.rstrip("/")
@@ -89,16 +78,11 @@ class RhesisAPI:
         The detail endpoint requires a `project_id`. A project-scoped key (the only kind that can
         ingest without one) scopes the list endpoint to its project, so the summary supplies it.
         """
-        deadline = time.monotonic() + TRACE_POLL_TIMEOUT_S
-        while True:
-            traces = self.list_traces(search=trace_id, limit=10)
-            summary = next((t for t in traces if t["trace_id"] == trace_id), None)
-            if summary is not None:
-                break
-            if time.monotonic() > deadline:
-                msg = f"Trace {trace_id} did not appear in Rhesis within {TRACE_POLL_TIMEOUT_S}s"
-                raise AssertionError(msg)
-            time.sleep(TRACE_POLL_INTERVAL_S)
+        # Ingestion is acknowledged before the trace is queryable.
+        deadline = time.monotonic() + 60
+        while not (summary := next((t for t in self.list_traces(search=trace_id) if t["trace_id"] == trace_id), None)):
+            assert time.monotonic() < deadline, f"Trace {trace_id} did not appear in Rhesis within 60s"
+            time.sleep(2)
 
         response = self._session.get(
             f"{self.base_url}/telemetry/traces/{trace_id}", params={"project_id": summary["project_id"]}, timeout=30
@@ -107,24 +91,17 @@ class RhesisAPI:
         return response.json()
 
 
-def _walk(spans: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
+def _spans_named(spans: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:
+    """Return every span called `name` in a span tree, at any depth."""
+    found = [span for span in spans if span["span_name"] == name]
     for span in spans:
-        yield span
-        yield from _walk(span.get("children", []))
-
-
-def _spans_named(trace: dict[str, Any], name: str) -> list[dict[str, Any]]:
-    return [span for span in _walk(trace["root_spans"]) if span["span_name"] == name]
+        found += _spans_named(span["children"], name)
+    return found
 
 
 @pytest.fixture
-def base_url() -> str:
-    return os.environ.get("RHESIS_BASE_URL") or RHESIS_CLOUD_URL
-
-
-@pytest.fixture
-def rhesis_api(base_url) -> RhesisAPI:
-    return RhesisAPI(base_url, os.environ["RHESIS_API_KEY"])
+def rhesis_api() -> RhesisAPI:
+    return RhesisAPI(BASE_URL, os.environ["RHESIS_API_KEY"])
 
 
 @pytest.fixture
@@ -133,14 +110,14 @@ def environment() -> str:
     return f"haystack-it-{uuid.uuid4().hex[:8]}"
 
 
-@requires_api_key
+@pytest.mark.skipif(not os.environ.get("RHESIS_API_KEY"), reason="RHESIS_API_KEY is not set")
 @pytest.mark.integration
 class TestLiveBackend:
-    def test_pipeline_trace_is_stored(self, rhesis_api, base_url, environment):
+    def test_pipeline_trace_is_stored(self, rhesis_api, environment):
         session_id = f"sess-{uuid.uuid4().hex}"
 
         pipe = Pipeline()
-        pipe.add_component("tracer", RhesisConnector("Chat example", base_url=base_url, environment=environment))
+        pipe.add_component("tracer", RhesisConnector("Chat example", base_url=BASE_URL, environment=environment))
         pipe.add_component("prompt_builder", ChatPromptBuilder())
         pipe.add_component("llm", StubChatGenerator())
         pipe.connect("prompt_builder.prompt", "llm.messages")
@@ -154,10 +131,7 @@ class TestLiveBackend:
                 "tracer": {"invocation_context": {"session_id": session_id}},
             }
         )
-        trace_id = response["tracer"]["trace_id"]
-        assert len(trace_id) == 32
-
-        trace = rhesis_api.get_trace(trace_id)
+        trace = rhesis_api.get_trace(response["tracer"]["trace_id"])
 
         assert trace["environment"] == environment
         assert trace["error_count"] == 0
@@ -174,17 +148,15 @@ class TestLiveBackend:
         # never appears in the pipeline's own input, which is all the tracer reads it from.
         assert root["attributes"][attrs.CONVERSATION_OUTPUT] == "Berlin is the capital of Germany."
 
-        [llm] = _spans_named(trace, "ai.llm.invoke")
+        [llm] = _spans_named(trace["root_spans"], "ai.llm.invoke")
         assert llm["attributes"][AIAttributes.MODEL_NAME] == "stub-model"
         assert llm["attributes"][AIAttributes.LLM_TOKENS_TOTAL] == 20
 
-    def test_standalone_agent_trace_is_stored(self, rhesis_api, base_url, environment):
-        pytest.importorskip(
-            "haystack.components.agents.tool_calling",
-            reason="haystack-ai < 3.0 does not emit the agent-loop spans this asserts",
-        )
-        from haystack.components.agents import Agent  # noqa: PLC0415
-
+    @pytest.mark.skipif(
+        int(version("haystack-ai").split(".")[0]) < 3,
+        reason="Requires agent-loop tracing spans introduced in Haystack 3.0",
+    )
+    def test_standalone_agent_trace_is_stored(self, rhesis_api, environment):
         def echo(text: str) -> str:
             return text
 
@@ -208,7 +180,7 @@ class TestLiveBackend:
             max_agent_steps=5,
         )
         # Constructing the connector installs the tracer; the agent runs without a pipeline.
-        connector = RhesisConnector("Agent example", base_url=base_url, environment=environment)
+        connector = RhesisConnector("Agent example", base_url=BASE_URL, environment=environment)
         session_id = f"sess-{uuid.uuid4().hex}"
 
         with rhesis_invocation_context({"session_id": session_id}):
@@ -217,20 +189,20 @@ class TestLiveBackend:
 
         # Without a pipeline there is no connector output to read the trace ID from, and the root
         # span is already closed; the per-test environment identifies the trace instead.
-        [summary] = rhesis_api.list_traces(environment=environment, limit=10)
+        [summary] = rhesis_api.list_traces(environment=environment)
         trace = rhesis_api.get_trace(summary["trace_id"])
 
         [root] = trace["root_spans"]
         assert root["span_name"] == "ai.agent.invoke"
         assert root["attributes"][AIAttributes.SESSION_ID] == session_id
-        assert len(_spans_named(trace, "ai.llm.invoke")) == 2
-        assert len(_spans_named(trace, "ai.tool.invoke")) == 1
+        assert len(_spans_named(trace["root_spans"], "ai.llm.invoke")) == 2
+        assert len(_spans_named(trace["root_spans"], "ai.tool.invoke")) == 1
 
-    def test_conversation_turns_share_one_trace(self, rhesis_api, base_url, environment):
+    def test_conversation_turns_share_one_trace(self, rhesis_api, environment):
         pipe = Pipeline()
         pipe.add_component("llm", StubChatGenerator())
 
-        tracing = RhesisTracing("Conversation example", base_url=base_url, environment=environment)
+        tracing = RhesisTracing("Conversation example", base_url=BASE_URL, environment=environment)
         assert tracing.enabled
         conversation_id = f"conv-{uuid.uuid4().hex}"
         tracing.start_conversation(conversation_id)
@@ -247,7 +219,7 @@ class TestLiveBackend:
         trace = rhesis_api.get_trace(trace_id)
 
         assert trace["conversation_id"] == conversation_id
-        turns = _spans_named(trace, DEFAULT_TURN_SPAN_NAME)
+        turns = _spans_named(trace["root_spans"], DEFAULT_TURN_SPAN_NAME)
         attrs = ConversationContext.SpanAttributes
         assert sorted(t["attributes"][attrs.CONVERSATION_INPUT] for t in turns) == ["Hello", "Tell me more"]
-        assert len(_spans_named(trace, "function.haystack.pipeline.run")) == 2
+        assert len(_spans_named(trace["root_spans"], "function.haystack.pipeline.run")) == 2
