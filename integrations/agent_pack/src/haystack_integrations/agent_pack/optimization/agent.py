@@ -29,6 +29,7 @@ from haystack_integrations.agent_pack.optimization.tools import (
     _make_haystack_documentation_toolset,
     inspect_component,
 )
+from haystack_integrations.agent_pack.optimization.utils import content_digest
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,9 @@ def create_harness_optimizer_agent(
         system_prompt=instructions,
         exit_conditions=["submit_candidate", "finish"],
         max_agent_steps=max_agent_steps,
+        # The editing tools assume the calls in one step run in the order they were made, e.g. an edit before the
+        # validation that checks it, so they run one at a time
+        tool_concurrency_limit=1,
     )
 
 
@@ -279,7 +283,8 @@ def propose_candidate(
     """
     Let the optimizer edit, validate and submit one YAML candidate.
 
-    :param optimizer_agent: The agent from `create_harness_optimizer_agent`.
+    :param optimizer_agent: The agent from `create_harness_optimizer_agent`. Any other agent needs
+        `tool_concurrency_limit=1`, so the editor's tools run one at a time in the order they were called.
     :param editor: This turn's editor, holding the configuration the edits start from.
     :param reference: Reference configuration supplying tool specifications, when it has any.
     :param prices: Known token prices keyed by model identifier.
@@ -291,8 +296,6 @@ def propose_candidate(
         to the optimizer as its budget, or as unknown when None.
     :returns: Submitted snapshot, or None after finish or exhaustion of the proposal step budget.
     """
-    configuration = editor._read_config()
-
     # The three messages go from least to most often changing, so each turn reuses as much of the prompt cache as
     # possible.
 
@@ -338,9 +341,9 @@ def propose_candidate(
             ),
             _section(
                 title="Candidate YAML",
-                body=f"revision `{configuration['revision']}`, edited from `{configuration['parent_id'][:12]}`\n\n"
+                body=f"revision `{content_digest(payload=editor.text)}`, edited from `{editor.parent_id[:12]}`\n\n"
                 # Shown verbatim, since the editing tools match against this exact text
-                + _fenced(text=configuration["yaml"], language="yaml"),
+                + _fenced(text=editor.text, language="yaml"),
             ),
         ]
     )

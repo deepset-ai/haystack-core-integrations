@@ -62,6 +62,7 @@ class TestCreateOptimizerAgent:
         agent = create_harness_optimizer_agent()
         assert [tool.name for tool in agent.tools] == ["inspect_component"]
         assert agent.exit_conditions == ["submit_candidate", "finish"]
+        assert agent.tool_concurrency_limit == 1
 
     def test_run_directly(self):
         """Called without `propose_candidate`, the agent edits whatever editor it is given."""
