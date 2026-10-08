@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from typing import Any
 from urllib.parse import urlparse
 
@@ -77,6 +78,8 @@ class SerperDevWebSearch:
         self.allowed_domains = allowed_domains
         self.exclude_subdomains = exclude_subdomains
         self.search_params = search_params or {}
+        base_url = os.getenv("SERPERDEV_BASE_URL")
+        self._api_url = f"{base_url.rstrip('/')}/search" if base_url else SERPERDEV_BASE_URL
 
         # Ensure that the API key is resolved.
         _ = self.api_key.resolve_value()
@@ -154,7 +157,7 @@ class SerperDevWebSearch:
         """
         payload, headers = self._prepare_request(query)
         try:
-            response = httpx.post(SERPERDEV_BASE_URL, headers=headers, json=payload, timeout=30)
+            response = httpx.post(self._api_url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()  # Will raise an HTTPError for bad responses
         except httpx.TimeoutException as error:
             msg = f"Request to {self.__class__.__name__} timed out."
@@ -194,7 +197,7 @@ class SerperDevWebSearch:
         payload, headers = self._prepare_request(query)
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.post(SERPERDEV_BASE_URL, headers=headers, json=payload, timeout=30)
+                response = await client.post(self._api_url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()  # Will raise an HTTPError for bad responses
         except httpx.TimeoutException as error:
             msg = f"Request to {self.__class__.__name__} timed out."
