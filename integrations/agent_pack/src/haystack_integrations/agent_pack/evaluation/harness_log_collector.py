@@ -10,10 +10,12 @@ from dataclasses import dataclass, field
 from threading import Lock
 from typing import Any
 
-# The maximum length of a message to keep.
+# One record's rendered message is kept in full up to this length. A component that names an unsupported parameter
+# or a failed request says so early, and the remainder is usually a provider's serialized error envelope.
 MAX_MESSAGE_CHARS = 400
 
-# The maximum number of distinct messages to keep.
+# Distinct messages kept. A configuration that warns in more shapes than this is broken in a way the first few
+# already explain, and the count of what was dropped is reported rather than the messages.
 MAX_DISTINCT_MESSAGES = 12
 
 
