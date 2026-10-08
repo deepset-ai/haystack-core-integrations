@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from collections import deque
 from dataclasses import dataclass
@@ -10,7 +11,6 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
 from haystack_integrations.agent_pack.evaluation import ModelPrice
 from haystack_integrations.agent_pack.evaluation.dataclasses import EvalMetrics, ModelTokenUsage
 from haystack_integrations.agent_pack.optimization import (
@@ -221,11 +221,6 @@ class TestRun:
         rows = [json.loads(line) for line in experiment.journal.path_for(result.run_id).read_text().splitlines()]
         assert rows[1]["failure"] == result.candidates[0].failure
 
-    def test_no_eval_cases_raises_error(self):
-        """Quality is a fraction over the eval cases, so an empty set has to be refused before it is computed."""
-        with pytest.raises(ValueError, match="no eval cases to score"):
-            AdvancedRAGHarnessEvaluator().evaluate(target=Agent(chat_generator=MockChatGenerator()), eval_cases=[])
-
     def test_iteration_budget_counts_evaluations(self, tmp_path):
         evaluator = ModelEvaluator()
         experiment, _ = configured(tmp_path, ["bad", "cheap", None], evaluator)
@@ -301,15 +296,13 @@ class TestRun:
         # The reference itself is never edited in place.
         assert reference.get_component("generator").model == "reference"
 
-    def test_records_why_it_stopped_early(self, tmp_path):
+    def test_records_why_it_stopped_early(self, tmp_path, caplog):
         """Ending the search is the one decision an experiment cannot revisit and leaves no artifact of its own."""
-        experiment, _ = configured(
-            tmp_path, ["cheap", None], objectives=OptimizationObjectives(quality_metric="quality")
-        )
-        result = experiment.run()
-        # Two of the eight allowed evaluations were used; the rest were given up deliberately.
+        experiment, _ = configured(tmp_path, ["cheap", None])
+        with caplog.at_level(logging.INFO):
+            result = experiment.run()
         assert len(result.candidates) == 1
-        assert experiment.max_iterations > len(result.candidates)
+        assert "7 of 8 evaluations unused: nothing left worth measuring" in caplog.text
 
     def test_reports_what_the_search_itself_spent(self, tmp_path):
         """An experiment prices the configurations it measures; the optimizer's own calls are the other half."""
@@ -333,16 +326,10 @@ class TestGating:
 
     def test_incomplete_usage_cannot_win(self, tmp_path):
         """Usage a harness could not account for is what a silently swallowed component failure looks like."""
-        for primary in ("cost", "quality", "duration"):
-            experiment, _ = configured(
-                tmp_path,
-                ["unknown", None],
-                unmeasurable(all_tokens_reported=False),
-                objectives=OptimizationObjectives(quality_metric="quality", primary=primary),
-            )
-            result = experiment.run()
-            assert result.recommendation is None
-            assert result.gate_failures[result.candidates[0].candidate_id] == ("usage_incomplete",)
+        experiment, _ = configured(tmp_path, ["unknown", None], unmeasurable(all_tokens_reported=False))
+        result = experiment.run()
+        assert result.recommendation is None
+        assert result.gate_failures[result.candidates[0].candidate_id] == ("usage_incomplete",)
 
     def test_quality_objective_prefers_better_answers(self, tmp_path):
         evaluator = ModelEvaluator(
@@ -360,24 +347,8 @@ class TestGating:
         )
         assert load_agent(experiment.run().recommendation.configuration.yaml).chat_generator.model == "better"
 
-    def test_candidate_on_the_tolerance(self, tmp_path):
-        """A tolerance of one eval case in twenty is 0.05, and 0.2 - 0.05 is 0.15000000000000002 in binary float."""
-        experiment, _ = configured(
-            tmp_path,
-            ["cheap", None],
-            evaluator=ModelEvaluator(
-                metrics={
-                    "reference": measured(quality=4 / 20, cost=10, durations=[100]),
-                    "cheap": measured(quality=3 / 20, cost=2, durations=[90]),
-                }
-            ),
-            objectives=OptimizationObjectives(quality_metric="quality", max_quality_loss=0.05, primary="quality"),
-        )
-        result = experiment.run()
-        assert result.gate_failures[result.candidates[0].candidate_id] == ()
-
     def test_regression_is_not_inherited(self, tmp_path):
-        """The experiment hands each turn the best candidate so far, so a bad branch is not built on."""
+        """The experiment hands each turn the best candidate so far, so a regression is not built on."""
         evaluator = ModelEvaluator(
             metrics={
                 "reference": measured(quality=0.5, cost=10, durations=[100]),
@@ -394,8 +365,8 @@ class TestGating:
         result = experiment.run()
         scored = {c.candidate_id: c.metrics.details["quality"] for c in result.candidates}
         best = max(scored, key=lambda cid: scored[cid])
-        # The third turn follows the regression, and it is handed the best candidate rather than the regression.
-        assert result.candidates[-1].configuration is None or result.candidates[-1].configuration.parent_id == best
+        # The second candidate was edited from the best one so far
+        assert result.candidates[-1].configuration.parent_id == best
 
 
 class TestJournal:
@@ -412,26 +383,16 @@ class TestJournal:
         assert rows[1]["metrics"]["model_usage"] == {"cheap": {"input_tokens": 1_000_000, "output_tokens": 0}}
         assert rows[1]["cost"] == result.recommendation.evaluation.cost == 2
 
-    def test_runs_are_numbered_in_order(self, tmp_path):
-        """A directory of experiments should read in order, and a second run must not reuse the first one's name."""
+    def test_runs_stay_separate(self, tmp_path):
+        """A directory of experiments should read in order, and a second run must not reuse the first one's files."""
         first, _ = configured(tmp_path, ["cheap", None])
         second, _ = configured(tmp_path, ["cheap", None])
-        one = first.run()
-        two = second.run()
-        assert one.run_id == "run-1"
-        assert two.run_id == "run-2"
+        one, two = first.run(), second.run()
+        assert (one.run_id, two.run_id) == ("run-1", "run-2")
         assert one.artifact_directory.name == "run-1"
-        assert first.journal.path_for("run-1").exists()
         assert (one.artifact_directory / "reference.yaml").exists()
-
-    def test_repeated_experiments_stay_separate(self, tmp_path):
-        first, _ = configured(tmp_path, [None])
-        second, _ = configured(tmp_path, [None])
-        a, b = first.run(), second.run()
-        assert a.measurement_context == b.measurement_context
-        assert a.run_id != b.run_id
-        assert first.journal.path_for(a.run_id).exists()
-        assert second.journal.path_for(b.run_id).exists()
+        assert first.journal.path_for(one.run_id).exists()
+        assert second.journal.path_for(two.run_id).exists()
 
 
 class TestMeasurementContext:

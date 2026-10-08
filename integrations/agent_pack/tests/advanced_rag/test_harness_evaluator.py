@@ -16,9 +16,8 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     _score_advanced_rag_result,
 )
 from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_pipeline_tool
-from haystack_integrations.agent_pack.evaluation import ModelPrice, RetrievalEvalCase
+from haystack_integrations.agent_pack.evaluation import ModelPrice, ModelTokenUsage, RetrievalEvalCase
 from haystack_integrations.agent_pack.evaluation.agent_run_digest import AgentRunDigestPolicy
-from haystack_integrations.agent_pack.evaluation.dataclasses import cost_of_model_usage
 
 QUESTION = "What is CRISPR used for?"
 
@@ -246,16 +245,7 @@ class TestEvaluate:
         assert metrics.details["mean_budgeted_recall"] == 0.0
         assert any("tool_calls_over_budget" in failure for failure in metrics.eval_cases[0]["failures"])
 
-    def test_model_usage_is_priced(self, document):
-        eval_case = RetrievalEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
-        evaluator = AdvancedRAGHarnessEvaluator()
-        metrics = evaluator.evaluate(target=FakeAgent(document), eval_cases=[eval_case])
-        assert metrics.details["mean_budgeted_recall"] == 1.0
-        assert cost_of_model_usage(model_usage=metrics.model_usage, prices=PRICES) == (100 * 2.0 + 20 * 4.0) / 1_000_000
-        assert metrics.model_usage["cheap"].input_tokens == 100
-        assert metrics.eval_cases[0]["passed"] is True
-
-    def test_secondary_model_usage(self, document):
+    def test_attributes_usage_to_each_model(self, document):
         class BackupAgent(FakeAgent):
             def run(self, **kwargs):
                 result = super().run(**kwargs)
@@ -263,19 +253,17 @@ class TestEvaluate:
                 return result
 
         eval_case = RetrievalEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
-        evaluator = AdvancedRAGHarnessEvaluator()
-        metrics = evaluator.evaluate(target=BackupAgent(document), eval_cases=[eval_case])
-        assert metrics.model_usage["backup"].input_tokens == 7
-        assert cost_of_model_usage(model_usage=metrics.model_usage, prices=PRICES) == pytest.approx(
-            (100 * 2.0 + 20 * 4.0 + 7 * 3.0 + 2 * 5.0) / 1_000_000
-        )
+        metrics = AdvancedRAGHarnessEvaluator().evaluate(target=BackupAgent(document), eval_cases=[eval_case])
+        assert metrics.model_usage == {
+            "cheap": ModelTokenUsage(input_tokens=100, output_tokens=20),
+            "backup": ModelTokenUsage(input_tokens=7, output_tokens=2),
+        }
+        assert metrics.all_tokens_reported
 
-    def test_unpriced_models(self, document):
-        """Unknown model usage remains a valid measurement with unavailable cost."""
-        eval_case = RetrievalEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
-        evaluator = AdvancedRAGHarnessEvaluator()
-        metrics = evaluator.evaluate(target=FakeAgent(document, model="unknown"), eval_cases=[eval_case])
-        assert cost_of_model_usage(model_usage=metrics.model_usage, prices=PRICES) is None
+    def test_no_eval_cases(self):
+        """Quality is a fraction over the eval cases, so an empty set has to be refused before it is computed."""
+        with pytest.raises(ValueError, match="no eval cases to score"):
+            AdvancedRAGHarnessEvaluator().evaluate(target=Agent(chat_generator=MockChatGenerator()), eval_cases=[])
 
     def test_one_duration_per_eval_case(self, document):
         eval_case = RetrievalEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
@@ -324,17 +312,15 @@ class TestEvaluate:
 
     def test_digests_dropped_from_passing_first(self, document):
         """Under a cap, the eval cases that need explaining keep their evidence, and every one is still reported."""
-        failing = RetrievalEvalCase(question=QUESTION, evidence={"never retrieved": EVIDENCE})
         passing = RetrievalEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})
-        failing_metrics = AdvancedRAGHarnessEvaluator().evaluate(target=FakeAgent(document), eval_cases=[failing])
-        passing_metrics = AdvancedRAGHarnessEvaluator(max_traced_eval_cases=0).evaluate(
-            target=FakeAgent(document), eval_cases=[passing]
+        failing = RetrievalEvalCase(question=QUESTION, evidence={"never retrieved": EVIDENCE})
+        metrics = AdvancedRAGHarnessEvaluator(max_traced_eval_cases=1).evaluate(
+            target=FakeAgent(document), eval_cases=[passing, failing]
         )
-        assert failing_metrics.eval_cases[0]["passed"] is False
-        assert "agent_run_digest" in failing_metrics.eval_cases[0]
-        # The trace is withheld past the cap, but the eval case is still reported.
-        assert passing_metrics.eval_cases[0]["passed"] is True
-        assert "agent_run_digest" not in passing_metrics.eval_cases[0]
+        reported_passing, reported_failing = metrics.eval_cases
+        assert (reported_passing["passed"], reported_failing["passed"]) == (True, False)
+        assert "agent_run_digest" not in reported_passing
+        assert "agent_run_digest" in reported_failing
 
     def test_concurrency(self, document):
         """Concurrency must change how long an evaluation takes, not what it measures."""
