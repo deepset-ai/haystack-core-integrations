@@ -8,11 +8,9 @@ from typing import Any, ClassVar
 
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name
-from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-with LazyImport(message="Run 'pip install e2b'") as e2b_import:
-    from e2b import Sandbox
+from e2b import Sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -51,15 +49,6 @@ class E2BSandbox:
             ListDirectoryTool(sandbox=sandbox),
         ],
     )
-    ```
-
-    Lifecycle is handled automatically by the Agent's pipeline. If you use the
-    tools standalone, call :meth:`warm_up` before the first tool invocation:
-
-    ```python
-    sandbox.warm_up()
-    # ... use tools ...
-    sandbox.close()
     ```
     """
 
@@ -115,7 +104,6 @@ class E2BSandbox:
         if self._sandbox is not None:
             return
 
-        e2b_import.check()
         resolved_key = self.api_key.resolve_value()
         try:
             logger.info(
