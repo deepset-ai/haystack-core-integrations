@@ -7,7 +7,6 @@ from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.agent_pack.evaluation import RetrievalEvalCase, RetrievalHarnessEvaluator
-from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.evaluation.tracer import HarnessTracer
 
 QUESTION = "What is CRISPR used for?"
@@ -74,16 +73,6 @@ def retrieval_pipeline(store, top_k=5, expansions=1):
 
 def eval_case(wanted, question=QUESTION, **overrides):
     return RetrievalEvalCase(question=question, evidence={wanted.id: "gene editing"}, **overrides)
-
-
-class TestProtocolConformance:
-    def test_evaluator_satisfies_the_protocol(self):
-        """The experiment reaches these by name, so one spelled differently is only found at runtime."""
-        evaluator: HarnessEvaluator = RetrievalHarnessEvaluator()
-        assert all(
-            callable(getattr(evaluator, name))
-            for name in ("evaluate", "evaluate_async", "validate", "to_dict", "from_dict")
-        )
 
 
 class TestSerialization:

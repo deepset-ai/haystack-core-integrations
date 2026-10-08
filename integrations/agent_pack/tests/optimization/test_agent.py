@@ -73,7 +73,10 @@ class TestCreateOptimizerAgent:
         assert agent.chat_generator.generation_kwargs["reasoning"] == {"effort": "low"}
 
     def test_complete_agent(self, monkeypatch):
-        """Every tool the exit conditions name is the agent's own, along with the state those tools share."""
+        """
+        Every tool the exit conditions name is the agent's own, along with the state those tools share. The system
+        prompt refers to the tools by these names.
+        """
         monkeypatch.setenv("OPENAI_API_KEY", "test")
         agent = create_harness_optimizer_agent(evaluator=AcceptEvaluator())
         assert [tool.name for tool in agent.tools] == [
@@ -88,23 +91,11 @@ class TestCreateOptimizerAgent:
         assert agent.exit_conditions == ["submit_candidate", "finish"]
         assert {"draft", "known", "submitted", "finish_reason", "validation_failures"} <= set(agent.state_schema)
 
-    def test_run_directly(self):
-        """Called without `propose_candidate`, the agent edits whatever draft it is given."""
-        draft, known = turn_start()
-        calls = iter(
-            [
-                ToolCall("read_config", {}, id="read"),
-                ToolCall("finish", {"reason": "nothing worth measuring"}, id="finish"),
-            ]
-        )
-        agent = optimizer(
-            llm=MockChatGenerator(response_fn=lambda _messages: ChatMessage.from_assistant(tool_calls=[next(calls)]))
-        )
-        result = agent.run(messages=[ChatMessage.from_user("Propose the next candidate.")], draft=draft, known=known)
-        assert result["finish_reason"] == "nothing worth measuring"
-
     def test_editing_tools_run_in_call_order(self):
-        """An edit and a validation requested in one step run in that order, so the validation sees the edit."""
+        """
+        Called without `propose_candidate`, the agent edits the draft it is given. An edit and a validation requested in
+        one step run in that order, so the validation sees the edit.
+        """
         draft, known = turn_start()
         revision = draft.revision
         steps = iter(
@@ -117,7 +108,7 @@ class TestCreateOptimizerAgent:
                     ),
                     ToolCall("validate_config", {}, id="validate"),
                 ],
-                [ToolCall("finish", {"reason": "done"}, id="finish")],
+                [ToolCall("finish", {"reason": "nothing worth measuring"}, id="finish")],
             ]
         )
         agent = optimizer(
@@ -127,6 +118,7 @@ class TestCreateOptimizerAgent:
         assert "model: cheap" in result["draft"].yaml
         # The validation ran after the edit, so it validated the edited revision
         assert result["draft"].validated_revision == result["draft"].revision
+        assert result["finish_reason"] == "nothing worth measuring"
 
     def test_serialization_roundtrip(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test")
@@ -147,28 +139,30 @@ class TestCreateOptimizerAgent:
 
 
 class TestProposeCandidate:
-    def test_repairs_yaml_before_submitting(self):
+    def test_validation_gates_the_submission(self):
+        """A draft that breaks validation, or was never validated, is refused until it is repaired and validated."""
         reference = Agent(chat_generator=MockChatGenerator(model="reference"))
         reference_yaml = agent_yaml(reference)
-        stage = iter(["break", "validate", "repair", "validate", "submit"])
+        steps = iter(
+            [
+                ("edit_config", "model: reference", "model: [broken"),
+                ("validate_config",),
+                ("edit_config", "model: [broken", "model: cheap"),
+                ("submit_candidate",),
+                ("validate_config",),
+                ("submit_candidate",),
+            ]
+        )
 
         def respond(messages):
+            name, *edit = next(steps)
             revision = latest_revision(messages=messages, yaml=reference_yaml)
-            action = next(stage)
-            if action in ("break", "repair"):
-                old, new = (
-                    ("model: reference", "model: [broken") if action == "break" else ("model: [broken", "model: cheap")
-                )
-                call = ToolCall("edit_config", {"old": old, "new": new, "expected_revision": revision}, id=action)
-            elif action == "validate":
-                call = ToolCall("validate_config", {}, id=action)
-            else:
-                call = ToolCall(
-                    "submit_candidate",
-                    {"expected_revision": revision, "rationale": "reduce cost"},
-                    id=action,
-                )
-            return ChatMessage.from_assistant(tool_calls=[call])
+            arguments = {
+                "edit_config": lambda: {"old": edit[0], "new": edit[1], "expected_revision": revision},
+                "validate_config": dict,
+                "submit_candidate": lambda: {"expected_revision": revision, "rationale": "reduce cost"},
+            }[name]()
+            return ChatMessage.from_assistant(tool_calls=[ToolCall(name, arguments, id=name)])
 
         result = propose_candidate(
             optimizer_agent=optimizer(llm=MockChatGenerator(response_fn=respond)),
@@ -291,31 +285,6 @@ class TestProposeCandidate:
         assert result.candidate is None
         assert result.finish_reason is None
 
-    def test_failed_submission_allows_repair(self):
-        reference_yaml = agent_yaml()
-        steps = iter(["edit_config", "submit_candidate", "validate_config", "submit_candidate"])
-
-        def respond(messages):
-            name = next(steps)
-            revision = latest_revision(messages=messages, yaml=reference_yaml)
-            arguments = {
-                "edit_config": {"old": "model: reference", "new": "model: cheap", "expected_revision": revision},
-                "validate_config": {},
-                "submit_candidate": {"expected_revision": revision, "rationale": "test validation gate"},
-            }[name]
-            return ChatMessage.from_assistant(tool_calls=[ToolCall(name, arguments, id=name)])
-
-        result = propose_candidate(
-            optimizer_agent=optimizer(llm=MockChatGenerator(response_fn=respond)),
-            reference=Agent(chat_generator=MockChatGenerator()),
-            reference_yaml=reference_yaml,
-            prices={},
-            objectives=OptimizationObjectives(quality_metric="quality"),
-            baseline=measured(quality=1, durations=[1]),
-            history=[],
-        )
-        assert result.candidate is not None
-
     def test_reference_without_tools(self):
         """A Pipeline that is not an Agent has no tools, and a heading over an empty list only costs cached prefix."""
         pipeline = Pipeline()
@@ -350,11 +319,12 @@ class TestPromptSummaries:
         metrics = measured(
             quality=0.5,
             durations=[1],
-            eval_cases=[outcome(True, []), outcome(False, ["recall_below_1"])],
+            eval_cases=[outcome(True, []), outcome(False, ["a", "b"]), outcome(False, ["a"])],
             details={"model": "m"},
         )
         summarized = _summarized_metrics(metrics=metrics)
-        assert summarized["eval_case_summary"] == {"total": 2, "passed": 1, "failures": {"recall_below_1": 1}}
+        # Each failure is counted by how many eval cases it appeared in
+        assert summarized["eval_case_summary"] == {"total": 3, "passed": 1, "failures": {"a": 2, "b": 1}}
         assert "eval_cases" not in summarized
         # Everything that is not the listing survives untouched.
         assert summarized["details"] == {"quality": 0.5, "model": "m"}
@@ -362,11 +332,6 @@ class TestPromptSummaries:
     def test_summarized_metrics_without_eval_cases(self):
         metrics = measured(quality=0.5, durations=[1])
         assert _summarized_metrics(metrics=metrics) == metrics.to_dict()
-
-    def test_counts_a_failure_once_per_eval_case(self):
-        """The summary is what tells an optimizer which failure is worth attacking, so the counts have to add up."""
-        metrics = measured(quality=0.5, durations=[1], eval_cases=[outcome(False, ["a", "b"]), outcome(False, ["a"])])
-        assert _summarized_metrics(metrics=metrics)["eval_case_summary"]["failures"] == {"a": 2, "b": 1}
 
     def test_render_outcomes(self):
         history = [

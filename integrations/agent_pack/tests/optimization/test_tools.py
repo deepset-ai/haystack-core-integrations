@@ -147,10 +147,6 @@ class TestInspectComponent:
         with pytest.raises(DeserializationError):
             inspect_component.function(type_name="subprocess.check_output.Popen")
 
-    def test_tool_name(self):
-        """The system prompt refers to the tool by this name."""
-        assert inspect_component.name == "inspect_component"
-
 
 class TestReadConfig:
     def test_returns_the_draft(self):
@@ -322,17 +318,6 @@ class TestEditingTools:
         restore_candidate,
         finish,
     )
-
-    def test_tool_names(self):
-        """The system prompt refers to the tools by these names."""
-        assert [tool.name for tool in self.TOOLS] == [
-            "read_config",
-            "edit_config",
-            "validate_config",
-            "submit_candidate",
-            "restore_candidate",
-            "finish",
-        ]
 
     def test_state_is_never_shown(self):
         """The draft and known configurations come from the agent's state, so the optimizer never passes them."""
