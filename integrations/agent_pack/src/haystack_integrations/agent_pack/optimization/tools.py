@@ -6,7 +6,6 @@ import inspect
 import json
 from collections.abc import Callable
 from difflib import unified_diff
-from threading import RLock
 from typing import TYPE_CHECKING, Annotated, Any
 
 from haystack import Pipeline
@@ -157,7 +156,6 @@ class ConfigurationEditorToolset(Toolset):
         self.finished = False
         self.finish_reason: str | None = None
         self.validation_failures: list[dict[str, str]] = []
-        self._lock = RLock()
         # Each tool is a method of this editor, so it reads and changes this turn's YAML directly
         super().__init__(
             tools=[
@@ -189,8 +187,7 @@ class ConfigurationEditorToolset(Toolset):
 
     def _read_config(self) -> dict[str, str]:
         """Read the entire editable YAML and its revision for subsequent edits."""
-        with self._lock:
-            return {"yaml": self.text, "revision": content_digest(payload=self.text), "parent_id": self.parent_id}
+        return {"yaml": self.text, "revision": content_digest(payload=self.text), "parent_id": self.parent_id}
 
     def _edit_config(
         self,
@@ -206,33 +203,31 @@ class ConfigurationEditorToolset(Toolset):
         ],
     ) -> dict[str, str]:
         """Replace one exact text block. Use the entire current YAML as old for a full rewrite."""
-        with self._lock:
-            if not old or self.text.count(old) != 1:
-                msg = "old must match exactly once; include more surrounding text to disambiguate."
-                raise ValueError(msg)
-            return self._write(text=self.text.replace(old, new, 1), expected_revision=expected_revision)
+        if not old or self.text.count(old) != 1:
+            msg = "old must match exactly once; include more surrounding text to disambiguate."
+            raise ValueError(msg)
+        return self._write(text=self.text.replace(old, new, 1), expected_revision=expected_revision)
 
     def _validate_config(self) -> dict[str, Any]:
         """Check the YAML loads as the expected Agent or Pipeline and passes the evaluator's checks, without running."""
-        with self._lock:
-            revision = content_digest(payload=self.text)
-            self.validated_revision = None
+        revision = content_digest(payload=self.text)
+        self.validated_revision = None
+        try:
+            loaded = self.loader(self.text)
             try:
-                loaded = self.loader(self.text)
-                try:
-                    if self.validator is not None:
-                        self.validator(loaded)
-                    # A Pipeline that is not an Agent has no tools
-                    tools = getattr(loaded, "tools", None) or []
-                    specs = [item.tool_spec for item in flatten_tools_or_toolsets(tools)]
-                finally:
-                    loaded.close()
-            except Exception as error:
-                failure = {"revision": revision, "error": f"{type(error).__name__}: {error}"}
-                self.validation_failures.append(failure)
-                return {"valid": False, **failure}
-            self.validated_revision = revision
-            return {"valid": True, "revision": revision, "tools": specs}
+                if self.validator is not None:
+                    self.validator(loaded)
+                # A Pipeline that is not an Agent has no tools
+                tools = getattr(loaded, "tools", None) or []
+                specs = [item.tool_spec for item in flatten_tools_or_toolsets(tools)]
+            finally:
+                loaded.close()
+        except Exception as error:
+            failure = {"revision": revision, "error": f"{type(error).__name__}: {error}"}
+            self.validation_failures.append(failure)
+            return {"valid": False, **failure}
+        self.validated_revision = revision
+        return {"valid": True, "revision": revision, "tools": specs}
 
     def _submit_candidate(
         self,
@@ -246,29 +241,28 @@ class ConfigurationEditorToolset(Toolset):
         ],
     ) -> dict[str, str]:
         """Submit this validated revision for evaluation and end the proposal turn."""
-        with self._lock:
-            if self.finished or self.submitted is not None:
-                msg = "This proposal turn has ended."
-                raise ValueError(msg)
-            if expected_revision != content_digest(payload=self.text) or self.validated_revision != expected_revision:
-                msg = "Validate the current revision before submitting."
-                raise ValueError(msg)
-            candidate_id = _configuration_id(self.text)
-            if candidate_id in self.configurations:
-                msg = "duplicate_or_no_op: this configuration was already submitted or is the reference."
-                raise ValueError(msg)
-            diff = "".join(
-                unified_diff(
-                    self.configurations[self.parent_id].splitlines(keepends=True),
-                    self.text.splitlines(keepends=True),
-                    fromfile=self.parent_id,
-                    tofile=candidate_id,
-                )
+        if self.finished or self.submitted is not None:
+            msg = "This proposal turn has ended."
+            raise ValueError(msg)
+        if expected_revision != content_digest(payload=self.text) or self.validated_revision != expected_revision:
+            msg = "Validate the current revision before submitting."
+            raise ValueError(msg)
+        candidate_id = _configuration_id(self.text)
+        if candidate_id in self.configurations:
+            msg = "duplicate_or_no_op: this configuration was already submitted or is the reference."
+            raise ValueError(msg)
+        diff = "".join(
+            unified_diff(
+                self.configurations[self.parent_id].splitlines(keepends=True),
+                self.text.splitlines(keepends=True),
+                fromfile=self.parent_id,
+                tofile=candidate_id,
             )
-            self.submitted = CandidateConfiguration(
-                candidate_id=candidate_id, parent_id=self.parent_id, yaml=self.text, rationale=rationale, diff=diff
-            )
-            return {"candidate_id": candidate_id}
+        )
+        self.submitted = CandidateConfiguration(
+            candidate_id=candidate_id, parent_id=self.parent_id, yaml=self.text, rationale=rationale, diff=diff
+        )
+        return {"candidate_id": candidate_id}
 
     def _restore_candidate(
         self,
@@ -278,14 +272,13 @@ class ConfigurationEditorToolset(Toolset):
         expected_revision: Annotated[str, "The current revision, from read_config or the last edit."],
     ) -> dict[str, str]:
         """Restore a submitted candidate or the reference as the base for further edits."""
-        with self._lock:
-            key = self.reference_id if candidate_id == "reference" else candidate_id
-            if key not in self.configurations:
-                msg = "Unknown candidate ID."
-                raise ValueError(msg)
-            result = self._write(text=self.configurations[key], expected_revision=expected_revision)
-            self.parent_id = key
-            return result
+        key = self.reference_id if candidate_id == "reference" else candidate_id
+        if key not in self.configurations:
+            msg = "Unknown candidate ID."
+            raise ValueError(msg)
+        result = self._write(text=self.configurations[key], expected_revision=expected_revision)
+        self.parent_id = key
+        return result
 
     def _finish(
         self,
@@ -296,8 +289,7 @@ class ConfigurationEditorToolset(Toolset):
         ],
     ) -> str:
         """End optimization when no hypothesis worth measuring remains."""
-        with self._lock:
-            if self.submitted is None:
-                self.finished = True
-                self.finish_reason = reason
-            return "Finished."
+        if self.submitted is None:
+            self.finished = True
+            self.finish_reason = reason
+        return "Finished."
