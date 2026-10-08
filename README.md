@@ -11,10 +11,10 @@
 | src/haystack\_integrations/components/retrievers/opensearch/sql\_retriever.py                  |       48 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/opensearch/utils.py                           |        8 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/opensearch/auth.py                                 |       61 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/opensearch/document\_store.py                      |      791 |       62 |      256 |       34 |     90% |209-\>211, 211-\>213, 213-\>216, 216-\>exit, 271-\>274, 289-\>291, 293, 354, 381-382, 391-400, 472, 551-\>561, 554, 637-\>640, 669-672, 689-695, 912-914, 941-943, 981-983, 1021-1023, 1036-1038, 1087, 1208, 1327-1329, 1357, 1359-\>1358, 1467, 1486-1488, 1491-\>1495, 1572, 1591-1593, 1596-\>1600, 1613-1614, 1793-\>1792, 1830-\>1829, 1832-\>1829, 1861-1862, 1867, 1905-1906, 1911, 2088, 2140, 2162 |
-| src/haystack\_integrations/document\_stores/opensearch/filters.py                              |      195 |        6 |      114 |        6 |     96% |19-20, 26-\>28, 55, 144, 163, 166 |
+| src/haystack\_integrations/document\_stores/opensearch/document\_store.py                      |      784 |       62 |      252 |       34 |     90% |216-\>218, 218-\>220, 220-\>223, 223-\>exit, 278-\>281, 296-\>298, 300, 361, 388-389, 398-407, 479, 558-\>568, 561, 644-\>647, 676-679, 696-702, 919-921, 948-950, 982-984, 1016-1018, 1031-1033, 1082, 1203, 1322-1324, 1352, 1354-\>1353, 1462, 1481-1483, 1486-\>1490, 1567, 1586-1588, 1591-\>1595, 1608-1609, 1788-\>1787, 1825-\>1824, 1827-\>1824, 1856-1857, 1862, 1900-1901, 1906, 2083, 2135, 2157 |
+| src/haystack\_integrations/document\_stores/opensearch/filters.py                              |      195 |        5 |      114 |        5 |     97% |19-20, 26-\>28, 55, 166, 169 |
 | src/haystack\_integrations/document\_stores/opensearch/opensearch\_scripts.py                  |        1 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                                                      | **1420** |   **77** |  **458** |   **54** | **93%** |           |
+| **TOTAL**                                                                                      | **1413** |   **76** |  **454** |   **53** | **93%** |           |
 
 
 ## Setup coverage badge
