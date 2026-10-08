@@ -31,29 +31,19 @@ class TestOptimizationObjectives:
             OptimizationObjectives(quality_metric="recall").get_quality(metrics=metrics)
 
     @pytest.mark.parametrize(
-        ("max_quality_loss", "expected"),
+        ("candidate", "max_quality_loss", "expected"),
         [
-            (0.0, ("quality_below_floor:0.8500",)),  # No tolerance, so the floor is the reference
-            (0.1, ()),  # The tolerance lowers the floor to 0.75
-        ],
-    )
-    def test_quality_floor(self, max_quality_loss, expected):
-        objectives = OptimizationObjectives(quality_metric="quality", max_quality_loss=max_quality_loss)
-        candidate, baseline = measured(quality=0.78), measured(quality=0.85)
-        assert objectives.find_failed_gates(metrics=candidate, baseline=baseline) == expected
-
-    @pytest.mark.parametrize(
-        ("candidate", "expected"),
-        [
-            (measured(quality=0.9), ()),
+            (measured(quality=0.9), 0.0, ()),
             # Within floating-point noise of the floor counts as reaching it
-            (measured(quality=0.1 + 0.2), ()),
-            (measured(quality=0.2), ("quality_below_floor:0.3000",)),
-            (measured(quality=0.9, all_tokens_reported=False), ("usage_incomplete",)),
+            (measured(quality=0.1 + 0.2), 0.0, ()),
+            (measured(quality=0.2), 0.0, ("quality_below_floor:0.3000",)),
+            # The tolerance lowers the floor to 0.15
+            (measured(quality=0.2), 0.15, ()),
+            (measured(quality=0.9, all_tokens_reported=False), 0.0, ("usage_incomplete",)),
         ],
     )
-    def test_find_failed_gates(self, candidate, expected):
-        objectives = OptimizationObjectives(quality_metric="quality")
+    def test_find_failed_gates(self, candidate, max_quality_loss, expected):
+        objectives = OptimizationObjectives(quality_metric="quality", max_quality_loss=max_quality_loss)
         assert objectives.find_failed_gates(metrics=candidate, baseline=measured(quality=0.3)) == expected
 
     @pytest.mark.parametrize(
