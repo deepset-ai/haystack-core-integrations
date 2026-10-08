@@ -11,7 +11,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.errors import FilterError
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from postgrest import CountMethod
 
 from supabase import AsyncClient, Client, acreate_client, create_client
@@ -796,5 +796,4 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param data: Dictionary to deserialize from.
         :returns: Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["supabase_key"])
         return default_from_dict(cls, data)

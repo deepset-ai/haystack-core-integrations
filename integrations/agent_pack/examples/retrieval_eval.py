@@ -120,7 +120,7 @@ def main() -> None:
         print("    (a model call reported no token counts, so the totals above are an undercount)")
 
     quotes = {document: quote for eval_case in eval_cases for document, quote in eval_case.evidence.items()}
-    for position, reported in enumerate(metrics.details["eval_cases"], start=1):
+    for position, reported in enumerate(metrics.eval_cases, start=1):
         needed = len(eval_cases[position - 1].evidence)
         missed = reported["missed_document_ids"]
         print(f"\n=== eval case {position}/{len(eval_cases)}: {'PASS' if reported['passed'] else 'FAIL'} ===")

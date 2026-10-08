@@ -17,9 +17,6 @@ from .tracer import EVAL_CASE_SPAN, EvalCaseSummary, HarnessSpan, HarnessTracer
 logger = logging.getLogger(__name__)
 
 
-# The entry in `EvalMetrics.details` carrying one record per measured eval case.
-EVAL_CASES_KEY = "eval_cases"
-
 QUERY_SOCKET = "query"
 DOCUMENTS_SOCKET = "documents"
 
@@ -71,6 +68,21 @@ def _query_entry_points(pipeline: Pipeline) -> set[str]:
     :returns: The names of components awaiting the question.
     """
     return {name for name, sockets in pipeline.inputs().items() if QUERY_SOCKET in sockets}
+
+
+def _unfed_mandatory_inputs(pipeline: Pipeline) -> list[str]:
+    """
+    Find every mandatory input left unconnected other than `query`, which the harness has no value to feed.
+
+    :param pipeline: The pipeline to inspect.
+    :returns: The unfed inputs as `component.socket`, sorted, or an empty list when the question is all it needs.
+    """
+    return sorted(
+        f"{name}.{socket}"
+        for name, sockets in pipeline.inputs().items()
+        for socket, spec in sockets.items()
+        if socket != QUERY_SOCKET and spec["is_mandatory"]
+    )
 
 
 def _documents_exit_point(pipeline: Pipeline) -> str:
@@ -205,11 +217,20 @@ class RetrievalHarnessEvaluator:
         """
         Validate the candidate pipeline to expose at least one `query` input and exactly one `documents` output.
 
+        Every other mandatory input must be connected, since the harness feeds the pipeline nothing but the question.
+
         :param target: Candidate pipeline deserialized from YAML.
-        :raises ValueError: If the pipeline exposes no `query` input, or not exactly one `documents` output.
+        :raises ValueError: If the pipeline exposes no `query` input, leaves another mandatory input unconnected,
+            or has not exactly one `documents` output.
         """
         if not _query_entry_points(pipeline=target):
             msg = f"The pipeline must expose at least one unconnected {QUERY_SOCKET!r} input to receive the question."
+            raise ValueError(msg)
+        if unfed := _unfed_mandatory_inputs(pipeline=target):
+            msg = (
+                f"The pipeline must receive nothing but {QUERY_SOCKET!r}; connect or give a default to these "
+                f"mandatory inputs: {unfed}."
+            )
             raise ValueError(msg)
         _documents_exit_point(pipeline=target)
 
@@ -287,9 +308,9 @@ class RetrievalHarnessEvaluator:
 
         :param target: The materialized candidate pipeline to score.
         :param eval_cases: The labelled expectations to score it against.
-        :returns: Mean duration and raw model usage, with `details` holding `mean_recall_at_k`,
-            `mean_precision_at_k`, `mean_retrieved`, `component_output_sizes`, `warnings`, and one record per eval
-            case under `eval_cases`.
+        :returns: Per-eval-case durations and raw model usage, with `details` holding `mean_recall_at_k`,
+            `mean_precision_at_k`, `mean_retrieved`, `component_output_sizes` and `warnings`, and one record per
+            eval case in `eval_cases`.
         :raises ValueError: If no eval cases were supplied, leaving nothing to score.
         """
         if not eval_cases:
@@ -317,6 +338,7 @@ class RetrievalHarnessEvaluator:
             durations=[metric.duration for metric in eval_metrics],
             model_usage=model_usage,
             all_tokens_reported=all(summary.all_tokens_reported for _, summary in measured),
+            eval_cases=[metric.to_dict() for metric in eval_metrics],
             details={
                 "mean_recall_at_k": sum(metric.recall_at_k for metric in eval_metrics) / len(eval_metrics),
                 "mean_precision_at_k": sum(metric.precision_at_k for metric in eval_metrics) / len(eval_metrics),
@@ -326,6 +348,5 @@ class RetrievalHarnessEvaluator:
                 "component_output_sizes": _component_output_sizes(eval_metrics=eval_metrics),
                 # Report any warnings from the logger that were emitted during the evaluation
                 "warnings": diagnostics.to_list(),
-                EVAL_CASES_KEY: [metric.to_dict() for metric in eval_metrics],
             },
         )

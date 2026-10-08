@@ -9,9 +9,16 @@ from urllib.parse import urljoin
 
 import httpx
 from haystack import Document, component, default_from_dict, default_to_dict
+from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret
 from haystack.utils.misc import _deduplicate_documents
 from haystack.utils.requests_utils import async_request_with_retry, request_with_retry
+
+from haystack_integrations.common.huggingface_api.utils import _grpc_metadata
+
+with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
+    from grpc_requests import Client
+    from grpc_requests.aio import AsyncClient
 
 
 class TruncationDirection(str, Enum):
@@ -71,21 +78,29 @@ class HuggingFaceTEIRanker:
         max_retries: int = 3,
         retry_status_codes: list[int] | None = None,
         token: Secret | None = Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False),
+        use_grpc: bool = False,
     ) -> None:
         """
         Initializes the TEI reranker component.
 
-        :param url: Base URL of the TEI reranking service (for example, "https://api.example.com").
+        :param url: Base URL of the TEI reranking service, or gRPC target.
         :param top_k: Maximum number of top documents to return.
         :param raw_scores: If True, include raw relevance scores in the API payload.
         :param timeout: Request timeout in seconds.
-        :param max_retries: Maximum number of retry attempts for failed requests.
+        :param max_retries: Maximum number of retry attempts for failed HTTP requests.
         :param retry_status_codes: List of HTTP status codes that will trigger a retry.
             When None, HTTP 408, 418, 429 and 503 will be retried (default: None).
-        :param token: The Hugging Face token to use as HTTP bearer authorization. Not always required
+        :param token: The Hugging Face token to use as bearer authorization. Not always required
             depending on your TEI server configuration.
             Check your HF token in your [account settings](https://huggingface.co/settings/tokens).
+        :param use_grpc: Use gRPC instead of HTTP. Requires `huggingface-api-haystack[grpc]`.
         """
+        if use_grpc:
+            grpc_import.check()
+
+        self.use_grpc = use_grpc
+        self._grpc_client: Client | None = None
+        self._async_grpc_client: AsyncClient | None = None
         self.url = url
         self.top_k = top_k
         self.timeout = timeout
@@ -96,6 +111,28 @@ class HuggingFaceTEIRanker:
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+
+    def warm_up(self) -> None:
+        """Create the synchronous client."""
+        if self.use_grpc and self._grpc_client is None:
+            self._grpc_client = Client(self.url)
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous client."""
+        if self.use_grpc and self._async_grpc_client is None:
+            self._async_grpc_client = await AsyncClient.create(self.url)
+
+    def close(self) -> None:
+        """Close the synchronous client."""
+        if self._grpc_client is not None:
+            self._grpc_client.channel.close()
+            self._grpc_client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous client."""
+        if self._async_grpc_client is not None:
+            await self._async_grpc_client.channel.close()
+            self._async_grpc_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -113,6 +150,7 @@ class HuggingFaceTEIRanker:
             token=self.token,
             max_retries=self.max_retries,
             retry_status_codes=self.retry_status_codes,
+            use_grpc=self.use_grpc,
         )
 
     @classmethod
@@ -171,6 +209,13 @@ class HuggingFaceTEIRanker:
             ranked_docs.append(replace(documents[index], score=item["score"]))
         return {"documents": ranked_docs}
 
+    def _compose_grpc_response(
+        self, response: dict[str, Any], top_k: int | None, documents: list[Document]
+    ) -> dict[str, list[Document]]:
+        """Restore protobuf defaults and compose the ranked documents."""
+        ranks = [{"index": rank.get("index", 0), "score": rank.get("score", 0.0)} for rank in response.get("ranks", [])]
+        return self._compose_response(ranks, top_k, documents)
+
     @component.output_types(documents=list[Document])
     def run(
         self,
@@ -215,6 +260,20 @@ class HuggingFaceTEIRanker:
         payload: dict[str, Any] = {"query": query, "texts": texts, "raw_scores": self.raw_scores}
         if truncation_direction:
             payload.update({"truncate": True, "truncation_direction": truncation_direction.value})
+
+        if self.use_grpc:
+            self.warm_up()
+            if truncation_direction:
+                payload["truncation_direction"] = f"TRUNCATION_DIRECTION_{truncation_direction.name}"
+            assert self._grpc_client is not None  # noqa: S101  # Initialized by warm-up.
+            grpc_response = self._grpc_client.unary_unary(
+                "tei.v1.Rerank",
+                "Rerank",
+                payload,
+                timeout=self.timeout,
+                metadata=_grpc_metadata(self.token),
+            )
+            return self._compose_grpc_response(grpc_response, top_k, deduplicated_documents)
 
         headers = {}
         if self.token and self.token.resolve_value():
@@ -282,6 +341,20 @@ class HuggingFaceTEIRanker:
         payload: dict[str, Any] = {"query": query, "texts": texts, "raw_scores": self.raw_scores}
         if truncation_direction:
             payload.update({"truncate": True, "truncation_direction": truncation_direction.value})
+
+        if self.use_grpc:
+            await self.warm_up_async()
+            if truncation_direction:
+                payload["truncation_direction"] = f"TRUNCATION_DIRECTION_{truncation_direction.name}"
+            assert self._async_grpc_client is not None  # noqa: S101  # Initialized by warm-up.
+            grpc_response = await self._async_grpc_client.unary_unary(
+                "tei.v1.Rerank",
+                "Rerank",
+                payload,
+                timeout=self.timeout,
+                metadata=_grpc_metadata(self.token),
+            )
+            return self._compose_grpc_response(grpc_response, top_k, deduplicated_documents)
 
         headers = {}
         if self.token and self.token.resolve_value():

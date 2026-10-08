@@ -4,14 +4,13 @@
 
 """ArcadeDB DocumentStore for Haystack 2.x — document storage + vector search via HTTP/JSON API."""
 
-import logging
 from collections import defaultdict
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, ClassVar
 
 import requests
-from haystack import Document, default_from_dict, default_to_dict
+from haystack import Document, default_from_dict, default_to_dict, logging
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.errors import FilterError
@@ -194,9 +193,9 @@ class ArcadeDBDocumentStore:
         if self._create_database:
             try:
                 self._server_command(f"CREATE DATABASE {self._database}")
-                logger.info("Created database '%s'", self._database)
+                logger.info("Created database '{database}'", database=self._database)
             except RuntimeError:
-                logger.debug("Database '%s' already exists or cannot be created", self._database)
+                logger.debug("Database '{database}' already exists or cannot be created", database=self._database)
 
         # 2. Optionally drop existing type
         if self._recreate_type:
@@ -230,11 +229,11 @@ class ArcadeDBDocumentStore:
 
         self._initialized = True
         logger.info(
-            "ArcadeDBDocumentStore initialized: database=%s, type=%s, dim=%d, metric=%s",
-            self._database,
-            self._type_name,
-            self._embedding_dimension,
-            metric,
+            "ArcadeDBDocumentStore initialized: database={database}, type={type}, dim={dim}, metric={metric}",
+            database=self._database,
+            type=self._type_name,
+            dim=self._embedding_dimension,
+            metric=metric,
         )
 
     # ------------------------------------------------------------------
@@ -350,7 +349,10 @@ class ArcadeDBDocumentStore:
             return "keyword"
 
         if len(inferred_types) > 1:
-            logger.warning("Field has mixed metadata types %s. Defaulting to 'keyword'.", inferred_types)
+            logger.warning(
+                "Field has mixed metadata types {inferred_types}. Defaulting to 'keyword'.",
+                inferred_types=inferred_types,
+            )
             return "keyword"
 
         return next(iter(inferred_types))

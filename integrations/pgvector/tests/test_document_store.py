@@ -9,6 +9,7 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -163,6 +164,12 @@ class TestDocumentStore(
 
         assert document_store.count_documents() == 0
         assert document_store._connection is not None
+
+
+def test_delete_by_filter_rejects_an_empty_filter(mock_store):
+    """An empty filter would compile to an unqualified DELETE and empty the table."""
+    with pytest.raises(FilterError, match="non-empty filter"):
+        mock_store.delete_by_filter({})
 
 
 @pytest.mark.usefixtures("patches_for_unit_tests")

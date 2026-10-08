@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/falkordb-v1.5.0] - 2026-10-05
+
+### 🚀 Features
+
+- Add async methods for FalkorDBDocumentStore (#3999)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+
+
 ## [integrations/falkordb-v1.4.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

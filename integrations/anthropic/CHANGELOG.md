@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v6.3.0] - 2026-10-01
+
+### 🚜 Refactor
+
+- Generalize flattened generation_kwargs for tool_choice/thinking/output_config (#4028)
+
+
 ## [integrations/anthropic-v6.2.0] - 2026-09-24
 
 ### 🚀 Features

@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/qdrant-v11.1.0] - 2026-10-01
+
+### 🐛 Bug Fixes
+
+- *(qdrant)* Respect falsy run() overrides in retrievers (#4007)
+
+### 📚 Documentation
+
+- Clarify score_threshold semantics for Qdrant hybrid retrieval (#4008)
+
+
+## [integrations/qdrant-v11.0.0] - 2026-09-25
+
+### 🚜 Refactor
+
+- [**breaking**] Qdrant - propagate errors on backend failures instead of empty responses (#3997)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/qdrant-v10.6.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/sentence_transformers-v0.2.0] - 2026-10-01
+
+### 🐛 Bug Fixes
+
+- Sentence Transformers - raise sentence-transformers floor to >=5.6.0 (CVE-2026-68770) (#4036)
+
+### 📚 Documentation
+
+- Clarify tokenizer_kwargs forwarding in Sentence Transformers components (#4012)
+
+
 ## [integrations/sentence_transformers-v0.1.2] - 2026-09-23
 
 ### 🐛 Bug Fixes

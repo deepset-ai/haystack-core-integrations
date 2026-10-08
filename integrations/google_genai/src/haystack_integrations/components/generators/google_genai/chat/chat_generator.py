@@ -21,7 +21,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.utils import Secret, deserialize_callable, serialize_callable
 from pydantic import BaseModel
 
 from haystack_integrations.common.google_genai.utils import _get_client
@@ -341,7 +341,6 @@ class GoogleGenAIChatGenerator:
         :param data: Dictionary to deserialize from.
         :returns: Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         if "streaming_callback" in init_params and init_params["streaming_callback"] is not None:
