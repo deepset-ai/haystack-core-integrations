@@ -27,6 +27,19 @@ class CustomSpanHandler(DefaultSpanHandler):
         pass
 
 
+class _FailingExporter(SpanExporter):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def export(self, spans):
+        self.calls += 1
+        msg = "backend unreachable"
+        raise ConnectionError(msg)
+
+    def shutdown(self) -> None:
+        pass
+
+
 class TestRhesisConnector:
     def test_run(self, monkeypatch):
         monkeypatch.setenv("RHESIS_API_KEY", "test-key")
@@ -166,6 +179,23 @@ class TestRhesisConnector:
         ):
             RhesisConnector(name="Chat example")
             mock_enable.assert_called_once()
+
+    def test_failed_export_does_not_break_the_pipeline(self, monkeypatch):
+        monkeypatch.setenv("RHESIS_API_KEY", "test-key")
+        exporter = _FailingExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+        with patch(_PROVIDER_PATH, return_value=provider):
+            pipe = Pipeline()
+            pipe.add_component("tracer", RhesisConnector("Chat example"))
+            pipe.add_component("prompt_builder", ChatPromptBuilder())
+            pipe.add_component("llm", _Echo())
+            pipe.connect("prompt_builder.prompt", "llm.messages")
+            response = pipe.run({"prompt_builder": {"template": [ChatMessage.from_user("Tell me about Berlin")]}})
+
+        assert exporter.calls > 0
+        assert response["llm"]["replies"][0].text == "ok"
 
 
 class TestProviderOwnership:
@@ -381,35 +411,3 @@ class TestInvocationContext:
 
         assert attributes[ConversationContext.SpanAttributes.CONVERSATION_ID] == "carol"
         assert attributes[TestExecutionContext.SpanAttributes.TEST_RUN_ID] == "tr-1"
-
-
-class _FailingExporter(SpanExporter):
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def export(self, spans):
-        self.calls += 1
-        msg = "backend unreachable"
-        raise ConnectionError(msg)
-
-    def shutdown(self) -> None:
-        pass
-
-
-class TestFailOpen:
-    def test_failed_export_does_not_break_the_pipeline(self, monkeypatch):
-        monkeypatch.setenv("RHESIS_API_KEY", "test-key")
-        exporter = _FailingExporter()
-        provider = TracerProvider()
-        provider.add_span_processor(SimpleSpanProcessor(exporter))
-
-        with patch(_PROVIDER_PATH, return_value=provider):
-            pipe = Pipeline()
-            pipe.add_component("tracer", RhesisConnector("Chat example"))
-            pipe.add_component("prompt_builder", ChatPromptBuilder())
-            pipe.add_component("llm", _Echo())
-            pipe.connect("prompt_builder.prompt", "llm.messages")
-            response = pipe.run({"prompt_builder": {"template": [ChatMessage.from_user("Tell me about Berlin")]}})
-
-        assert exporter.calls > 0
-        assert response["llm"]["replies"][0].text == "ok"
