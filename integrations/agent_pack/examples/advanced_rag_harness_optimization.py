@@ -451,14 +451,15 @@ def main() -> None:
     prices = build_prices(models=(arguments.reference_model, *candidate_models))
 
     print("\n=== 2. optimization experiment ===")
+    evaluator = AdvancedRAGHarnessEvaluator(
+        tool_budgets=TOOL_BUDGETS,
+        digest_policy=DIGEST_POLICY,
+        max_concurrent_eval_cases=arguments.max_concurrent_eval_cases,
+    )
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         eval_cases=eval_cases,
-        evaluator=AdvancedRAGHarnessEvaluator(
-            tool_budgets=TOOL_BUDGETS,
-            digest_policy=DIGEST_POLICY,
-            max_concurrent_eval_cases=arguments.max_concurrent_eval_cases,
-        ),
+        evaluator=evaluator,
         prices=prices,
         objectives=OptimizationObjectives(
             quality_metric=QUALITY_METRIC,
@@ -467,6 +468,7 @@ def main() -> None:
         ),
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
         optimizer_agent=create_harness_optimizer_agent(
+            evaluator=evaluator,
             llm=build_optimizer_generator(model=arguments.optimizer_model),
             documentation_tools=arguments.docs_mcp,
             additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE,

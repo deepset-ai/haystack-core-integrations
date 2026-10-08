@@ -51,6 +51,7 @@ from haystack_integrations.agent_pack.optimization import (
     create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
+from haystack_integrations.agent_pack.optimization.utils import load_pipeline
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
 EXPANDER_MODEL = "gpt-5.6-luna"
@@ -633,6 +634,9 @@ def main() -> None:
         ),
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
         optimizer_agent=create_harness_optimizer_agent(
+            evaluator=evaluator,
+            # The reference is a Pipeline rather than a single Agent
+            loader=load_pipeline,
             llm=build_optimizer_generator(model=arguments.optimizer_model),
             documentation_tools=arguments.docs_mcp,
             additional_instructions=retrieval_guidance(k=arguments.k),

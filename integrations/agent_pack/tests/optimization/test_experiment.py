@@ -7,6 +7,7 @@ import pytest
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import MockChatGenerator
+from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ToolCall
 
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import AdvancedRAGHarnessEvaluator
@@ -33,12 +34,26 @@ def latest_revision(messages):
     """Return the revision the most recent edit reported, or the prompt's when nothing was edited yet."""
     for message in reversed(messages):
         result = message.tool_call_result
-        if result is not None and result.origin.tool_name in ("edit_config", "restore_candidate"):
-            return json.loads(result.result)["revision"]
+        if result is not None and result.origin.tool_name in ("edit_config", "restore_candidate") and not result.error:
+            return result.result
     return prompt_configuration(messages)[1]
 
 
-def optimizer_agent_for(models):
+class StubEvaluator:
+    """Accepts every configuration, and serializes as nothing more than its type."""
+
+    def validate(self, target):
+        pass
+
+    def to_dict(self):
+        return default_to_dict(self)
+
+    @classmethod
+    def from_dict(cls, data):
+        return default_from_dict(cls, data)
+
+
+def optimizer_agent_for(models, evaluator):
     """Script real edit, validate and submit tool calls for a sequence of model changes."""
     remaining = deque(models)
     histories = []
@@ -81,7 +96,7 @@ def optimizer_agent_for(models):
     generator = MockChatGenerator(
         response_fn=respond, model="optimizer", meta={"usage": {"prompt_tokens": 20, "completion_tokens": 4}}
     )
-    return create_harness_optimizer_agent(llm=generator), histories
+    return create_harness_optimizer_agent(evaluator=evaluator, llm=generator), histories
 
 
 @dataclass
@@ -111,7 +126,7 @@ def measured(quality, cost=None, all_tokens_reported=True, details=None, model_u
     )
 
 
-class ModelEvaluator:
+class ModelEvaluator(StubEvaluator):
     def __init__(self, metrics=None, failing=()):
         self.metrics = metrics or {
             "reference": measured(quality=1, cost=10, durations=[100]),
@@ -132,11 +147,12 @@ class ModelEvaluator:
 
 
 def configured(tmp_path, models, evaluator=None, objectives=None, eval_cases=None):
-    optimizer, histories = optimizer_agent_for(models)
+    evaluator = evaluator or ModelEvaluator()
+    optimizer, histories = optimizer_agent_for(models, evaluator=evaluator)
     experiment = HarnessOptimizationExperiment(
         reference=Agent(chat_generator=MockChatGenerator(model="reference")),
         eval_cases=eval_cases or [StubEvalCase("a question")],
-        evaluator=evaluator or ModelEvaluator(),
+        evaluator=evaluator,
         prices={
             "reference": ModelPrice(input_cost_per_million=10, output_cost_per_million=0),
             "cheap": ModelPrice(input_cost_per_million=2, output_cost_per_million=0),
@@ -167,7 +183,7 @@ def unmeasurable(all_tokens_reported=True):
 
 class TestRun:
     def test_validates_before_measuring(self, tmp_path):
-        """The experiment finds this hook by name, so a validator it does not find is silently never run."""
+        """The optimizer's `validate_config` runs the evaluator's check, so a rejected draft is never measured."""
 
         class RejectingEvaluator(ModelEvaluator):
             def __init__(self):
@@ -227,7 +243,7 @@ class TestRun:
         reference = Pipeline()
         reference.add_component("generator", MockChatGenerator(model="reference"))
 
-        class PipelineEvaluator:
+        class PipelineEvaluator(StubEvaluator):
             def __init__(self):
                 self.measured = []
 
@@ -266,8 +282,10 @@ class TestRun:
             stage += 1
             return ChatMessage.from_assistant(tool_calls=[call])
 
-        optimizer = create_harness_optimizer_agent(llm=MockChatGenerator(response_fn=respond))
         evaluator = PipelineEvaluator()
+        optimizer = create_harness_optimizer_agent(
+            evaluator=evaluator, loader=load_pipeline, llm=MockChatGenerator(response_fn=respond)
+        )
         result = HarnessOptimizationExperiment(
             reference=reference,
             eval_cases=[StubEvalCase("a question")],

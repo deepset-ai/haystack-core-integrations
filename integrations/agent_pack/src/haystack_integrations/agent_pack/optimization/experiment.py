@@ -28,7 +28,6 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateOutcome,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.tools import ConfigurationEditorToolset
 from haystack_integrations.agent_pack.optimization.utils import (
     _configuration_id,
     content_digest,
@@ -288,7 +287,8 @@ class HarnessOptimizationExperiment:
             optimizations. Prices do not restrict which models the optimizer may choose.
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
         :param journal: Where every raw measurement the experiment takes is recorded.
-        :param optimizer_agent: Agent that edits YAML after observing prior outcomes.
+        :param optimizer_agent: The agent from `create_harness_optimizer_agent`, built with this experiment's
+            evaluator and, for a Pipeline reference that is not an Agent, `loader=load_pipeline`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
@@ -333,7 +333,6 @@ class HarnessOptimizationExperiment:
         run_id, artifacts = self.journal.claim_run()
         (artifacts / "reference.yaml").write_text(reference_yaml, encoding="utf-8")
         reference_id = _configuration_id(reference_yaml)
-        validator = getattr(self.evaluator, "validate", None)
 
         # Measure the reference, which every candidate is ranked and gated against.
         ref_target = load(reference_yaml)
@@ -366,39 +365,34 @@ class HarnessOptimizationExperiment:
         optimizer_usage: dict[str, ModelTokenUsage] = {}
         optimizer_tracer = HarnessTracer()
         while len(outcomes) < self.max_iterations:
-            # Each turn gets a fresh editor that starts from the best candidate so far, or from the last one
-            # submitted when none has cleared the gates yet, and can restore any configuration already tried
+            # Each turn starts from the best candidate so far, or from the last one submitted when none has cleared
+            # the gates yet, and can restore any configuration already tried
             last_id = outcomes[-1].candidate_id if outcomes else None
-            editor = ConfigurationEditorToolset(
-                reference_yaml=reference_yaml,
-                candidates={
-                    outcome.candidate_id: outcome.configuration.yaml
-                    for outcome in outcomes
-                    if outcome.configuration is not None
-                },
-                base_id=best_id or last_id,
-                validator=validator if callable(validator) else None,
-                loader=load,
-            )
             # Trace the optimizer's own model calls, so the search's spend can be reported
             with optimizer_tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as turn_span:
-                proposed = propose_candidate(
+                turn = propose_candidate(
                     optimizer_agent=self.optimizer_agent,
-                    editor=editor,
                     reference=self.reference,
+                    reference_yaml=reference_yaml,
                     prices=self.prices,
                     objectives=self.objectives,
                     baseline=ref_eval_metrics,
                     history=history,
                     history_digest_window=self.history_digest_window,
                     remaining_evaluations=self.max_iterations - len(outcomes),
+                    candidates={
+                        outcome.candidate_id: outcome.configuration.yaml
+                        for outcome in outcomes
+                        if outcome.configuration is not None
+                    },
+                    base_id=best_id or last_id,
                 )
             # An empty summary when a HarnessTracer was not the active tracer.
             collected = turn_span.collected if isinstance(turn_span, HarnessSpan) else None
             for model, tokens in (collected.summarize().model_usage if collected is not None else {}).items():
                 optimizer_usage[model] = optimizer_usage.get(model, ModelTokenUsage()) + tokens
             # Journal drafts that failed validation, so the run shows what the optimizer had to repair
-            for failure in editor.validation_failures:
+            for failure in turn.validation_failures:
                 self.journal.append(
                     CandidateEvaluation(
                         measurement_context=context,
@@ -410,12 +404,13 @@ class HarnessOptimizationExperiment:
                     )
                 )
 
+            proposed = turn.candidate
             if proposed is None:
                 logger.info(
                     "optimizer ended the search with {remaining} of {total} evaluations unused: {reason}",
                     remaining=self.max_iterations - len(outcomes),
                     total=self.max_iterations,
-                    reason=editor.finish_reason or "no reason recorded",
+                    reason=turn.finish_reason or "no reason recorded",
                 )
                 break
 

@@ -8,7 +8,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from haystack import logging, tracing
+from haystack import default_from_dict, default_to_dict, logging, tracing
 from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import flatten_tools_or_toolsets
@@ -299,6 +299,49 @@ class AdvancedRAGHarnessEvaluator:
         self.digest_policy = digest_policy
         self.max_concurrent_eval_cases = max_concurrent_eval_cases
         self.max_traced_eval_cases = max_traced_eval_cases
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize the evaluator.
+
+        :returns: The evaluator's `type` and its settings, with `tool_budgets` as `[tool name or names, limit]` pairs.
+        """
+        policy = self.digest_policy
+        return default_to_dict(
+            self,
+            min_recall=self.min_recall,
+            min_precision=self.min_precision,
+            require_citations=self.require_citations,
+            max_tool_errors=self.max_tool_errors,
+            # A group of tools is a tuple, which JSON cannot hold as a key
+            tool_budgets=[
+                [tools if isinstance(tools, str) else list(tools), limit] for tools, limit in self.tool_budgets.items()
+            ],
+            digest_policy=None
+            if policy is None
+            else {**asdict(policy), "keep_full_results_for": sorted(policy.keep_full_results_for)},
+            max_traced_eval_cases=self.max_traced_eval_cases,
+            max_concurrent_eval_cases=self.max_concurrent_eval_cases,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AdvancedRAGHarnessEvaluator":
+        """
+        Restore an evaluator from what `to_dict` returned.
+
+        :param data: The serialized evaluator.
+        :returns: The restored evaluator.
+        """
+        parameters = dict(data.get("init_parameters") or {})
+        parameters["tool_budgets"] = {
+            tools if isinstance(tools, str) else tuple(tools): limit
+            for tools, limit in parameters.get("tool_budgets") or []
+        }
+        if (policy := parameters.get("digest_policy")) is not None:
+            parameters["digest_policy"] = AgentRunDigestPolicy(
+                **{**policy, "keep_full_results_for": frozenset(policy["keep_full_results_for"])}
+            )
+        return default_from_dict(cls, {**data, "init_parameters": parameters})
 
     def validate(self, target: Agent) -> None:
         """

@@ -17,6 +17,7 @@ from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
 )
 from haystack_integrations.agent_pack.advanced_rag.tools import _make_retrieval_pipeline_tool
 from haystack_integrations.agent_pack.evaluation import ModelPrice, RetrievalEvalCase
+from haystack_integrations.agent_pack.evaluation.agent_run_digest import AgentRunDigestPolicy
 from haystack_integrations.agent_pack.evaluation.dataclasses import cost_of_model_usage
 
 QUESTION = "What is CRISPR used for?"
@@ -205,6 +206,23 @@ class TestScoreAdvancedRagResult:
         metrics = _score_advanced_rag_result(result=result, eval_case=eval_case, duration=1)
         assert metrics.retrieval_calls == 2
         assert metrics.filtered_retrieval_calls == 1
+
+
+class TestSerialization:
+    def test_roundtrip(self):
+        evaluator = AdvancedRAGHarnessEvaluator(
+            min_recall=0.5,
+            require_citations=False,
+            max_tool_errors=2,
+            tool_budgets={("search_documents", "fetch_documents_by_filter"): 7, "*": 3},
+            digest_policy=AgentRunDigestPolicy(
+                max_tool_calls=10, keep_full_results_for=frozenset({"list_metadata_fields"})
+            ),
+            max_traced_eval_cases=None,
+            max_concurrent_eval_cases=4,
+        )
+        restored = AdvancedRAGHarnessEvaluator.from_dict(evaluator.to_dict())
+        assert vars(restored) == vars(evaluator)
 
 
 class TestEvaluate:

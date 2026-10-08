@@ -23,7 +23,7 @@ EVIDENCE = "CRISPR gene editing can correct hereditary blindness mutations."
 QUESTION = "What is CRISPR used for?"
 
 
-def optimizer_agent_for(change):
+def optimizer_agent_for(change, evaluator):
     """Drive actual file edits and validation using a scripted model."""
     stage = 0
 
@@ -58,7 +58,7 @@ def optimizer_agent_for(change):
         stage += 1
         return ChatMessage.from_assistant(tool_calls=[call])
 
-    return create_harness_optimizer_agent(llm=MockChatGenerator(response_fn=respond))
+    return create_harness_optimizer_agent(evaluator=evaluator, llm=MockChatGenerator(response_fn=respond))
 
 
 def scripted_agent(store, document, model):
@@ -92,15 +92,16 @@ class TestAdvancedRagExperiment:
             "reference": ModelPrice(input_cost_per_million=10, output_cost_per_million=20),
             "cheap": ModelPrice(input_cost_per_million=1, output_cost_per_million=2),
         }
+        evaluator = AdvancedRAGHarnessEvaluator()
         experiment = HarnessOptimizationExperiment(
             reference=reference,
             eval_cases=[RetrievalEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
-            evaluator=AdvancedRAGHarnessEvaluator(),
+            evaluator=evaluator,
             prices=prices,
             objectives=OptimizationObjectives(quality_metric="mean_budgeted_recall"),
             journal=ExperimentJournal(directory=tmp_path / "journals"),
             optimizer_agent=optimizer_agent_for(
-                lambda params: params["chat_generator"]["init_parameters"].update(model="cheap")
+                lambda params: params["chat_generator"]["init_parameters"].update(model="cheap"), evaluator=evaluator
             ),
         )
         result = experiment.run()
@@ -121,14 +122,15 @@ class TestAdvancedRagExperiment:
         store.write_documents([document])
         reference = scripted_agent(store, document, "reference")
         prices = {"reference": ModelPrice(input_cost_per_million=10, output_cost_per_million=0)}
+        evaluator = AdvancedRAGHarnessEvaluator()
         experiment = HarnessOptimizationExperiment(
             reference=reference,
             eval_cases=[RetrievalEvalCase(question=QUESTION, evidence={document.id: EVIDENCE})],
-            evaluator=AdvancedRAGHarnessEvaluator(),
+            evaluator=evaluator,
             prices=prices,
             objectives=OptimizationObjectives(quality_metric="mean_budgeted_recall"),
             journal=ExperimentJournal(directory=tmp_path / "journals"),
-            optimizer_agent=optimizer_agent_for(lambda params: params.update(max_agent_steps=1)),
+            optimizer_agent=optimizer_agent_for(lambda params: params.update(max_agent_steps=1), evaluator=evaluator),
         )
         result = experiment.run()
         assert result.baseline.details["mean_budgeted_recall"] == 1.0
