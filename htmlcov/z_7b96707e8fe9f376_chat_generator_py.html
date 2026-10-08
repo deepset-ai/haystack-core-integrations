@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_110ee75c16df30ba_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-07 08:44 +0000
+            created at 2026-10-08 13:27 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -426,7 +426,7 @@
     <p class="pln"><span class="n"><a id="t342" href="#t342">342</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t343" href="#t343">343</a></span><span class="t">        <span class="nam">openai_formatted_messages</span> <span class="op">=</span> <span class="op">[</span><span class="nam">message</span><span class="op">.</span><span class="nam">to_openai_dict_format</span><span class="op">(</span><span class="op">)</span> <span class="key">for</span> <span class="nam">message</span> <span class="key">in</span> <span class="nam">messages</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t344" href="#t344">344</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t345" href="#t345">345</a></span><span class="t">        <span class="nam">flattened_tools</span> <span class="op">=</span> <span class="nam">flatten_tools_or_toolsets</span><span class="op">(</span><span class="nam">tools</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">tools</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t345" href="#t345">345</a></span><span class="t">        <span class="nam">flattened_tools</span> <span class="op">=</span> <span class="nam">flatten_tools_or_toolsets</span><span class="op">(</span><span class="nam">tools</span> <span class="key">if</span> <span class="nam">tools</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">tools</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t346" href="#t346">346</a></span><span class="t">        <span class="nam">_check_duplicate_tool_names</span><span class="op">(</span><span class="nam">flattened_tools</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t347" href="#t347">347</a></span><span class="t">        <span class="nam">tool_definitions</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t348" href="#t348">348</a></span><span class="t">        <span class="key">if</span> <span class="nam">flattened_tools</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -661,7 +661,7 @@
             <a class="nav" href="z_110ee75c16df30ba_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-07 08:44 +0000
+            created at 2026-10-08 13:27 +0000
         </p>
     </div>
 </footer>
