@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from math import isclose
 from statistics import median
 from typing import Any, Literal
 
 from haystack_integrations.agent_pack.evaluation.dataclasses import EvalMetrics
+from haystack_integrations.agent_pack.optimization.utils import content_digest
 
 
 @dataclass(kw_only=True)
@@ -93,7 +94,7 @@ class OptimizationObjectives:
 @dataclass
 class CandidateConfiguration:
     """
-    One configuration the optimizer submitted through a `ConfigurationEditorToolset`.
+    One configuration the optimizer submitted with `submit_candidate`.
 
     :param candidate_id: Digest of the parsed YAML, which ignores formatting.
     :param parent_id: Identifier of the snapshot the edits started from, the reference's ID when that is the
@@ -146,3 +147,52 @@ class CandidateOutcome:
             "failure": self.failure,
             "gate_failures": list(self.gate_failures),
         }
+
+
+@dataclass(frozen=True)
+class ConfigurationDraft:
+    """
+    The YAML the optimizer is editing during one proposal turn.
+
+    :param yaml: The current YAML.
+    :param parent_id: The configuration the edits started from.
+    :param validated_revision: The revision that last passed `validate_config`, or `None` when the current YAML has
+        not.
+    """
+
+    yaml: str
+    parent_id: str
+    validated_revision: str | None = None
+
+    @property
+    def revision(self) -> str:
+        """The current YAML's revision, which every edit has to name."""
+        return content_digest(payload=self.yaml)
+
+
+@dataclass(frozen=True)
+class KnownConfigurations:
+    """
+    Every configuration measured before a proposal turn, which the optimizer can restore and may not submit again.
+
+    :param reference_id: The reference's ID, which the optimizer restores as `"reference"`.
+    :param yaml_by_id: The YAML of the reference and of every earlier candidate, keyed by ID.
+    """
+
+    reference_id: str
+    yaml_by_id: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class ProposalResult:
+    """
+    What one optimizer turn produced.
+
+    :param candidate: The submitted configuration, or `None` when the optimizer finished or ran out of steps.
+    :param finish_reason: Why the optimizer ended the search, when it called `finish`.
+    :param validation_failures: Every draft that failed `validate_config` during the turn, as `{revision, error}`.
+    """
+
+    candidate: CandidateConfiguration | None
+    finish_reason: str | None = None
+    validation_failures: list[dict[str, str]] = field(default_factory=list)

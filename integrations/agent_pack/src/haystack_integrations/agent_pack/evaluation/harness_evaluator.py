@@ -38,3 +38,21 @@ class HarnessEvaluator(Protocol):
         :raises ValueError: If the candidate is missing something the evaluator requires.
         """
         ...
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize the evaluator.
+
+        :returns: The evaluator's `type` and the settings `from_dict` restores it from.
+        """
+        ...
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "HarnessEvaluator":
+        """
+        Restore an evaluator from what `to_dict` returned.
+
+        :param data: The serialized evaluator.
+        :returns: The restored evaluator.
+        """
+        ...
