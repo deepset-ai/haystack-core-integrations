@@ -462,6 +462,19 @@ def test_normalize_filters(filters, expected):
     assert result == expected
 
 
+def test_equal_with_list_passes_field_as_script_param():
+    # The field name must be bound as a script parameter, never interpolated into the Painless source,
+    # otherwise a quote in the field name breaks out of the string literal and injects code.
+    field = "x'].size()); return 1; //"
+    result = normalize_filters({"field": f"meta.{field}", "operator": "==", "value": ["a", "b"]})
+
+    script = result["bool"]["must"]["terms_set"][field]["minimum_should_match_script"]
+    assert script == {
+        "source": "Math.max(params.num_terms, doc[params.field].size())",
+        "params": {"field": field},
+    }
+
+
 def test_normalize_filters_invalid_operator():
     with pytest.raises(FilterError):
         normalize_filters({"operator": "INVALID", "conditions": []})
@@ -763,3 +776,16 @@ class TestFilters(FilterDocumentsTest):
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
             received_doc.embedding, expected_doc.embedding = None, None
             assert received_doc == expected_doc
+
+    def test_comparison_equal_with_list_matches_exact_set(self, document_store):
+        docs = [
+            Document(id="1", content="exact", meta={"tags": ["a", "b"]}),
+            Document(id="2", content="exact, other order", meta={"tags": ["b", "a"]}),
+            Document(id="3", content="subset", meta={"tags": ["a"]}),
+            Document(id="4", content="superset", meta={"tags": ["a", "b", "c"]}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(filters={"field": "meta.tags", "operator": "==", "value": ["a", "b"]})
+
+        self.assert_documents_are_equal(result, docs[:2])
