@@ -13,6 +13,7 @@ from typing import Any
 
 from haystack import Pipeline, logging, tracing
 from haystack.components.agents import Agent
+from haystack.components.generators.chat.types import ChatGenerator
 
 from haystack_integrations.agent_pack.evaluation.dataclasses import (
     EvalMetrics,
@@ -22,7 +23,7 @@ from haystack_integrations.agent_pack.evaluation.dataclasses import (
 )
 from haystack_integrations.agent_pack.evaluation.harness_evaluator import HarnessEvaluator
 from haystack_integrations.agent_pack.evaluation.tracer import EVAL_CASE_SPAN, HarnessSpan, HarnessTracer
-from haystack_integrations.agent_pack.optimization.agent import propose_candidate
+from haystack_integrations.agent_pack.optimization.agent import create_harness_optimizer_agent, propose_candidate
 from haystack_integrations.agent_pack.optimization.dataclasses import (
     CandidateConfiguration,
     CandidateOutcome,
@@ -268,7 +269,11 @@ class HarnessOptimizationExperiment:
         prices: dict[str, ModelPrice],
         objectives: OptimizationObjectives,
         journal: ExperimentJournal,
-        optimizer_agent: Agent,
+        optimizer_llm: ChatGenerator | None = None,
+        optimizer_system_prompt: str | None = None,
+        optimizer_additional_instructions: str | None = None,
+        optimizer_max_agent_steps: int = 24,
+        optimizer_documentation_tools: bool = False,
         configuration_key: str | None = None,
         max_iterations: int = 8,
         history_digest_window: int = 1,
@@ -287,8 +292,14 @@ class HarnessOptimizationExperiment:
             optimizations. Prices do not restrict which models the optimizer may choose.
         :param objectives: Quality gates and primary measurement used to rank eligible candidates.
         :param journal: Where every raw measurement the experiment takes is recorded.
-        :param optimizer_agent: The agent from `create_harness_optimizer_agent`, built with this experiment's
-            evaluator and, for a Pipeline reference that is not an Agent, `loader=load_pipeline`.
+        :param optimizer_llm: LLM the optimizer agent reasons with. Defaults to the one `create_harness_optimizer_agent`
+            chooses.
+        :param optimizer_system_prompt: Overrides the optimizer agent's pre-made system prompt.
+        :param optimizer_additional_instructions: Guidance appended to the optimizer agent's system prompt about what
+            a good configuration looks like for this harness.
+        :param optimizer_max_agent_steps: Maximum steps the optimizer agent takes to produce one candidate.
+        :param optimizer_documentation_tools: Give the optimizer agent read-only search over the public Haystack
+            documentation. Requires `mcp-haystack`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
@@ -306,7 +317,18 @@ class HarnessOptimizationExperiment:
         self.prices = prices
         self.objectives = objectives
         self.journal = journal
-        self.optimizer_agent = optimizer_agent
+        # The optimizer validates every draft with this experiment's evaluator, and loads it as the same kind of
+        # configuration as the reference
+        _, load = _serialization(reference=reference)
+        self.optimizer_agent = create_harness_optimizer_agent(
+            evaluator=evaluator,
+            loader=load,
+            llm=optimizer_llm,
+            system_prompt=optimizer_system_prompt,
+            max_agent_steps=optimizer_max_agent_steps,
+            additional_instructions=optimizer_additional_instructions,
+            documentation_tools=optimizer_documentation_tools,
+        )
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
         self.history_digest_window = history_digest_window

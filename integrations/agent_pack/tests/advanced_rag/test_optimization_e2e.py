@@ -12,7 +12,6 @@ from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
     HarnessOptimizationExperiment,
     OptimizationObjectives,
-    create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.utils import load_agent
 
@@ -23,8 +22,8 @@ EVIDENCE = "CRISPR gene editing can correct hereditary blindness mutations."
 QUESTION = "What is CRISPR used for?"
 
 
-def optimizer_agent_for(change, evaluator):
-    """Drive actual file edits and validation using a scripted model."""
+def optimizer_llm_for(change):
+    """Script the optimizer's model to edit, validate and submit one change."""
     stage = 0
 
     def respond(messages):
@@ -58,7 +57,7 @@ def optimizer_agent_for(change, evaluator):
         stage += 1
         return ChatMessage.from_assistant(tool_calls=[call])
 
-    return create_harness_optimizer_agent(evaluator=evaluator, llm=MockChatGenerator(response_fn=respond))
+    return MockChatGenerator(response_fn=respond)
 
 
 def scripted_agent(store, document, model):
@@ -100,8 +99,8 @@ class TestAdvancedRagExperiment:
             prices=prices,
             objectives=OptimizationObjectives(quality_metric="mean_budgeted_recall"),
             journal=ExperimentJournal(directory=tmp_path / "journals"),
-            optimizer_agent=optimizer_agent_for(
-                lambda params: params["chat_generator"]["init_parameters"].update(model="cheap"), evaluator=evaluator
+            optimizer_llm=optimizer_llm_for(
+                lambda params: params["chat_generator"]["init_parameters"].update(model="cheap")
             ),
         )
         result = experiment.run()
@@ -130,7 +129,7 @@ class TestAdvancedRagExperiment:
             prices=prices,
             objectives=OptimizationObjectives(quality_metric="mean_budgeted_recall"),
             journal=ExperimentJournal(directory=tmp_path / "journals"),
-            optimizer_agent=optimizer_agent_for(lambda params: params.update(max_agent_steps=1), evaluator=evaluator),
+            optimizer_llm=optimizer_llm_for(lambda params: params.update(max_agent_steps=1)),
         )
         result = experiment.run()
         assert result.baseline.details["mean_budgeted_recall"] == 1.0

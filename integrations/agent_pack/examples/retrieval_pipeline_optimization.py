@@ -48,10 +48,8 @@ from haystack_integrations.agent_pack.optimization import (
     ExperimentResult,
     HarnessOptimizationExperiment,
     OptimizationObjectives,
-    create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
-from haystack_integrations.agent_pack.optimization.utils import load_pipeline
 
 WORKSPACE = Path(".agent-pack-retrieval-poc")
 EXPANDER_MODEL = "gpt-5.6-luna"
@@ -217,7 +215,7 @@ def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator
     than the settings around it.
 
     :param model: Model to reason with, or None to accept the library default.
-    :returns: The generator, or None to let `create_harness_optimizer_agent` choose.
+    :returns: The generator, or None to let the experiment choose the default optimizer model.
     """
     if model is None:
         return None
@@ -546,7 +544,7 @@ def parse_args() -> argparse.Namespace:
         "--optimizer-model",
         help="Model the optimizer itself reasons with. Its turns are most of what an experiment costs on a harness "
         "whose eval cases are cheap, so what it is worth paying for them is itself a measurable question. Defaults to "
-        "whatever `create_harness_optimizer_agent` chooses.",
+        "the experiment's default optimizer model.",
     )
     parser.add_argument("--docs-mcp", action="store_true", help="Give the optimizer the Haystack documentation MCP.")
     parser.add_argument("--fresh", action="store_true", help="Remove saved runs and journals before starting.")
@@ -633,15 +631,10 @@ def main() -> None:
             primary=arguments.primary,
         ),
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
-        optimizer_agent=create_harness_optimizer_agent(
-            evaluator=evaluator,
-            # The reference is a Pipeline rather than a single Agent
-            loader=load_pipeline,
-            llm=build_optimizer_generator(model=arguments.optimizer_model),
-            documentation_tools=arguments.docs_mcp,
-            additional_instructions=retrieval_guidance(k=arguments.k),
-            max_agent_steps=arguments.optimizer_steps,
-        ),
+        optimizer_llm=build_optimizer_generator(model=arguments.optimizer_model),
+        optimizer_additional_instructions=retrieval_guidance(k=arguments.k),
+        optimizer_max_agent_steps=arguments.optimizer_steps,
+        optimizer_documentation_tools=arguments.docs_mcp,
         max_iterations=arguments.max_iterations,
         on_baseline=print_baseline,
         on_candidate=print_candidate,

@@ -54,7 +54,6 @@ from haystack_integrations.agent_pack.optimization import (
     ExperimentResult,
     HarnessOptimizationExperiment,
     OptimizationObjectives,
-    create_harness_optimizer_agent,
 )
 from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
 
@@ -188,7 +187,7 @@ def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator
     than the settings around it.
 
     :param model: Model to reason with, or None to accept the library default.
-    :returns: The generator, or None to let `create_harness_optimizer_agent` choose.
+    :returns: The generator, or None to let the experiment choose the default optimizer model.
     """
     if model is None:
         return None
@@ -375,7 +374,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--optimizer-model",
-        help="Model the optimizer itself reasons with. Defaults to whatever `create_harness_optimizer_agent` chooses.",
+        help="Model the optimizer itself reasons with. Defaults to the experiment's default optimizer model.",
     )
     parser.add_argument(
         "--docs-mcp",
@@ -451,15 +450,14 @@ def main() -> None:
     prices = build_prices(models=(arguments.reference_model, *candidate_models))
 
     print("\n=== 2. optimization experiment ===")
-    evaluator = AdvancedRAGHarnessEvaluator(
-        tool_budgets=TOOL_BUDGETS,
-        digest_policy=DIGEST_POLICY,
-        max_concurrent_eval_cases=arguments.max_concurrent_eval_cases,
-    )
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         eval_cases=eval_cases,
-        evaluator=evaluator,
+        evaluator=AdvancedRAGHarnessEvaluator(
+            tool_budgets=TOOL_BUDGETS,
+            digest_policy=DIGEST_POLICY,
+            max_concurrent_eval_cases=arguments.max_concurrent_eval_cases,
+        ),
         prices=prices,
         objectives=OptimizationObjectives(
             quality_metric=QUALITY_METRIC,
@@ -467,12 +465,9 @@ def main() -> None:
             primary=arguments.primary,
         ),
         journal=ExperimentJournal(directory=arguments.workspace / "journals"),
-        optimizer_agent=create_harness_optimizer_agent(
-            evaluator=evaluator,
-            llm=build_optimizer_generator(model=arguments.optimizer_model),
-            documentation_tools=arguments.docs_mcp,
-            additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE,
-        ),
+        optimizer_llm=build_optimizer_generator(model=arguments.optimizer_model),
+        optimizer_additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE,
+        optimizer_documentation_tools=arguments.docs_mcp,
         max_iterations=arguments.max_iterations,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
