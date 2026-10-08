@@ -6,7 +6,7 @@ import json
 import re
 import traceback
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -25,8 +25,11 @@ from haystack_integrations.agent_pack.evaluation.harness_evaluator import Harnes
 from haystack_integrations.agent_pack.evaluation.tracer import EVAL_CASE_SPAN, HarnessSpan, HarnessTracer
 from haystack_integrations.agent_pack.optimization.agent import create_harness_optimizer_agent, propose_candidate
 from haystack_integrations.agent_pack.optimization.dataclasses import (
-    CandidateConfiguration,
+    CandidateEvaluation,
     CandidateOutcome,
+    CandidateProgress,
+    ExperimentRecommendation,
+    ExperimentResult,
     OptimizationObjectives,
 )
 from haystack_integrations.agent_pack.optimization.utils import (
@@ -39,105 +42,6 @@ from haystack_integrations.agent_pack.optimization.utils import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(kw_only=True)
-class CandidateEvaluation:
-    """
-    Journaled measurement or failure for one complete YAML configuration.
-
-    :param measurement_context: Fingerprint of what makes two measurements comparable.
-    :param run_id: The experiment run this record belongs to.
-    :param candidate_id: Identifier of the measured configuration.
-    :param configuration: The submitted configuration, or None for the reference and for drafts that failed
-        validation.
-    :param metrics: The evaluator's measurement, or None when the configuration could not be measured.
-    :param cost: What `metrics.model_usage` costs at the experiment's prices, or None when it was not measured or
-        uses a model without a known price.
-    :param failure: Why the configuration could not be measured.
-    """
-
-    measurement_context: str
-    run_id: str
-    candidate_id: str
-    configuration: CandidateConfiguration | None
-    metrics: EvalMetrics | None
-    cost: float | None = None
-    failure: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-compatible journal record."""
-        return {
-            "measurement_context": self.measurement_context,
-            "run_id": self.run_id,
-            "candidate_id": self.candidate_id,
-            "configuration": asdict(self.configuration) if self.configuration is not None else None,
-            "metrics": self.metrics.to_dict() if self.metrics is not None else None,
-            "cost": self.cost,
-            "failure": self.failure,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "CandidateEvaluation":
-        """Restore a journal record."""
-        metrics = data.get("metrics")
-        return cls(
-            measurement_context=data["measurement_context"],
-            run_id=data["run_id"],
-            candidate_id=data["candidate_id"],
-            configuration=CandidateConfiguration(**data["configuration"]) if data.get("configuration") else None,
-            metrics=EvalMetrics.from_dict(data=metrics) if metrics is not None else None,
-            cost=data.get("cost"),
-            failure=data.get("failure"),
-        )
-
-
-@dataclass(kw_only=True)
-class CandidateProgress:
-    """
-    One measured candidate, passed to `on_candidate` as soon as it has been measured.
-
-    :param position: Which candidate this is, counting from one.
-    :param total: How many candidates the experiment may measure in all.
-    :param evaluation: The measurement and its cost, or the failure that replaced them.
-    :param gate_failures: The hard gates this candidate missed, empty when it cleared them all.
-    :param baseline: The reference measurement, so a caller can report a change without holding state.
-    :param baseline_cost: The reference's cost, or None when it could not be priced.
-    :param is_best: Whether this candidate now leads the eligible ones.
-    """
-
-    position: int
-    total: int
-    evaluation: "CandidateEvaluation"
-    gate_failures: tuple[str, ...]
-    baseline: EvalMetrics
-    baseline_cost: float | None
-    is_best: bool
-
-
-@dataclass(kw_only=True)
-class ExperimentRecommendation:
-    """The measured configuration that passed its gates and outranked the reference."""
-
-    configuration: CandidateConfiguration
-    evaluation: CandidateEvaluation
-    reasons: tuple[str, ...] = ()
-
-
-@dataclass(kw_only=True)
-class ExperimentResult:
-    """Baseline, candidate outcomes, and the optional best recommendation."""
-
-    baseline: EvalMetrics
-    baseline_cost: float | None
-    candidates: tuple[CandidateEvaluation, ...]
-    recommendation: ExperimentRecommendation | None
-    measurement_context: str
-    run_id: str
-    artifact_directory: Path
-    gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)
-    optimizer_usage: dict[str, ModelTokenUsage] = field(default_factory=dict)
-    optimizer_cost: float | None = None
 
 
 class ExperimentJournal:
