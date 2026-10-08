@@ -2,6 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import atexit
+import os
+import sys
+import threading
 from typing import Any, cast
 
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
@@ -39,3 +43,36 @@ def preview(text: str, limit: int) -> str:
     """
     collapsed = " ".join((text or "").split())
     return collapsed if len(collapsed) <= limit else f"{collapsed[:limit]}..."
+
+
+def quiet_hub_warnings() -> None:
+    """
+    Stop the Hugging Face Hub's unauthenticated-request notice from interleaving with a walkthrough's output.
+
+    The corpus is public and cached after the first run, so the notice says nothing a reader can act on. It is
+    written straight to the standard error descriptor rather than logged or warned, so neither a logging filter
+    nor a `sys.stderr` replacement reaches it; the descriptor itself is routed through a pipe and everything but
+    that one line is passed on unchanged.
+    """
+    noise = b"unauthenticated requests to the HF Hub"
+    original = os.dup(2)
+    reading, writing = os.pipe()
+    os.dup2(writing, 2)
+    os.close(writing)
+
+    def forward() -> None:
+        with os.fdopen(reading, "rb") as incoming:
+            for line in incoming:
+                if noise not in line:
+                    os.write(original, line)
+
+    pump = threading.Thread(target=forward, daemon=True)
+    pump.start()
+
+    def restore() -> None:
+        """Put the descriptor back, so a final traceback is not lost to a daemon thread on the way out."""
+        sys.stderr.flush()
+        os.dup2(original, 2)
+        pump.join(timeout=2.0)
+
+    atexit.register(restore)
