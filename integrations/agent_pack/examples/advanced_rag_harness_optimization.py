@@ -27,12 +27,10 @@
 # carried over from an earlier one.
 
 import argparse
-import logging
 import os
 import shutil
-import sys
+from collections import Counter
 from pathlib import Path
-from statistics import median
 
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
@@ -41,21 +39,19 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DocumentStore
 from haystack.tools import ComponentTool, flatten_tools_or_toolsets
 from multihop_rag import CORPUS_KEY, SPLIT_LENGTH, SPLIT_OVERLAP, build_eval_cases, prepare_corpus
-from util import build_bm25_retriever, quiet_hub_warnings
+from util import ExperimentPrinter, build_bm25_retriever, build_optimizer_generator, enable_progress_reporting, paint
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent, prompts
 from haystack_integrations.agent_pack.advanced_rag.harness_evaluator import (
     AdvancedRAGHarnessEvaluator,
 )
-from haystack_integrations.agent_pack.evaluation import ModelPrice, RetrievalEvalCase, ToolNames
+from haystack_integrations.agent_pack.evaluation import EvalMetrics, ModelPrice, RetrievalEvalCase, ToolNames
 from haystack_integrations.agent_pack.evaluation.agent_run_digest import AgentRunDigestPolicy
 from haystack_integrations.agent_pack.optimization import (
     ExperimentJournal,
-    ExperimentResult,
     HarnessOptimizationExperiment,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.prompts import OPTIMIZER_PROMPT_CACHE_KEY
 
 WORKSPACE = Path(".agent-pack-poc")
 REFERENCE_MODEL = "gpt-5.6-luna"
@@ -179,26 +175,6 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
 }
 
 
-def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator | None:
-    """
-    Build the optimizer's generator on a named model, leaving everything else as the default.
-
-    Only the model differs from what the library would build, so a run that changes it measures the model rather
-    than the settings around it.
-
-    :param model: Model to reason with, or None to accept the library default.
-    :returns: The generator, or None to let the experiment choose the default optimizer model.
-    """
-    if model is None:
-        return None
-    return OpenAIResponsesChatGenerator(
-        model=model,
-        timeout=180.0,
-        max_retries=5,
-        generation_kwargs={"prompt_cache_key": OPTIMIZER_PROMPT_CACHE_KEY, "reasoning": {"effort": "low"}},
-    )
-
-
 def build_leftover_tool() -> ComponentTool:
     """
     Build a retrieval tool left over from another corpus, pointing at a store that holds nothing.
@@ -267,61 +243,25 @@ def build_prices(models: tuple[str, ...]) -> dict[str, ModelPrice]:
     }
 
 
-def format_cost(cost: float | None) -> str:
-    """Format a measured cost that may be unavailable for an optimizer-selected model."""
-    return "unpriced" if cost is None else f"${cost:.6f}"
+def rag_details(metrics: EvalMetrics, baseline: EvalMetrics | None) -> list[str]:  # noqa: ARG001
+    """
+    Render what the Advanced RAG harness evaluator reports beyond budgeted recall.
 
-
-def report(result: ExperimentResult) -> None:
-    """Print baseline, candidate, gate, and recommendation details."""
-    baseline = result.baseline
-    print("\n--- baseline (reference Agent) ---")
-    print(
-        f"  {QUALITY_METRIC}={baseline.details[QUALITY_METRIC]:.2f} cost={format_cost(cost=result.baseline_cost)} "
-        f"median duration={median(baseline.durations):.1f}s model={baseline.details.get('model')}"
-    )
-    for eval_case_metrics in baseline.eval_cases:
-        verdict = "pass" if eval_case_metrics["passed"] else "FAIL " + ",".join(eval_case_metrics["failures"])
-        print(f"    [{verdict}] {eval_case_metrics['question']}")
-
-    print("\n--- candidates ---")
-    for candidate in result.candidates:
-        gates = result.gate_failures.get(candidate.candidate_id, ())
-        if candidate.metrics is None:
-            print(f"  {candidate.candidate_id} -> failed: {candidate.failure}")
-            continue
-        print(
-            f"  {candidate.candidate_id} -> {QUALITY_METRIC}={candidate.metrics.details[QUALITY_METRIC]:.2f} "
-            f"cost={format_cost(cost=candidate.cost)} "
-            f"median duration={median(candidate.metrics.durations):.1f}s"
-        )
-        print(f"    gates: {'passed' if not gates else ', '.join(gates)}")
-        for eval_case_metrics in candidate.metrics.eval_cases:
-            if not eval_case_metrics["passed"]:
-                print(
-                    f"      regression on {eval_case_metrics['question']!r}: {','.join(eval_case_metrics['failures'])}"
-                )
-
-    print("\n--- what the search itself cost ---")
-    usage = ", ".join(
-        f"{model}: {tokens.input_tokens} in / {tokens.output_tokens} out"
-        for model, tokens in result.optimizer_usage.items()
-    )
-    print(f"  optimizer usage: {usage or 'none recorded'}")
-    print(f"  optimizer cost:  {format_cost(cost=result.optimizer_cost)} (input tokens charged at full price)")
-
-    print("\n--- recommendation ---")
-    if result.recommendation is None:
-        print("  none: no candidate cleared every gate and improved on the reference")
-        return
-    recommendation = result.recommendation
-    print(f"  configuration: {result.artifact_directory / 'recommended.yaml'}")
-    print(f"  rationale: {recommendation.configuration.rationale}")
-    print(f"  reasons: {', '.join(recommendation.reasons)}")
-    recommendation_cost = recommendation.evaluation.cost
-    if result.baseline_cost is not None and recommendation_cost is not None:
-        print(f"  cost saving on this evaluation set: ${result.baseline_cost - recommendation_cost:.6f}")
-    print("  Nothing was deployed. Approving this recommendation is a separate, human decision.")
+    :param metrics: The measurement to render.
+    :param baseline: The reference measurement, which these lines are not compared against.
+    :returns: The recall and pass-rate line, the model, and the failures across eval cases.
+    """
+    details = metrics.details
+    failures = Counter(failure for eval_case in metrics.eval_cases for failure in eval_case["failures"])
+    return [
+        (
+            f"    {paint('scores  ', 'bold')} cited recall {details['mean_cited_recall']:.2f}   "
+            f"retrieved recall {details['mean_recall']:.2f}   pass rate {details['pass_rate']:.2f}"
+        ),
+        f"    {paint('model   ', 'bold')} {details.get('model')}",
+        f"    {paint('failures', 'bold')} "
+        + (", ".join(f"{failure} x{count}" for failure, count in failures.most_common()) or "none"),
+    ]
 
 
 def parse_args() -> argparse.Namespace:
@@ -389,26 +329,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def enable_progress_reporting() -> None:
-    """
-    Report progress while the experiment runs rather than when it finishes.
-
-    A run spends most of its time inside Agent calls, and its own output is a few lines per phase, so a redirected
-    stdout would otherwise stay empty for the length of an experiment: line buffering makes each line appear as it
-    is written. The library reports each eval case and each candidate through its logger, which is routed here so that
-    progress and phases arrive on the same stream in order.
-    """
-    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
-    quiet_hub_warnings()
-    handler = logging.StreamHandler(stream=sys.stdout)
-    handler.setFormatter(logging.Formatter("  %(message)s"))
-    progress = logging.getLogger("haystack_integrations.agent_pack")
-    progress.handlers.clear()
-    progress.addHandler(handler)
-    progress.setLevel(logging.INFO)
-    progress.propagate = False
-
-
 def main() -> None:
     """Build the experiment and run it end to end."""
     arguments = parse_args()
@@ -450,6 +370,9 @@ def main() -> None:
     prices = build_prices(models=(arguments.reference_model, *candidate_models))
 
     print("\n=== 2. optimization experiment ===")
+    printer = ExperimentPrinter(
+        quality_metric=QUALITY_METRIC, quality_label="budgeted recall", detail_lines=rag_details
+    )
     experiment = HarnessOptimizationExperiment(
         reference=reference_agent,
         eval_cases=eval_cases,
@@ -469,13 +392,15 @@ def main() -> None:
         optimizer_additional_instructions=ADVANCED_RAG_OPTIMIZER_GUIDANCE,
         optimizer_documentation_tools=arguments.docs_mcp,
         max_iterations=arguments.max_iterations,
+        on_baseline=printer.on_baseline,
+        on_candidate=printer.on_candidate,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()
     print(f"  measurement context: {result.measurement_context}; run: {result.run_id}")
 
     print("\n=== 3. outcome ===")
-    report(result=result)
+    printer.report(result=result)
     print(f"\nJournal: {experiment.journal.path_for(result.run_id)}")
 
 
