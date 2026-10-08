@@ -1,17 +1,16 @@
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import os
-from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-import pytz
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, StreamingChunk
+from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
 from haystack.utils.auth import Secret
 from openai import OpenAIError
-from openai.types import CompletionUsage
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
 from pydantic import BaseModel
 
 from haystack_integrations.components.generators.stackit.chat.chat_generator import STACKITChatGenerator
@@ -21,45 +20,6 @@ class CalendarEvent(BaseModel):
     event_name: str
     event_date: str
     event_location: str
-
-
-@pytest.fixture
-def calendar_event_model():
-    return CalendarEvent
-
-
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_system("You are a helpful assistant"),
-        ChatMessage.from_user("What's the capital of France"),
-    ]
-
-
-@pytest.fixture
-def mock_chat_completion():
-    """
-    Mock the OpenAI API completion response and reuse it for tests
-    """
-    with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
-        completion = ChatCompletion(
-            id="foo",
-            model="google/gemma-3-27b-it",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage=CompletionUsage(prompt_tokens=57, completion_tokens=40, total_tokens=97),
-        )
-
-        mock_chat_completion_create.return_value = completion
-        yield mock_chat_completion_create
 
 
 class TestSTACKITChatGenerator:
@@ -79,19 +39,6 @@ class TestSTACKITChatGenerator:
         assert component.streaming_callback is None
         assert not component.generation_kwargs
 
-    def test_warm_up(self, monkeypatch):
-        monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("STACKIT_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = STACKITChatGenerator(model="google/gemma-3-27b-it")
-            component.warm_up()
-
     def test_init_with_parameters(self):
         component = STACKITChatGenerator(
             api_key=Secret.from_token("test-api-key"),
@@ -104,6 +51,19 @@ class TestSTACKITChatGenerator:
         assert component.model == "google/gemma-3-27b-it"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+
+    def test_init_fail_wo_api_key(self, monkeypatch):
+        monkeypatch.delenv("STACKIT_API_KEY", raising=False)
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = STACKITChatGenerator(model="google/gemma-3-27b-it")
+            component.warm_up()
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
+        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        assert component.client.api_key == "test-api-key"
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
@@ -129,7 +89,7 @@ class TestSTACKITChatGenerator:
         for key, value in expected_params.items():
             assert data["init_parameters"][key] == value
 
-    def test_to_dict_with_parameters(self, monkeypatch, calendar_event_model):
+    def test_to_dict_with_parameters(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = STACKITChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
@@ -139,7 +99,7 @@ class TestSTACKITChatGenerator:
             generation_kwargs={
                 "max_tokens": 10,
                 "some_test_param": "test-params",
-                "response_format": calendar_event_model,
+                "response_format": CalendarEvent,
             },
             timeout=10.0,
             max_retries=2,
@@ -206,19 +166,11 @@ class TestSTACKITChatGenerator:
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("STACKIT_API_KEY")
 
-    def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
-        monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
-        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
-        response = component.run(chat_messages)
-
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
+    def test_run_with_params(self, mock_chat_completion, monkeypatch):
+        chat_messages = [
+            ChatMessage.from_system("You are a helpful assistant"),
+            ChatMessage.from_user("What's the capital of France"),
+        ]
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
         component = STACKITChatGenerator(
             model="google/gemma-3-27b-it", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
@@ -237,9 +189,98 @@ class TestSTACKITChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
+    def test_run_with_string_input(self, mock_chat_completion: MagicMock) -> None:
+
+        component = STACKITChatGenerator(model="openai/gpt-oss-20b", api_key=Secret.from_token("test-api-key"))
+        response = component.run("What's the capital of France?")
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+        assert isinstance(response["replies"][0], ChatMessage)
+
+    def test_run_with_empty_messages(self, mock_chat_completion):
+        component = STACKITChatGenerator(model="openai/gpt-oss-20b", api_key=Secret.from_token("test-api-key"))
+        assert component.run([]) == {"replies": []}
+        mock_chat_completion.assert_not_called()
+
+    def test_run_with_reasoning(self, reasoning_completion):
+        component = STACKITChatGenerator(model="openai/gpt-oss-20b", api_key=Secret.from_token("test-api-key"))
+        with patch("openai.resources.chat.completions.Completions.create", return_value=reasoning_completion):
+            response = component.run([ChatMessage.from_user("What is 2 + 2?")])
+
+        message = response["replies"][0]
+        assert message.text == "4"
+        assert message.reasoning.reasoning_text == "We need a brief reply. 2+2=4."
+        assert message.meta["model"] == "openai/gpt-oss-20b"
+        assert message.meta["finish_reason"] == "stop"
+        assert message.meta["usage"] == reasoning_completion.usage.model_dump()
+
+    def test_run_with_reasoning_streaming(self, reasoning_chunks):
+        chunks = []
+        component = STACKITChatGenerator(
+            model="openai/gpt-oss-20b", api_key=Secret.from_token("test-api-key"), streaming_callback=chunks.append
+        )
+        with patch("openai.resources.chat.completions.Completions.create", return_value=iter(reasoning_chunks)):
+            response = component.run([ChatMessage.from_user("What is 2 + 2?")])
+
+        assert len(chunks) == 17
+        assert chunks[0].content == "" and chunks[0].index is None
+        assert [c.reasoning.reasoning_text for c in chunks[1:14]] == [
+            "We",
+            " need",
+            " a",
+            " brief",
+            " reply",
+            ".",
+            " ",
+            "2",
+            "+",
+            "2",
+            "=",
+            "4",
+            ".",
+        ]
+        assert [c.start for c in chunks[1:14]] == [True] + [False] * 12
+        assert all(c.index == 0 and c.content == "" and not c.tool_calls for c in chunks[1:14])
+        assert chunks[14].content == "4" and chunks[14].start and chunks[14].reasoning is None
+        assert chunks[15].finish_reason == "stop"
+        assert chunks[16].meta["usage"] == reasoning_chunks[-1].usage.model_dump()
+        assert all(c.meta["model"] == "openai/gpt-oss-20b" and c.component_info is not None for c in chunks)
+        message = response["replies"][0]
+        assert message.text == "4"
+        assert message.reasoning.reasoning_text == "We need a brief reply. 2+2=4."
+        assert message.meta["finish_reason"] == "stop"
+        assert message.meta["usage"] == reasoning_chunks[-1].usage.model_dump()
+
+    def test_run_with_reasoning_and_tools_streaming(self, reasoning_tool_chunk):
+        chunks = []
+        component = STACKITChatGenerator(
+            model="openai/gpt-oss-20b", api_key=Secret.from_token("test-api-key"), streaming_callback=chunks.append
+        )
+        with patch("openai.resources.chat.completions.Completions.create", return_value=iter([reasoning_tool_chunk])):
+            response = component.run([ChatMessage.from_user("What's the weather in Paris and Berlin?")])
+
+        assert len(chunks) == 2
+        assert chunks[0].reasoning.reasoning_text == "Check both cities."
+        assert not chunks[0].tool_calls and chunks[0].finish_reason is None
+        assert chunks[0].meta["usage"] is None
+        assert chunks[1].reasoning is None and chunks[1].finish_reason == "tool_calls"
+        assert [call.index for call in chunks[1].tool_calls] == [0, 1]
+        message = response["replies"][0]
+        assert message.reasoning.reasoning_text == "Check both cities."
+        assert message.tool_calls == [
+            ToolCall(id="call_1", tool_name="weather", arguments={"city": "Paris"}),
+            ToolCall(id="call_2", tool_name="weather", arguments={"city": "Berlin"}),
+        ]
+        assert message.meta["finish_reason"] == "tool_calls"
+        assert message.meta["usage"] == reasoning_tool_chunk.usage.model_dump()
+
     @pytest.mark.skipif(
         not os.environ.get("STACKIT_API_KEY", None),
-        reason="Export an env var called STACKIT_API_KEY containing the API key to run this test.",
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run(self) -> None:
@@ -254,17 +295,7 @@ class TestSTACKITChatGenerator:
 
     @pytest.mark.skipif(
         not os.environ.get("STACKIT_API_KEY", None),
-        reason="Export an env var called STACKIT_API_KEY containing the API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_wrong_model(self, chat_messages):
-        component = STACKITChatGenerator(model="something-obviously-wrong")
-        with pytest.raises(OpenAIError):
-            component.run(chat_messages)
-
-    @pytest.mark.skipif(
-        not os.environ.get("STACKIT_API_KEY", None),
-        reason="Export an env var called STACKIT_API_KEY containing the API key to run this test.",
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
     )
     @pytest.mark.integration
     def test_live_run_streaming(self):
@@ -290,6 +321,43 @@ class TestSTACKITChatGenerator:
 
         assert callback.counter > 1
         assert "paris" in callback.responses.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("STACKIT_API_KEY", None),
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run_with_reasoning(self, streaming):
+        chunks = []
+        component = STACKITChatGenerator(
+            model="openai/gpt-oss-20b",
+            generation_kwargs={"max_completion_tokens": 256, "reasoning_effort": "low"},
+            streaming_callback=chunks.append if streaming else None,
+        )
+        message = component.run([ChatMessage.from_user("What is 2 + 2? Reply briefly.")])["replies"][0]
+        assert "4" in message.text
+        assert message.reasoning.reasoning_text
+        assert message.meta["finish_reason"] == "stop"
+        if streaming:
+            assert "".join(chunk.content for chunk in chunks) == message.text
+            assert "".join(chunk.reasoning.reasoning_text for chunk in chunks if chunk.reasoning) == (
+                message.reasoning.reasoning_text
+            )
+
+    @pytest.mark.skipif(
+        not os.environ.get("STACKIT_API_KEY", None),
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_wrong_model(self):
+        chat_messages = [
+            ChatMessage.from_system("You are a helpful assistant"),
+            ChatMessage.from_user("What's the capital of France"),
+        ]
+        component = STACKITChatGenerator(model="something-obviously-wrong")
+        with pytest.raises(OpenAIError):
+            component.run(chat_messages)
 
     @pytest.mark.skipif(
         not os.environ.get("STACKIT_API_KEY", None),
@@ -333,13 +401,13 @@ class TestSTACKITChatGenerator:
         reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
     )
     @pytest.mark.integration
-    def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+    def test_live_run_with_response_format_pydantic_model(self):
         chat_messages = [
             ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
         ]
         component = STACKITChatGenerator(
             model="google/gemma-3-27b-it",
-            generation_kwargs={"response_format": calendar_event_model},
+            generation_kwargs={"response_format": CalendarEvent},
         )
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
