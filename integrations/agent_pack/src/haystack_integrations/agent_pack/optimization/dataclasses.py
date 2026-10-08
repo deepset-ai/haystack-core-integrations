@@ -235,20 +235,6 @@ class CandidateEvaluation:
             "failure": self.failure,
         }
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "CandidateEvaluation":
-        """Restore a journal record."""
-        metrics = data.get("metrics")
-        return cls(
-            measurement_context=data["measurement_context"],
-            run_id=data["run_id"],
-            candidate_id=data["candidate_id"],
-            configuration=CandidateConfiguration(**data["configuration"]) if data.get("configuration") else None,
-            metrics=EvalMetrics.from_dict(data=metrics) if metrics is not None else None,
-            cost=data.get("cost"),
-            failure=data.get("failure"),
-        )
-
 
 @dataclass(kw_only=True)
 class CandidateProgress:
