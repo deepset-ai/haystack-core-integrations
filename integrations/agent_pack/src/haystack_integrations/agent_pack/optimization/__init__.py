@@ -14,12 +14,26 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     OptimizationObjectives,
     ProposalResult,
 )
+from haystack_integrations.agent_pack.optimization.experiment import (
+    CandidateEvaluation,
+    CandidateProgress,
+    ExperimentJournal,
+    ExperimentRecommendation,
+    ExperimentResult,
+    HarnessOptimizationExperiment,
+)
 from haystack_integrations.agent_pack.optimization.tools import ValidateConfig
 
 __all__ = [
     "CandidateConfiguration",
+    "CandidateEvaluation",
     "CandidateOutcome",
+    "CandidateProgress",
     "ConfigurationDraft",
+    "ExperimentJournal",
+    "ExperimentRecommendation",
+    "ExperimentResult",
+    "HarnessOptimizationExperiment",
     "KnownConfigurations",
     "OptimizationObjectives",
     "ProposalResult",
