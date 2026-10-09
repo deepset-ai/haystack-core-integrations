@@ -4,13 +4,13 @@
 
 | Name                                                          |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/tools/e2b/bash\_tool.py            |       26 |        3 |        2 |        1 |     86% |     53-55 |
-| src/haystack\_integrations/tools/e2b/e2b\_sandbox.py          |       62 |        0 |       14 |        1 |     99% | 203-\>218 |
-| src/haystack\_integrations/tools/e2b/list\_directory\_tool.py |       28 |        3 |        4 |        0 |     91% | 72, 80-81 |
-| src/haystack\_integrations/tools/e2b/read\_file\_tool.py      |       24 |        0 |        2 |        0 |    100% |           |
+| src/haystack\_integrations/tools/e2b/bash\_tool.py            |       30 |        3 |        2 |        1 |     88% |     53-55 |
+| src/haystack\_integrations/tools/e2b/e2b\_sandbox.py          |       59 |        0 |       14 |        1 |     99% | 191-\>206 |
+| src/haystack\_integrations/tools/e2b/list\_directory\_tool.py |       32 |        3 |        4 |        0 |     92% | 80, 88-89 |
+| src/haystack\_integrations/tools/e2b/read\_file\_tool.py      |       28 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/tools/e2b/sandbox\_toolset.py      |       24 |        6 |        0 |        0 |     75% |74, 78, 82, 90-92 |
-| src/haystack\_integrations/tools/e2b/write\_file\_tool.py     |       22 |        3 |        0 |        0 |     86% | 67, 75-76 |
-| **TOTAL**                                                     |  **186** |   **15** |   **22** |    **2** | **92%** |           |
+| src/haystack\_integrations/tools/e2b/write\_file\_tool.py     |       26 |        3 |        0 |        0 |     88% | 75, 83-84 |
+| **TOTAL**                                                     |  **199** |   **15** |   **22** |    **2** | **92%** |           |
 
 
 ## Setup coverage badge
