@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 from mistralai.client.models import DocumentURLChunk, FileChunk, ImageURLChunk
@@ -111,34 +112,6 @@ class TestSerialization:
             },
         }
 
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
-        converter_dict = {
-            "type": self.CLASS_TYPE,
-            "init_parameters": {
-                "api_key": {
-                    "env_vars": ["MISTRAL_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
-                "model": "mistral-ocr-2505",
-                "include_image_base64": False,
-                "pages": None,
-                "image_limit": None,
-                "image_min_size": None,
-                "cleanup_uploaded_files": True,
-            },
-        }
-
-        converter = MistralOCRDocumentConverter.from_dict(converter_dict)
-
-        assert converter.model == "mistral-ocr-2505"
-        assert converter.include_image_base64 is False
-        assert converter.pages is None
-        assert converter.image_limit is None
-        assert converter.image_min_size is None
-        assert converter.cleanup_uploaded_files is True
-
     def test_from_dict_with_custom_parameters(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         converter_dict = {
@@ -158,7 +131,7 @@ class TestSerialization:
             },
         }
 
-        converter = MistralOCRDocumentConverter.from_dict(converter_dict)
+        converter = component_from_dict(MistralOCRDocumentConverter, converter_dict, name="converter")
 
         assert converter.model == "mistral-ocr-custom"
         assert converter.include_image_base64 is True
@@ -166,6 +139,7 @@ class TestSerialization:
         assert converter.image_limit == 10
         assert converter.image_min_size == 100
         assert converter.cleanup_uploaded_files is False
+        assert converter.api_key == Secret.from_env_var("MISTRAL_API_KEY")
 
 
 class TestComponentLifecycle:

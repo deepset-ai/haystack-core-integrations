@@ -7,13 +7,13 @@ import re
 from pathlib import Path
 from typing import Any, ClassVar
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, default_to_dict, logging
 from haystack.components.converters.utils import (
     get_bytestream_from_source,
     normalize_metadata,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from mistralai.client import Mistral
 from mistralai.client.models import (
     DocumentURLChunk,
@@ -185,19 +185,6 @@ class MistralOCRDocumentConverter:
             image_min_size=self.image_min_size,
             cleanup_uploaded_files=self.cleanup_uploaded_files,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "MistralOCRDocumentConverter":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            Dictionary to deserialize from.
-        :returns:
-            Deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document], raw_mistral_response=list[dict[str, Any]])
     def run(

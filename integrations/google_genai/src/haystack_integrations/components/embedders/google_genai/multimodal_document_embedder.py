@@ -11,14 +11,14 @@ from typing import Any, Literal
 from google.genai import Client
 from google.genai.client import AsyncClient
 from google.genai.types import Content, EmbedContentConfig, Part
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
     _encode_image_to_base64,
     _PDFPageInfo,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 from typing_extensions import NotRequired, TypedDict
@@ -320,19 +320,6 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             timeout=self._timeout,
             max_retries=self._max_retries,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GoogleGenAIMultimodalDocumentEmbedder":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            Dictionary to deserialize from.
-        :returns:
-            Deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     def _extract_parts_to_embed(self, documents: list[Document]) -> list[Part]:
         """
