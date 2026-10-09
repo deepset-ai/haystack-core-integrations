@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/qdrant-v12.0.0] - 2026-10-09
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Use exact matching for Qdrant equality and membership filters (#3950)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+
+
 ## [integrations/qdrant-v11.1.0] - 2026-10-01
 
 ### 🐛 Bug Fixes

@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/e2b-v1.1.0] - 2026-10-09
+
+### 🚀 Features
+
+- E2b - add lifecycle methods to each tool (#4071)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### ⚙️ CI
+
+- Run e2b integration tests unconditionally and skip them in the test files (#3725)
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/e2b-v1.0.0] - 2026-04-30
 
 ### 🚀 Features
