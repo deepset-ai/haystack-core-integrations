@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging as python_logging
+import logging as stdlib_logging
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from datetime import datetime
@@ -43,7 +43,7 @@ from azure.search.documents.models import LookupDocument, VectorizedQuery
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from haystack.utils.misc import _normalize_metadata_field_name
 
 from .errors import AzureAISearchDocumentStoreConfigError, AzureAISearchDocumentStoreError
@@ -105,8 +105,9 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
 )
 
 logger = logging.getLogger(__name__)
-python_logging.getLogger("azure").setLevel(python_logging.ERROR)
-python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
+# Suppress noisy logs from Azure SDK internals using Python's stdlib logging levels
+stdlib_logging.getLogger("azure").setLevel(stdlib_logging.ERROR)
+stdlib_logging.getLogger("azure.identity").setLevel(stdlib_logging.DEBUG)
 
 SPECIAL_FIELDS = {"id", "embedding"}
 FIELD_TYPE_MAPPING = {
@@ -384,7 +385,6 @@ class AzureAISearchDocumentStore:
                 else:
                     data["init_parameters"][key] = _instantiate_azure_model(model_class, value)
 
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_endpoint"])
         if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
             data["init_parameters"]["vector_search_configuration"] = VectorSearch(vector_search_configuration)
         return default_from_dict(cls, data)
@@ -630,8 +630,9 @@ class AzureAISearchDocumentStore:
 
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
-                f"AzureAISearchDocumentStore only supports `DuplicatePolicy.OVERWRITE`"
-                f"but got {policy}. Overwriting duplicates is enabled by default."
+                "AzureAISearchDocumentStore only supports `DuplicatePolicy.OVERWRITE` but got {policy}. "
+                "Overwriting duplicates is enabled by default.",
+                policy=policy,
             )
         client = self.client
         documents_to_write = [self._convert_haystack_document_to_azure(doc) for doc in documents]
@@ -866,7 +867,7 @@ class AzureAISearchDocumentStore:
                 document = self.client.get_document(doc_id)
                 azure_documents.append(document)
             except ResourceNotFoundError:
-                logger.warning(f"Document with ID {doc_id} not found.")
+                logger.warning("Document with ID {doc_id} not found.", doc_id=doc_id)
         return azure_documents
 
     def _convert_haystack_document_to_azure(self, document: Document) -> dict[str, Any]:

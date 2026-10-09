@@ -530,6 +530,11 @@ class AmazonBedrockChatGenerator:
     @staticmethod
     def _resolve_flattened_generation_kwargs(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
+        # Copy the nested dicts the flattened kwargs write into; a shallow copy would share them with the
+        # component's init-time generation_kwargs, so a per-run flattened kwarg would persist across runs.
+        for key in ("tool_choice", "thinking", "output_config"):
+            if isinstance(generation_kwargs.get(key), dict):
+                generation_kwargs[key] = dict(generation_kwargs[key])
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
@@ -544,11 +549,6 @@ class AmazonBedrockChatGenerator:
             tool_choice = generation_kwargs.setdefault("tool_choice", {})
             tool_choice["disable_parallel_tool_use"] = disable_parallel_tool_use
             tool_choice.setdefault("type", "auto")  # default value
-
-        tool_choice_type = generation_kwargs.pop("tool_choice_type", None)
-        if tool_choice_type is not None:
-            tool_choice = generation_kwargs.setdefault("tool_choice", {})
-            tool_choice["type"] = tool_choice_type
 
         thinking_budget_tokens = generation_kwargs.pop("thinking_budget_tokens", None)
         if thinking_budget_tokens is not None:
@@ -565,6 +565,15 @@ class AmazonBedrockChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        for nested_name in ("tool_choice", "thinking", "output_config"):
+            prefix = f"{nested_name}_"
+            for key in [k for k in generation_kwargs if k.startswith(prefix)]:
+                value = generation_kwargs.pop(key)
+                if value is not None:
+                    nested_key = key[len(prefix) :]
+                    nested_dict = generation_kwargs.setdefault(nested_name, {})
+                    nested_dict[nested_key] = value
 
         return generation_kwargs
 

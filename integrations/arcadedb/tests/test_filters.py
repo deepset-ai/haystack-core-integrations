@@ -25,7 +25,7 @@ class TestFilterConversion:
 
     def test_not_equal(self):
         result = _convert_filters({"field": "meta.name", "operator": "!=", "value": "bob"})
-        assert result == "meta.name <> 'bob'"
+        assert result == "(meta.name <> 'bob' OR meta.name IS NULL)"
 
     def test_not_equal_null(self):
         result = _convert_filters({"field": "meta.name", "operator": "!=", "value": None})
@@ -76,7 +76,7 @@ class TestFilterConversion:
                 ],
             }
         )
-        assert result == "NOT (meta.deleted = true)"
+        assert result == "NOT coalesce((meta.deleted = true), false)"
 
     def test_nested(self):
         result = _convert_filters(

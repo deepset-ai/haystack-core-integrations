@@ -18,7 +18,6 @@ from haystack.tools import (
 from haystack.utils import (
     Secret,
     deserialize_callable,
-    deserialize_secrets_inplace,
     serialize_callable,
 )
 
@@ -77,11 +76,16 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "claude-fable-5-1",
+        "claude-fable-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
         "claude-opus-4-6",
+        "claude-opus-4-5",
+        "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5",
-        "claude-opus-4-5",
-        "claude-opus-4-1",
         "claude-haiku-4-5",
     ]
     """A non-exhaustive list of chat models supported by this component.
@@ -122,8 +126,12 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             for more details.
             Supported generation_kwargs parameters are:
             - `system`: The system message to be passed to the model.
-            - `max_tokens`: The maximum number of tokens to generate.
+            - `max_tokens`: The maximum number of tokens to generate. Defaults to 8192. A response that hits
+                this limit is cut off; if the model was writing a tool call at the time, that call is dropped
+                and the reply carries a `length` finish reason.
             - `metadata`: A dictionary of metadata to be passed to the model.
+            - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
+                (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
             - `stop_sequences`: A list of strings that the model should stop generating at.
             - `temperature`: The temperature to use for sampling.
             - `top_p`: The top_p value to use for nucleus sampling.
@@ -249,7 +257,6 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             The deserialized component instance.
         """
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
 
         init_params = data.get("init_parameters", {})
         if serialized_callback := init_params.get("streaming_callback"):

@@ -67,6 +67,14 @@ class ListDirectoryTool(Tool):
         )
         self._e2b_sandbox = sandbox
 
+    def warm_up(self) -> None:
+        """Start the sandbox if needed."""
+        self._e2b_sandbox.warm_up()
+
+    def close(self) -> None:
+        """Close the sandbox."""
+        self._e2b_sandbox.close()
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize this tool to a dictionary."""
         return {

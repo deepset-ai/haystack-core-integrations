@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import asyncio
 import dataclasses
 import inspect
@@ -30,7 +34,6 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
-    warm_up_tools,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
 from openai import AsyncOpenAI, AsyncStream, OpenAI, Stream
@@ -255,16 +258,9 @@ class VLLMChatGenerator:
 
         self._client: OpenAI | None = None
         self._async_client: AsyncOpenAI | None = None
-        self._tools_warmed_up = False
-
-    def _warm_up_tools(self) -> None:
-        if not self._tools_warmed_up:
-            warm_up_tools(self.tools)
-            self._tools_warmed_up = True
 
     def warm_up(self) -> None:
-        """Create the synchronous OpenAI client and warm up tools."""
-        self._warm_up_tools()
+        """Create the synchronous OpenAI client."""
         if self._client is None:
             self._client = _create_openai_client(
                 api_key=self.api_key,
@@ -275,8 +271,7 @@ class VLLMChatGenerator:
             )
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous OpenAI client and warm up tools."""
-        self._warm_up_tools()
+        """Create the asynchronous OpenAI client."""
         if self._async_client is None:
             self._async_client = _create_async_openai_client(
                 api_key=self.api_key,
@@ -347,7 +342,7 @@ class VLLMChatGenerator:
 
         openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        flattened_tools = flatten_tools_or_toolsets(tools if tools is not None else self.tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_definitions = None
         if flattened_tools:

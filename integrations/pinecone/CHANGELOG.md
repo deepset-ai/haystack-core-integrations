@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/pinecone-v6.4.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- *(pinecone)* Infer boolean for list-valued bool metadata (#3920)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/pinecone-v6.4.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

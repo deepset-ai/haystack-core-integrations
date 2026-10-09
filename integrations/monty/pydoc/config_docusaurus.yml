@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.tools.monty.python_tool
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Monty integration for Haystack
+  id: integrations-monty
+  filename: monty.md
+  title: Monty

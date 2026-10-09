@@ -27,7 +27,6 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
-    warm_up_tools,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
 from haystack.utils.hf import convert_message_to_hf_format
@@ -442,7 +441,6 @@ class HuggingFaceAPIChatGenerator:
         self._model_or_url = model_or_url
         self._client: InferenceClient | None = None
         self._async_client: AsyncInferenceClient | None = None
-        self._tools_warmed_up = False
 
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Hugging Face clients."""
@@ -452,26 +450,15 @@ class HuggingFaceAPIChatGenerator:
             **{k: v for k, v in self.api_params.items() if k not in ("model", "url")},
         }
 
-    def _warm_up_tools(self) -> None:
-        if not self._tools_warmed_up:
-            warm_up_tools(self.tools)
-            self._tools_warmed_up = True
-
     def warm_up(self) -> None:
-        """
-        Warm up the Hugging Face API chat generator.
-
-        This creates the synchronous client and warms up the configured tools.
-        """
-        self._warm_up_tools()
+        """Create the synchronous Hugging Face client."""
         if self._client is None:
             if self.api_type == HFGenerationAPIType.SERVERLESS_INFERENCE_API:
                 _check_valid_model(self._model_or_url, HFModelType.GENERATION, self.token)
             self._client = InferenceClient(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous Hugging Face client and warm up the configured tools."""
-        self._warm_up_tools()
+        """Create the asynchronous Hugging Face client."""
         if self._async_client is None:
             if self.api_type == HFGenerationAPIType.SERVERLESS_INFERENCE_API:
                 await _check_valid_model_async(self._model_or_url, HFModelType.GENERATION, self.token)

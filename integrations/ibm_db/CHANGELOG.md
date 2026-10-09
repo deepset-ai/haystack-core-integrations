@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/ibm_db-v0.4.0] - 2026-10-07
+
+### 🚀 Features
+
+- *(ibm_db)* Support all 6 Db2 vector distance metrics (#4045)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+
+
 ## [integrations/ibm_db-v0.3.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

@@ -244,6 +244,7 @@ class MCPToolset(Toolset):
         self.outputs_to_state = outputs_to_state or {}
         self.outputs_to_string = outputs_to_string or {}
         self._warmup_called = False
+        self._worker: _MCPClientSessionManager | None = None
 
         if not eager_connect:
             # Do not connect during validation; expose a toolset with one fake tool to pass validation
@@ -261,7 +262,7 @@ class MCPToolset(Toolset):
 
     def warm_up(self) -> None:
         """
-        Connect and load tools when eager_connect is turned off.
+        Connect and load tools unless already connected.
 
         This method is automatically called by `Agent.warm_up()` and `Pipeline.warm_up()`.
         You can also call it directly before using the toolset to ensure all tool schemas
@@ -511,6 +512,9 @@ class MCPToolset(Toolset):
                 self._worker.stop()
             except Exception as e:
                 logger.debug(f"TOOLSET: error during worker stop: {e!s}")
+            finally:
+                self._worker = None
+                self._warmup_called = False
 
     def __del__(self) -> None:
         self.close()

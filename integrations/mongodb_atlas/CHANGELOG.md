@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v4.5.0] - 2026-09-21
+
+### 🚀 Features
+
+- *(mongodb_atlas)* Support custom schema mapping via meta_project_mapping (#3424)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/mongodb_atlas-v4.4.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

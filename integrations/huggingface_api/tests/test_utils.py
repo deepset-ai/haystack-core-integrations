@@ -5,14 +5,19 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from haystack.dataclasses import SparseEmbedding
+from haystack.utils import Secret
 from huggingface_hub.errors import RepositoryNotFoundError
 
 from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFGenerationAPIType,
     HFModelType,
+    _build_grpc_embedding_request,
     _check_valid_model,
     _check_valid_model_async,
+    _grpc_metadata,
+    _parse_grpc_sparse_embedding,
 )
 
 
@@ -81,3 +86,43 @@ class TestCheckValidModelAsync:
 
         with pytest.raises(ValueError, match="not found on HuggingFace Hub"):
             await _check_valid_model_async("invalid/model-id", HFModelType.GENERATION, token=None)
+
+
+@pytest.mark.parametrize(
+    ("items", "indices", "values"),
+    [
+        ([{"index": 12, "value": 1.0}, {"index": 99, "value": 0.25}], [12, 99], [1.0, 0.25]),
+        ([{"value": 1.0}], [0], [1.0]),
+        ([{"index": 7}], [7], [0.0]),
+        ([], [], []),
+    ],
+)
+def test_parse_grpc_sparse_embedding(items, indices, values):
+    assert _parse_grpc_sparse_embedding(items) == SparseEmbedding(indices=indices, values=values)
+
+
+@pytest.mark.parametrize(
+    ("truncate", "normalize", "options"),
+    [
+        (None, None, {}),
+        (False, True, {"truncate": False, "normalize": True}),
+        (True, False, {"truncate": True, "normalize": False}),
+        (None, False, {"normalize": False}),
+        (False, None, {"truncate": False}),
+    ],
+)
+def test_build_grpc_embedding_request(truncate, normalize, options):
+    assert _build_grpc_embedding_request("query: hello", truncate, normalize) == {"inputs": "query: hello", **options}
+
+
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [
+        (None, ()),
+        (Secret.from_token("test-key"), (("authorization", "Bearer test-key"),)),
+        (Secret.from_env_var("TEI_TEST_TOKEN", strict=False), ()),
+    ],
+)
+def test_grpc_metadata(token, expected, monkeypatch):
+    monkeypatch.delenv("TEI_TEST_TOKEN", raising=False)
+    assert _grpc_metadata(token) == expected

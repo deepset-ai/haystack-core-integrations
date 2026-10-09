@@ -2,9 +2,10 @@ from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from cohere import AsyncClientV2, ClientV2
+from haystack_integrations.utils.cohere import validate_api_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -48,18 +49,21 @@ class CohereRanker:
         :param model: Cohere model name. Check the list of supported models in the [Cohere documentation](https://docs.cohere.com/docs/models).
         :param top_k: The maximum number of documents to return.
         :param api_key: Cohere API key.
-        :param api_base_url: the base URL of the Cohere API.
+        :param api_base_url: the base URL of the Cohere API. The Cohere client appends the endpoint path to it.
         :param meta_fields_to_embed: List of meta fields that should be concatenated
             with the document content for reranking.
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
         :param max_tokens_per_doc: The maximum number of tokens to embed for each document defaults to 4096.
 
-        :raises ValueError: If `top_k` is not > 0.
+        :raises ValueError: If `top_k` is not > 0, or if `api_base_url` is a full endpoint URL rather than a
+            base URL.
         """
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+
+        validate_api_base_url(api_base_url)
 
         self.model_name = model
         self.api_key = api_key
@@ -119,7 +123,6 @@ class CohereRanker:
         # was serialized with the old version
         data["init_parameters"].pop("max_chunks_per_doc", None)
 
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _prepare_cohere_input_docs(self, documents: list[Document], top_k: int | None = None) -> tuple[list[str], int]:

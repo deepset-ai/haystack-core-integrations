@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 import httpx
 from haystack import default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.utils import Secret, deserialize_callable, serialize_callable
 
 from .errors import OAuthConfigError, TokenRefreshError
 
@@ -235,7 +235,6 @@ class OAuthRefreshTokenSource:
     def from_dict(cls, data: dict[str, Any]) -> "OAuthRefreshTokenSource":
         """Deserialize the source from a dictionary."""
         init_params = data["init_parameters"]
-        deserialize_secrets_inplace(init_params, keys=["refresh_token", "client_secret"])
         if init_params.get("on_rotate"):
             init_params["on_rotate"] = deserialize_callable(init_params["on_rotate"])
         return default_from_dict(cls, data)
@@ -450,7 +449,6 @@ class OAuthTokenExchangeSource:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OAuthTokenExchangeSource":
         """Deserialize the source from a dictionary."""
-        deserialize_secrets_inplace(data["init_parameters"], keys=["client_secret"])
         return default_from_dict(cls, data)
 
 
@@ -501,5 +499,4 @@ class OAuthStaticTokenSource:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OAuthStaticTokenSource":
         """Deserialize the source from a dictionary."""
-        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
         return default_from_dict(cls, data)

@@ -4,22 +4,24 @@
 
 from __future__ import annotations
 
-import logging
+import asyncio
 import re
 from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.errors import FilterError
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from redis.exceptions import ResponseError
 
-import falkordb  # type: ignore[import-untyped,import-not-found]
+from falkordb import FalkorDB, Graph  # type: ignore[import-untyped]
+from falkordb.asyncio import FalkorDB as AsyncFalkorDB  # type: ignore[import-untyped]
+from falkordb.asyncio.graph import AsyncGraph  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +129,18 @@ class FalkorDBDocumentStore(DocumentStore):
         self.recreate_graph = recreate_graph
         self.verify_connectivity = verify_connectivity
 
-        # Lazy — populated on first use via ensure_connected().
-        self.client: Any = None
-        self.graph: Any = None
+        # Lazy — populated on first use via warm_up().
+        self.client: FalkorDB | None = None
+        self.graph: Graph | None = None
         self.initialized: bool = False
+        self.async_client: AsyncFalkorDB | None = None
+        self.async_graph: AsyncGraph | None = None
+        self.async_initialized: bool = False
+        self._async_warm_up_lock = asyncio.Lock()
+        self._recreate_graph_applied: bool = False
 
         if verify_connectivity:
-            self._ensure_connected()
+            self.warm_up()
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -165,7 +172,6 @@ class FalkorDBDocumentStore(DocumentStore):
         :param data: Serialised store dictionary.
         :returns: Reconstructed `FalkorDBDocumentStore` instance.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["password"])
         return default_from_dict(cls, data)
 
     def close(self) -> None:
@@ -179,11 +185,22 @@ class FalkorDBDocumentStore(DocumentStore):
             self.graph = None
             self.initialized = False
 
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self.async_client is not None:
+            with suppress(Exception):
+                await self.async_client.aclose()
+            self.async_client = None
+            self.async_graph = None
+            self.async_initialized = False
+
     # ------------------------------------------------------------------
     # Internal connection helpers
     # ------------------------------------------------------------------
 
-    def _ensure_connected(self) -> None:
+    def warm_up(self) -> None:
         """
         Lazily open the FalkorDB connection and set up the graph schema.
 
@@ -195,21 +212,30 @@ class FalkorDBDocumentStore(DocumentStore):
 
         password_value = self.password.resolve_value() if self.password is not None else None
 
-        self.client = falkordb.FalkorDB(
+        client = FalkorDB(
             host=self.host,
             port=self.port,
             username=self.username,
             password=password_value,
         )
 
-        if self.recreate_graph:
+        if self.recreate_graph and not self._recreate_graph_applied:
+            # Recreation is shared by the sync and async connection lifecycles.
+            self._recreate_graph_applied = True
             try:
                 # In falkordb-py, delete() is a method of the Graph object
-                self.client.select_graph(self.graph_name).delete()
+                client.select_graph(self.graph_name).delete()
+            except ResponseError as error:
+                if "invalid graph operation on empty key" not in str(error).lower():
+                    self._recreate_graph_applied = False
+                    raise
+                logger.debug("Graph '{graph_name}' does not exist yet; skipping deletion.", graph_name=self.graph_name)
             except Exception:
-                logger.debug("Graph '%s' could not be deleted (may not exist yet).", self.graph_name)
+                self._recreate_graph_applied = False
+                raise
 
-        self.graph = self.client.select_graph(self.graph_name)
+        self.client = client
+        self.graph = client.select_graph(self.graph_name)
         self._ensure_schema()
         self.initialized = True
 
@@ -219,12 +245,17 @@ class FalkorDBDocumentStore(DocumentStore):
 
         Uses only standard OpenCypher / FalkorDB-native syntax — **no APOC**.
         """
+        assert self.graph is not None  # noqa: S101
+
         # Property index on (:node_label {id}) for fast MERGE lookups.
         try:
             self.graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
-                logger.debug("Property index on %s(id) already exists — skipping creation.", self.node_label)
+                logger.debug(
+                    "Property index on {node_label}(id) already exists — skipping creation.",
+                    node_label=self.node_label,
+                )
             else:
                 raise e
 
@@ -239,9 +270,91 @@ class FalkorDBDocumentStore(DocumentStore):
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
                 logger.debug(
-                    "Vector index on %s(%s) already exists — skipping creation.",
-                    self.node_label,
-                    self.embedding_field,
+                    "Vector index on {node_label}({embedding_field}) already exists — skipping creation.",
+                    node_label=self.node_label,
+                    embedding_field=self.embedding_field,
+                )
+            else:
+                raise e
+
+    async def warm_up_async(self) -> None:
+        """
+        Lazily open the asynchronous FalkorDB connection and set up the graph schema.
+
+        Called at the start of every asynchronous public method so the store remains
+        serialisable without an active database connection.
+        """
+        if self.async_initialized:
+            return
+
+        # Concurrent first calls must wait for a single warm-up: otherwise each creates its own client, and
+        # they can query the graph while another one is still deleting it.
+        async with self._async_warm_up_lock:
+            if self.async_initialized:
+                return
+
+            password_value = self.password.resolve_value() if self.password is not None else None
+
+            async_client = AsyncFalkorDB(
+                host=self.host,
+                port=self.port,
+                username=self.username,
+                password=password_value,
+            )
+
+            if self.recreate_graph and not self._recreate_graph_applied:
+                # Recreation is shared by the sync and async connection lifecycles.
+                self._recreate_graph_applied = True
+                try:
+                    await async_client.select_graph(self.graph_name).delete()
+                except ResponseError as error:
+                    if "invalid graph operation on empty key" not in str(error).lower():
+                        self._recreate_graph_applied = False
+                        raise
+                    logger.debug(
+                        "Graph '{graph_name}' does not exist yet; skipping deletion.", graph_name=self.graph_name
+                    )
+                except Exception:
+                    self._recreate_graph_applied = False
+                    raise
+
+            self.async_client = async_client
+            self.async_graph = async_client.select_graph(self.graph_name)
+            await self._ensure_schema_async()
+            self.async_initialized = True
+
+    async def _ensure_schema_async(self) -> None:
+        """
+        Create the property index and vector index if they do not already exist.
+
+        Uses only standard OpenCypher / FalkorDB-native syntax — **no APOC**.
+        """
+        assert self.async_graph is not None  # noqa: S101
+
+        try:
+            await self.async_graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
+        except ResponseError as e:
+            if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
+                logger.debug(
+                    "Property index on {node_label}(id) already exists — skipping creation.",
+                    node_label=self.node_label,
+                )
+            else:
+                raise e
+
+        try:
+            cypher = (
+                f"CREATE VECTOR INDEX FOR (d:{self.node_label}) "
+                f"ON (d.{self.embedding_field}) "
+                f"OPTIONS {{dimension: {self.embedding_dim}, similarityFunction: '{self.similarity}'}}"
+            )
+            await self.async_graph.query(cypher)
+        except ResponseError as e:
+            if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
+                logger.debug(
+                    "Vector index on {node_label}({embedding_field}) already exists — skipping creation.",
+                    node_label=self.node_label,
+                    embedding_field=self.embedding_field,
                 )
             else:
                 raise e
@@ -256,7 +369,8 @@ class FalkorDBDocumentStore(DocumentStore):
 
         :returns: Integer count of document nodes.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN count(d) AS n")
         rows = result.result_set
         return int(rows[0][0]) if rows else 0
@@ -269,9 +383,10 @@ class FalkorDBDocumentStore(DocumentStore):
             returned. For filter syntax see
             [Metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: List of matching :class:`haystack.dataclasses.Document` objects.
-        :raises ValueError: If the filter dict is malformed.
+        :raises FilterError: If the filter dict is malformed.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         if not filters:
             result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN d ORDER BY d.id")
             return [_node_to_document(row[0]) for row in result.result_set]
@@ -307,7 +422,8 @@ class FalkorDBDocumentStore(DocumentStore):
         :raises DocumentStoreError: If any other DB error occurs.
         :returns: Number of documents written or updated.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
 
         for doc in documents:
             if not isinstance(doc, Document):
@@ -343,6 +459,8 @@ class FalkorDBDocumentStore(DocumentStore):
         :returns: Filtered list ready for batch writing.
         :raises DuplicateDocumentError: When `policy` is FAIL and existing IDs found.
         """
+        assert self.graph is not None  # noqa: S101
+
         if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
             # Step 1: deduplicate within the incoming list itself.
             documents = self._drop_duplicate_documents(documents)
@@ -378,8 +496,8 @@ class FalkorDBDocumentStore(DocumentStore):
         for doc in documents:
             if doc.id in seen_ids:
                 logger.info(
-                    "Duplicate Documents: Document with id '%s' already present in the batch — skipping.",
-                    doc.id,
+                    "Duplicate Documents: Document with id '{id}' already present in the batch — skipping.",
+                    id=doc.id,
                 )
                 continue
             unique.append(doc)
@@ -397,6 +515,8 @@ class FalkorDBDocumentStore(DocumentStore):
         :param policy: Duplicate policy — only OVERWRITE needs a different Cypher template.
         :returns: Number of nodes created or updated.
         """
+        assert self.graph is not None  # noqa: S101
+
         records = [_document_to_falkordb_record(doc) for doc in documents]
 
         if policy == DuplicatePolicy.OVERWRITE:
@@ -456,7 +576,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         :param document_ids: List of document IDs to remove from the graph.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         if not document_ids:
             return
         self.graph.query(
@@ -468,7 +589,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         Delete all documents from the graph.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         self.graph.query(f"MATCH (d:{self.node_label}) DETACH DELETE d")
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
@@ -478,7 +600,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param filters: Haystack filter dict.
         :returns: Number of documents deleted.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         where_clause, params = _convert_filters(filters)
         count_result = self.graph.query(
             f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
@@ -499,7 +622,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param meta: Metadata fields to set. Keys may include or omit the `meta.` prefix.
         :returns: Number of documents updated.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         where_clause, params = _convert_filters(filters)
         flat_meta = {k[5:] if k.startswith("meta.") else k: v for k, v in meta.items()}
         params["meta_update"] = flat_meta
@@ -517,7 +641,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param filters: Haystack filter dict.
         :returns: Integer count of matching document nodes.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         where_clause, params = _convert_filters(filters)
         result = self.graph.query(
             f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
@@ -534,7 +659,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param metadata_fields: List of metadata field names. May include or omit the `meta.` prefix.
         :returns: Dict mapping each field name (without `meta.` prefix) to its unique value count.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         if filters:
             where_clause, params = _convert_filters(filters)
             match = f"MATCH (d:{self.node_label}) WHERE {where_clause}"
@@ -560,7 +686,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :returns: Dict mapping field names to a `{"type": <typename>}` dict.
             Type names are `"str"`, `"int"`, `"float"`, or `"bool"`.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         standard_fields = {"id", "content", "embedding", "score", "sparse_embedding"}
         result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN keys(d)")
         all_keys: set[str] = set()
@@ -593,7 +720,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :returns: Dict with keys `"min"` and `"max"`. Values are `None` when no documents
             have a non-null value for the field.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         result = self.graph.query(
             f"MATCH (d:{self.node_label}) WHERE d.{field} IS NOT NULL RETURN min(d.{field}), max(d.{field})"
@@ -630,7 +758,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             `total_count` is the number of distinct values matching the filter, independent of
             pagination.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
 
         query_params: dict[str, Any] = {"from_": from_, "size": size}
@@ -656,6 +785,401 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             f"RETURN vals[$from_..$from_ + $size] AS page, size(vals) AS total"
         )
         result = self.graph.query(cypher, query_params)
+        if not result.result_set:
+            return [], 0
+        page, total = result.result_set[0]
+        return list(page), total
+
+    async def count_documents_async(self) -> int:
+        """
+        Return the number of documents currently stored in the graph asynchronously.
+
+        :returns: Integer count of document nodes.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        result = await self.async_graph.query(f"MATCH (d:{self.node_label}) RETURN count(d) AS n")
+        rows = result.result_set
+        return int(rows[0][0]) if rows else 0
+
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Retrieve all documents that match the provided Haystack filters asynchronously.
+
+        :param filters: Optional Haystack filter dict. When `None` all documents are
+            returned. For filter syntax see
+            [Metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: List of matching Documents.
+        :raises FilterError: If the filter dict is malformed.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        if not filters:
+            result = await self.async_graph.query(f"MATCH (d:{self.node_label}) RETURN d ORDER BY d.id")
+            return [_node_to_document(row[0]) for row in result.result_set]
+
+        if "operator" not in filters:
+            msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering"
+            raise FilterError(msg)
+
+        where_clause, params = _convert_filters(filters)
+        cypher = f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN d ORDER BY d.id"
+        result = await self.async_graph.query(cypher, params)
+        return [_node_to_document(row[0]) for row in result.result_set]
+
+    async def write_documents_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
+    ) -> int:
+        """
+        Write documents to the FalkorDB graph asynchronously using `UNWIND` + `MERGE` for batching.
+
+        Document `meta` fields are stored **flat** at the same level as `id` and
+        `content` — no prefix is added. This matches the layout used by the
+        `neo4j-haystack` reference integration.
+
+        :param documents: List of :class:`haystack.dataclasses.Document` objects.
+        :param policy: How to handle documents whose `id` already exists.
+            Defaults to :attr:`DuplicatePolicy.NONE` (treated as FAIL).
+        :raises ValueError: If `documents` contains non-Document elements.
+        :raises DuplicateDocumentError: If `policy` is FAIL / NONE and a duplicate
+            ID is encountered.
+        :raises DocumentStoreError: If any other DB error occurs.
+        :returns: Number of documents written or updated.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"write_documents_async() expects a list of Documents but got an element of type {type(doc)}."
+                raise ValueError(msg)
+
+        if not documents:
+            logger.warning("Calling FalkorDBDocumentStore.write_documents_async() with an empty list.")
+            return 0
+
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
+
+        document_objects = await self._handle_duplicate_documents_async(documents, policy)
+
+        written = 0
+        for batch_start in range(0, len(document_objects), self.write_batch_size):
+            batch = document_objects[batch_start : batch_start + self.write_batch_size]
+            written += await self._write_batch_async(batch, policy)
+
+        return written
+
+    async def _handle_duplicate_documents_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy,
+    ) -> list[Document]:
+        """
+        Check for IDs that already exist in the database asynchronously.
+
+        :param documents: All documents to write.
+        :param policy: Duplicate handling policy.
+        :returns: Filtered list ready for batch writing.
+        :raises DuplicateDocumentError: When `policy` is FAIL and existing IDs are found.
+        """
+        assert self.async_graph is not None  # noqa: S101
+
+        if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
+            documents = self._drop_duplicate_documents(documents)
+            ids = [doc.id for doc in documents]
+            existing = await self.async_graph.query(
+                f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) RETURN d.id",
+                {"ids": ids},
+            )
+            ids_exist_in_db: list[str] = [row[0] for row in existing.result_set]
+
+            if ids_exist_in_db and policy == DuplicatePolicy.FAIL:
+                msg = f"Document with ids '{', '.join(ids_exist_in_db)}' already exists in graph '{self.graph_name}'."
+                raise DuplicateDocumentError(msg)
+
+            if ids_exist_in_db:
+                existing_set = set(ids_exist_in_db)
+                documents = [d for d in documents if d.id not in existing_set]
+
+        return documents
+
+    async def _write_batch_async(self, documents: list[Document], policy: DuplicatePolicy) -> int:
+        """
+        Write a single batch of documents using a single UNWIND query asynchronously.
+
+        By the time this is called, duplicate handling has already been performed by
+        :meth:`_handle_duplicate_documents_async`.
+
+        :param documents: Batch of Documents (≤ `write_batch_size`).
+        :param policy: Duplicate policy — only OVERWRITE needs a different Cypher template.
+        :returns: Number of nodes created or updated.
+        """
+        assert self.async_graph is not None  # noqa: S101
+
+        records = [_document_to_falkordb_record(doc) for doc in documents]
+
+        if policy == DuplicatePolicy.OVERWRITE:
+            cypher = f"""
+UNWIND $docs AS doc
+MERGE (d:{self.node_label} {{id: doc.id}})
+ON CREATE SET d += doc
+ON MATCH SET d = doc
+RETURN count(d) AS n
+"""
+        else:
+            cypher = f"""
+UNWIND $docs AS doc
+MERGE (d:{self.node_label} {{id: doc.id}})
+ON CREATE SET d += doc
+RETURN count(d) AS n
+"""
+
+        try:
+            result = await self.async_graph.query(cypher, {"docs": records})
+            rows = result.result_set
+            written = int(rows[0][0]) if rows else 0
+        except Exception as exc:
+            msg = f"Failed to write documents to FalkorDB: {exc}"
+            raise DocumentStoreError(msg) from exc
+
+        docs_with_emb = [doc for doc in documents if doc.embedding is not None]
+        if docs_with_emb:
+            emb_rows = [{"id": doc.id, "emb": doc.embedding} for doc in docs_with_emb]
+            try:
+                await self.async_graph.query(
+                    f"""
+UNWIND $docs AS doc
+MATCH (d:{self.node_label} {{id: doc.id}})
+SET d.{self.embedding_field} = vecf32(doc.emb)
+""",
+                    {"docs": emb_rows},
+                )
+            except Exception as exc:
+                msg = f"Failed to set embeddings in FalkorDB: {exc}"
+                raise DocumentStoreError(msg) from exc
+
+        return written
+
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
+        """
+        Delete documents by their IDs asynchronously.
+
+        :param document_ids: List of document IDs to remove from the graph.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        if not document_ids:
+            return
+        await self.async_graph.query(
+            f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) DETACH DELETE d",
+            {"ids": document_ids},
+        )
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Delete all documents from the graph asynchronously.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        await self.async_graph.query(f"MATCH (d:{self.node_label}) DETACH DELETE d")
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Delete all documents that match the provided filters asynchronously.
+
+        :param filters: Haystack filter dict.
+        :returns: Number of documents deleted.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        where_clause, params = _convert_filters(filters)
+        count_result = await self.async_graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
+            params,
+        )
+        count = int(count_result.result_set[0][0]) if count_result.result_set else 0
+        await self.async_graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} DETACH DELETE d",
+            params,
+        )
+        return count
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Update metadata fields on matching documents asynchronously.
+
+        :param filters: Haystack filter dict selecting which documents to update.
+        :param meta: Metadata fields to set. Keys may include or omit the `meta.` prefix.
+        :returns: Number of documents updated.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        where_clause, params = _convert_filters(filters)
+        flat_meta = {k[5:] if k.startswith("meta.") else k: v for k, v in meta.items()}
+        params["meta_update"] = flat_meta
+        result = await self.async_graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} SET d += $meta_update RETURN count(d) AS n",
+            params,
+        )
+        rows = result.result_set
+        return int(rows[0][0]) if rows else 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Return the number of documents that match the provided filters asynchronously.
+
+        :param filters: Haystack filter dict.
+        :returns: Integer count of matching document nodes.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        where_clause, params = _convert_filters(filters)
+        result = await self.async_graph.query(
+            f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN count(d) AS n",
+            params,
+        )
+        rows = result.result_set
+        return int(rows[0][0]) if rows else 0
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Return the number of unique values for each metadata field among matching documents asynchronously.
+
+        :param filters: Haystack filter dict. Pass an empty dict to count across all documents.
+        :param metadata_fields: List of metadata field names. May include or omit the `meta.` prefix.
+        :returns: Dict mapping each field name (without `meta.` prefix) to its unique value count.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        if filters:
+            where_clause, params = _convert_filters(filters)
+            match = f"MATCH (d:{self.node_label}) WHERE {where_clause}"
+        else:
+            params = {}
+            match = f"MATCH (d:{self.node_label})"
+
+        result: dict[str, int] = {}
+        for field in metadata_fields:
+            actual = field[5:] if field.startswith("meta.") else field
+            res = await self.async_graph.query(
+                f"{match} RETURN count(DISTINCT d.{actual}) AS n",
+                params,
+            )
+            rows = res.result_set
+            result[actual] = int(rows[0][0]) if rows else 0
+        return result
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Return type information for each metadata field present on document nodes asynchronously.
+
+        :returns: Dict mapping field names to a `{"type": <typename>}` dict.
+            Type names are `"str"`, `"int"`, `"float"`, or `"bool"`.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        standard_fields = {"id", "content", "embedding", "score", "sparse_embedding"}
+        result = await self.async_graph.query(f"MATCH (d:{self.node_label}) RETURN keys(d)")
+        all_keys: set[str] = set()
+        for row in result.result_set:
+            all_keys.update(row[0])
+        all_keys -= standard_fields
+
+        info: dict[str, dict[str, str]] = {}
+        for key in sorted(all_keys):
+            res = await self.async_graph.query(
+                f"MATCH (d:{self.node_label}) WHERE d.{key} IS NOT NULL RETURN d.{key} LIMIT 1"
+            )
+            if not res.result_set:
+                continue
+            val = res.result_set[0][0]
+            if isinstance(val, bool):
+                type_name = "bool"
+            elif isinstance(val, int):
+                type_name = "int"
+            elif isinstance(val, float):
+                type_name = "float"
+            else:
+                type_name = "str"
+            info[key] = {"type": type_name}
+        return info
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Return the minimum and maximum values for the given metadata field asynchronously.
+
+        :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
+        :returns: Dict with keys `"min"` and `"max"`. Values are `None` when no documents
+            have a non-null value for the field.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+        result = await self.async_graph.query(
+            f"MATCH (d:{self.node_label}) WHERE d.{field} IS NOT NULL RETURN min(d.{field}), max(d.{field})"
+        )
+        if not result.result_set:
+            return {"min": None, "max": None}
+        row = result.result_set[0]
+        return {"min": row[0], "max": row[1]}
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
+        """
+        Return distinct values for the given metadata field with optional filtering and pagination asynchronously.
+
+        **Note**: values of different types are kept distinct even when they compare equal in Python
+        (e.g. the int `1`, the bool `True` and the str `"1"` are returned as three separate values), with
+        one exception: Cypher's `DISTINCT` treats a whole-number float (e.g. `1.0`) as identical to a
+        numerically equal int (`1`), so those two collapse into a single value. Floats with a fractional
+        part (e.g. `1.5`) are unaffected.
+
+        :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata
+            field's own value.
+        :param from_: The offset for pagination (0-based).
+        :param size: Maximum number of values to return per page. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: Tuple of `(values, total_count)`. Values are returned in their original type.
+            `total_count` is the number of distinct values matching the filter, independent of
+            pagination.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+        query_params: dict[str, Any] = {"from_": from_, "size": size}
+        where_parts = [f"d.{field} IS NOT NULL"]
+
+        if filters:
+            filters_where_clause, filters_params = _convert_filters(filters)
+            where_parts.append(filters_where_clause)
+            query_params.update(filters_params)
+
+        if search_term:
+            where_parts.append(f"toLower(toString(d.{field})) CONTAINS toLower($search_term)")
+            query_params["search_term"] = search_term
+
+        where = " AND ".join(where_parts)
+        cypher = (
+            f"MATCH (d:{self.node_label}) WHERE {where} "
+            f"WITH DISTINCT d.{field} AS val "
+            f"ORDER BY val "
+            f"WITH collect(val) AS vals "
+            f"RETURN vals[$from_..$from_ + $size] AS page, size(vals) AS total"
+        )
+        result = await self.async_graph.query(cypher, query_params)
         if not result.result_set:
             return [], 0
         page, total = result.result_set[0]
@@ -689,7 +1213,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param scale_score: Whether to scale the raw similarity score to `[0, 1]`.
         :returns: List of :class:`Document` objects ordered by similarity (best first).
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
 
         if filters:
             where_clause, filter_params = _convert_filters(filters)
@@ -724,6 +1249,66 @@ ORDER BY score ASC, d.id ASC
             documents.append(doc)
         return documents
 
+    async def _embedding_retrieval_async(
+        self,
+        query_embedding: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+        scale_score: bool = True,
+    ) -> list[Document]:
+        """
+        Retrieve documents asynchronously by vector similarity using FalkorDB's native vector index.
+
+        Uses `CALL db.idx.vector.queryNodes` — FalkorDB's OpenCypher extension for
+        ANN search. **No APOC is required.**
+
+        Cosine scores are returned as distance in `[0, 2]`; when `scale_score=True` they are
+        scaled to `[0, 1]` using the formula:
+        `1 - (score / 2)`. Euclidean scores are transformed with `1 / (1 + score)`.
+
+        :param query_embedding: Query vector as a plain Python list of floats.
+        :param top_k: Maximum number of results to return.
+        :param filters: Optional Haystack filters applied as a `WHERE` predicate
+            on the vector search result set (post-filter).
+        :param scale_score: Whether to scale the raw similarity score to `[0, 1]`.
+        :returns: List of `Document` objects ordered by similarity (best first).
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+
+        if filters:
+            where_clause, filter_params = _convert_filters(filters)
+            cypher = f"""
+CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $top_k, vecf32($query_embedding))
+YIELD node AS d, score
+WHERE {where_clause}
+RETURN d, score
+ORDER BY score ASC, d.id ASC
+"""
+            params: dict[str, Any] = {
+                "top_k": top_k,
+                "query_embedding": query_embedding,
+                **filter_params,
+            }
+        else:
+            cypher = f"""
+CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $top_k, vecf32($query_embedding))
+YIELD node AS d, score
+RETURN d, score
+ORDER BY score ASC, d.id ASC
+"""
+            params = {"top_k": top_k, "query_embedding": query_embedding}
+
+        result = await self.async_graph.query(cypher, params)
+        documents = []
+        for row in result.result_set:
+            node, score = row[0], row[1]
+            doc = _node_to_document(node)
+            final_score = self._scale_to_unit_interval(float(score)) if scale_score else float(score)
+            doc = replace(doc, score=final_score)
+            documents.append(doc)
+        return documents
+
     def _cypher_retrieval(
         self,
         cypher_query: str,
@@ -740,12 +1325,38 @@ ORDER BY score ASC, d.id ASC
         :returns: List of :class:`Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
-        self._ensure_connected()
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
 
         try:
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
             result = self.graph.query(cypher_query, parameters or {})
+            return [_node_to_document(row[0]) for row in result.result_set]
+        except Exception as exc:
+            msg = f"Cypher query failed: {exc}"
+            raise DocumentStoreError(msg) from exc
+
+    async def _cypher_retrieval_async(
+        self,
+        cypher_query: str,
+        parameters: dict[str, Any] | None = None,
+    ) -> list[Document]:
+        """
+        Execute an arbitrary OpenCypher query asynchronously and map the results to Documents.
+
+        The first element of each result row is converted to a `Document`.
+
+        :param cypher_query: A valid OpenCypher query string.
+        :param parameters: Optional query parameters (`$param` placeholders).
+        :returns: List of `Document` objects built from the query results.
+        :raises DocumentStoreError: If the query fails.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+
+        try:
+            result = await self.async_graph.query(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
