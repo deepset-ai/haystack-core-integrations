@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import pytest
 from haystack import Document
 from haystack.testing.document_store import FilterDocumentsTest
@@ -49,36 +53,6 @@ class TestConvertFiltersToQdrantUnit:
         )
         assert isinstance(qdrant_filter, models.Filter)
 
-    def test_eq_with_spaces_uses_text_match(self):
-        qdrant_filter = convert_filters_to_qdrant({"operator": "==", "field": "meta.title", "value": "hello world"})
-        condition = qdrant_filter.must[0]
-        assert isinstance(condition.match, models.MatchText)
-
-    def test_eq_without_spaces_uses_value_match(self):
-        qdrant_filter = convert_filters_to_qdrant({"operator": "==", "field": "meta.name", "value": "name_0"})
-        condition = qdrant_filter.must[0]
-        assert isinstance(condition.match, models.MatchValue)
-
-    def test_in_with_spaces_uses_text_match(self):
-        qdrant_filter = convert_filters_to_qdrant({"operator": "in", "field": "meta.title", "value": ["hello world"]})
-        condition = qdrant_filter.should[0]
-        assert isinstance(condition.match, models.MatchText)
-
-    def test_in_without_spaces_uses_value_match(self):
-        qdrant_filter = convert_filters_to_qdrant({"operator": "in", "field": "meta.name", "value": ["name_0"]})
-        condition = qdrant_filter.should[0]
-        assert isinstance(condition.match, models.MatchValue)
-
-    def test_ne_with_spaces_uses_text_match(self):
-        qdrant_filter = convert_filters_to_qdrant({"operator": "!=", "field": "meta.title", "value": "hello world"})
-        condition = qdrant_filter.must_not[0]
-        assert isinstance(condition.match, models.MatchText)
-
-    def test_ne_without_spaces_uses_value_match(self):
-        qdrant_filter = convert_filters_to_qdrant({"operator": "!=", "field": "meta.name", "value": "name_0"})
-        condition = qdrant_filter.must_not[0]
-        assert isinstance(condition.match, models.MatchValue)
-
     def test_single_logical_condition_unwrapped(self):
         qdrant_filter = convert_filters_to_qdrant(
             {
@@ -115,6 +89,54 @@ class TestQdrantFilters(FilterDocumentsTest):
             return_embedding=True,
             wait_result_from_api=True,
         )
+
+    @pytest.mark.parametrize(("value", "longer_value"), [("news", "newsletter"), ("New York", "New York City")])
+    def test_eq_matches_exact_string(self, document_store, value, longer_value):
+        exact_document = Document(content=value, meta={"name": value})
+        other_document = Document(content=longer_value, meta={"name": longer_value})
+        document_store.write_documents([exact_document, other_document])
+
+        result = document_store.filter_documents(filters={"field": "meta.name", "operator": "==", "value": value})
+
+        self.assert_documents_are_equal(result, [exact_document])
+
+    @pytest.mark.parametrize(("value", "longer_value"), [("news", "newsletter"), ("New York", "New York City")])
+    def test_ne_excludes_exact_string(self, document_store, value, longer_value):
+        exact_document = Document(content=value, meta={"name": value})
+        other_document = Document(content=longer_value, meta={"name": longer_value})
+        document_store.write_documents([exact_document, other_document])
+
+        result = document_store.filter_documents(filters={"field": "meta.name", "operator": "!=", "value": value})
+
+        self.assert_documents_are_equal(result, [other_document])
+
+    def test_in_matches_exact_strings(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content=name, meta={"name": name})
+                for name in ["news", "newsletter", "New York", "New York City"]
+            ]
+        )
+
+        result = document_store.filter_documents(
+            filters={"field": "meta.name", "operator": "in", "value": ["news", "New York"]}
+        )
+
+        assert sorted(doc.meta["name"] for doc in result) == ["New York", "news"]
+
+    def test_not_in_excludes_exact_strings(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content=name, meta={"name": name})
+                for name in ["news", "newsletter", "New York", "New York City"]
+            ]
+        )
+
+        result = document_store.filter_documents(
+            filters={"field": "meta.name", "operator": "not in", "value": ["news", "New York"]}
+        )
+
+        assert sorted(doc.meta["name"] for doc in result) == ["New York City", "newsletter"]
 
     def test_filter_documents_with_qdrant_filters(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)
