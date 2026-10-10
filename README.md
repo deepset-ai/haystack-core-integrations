@@ -7,8 +7,8 @@
 | src/haystack\_integrations/components/retrievers/mariadb/embedding\_retriever.py |       30 |        0 |        4 |        1 |     97% |   83-\>85 |
 | src/haystack\_integrations/components/retrievers/mariadb/keyword\_retriever.py   |       29 |        0 |        4 |        1 |     97% |   79-\>81 |
 | src/haystack\_integrations/document\_stores/mariadb/document\_store.py           |      232 |        9 |       54 |        8 |     93% |215-216, 234-237, 241, 264, 270-\>276, 276-\>282, 292-293, 433-\>438, 457-\>459, 482-\>486, 529-\>532, 536-\>539 |
-| src/haystack\_integrations/document\_stores/mariadb/filters.py                   |      135 |       20 |       60 |        9 |     85% |40-41, 43-44, 61-62, 71-72, 74-75, 114, 130, 140-141, 150-151, 164-165, 192-193 |
-| **TOTAL**                                                                        |  **426** |   **29** |  **122** |   **19** | **91%** |           |
+| src/haystack\_integrations/document\_stores/mariadb/filters.py                   |      138 |       20 |       62 |        9 |     86% |40-41, 43-44, 65-66, 75-76, 78-79, 118, 134, 144-145, 154-155, 168-169, 196-197 |
+| **TOTAL**                                                                        |  **429** |   **29** |  **124** |   **19** | **91%** |           |
 
 
 ## Setup coverage badge
