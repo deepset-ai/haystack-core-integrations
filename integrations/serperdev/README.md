@@ -13,3 +13,7 @@
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
 To run integration tests locally, you need to export the `SERPERDEV_API_KEY` environment variable.
+
+## Search endpoint configuration
+
+Support any Serper.dev-compatible endpoint (like litescrape.com, serpbase.dev, serpensapi.org, and others). Set `SERPERDEV_BASE_URL` to the provider base URL (without `/search`) and `SERPERDEV_API_KEY` to its API key. The default search endpoint remains unchanged for synchronous and asynchronous requests.
