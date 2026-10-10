@@ -24,6 +24,10 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.components.embedders.amazon_bedrock.utils import (
+    EmbeddingModelFamily,
+    _resolve_model_family,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +84,7 @@ class AmazonBedrockDocumentImageEmbedder:
         image_size: tuple[int, int] | None = None,
         progress_bar: bool = True,
         boto3_config: dict[str, Any] | None = None,
+        model_family: EmbeddingModelFamily | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -92,6 +97,7 @@ class AmazonBedrockDocumentImageEmbedder:
             To find all supported models, refer to the Amazon Bedrock
             [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) and
             filter for "embedding", then select multimodal models from the Amazon Titan and Cohere series.
+            Inference profile IDs and ARNs are accepted too. If the ID doesn't name the model, set `model_family`.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -109,22 +115,23 @@ class AmazonBedrockDocumentImageEmbedder:
         :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
             Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
             and other low-level settings like timeouts and connection management.
+        :param model_family: The model family that determines the request and response format, `"cohere"` or
+            `"titan"`. Set it when `model` doesn't name the model, for example for an
+            [application inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html)
+            ARN. If not set, the family is detected from `model`.
         :param kwargs: Additional parameters to pass for model inference.
-            For example, `embeddingConfig` for Amazon Titan models and
-            `embedding_types` for Cohere models.
-        :raises ValueError: If the model is not supported.
+            For example, `embeddingConfig` for Amazon Titan models, and `embedding_types` and
+            `output_dimension` (Cohere Embed v4 only) for Cohere models.
+        :raises ValueError: If the model is not supported, `model_family` is invalid, or multiple `embedding_types`
+            are provided.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
-        if "titan" not in model and "cohere" not in model:
-            msg = (
-                f"Model {model} is not supported. "
-                "Only Amazon Titan and Cohere multimodal embedding models are supported."
-            )
-            raise ValueError(msg)
+        self._resolved_model_family = _resolve_model_family(model, model_family)
 
         self.file_path_meta_field = file_path_meta_field
         self.root_path = root_path or ""
         self.model = model
+        self.model_family = model_family
         self.boto3_config = boto3_config
 
         self.aws_access_key_id = aws_access_key_id
@@ -201,6 +208,7 @@ class AmazonBedrockDocumentImageEmbedder:
             progress_bar=self.progress_bar,
             boto3_config=self.boto3_config,
             image_size=self.image_size,
+            model_family=self.model_family,
             **self.kwargs,
         )
         return serialization_dict
@@ -261,7 +269,7 @@ class AmazonBedrockDocumentImageEmbedder:
                     filepath=image_source_info["path"], mime_type=image_source_info["mime_type"]
                 )
                 mime_type, base64_image = _encode_image_to_base64(bytestream=image_byte_stream, size=self.image_size)
-                if "cohere" in self.model:
+                if self._resolved_model_family == "cohere":
                     images_to_embed[doc_idx] = f"data:{mime_type};base64,{base64_image}"
                 else:
                     images_to_embed[doc_idx] = base64_image
@@ -272,7 +280,11 @@ class AmazonBedrockDocumentImageEmbedder:
 
         # the pdf_images_by_doc_idx has base64 images but mypy cant detect that
         for doc_idx, base64_image in pdf_images_by_doc_idx.items():  # type: ignore[assignment]
-            pdf_image_uri = f"data:application/pdf;base64,{base64_image}" if "cohere" in self.model else base64_image
+            pdf_image_uri = (
+                f"data:application/pdf;base64,{base64_image}"
+                if self._resolved_model_family == "cohere"
+                else base64_image
+            )
             images_to_embed[doc_idx] = pdf_image_uri
 
         none_images_doc_ids = [documents[doc_idx].id for doc_idx, image in enumerate(images_to_embed) if image is None]
@@ -280,16 +292,10 @@ class AmazonBedrockDocumentImageEmbedder:
             msg = f"Conversion failed for some documents. Document IDs: {none_images_doc_ids}."
             raise RuntimeError(msg)
 
-        if "cohere" in self.model:
+        if self._resolved_model_family == "cohere":
             embeddings = self._embed_cohere(image_uris=images_to_embed)
-        elif "titan" in self.model:
-            embeddings = self._embed_titan(images=images_to_embed)
         else:
-            msg = (
-                f"Model {self.model} is not supported. "
-                "Only Amazon Titan and Cohere multimodal embedding models are supported."
-            )
-            raise ValueError(msg)
+            embeddings = self._embed_titan(images=images_to_embed)
 
         docs_with_embeddings = []
 
@@ -345,6 +351,8 @@ class AmazonBedrockDocumentImageEmbedder:
         cohere_body = {"input_type": "image"}
         if self.embedding_types:
             cohere_body["embedding_types"] = self.embedding_types
+        if (output_dimension := self.kwargs.get("output_dimension")) is not None:
+            cohere_body["output_dimension"] = output_dimension  # optional parameter for Cohere Embed v4
 
         all_embeddings = []
 

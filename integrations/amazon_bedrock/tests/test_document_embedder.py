@@ -17,6 +17,7 @@ from haystack_integrations.components.embedders.amazon_bedrock import (
 )
 
 TYPE = "haystack_integrations.components.embedders.amazon_bedrock.document_embedder.AmazonBedrockDocumentEmbedder"
+APPLICATION_INFERENCE_PROFILE_ARN = "arn:aws:bedrock:eu-west-1:123456789012:application-inference-profile/a1b2c3d4e5f6"
 
 
 class TestAmazonBedrockDocumentEmbedder:
@@ -91,6 +92,7 @@ class TestAmazonBedrockDocumentEmbedder:
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
                 "boto3_config": boto3_config,
+                "model_family": None,
             },
         }
 
@@ -165,12 +167,34 @@ class TestAmazonBedrockDocumentEmbedder:
         serialized = embedder.to_dict()
         assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
 
+    def test_to_dict_from_dict_with_model_family(self):
+        embedder = AmazonBedrockDocumentEmbedder(
+            model=APPLICATION_INFERENCE_PROFILE_ARN, model_family="titan", dimensions=512
+        )
+
+        serialized = embedder.to_dict()
+        assert serialized["init_parameters"]["model_family"] == "titan"
+        assert serialized["init_parameters"]["dimensions"] == 512
+
+        deserialized = AmazonBedrockDocumentEmbedder.from_dict(serialized)
+        assert deserialized.model == APPLICATION_INFERENCE_PROFILE_ARN
+        assert deserialized.model_family == "titan"
+        assert deserialized.kwargs == {"dimensions": 512}
+
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):
             AmazonBedrockDocumentEmbedder(model="")
 
         with pytest.raises(ValueError):
             AmazonBedrockDocumentEmbedder(model="my-unsupported-model")
+
+        # the ARN doesn't name the model, so the family can't be detected
+        with pytest.raises(ValueError, match="set `model_family`"):
+            AmazonBedrockDocumentEmbedder(model=APPLICATION_INFERENCE_PROFILE_ARN)
+
+    def test_init_invalid_model_family(self):
+        with pytest.raises(ValueError, match="Model family 'mistral' is not supported"):
+            AmazonBedrockDocumentEmbedder(model=APPLICATION_INFERENCE_PROFILE_ARN, model_family="mistral")
 
     def test_run_wrong_type(self, mock_boto3_session):
         embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")
@@ -248,6 +272,56 @@ class TestAmazonBedrockDocumentEmbedder:
         assert result[0].embedding == [0.1, 0.2, 0.3]
         assert result[1].embedding == [0.4, 0.5, 0.6]
 
+    def test_embed_cohere_v4_with_output_dimension(self):
+        embedder = AmazonBedrockDocumentEmbedder(model="eu.cohere.embed-v4:0", output_dimension=1024)
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.return_value = {
+                "body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}'),
+            }
+            embedder._embed_cohere(documents=[Document(content="some text")])
+
+        mock_client.invoke_model.assert_called_once_with(
+            body='{"texts": ["some text"], "input_type": "search_document", "output_dimension": 1024}',
+            modelId="eu.cohere.embed-v4:0",
+            accept="*/*",
+            contentType="application/json",
+        )
+
+    @pytest.mark.parametrize(
+        ("model_family", "kwargs", "expected_body", "response_body"),
+        [
+            (
+                "cohere",
+                {"output_dimension": 1024},
+                '{"texts": ["some text"], "input_type": "search_document", "output_dimension": 1024}',
+                '{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}',
+            ),
+            (
+                "titan",
+                {"dimensions": 512, "normalize": False},
+                '{"inputText": "some text", "dimensions": 512, "normalize": false}',
+                '{"embedding": [0.1, 0.2, 0.3]}',
+            ),
+        ],
+    )
+    def test_run_application_inference_profile(self, model_family, kwargs, expected_body, response_body):
+        embedder = AmazonBedrockDocumentEmbedder(
+            model=APPLICATION_INFERENCE_PROFILE_ARN, model_family=model_family, **kwargs
+        )
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.return_value = {"body": io.StringIO(response_body)}
+            result = embedder.run(documents=[Document(content="some text")])
+
+        mock_client.invoke_model.assert_called_once_with(
+            body=expected_body,
+            modelId=APPLICATION_INFERENCE_PROFILE_ARN,
+            accept="*/*",
+            contentType="application/json",
+        )
+        assert result["documents"][0].embedding == [0.1, 0.2, 0.3]
+
     def test_embed_cohere_batching(self):
         embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3", batch_size=2)
 
@@ -306,9 +380,13 @@ class TestAmazonBedrockDocumentEmbedder:
             assert doc.content == docs[i].content
             assert doc.embedding == [0.1, 0.2, 0.3]
 
-    def test_embed_titan_v2_with_dimensions_and_normalize(self):
+    @pytest.mark.parametrize(
+        "model",
+        ["amazon.titan-embed-text-v2:0", "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"],
+    )
+    def test_embed_titan_v2_with_dimensions_and_normalize(self, model):
         embedder = AmazonBedrockDocumentEmbedder(
-            model="amazon.titan-embed-text-v2:0",
+            model=model,
             dimensions=512,
             normalize=False,
         )
