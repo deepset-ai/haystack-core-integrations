@@ -4,9 +4,10 @@
 
 """Async tests for IBM Db2 Document Store."""
 
+import asyncio
 import dataclasses
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -451,9 +452,12 @@ async def test_get_metadata_field_unique_values_async_empty(mock_connected_store
 async def test_count_unique_metadata_by_filter_async_executes_query(
     mock_connected_store: IBMDb2DocumentStore,
 ) -> None:
-    mock_connected_store._mock_cur.fetchall = AsyncMock(return_value=[("A",), ("B",), ("A",)])
+    # count_unique_metadata now issues COUNT(DISTINCT ...) — returns a single row with an int
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=(3,))
     result = await mock_connected_store.count_unique_metadata_by_filter_async(metadata_fields=["category"])
-    assert result == {"category": 2}  # A and B are distinct
+    assert result == {"category": 3}
+    sql_called = mock_connected_store._mock_cur.execute.call_args[0][0]
+    assert "COUNT(DISTINCT" in sql_called
 
 
 @pytest.mark.asyncio
@@ -482,3 +486,113 @@ async def test_transaction_async_rolls_back_on_error(mock_connected_store: IBMDb
             await cur.execute("SELECT 1")
     mock_connected_store._mock_conn.rollback.assert_awaited_once()
     mock_connected_store._mock_conn.commit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Concurrent _get_connection_async: only one connection created
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_connection_async_concurrent_init_creates_single_connection(
+    mock_async_store: IBMDb2DocumentStore,
+) -> None:
+    """Two coroutines racing to initialise must not create two connections."""
+    call_count = 0
+    mock_conn = _make_mock_conn(_make_mock_cursor())
+
+    async def fake_pconnect_async(**_kwargs):
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(0)  # yield so the competing coroutine can run
+        return mock_conn
+
+    import ibm_db_dbi
+
+    with patch.object(ibm_db_dbi, "pconnect_async", side_effect=fake_pconnect_async):
+        mock_async_store._ensure_table_exists_async = AsyncMock()
+        conn_a, conn_b = await asyncio.gather(
+            mock_async_store._get_connection_async(),
+            mock_async_store._get_connection_async(),
+        )
+
+    # pconnect_async must have been called exactly once despite two coroutines
+    assert call_count == 1
+    assert conn_a is conn_b
+
+
+# ---------------------------------------------------------------------------
+# DuplicateDocumentError indicator string mapping (async insert path)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error_text",
+    [
+        "SQL0803N duplicate key",
+        "SQLCODE=-803 unique constraint",
+        "sqlstate=23505 primary key violation",
+        "sql0803n",
+    ],
+)
+async def test_insert_documents_async_maps_duplicate_error(
+    mock_connected_store: IBMDb2DocumentStore,
+    error_text: str,
+) -> None:
+    """Each Db2 duplicate-key indicator must raise DuplicateDocumentError."""
+    mock_connected_store._mock_cur.executemany = AsyncMock(
+        side_effect=Exception(error_text)
+    )
+    docs = [Document(content="test")]
+    with pytest.raises(DuplicateDocumentError):
+        await mock_connected_store._insert_documents_async(docs)
+
+
+# ---------------------------------------------------------------------------
+# get_metadata_field_min_max_async: numeric fallback path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_metadata_field_min_max_async_fallback_to_lex(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    """When the numeric CAST query fails, the lex fallback SQL must be tried."""
+    calls = []
+
+    async def execute_side_effect(sql, *_args):
+        calls.append(sql)
+        if "AS DOUBLE" in sql:
+            raise Exception("data exception -- numeric value out of range")
+        # lex path: succeeds silently
+
+    mock_connected_store._mock_cur.execute = AsyncMock(side_effect=execute_side_effect)
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=("apple", "mango"))
+
+    result = await mock_connected_store.get_metadata_field_min_max_async("tag")
+
+    # Both SQL variants must have been attempted
+    assert any("AS DOUBLE" in s for s in calls), "numeric SQL not attempted"
+    assert any("AS DOUBLE" not in s and "JSON_VALUE" in s for s in calls), "lex SQL not attempted"
+    assert result == {"min": "apple", "max": "mango"}
+
+
+# ---------------------------------------------------------------------------
+# DuplicateDocumentError must NOT be re-wrapped inside _transaction_async
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_transaction_async_does_not_rewrap_duplicate_document_error(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    """DuplicateDocumentError raised inside _transaction_async must reach caller unchanged."""
+    mock_connected_store._mock_cur.execute = AsyncMock(
+        side_effect=DuplicateDocumentError("already exists")
+    )
+    with pytest.raises(DuplicateDocumentError, match="already exists"):
+        async with mock_connected_store._transaction_async("op") as cur:
+            await cur.execute("INSERT ...")
+    # Rollback must still be called
+    mock_connected_store._mock_conn.rollback.assert_awaited_once()

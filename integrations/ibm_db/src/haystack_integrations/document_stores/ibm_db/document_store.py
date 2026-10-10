@@ -158,7 +158,7 @@ class IBMDb2DocumentStore:
         self._table_initialized = False
 
         self._async_connection: AsyncConnection | None = None
-        self._async_connection_lock = asyncio.Lock()
+        self._async_connection_lock: asyncio.Lock | None = None  # created lazily inside event loop
         self._async_table_initialized = False
 
     def _get_connection(self) -> ibm_db_dbi.Connection:
@@ -169,10 +169,12 @@ class IBMDb2DocumentStore:
 
         :return: IBM Db2 connection object
         """
-        if self._connection is not None and self._table_initialized:
-            return self._connection
-
         with self._connection_lock:
+            # Fast-path check lives inside the lock so concurrent threads and
+            # close() cannot observe a partially-initialised connection.
+            if self._connection is not None and self._table_initialized:
+                return self._connection
+
             if self._connection is None:
                 # Build connection string
                 dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
@@ -240,6 +242,10 @@ class IBMDb2DocumentStore:
 
         :return: IBM Db2 AsyncConnection object
         """
+        # Create the lock lazily inside the running event loop to avoid the
+        # DeprecationWarning from constructing asyncio primitives outside a loop.
+        if self._async_connection_lock is None:
+            self._async_connection_lock = asyncio.Lock()
         async with self._async_connection_lock:
             # Double-checked locking: both the fast-path check and all state mutations
             # live inside the lock so that concurrent coroutines cannot observe a
@@ -295,6 +301,8 @@ class IBMDb2DocumentStore:
 
         The synchronous connection is not affected.
         """
+        if self._async_connection_lock is None:
+            self._async_connection_lock = asyncio.Lock()
         async with self._async_connection_lock:
             if self._async_connection is not None:
                 with suppress(Exception):
@@ -318,6 +326,12 @@ class IBMDb2DocumentStore:
             try:
                 yield cur
                 await conn.commit()
+            except (DocumentStoreError, DuplicateDocumentError):
+                # Re-raise Haystack document store exceptions unchanged so callers
+                # receive the correct type (e.g. DuplicateDocumentError, not a
+                # generic DocumentStoreError wrapper).
+                await conn.rollback()
+                raise
             except Exception as e:
                 await conn.rollback()
                 msg = f"{error_msg}: {e}"
@@ -338,6 +352,9 @@ class IBMDb2DocumentStore:
             try:
                 yield cur
                 conn.commit()
+            except (DocumentStoreError, DuplicateDocumentError):
+                conn.rollback()
+                raise
             except Exception as e:
                 conn.rollback()
                 msg = f"{error_msg}: {e}"
@@ -450,7 +467,9 @@ class IBMDb2DocumentStore:
     def _to_row(doc: Document) -> tuple:
         """Convert a Document to (id, content, meta_json, embedding_str)."""
         meta_json = json.dumps(doc.meta) if doc.meta else "{}"
-        embedding_str = f"{doc.embedding}" if doc.embedding else None
+        # json.dumps produces a well-defined list representation; f-string would
+        # rely on Python's list __repr__ which is implementation-defined.
+        embedding_str = json.dumps(doc.embedding) if doc.embedding is not None else None
         return (doc.id, doc.content, meta_json, embedding_str)
 
     def _create_table_sql(self) -> str:
@@ -868,19 +887,22 @@ class IBMDb2DocumentStore:
         :param recreate_index: If True, recreate the table after deletion
         :return: Number of documents deleted
         """
-        with self._transaction("Failed to delete all documents") as cur:
-            # Count documents before deletion
+        # Count and plain-delete share a single cursor via _transaction.
+        # recreate_index is handled *outside* that transaction because
+        # _ensure_table_exists opens its own cursor on the same connection;
+        # having two cursors open simultaneously on a Db2 connection during a
+        # DROP/CREATE causes undefined behaviour.
+        with self._transaction("Failed to count documents") as cur:
             cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
             deleted_count = cur.fetchone()[0]
 
-            if recreate_index:
-                # Drop and recreate the table
-                self._ensure_table_exists(recreate=True)
-            else:
-                # Just delete all rows
+        if recreate_index:
+            self._ensure_table_exists(recreate=True)
+        else:
+            with self._transaction("Failed to delete all documents") as cur:
                 cur.execute(f"DELETE FROM {self.table_name}")
 
-            return deleted_count
+        return deleted_count
 
     async def delete_all_documents_async(self, recreate_index: bool = False) -> int:
         """
@@ -1157,43 +1179,35 @@ class IBMDb2DocumentStore:
         :param field: The metadata field name (can include 'meta.' prefix)
         :return: Dictionary with 'min' and 'max' keys
         """
-        # Strip 'meta.' prefix if present
         field_name = field.removeprefix("meta.")
 
-        conn = self._get_connection()
+        numeric_sql = (
+            f"SELECT "
+            f"MIN(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)), "
+            f"MAX(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)) "
+            f"FROM {self.table_name} "
+            f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+        )
+        lex_sql = (
+            f"SELECT "
+            f"MIN(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))), "
+            f"MAX(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))) "
+            f"FROM {self.table_name} "
+            f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+        )
 
-        with conn.cursor() as cur:
-            # Try to get min/max treating the field as numeric
-            # Use RETURNING VARCHAR to explicitly specify the return type for JSON_VALUE
-            sql = (
-                f"SELECT "
-                f"MIN(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)), "
-                f"MAX(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)) "
-                f"FROM {self.table_name} "
-                f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
-            )
+        with self._transaction(f"Failed to get min/max for field '{field}'") as cur:
             try:
-                cur.execute(sql)
+                cur.execute(numeric_sql)
                 row = cur.fetchone()
                 if row and row[0] is not None:
                     return {"min": row[0], "max": row[1]}
             except Exception:
-                # If numeric cast fails, try lexicographic comparison
-                sql = (
-                    f"SELECT "
-                    f"MIN(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))), "
-                    f"MAX(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))) "
-                    f"FROM {self.table_name} "
-                    f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
-                )
-                try:
-                    cur.execute(sql)
-                    row = cur.fetchone()
-                    if row and row[0] is not None:
-                        return {"min": row[0], "max": row[1]}
-                except Exception as e:
-                    msg = f"Failed to get min/max for field '{field}': {e}"
-                    raise DocumentStoreError(msg) from e
+                # Numeric cast failed (non-numeric field) — fall back to lexicographic
+                cur.execute(lex_sql)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    return {"min": row[0], "max": row[1]}
 
         return {"min": None, "max": None}
 
@@ -1206,37 +1220,33 @@ class IBMDb2DocumentStore:
         """
         field_name = field.removeprefix("meta.")
 
-        conn = await self._get_connection_async()
-        cur = await conn.cursor()
-        async with cur:
-            sql = (
-                f"SELECT "
-                f"MIN(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)), "
-                f"MAX(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)) "
-                f"FROM {self.table_name} "
-                f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
-            )
+        numeric_sql = (
+            f"SELECT "
+            f"MIN(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)), "
+            f"MAX(CAST(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS DOUBLE)) "
+            f"FROM {self.table_name} "
+            f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+        )
+        lex_sql = (
+            f"SELECT "
+            f"MIN(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))), "
+            f"MAX(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))) "
+            f"FROM {self.table_name} "
+            f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+        )
+
+        async with self._transaction_async(f"Failed to get min/max for field '{field}'") as cur:
             try:
-                await cur.execute(sql)
+                await cur.execute(numeric_sql)
                 row = await cur.fetchone()
                 if row and row[0] is not None:
                     return {"min": row[0], "max": row[1]}
             except Exception:
-                sql = (
-                    f"SELECT "
-                    f"MIN(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))), "
-                    f"MAX(JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))) "
-                    f"FROM {self.table_name} "
-                    f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
-                )
-                try:
-                    await cur.execute(sql)
-                    row = await cur.fetchone()
-                    if row and row[0] is not None:
-                        return {"min": row[0], "max": row[1]}
-                except Exception as e:
-                    msg = f"Failed to get min/max for field '{field}': {e}"
-                    raise DocumentStoreError(msg) from e
+                # Numeric cast failed — fall back to lexicographic
+                await cur.execute(lex_sql)
+                row = await cur.fetchone()
+                if row and row[0] is not None:
+                    return {"min": row[0], "max": row[1]}
 
         return {"min": None, "max": None}
 
@@ -1329,41 +1339,21 @@ class IBMDb2DocumentStore:
 
         result = {}
         for field in metadata_fields:
-            # Strip 'meta.' prefix if present
             field_name = field.removeprefix("meta.")
 
-            # Count distinct values for this field
-            # We need to fetch all values and deduplicate in Python due to Db2's JSON handling
-            sql = (
-                f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
-                f"FROM {self.table_name} "
-            )
+            # Use COUNT(DISTINCT ...) in SQL — avoids fetching all rows into memory
+            # and deduplicating in Python, which breaks on large collections.
+            value_expr = f"JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))"
+            sql = f"SELECT COUNT(DISTINCT {value_expr}) FROM {self.table_name} "
             if where_clause:
-                sql += where_clause + " AND "
+                sql += where_clause + f" AND {value_expr} IS NOT NULL"
             else:
-                sql += "WHERE "
-            sql += f"JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+                sql += f"WHERE {value_expr} IS NOT NULL"
 
             with self._transaction(f"Failed to count unique metadata for field '{field}'") as cur:
                 cur.execute(sql, params)
-                rows = cur.fetchall()
-
-            # Deduplicate values
-            unique_values = set()
-            for row in rows:
-                value = row[0]
-                if value is not None:
-                    # Try to parse as JSON to handle different types consistently
-                    try:
-                        parsed_value = json.loads(value)
-                        # Use JSON string for deduplication to handle unhashable types
-                        value_key = json.dumps(parsed_value, sort_keys=True)
-                        unique_values.add(value_key)
-                    except (json.JSONDecodeError, TypeError):
-                        # If it's not valid JSON, use the string value
-                        unique_values.add(value)
-
-            result[field] = len(unique_values)
+                row = cur.fetchone()
+                result[field] = row[0] if row and row[0] is not None else 0
 
         return result
 
@@ -1386,32 +1376,17 @@ class IBMDb2DocumentStore:
         for field in metadata_fields:
             field_name = field.removeprefix("meta.")
 
-            sql = (
-                f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
-                f"FROM {self.table_name} "
-            )
+            value_expr = f"JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000))"
+            sql = f"SELECT COUNT(DISTINCT {value_expr}) FROM {self.table_name} "
             if where_clause:
-                sql += where_clause + " AND "
+                sql += where_clause + f" AND {value_expr} IS NOT NULL"
             else:
-                sql += "WHERE "
-            sql += f"JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+                sql += f"WHERE {value_expr} IS NOT NULL"
 
             async with self._transaction_async(f"Failed to count unique metadata for field '{field}'") as cur:
                 await cur.execute(sql, params)
-                rows = await cur.fetchall()
-
-            unique_values = set()
-            for row in rows:
-                value = row[0]
-                if value is not None:
-                    try:
-                        parsed_value = json.loads(value)
-                        value_key = json.dumps(parsed_value, sort_keys=True)
-                        unique_values.add(value_key)
-                    except (json.JSONDecodeError, TypeError):
-                        unique_values.add(value)
-
-            result[field] = len(unique_values)
+                row = await cur.fetchone()
+                result[field] = row[0] if row and row[0] is not None else 0
 
         return result
 
@@ -1585,11 +1560,8 @@ class IBMDb2DocumentStore:
             cur.execute(sql, params)
             try:
                 rows = cur.fetchall()
-            except BaseException as e:
-                # If we get a division by zero error (SQL0801N), it means there are zero vectors
-                # In this case, we'll return empty results or filter them out
+            except Exception as e:
                 error_msg = str(e)
-                # Check both the error message and the __cause__ attribute
                 cause_msg = str(e.__cause__) if hasattr(e, "__cause__") and e.__cause__ else ""
                 if (
                     "SQL0801N" in error_msg
@@ -1597,8 +1569,6 @@ class IBMDb2DocumentStore:
                     or "SQL0801N" in cause_msg
                     or "Division by zero" in cause_msg
                 ):
-                    # For COSINE metric with zero vectors, return empty results
-                    # This is an edge case that shouldn't happen in production
                     rows = []
                 else:
                     raise
