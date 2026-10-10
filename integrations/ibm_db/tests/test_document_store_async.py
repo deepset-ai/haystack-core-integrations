@@ -9,6 +9,7 @@ import dataclasses
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import ibm_db_dbi  # type: ignore[import-untyped]
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -507,8 +508,6 @@ async def test_get_connection_async_concurrent_init_creates_single_connection(
         await asyncio.sleep(0)  # yield so the competing coroutine can run
         return mock_conn
 
-    import ibm_db_dbi
-
     with patch.object(ibm_db_dbi, "pconnect_async", side_effect=fake_pconnect_async):
         mock_async_store._ensure_table_exists_async = AsyncMock()
         conn_a, conn_b = await asyncio.gather(
@@ -541,9 +540,7 @@ async def test_insert_documents_async_maps_duplicate_error(
     error_text: str,
 ) -> None:
     """Each Db2 duplicate-key indicator must raise DuplicateDocumentError."""
-    mock_connected_store._mock_cur.executemany = AsyncMock(
-        side_effect=Exception(error_text)
-    )
+    mock_connected_store._mock_cur.executemany = AsyncMock(side_effect=Exception(error_text))
     docs = [Document(content="test")]
     with pytest.raises(DuplicateDocumentError):
         await mock_connected_store._insert_documents_async(docs)
@@ -564,7 +561,8 @@ async def test_get_metadata_field_min_max_async_fallback_to_lex(
     async def execute_side_effect(sql, *_args):
         calls.append(sql)
         if "AS DOUBLE" in sql:
-            raise Exception("data exception -- numeric value out of range")
+            err_msg = "data exception -- numeric value out of range"
+            raise Exception(err_msg)
         # lex path: succeeds silently
 
     mock_connected_store._mock_cur.execute = AsyncMock(side_effect=execute_side_effect)
@@ -588,9 +586,7 @@ async def test_transaction_async_does_not_rewrap_duplicate_document_error(
     mock_connected_store: IBMDb2DocumentStore,
 ) -> None:
     """DuplicateDocumentError raised inside _transaction_async must reach caller unchanged."""
-    mock_connected_store._mock_cur.execute = AsyncMock(
-        side_effect=DuplicateDocumentError("already exists")
-    )
+    mock_connected_store._mock_cur.execute = AsyncMock(side_effect=DuplicateDocumentError("already exists"))
     with pytest.raises(DuplicateDocumentError, match="already exists"):
         async with mock_connected_store._transaction_async("op") as cur:
             await cur.execute("INSERT ...")

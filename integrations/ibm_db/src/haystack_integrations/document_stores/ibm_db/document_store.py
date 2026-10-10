@@ -12,12 +12,12 @@ from contextlib import asynccontextmanager, contextmanager, suppress
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
-from ibm_db_dbi import AsyncConnection, AsyncCursor  # type: ignore[import-untyped]
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
+from ibm_db_dbi import AsyncConnection, AsyncCursor  # type: ignore[import-untyped]
 
 from .filters import FilterTranslator
 
