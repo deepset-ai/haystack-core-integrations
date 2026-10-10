@@ -240,10 +240,13 @@ class IBMDb2DocumentStore:
 
         :return: IBM Db2 AsyncConnection object
         """
-        if self._async_connection is not None and self._async_table_initialized:
-            return self._async_connection
-
         async with self._async_connection_lock:
+            # Double-checked locking: both the fast-path check and all state mutations
+            # live inside the lock so that concurrent coroutines cannot observe a
+            # partially-initialised connection or race with close_async().
+            if self._async_connection is not None and self._async_table_initialized:
+                return self._async_connection
+
             if self._async_connection is None:
                 dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
 
@@ -346,7 +349,9 @@ class IBMDb2DocumentStore:
 
         :param recreate: If True, drop and recreate the table
         """
-        assert self._async_connection is not None  # noqa: S101
+        if self._async_connection is None:
+            msg = "_ensure_table_exists_async() called before async connection was established"
+            raise RuntimeError(msg)
         conn = self._async_connection
 
         cur = await conn.cursor()
@@ -366,18 +371,10 @@ class IBMDb2DocumentStore:
                 pass
 
             if not table_exists:
-                create_sql = (
-                    f"CREATE TABLE {self.table_name} ("
-                    "id VARCHAR(512) NOT NULL PRIMARY KEY, "
-                    "content CLOB(2M), "
-                    "meta BLOB, "
-                    f"embedding VECTOR({self.embedding_dim}, FLOAT32)"
-                    ")"
-                )
                 try:
-                    await cur.execute(create_sql)
+                    await cur.execute(self._create_table_sql())
                     await conn.commit()
-                    logger.info(f"Created table {self.table_name}")
+                    logger.info("Created table {table_name}", table_name=self.table_name)
                 except Exception:
                     await conn.rollback()
                     raise
@@ -388,7 +385,9 @@ class IBMDb2DocumentStore:
 
         :param recreate: If True, drop and recreate the table
         """
-        assert self._connection is not None  # noqa: S101
+        if self._connection is None:
+            msg = "_ensure_table_exists() called before connection was established"
+            raise RuntimeError(msg)
         conn = self._connection
 
         with conn.cursor() as cur:
@@ -411,23 +410,12 @@ class IBMDb2DocumentStore:
                 pass
 
             if not table_exists:
-                # Create table with vector support
-                create_sql = (
-                    f"CREATE TABLE {self.table_name} ("
-                    "id VARCHAR(512) NOT NULL PRIMARY KEY, "
-                    "content CLOB(2M), "
-                    "meta BLOB, "
-                    f"embedding VECTOR({self.embedding_dim}, FLOAT32)"
-                    ")"
-                )
-
                 try:
-                    cur.execute(create_sql)
+                    cur.execute(self._create_table_sql())
                     conn.commit()
                     logger.info("Created table {table_name}", table_name=self.table_name)
                 except Exception:
                     conn.rollback()
-                    # If it still fails, raise the error
                     raise
 
     @staticmethod
@@ -464,6 +452,43 @@ class IBMDb2DocumentStore:
         meta_json = json.dumps(doc.meta) if doc.meta else "{}"
         embedding_str = f"{doc.embedding}" if doc.embedding else None
         return (doc.id, doc.content, meta_json, embedding_str)
+
+    def _create_table_sql(self) -> str:
+        """Return the CREATE TABLE SQL string for the document store table."""
+        return (
+            f"CREATE TABLE {self.table_name} ("
+            "id VARCHAR(512) NOT NULL PRIMARY KEY, "
+            "content CLOB(2M), "
+            "meta BLOB, "
+            f"embedding VECTOR({self.embedding_dim}, FLOAT32)"
+            ")"
+        )
+
+    @staticmethod
+    def _validate_documents(documents: list[Document]) -> None:
+        """
+        Validate a list of documents before writing.
+
+        Shared by write_documents() and write_documents_async() to avoid duplication.
+
+        :raises ValueError: If documents is not a list or contains non-Document items or has invalid embeddings.
+        :raises TypeError: If any embedding contains non-numeric values.
+        """
+        if not isinstance(documents, list):
+            msg = f"Expected a list of Document objects, got {type(documents)}"
+            raise ValueError(msg)
+
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"Expected Document objects, got {type(doc)}"
+                raise ValueError(msg)
+
+            if doc.embedding is not None:
+                try:
+                    IBMDb2DocumentStore._validate_embedding(doc.embedding, allow_none=False)
+                except (ValueError, TypeError) as e:
+                    msg = f"Invalid embedding for document '{doc.id}': {e}"
+                    raise type(e)(msg) from e
 
     def count_documents(self) -> int:
         """
@@ -538,25 +563,10 @@ class IBMDb2DocumentStore:
         :raises TypeError: If embeddings have invalid types
         :raises DuplicateDocumentError: If a document with the same id already exists and policy is FAIL or NONE
         """
-        if not isinstance(documents, list):
-            msg = f"Expected a list of Document objects, got {type(documents)}"
-            raise ValueError(msg)
+        self._validate_documents(documents)
 
         if not documents:
             return 0
-
-        for doc in documents:
-            if not isinstance(doc, Document):
-                msg = f"Expected Document objects, got {type(doc)}"
-                raise ValueError(msg)
-
-            # Validate embeddings if present
-            if doc.embedding is not None:
-                try:
-                    self._validate_embedding(doc.embedding, allow_none=False)
-                except (ValueError, TypeError) as e:
-                    msg = f"Invalid embedding for document '{doc.id}': {e}"
-                    raise type(e)(msg) from e
 
         if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
             return self._insert_documents(documents)
@@ -583,24 +593,10 @@ class IBMDb2DocumentStore:
         :raises TypeError: If embeddings have invalid types
         :raises DuplicateDocumentError: If a document with the same id already exists and policy is FAIL or NONE
         """
-        if not isinstance(documents, list):
-            msg = f"Expected a list of Document objects, got {type(documents)}"
-            raise ValueError(msg)
+        self._validate_documents(documents)
 
         if not documents:
             return 0
-
-        for doc in documents:
-            if not isinstance(doc, Document):
-                msg = f"Expected Document objects, got {type(doc)}"
-                raise ValueError(msg)
-
-            if doc.embedding is not None:
-                try:
-                    self._validate_embedding(doc.embedding, allow_none=False)
-                except (ValueError, TypeError) as e:
-                    msg = f"Invalid embedding for document '{doc.id}': {e}"
-                    raise type(e)(msg) from e
 
         if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
             return await self._insert_documents_async(documents)
@@ -893,17 +889,23 @@ class IBMDb2DocumentStore:
         :param recreate_index: If True, recreate the table after deletion
         :return: Number of documents deleted
         """
-        async with self._transaction_async("Failed to delete all documents") as cur:
+        # Count and plain-delete share a single cursor via _transaction_async.
+        # recreate_index is handled *outside* that transaction because
+        # _ensure_table_exists_async opens its own cursor on the same connection;
+        # having two cursors open simultaneously on a Db2 connection during a
+        # DROP/CREATE causes undefined behaviour.
+        async with self._transaction_async("Failed to count documents") as cur:
             await cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
             result = await cur.fetchone()
             deleted_count = result[0] if result else 0
 
-            if recreate_index:
-                await self._ensure_table_exists_async(recreate=True)
-            else:
+        if recreate_index:
+            await self._ensure_table_exists_async(recreate=True)
+        else:
+            async with self._transaction_async("Failed to delete all documents") as cur:
                 await cur.execute(f"DELETE FROM {self.table_name}")
 
-            return deleted_count
+        return deleted_count
 
     def update_by_filter(self, filters: dict[str, Any] | None = None, meta: dict[str, Any] | None = None) -> int:
         """
