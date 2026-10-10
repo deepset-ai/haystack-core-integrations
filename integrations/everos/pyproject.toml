@@ -7,7 +7,7 @@ name = "everos-haystack"
 dynamic = ["version"]
 description = "EverOS long-term memory integration for Haystack agents and pipelines"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "Apache-2.0"
 keywords = ["haystack", "everos", "memory", "agents", "llm", "cloud"]
 authors = [
@@ -18,15 +18,13 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.19.0", "httpx>=0.27.0"]
+dependencies = ["haystack-ai>=3.0.0", "everos-cloud>=1.1.0,<2", "urllib3>=2.0,<3"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/everos#readme"
@@ -61,6 +59,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "httpx>=0.27.0",
 ]
 
 [tool.hatch.envs.test.scripts]

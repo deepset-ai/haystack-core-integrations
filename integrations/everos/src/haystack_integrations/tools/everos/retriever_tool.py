@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026-present EverMind AI
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -26,7 +26,47 @@ _DEFAULT_INPUTS_FROM_STATE = {"user_id": "user_id"}
 
 
 class EverOSMemoryRetrieverTool(Tool):
-    """A Haystack Agent tool that searches EverOS user or agent memory."""
+    """
+    A Haystack Agent tool that searches EverOS user or agent memory.
+
+    `inputs_from_state` maps Agent State keys to tool parameter names. By default only `user_id` is injected;
+    the LLM sees `query` and `top_k`. Add `app_id` and `project_id` to the mapping and the Agent's `state_schema`
+    to select the same scope used by the writer. Optionally inject `session_id` to restrict recall to one session;
+    leave it unmapped for cross-session recall. Scope values must come from trusted application state.
+    For agent memory, replace the `user_id` mapping with `agent_id`; never supply both owners.
+
+    ### Usage example
+
+    ```python
+    from haystack.components.agents import Agent
+    from haystack.components.generators.chat import OpenAIChatGenerator
+    from haystack.dataclasses import ChatMessage
+    from haystack_integrations.memory_stores.everos import EverOSMemoryStore
+    from haystack_integrations.tools.everos import EverOSMemoryRetrieverTool
+
+    # Set EVEROS_CLOUD_API_KEY and OPENAI_API_KEY in the environment.
+    store = EverOSMemoryStore()
+    tool = EverOSMemoryRetrieverTool(
+        memory_store=store,
+        inputs_from_state={
+            "user_id": "user_id", "app_id": "app_id", "project_id": "project_id", "session_id": "session_id"
+        },
+    )
+    agent = Agent(
+        chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"),
+        tools=[tool],
+        state_schema={key: {"type": str} for key in ("user_id", "app_id", "project_id", "session_id")},
+    )
+    try:
+        result = agent.run(
+            messages=[ChatMessage.from_user("What did we decide in this session?")],
+            user_id="alice", app_id="assistant", project_id="demo", session_id="chat-42",
+        )
+        print(result["last_message"].text)
+    finally:
+        store.close()
+    ```
+    """
 
     def __init__(
         self,
@@ -81,6 +121,7 @@ class EverOSMemoryRetrieverTool(Tool):
         agent_id: str | None = None,
         app_id: str = "default",
         project_id: str = "default",
+        session_id: str | None = None,
     ) -> str:
         """
         Search EverOS and format the memories for the Agent.
@@ -91,6 +132,7 @@ class EverOSMemoryRetrieverTool(Tool):
         :param agent_id: Agent-memory owner. Use a custom state mapping instead of `user_id` to search this track.
         :param app_id: EverOS application scope.
         :param project_id: EverOS project scope.
+        :param session_id: Optional session filter, which can be injected from Agent State.
         :returns: Bulleted memory context or a no-results message.
         """
         memories = self.memory_store.search_memories(
@@ -102,6 +144,7 @@ class EverOSMemoryRetrieverTool(Tool):
             agent_id=agent_id,
             app_id=app_id,
             project_id=project_id,
+            session_id=session_id,
         )
         if not memories:
             return "No memories found."
@@ -126,6 +169,6 @@ class EverOSMemoryRetrieverTool(Tool):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "EverOSMemoryRetrieverTool":
         """Deserialize this tool from a dictionary."""
-        inner = data["data"]
+        inner = dict(data["data"])
         inner["memory_store"] = EverOSMemoryStore.from_dict(inner["memory_store"])
         return cls(**inner)

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026-present EverMind AI
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -28,10 +28,11 @@ def test_writer_tool_schema_and_store_result():
     assert kwargs["flush"] is True
 
 
-def test_writer_tool_round_trip_serialization():
-    tool = EverOSMemoryWriterTool(memory_store=EverOSMemoryStore(), flush_on_write=True)
+def test_writer_tool_round_trip_serialization(configured_store):
+    tool = EverOSMemoryWriterTool(memory_store=configured_store, flush_on_write=True)
     restored = EverOSMemoryWriterTool.from_dict(tool.to_dict())
     assert isinstance(restored.memory_store, EverOSMemoryStore)
+    assert restored.memory_store.to_dict() == configured_store.to_dict()
     assert restored.flush_on_write is True
     assert restored.inputs_from_state == {"user_id": "user_id", "session_id": "session_id"}
 

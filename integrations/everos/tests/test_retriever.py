@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026-present EverMind AI
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -44,10 +44,11 @@ def test_retriever_forwards_options():
     )
 
 
-def test_retriever_round_trip_serialization():
-    retriever = EverOSMemoryRetriever(memory_store=EverOSMemoryStore(), top_k=9, method="agentic", include_profile=True)
+def test_retriever_round_trip_serialization(configured_store):
+    retriever = EverOSMemoryRetriever(memory_store=configured_store, top_k=9, method="agentic", include_profile=True)
     restored = EverOSMemoryRetriever.from_dict(retriever.to_dict())
     assert isinstance(restored.memory_store, EverOSMemoryStore)
+    assert restored.memory_store.to_dict() == configured_store.to_dict()
     assert restored.top_k == 9
     assert restored.method == "agentic"
     assert restored.include_profile is True

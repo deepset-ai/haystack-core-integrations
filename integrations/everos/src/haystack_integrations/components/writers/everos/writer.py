@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026-present EverMind AI
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -17,6 +17,26 @@ class EverOSMemoryWriter:
 
     EverOS derives durable episodes, facts, profiles, agent cases, and skills from message streams. The component
     therefore reports accepted message count and extraction status instead of claiming one memory per message.
+
+    ### Usage example
+
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack_integrations.memory_stores.everos import EverOSMemoryStore
+    from haystack_integrations.components.writers.everos import EverOSMemoryWriter
+
+    # Set EVEROS_CLOUD_API_KEY in the environment.
+    store = EverOSMemoryStore()
+    writer = EverOSMemoryWriter(memory_store=store, flush_on_write=True)
+    try:
+        result = writer.run(
+            messages=[ChatMessage.from_user("I prefer concise replies.")],
+            session_id="chat-42", user_id="alice", app_id="assistant", project_id="demo",
+        )
+        print(result["messages_written"], result["status"], result["flush_status"])
+    finally:
+        store.close()
+    ```
     """
 
     def __init__(self, *, memory_store: EverOSMemoryStore, flush_on_write: bool = False) -> None:
@@ -47,11 +67,12 @@ class EverOSMemoryWriter:
         :param messages: Conversation messages to add.
         :param session_id: Conversation or run identifier.
         :param user_id: Owner ID for user messages.
-        :param agent_id: Sender ID for assistant and tool messages.
+        :param agent_id: Sender ID for assistant and tool messages. Defaults to `haystack-agent` when omitted.
         :param app_id: EverOS application scope.
         :param project_id: EverOS project scope.
         :param defer_extraction: Buffer without boundary detection until a later flush.
-        :returns: Accepted message count, add status, and optional flush status.
+        :returns: Dictionary with `messages_written` (number of messages accepted by EverOS), `status` (the add status)
+            and `flush_status` (the flush status, or `None` if no flush was run).
         """
         result = self.memory_store.add_memories(
             messages=messages,
@@ -73,15 +94,11 @@ class EverOSMemoryWriter:
         """Serialize this component to a dictionary."""
         return default_to_dict(
             self,
-            memory_store=self.memory_store.to_dict(),
+            memory_store=self.memory_store,
             flush_on_write=self.flush_on_write,
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "EverOSMemoryWriter":
         """Deserialize this component from a dictionary."""
-        if data.get("init_parameters", {}).get("memory_store"):
-            data["init_parameters"]["memory_store"] = EverOSMemoryStore.from_dict(
-                data["init_parameters"]["memory_store"]
-            )
         return default_from_dict(cls, data)

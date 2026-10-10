@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026-present EverMind AI
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -24,7 +24,46 @@ _DEFAULT_INPUTS_FROM_STATE = {"user_id": "user_id", "session_id": "session_id"}
 
 
 class EverOSMemoryWriterTool(Tool):
-    """A Haystack Agent tool that writes selected information to EverOS user memory."""
+    """
+    A Haystack Agent tool that writes selected information to EverOS user memory.
+
+    `inputs_from_state` maps Agent State keys to tool parameter names. The default injects `user_id` and
+    `session_id`, leaving only `text` for the LLM to choose. Add `app_id` and `project_id` to the mapping and
+    the Agent's `state_schema` to select the same scope used by the retriever. Supply these identifiers from
+    trusted application state, not model-generated arguments. Acceptance does not imply immediate searchability.
+
+    ### Usage example
+
+    ```python
+    from haystack.components.agents import Agent
+    from haystack.components.generators.chat import OpenAIChatGenerator
+    from haystack.dataclasses import ChatMessage
+    from haystack_integrations.memory_stores.everos import EverOSMemoryStore
+    from haystack_integrations.tools.everos import EverOSMemoryWriterTool
+
+    # Set EVEROS_CLOUD_API_KEY and OPENAI_API_KEY in the environment.
+    store = EverOSMemoryStore()
+    tool = EverOSMemoryWriterTool(
+        memory_store=store,
+        inputs_from_state={
+            "user_id": "user_id", "session_id": "session_id", "app_id": "app_id", "project_id": "project_id"
+        },
+    )
+    agent = Agent(
+        chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"),
+        tools=[tool],
+        state_schema={key: {"type": str} for key in ("user_id", "session_id", "app_id", "project_id")},
+    )
+    try:
+        result = agent.run(
+            messages=[ChatMessage.from_user("Remember that I prefer concise answers.")],
+            user_id="alice", session_id="chat-42", app_id="assistant", project_id="demo",
+        )
+        print(result["last_message"].text)
+    finally:
+        store.close()
+    ```
+    """
 
     def __init__(
         self,
@@ -113,6 +152,6 @@ class EverOSMemoryWriterTool(Tool):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "EverOSMemoryWriterTool":
         """Deserialize this tool from a dictionary."""
-        inner = data["data"]
+        inner = dict(data["data"])
         inner["memory_store"] = EverOSMemoryStore.from_dict(inner["memory_store"])
         return cls(**inner)

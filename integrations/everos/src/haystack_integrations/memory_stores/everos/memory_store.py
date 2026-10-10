@@ -1,16 +1,24 @@
-# SPDX-FileCopyrightText: 2026-present EverMind AI
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
 
 import json
 import time
-from collections.abc import Mapping
+from collections.abc import Callable
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
+from functools import partial
+from http import HTTPStatus
+from math import isfinite
 from typing import Any, Literal
 
-import httpx
+from everos_cloud import ApiClient, Configuration, MemoryApi
+from everos_cloud.exceptions import ApiException
+from everos_cloud.models import AddInput, Content, FilterNode, FlushInput, SearchInput
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
+from urllib3.exceptions import HTTPError
 
 from haystack_integrations.memory_stores.everos.errors import EverOSMemoryStoreError
 from haystack_integrations.memory_stores.everos.filters import build_search_filters
@@ -22,6 +30,7 @@ _DEFAULT_AGENT_ID = "haystack-agent"
 _API_PREFIX = "/api/v2"
 _SUPPORTED_ROLES = {"user", "assistant", "tool"}
 _MAX_TOP_K = 100
+_MAX_RETRY_DELAY = 30.0
 
 
 class EverOSMemoryStore:
@@ -38,6 +47,7 @@ class EverOSMemoryStore:
         base_url: str = _DEFAULT_BASE_URL,
         api_key: Secret = Secret.from_env_var("EVEROS_CLOUD_API_KEY"),
         timeout: float = 30.0,
+        max_retries: int = 2,
     ) -> None:
         """
         Initialize the EverOS memory store.
@@ -45,34 +55,42 @@ class EverOSMemoryStore:
         :param base_url: EverOS server root URL or a URL ending in `/api/v2`. Defaults to EverOS Cloud.
         :param api_key: EverOS Cloud bearer token, normally read from `EVEROS_CLOUD_API_KEY`.
         :param timeout: HTTP request timeout in seconds.
+        :param max_retries: Maximum retries for search on HTTP 429/5xx or transport failures, and for writes on
+            HTTP 429 only. Writes are not retried after ambiguous failures to avoid duplicate ingestion.
         """
         if not base_url.strip():
             msg = "base_url must not be empty."
             raise ValueError(msg)
-        if timeout <= 0:
+        if not isfinite(timeout) or timeout <= 0:
             msg = "timeout must be greater than zero."
+            raise ValueError(msg)
+        if isinstance(max_retries, bool) or not isinstance(max_retries, int) or max_retries < 0:
+            msg = "max_retries must be a non-negative integer."
             raise ValueError(msg)
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.timeout = timeout
-        self._client: httpx.Client | None = None
+        self.timeout = float(timeout)
+        self.max_retries = max_retries
+        self._client: MemoryApi | None = None
 
     def warm_up(self) -> None:
         """Create the HTTP client. Calling this method more than once is a no-op."""
         if self._client is not None:
             return
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": "everos-haystack",
-        }
         api_key = self.api_key.resolve_value()
-        headers["Authorization"] = f"Bearer {api_key}"
-        self._client = httpx.Client(timeout=self.timeout, headers=headers)
+        if not api_key:
+            msg = "EverOS Cloud API key must not be empty."
+            raise ValueError(msg)
+        host = self.base_url.removesuffix(_API_PREFIX)
+        # Disable transport retries: replay safety depends on the memory operation.
+        configuration = Configuration(host=host, access_token=api_key, retries=0)
+        api_client = ApiClient(configuration)
+        api_client.user_agent = "everos-haystack"
+        self._client = MemoryApi(api_client)
 
     @property
-    def client(self) -> httpx.Client:
-        """Return the initialized HTTP client, creating it on first use."""
+    def client(self) -> MemoryApi:
+        """Return the official SDK memory client, creating it on first use."""
         self.warm_up()
         if self._client is None:  # pragma: no cover - defensive guard
             msg = "EverOS HTTP client could not be initialized."
@@ -82,7 +100,8 @@ class EverOSMemoryStore:
     def close(self) -> None:
         """Close the underlying HTTP client."""
         if self._client is not None:
-            self._client.close()
+            # The generated SDK ApiClient has no close(); release its connection pool.
+            self._client.api_client.rest_client.pool_manager.clear()
             self._client = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -90,15 +109,14 @@ class EverOSMemoryStore:
         return default_to_dict(
             self,
             base_url=self.base_url,
-            api_key=self.api_key.to_dict(),
+            api_key=self.api_key,
             timeout=self.timeout,
+            max_retries=self.max_retries,
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "EverOSMemoryStore":
         """Deserialize a store configuration from a dictionary."""
-        if data.get("init_parameters"):
-            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def add_memories(
@@ -120,7 +138,8 @@ class EverOSMemoryStore:
         the messages instead of waiting for a later boundary.
 
         :param messages: Chat messages to add. System messages are ignored because EverOS accepts user, assistant,
-            and tool roles only.
+            and tool roles only. A positive integer `meta["everos_timestamp_ms"]` supplies the Unix timestamp in
+            milliseconds; otherwise the current time is used. `meta["sender_name"]` supplies the sender display name.
         :param session_id: Stable conversation or run identifier.
         :param user_id: Sender ID used for user messages and the owner of extracted user memory.
         :param agent_id: Sender ID used for assistant and tool messages. Defaults to `haystack-agent` when omitted.
@@ -221,8 +240,8 @@ class EverOSMemoryStore:
             `parent_id`, `timestamp`, and `sender_id` fields.
         :param method: EverOS retrieval method.
         :param top_k: Maximum number of results per memory kind, from 1 through 100.
-        :param radius: Optional cosine-similarity threshold.
-        :param min_score: Optional post-fusion relevance floor.
+        :param radius: Optional cosine-similarity threshold, from 0 to 1 inclusive.
+        :param min_score: Optional post-fusion relevance floor, from 0 to 1 inclusive.
         :param include_profile: Include the user profile in user-memory results.
         :param enable_llm_rerank: Enable EverOS LLM reranking for compatible agent-memory searches.
         :param include_unprocessed: Include matching messages that remain in the session buffer.
@@ -348,51 +367,83 @@ class EverOSMemoryStore:
         return fallback
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        url = self._endpoint(path)
-        response: httpx.Response | None = None
-        try:
-            response = self.client.post(url, json=payload)
-            response.raise_for_status()
-            body = response.json()
-        except httpx.HTTPStatusError as error:
-            suffix = self._http_error_detail(error.response)
-            msg = f"EverOS API request failed with HTTP {error.response.status_code}: {suffix}"
-            raise EverOSMemoryStoreError(msg) from error
-        except httpx.RequestError as error:
-            msg = f"Could not reach EverOS at {self.base_url}: {error}"
-            raise EverOSMemoryStoreError(msg) from error
-        except ValueError as error:
-            msg = "EverOS returned a non-JSON response."
-            raise EverOSMemoryStoreError(msg) from error
-        if not isinstance(body, dict):
-            msg = "EverOS returned an invalid JSON response object."
-            raise EverOSMemoryStoreError(msg)
-        return body
-
-    def _endpoint(self, path: str) -> str:
-        if self.base_url.endswith(_API_PREFIX):
-            return f"{self.base_url}{path}"
-        return f"{self.base_url}{_API_PREFIX}{path}"
+        self.warm_up()
+        # Use the generated typed clients rather than the facade so request_id is preserved.
+        operation: Callable[[], Any]
+        if path == "/memory/add":
+            add_input = AddInput.model_validate(
+                {
+                    **payload,
+                    "messages": [{**item, "content": Content(item["content"])} for item in payload["messages"]],
+                    "additional_properties": {"defer_extraction": payload["defer_extraction"]},
+                }
+            )
+            operation = partial(self.client.add_memory, add_input, _request_timeout=self.timeout)
+        elif path == "/memory/flush":
+            flush_input = FlushInput.model_validate(payload)
+            operation = partial(self.client.flush_memory, flush_input, _request_timeout=self.timeout)
+        else:
+            search_input = SearchInput.model_validate(
+                {**payload, "filters": self._sdk_filter(payload["filters"]) if payload.get("filters") else None}
+            )
+            operation = partial(self.client.search_memory, search_input, _request_timeout=self.timeout)
+        return self._request(operation, read_only=path == "/memory/search")
 
     @staticmethod
-    def _http_error_detail(response: httpx.Response) -> str:
-        try:
-            body = response.json()
-        except ValueError:
-            return response.text.strip() or response.reason_phrase
-        if isinstance(body, Mapping):
-            error = body.get("error")
-            if isinstance(error, Mapping):
-                code = error.get("code")
-                message = error.get("message")
-                if code and message:
-                    return f"{code}: {message}"
-                if message:
-                    return str(message)
-            detail = body.get("detail")
-            if detail:
-                return str(detail)
-        return response.reason_phrase
+    def _sdk_filter(node: dict[str, Any]) -> FilterNode:
+        # Construct only present fields; SDK from_dict otherwise inserts AND/OR: null into every node.
+        fields: dict[str, Any] = {
+            key: [EverOSMemoryStore._sdk_filter(child) for child in node[key]] for key in ("AND", "OR") if key in node
+        }
+        fields["additional_properties"] = {key: value for key, value in node.items() if key not in {"AND", "OR"}}
+        return FilterNode.model_validate(fields)
+
+    def _request(self, operation: Callable[[], Any], *, read_only: bool) -> dict[str, Any]:
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = operation()
+                if response is None:
+                    msg = "EverOS returned an invalid response: missing response envelope."
+                    raise EverOSMemoryStoreError(msg)
+                return response.to_dict()
+            except ApiException as error:
+                retryable = error.status == HTTPStatus.TOO_MANY_REQUESTS or (
+                    read_only and (error.status or 0) // 100 == HTTPStatus.INTERNAL_SERVER_ERROR // 100
+                )
+                if retryable and attempt < self.max_retries:
+                    delay = self._retry_delay(error, attempt)
+                    if delay is not None:
+                        time.sleep(delay)
+                        continue
+                # Never include server bodies: they may contain user messages or credentials.
+                msg = f"EverOS API request failed with HTTP {error.status}."
+                raise EverOSMemoryStoreError(msg) from None
+            except HTTPError:
+                if read_only and attempt < self.max_retries:
+                    time.sleep(min(0.5 * 2**attempt, _MAX_RETRY_DELAY))
+                    continue
+                msg = "Could not reach EverOS. Writes are not retried after transport failures."
+                raise EverOSMemoryStoreError(msg) from None
+            except (ValueError, TypeError, AttributeError):
+                msg = "EverOS returned an invalid response from the Cloud SDK."
+                raise EverOSMemoryStoreError(msg) from None
+        msg = "EverOS retry limit exceeded."  # pragma: no cover
+        raise EverOSMemoryStoreError(msg)  # pragma: no cover
+
+    @staticmethod
+    def _retry_delay(error: ApiException, attempt: int) -> float | None:
+        # Honor Retry-After, but do not block a pipeline for an unbounded server-supplied delay.
+        retry_after = (error.headers or {}).get("Retry-After")
+        if retry_after is not None:
+            try:
+                delay = float(retry_after)
+            except (ValueError, TypeError):
+                try:
+                    delay = (parsedate_to_datetime(retry_after) - datetime.now(UTC)).total_seconds()
+                except (ValueError, TypeError, OverflowError):
+                    delay = 0.5 * 2**attempt
+            return max(0.0, delay) if isfinite(delay) and delay <= _MAX_RETRY_DELAY else None
+        return min(0.5 * 2**attempt, _MAX_RETRY_DELAY)
 
     @staticmethod
     def _response_data(response: dict[str, Any], *, operation: str) -> dict[str, Any]:
