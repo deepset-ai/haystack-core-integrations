@@ -393,6 +393,22 @@ async def test_delete_all_documents_async_no_recreate(mock_connected_store: IBMD
     assert any("DELETE" in str(c) for c in calls)
 
 
+async def test_delete_all_documents_async_with_recreate(mock_connected_store: IBMDb2DocumentStore) -> None:
+    """delete_all_documents_async(recreate_index=True) counts docs then recreates table, no DELETE statement."""
+    mock_connected_store._mock_cur.fetchone = AsyncMock(return_value=(3,))
+
+    # Patch _ensure_table_exists_async to confirm it's called (and avoid real DDL on a mock conn)
+    mock_connected_store._ensure_table_exists_async = AsyncMock()
+
+    result = await mock_connected_store.delete_all_documents_async(recreate_index=True)
+
+    assert result == 3
+    mock_connected_store._ensure_table_exists_async.assert_awaited_once_with(recreate=True)
+    # No DELETE statement should have been issued
+    calls = mock_connected_store._mock_cur.execute.call_args_list
+    assert not any("DELETE" in str(c) for c in calls)
+
+
 @pytest.mark.asyncio
 async def test_update_by_filter_async_updates_rows(mock_connected_store: IBMDb2DocumentStore) -> None:
     mock_connected_store._mock_cur.fetchall = AsyncMock(return_value=[("id1", json.dumps({"old": "val"}))])
