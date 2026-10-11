@@ -143,14 +143,15 @@ class IBMDb2DocumentStore:
         :param recreate_table: If True, drop and recreate the table (default: False)
         :param create_vector_index: If True, create a ``CREATE VECTOR INDEX`` on the ``embedding``
             column for approximate nearest-neighbor search acceleration. Requires Db2 12.1.5 or
-            later on a LinuxAMD64 platform. Supported only for ``COSINE``, ``EUCLIDEAN``, and
-            ``EUCLIDEAN_SQUARED`` distance metrics; when ``distance_metric`` is any other value
-            a warning is logged and no index is created. The operation is idempotent — if the
-            index already exists it is left untouched.
+            later. Only compatible with ``COSINE``, ``EUCLIDEAN``, and
+            ``EUCLIDEAN_SQUARED`` distance metrics — passing any other value together with
+            ``create_vector_index=True`` raises ``ValueError`` at construction time.
+            The operation is idempotent: if the index already exists it is left untouched.
 
             **Important**: when this option is ``True`` the ``embedding`` column is created with
             ``NOT NULL``, which means every document written to the store must have an embedding.
-            Attempting to write a document without an embedding will raise a database error.
+            Attempting to write a document without an embedding will raise ``ValueError`` before
+            any database call is made.
             This constraint only applies to newly created tables; existing tables are not altered.
             Default: ``False``.
         """
@@ -168,6 +169,13 @@ class IBMDb2DocumentStore:
         self.embedding_dim = embedding_dim
         if distance_metric not in VALID_DISTANCE_METRICS:
             msg = f"Invalid distance_metric '{distance_metric}'. Must be one of {sorted(VALID_DISTANCE_METRICS)}."
+            raise ValueError(msg)
+        if create_vector_index and distance_metric not in _VECTOR_INDEX_SUPPORTED_METRICS:
+            msg = (
+                f"create_vector_index=True is not compatible with distance_metric='{distance_metric}'. "
+                f"Db2 CREATE VECTOR INDEX only supports: {sorted(_VECTOR_INDEX_SUPPORTED_METRICS)}. "
+                f"Either change distance_metric or set create_vector_index=False."
+            )
             raise ValueError(msg)
         self.distance_metric = distance_metric
         self.recreate_table = recreate_table
@@ -323,21 +331,12 @@ class IBMDb2DocumentStore:
         Create a vector index on the ``embedding`` column if one does not already exist.
 
         Uses ``SYSCAT.INDEXES`` to check for a pre-existing index before issuing DDL,
-        making the operation idempotent. Only ``COSINE``, ``EUCLIDEAN``, and
-        ``EUCLIDEAN_SQUARED`` are supported by Db2 ``CREATE VECTOR INDEX``; other
-        distance metrics produce a warning and return without error.
+        making the operation idempotent.
 
-        Requires Db2 12.1.5 or later.
+        Requires Db2 12.1.5 or later. Only called when
+        ``create_vector_index=True``, which ``__init__`` validates is only possible for
+        ``COSINE``, ``EUCLIDEAN``, and ``EUCLIDEAN_SQUARED`` distance metrics.
         """
-        if self.distance_metric not in _VECTOR_INDEX_SUPPORTED_METRICS:
-            logger.warning(
-                "create_vector_index=True but distance_metric={metric} is not supported by "
-                "Db2 CREATE VECTOR INDEX (supported: {supported}). No index will be created.",
-                metric=self.distance_metric,
-                supported=", ".join(sorted(_VECTOR_INDEX_SUPPORTED_METRICS)),
-            )
-            return
-
         # Use only the unqualified table name for the index name — if the caller
         # passed "myschema.mytable", taking the full string would produce an invalid
         # SQL identifier like "myschema.mytable_embedding_idx".
@@ -484,6 +483,17 @@ class IBMDb2DocumentStore:
         for doc in documents:
             if not isinstance(doc, Document):
                 msg = f"Expected Document objects, got {type(doc)}"
+                raise ValueError(msg)
+
+            # When create_vector_index=True the embedding column is NOT NULL — reject
+            # documents without an embedding here rather than letting the database
+            # produce a cryptic constraint violation.
+            if self.create_vector_index and doc.embedding is None:
+                msg = (
+                    f"Document '{doc.id}' has no embedding but create_vector_index=True "
+                    f"requires every document to have an embedding (the 'embedding' column "
+                    f"is NOT NULL). Provide an embedding or set create_vector_index=False."
+                )
                 raise ValueError(msg)
 
             # Validate embeddings if present
@@ -650,8 +660,12 @@ class IBMDb2DocumentStore:
             deleted_count = cur.fetchone()[0]
 
             if recreate_index:
-                # Drop and recreate the table
+                # Drop and recreate the table (and the vector index if enabled).
+                # Reset the flag so _ensure_table_exists runs the full creation path
+                # rather than treating the table as already initialized.
+                self._table_initialized = False
                 self._ensure_table_exists(recreate=True)
+                self._table_initialized = True
             else:
                 # Just delete all rows
                 cur.execute(f"DELETE FROM {self.table_name}")
@@ -1019,12 +1033,15 @@ class IBMDb2DocumentStore:
         embedding_str = f"{query_embedding}"
         where_clause, filter_params = self._build_where_clause(filters) if filters else ("", [])
 
-        # Add condition to exclude NULL embeddings
-        null_check = "embedding IS NOT NULL"
-        if where_clause:
-            where_clause = f"{where_clause} AND {null_check}"
-        else:
-            where_clause = f"WHERE {null_check}"
+        # When create_vector_index=True the column is NOT NULL — the predicate is
+        # redundant and may prevent the Db2 optimizer from choosing the vector index.
+        # Only add the guard when the column is nullable (create_vector_index=False).
+        if not self.create_vector_index:
+            null_check = "embedding IS NOT NULL"
+            if where_clause:
+                where_clause = f"{where_clause} AND {null_check}"
+            else:
+                where_clause = f"WHERE {null_check}"
 
         sql = (
             f"SELECT id, content, SYSTOOLS.BSON2JSON(meta) AS meta, embedding, "

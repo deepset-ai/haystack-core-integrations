@@ -4,7 +4,6 @@
 
 """Integration tests for IBM DB2 Document Store using Haystack mixin tests."""
 
-import logging
 import math
 import sys
 from datetime import datetime, timedelta, timezone
@@ -943,18 +942,35 @@ class TestIBMDb2DocumentStoreVectorIndex:
         assert restored.create_vector_index is True
 
     # ------------------------------------------------------------------
-    # Unsupported distance metric
+    # Unsupported distance metric — rejected at __init__
     # ------------------------------------------------------------------
 
     @pytest.mark.parametrize("metric", ["MANHATTAN", "DOT", "HAMMING"])
-    def test_unsupported_metric_logs_warning_and_skips(self, monkeypatch, caplog, metric):
-        store, conn, _ = self._make_store(monkeypatch, distance_metric=metric)
-        with caplog.at_level(logging.WARNING, logger="haystack_integrations.document_stores.ibm_db.document_store"):
-            store._ensure_vector_index_exists(conn)
+    def test_unsupported_metric_raises_at_init(self, monkeypatch, metric):
+        """create_vector_index=True with an incompatible metric must raise ValueError at __init__."""
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        with pytest.raises(ValueError, match="create_vector_index=True is not compatible"):
+            IBMDb2DocumentStore(
+                database="d",
+                hostname="h",
+                distance_metric=metric,
+                create_vector_index=True,
+            )
 
-        assert "not supported" in caplog.text
-        # No DDL should have been executed
-        conn.cursor.return_value.__enter__.return_value.execute.assert_not_called()
+    @pytest.mark.parametrize("metric", ["COSINE", "EUCLIDEAN", "EUCLIDEAN_SQUARED"])
+    def test_supported_metrics_accepted_at_init(self, monkeypatch, metric):
+        """Supported metrics must not raise when create_vector_index=True."""
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(
+            database="d",
+            hostname="h",
+            distance_metric=metric,
+            create_vector_index=True,
+        )
+        assert store.create_vector_index is True
+        assert store.distance_metric == metric
 
     # ------------------------------------------------------------------
     # Index already exists — idempotency
@@ -1175,6 +1191,97 @@ class TestIBMDb2DocumentStoreVectorIndex:
         # Index name must be "mytable_embedding_idx", not "myschema.mytable_embedding_idx"
         assert "mytable_embedding_idx" in create_sqls[0]
         assert "myschema.mytable_embedding_idx" not in create_sqls[0]
+
+
+class TestVectorIndexWriteGuard:
+    """Unit tests for the write_documents embedding guard when create_vector_index=True."""
+
+    def _make_store(self, monkeypatch, *, create_vector_index: bool = True) -> IBMDb2DocumentStore:
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(
+            database="d",
+            hostname="h",
+            embedding_dim=4,
+            create_vector_index=create_vector_index,
+        )
+        conn = MagicMock()
+        cursor_cm = conn.cursor.return_value
+        cursor_cm.__exit__.return_value = False
+        store._connection = conn
+        store._table_initialized = True
+        return store
+
+    def test_write_documents_raises_when_embedding_missing_and_index_enabled(self, monkeypatch):
+        """write_documents must raise ValueError if a document has no embedding and create_vector_index=True."""
+        store = self._make_store(monkeypatch)
+        doc = Document(id="test-id", content="hello")
+        assert doc.embedding is None
+        with pytest.raises(ValueError, match="has no embedding but create_vector_index=True"):
+            store.write_documents([doc])
+
+    def test_write_documents_allows_no_embedding_when_index_disabled(self, monkeypatch):
+        """write_documents must not raise for embedding-less documents when create_vector_index=False."""
+        store = self._make_store(monkeypatch, create_vector_index=False)
+        conn = store._connection
+        cur = conn.cursor.return_value.__enter__.return_value
+        cur.rowcount = 1
+
+        # Should not raise — the actual DB call will succeed via the mock
+        doc = Document(id="no-embedding", content="hello")
+        try:
+            store.write_documents([doc])
+        except ValueError as e:
+            pytest.fail(f"Unexpected ValueError raised for embedding-less doc with index disabled: {e}")
+
+    def test_write_documents_accepts_docs_with_embeddings_when_index_enabled(self, monkeypatch):
+        """write_documents must not raise when all documents have embeddings and create_vector_index=True."""
+        store = self._make_store(monkeypatch)
+        conn = store._connection
+        cur = conn.cursor.return_value.__enter__.return_value
+        cur.rowcount = 1
+
+        doc = Document(id="has-embedding", content="hello", embedding=[0.1, 0.2, 0.3, 0.4])
+        try:
+            store.write_documents([doc])
+        except ValueError as e:
+            pytest.fail(f"Unexpected ValueError raised for doc with valid embedding: {e}")
+
+
+class TestEmbeddingRetrievalNullPredicate:
+    """Unit tests for the embedding IS NOT NULL predicate in _embedding_retrieval."""
+
+    def _make_store(self, monkeypatch, *, create_vector_index: bool) -> IBMDb2DocumentStore:
+        monkeypatch.setenv("DB2_USERNAME", "u")
+        monkeypatch.setenv("DB2_PASSWORD", "p")
+        store = IBMDb2DocumentStore(
+            database="d",
+            hostname="h",
+            embedding_dim=4,
+            create_vector_index=create_vector_index,
+        )
+        conn = MagicMock()
+        cursor_cm = conn.cursor.return_value
+        cursor_cm.__exit__.return_value = False
+        cur = cursor_cm.__enter__.return_value
+        cur.fetchall.return_value = []
+        store._connection = conn
+        store._table_initialized = True
+        return store, cur
+
+    def test_null_predicate_present_when_index_disabled(self, monkeypatch):
+        """embedding IS NOT NULL must appear in the query when create_vector_index=False."""
+        store, cur = self._make_store(monkeypatch, create_vector_index=False)
+        store._embedding_retrieval([0.1, 0.2, 0.3, 0.4])
+        executed_sql = cur.execute.call_args.args[0]
+        assert "embedding IS NOT NULL" in executed_sql
+
+    def test_null_predicate_absent_when_index_enabled(self, monkeypatch):
+        """embedding IS NOT NULL must NOT appear when create_vector_index=True (column is NOT NULL)."""
+        store, cur = self._make_store(monkeypatch, create_vector_index=True)
+        store._embedding_retrieval([0.1, 0.2, 0.3, 0.4])
+        executed_sql = cur.execute.call_args.args[0]
+        assert "embedding IS NOT NULL" not in executed_sql
 
 
 @pytest.mark.integration
