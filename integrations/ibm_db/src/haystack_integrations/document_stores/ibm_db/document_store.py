@@ -365,8 +365,7 @@ class IBMDb2DocumentStore:
                 )
             else:
                 cur.execute(
-                    "SELECT COUNT(*) FROM SYSCAT.INDEXES "
-                    "WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
+                    "SELECT COUNT(*) FROM SYSCAT.INDEXES WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
                     (index_name, bare_table_name),
                 )
             row = cur.fetchone()
@@ -388,10 +387,7 @@ class IBMDb2DocumentStore:
                 )
             except Exception as e:
                 conn.rollback()
-                msg = (
-                    f"Failed to create vector index {index_name!r} on table "
-                    f"{self.table_name!r}: {e}"
-                )
+                msg = f"Failed to create vector index {index_name!r} on table {self.table_name!r}: {e}"
                 raise DocumentStoreError(msg) from e
 
     @staticmethod

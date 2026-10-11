@@ -1009,7 +1009,8 @@ class TestIBMDb2DocumentStoreVectorIndex:
         monkeypatch.setenv("DB2_USERNAME", "u")
         monkeypatch.setenv("DB2_PASSWORD", "p")
         store = IBMDb2DocumentStore(
-            database="d", hostname="h",
+            database="d",
+            hostname="h",
             table_name="my_custom_table",
             create_vector_index=True,
         )
@@ -1046,7 +1047,8 @@ class TestIBMDb2DocumentStoreVectorIndex:
         monkeypatch.setenv("DB2_USERNAME", "u")
         monkeypatch.setenv("DB2_PASSWORD", "p")
         store = IBMDb2DocumentStore(
-            database="d", hostname="h",
+            database="d",
+            hostname="h",
             schema="MYSCHEMA",
             create_vector_index=True,
         )
@@ -1090,10 +1092,10 @@ class TestIBMDb2DocumentStoreVectorIndex:
         # Table doesn't exist — SELECT COUNT(*) raises → CREATE TABLE is executed
         cur.execute.side_effect = [
             Exception("table not found"),  # SELECT COUNT(*) — table absent
-            None,                           # CREATE TABLE
-            None,                           # VALUES CURRENT SCHEMA
-            None,                           # SELECT COUNT(*) from SYSCAT
-            None,                           # CREATE VECTOR INDEX
+            None,  # CREATE TABLE
+            None,  # VALUES CURRENT SCHEMA
+            None,  # SELECT COUNT(*) from SYSCAT
+            None,  # CREATE VECTOR INDEX
         ]
         cur.fetchone.side_effect = [("DB2INST1",), (0,)]
 
@@ -1109,7 +1111,7 @@ class TestIBMDb2DocumentStoreVectorIndex:
         store, _, cur = self._make_store(monkeypatch, create_vector_index=False)
         cur.execute.side_effect = [
             Exception("table not found"),  # SELECT COUNT(*) — table absent
-            None,                           # CREATE TABLE
+            None,  # CREATE TABLE
         ]
 
         store._ensure_table_exists(recreate=False)
@@ -1152,12 +1154,12 @@ class TestIBMDb2DocumentStoreVectorIndex:
         # CREATE TABLE succeeds.  After that, _ensure_vector_index_exists runs:
         #   CURRENT SCHEMA → index absent → CREATE VECTOR INDEX.
         cur.execute.side_effect = [
-            None,                        # DROP TABLE
-            Exception("table not found"),# SELECT COUNT(*) — table doesn't exist yet
-            None,                        # CREATE TABLE
-            None,                        # VALUES CURRENT SCHEMA
-            None,                        # SELECT COUNT(*) from SYSCAT
-            None,                        # CREATE VECTOR INDEX
+            None,  # DROP TABLE
+            Exception("table not found"),  # SELECT COUNT(*) — table doesn't exist yet
+            None,  # CREATE TABLE
+            None,  # VALUES CURRENT SCHEMA
+            None,  # SELECT COUNT(*) from SYSCAT
+            None,  # CREATE VECTOR INDEX
         ]
         cur.fetchone.side_effect = [("DB2INST1",), (0,)]
 
@@ -1173,7 +1175,8 @@ class TestIBMDb2DocumentStoreVectorIndex:
         monkeypatch.setenv("DB2_USERNAME", "u")
         monkeypatch.setenv("DB2_PASSWORD", "p")
         store = IBMDb2DocumentStore(
-            database="d", hostname="h",
+            database="d",
+            hostname="h",
             table_name="myschema.mytable",
             create_vector_index=True,
         )
@@ -1298,6 +1301,7 @@ class TestVectorIndexIntegration:
     @pytest.fixture(autouse=True)
     def _cleanup(self, connection_config):
         """Drop the test table before and after each test."""
+
         def _drop():
             try:
                 store = IBMDb2DocumentStore(**connection_config, table_name=self._TABLE)
@@ -1328,8 +1332,7 @@ class TestVectorIndexIntegration:
         conn = store._connection
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) FROM SYSCAT.INDEXES "
-                "WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
+                "SELECT COUNT(*) FROM SYSCAT.INDEXES WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
                 (f"{self._TABLE}_embedding_idx", self._TABLE),
             )
             row = cur.fetchone()
@@ -1358,8 +1361,7 @@ class TestVectorIndexIntegration:
         conn = store2._connection
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) FROM SYSCAT.INDEXES "
-                "WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
+                "SELECT COUNT(*) FROM SYSCAT.INDEXES WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
                 (f"{self._TABLE}_embedding_idx", self._TABLE),
             )
             row = cur.fetchone()
@@ -1389,8 +1391,7 @@ class TestVectorIndexIntegration:
         conn = store2._connection
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) FROM SYSCAT.INDEXES "
-                "WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
+                "SELECT COUNT(*) FROM SYSCAT.INDEXES WHERE UPPER(INDNAME) = UPPER(?) AND UPPER(TABNAME) = UPPER(?)",
                 (f"{self._TABLE}_embedding_idx", self._TABLE),
             )
             row = cur.fetchone()
