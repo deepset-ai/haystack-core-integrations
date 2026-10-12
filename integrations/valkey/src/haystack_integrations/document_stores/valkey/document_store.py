@@ -137,6 +137,9 @@ class ValkeyDocumentStore(DocumentStore):
         "ip": DistanceMetricType.IP,
     }
     _DUMMY_VALUE = -10.0
+    # Valkey Search rejects a bare `*` unless it is followed by a KNN clause. A tag term OR'd with its own
+    # negation matches every indexed document, whatever ids the documents have.
+    _MATCH_ALL_QUERY = "(@id:{match_all} | -@id:{match_all})"
 
     def __init__(
         self,
@@ -495,9 +498,10 @@ class ValkeyDocumentStore(DocumentStore):
         """
         Filter documents by metadata without vector search.
 
-        This method retrieves documents based on metadata filters without performing vector similarity search.
-        Since Valkey Search requires vector queries, this method uses a dummy vector internally and removes
-        the similarity scores from results.
+        This method runs a filter-only Valkey Search query, so it returns every matching document regardless of
+        their embeddings. It requires Valkey Search 1.1.0 or later. Valkey Search stops collecting matches at
+        `search.max-nonvector-search-results-fetched` (100000 by default); raise that setting on the server for
+        larger result sets.
 
         :param filters: Optional metadata filters in Haystack format. Supports filtering on:
             - meta.category (string equality)
@@ -524,19 +528,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
 
         try:
-            # Valkey only performs vector similarity search
-            # here we are querying with a dummy vector and the current number of documents as limit
-            limit = self.count_documents()
-            documents = self._embedding_retrieval(self._dummy_vector, filters, limit)
-
-            # when simply filtering, we don't want to return any scores
-            # furthermore, we are querying with a dummy vector, so the scores are meaningless
-            docs_no_score = []
-            for doc in documents:
-                docs_no_score.append(replace(doc, score=None))
-
-            return docs_no_score
-
+            return self._filter_documents(filters, with_embedding=True)
         except FilterError:
             raise
         except Exception as e:
@@ -547,9 +539,10 @@ class ValkeyDocumentStore(DocumentStore):
         """
         Asynchronously filter documents by metadata without vector search.
 
-        This is the async version of filter_documents(). It retrieves documents based on metadata filters
-        without performing vector similarity search. Since Valkey Search requires vector queries, this method
-        uses a dummy vector internally and removes the similarity scores from results.
+        This is the async version of filter_documents(). It runs a filter-only Valkey Search query, so it returns
+        every matching document regardless of their embeddings. It requires Valkey Search 1.1.0 or later. Valkey
+        Search stops collecting matches at `search.max-nonvector-search-results-fetched` (100000 by default); raise
+        that setting on the server for larger result sets.
 
         :param filters: Optional metadata filters in Haystack format. Supports filtering on:
             - meta.category (string equality)
@@ -576,19 +569,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
 
         try:
-            # Valkey only performs vector similarity search
-            # here we are querying with a dummy vector and the max compatible limit
-            limit = await self.count_documents_async()
-            documents = await self._embedding_retrieval_async(self._dummy_vector, filters, limit)
-
-            # when simply filtering, we don't want to return any scores
-            # furthermore, we are querying with a dummy vector, so the scores are meaningless
-            docs_no_score = []
-            for doc in documents:
-                docs_no_score.append(replace(doc, score=None))
-
-            return docs_no_score
-
+            return await self._filter_documents_async(filters, with_embedding=True)
         except FilterError:
             raise
         except Exception as e:
@@ -812,8 +793,8 @@ class ValkeyDocumentStore(DocumentStore):
         """
         _validate_filters(filters)
         try:
-            docs_to_delete = self.filter_documents(filters)
-            if ids := [doc.id for doc in docs_to_delete]:
+            raw = self._search_by_filter(filters, return_fields=None)
+            if ids := self._parse_document_ids_from_ft(raw):
                 self.delete_documents(ids)
             return len(ids)
         except FilterError:
@@ -833,8 +814,8 @@ class ValkeyDocumentStore(DocumentStore):
         """
         _validate_filters(filters)
         try:
-            docs_to_delete = await self.filter_documents_async(filters)
-            if ids := [doc.id for doc in docs_to_delete]:
+            raw = await self._search_by_filter_async(filters, return_fields=None)
+            if ids := self._parse_document_ids_from_ft(raw):
                 await self.delete_documents_async(ids)
             return len(ids)
         except FilterError:
@@ -900,7 +881,7 @@ class ValkeyDocumentStore(DocumentStore):
         """
         _validate_filters(filters)
         try:
-            return len(self.filter_documents(filters))
+            return self._count_by_filter(filters)
         except FilterError:
             raise
         except Exception as e:
@@ -918,8 +899,7 @@ class ValkeyDocumentStore(DocumentStore):
         """
         _validate_filters(filters)
         try:
-            docs = await self.filter_documents_async(filters)
-            return len(docs)
+            return await self._count_by_filter_async(filters)
         except FilterError:
             raise
         except Exception as e:
@@ -940,7 +920,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         self._validate_metadata_field_names(metadata_fields)
         try:
-            docs = self.filter_documents(filters)
+            docs = self._filter_documents(filters, with_embedding=False)
             return ValkeyDocumentStore._count_unique_metadata_impl(docs, metadata_fields)
         except FilterError:
             raise
@@ -964,7 +944,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         self._validate_metadata_field_names(metadata_fields)
         try:
-            docs = await self.filter_documents_async(filters)
+            docs = await self._filter_documents_async(filters, with_embedding=False)
             return ValkeyDocumentStore._count_unique_metadata_impl(docs, metadata_fields)
         except FilterError:
             raise
@@ -999,7 +979,7 @@ class ValkeyDocumentStore(DocumentStore):
         """
         self._validate_numeric_metadata_field(metadata_field)
         try:
-            docs = self.filter_documents(filters=None)
+            docs = self._filter_documents(None, with_embedding=False)
             return ValkeyDocumentStore._get_metadata_field_min_max_impl(docs, metadata_field)
         except Exception as e:
             msg = f"Failed to get min/max for field '{metadata_field}': {e}"
@@ -1017,7 +997,7 @@ class ValkeyDocumentStore(DocumentStore):
         """
         self._validate_numeric_metadata_field(metadata_field)
         try:
-            docs = await self.filter_documents_async(filters=None)
+            docs = await self._filter_documents_async(None, with_embedding=False)
             return ValkeyDocumentStore._get_metadata_field_min_max_impl(docs, metadata_field)
         except Exception as e:
             msg = f"Failed to get min/max for field '{metadata_field}': {e}"
@@ -1046,7 +1026,7 @@ class ValkeyDocumentStore(DocumentStore):
         :raises ValkeyDocumentStoreError: If the operation fails.
         """
         try:
-            docs = self.filter_documents(filters=filters)
+            docs = self._filter_documents(filters, with_embedding=False)
             return ValkeyDocumentStore._get_metadata_field_unique_values_impl(
                 docs, metadata_field, search_term=search_term, from_=from_, size=size
             )
@@ -1077,7 +1057,7 @@ class ValkeyDocumentStore(DocumentStore):
         :raises ValkeyDocumentStoreError: If the operation fails.
         """
         try:
-            docs = await self.filter_documents_async(filters=filters)
+            docs = await self._filter_documents_async(filters, with_embedding=False)
             return ValkeyDocumentStore._get_metadata_field_unique_values_impl(
                 docs, metadata_field, search_term=search_term, from_=from_, size=size
             )
@@ -1306,6 +1286,87 @@ class ValkeyDocumentStore(DocumentStore):
             msg = f"Failed to retrieve documents by embedding: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
+    def _count_by_filter(self, filters: dict[str, Any] | None) -> int:
+        """Count the documents matching `filters` without fetching them."""
+        client = self._get_connection()
+        if not self._has_index():
+            return 0
+        query = self._build_filter_query(filters, self._metadata_fields)
+        # LIMIT 0 0 makes the server reply with only the number of matches
+        options = FtSearchOptions(limit=FtSearchLimit(offset=0, count=0))
+        raw = sync_ft.search(client, self._index_name, query, options)
+        return self._parse_total_from_ft(raw)
+
+    async def _count_by_filter_async(self, filters: dict[str, Any] | None) -> int:
+        """Asynchronously count the documents matching `filters` without fetching them."""
+        client = await self._get_connection_async()
+        if not await self._has_index_async():
+            return 0
+        query = self._build_filter_query(filters, self._metadata_fields)
+        # LIMIT 0 0 makes the server reply with only the number of matches
+        options = FtSearchOptions(limit=FtSearchLimit(offset=0, count=0))
+        raw = await ft.search(client, self._index_name, query, options)
+        return self._parse_total_from_ft(raw)
+
+    def _search_by_filter(self, filters: dict[str, Any] | None, *, return_fields: list[ReturnField] | None) -> Any:
+        """
+        Run a filter-only search and return the raw reply holding every matching document.
+
+        Valkey Search returns filter-only matches in no particular order, so paging through them with an offset
+        could skip or repeat documents. The matches are counted first and then fetched in a single request.
+
+        :param filters: Haystack filters, or `None` to match every document.
+        :param return_fields: Fields to return for each match, or `None` to return only the keys.
+        :return: The raw FT.SEARCH reply, or `None` if nothing matches.
+        """
+        total = self._count_by_filter(filters)
+        if total == 0:
+            return None
+        query = self._build_filter_query(filters, self._metadata_fields)
+        options = self._build_filter_fetch_options(total, return_fields=return_fields)
+        return sync_ft.search(self._get_connection(), self._index_name, query, options)
+
+    async def _search_by_filter_async(
+        self, filters: dict[str, Any] | None, *, return_fields: list[ReturnField] | None
+    ) -> Any:
+        """
+        Asynchronously run a filter-only search and return the raw reply holding every matching document.
+
+        See `_search_by_filter` for why the matches are counted before they are fetched.
+
+        :param filters: Haystack filters, or `None` to match every document.
+        :param return_fields: Fields to return for each match, or `None` to return only the keys.
+        :return: The raw FT.SEARCH reply, or `None` if nothing matches.
+        """
+        total = await self._count_by_filter_async(filters)
+        if total == 0:
+            return None
+        query = self._build_filter_query(filters, self._metadata_fields)
+        options = self._build_filter_fetch_options(total, return_fields=return_fields)
+        return await ft.search(await self._get_connection_async(), self._index_name, query, options)
+
+    def _filter_documents(self, filters: dict[str, Any] | None, *, with_embedding: bool) -> list[Document]:
+        """Return every document matching `filters`, without scores."""
+        return_fields = self._document_return_fields(with_embedding=with_embedding)
+        raw = self._search_by_filter(filters, return_fields=return_fields)
+        # Documents may have been written with a score, which means nothing outside a similarity search
+        return [replace(doc, score=None) for doc in self._parse_documents_from_ft(raw, with_embedding=with_embedding)]
+
+    async def _filter_documents_async(self, filters: dict[str, Any] | None, *, with_embedding: bool) -> list[Document]:
+        """Asynchronously return every document matching `filters`, without scores."""
+        return_fields = self._document_return_fields(with_embedding=with_embedding)
+        raw = await self._search_by_filter_async(filters, return_fields=return_fields)
+        # Documents may have been written with a score, which means nothing outside a similarity search
+        return [replace(doc, score=None) for doc in self._parse_documents_from_ft(raw, with_embedding=with_embedding)]
+
+    def _parse_document_ids_from_ft(self, raw: Any) -> list[str]:
+        """Extract document ids from the keys of a raw FT.SEARCH reply."""
+        if not raw or raw[0] == 0:
+            return []
+        key_prefix = f"{self._index_name}:"
+        keys = (key.decode() if isinstance(key, bytes) else key for key in raw[1])
+        return [key.removeprefix(key_prefix) for key in keys]
+
     def _prepare_document_dict(self, doc: Document) -> dict[str, Any]:
         """Prepare document dictionary for storage."""
         payload = doc.to_dict(flatten=False)
@@ -1336,7 +1397,7 @@ class ValkeyDocumentStore(DocumentStore):
 
             doc_dict[field_name_with_prefix] = value
 
-        doc_dict["vector"] = doc.embedding if doc.embedding else [self._DUMMY_VALUE] * self._embedding_dim
+        doc_dict["vector"] = doc.embedding if doc.embedding else self._dummy_vector
         return doc_dict
 
     @staticmethod
@@ -1420,6 +1481,37 @@ class ValkeyDocumentStore(DocumentStore):
             limit=FtSearchLimit(offset=0, count=limit),
         )
         return query, query_options
+
+    @staticmethod
+    def _build_filter_query(filters: dict[str, Any] | None, supported_fields: dict[str, str]) -> str:
+        """Build a filter-only query string, matching every document when no filters are given."""
+        if not filters:
+            return ValkeyDocumentStore._MATCH_ALL_QUERY
+        _validate_filters(filters)
+        return _normalize_filters(filters, supported_fields)
+
+    @staticmethod
+    def _build_filter_fetch_options(count: int, *, return_fields: list[ReturnField] | None) -> FtSearchOptions:
+        limit = FtSearchLimit(offset=0, count=count)
+        if return_fields is None:
+            return FtSearchOptions(nocontent=True, limit=limit)
+        return FtSearchOptions(return_fields=return_fields, limit=limit)
+
+    @staticmethod
+    def _document_return_fields(*, with_embedding: bool) -> list[ReturnField]:
+        return_fields = [ReturnField("$.payload", alias="payload")]
+        if with_embedding:
+            return_fields.append(ReturnField("$.vector", alias="vector"))
+        return return_fields
+
+    @staticmethod
+    def _parse_total_from_ft(raw: Any) -> int:
+        """Read the total match count from a raw FT.SEARCH reply."""
+        total = raw[0] if raw else None
+        if not isinstance(total, int):
+            msg = f"Unexpected FT.SEARCH reply: {raw!r}"
+            raise ValkeyDocumentStoreError(msg)
+        return total
 
     @staticmethod
     def _normalize_metadata_field_name(field_name: str) -> str:

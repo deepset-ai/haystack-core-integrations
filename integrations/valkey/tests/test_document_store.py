@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from glide_shared.commands.server_modules.ft_options.ft_create_options import DistanceMetricType
-from glide_shared.commands.server_modules.ft_options.ft_search_options import FtSearchOptions
+from glide_shared.commands.server_modules.ft_options.ft_search_options import FtSearchOptions, ReturnField
 from haystack.dataclasses import Document
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.document_stores.types import DuplicatePolicy
@@ -738,6 +738,24 @@ class TestValkeyDocumentStore(
         with pytest.raises(ValueError, match="not configured for filtering"):
             document_store.get_metadata_field_min_max("unknown_field")
 
+    def test_filter_documents_beyond_max_vector_knn(self, document_store):
+        # More documents than Valkey Search's default `max-vector-knn` (10000), all sharing the dummy vector:
+        # a KNN-based listing returned only part of them below that limit and raised above it.
+        docs = [
+            Document(id=str(i), content=f"doc {i}", meta={"category": "even" if i % 2 == 0 else "odd"})
+            for i in range(10_001)
+        ]
+        document_store.write_documents(docs)
+        even = {"field": "meta.category", "operator": "==", "value": "even"}
+
+        assert len({doc.id for doc in document_store.filter_documents()}) == 10_001
+        assert len(document_store.filter_documents(even)) == 5_001
+        assert document_store.count_documents_by_filter(even) == 5_001
+
+        assert document_store.delete_by_filter(even) == 5_001
+        assert document_store.count_documents() == 5_000
+        assert all(doc.meta["category"] == "odd" for doc in document_store.filter_documents())
+
     def test_count_unique_metadata_by_filter_invalid_field_raises(self, document_store):
         """Test count_unique_metadata_by_filter raises for unconfigured field."""
         document_store.write_documents(
@@ -900,6 +918,38 @@ class TestValkeyDocumentStoreStaticMethods:
             field for field in options_no_embed.return_fields if hasattr(field, "alias") and field.alias == "vector"
         ]
         assert len(vector_fields) == 0, "Should have no vector field with_embedding=False"
+
+    def test_build_filter_query_without_filters_matches_all(self):
+        query = ValkeyDocumentStore._build_filter_query(None, {"meta_category": "tag"})
+
+        assert query == ValkeyDocumentStore._MATCH_ALL_QUERY
+        assert "KNN" not in query
+
+    def test_build_filter_query_with_filters_has_no_knn_clause(self):
+        filters = {"field": "meta.category", "operator": "==", "value": "news"}
+
+        query = ValkeyDocumentStore._build_filter_query(filters, {"meta_category": "tag"})
+
+        assert query == "@meta_category:{news}"
+
+    @pytest.mark.parametrize(
+        "return_fields, expected_args",
+        [
+            (None, ["NOCONTENT", "LIMIT", "0", "42"]),
+            (
+                [ReturnField("$.payload", alias="payload")],
+                ["RETURN", "3", "$.payload", "AS", "payload", "LIMIT", "0", "42"],
+            ),
+        ],
+    )
+    def test_build_filter_fetch_options(self, return_fields, expected_args):
+        options = ValkeyDocumentStore._build_filter_fetch_options(42, return_fields=return_fields)
+
+        assert options.to_args() == expected_args
+
+    def test_parse_total_from_ft_rejects_unexpected_reply(self):
+        with pytest.raises(ValkeyDocumentStoreError, match=r"Unexpected FT\.SEARCH reply"):
+            ValkeyDocumentStore._parse_total_from_ft([])
 
     def test_parse_documents_from_ft_empty_results(self):
         """Test _parse_documents_from_ft static method with empty results."""
@@ -1204,6 +1254,62 @@ def unit_store():
     )
 
 
+class TestValkeyDocumentStoreFilterOnlySearch:
+    @pytest.fixture
+    def mock_ft(self, unit_store):
+        unit_store._client = MagicMock()
+        with patch.object(unit_store, "_has_index", return_value=True), patch.object(ds_module, "sync_ft") as mock_ft:
+            yield mock_ft
+
+    def test_filter_documents_counts_then_fetches_every_match(self, unit_store, mock_ft):
+        mock_ft.search.side_effect = [
+            [2],
+            [
+                2,
+                {
+                    b"unit_test:1": {
+                        b"payload": b'{"id": "1", "content": "doc 1", "score": 0.9}',
+                        b"vector": b"[0.1, 0.2, 0.3]",
+                    },
+                    b"unit_test:2": {
+                        b"payload": b'{"id": "2", "content": "doc 2"}',
+                        b"vector": b"[-10.0, -10.0, -10.0]",
+                    },
+                },
+            ],
+        ]
+
+        docs = unit_store.filter_documents()
+
+        assert [(doc.id, doc.score, doc.embedding) for doc in docs] == [("1", None, [0.1, 0.2, 0.3]), ("2", None, None)]
+        count_call, fetch_call = mock_ft.search.call_args_list
+        assert count_call.args[2] == fetch_call.args[2] == ValkeyDocumentStore._MATCH_ALL_QUERY
+        assert count_call.args[3].to_args() == ["LIMIT", "0", "0"]
+        assert fetch_call.args[3].to_args()[-3:] == ["LIMIT", "0", "2"]
+
+    def test_filter_documents_skips_fetch_when_nothing_matches(self, unit_store, mock_ft):
+        mock_ft.search.return_value = [0]
+
+        assert unit_store.filter_documents({"field": "meta.category", "operator": "==", "value": "news"}) == []
+        mock_ft.search.assert_called_once()
+
+    def test_count_documents_by_filter_does_not_fetch_documents(self, unit_store, mock_ft):
+        mock_ft.search.return_value = [7]
+
+        assert unit_store.count_documents_by_filter({"field": "meta.priority", "operator": ">", "value": 1}) == 7
+        mock_ft.search.assert_called_once()
+
+    def test_delete_by_filter_fetches_only_keys(self, unit_store, mock_ft):
+        mock_ft.search.side_effect = [[2], [2, {b"unit_test:a": {}, b"unit_test:b:c": {}}]]
+
+        with patch.object(unit_store, "delete_documents") as mock_delete:
+            deleted = unit_store.delete_by_filter({"field": "meta.category", "operator": "==", "value": "news"})
+
+        assert deleted == 2
+        mock_delete.assert_called_once_with(["a", "b:c"])
+        assert mock_ft.search.call_args_list[1].args[3].to_args() == ["NOCONTENT", "LIMIT", "0", "2"]
+
+
 class TestValkeyDocumentStoreErrorPaths:
     @pytest.mark.asyncio
     async def test_write_documents_async_returns_count_across_multiple_batches(self):
@@ -1444,7 +1550,7 @@ class TestValkeyDocumentStoreErrorPaths:
         ],
     )
     def test_filter_dependent_methods_wrap_internal_errors(self, unit_store, method_name, args, expected_msg):
-        with patch.object(unit_store, "count_documents", side_effect=RuntimeError("boom")):
+        with patch.object(unit_store, "_get_connection", side_effect=RuntimeError("boom")):
             method = getattr(unit_store, method_name)
             with pytest.raises(ValkeyDocumentStoreError, match=expected_msg):
                 method(*args)

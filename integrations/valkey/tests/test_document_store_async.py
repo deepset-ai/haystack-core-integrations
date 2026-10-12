@@ -5,7 +5,7 @@
 # ruff: noqa: S110
 
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
@@ -24,6 +24,7 @@ from haystack.testing.document_store_async import (
 )
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
+from haystack_integrations.document_stores.valkey import document_store as ds_module
 
 
 @pytest.mark.asyncio
@@ -51,6 +52,64 @@ async def test_close_async_is_exception_safe():
     await store.close_async()
 
     assert store._async_client is None
+
+
+class TestValkeyDocumentStoreFilterOnlySearchAsync:
+    @pytest.fixture
+    def store(self):
+        store = ValkeyDocumentStore(index_name="unit_test", embedding_dim=3, metadata_fields={"category": str})
+        store._async_client = AsyncMock()
+        return store
+
+    @pytest.fixture
+    def mock_ft(self, store):
+        with (
+            patch.object(store, "_has_index_async", AsyncMock(return_value=True)),
+            patch.object(ds_module, "ft") as mock_ft,
+        ):
+            mock_ft.search = AsyncMock()
+            yield mock_ft
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_counts_then_fetches_every_match(self, store, mock_ft):
+        mock_ft.search.side_effect = [
+            [1],
+            [1, {b"unit_test:1": {b"payload": b'{"id": "1", "content": "doc 1", "score": 0.9}'}}],
+        ]
+
+        docs = await store.filter_documents_async()
+
+        assert [(doc.id, doc.score) for doc in docs] == [("1", None)]
+        count_call, fetch_call = mock_ft.search.call_args_list
+        assert count_call.args[2] == fetch_call.args[2] == ValkeyDocumentStore._MATCH_ALL_QUERY
+        assert count_call.args[3].to_args() == ["LIMIT", "0", "0"]
+        assert fetch_call.args[3].to_args()[-3:] == ["LIMIT", "0", "1"]
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_skips_fetch_when_nothing_matches(self, store, mock_ft):
+        mock_ft.search.return_value = [0]
+
+        assert await store.filter_documents_async({"field": "meta.category", "operator": "==", "value": "news"}) == []
+        mock_ft.search.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_count_documents_by_filter_async_does_not_fetch_documents(self, store, mock_ft):
+        mock_ft.search.return_value = [7]
+
+        filters = {"field": "meta.category", "operator": "!=", "value": "news"}
+        assert await store.count_documents_by_filter_async(filters) == 7
+        mock_ft.search.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_async_fetches_only_keys(self, store, mock_ft):
+        mock_ft.search.side_effect = [[2], [2, {b"unit_test:a": {}, b"unit_test:b:c": {}}]]
+
+        with patch.object(store, "delete_documents_async", AsyncMock()) as mock_delete:
+            deleted = await store.delete_by_filter_async({"field": "meta.category", "operator": "==", "value": "news"})
+
+        assert deleted == 2
+        mock_delete.assert_awaited_once_with(["a", "b:c"])
+        assert mock_ft.search.call_args_list[1].args[3].to_args() == ["NOCONTENT", "LIMIT", "0", "2"]
 
 
 @pytest.mark.integration
@@ -565,3 +624,21 @@ class TestValkeyDocumentStoreAsync(
         result = await document_store.get_metadata_field_min_max_async("priority")
         assert result["min"] is None
         assert result["max"] is None
+
+    async def test_filter_documents_beyond_max_vector_knn_async(self, document_store):
+        # More documents than Valkey Search's default `max-vector-knn` (10000), all sharing the dummy vector:
+        # a KNN-based listing returned only part of them below that limit and raised above it.
+        docs = [
+            Document(id=str(i), content=f"doc {i}", meta={"category": "even" if i % 2 == 0 else "odd"})
+            for i in range(10_001)
+        ]
+        await document_store.write_documents_async(docs)
+        even = {"field": "meta.category", "operator": "==", "value": "even"}
+
+        assert len({doc.id for doc in await document_store.filter_documents_async()}) == 10_001
+        assert len(await document_store.filter_documents_async(even)) == 5_001
+        assert await document_store.count_documents_by_filter_async(even) == 5_001
+
+        assert await document_store.delete_by_filter_async(even) == 5_001
+        assert await document_store.count_documents_async() == 5_000
+        assert all(doc.meta["category"] == "odd" for doc in await document_store.filter_documents_async())
