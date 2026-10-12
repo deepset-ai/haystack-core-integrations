@@ -905,8 +905,8 @@ class TestIntegration:
         if streaming:
             assert callback.counter > 1
             assert "Paris" in callback.responses
-            assert "input_tokens" in message.meta["usage"]
-            assert "output_tokens" in message.meta["usage"]
+            assert "prompt_tokens" in message.meta["usage"]
+            assert "completion_tokens" in message.meta["usage"]
 
     def test_live_run_wrong_model(self, chat_messages):
         component = AnthropicChatGenerator(model="something-obviously-wrong")
@@ -938,11 +938,8 @@ class TestIntegration:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
-        if streaming:
-            assert "output_tokens" in message.meta["usage"]
-            assert "input_tokens" in message.meta["usage"]
-        else:
-            assert "completion_tokens" in message.meta["usage"]
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
         new_messages = [
             *initial_messages,
@@ -1195,8 +1192,8 @@ class TestIntegration:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
-        assert "output_tokens" in message.meta["usage"]
-        assert "input_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
+        assert "prompt_tokens" in message.meta["usage"]
 
         new_messages = [
             *initial_messages,

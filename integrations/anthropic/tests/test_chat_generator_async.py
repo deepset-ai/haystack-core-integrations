@@ -132,8 +132,8 @@ class TestIntegration:
         assert "paris" in message.text.lower()
         assert "claude-sonnet-4-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
-        assert "input_tokens" in message.meta["usage"]
-        assert "output_tokens" in message.meta["usage"]
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
 
         # Verify streaming behavior
         assert counter > 1  # Should have received multiple chunks

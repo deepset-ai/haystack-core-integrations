@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 from anthropic.types import (
+    CacheCreation,
     InputJSONDelta,
     Message,
     MessageDeltaUsage,
@@ -52,6 +53,7 @@ from haystack_integrations.components.generators.anthropic.chat.utils import (
     _finalize_reasoning_group,
     _get_openai_compatible_usage,
     _has_server_tool_blocks,
+    _merge_streaming_usage,
 )
 
 CITATION = {
@@ -627,11 +629,14 @@ class TestConvertAnthropicChunkToStreamingChunk:
         message = generator._process_response(raw_chunks)
         usage = message["replies"][0].meta["usage"]
         assert isinstance(usage, dict)
-        assert usage["cache_creation_input_tokens"] is None
-        assert usage["cache_read_input_tokens"] is None
-        assert usage["input_tokens"] == 393
-        assert usage["output_tokens"] == 77
+        assert usage["cache_creation_input_tokens"] == 0
+        assert usage["cache_read_input_tokens"] == 0
+        assert usage["prompt_tokens"] == 393
+        assert usage["completion_tokens"] == 77
         assert usage["server_tool_use"] is None
+        assert usage["service_tier"] == "standard"
+        assert "input_tokens" not in usage
+        assert "output_tokens" not in usage
 
     def test_accumulate_raw_content_blocks_from_stream(self):
         component_info = ComponentInfo(name="test", type="test")
@@ -1568,3 +1573,41 @@ class TestOpenAICompatibleUsage:
     @pytest.mark.parametrize("response_dict", [{}, {"usage": {}}], ids=["no_usage_key", "empty_usage"])
     def test_empty_usage_is_unchanged(self, response_dict):
         assert _get_openai_compatible_usage(response_dict) == {}
+
+
+class TestMergeStreamingUsage:
+    def test_cache_creation_split_is_kept(self):
+        """`message_delta` usage has no `cache_creation`, so the split must come from `message_start`."""
+        start_usage = Usage(
+            input_tokens=10,
+            output_tokens=1,
+            cache_read_input_tokens=2000,
+            cache_creation_input_tokens=1500,
+            cache_creation=CacheCreation(ephemeral_5m_input_tokens=500, ephemeral_1h_input_tokens=1000),
+            service_tier="standard",
+        ).model_dump()
+        delta_usage = MessageDeltaUsage(
+            input_tokens=10, output_tokens=77, cache_read_input_tokens=2000, cache_creation_input_tokens=1500
+        ).model_dump()
+
+        usage = _merge_streaming_usage(start_usage=start_usage, delta_usage=delta_usage)
+
+        assert usage["prompt_tokens"] == 3510
+        assert usage["completion_tokens"] == 77
+        assert usage["cache_read_input_tokens"] == 2000
+        assert usage["cache_creation_input_tokens"] == 1500
+        assert usage["cache_creation"] == {"ephemeral_5m_input_tokens": 500, "ephemeral_1h_input_tokens": 1000}
+        assert usage["service_tier"] == "standard"
+        assert "input_tokens" not in usage
+        assert "output_tokens" not in usage
+
+    def test_null_delta_counts_keep_start_counts(self):
+        start_usage = {"input_tokens": 393, "output_tokens": 3, "cache_read_input_tokens": 0}
+        delta_usage = {"input_tokens": None, "output_tokens": 77, "cache_read_input_tokens": None}
+
+        usage = _merge_streaming_usage(start_usage=start_usage, delta_usage=delta_usage)
+
+        assert usage == {"prompt_tokens": 393, "completion_tokens": 77, "cache_read_input_tokens": 0}
+
+    def test_no_usage_returns_empty_dict(self):
+        assert _merge_streaming_usage(start_usage={}, delta_usage=None) == {}

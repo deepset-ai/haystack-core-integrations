@@ -387,6 +387,22 @@ def _get_openai_compatible_usage(response_dict: dict) -> dict:
     return usage
 
 
+def _merge_streaming_usage(start_usage: dict[str, Any], delta_usage: dict[str, Any] | None) -> dict[str, Any]:
+    """
+    Combines the usage of a streamed response into the format a non-streamed response reports.
+
+    The `message_start` event carries the full `Usage`, including the `cache_creation` split by TTL and the
+    `service_tier`. The `message_delta` event carries the final cumulative counts, but only a subset of the fields.
+
+    :param start_usage: The usage of the `message_start` event.
+    :param delta_usage: The usage of the last `message_delta` event, or `None` if the stream had none.
+    :returns: The `message_start` usage with every non-null `message_delta` count written over it, converted with
+        `_get_openai_compatible_usage`.
+    """
+    usage = {**start_usage, **{key: value for key, value in (delta_usage or {}).items() if value is not None}}
+    return _get_openai_compatible_usage({"usage": usage})
+
+
 def _convert_chat_completion_to_chat_message(
     anthropic_response: Any, ignore_tools_thinking_messages: bool
 ) -> ChatMessage:
