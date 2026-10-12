@@ -6,8 +6,8 @@
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
 | src/haystack\_integrations/components/embedders/stackit/document\_embedder.py    |       14 |        0 |        0 |        0 |     100% |           |
 | src/haystack\_integrations/components/embedders/stackit/text\_embedder.py        |       14 |        0 |        0 |        0 |     100% |           |
-| src/haystack\_integrations/components/generators/stackit/chat/chat\_generator.py |       22 |        0 |        2 |        0 |     100% |           |
-| **TOTAL**                                                                        |   **50** |    **0** |    **2** |    **0** | **100%** |           |
+| src/haystack\_integrations/components/generators/stackit/chat/chat\_generator.py |       21 |        0 |        2 |        0 |     100% |           |
+| **TOTAL**                                                                        |   **49** |    **0** |    **2** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
