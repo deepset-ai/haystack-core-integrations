@@ -66,8 +66,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-09 11:48 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
+            created at 2026-10-12 07:59 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -87,7 +87,7 @@
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t"><span class="com"># SPDX-License-Identifier: Apache-2.0</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="key">import</span> <span class="nam">base64</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="key">import</span> <span class="nam">datetime</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="key">import</span> <span class="nam">datetime</span> <span class="key">as</span> <span class="nam">dt</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">import</span> <span class="nam">importlib</span><span class="op">.</span><span class="nam">metadata</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">import</span> <span class="nam">json</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="key">from</span> <span class="nam">contextlib</span> <span class="key">import</span> <span class="nam">suppress</span>&nbsp;</span><span class="r"></span></p>
@@ -960,7 +960,7 @@
     <p class="run"><span class="n"><a id="t876" href="#t876">876</a></span><span class="t">        <span class="nam">document_data</span><span class="op">.</span><span class="nam">pop</span><span class="op">(</span><span class="str">&quot;blob_mime_type&quot;</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t877" href="#t877">877</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t878" href="#t878">878</a></span><span class="t">        <span class="key">for</span> <span class="nam">key</span><span class="op">,</span> <span class="nam">value</span> <span class="key">in</span> <span class="nam">document_data</span><span class="op">.</span><span class="nam">items</span><span class="op">(</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t879" href="#t879">879</a></span><span class="t">            <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">value</span><span class="op">,</span> <span class="nam">datetime</span><span class="op">.</span><span class="nam">datetime</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">879&#x202F;&#x219B;&#x202F;880</span><span class="annotate long">line 879 didn't jump to line 880 because the condition on line 879 was never true</span></span></p>
+    <p class="par run show_par"><span class="n"><a id="t879" href="#t879">879</a></span><span class="t">            <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">value</span><span class="op">,</span> <span class="nam">dt</span><span class="op">.</span><span class="nam">datetime</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">879&#x202F;&#x219B;&#x202F;880</span><span class="annotate long">line 879 didn't jump to line 880 because the condition on line 879 was never true</span></span></p>
     <p class="mis show_mis"><span class="n"><a id="t880" href="#t880">880</a></span><span class="t">                <span class="nam">document_data</span><span class="op">[</span><span class="nam">key</span><span class="op">]</span> <span class="op">=</span> <span class="nam">value</span><span class="op">.</span><span class="nam">strftime</span><span class="op">(</span><span class="str">&quot;%Y-%m-%dT%H:%M:%SZ&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t881" href="#t881">881</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="par run show_par"><span class="n"><a id="t882" href="#t882">882</a></span><span class="t">        <span class="key">if</span> <span class="nam">weaviate_meta</span> <span class="op">:=</span> <span class="nam">getattr</span><span class="op">(</span><span class="nam">data</span><span class="op">,</span> <span class="str">&quot;metadata&quot;</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">882&#x202F;&#x219B;&#x202F;886</span><span class="annotate long">line 882 didn't jump to line 886 because the condition on line 882 was never true</span></span></p>
@@ -1804,8 +1804,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.16.1">coverage.py v7.16.1</a>,
-            created at 2026-10-09 11:48 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
+            created at 2026-10-12 07:59 +0000
         </p>
     </div>
 </footer>
