@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/anthropic-v7.0.0] - 2026-10-12
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Forward full usage in Anthropic streaming responses (#4089)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+
+
 ## [integrations/anthropic-v6.3.0] - 2026-10-01
 
 ### 🚜 Refactor
