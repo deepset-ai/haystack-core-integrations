@@ -183,6 +183,24 @@ def test_logical_condition_unknown_operator():
         _parse_logical_condition(condition)
 
 
+@pytest.mark.parametrize("operator", ["AND", "OR"])
+def test_logical_condition_empty_conditions_raises(operator):
+    with pytest.raises(FilterError, match="must not be empty"):
+        _parse_logical_condition({"operator": operator, "conditions": []})
+
+
+def test_logical_condition_nested_empty_conditions_raises():
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.type", "operator": "==", "value": "article"},
+            {"operator": "OR", "conditions": []},
+        ],
+    }
+    with pytest.raises(FilterError, match="must not be empty"):
+        _convert_filters_to_where_clause_and_params(filters)
+
+
 def test_validate_filters_invalid_type():
     with pytest.raises(TypeError):
         _validate_filters("not a dict")
