@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/stackit-v3.0.0] - 2026-10-12
+
+### 🚀 Features
+
+- STACKITChatGenerator - support reasoning + inherit from vLLM (#4078)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+
 ## [integrations/stackit-v2.2.0] - 2026-07-15
 
 ### 🚀 Features
