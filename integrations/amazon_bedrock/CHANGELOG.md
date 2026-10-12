@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v8.3.1] - 2026-10-12
+
+### 🐛 Bug Fixes
+
+- Forward cacheDetails in Amazon Bedrock chat generator usage (#4090)
+
 ## [integrations/amazon_bedrock-v8.3.0] - 2026-10-01
 
 ### 🚜 Refactor
