@@ -901,12 +901,14 @@ class TestIntegration:
         assert "Paris" in message.text
         assert "claude-sonnet-4-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
+        # only the message_start event carries `service_tier` when streaming
+        assert message.meta["usage"]["service_tier"] is not None
 
         if streaming:
             assert callback.counter > 1
             assert "Paris" in callback.responses
-            assert "prompt_tokens" in message.meta["usage"]
-            assert "completion_tokens" in message.meta["usage"]
 
     def test_live_run_wrong_model(self, chat_messages):
         component = AnthropicChatGenerator(model="something-obviously-wrong")
@@ -1207,16 +1209,20 @@ class TestIntegration:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
+    @pytest.mark.parametrize("streaming", [False, True])
     @pytest.mark.parametrize("cache_enabled", [True, False])
     @pytest.mark.parametrize("cache_location", ["system", "user"])
-    def test_prompt_caching_live_run(self, cache_enabled, cache_location):
+    def test_prompt_caching_live_run(self, cache_enabled, cache_location, streaming):
         """
-        Prompt caching works whether the cache_control marker sits on the system or the user message.
+        Prompt caching works whether the cache_control marker sits on the system or the user message, with and
+        without streaming.
         """
         generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if cache_enabled else {}
 
         claude_llm = AnthropicChatGenerator(
-            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"), generation_kwargs=generation_kwargs
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
+            generation_kwargs=generation_kwargs,
+            streaming_callback=print_streaming_chunk if streaming else None,
         )
 
         # see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#cache-limitations
@@ -1244,6 +1250,8 @@ class TestIntegration:
                 token_usage.get("cache_creation_input_tokens", 0) > 1024
                 or token_usage.get("cache_read_input_tokens", 0) > 1024
             ), f"Unexpected usage stats: {token_usage}"
+            # the split of cache writes by TTL, which only the message_start event carries when streaming
+            assert token_usage["cache_creation"] is not None
         else:
             assert token_usage.get("cache_creation_input_tokens", 0) == 0
             assert token_usage.get("cache_read_input_tokens", 0) == 0

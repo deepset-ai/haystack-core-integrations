@@ -134,6 +134,8 @@ class TestIntegration:
         assert message.meta["finish_reason"] == "stop"
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]
+        # only the message_start event carries `service_tier` when streaming
+        assert message.meta["usage"]["service_tier"] is not None
 
         # Verify streaming behavior
         assert counter > 1  # Should have received multiple chunks
