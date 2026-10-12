@@ -80,7 +80,8 @@ MODELS_TO_TEST_WITH_THINKING_TOOLS_STREAMING = [
     "global.anthropic.claude-sonnet-4-6",
 ]
 
-MODELS_TO_TEST_WITH_PROMPT_CACHING = ["us.amazon.nova-micro-v1:0"]  # cheap, fast model
+# smallest Claude model; Claude models report cache writes split by TTL
+MODELS_TO_TEST_WITH_PROMPT_CACHING = ["global.anthropic.claude-haiku-5-5"]
 
 
 def hello_world():
@@ -1640,7 +1641,10 @@ class TestAmazonBedrockChatGeneratorInference:
         # tests run in parallel based on the workflow matrix, so this request should either hit the cache (read tokens)
         # or populate it (write tokens)
         assert usage["cache_read_input_tokens"] > 1000 or usage["cache_write_input_tokens"] > 1000
-        assert "cache_details" in usage
+        if usage["cache_write_input_tokens"] > 0:
+            # a cache point without `ttl` uses the default 5-minute TTL
+            expected = [{"ttl": "5m", "inputTokens": usage["cache_write_input_tokens"]}]
+            assert usage["cache_details"] == expected, f"Unexpected usage stats: {usage}"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS[:1])  # just one model is enough
     @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
