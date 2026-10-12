@@ -81,7 +81,7 @@ MODELS_TO_TEST_WITH_THINKING_TOOLS_STREAMING = [
 ]
 
 # smallest Claude model; Claude models report cache writes split by TTL
-MODELS_TO_TEST_WITH_PROMPT_CACHING = ["global.anthropic.claude-haiku-5-5"]
+MODELS_TO_TEST_WITH_PROMPT_CACHING = ["global.anthropic.claude-haiku-4-5-20251001-v1:0"]
 
 
 def hello_world():
@@ -1627,8 +1627,9 @@ class TestAmazonBedrockChatGeneratorInference:
 
         system_message = ChatMessage.from_system("Always respond with: 'Life is beautiful' (and nothing else).")
 
+        # Claude Haiku 4.5 caches only prompts of at least 4,096 tokens
         user_message = ChatMessage.from_user(
-            "User message that should be long enough to cache. " * 100,
+            "User message that should be long enough to cache. " * 450,
             meta={"cachePoint": {"type": "default"}},
         )
         messages = [system_message, user_message]
