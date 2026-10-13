@@ -31,6 +31,8 @@ env:
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+  # The API key that the local test gateway in integrations/otari/docker-compose.yml declares. It's not a secret.
+  OTARI_API_KEY: tk-haystack-integration-tests-0123456789-abcdefghijklmnopqrstuvwxyz
 
 jobs:
   compute-test-matrix:
@@ -110,28 +112,21 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-        run: |
-          docker compose up -d --wait
-          # The master key can only call models with a `user` field in each request, so create an API key for the tests
-          OTARI_API_KEY=$(curl -sSf -X POST http://localhost:8000/api/v1/keys \
-            -H "Authorization: Bearer otari-haystack-tests" -H "Content-Type: application/json" \
-            -d '{"key_name": "haystack-tests"}' | jq -r .key)
-          echo "::add-mask::$OTARI_API_KEY"
-          echo "OTARI_API_KEY=$OTARI_API_KEY" >> "$GITHUB_ENV"
+        run: docker compose up -d --wait
 
       - name: Run integration tests
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run test:integration-cov-append-retry
 
-      # otari.ai serves only chat completions, so run the chat generator tests against it as well.
-      # The key belongs to otari.ai's EU region, which has its own host.
-      - name: Run chat generator integration tests against otari.ai
+      # Run the chat generator and embedder tests against otari.ai as well. The ranker tests are left out because the
+      # otari.ai organization has no Cohere key. The key belongs to otari.ai's EU region, which has its own host.
+      - name: Run chat generator and embedder integration tests against otari.ai
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           OTARI_AI_API_KEY: ${{ secrets.OTARI_AI_API_KEY }}
         run: |
           OTARI_API_KEY="$OTARI_AI_API_KEY" OTARI_API_BASE_URL=https://eu.api.otari.ai/api/v1 \
-            hatch run test:integration-cov-append-retry -k chat_generator
+            hatch run test:integration-cov-append-retry -k "chat_generator or embedder"
 
       - name: Store combined coverage
         if: github.event_name == 'push'

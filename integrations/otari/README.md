@@ -13,26 +13,21 @@
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
 The integration tests run against a local Otari gateway. To start one, export `OPENAI_API_KEY` and `COHERE_API_KEY`
-for the providers it routes to, and run:
+for the providers it routes to, and `OTARI_API_KEY` for the API key the gateway accepts. That key must start with `tk-`
+and be at least 50 characters long, for example the one CI uses. Then start the gateway and run the integration tests:
 
 ```bash
+export OTARI_API_KEY=tk-haystack-integration-tests-0123456789-abcdefghijklmnopqrstuvwxyz
 docker compose up -d --wait
-```
-
-Then create an API key with the gateway's master key, export it as `OTARI_API_KEY`, and run the integration tests:
-
-```bash
-export OTARI_API_KEY=$(curl -sSf -X POST http://localhost:8000/api/v1/keys \
-  -H "Authorization: Bearer otari-haystack-tests" -H "Content-Type: application/json" \
-  -d '{"key_name": "haystack-tests"}' | jq -r .key)
 hatch run test:integration
 ```
 
 Stop the gateway afterward with `docker compose down`.
 
-To run the chat generator tests against otari.ai instead, export an otari.ai API key as `OTARI_API_KEY` and the
-API root of your account's region as `OTARI_API_BASE_URL`, for example `https://eu.api.otari.ai/api/v1`, and run:
+To run the chat generator and embedder tests against otari.ai instead, export an otari.ai API key as `OTARI_API_KEY`
+and the API root of your account's region as `OTARI_API_BASE_URL`, for example `https://eu.api.otari.ai/api/v1`, and
+run:
 
 ```bash
-hatch run test:integration -k chat_generator
+hatch run test:integration -k "chat_generator or embedder"
 ```

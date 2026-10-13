@@ -15,7 +15,7 @@ from haystack_integrations.components.embedders.otari import OtariDocumentEmbedd
 from .conftest import OTARI_API_BASE_URL, requires_api_key
 
 DEFAULT_MODEL = "openai:text-embedding-3-small"
-DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1"
+DEFAULT_API_BASE_URL = "https://api.otari.ai/api/v1"
 COMPONENT_TYPE = "haystack_integrations.components.embedders.otari.document_embedder.OtariDocumentEmbedder"
 
 
@@ -32,6 +32,19 @@ class TestOtariDocumentEmbedder:
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
         assert embedder.raise_on_failure is False
+
+    def test_warm_up_warns_once_about_eu_key_on_default_url(self, caplog):
+        component = OtariDocumentEmbedder(api_key=Secret.from_token("otk_v1_eu_test"))
+        component.warm_up()
+        component.warm_up()
+        assert caplog.text.count("belongs to otari.ai's EU region") == 1
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async_warns_once_about_eu_key_on_default_url(self, caplog):
+        component = OtariDocumentEmbedder(api_key=Secret.from_token("otk_v1_eu_test"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        assert caplog.text.count("belongs to otari.ai's EU region") == 1
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("OTARI_API_KEY", "test-api-key")

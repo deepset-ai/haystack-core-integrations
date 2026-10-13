@@ -15,7 +15,7 @@ from haystack_integrations.components.rankers.otari import OtariRanker
 from .conftest import OTARI_API_BASE_URL, requires_api_key
 
 DEFAULT_MODEL = "cohere:rerank-v3.5"
-DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1"
+DEFAULT_API_BASE_URL = "https://api.otari.ai/api/v1"
 COMPONENT_TYPE = "haystack_integrations.components.rankers.otari.ranker.OtariRanker"
 
 
@@ -161,6 +161,19 @@ class TestComponentLifecycle:
             await ranker.warm_up_async()
             mock_init.assert_called_once()
 
+    def test_warm_up_warns_once_about_eu_key_on_default_url(self, caplog):
+        component = OtariRanker(api_key=Secret.from_token("otk_v1_eu_test"))
+        component.warm_up()
+        component.warm_up()
+        assert caplog.text.count("belongs to otari.ai's EU region") == 1
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async_warns_once_about_eu_key_on_default_url(self, caplog):
+        component = OtariRanker(api_key=Secret.from_token("otk_v1_eu_test"))
+        await component.warm_up_async()
+        await component.warm_up_async()
+        assert caplog.text.count("belongs to otari.ai's EU region") == 1
+
     @pytest.mark.asyncio
     async def test_close_is_safe_without_warm_up(self):
         ranker = OtariRanker(api_key=Secret.from_token("test-api-key"))
@@ -195,6 +208,12 @@ class TestRun:
         assert [doc.content for doc in out["documents"]] == ["The capital of France is Paris."]
         assert out["documents"][0].score == 0.9
         assert out["meta"] == {"model": DEFAULT_MODEL, "usage": {"total_tokens": 10}}
+
+    def test_parse_response_reports_the_model_the_gateway_names(self, docs):
+        ranker = OtariRanker(api_key=Secret.from_token("test-api-key"), model="fast-rerank")
+        response = httpx.Response(200, json={"model": "rerank-v3.5", "results": [{"index": 1, "relevance_score": 0.9}]})
+        out = ranker._parse_response(response, docs, score_threshold=None)
+        assert out["meta"] == {"model": "rerank-v3.5", "usage": {}}
 
     @pytest.mark.parametrize(
         ("response", "message"),
@@ -233,7 +252,7 @@ class TestRun:
 
         ranker._client.post.assert_called_once()
         call = ranker._client.post.call_args
-        assert call.args[0] == "http://localhost:8000/api/v1/rerank"
+        assert call.args[0] == "https://api.otari.ai/api/v1/rerank"
         assert call.kwargs["json"] == {
             "model": DEFAULT_MODEL,
             "query": "What is the capital of France?",

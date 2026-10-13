@@ -4,17 +4,13 @@
 
 from typing import Any
 
-from haystack import component, logging
+from haystack import component
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import ToolsType
 from haystack.utils.auth import Secret
 
-logger = logging.getLogger(__name__)
-
-_DEFAULT_API_BASE_URL = "https://api.otari.ai/api/v1"
-_EU_API_BASE_URL = "https://eu.api.otari.ai/api/v1"
-_EU_API_KEY_PREFIX = "otk_v1_eu_"
+from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
 
 _INIT_PARAMETERS: tuple[str, ...] = (
     "api_key",
@@ -84,7 +80,7 @@ class OtariChatGenerator(OpenAIChatGenerator):
         Creates an instance of OtariChatGenerator.
 
         :param api_key:
-            The Otari API key: a key issued by your gateway, or an otari.ai API token.
+            The Otari API key: a key issued by your gateway, or an otari.ai API key.
             Defaults to the `OTARI_API_KEY` environment variable.
         :param model:
             The model selector, for example `"openai:gpt-5-mini"`. The gateway must have the provider configured.
@@ -147,7 +143,7 @@ class OtariChatGenerator(OpenAIChatGenerator):
         creates_client = self.client is None
         super(OtariChatGenerator, self).warm_up()  # noqa: UP008
         if creates_client:
-            self._warn_if_eu_key_on_default_url()
+            _warn_if_eu_key_on_default_url(self.api_key, self.api_base_url)
 
     async def warm_up_async(self) -> None:
         """
@@ -158,18 +154,7 @@ class OtariChatGenerator(OpenAIChatGenerator):
         creates_client = self.async_client is None
         await super(OtariChatGenerator, self).warm_up_async()  # noqa: UP008
         if creates_client:
-            self._warn_if_eu_key_on_default_url()
-
-    def _warn_if_eu_key_on_default_url(self) -> None:
-        # The default host rejects keys of the EU region with a bare 401 that doesn't name the right host
-        api_key = self.api_key.resolve_value()
-        if self.api_base_url == _DEFAULT_API_BASE_URL and api_key and api_key.startswith(_EU_API_KEY_PREFIX):
-            logger.warning(
-                "The Otari API key belongs to otari.ai's EU region, which {default_url} rejects. "
-                "Set api_base_url to {eu_url}.",
-                default_url=_DEFAULT_API_BASE_URL,
-                eu_url=_EU_API_BASE_URL,
-            )
+            _warn_if_eu_key_on_default_url(self.api_key, self.api_base_url)
 
     def to_dict(self) -> dict[str, Any]:
         """

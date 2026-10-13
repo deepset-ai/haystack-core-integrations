@@ -10,15 +10,18 @@ from haystack import Document, component
 from haystack.utils import Secret
 from haystack.utils.http_client import init_http_client
 
+from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
+
 
 @component
 class OtariRanker:
     """
     Ranks Documents by relevance to a query using an [Otari](https://github.com/mozilla-ai/otari) gateway.
 
-    It calls the `/rerank` endpoint of the gateway. Reranking is served only by an Otari gateway that runs in
-    standalone mode, such as one you run yourself. The otari.ai gateway doesn't serve it. By default, this component
-    calls a gateway at `http://localhost:8000/api/v1`.
+    It calls the `/rerank` endpoint of the gateway. By default, this component calls the otari.ai gateway. For an
+    account in otari.ai's EU region, whose API keys start with `otk_v1_eu_`, set `api_base_url` to
+    `"https://eu.api.otari.ai/api/v1"`. To call a gateway you run yourself, set `api_base_url`, for example to
+    `"http://localhost:8000/api/v1"`.
 
     Name models with a selector the gateway accepts, such as `"cohere:rerank-v3.5"`.
 
@@ -45,7 +48,7 @@ class OtariRanker:
         *,
         model: str = "cohere:rerank-v3.5",
         api_key: Secret = Secret.from_env_var("OTARI_API_KEY"),
-        api_base_url: str = "http://localhost:8000/api/v1",
+        api_base_url: str = "https://api.otari.ai/api/v1",
         top_k: int | None = None,
         score_threshold: float | None = None,
         meta_fields_to_embed: list[str] | None = None,
@@ -58,8 +61,11 @@ class OtariRanker:
 
         :param model: The rerank model selector, for example `"cohere:rerank-v3.5"`.
             The gateway must have the provider configured.
-        :param api_key: The Otari API key issued by your gateway. Defaults to the `OTARI_API_KEY` environment variable.
+        :param api_key: The Otari API key: a key issued by your gateway, or an otari.ai API key.
+            Defaults to the `OTARI_API_KEY` environment variable.
         :param api_base_url: The API root of the Otari gateway, including the `/api/v1` path.
+            Defaults to the otari.ai gateway. For an account in otari.ai's EU region, use
+            `"https://eu.api.otari.ai/api/v1"`.
         :param top_k: The maximum number of Documents to return. If `None`, all documents are returned.
         :param score_threshold: If set, documents with a relevance score below this value are dropped.
             Applied after `top_k`, so the output may contain fewer than `top_k` documents.
@@ -102,20 +108,30 @@ class OtariRanker:
         return client_kwargs
 
     def warm_up(self) -> None:
-        """Create the synchronous HTTP client."""
+        """
+        Create the synchronous HTTP client.
+
+        Logs a warning if the API key belongs to otari.ai's EU region but `api_base_url` is left at its default.
+        """
         if self._client is None:
             client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=False)
             # init_http_client returns None only when it gets no kwargs, and _client_kwargs always sets headers
             assert client is not None  # noqa: S101
             self._client = client
+            _warn_if_eu_key_on_default_url(self.api_key, self.api_base_url)
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous HTTP client."""
+        """
+        Create the asynchronous HTTP client.
+
+        Logs a warning if the API key belongs to otari.ai's EU region but `api_base_url` is left at its default.
+        """
         if self._async_client is None:
             client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=True)
             # init_http_client returns None only when it gets no kwargs, and _client_kwargs always sets headers
             assert client is not None  # noqa: S101
             self._async_client = client
+            _warn_if_eu_key_on_default_url(self.api_key, self.api_base_url)
 
     def close(self) -> None:
         """Close the synchronous HTTP client."""
@@ -175,7 +191,7 @@ class OtariRanker:
                 continue
             ranked_docs.append(replace(documents[result["index"]], score=score))
 
-        # Otari's rerank response doesn't name the model, so report the selector the request used
+        # Otari names the model in rerank responses since 0.18.0; for older gateways, report the requested selector
         meta = {"model": body.get("model") or self.model, "usage": body.get("usage") or {}}
         return {"documents": ranked_docs, "meta": meta}
 
