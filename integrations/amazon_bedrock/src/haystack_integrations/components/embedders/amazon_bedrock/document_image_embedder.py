@@ -288,7 +288,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         # the pdf_images_by_doc_idx has base64 images but mypy cant detect that
         for doc_idx, base64_image in pdf_images_by_doc_idx.items():  # type: ignore[assignment]
-            pdf_image_uri = f"data:application/pdf;base64,{base64_image}" if "cohere" in self.model else base64_image
+            pdf_image_uri = f"data:image/jpeg;base64,{base64_image}" if "cohere" in self.model else base64_image
             images_to_embed[doc_idx] = pdf_image_uri
 
         none_images_doc_ids = [documents[doc_idx].id for doc_idx, image in enumerate(images_to_embed) if image is None]

@@ -346,7 +346,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
         assert result["documents"][0].embedding == [0.9]
         body_sent = mock_client.invoke_model.call_args.kwargs["body"]
-        assert "data:application/pdf;base64," in body_sent
+        assert "data:image/jpeg;base64," in body_sent
 
     def test_embed_titan_with_embedding_config(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(
