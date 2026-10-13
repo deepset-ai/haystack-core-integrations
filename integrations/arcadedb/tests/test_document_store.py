@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
-import datetime
+import datetime as dt
 import itertools
 import os
 from unittest.mock import MagicMock, Mock
@@ -76,8 +76,8 @@ class TestSqlHelpers:
         assert _map_literal_base(value) == expected
 
     def test_map_literal_base_fallback_to_str(self):
-        dt = datetime.date(2024, 1, 2)
-        assert _map_literal_base(dt) == "'2024-01-02'"
+        date = dt.date(2024, 1, 2)
+        assert _map_literal_base(date) == "'2024-01-02'"
 
     def test_map_literal_empty_dict(self):
         assert _map_literal({}) == "{}"

@@ -478,7 +478,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
                     "cache_read_input_tokens": response_body.get("usage", {}).get("cacheReadInputTokens", 0),
                     "cache_write_input_tokens": response_body.get("usage", {}).get("cacheWriteInputTokens", 0),
-                    "cache_details": response_body.get("usage", {}).get("CacheDetails", {}),
+                    "cache_details": response_body.get("usage", {}).get("cacheDetails", []),
                 },
             }
             # guardrail trace
@@ -642,7 +642,7 @@ def _convert_event_to_streaming_chunk(
                 "total_tokens": usage.get("totalTokens", 0),
                 "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
                 "cache_write_input_tokens": usage.get("cacheWriteInputTokens", 0),
-                "cache_details": usage.get("cacheDetails", {}),
+                "cache_details": usage.get("cacheDetails", []),
             }
         if "trace" in event_meta:
             chunk_meta["trace"] = event_meta["trace"]

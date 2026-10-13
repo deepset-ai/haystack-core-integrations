@@ -37,6 +37,7 @@ from .utils import (
     _convert_messages_to_anthropic_format,
     _extract_citations,
     _has_server_tool_blocks,
+    _merge_streaming_usage,
     _process_reasoning_contents,
 )
 
@@ -414,15 +415,14 @@ class AnthropicChatGenerator:
             model: str | None = None
             tool_call_index = -1
             in_server_tool_block = False
-            input_tokens = None
+            start_usage: dict[str, Any] = {}
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
-                    # Extract model from message_start chunks
+                    # Extract model and full usage from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-                        if chunk.message.usage.input_tokens is not None:
-                            input_tokens = chunk.message.usage.input_tokens
+                        start_usage = chunk.message.usage.model_dump()
 
                     if chunk.type == "content_block_start":
                         if chunk.content_block.type == "tool_use":
@@ -444,10 +444,9 @@ class AnthropicChatGenerator:
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
 
-            if input_tokens is not None:
-                if "usage" not in completion.meta:
-                    completion.meta["usage"] = {}
-                completion.meta["usage"]["input_tokens"] = input_tokens
+            # `completion.meta["usage"]` is the usage of the last message_delta chunk
+            if usage := _merge_streaming_usage(start_usage=start_usage, delta_usage=completion.meta.get("usage")):
+                completion.meta["usage"] = usage
 
             # keep the raw content so server-tool blocks can be replayed on later turns
             if self.anthropic_server_tools:
@@ -494,7 +493,7 @@ class AnthropicChatGenerator:
             model: str | None = None
             tool_call_index = -1
             in_server_tool_block = False
-            input_tokens = None
+            start_usage: dict[str, Any] = {}
             component_info = ComponentInfo.from_component(self)
             async for chunk in response:
                 if chunk.type in [
@@ -503,11 +502,10 @@ class AnthropicChatGenerator:
                     "content_block_delta",
                     "message_delta",
                 ]:
-                    # Extract model from message_start chunks
+                    # Extract model and full usage from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-                        if chunk.message.usage.input_tokens is not None:
-                            input_tokens = chunk.message.usage.input_tokens
+                        start_usage = chunk.message.usage.model_dump()
 
                     if chunk.type == "content_block_start":
                         if chunk.content_block.type == "tool_use":
@@ -532,10 +530,9 @@ class AnthropicChatGenerator:
                 {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
             )
 
-            if input_tokens is not None:
-                if "usage" not in completion.meta:
-                    completion.meta["usage"] = {}
-                completion.meta["usage"]["input_tokens"] = input_tokens
+            # `completion.meta["usage"]` is the usage of the last message_delta chunk
+            if usage := _merge_streaming_usage(start_usage=start_usage, delta_usage=completion.meta.get("usage")):
+                completion.meta["usage"] = usage
 
             # keep the raw content so server-tool blocks can be replayed on later turns
             if self.anthropic_server_tools:
