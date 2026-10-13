@@ -35,7 +35,7 @@ class TestSTACKITChatGenerator:
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
         component = STACKITChatGenerator(model="google/gemma-3-27b-it")
         component.warm_up()
-        assert component._client.api_key == "test-api-key"
+        assert component.client.api_key == "test-api-key"
 
     def test_warm_up_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)

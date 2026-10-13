@@ -20,7 +20,6 @@ from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
 from haystack_integrations.components.generators.vllm.chat.chat_generator import (
     VLLMChatGenerator,
-    _convert_chat_completion_to_chat_message,
 )
 
 MODEL = "Qwen/Qwen3-0.6B"
@@ -155,15 +154,19 @@ def weather_tool():
 
 class TestConvertChatCompletionToChatMessage:
     def test_without_reasoning(self, completion):
-        message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
+        component = VLLMChatGenerator(model=MODEL)
+        message = component._convert_chat_completion_to_chat_message(
+            completion=completion, choice=completion.choices[0]
+        )
 
         assert message.text == "Paris is the capital of France."
         assert message.meta["model"] == MODEL
         assert message.reasoning is None
 
     def test_with_reasoning(self, completion_with_reasoning):
-        message = _convert_chat_completion_to_chat_message(
-            completion_with_reasoning, completion_with_reasoning.choices[0]
+        component = VLLMChatGenerator(model=MODEL)
+        message = component._convert_chat_completion_to_chat_message(
+            completion=completion_with_reasoning, choice=completion_with_reasoning.choices[0]
         )
 
         assert message.text == "Paris is the capital of France."
@@ -196,7 +199,10 @@ class TestConvertChatCompletionToChatMessage:
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         )
 
-        message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
+        component = VLLMChatGenerator(model=MODEL)
+        message = component._convert_chat_completion_to_chat_message(
+            completion=completion, choice=completion.choices[0]
+        )
 
         assert len(message.tool_calls) == 1
         assert message.tool_calls[0].tool_name == "weather"
@@ -228,7 +234,10 @@ class TestConvertChatCompletionToChatMessage:
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         )
 
-        message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
+        component = VLLMChatGenerator(model=MODEL)
+        message = component._convert_chat_completion_to_chat_message(
+            completion=completion, choice=completion.choices[0]
+        )
 
         assert len(message.tool_calls) == 0
 
@@ -241,7 +250,7 @@ class TestInitialization:
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.api_base_url == "http://localhost:8000/v1"
-        assert component._client is None
+        assert component.client is None
 
     def test_init_with_api_key_from_env(self, monkeypatch):
         monkeypatch.setenv("VLLM_API_KEY", "test-vllm-key")
@@ -259,8 +268,8 @@ class TestInitialization:
             max_retries=3,
         )
 
-        assert component._client is None
-        assert component._async_client is None
+        assert component.client is None
+        assert component.async_client is None
         assert component.tools is None
         assert component.http_client_kwargs is None
         assert component.streaming_callback is None
@@ -346,21 +355,21 @@ class TestComponentLifecycle:
         with pytest.raises(ValueError, match="MISSING_VLLM_API_KEY"):
             component.warm_up()
 
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_openai_client")
+    @patch("haystack.components.generators.chat.openai.OpenAI")
     def test_sync_lifecycle(self, mock_client_cls):
         component = VLLMChatGenerator(model=MODEL)
         client = mock_client_cls.return_value
 
         component.warm_up()
-        assert component._client is client
-        assert component._async_client is None
+        assert component.client is client
+        assert component.async_client is None
         component.close()
         client.close.assert_called_once_with()
-        assert component._client is None
+        assert component.client is None
         component.warm_up()
         assert mock_client_cls.call_count == 2
 
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_async_openai_client")
+    @patch("haystack.components.generators.chat.openai.AsyncOpenAI")
     @pytest.mark.asyncio
     async def test_async_lifecycle(self, mock_client_cls):
         component = VLLMChatGenerator(model=MODEL)
@@ -368,22 +377,22 @@ class TestComponentLifecycle:
         mock_client_cls.return_value = client
 
         await component.warm_up_async()
-        assert component._async_client is client
-        assert component._client is None
+        assert component.async_client is client
+        assert component.client is None
         await component.close_async()
         client.close.assert_awaited_once_with()
-        assert component._async_client is None
+        assert component.async_client is None
         await component.warm_up_async()
         assert mock_client_cls.call_count == 2
 
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_openai_client")
+    @patch("haystack.components.generators.chat.openai.OpenAI")
     def test_warm_up_is_idempotent(self, mock_client_cls):
         component = VLLMChatGenerator(model=MODEL)
         component.warm_up()
         component.warm_up()
         mock_client_cls.assert_called_once()
 
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_async_openai_client")
+    @patch("haystack.components.generators.chat.openai.AsyncOpenAI")
     @pytest.mark.asyncio
     async def test_warm_up_async_is_idempotent(self, mock_client_cls):
         component = VLLMChatGenerator(model=MODEL)
@@ -396,23 +405,23 @@ class TestComponentLifecycle:
         component = VLLMChatGenerator(model=MODEL)
         component.close()
         await component.close_async()
-        assert component._client is None
-        assert component._async_client is None
+        assert component.client is None
+        assert component.async_client is None
 
     @pytest.mark.asyncio
     async def test_close_and_close_async_are_independent(self):
         component = VLLMChatGenerator(model=MODEL)
         sync_client = MagicMock()
         async_client = MagicMock(close=AsyncMock())
-        component._client = sync_client
-        component._async_client = async_client
+        component.client = sync_client
+        component.async_client = async_client
 
         component.close()
-        assert component._client is None
-        assert component._async_client is async_client
+        assert component.client is None
+        assert component.async_client is async_client
         async_client.close.assert_not_awaited()
         await component.close_async()
-        assert component._async_client is None
+        assert component.async_client is None
         sync_client.close.assert_called_once_with()
 
 

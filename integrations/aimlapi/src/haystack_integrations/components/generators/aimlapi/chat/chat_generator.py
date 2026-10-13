@@ -6,8 +6,8 @@ from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import ChatMessage, StreamingCallbackT
-from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets, serialize_tools_or_toolset
+from haystack.dataclasses import StreamingCallbackT
+from haystack.tools import ToolsType, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 
@@ -153,59 +153,8 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
             http_client_kwargs=self.http_client_kwargs,
         )
 
-    def _prepare_api_call(
-        self,
-        *,
-        messages: list[ChatMessage],
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: ToolsType | None = None,
-        tools_strict: bool | None = None,
-    ) -> dict[str, Any]:
-        # update generation kwargs by merging with the generation kwargs passed to the run method
-        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        extra_headers = {**AIMLAPI_HEADERS, **(self.extra_headers or {})}
-
-        # adapt ChatMessage(s) to the format expected by the OpenAI API (AIMLAPI uses the same format)
-        aimlapi_formatted_messages: list[dict[str, Any]] = [message.to_openai_dict_format() for message in messages]
-
-        tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
-        _check_duplicate_tool_names(flattened_tools)
-
-        openai_tools = {}
-        if flattened_tools:
-            tool_definitions = []
-            for tool in flattened_tools:
-                function_spec = {**tool.tool_spec}
-                if tools_strict:
-                    function_spec["strict"] = True
-                    parameters = function_spec.get("parameters")
-                    if isinstance(parameters, dict):
-                        parameters["additionalProperties"] = False
-                tool_definitions.append({"type": "function", "function": function_spec})
-            openai_tools = {"tools": tool_definitions}
-
-        is_streaming = streaming_callback is not None
-        num_responses = generation_kwargs.pop("n", 1)
-
-        if is_streaming and num_responses > 1:
-            msg = "Cannot stream multiple responses, please set n=1."
-            raise ValueError(msg)
-        response_format = generation_kwargs.pop("response_format", None)
-
-        base_args = {
-            "model": self.model,
-            "messages": aimlapi_formatted_messages,
-            "n": num_responses,
-            **openai_tools,
-            "extra_body": {**generation_kwargs},
-            "extra_headers": {**extra_headers},
+    def _adapt_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "extra_body": dict(generation_kwargs),
+            "extra_headers": {**AIMLAPI_HEADERS, **(self.extra_headers or {})},
         }
-        if response_format and not is_streaming:
-            return {**base_args, "response_format": response_format, "openai_endpoint": "parse"}
-
-        final_args = {**base_args, "stream": is_streaming, "openai_endpoint": "create"}
-        if response_format:
-            final_args["response_format"] = response_format
-        return final_args

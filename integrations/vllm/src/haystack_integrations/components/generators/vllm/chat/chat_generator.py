@@ -2,92 +2,33 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
-import dataclasses
-import inspect
-import json
+from dataclasses import replace
 from typing import Any
 
-from haystack import default_from_dict, default_to_dict, logging
-from haystack.components.generators.chat.openai import (
-    _check_finish_reason,
-    _convert_chat_completion_chunk_to_streaming_chunk,
-)
-from haystack.components.generators.utils import (
-    _convert_streaming_chunks_to_chat_message,
-    _normalize_messages,
-    _serialize_object,
-)
+from haystack import default_from_dict, default_to_dict
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.core.component import component
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses import ChatMessage
 from haystack.dataclasses.chat_message import ReasoningContent
 from haystack.dataclasses.streaming_chunk import (
     ComponentInfo,
     StreamingCallbackT,
     StreamingChunk,
-    SyncStreamingCallbackT,
-    select_streaming_callback,
 )
 from haystack.tools import (
     ToolsType,
-    _check_duplicate_tool_names,
     deserialize_tools_or_toolset_inplace,
-    flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
-from openai import AsyncOpenAI, AsyncStream, OpenAI, Stream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ParsedChatCompletion
 from openai.types.chat.chat_completion import Choice
 
-from haystack_integrations.common.vllm.utils import _create_async_openai_client, _create_openai_client
-
-logger = logging.getLogger(__name__)
-
-
-def _convert_chat_completion_to_chat_message(completion: ChatCompletion, choice: Choice) -> ChatMessage:
-    """
-    Convert a vLLM chat completion response to a ChatMessage, including reasoning content if present.
-
-    :param completion: The completion returned by the vLLM API.
-    :param choice: The choice returned by the vLLM API.
-    :return: The ChatMessage.
-    """
-    message = choice.message
-    text = message.content
-
-    tool_calls = []
-    if message.tool_calls:
-        for tc in message.tool_calls:
-            if not hasattr(tc, "function"):
-                continue
-            try:
-                arguments = json.loads(tc.function.arguments)
-                tool_calls.append(ToolCall(id=tc.id, tool_name=tc.function.name, arguments=arguments))
-            except json.JSONDecodeError:
-                logger.warning(
-                    "vLLM returned a malformed JSON string for tool call arguments. This tool call "
-                    "will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
-                    _id=tc.id,
-                    _name=tc.function.name,
-                    _arguments=tc.function.arguments,
-                )
-
-    meta: dict[str, Any] = {
-        "model": completion.model,
-        "index": choice.index,
-        "finish_reason": choice.finish_reason,
-        "usage": _serialize_object(completion.usage),
-    }
-
-    reasoning_text = getattr(message, "reasoning", None)
-    reasoning = ReasoningContent(reasoning_text=reasoning_text) if reasoning_text else None
-
-    return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning)
+from haystack_integrations.common.vllm.utils import _openai_client_kwargs
 
 
 @component
-class VLLMChatGenerator:
+class VLLMChatGenerator(OpenAIChatGenerator):
     """
     A component for generating chat completions using models served with [vLLM](https://docs.vllm.ai/).
 
@@ -228,7 +169,8 @@ class VLLMChatGenerator:
             - `top_p`: Nucleus sampling parameter.
             - `n`: Number of completions to generate for each prompt.
             - `stop`: One or more sequences after which the model should stop generating tokens.
-            - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the response.
+            - `response_format`: A response format dictionary or, for non-streaming requests, a Pydantic model
+              class that enforces the structure of the response.
             - `extra_body`: A dictionary of vLLM-specific parameters not part of the standard OpenAI API
               (e.g., `top_k`, `min_tokens`, `repetition_penalty`).
         :param timeout:
@@ -244,54 +186,27 @@ class VLLMChatGenerator:
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
 
-        self.model = model
-        self.api_key = api_key
-        self.streaming_callback = streaming_callback
-        self.api_base_url = api_base_url
-        self.generation_kwargs = generation_kwargs or {}
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.tools = tools
-        self.http_client_kwargs = http_client_kwargs
+        super(VLLMChatGenerator, self).__init__(  # noqa: UP008
+            # vLLM allows None; _client_kwargs handles it instead of the parent key resolver.
+            api_key=api_key,  # type: ignore[arg-type]
+            model=model,
+            streaming_callback=streaming_callback,
+            api_base_url=api_base_url,
+            generation_kwargs=generation_kwargs,
+            timeout=timeout,
+            max_retries=max_retries,
+            tools=tools,
+            http_client_kwargs=http_client_kwargs,
+        )
+        self.api_base_url: str = api_base_url
 
-        _check_duplicate_tool_names(flatten_tools_or_toolsets(self.tools))
-
-        self._client: OpenAI | None = None
-        self._async_client: AsyncOpenAI | None = None
-
-    def warm_up(self) -> None:
-        """Create the synchronous OpenAI client."""
-        if self._client is None:
-            self._client = _create_openai_client(
-                api_key=self.api_key,
-                api_base_url=self.api_base_url,
-                timeout=self.timeout,
-                max_retries=self.max_retries,
-                http_client_kwargs=self.http_client_kwargs,
-            )
-
-    async def warm_up_async(self) -> None:
-        """Create the asynchronous OpenAI client."""
-        if self._async_client is None:
-            self._async_client = _create_async_openai_client(
-                api_key=self.api_key,
-                api_base_url=self.api_base_url,
-                timeout=self.timeout,
-                max_retries=self.max_retries,
-                http_client_kwargs=self.http_client_kwargs,
-            )
-
-    def close(self) -> None:
-        """Close the synchronous OpenAI client."""
-        if self._client is not None:
-            self._client.close()
-            self._client = None
-
-    async def close_async(self) -> None:
-        """Close the asynchronous OpenAI client."""
-        if self._async_client is not None:
-            await self._async_client.close()
-            self._async_client = None
+    def _client_kwargs(self) -> dict[str, Any]:
+        return _openai_client_kwargs(
+            api_key=self.api_key,
+            api_base_url=self.api_base_url,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -330,241 +245,46 @@ class VLLMChatGenerator:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _prepare_api_call(
-        self,
-        messages: list[ChatMessage],
-        streaming_callback: StreamingCallbackT | None,
-        generation_kwargs: dict[str, Any] | None,
-        tools: ToolsType | None,
-    ) -> dict[str, Any]:
-        """Build the kwargs dict for the OpenAI chat completions API call."""
-        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-
-        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
-
-        flattened_tools = flatten_tools_or_toolsets(tools if tools is not None else self.tools)
-        _check_duplicate_tool_names(flattened_tools)
-        tool_definitions = None
-        if flattened_tools:
-            tool_definitions = [{"type": "function", "function": t.tool_spec} for t in flattened_tools]
-
-        api_kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": openai_formatted_messages,
-            "stream": streaming_callback is not None,
-            **generation_kwargs,
-        }
-        if tool_definitions:
-            api_kwargs["tools"] = tool_definitions
-
-        return api_kwargs
-
-    def _handle_stream_response(self, chat_completion: Stream, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
-        """Handle a synchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
-        component_info = ComponentInfo.from_component(self)
-        chunks: list[StreamingChunk] = []
-
-        # track reasoning and content blocks. We use these flags to detect the transition and mark start=True
-        # on the first chunk of each block
-        reasoning_started = False
-        content_started = False
-
-        for chunk in chat_completion:
-            assert len(chunk.choices) <= 1  # noqa: S101
-
-            reasoning_text = None
-            if chunk.choices:
-                reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None)
-
-            if reasoning_text:
-                streaming_chunk = StreamingChunk(
-                    content="",
-                    reasoning=ReasoningContent(reasoning_text=reasoning_text),
-                    index=0,
-                    start=not reasoning_started,
-                    component_info=component_info,
-                    meta={
-                        "model": chunk.model,
-                        "index": chunk.choices[0].index,
-                        "finish_reason": chunk.choices[0].finish_reason,
-                    },
-                )
-                reasoning_started = True
-            else:
-                streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
-                    chunk=chunk, previous_chunks=chunks, component_info=component_info
-                )
-                # _convert_chat_completion_chunk_to_streaming_chunk doesn't know about reasoning chunks
-                # We set start=True on the first content chunk after reasoning.
-                if reasoning_started and not content_started:
-                    streaming_chunk = dataclasses.replace(streaming_chunk, start=True)
-                    content_started = True
-
-            chunks.append(streaming_chunk)
-            callback(streaming_chunk)
-
-        return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
-
-    async def _handle_async_stream_response(
-        self, chat_completion: AsyncStream[ChatCompletionChunk], callback: StreamingCallbackT
-    ) -> list[ChatMessage]:
-        """Handle an asynchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
-        component_info = ComponentInfo.from_component(self)
-        chunks: list[StreamingChunk] = []
-        reasoning_started = False
-        content_started = False
-        try:
-            async for chunk in chat_completion:
-                assert len(chunk.choices) <= 1  # noqa: S101
-
-                reasoning_text = None
-                if chunk.choices:
-                    reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None)
-
-                if reasoning_text:
-                    streaming_chunk = StreamingChunk(
-                        content="",
-                        reasoning=ReasoningContent(reasoning_text=reasoning_text),
-                        index=0,
-                        start=not reasoning_started,
-                        component_info=component_info,
-                        meta={
-                            "model": chunk.model,
-                            "index": chunk.choices[0].index,
-                            "finish_reason": chunk.choices[0].finish_reason,
-                        },
-                    )
-                    reasoning_started = True
-                else:
-                    streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
-                        chunk=chunk, previous_chunks=chunks, component_info=component_info
-                    )
-                    if reasoning_started and not content_started:
-                        streaming_chunk = dataclasses.replace(streaming_chunk, start=True)
-                        content_started = True
-
-                chunks.append(streaming_chunk)
-                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
-                callback_result = callback(streaming_chunk)
-                if inspect.isawaitable(callback_result):
-                    await callback_result
-        except asyncio.CancelledError:
-            await asyncio.shield(chat_completion.close())
-            raise
-
-        return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
-
-    @component.output_types(replies=list[ChatMessage])
-    def run(
-        self,
-        messages: list[ChatMessage] | str,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        *,
-        tools: ToolsType | None = None,
-    ) -> dict[str, list[ChatMessage]]:
-        """
-        Run the VLLM chat generator on the given input data.
-
-        :param messages:
-            A list of ChatMessage instances representing the input messages.
-            If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param streaming_callback:
-            A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs:
-            Additional keyword arguments for text generation. These are merged per key with the
-            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
-            at initialization are kept.
-            For details on vLLM API parameters, see
-            [vLLM documentation](https://docs.vllm.ai/en/stable/serving/openai_compatible_server/).
-        :param tools:
-            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter provided during initialization.
-
-        :returns:
-            A dictionary with the following key:
-            - `replies`: A list containing the generated responses as ChatMessage instances.
-        """
-        self.warm_up()
-        assert self._client is not None  # noqa: S101
-        messages = _normalize_messages(messages)
-
-        if len(messages) == 0:
-            return {"replies": []}
-
-        streaming_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
+    def _convert_chat_completion_to_chat_message(
+        self, completion: ChatCompletion | ParsedChatCompletion, choice: Choice
+    ) -> ChatMessage:
+        message = super(VLLMChatGenerator, self)._convert_chat_completion_to_chat_message(  # noqa: UP008
+            completion=completion, choice=choice
+        )
+        reasoning = getattr(choice.message, "reasoning", None)
+        if not reasoning:
+            return message
+        return ChatMessage.from_assistant(
+            text=message.text, tool_calls=message.tool_calls, meta=message.meta, reasoning=reasoning
         )
 
-        api_kwargs = self._prepare_api_call(messages, streaming_callback, generation_kwargs, tools)
-        chat_completion = self._client.chat.completions.create(**api_kwargs)
-
-        if streaming_callback is not None:
-            completions = self._handle_stream_response(chat_completion, streaming_callback)
-        else:
-            completions = [
-                _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
-            ]
-
-        for message in completions:
-            _check_finish_reason(message.meta)
-
-        return {"replies": completions}
-
-    @component.output_types(replies=list[ChatMessage])
-    async def run_async(
+    def _convert_chat_completion_chunk_to_streaming_chunk(
         self,
-        messages: list[ChatMessage] | str,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        *,
-        tools: ToolsType | None = None,
-    ) -> dict[str, list[ChatMessage]]:
-        """
-        Run the VLLM chat generator on the given input data asynchronously.
-
-        :param messages:
-            A list of ChatMessage instances representing the input messages.
-            If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param streaming_callback:
-            A callback function that is called when a new token is received from the stream.
-            Must be a coroutine.
-        :param generation_kwargs:
-            Additional keyword arguments for text generation. These are merged per key with the
-            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
-            at initialization are kept.
-            For details on vLLM API parameters, see
-            [vLLM documentation](https://docs.vllm.ai/en/stable/serving/openai_compatible_server/).
-        :param tools:
-            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter provided during initialization.
-
-        :returns:
-            A dictionary with the following key:
-            - `replies`: A list containing the generated responses as ChatMessage instances.
-        """
-        await self.warm_up_async()
-        assert self._async_client is not None  # noqa: S101
-        messages = _normalize_messages(messages)
-
-        if len(messages) == 0:
-            return {"replies": []}
-
-        streaming_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
+        chunk: ChatCompletionChunk,
+        previous_chunks: list[StreamingChunk],
+        component_info: ComponentInfo | None = None,
+    ) -> StreamingChunk:
+        reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None) if chunk.choices else None
+        if reasoning_text:
+            return StreamingChunk(
+                content="",
+                reasoning=ReasoningContent(reasoning_text=reasoning_text),
+                index=0,
+                start=not any(c.reasoning for c in previous_chunks),
+                component_info=component_info,
+                meta={
+                    "model": chunk.model,
+                    "index": chunk.choices[0].index,
+                    "finish_reason": chunk.choices[0].finish_reason,
+                },
+            )
+        converted = super(VLLMChatGenerator, self)._convert_chat_completion_chunk_to_streaming_chunk(  # noqa: UP008
+            chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
         )
-
-        api_kwargs = self._prepare_api_call(messages, streaming_callback, generation_kwargs, tools)
-        chat_completion = await self._async_client.chat.completions.create(**api_kwargs)
-
-        if streaming_callback is not None:
-            completions = await self._handle_async_stream_response(chat_completion, streaming_callback)
-        else:
-            completions = [
-                _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
-            ]
-
-        for message in completions:
-            _check_finish_reason(message.meta)
-
-        return {"replies": completions}
+        if (
+            converted.content
+            and any(c.reasoning for c in previous_chunks)
+            and not any(c.content for c in previous_chunks)
+        ):
+            converted = replace(converted, start=True)
+        return converted

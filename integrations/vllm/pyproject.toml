@@ -23,7 +23,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=3.0.0", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0"]
+dependencies = [
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@ea4ed39d2458cdb42bedc59014282797c6812e68",
+  "openai",
+  "more_itertools>=9.0.0",
+  "tqdm>=4.48.0",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/vllm#readme"
@@ -160,3 +165,6 @@ markers = [
 ]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.metadata]
+allow-direct-references = true

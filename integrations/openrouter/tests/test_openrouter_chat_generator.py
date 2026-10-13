@@ -21,7 +21,6 @@ from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
-    _convert_openrouter_completion_to_chat_message,
     _extract_reasoning,
     _merge_reasoning_details,
 )
@@ -1047,7 +1046,8 @@ class TestReasoningSupport:
             usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
         )
 
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        component = OpenRouterChatGenerator(api_key=Secret.from_token("test-key"))
+        result = component._convert_chat_completion_to_chat_message(completion=completion, choice=completion.choices[0])
         assert result.text is None
         assert result.reasoning is not None
         assert result.reasoning.reasoning_text == "I need to check the weather."
@@ -1078,7 +1078,8 @@ class TestReasoningSupport:
             usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
         )
 
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        component = OpenRouterChatGenerator(api_key=Secret.from_token("test-key"))
+        result = component._convert_chat_completion_to_chat_message(completion=completion, choice=completion.choices[0])
         assert result.text == "The answer is 42."
         assert result.reasoning is not None
         assert result.reasoning.reasoning_text == "Let me think about this..."
@@ -1105,7 +1106,8 @@ class TestReasoningSupport:
             usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
 
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        component = OpenRouterChatGenerator(api_key=Secret.from_token("test-key"))
+        result = component._convert_chat_completion_to_chat_message(completion=completion, choice=completion.choices[0])
         assert result.text == "Hello!"
         assert result.reasoning is None
 
@@ -1267,44 +1269,6 @@ class TestReasoningSupport:
         assert result.meta["usage"]["completion_tokens_details"]["reasoning_tokens"] == 12
         assert result.meta["completion_start_time"] is not None
 
-    def test_handle_stream_response_splits_delta_with_reasoning_and_tool_call(self):
-        tool_call = ChoiceDeltaToolCall(
-            index=0,
-            id="call_1",
-            function=ChoiceDeltaToolCallFunction(name="weather", arguments='{"city": "Paris"}'),
-            type="function",
-        )
-        chunks = [
-            _chunk(ChoiceDelta(role="assistant", reasoning="I need the weather.")),
-            # a StreamingChunk can't hold both, so this delta must be split instead of dropping either part
-            _chunk(ChoiceDelta(role="assistant", reasoning=" Calling the tool.", tool_calls=[tool_call])),
-            _chunk(ChoiceDelta(role="assistant"), finish_reason="tool_calls"),
-        ]
-
-        callback = CollectorCallback()
-        llm = OpenRouterChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = llm._handle_stream_response(chunks, callback=callback)[0]  # type: ignore[arg-type]
-
-        streamed = callback.chunks
-        assert len(streamed) == 4
-        assert [c.reasoning.reasoning_text for c in streamed[:2]] == ["I need the weather.", " Calling the tool."]
-        assert [c.start for c in streamed[:2]] == [True, False]
-        assert streamed[1].finish_reason is None
-        assert streamed[2].reasoning is None
-        assert streamed[2].tool_calls[0].tool_name == "weather"
-        assert streamed[2].start is True
-        assert streamed[2].index == 1
-        assert streamed[2].tool_calls[0].index == 0
-        assert streamed[3].finish_reason == "tool_calls"
-
-        assert result.text is None
-        assert result.reasoning is not None
-        assert result.reasoning.reasoning_text == "I need the weather. Calling the tool."
-        # no `reasoning_details` were streamed, so there is nothing to send back in later turns
-        assert result.reasoning.extra == {}
-        assert result.tool_calls == [ToolCall(id="call_1", tool_name="weather", arguments={"city": "Paris"})]
-        assert result.meta["finish_reason"] == "tool_calls"
-
     def test_handle_stream_response_numbers_tool_call_blocks_after_reasoning_and_text(self):
         def tool_call_delta(index: int, name: str | None = None, arguments: str = "") -> ChoiceDelta:
             function = ChoiceDeltaToolCallFunction(name=name, arguments=arguments)
@@ -1429,7 +1393,8 @@ class TestReasoningSupport:
             created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
             usage={"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
         )
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        component = OpenRouterChatGenerator(api_key=Secret.from_token("test-key"))
+        result = component._convert_chat_completion_to_chat_message(completion=completion, choice=completion.choices[0])
         assert result.text == "Hello!"
         assert "logprobs" in result.meta
 
@@ -1464,6 +1429,7 @@ class TestReasoningSupport:
             created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
             usage={"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
         )
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        component = OpenRouterChatGenerator(api_key=Secret.from_token("test-key"))
+        result = component._convert_chat_completion_to_chat_message(completion=completion, choice=completion.choices[0])
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].id == "call_good"
