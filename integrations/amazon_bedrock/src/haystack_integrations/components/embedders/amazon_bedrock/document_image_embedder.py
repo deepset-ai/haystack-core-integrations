@@ -79,6 +79,9 @@ class AmazonBedrockDocumentImageEmbedder:
         root_path: str | None = None,
         image_size: tuple[int, int] | None = None,
         progress_bar: bool = True,
+        include_content: bool = False,
+        meta_fields_to_embed: list[str] | None = None,
+        embedding_separator: str = "\n",
         boto3_config: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -98,6 +101,10 @@ class AmazonBedrockDocumentImageEmbedder:
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
         :param file_path_meta_field: The metadata field in the Document that contains the file path to the image or PDF.
+        :param include_content: Whether to embed Document.content together with the image. Currently supported only
+            for Cohere Embed v4 (``cohere.embed-v4:0``). Defaults to False, preserving image-only behavior.
+        :param meta_fields_to_embed: Metadata fields to include with Document.content when ``include_content=True``.
+        :param embedding_separator: Separator used to concatenate metadata values and Document.content.
         :param root_path: The root directory path where document files are located. If provided, file paths in
             document metadata will be resolved relative to this path. If None, file paths are treated as absolute paths.
         :param image_size:
@@ -134,6 +141,12 @@ class AmazonBedrockDocumentImageEmbedder:
         self.aws_profile_name = aws_profile_name
         self.image_size = image_size
         self.progress_bar = progress_bar
+        if include_content and model != "cohere.embed-v4:0":
+            msg = "include_content=True is currently supported only for Cohere Embed v4 (cohere.embed-v4:0)."
+            raise ValueError(msg)
+        self.include_content = include_content
+        self.meta_fields_to_embed = meta_fields_to_embed or []
+        self.embedding_separator = embedding_separator
         self.kwargs = kwargs
         self.embedding_types = None
 
@@ -201,6 +214,9 @@ class AmazonBedrockDocumentImageEmbedder:
             progress_bar=self.progress_bar,
             boto3_config=self.boto3_config,
             image_size=self.image_size,
+            include_content=self.include_content,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
             **self.kwargs,
         )
         return serialization_dict
@@ -281,7 +297,10 @@ class AmazonBedrockDocumentImageEmbedder:
             raise RuntimeError(msg)
 
         if "cohere" in self.model:
-            embeddings = self._embed_cohere(image_uris=images_to_embed)
+            embeddings = self._embed_cohere(
+                image_uris=images_to_embed,
+                documents=documents if self.include_content else None,
+            )
         elif "titan" in self.model:
             embeddings = self._embed_titan(images=images_to_embed)
         else:
@@ -334,22 +353,47 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return all_embeddings
 
-    def _embed_cohere(self, image_uris: list[str]) -> list[list[float]]:
+    def _embed_cohere(self, image_uris: list[str], documents: list[Document] | None = None) -> list[list[float]]:
         """
         Internal method to embed base64 images using Cohere models.
 
         :param image_uris: List of image uris containing the base64 image and the mime type.
+        :param documents: Documents to pair with images when interleaved text + image embedding is enabled.
         :return: List of embeddings.
         """
 
-        cohere_body = {"input_type": "image"}
+        use_interleaved_content = self.include_content and documents is not None
+
+        cohere_body: dict[str, Any] = {"input_type": "search_document" if use_interleaved_content else "image"}
         if self.embedding_types:
             cohere_body["embedding_types"] = self.embedding_types
 
         all_embeddings = []
 
-        for image in tqdm(image_uris, disable=not self.progress_bar, desc="Creating embeddings"):
-            body = {"images": [image], **cohere_body}
+        document_iterator = documents if use_interleaved_content and documents is not None else [None] * len(image_uris)
+
+        for image, doc in tqdm(
+            zip(image_uris, document_iterator, strict=True),
+            total=len(image_uris),
+            disable=not self.progress_bar,
+            desc="Creating embeddings",
+        ):
+            if use_interleaved_content and doc is not None:
+                meta_values = [str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key)]
+                text = self.embedding_separator.join([*meta_values, doc.content or ""])
+                body = {
+                    "inputs": [
+                        {
+                            "content": [
+                                {"type": "text", "text": text},
+                                {"type": "image_url", "image_url": {"url": image}},
+                            ]
+                        }
+                    ],
+                    **cohere_body,
+                }
+            else:
+                body = {"images": [image], **cohere_body}
             try:
                 response = self._client.invoke_model(
                     body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"

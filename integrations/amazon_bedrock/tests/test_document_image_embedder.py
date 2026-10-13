@@ -1,4 +1,5 @@
 import io
+import json
 import os
 from typing import Any
 from unittest.mock import patch
@@ -95,6 +96,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "boto3_config": boto3_config,
                 "root_path": "",
                 "image_size": None,
+                "include_content": False,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
             },
         }
 
@@ -136,6 +140,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "progress_bar": True,
                 "boto3_config": boto3_config,
                 "image_size": None,
+                "include_content": False,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
             },
         }
 
@@ -226,6 +233,33 @@ class TestAmazonBedrockDocumentImageEmbedder:
         )
 
         assert result[0] == [0.1, 0.2, 0.3]
+
+    def test_embed_cohere_v4_interleaved_text_and_image(self, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-v4:0",
+            include_content=True,
+            meta_fields_to_embed=["file_name"],
+            embedding_types=["float"],
+            progress_bar=False,
+        )
+        docs = [Document(content="A page about cats", meta={"file_path": image_paths[0], "file_name": "cats.pdf"})]
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.return_value = {"body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2]]}}')}
+            result = embedder.run(documents=docs)
+
+        request_body = json.loads(mock_client.invoke_model.call_args.kwargs["body"])
+        assert request_body["input_type"] == "search_document"
+        assert request_body["embedding_types"] == ["float"]
+        content = request_body["inputs"][0]["content"]
+        assert content[0] == {"type": "text", "text": "cats.pdf\nA page about cats"}
+        assert content[1]["type"] == "image_url"
+        assert content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        assert result["documents"][0].embedding == [0.1, 0.2]
+
+    def test_include_content_rejects_non_cohere_v4_model(self):
+        with pytest.raises(ValueError, match="only for Cohere Embed v4"):
+            AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", include_content=True)
 
     def test_embed_titan(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
