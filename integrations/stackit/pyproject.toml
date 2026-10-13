@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@ea4ed39d2458cdb42bedc59014282797c6812e68",
-  "vllm-haystack @ {root:parent:uri}/vllm",
+  "vllm-haystack @ git+https://github.com/deepset-ai/haystack-core-integrations.git@17724381c23f66ddafd5d8828f280771277e7c22#subdirectory=integrations/vllm",
 ]
 
 [project.urls]
