@@ -211,12 +211,10 @@ async def test_close_async_is_exception_safe(mock_async_store: IBMDb2DocumentSto
     mock_conn = MagicMock()
     mock_conn.close = AsyncMock(side_effect=RuntimeError("boom"))
     mock_async_store._async_connection = mock_conn
-    mock_async_store._async_table_initialized = True
 
     await mock_async_store.close_async()
 
     assert mock_async_store._async_connection is None
-    assert mock_async_store._async_table_initialized is False
 
 
 @pytest.mark.asyncio
@@ -309,7 +307,7 @@ def mock_connected_store(mock_async_store: IBMDb2DocumentStore):
     cur = _make_mock_cursor(fetchone_return=(0,), fetchall_return=[])
     conn = _make_mock_conn(cur)
     mock_async_store._get_connection_async = AsyncMock(return_value=conn)  # type: ignore[method-assign]
-    mock_async_store._async_table_initialized = True
+    mock_async_store._table_initialized = True
     mock_async_store._mock_conn = conn
     mock_async_store._mock_cur = cur
     return mock_async_store
@@ -592,3 +590,113 @@ async def test_transaction_async_does_not_rewrap_duplicate_document_error(
             await cur.execute("INSERT ...")
     # Rollback must still be called
     mock_connected_store._mock_conn.rollback.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Transactions are serialized: one coroutine's rollback must not touch another's work
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_transaction_async_serializes_concurrent_units_of_work(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    """A failing unit of work must not roll back a concurrent one that is still in flight."""
+    events: list[str] = []
+    first_started = asyncio.Event()
+
+    async def first() -> None:
+        async with mock_connected_store._transaction_async("first") as _cur:
+            events.append("first:start")
+            first_started.set()
+            await asyncio.sleep(0.01)  # yield so the competing coroutine would interleave without a lock
+            events.append("first:end")
+
+    async def second() -> None:
+        await first_started.wait()
+        with pytest.raises(DocumentStoreError):
+            async with mock_connected_store._transaction_async("second") as _cur:
+                events.append("second:start")
+                msg = "boom"
+                raise RuntimeError(msg)
+
+    await asyncio.gather(first(), second())
+
+    # The second unit of work only starts once the first one has finished (and committed)...
+    assert events == ["first:start", "first:end", "second:start"]
+    # ...so the first is committed and only the failing second one is rolled back.
+    mock_connected_store._mock_conn.commit.assert_awaited_once()
+    mock_connected_store._mock_conn.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_insert_documents_async_waits_for_transaction_lock(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    """_insert_documents_async commits on the shared connection, so it must hold the transaction lock."""
+    await mock_connected_store._async_transaction_lock.acquire()
+    task = asyncio.create_task(mock_connected_store._insert_documents_async([Document(content="x")]))
+    await asyncio.sleep(0.01)
+    assert not task.done()
+    mock_connected_store._mock_cur.executemany.assert_not_called()
+
+    mock_connected_store._async_transaction_lock.release()
+    assert await task == 1
+
+
+@pytest.mark.asyncio
+async def test_embedding_retrieval_async_waits_for_transaction_lock(
+    mock_connected_store: IBMDb2DocumentStore,
+) -> None:
+    """Reads share the connection with writers, so retrieval must also hold the transaction lock."""
+    await mock_connected_store._async_transaction_lock.acquire()
+    task = asyncio.create_task(mock_connected_store._embedding_retrieval_async(query_embedding=[0.1] * 768, top_k=1))
+    await asyncio.sleep(0.01)
+    assert not task.done()
+    mock_connected_store._mock_cur.execute.assert_not_called()
+
+    mock_connected_store._async_transaction_lock.release()
+    assert await task == []
+
+
+@pytest.mark.asyncio
+async def test_close_async_waits_for_in_flight_transaction(mock_async_store: IBMDb2DocumentStore) -> None:
+    """close_async() must not close the connection underneath a running unit of work."""
+    mock_conn = _make_mock_conn(_make_mock_cursor())
+    mock_async_store._async_connection = mock_conn
+
+    await mock_async_store._async_transaction_lock.acquire()
+    task = asyncio.create_task(mock_async_store.close_async())
+    await asyncio.sleep(0.01)
+    assert not task.done()
+    mock_conn.close.assert_not_called()
+
+    mock_async_store._async_transaction_lock.release()
+    await task
+    mock_conn.close.assert_awaited_once()
+    assert mock_async_store._async_connection is None
+
+
+# ---------------------------------------------------------------------------
+# Sync and async paths share one table-initialized flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_connection_async_skips_ddl_when_table_already_initialized(
+    mock_async_store: IBMDb2DocumentStore,
+) -> None:
+    """With recreate_table=True the table is dropped once, even if the sync path already initialised it."""
+    mock_async_store.recreate_table = True
+    mock_async_store._table_initialized = True  # as if the sync path had already created the table
+    mock_async_store._ensure_table_exists_async = AsyncMock()  # type: ignore[method-assign]
+    mock_conn = _make_mock_conn(_make_mock_cursor())
+
+    with (
+        patch.object(ibm_db_dbi, "pconnect_async", new=AsyncMock(return_value=MagicMock())),
+        patch.object(ibm_db_dbi, "AsyncConnection", return_value=mock_conn),
+    ):
+        conn = await mock_async_store._get_connection_async()
+
+    assert conn is mock_conn
+    mock_async_store._ensure_table_exists_async.assert_not_called()  # type: ignore[attr-defined]

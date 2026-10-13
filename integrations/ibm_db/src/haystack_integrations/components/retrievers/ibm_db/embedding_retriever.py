@@ -90,12 +90,14 @@ class IBMDb2EmbeddingRetriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Async version of run(). Retrieve documents by vector similarity.
+        Retrieve documents by vector similarity.
+
+        This is the async variant of `run`.
 
         :param query_embedding: Dense float vector from an embedder component.
         :param filters: Runtime filters, merged with constructor filters according to filter_policy.
         :param top_k: Override the constructor top_k for this call.
-        :returns: A dictionary with key `documents` containing a list of matching :class:`Document` objects.
+        :returns: A dictionary with key `documents` containing a list of matching `Document` objects.
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         docs = await self.document_store._embedding_retrieval_async(

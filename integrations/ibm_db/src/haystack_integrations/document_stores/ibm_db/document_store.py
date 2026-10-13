@@ -17,7 +17,6 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
-from ibm_db_dbi import AsyncConnection, AsyncCursor  # type: ignore[import-untyped]
 
 from .filters import FilterTranslator
 
@@ -155,11 +154,16 @@ class IBMDb2DocumentStore:
 
         self._connection: ibm_db_dbi.Connection | None = None
         self._connection_lock = threading.Lock()
+        # Shared by the sync and async paths so that `recreate_table=True` drops the table only once.
         self._table_initialized = False
 
-        self._async_connection: AsyncConnection | None = None
-        self._async_connection_lock: asyncio.Lock | None = None  # created lazily inside event loop
-        self._async_table_initialized = False
+        self._async_connection: ibm_db_dbi.AsyncConnection | None = None
+        # Guards creation/closing of the async connection.
+        self._async_connection_lock = asyncio.Lock()
+        # All coroutines share one AsyncConnection and Db2 has one transaction per connection, so
+        # commit()/rollback() would otherwise affect work done by other coroutines in the meantime.
+        # This lock serializes units of work. Lock order is always transaction lock -> connection lock.
+        self._async_transaction_lock = asyncio.Lock()
 
     def _get_connection(self) -> ibm_db_dbi.Connection:
         """
@@ -227,30 +231,26 @@ class IBMDb2DocumentStore:
                     self._connection.close()
                 self._connection = None
 
-    async def _get_connection_async(self) -> AsyncConnection:
+    async def _get_connection_async(self) -> ibm_db_dbi.AsyncConnection:
         """
         Get or create a persistent async database connection and ensure the table exists.
 
-        Uses ``ibm_db_dbi.pconnect_async()`` so the underlying connection comes from the
-        same persistent pool as the synchronous path.  This is required for VECTOR_DISTANCE
-        queries — non-pooled ``connect()``-based connections hang on large CLOB parameters
-        used in the VECTOR() cast.  The resulting sync Connection is wrapped in
-        ``AsyncConnection`` so all callers use the standard async cursor API.
+        Uses `ibm_db_dbi.pconnect_async()` so the underlying connection comes from the
+        same persistent pool as the synchronous path. This is required for VECTOR_DISTANCE
+        queries: non-pooled `connect()`-based connections hang on large CLOB parameters
+        used in the VECTOR() cast. The resulting sync connection is wrapped in
+        `AsyncConnection` so all callers use the standard async cursor API.
 
-        Uses a separate async connection and asyncio.Lock, completely independent of the
+        Uses a separate async connection and asyncio.Lock, independent of the
         synchronous connection.
 
         :return: IBM Db2 AsyncConnection object
         """
-        # Create the lock lazily inside the running event loop to avoid the
-        # DeprecationWarning from constructing asyncio primitives outside a loop.
-        if self._async_connection_lock is None:
-            self._async_connection_lock = asyncio.Lock()
         async with self._async_connection_lock:
-            # Double-checked locking: both the fast-path check and all state mutations
-            # live inside the lock so that concurrent coroutines cannot observe a
-            # partially-initialised connection or race with close_async().
-            if self._async_connection is not None and self._async_table_initialized:
+            # The fast-path check and all state mutations live inside the lock so that
+            # concurrent coroutines cannot observe a partially-initialised connection
+            # or race with close_async().
+            if self._async_connection is not None and self._table_initialized:
                 return self._async_connection
 
             if self._async_connection is None:
@@ -274,7 +274,7 @@ class IBMDb2DocumentStore:
                     password=self.password.resolve_value() or "",
                     conn_options=conn_options,
                 )
-                conn = AsyncConnection(sync_conn)
+                conn = ibm_db_dbi.AsyncConnection(sync_conn)
 
                 if self.schema:
                     cur = await conn.cursor()
@@ -289,9 +289,9 @@ class IBMDb2DocumentStore:
 
                 self._async_connection = conn
 
-            if not self._async_table_initialized:
+            if not self._table_initialized:
                 await self._ensure_table_exists_async(recreate=self.recreate_table)
-                self._async_table_initialized = True
+                self._table_initialized = True
 
         return self._async_connection
 
@@ -301,41 +301,44 @@ class IBMDb2DocumentStore:
 
         The synchronous connection is not affected.
         """
-        if self._async_connection_lock is None:
-            self._async_connection_lock = asyncio.Lock()
-        async with self._async_connection_lock:
+        # Wait for any in-flight transaction so the connection is not closed underneath it.
+        async with self._async_transaction_lock, self._async_connection_lock:
             if self._async_connection is not None:
                 with suppress(Exception):
                     await self._async_connection.close()
                 self._async_connection = None
-                self._async_table_initialized = False
 
     @asynccontextmanager
-    async def _transaction_async(self, error_msg: str) -> AsyncIterator[AsyncCursor]:
+    async def _transaction_async(self, error_msg: str) -> AsyncIterator[ibm_db_dbi.AsyncCursor]:
         """
-        Async context manager: yield an AsyncCursor for a unit of work, committing on success.
+        Yield an `AsyncCursor` for a unit of work, committing on success.
 
         On any error the transaction is rolled back and the exception is re-raised
         as a `DocumentStoreError` prefixed with `error_msg`.
 
+        The transaction lock is held for the whole unit of work, because all coroutines share a single
+        connection and `commit()` / `rollback()` apply to everything done on it. This serializes
+        database access on the store but keeps each call atomic.
+
         :param error_msg: Human-readable prefix for the wrapped error.
         """
-        conn = await self._get_connection_async()
-        cur = await conn.cursor()
-        async with cur:
-            try:
-                yield cur
-                await conn.commit()
-            except (DocumentStoreError, DuplicateDocumentError):
-                # Re-raise Haystack document store exceptions unchanged so callers
-                # receive the correct type (e.g. DuplicateDocumentError, not a
-                # generic DocumentStoreError wrapper).
-                await conn.rollback()
-                raise
-            except Exception as e:
-                await conn.rollback()
-                msg = f"{error_msg}: {e}"
-                raise DocumentStoreError(msg) from e
+        async with self._async_transaction_lock:
+            conn = await self._get_connection_async()
+            cur = await conn.cursor()
+            async with cur:
+                try:
+                    yield cur
+                    await conn.commit()
+                except (DocumentStoreError, DuplicateDocumentError):
+                    # Re-raise Haystack document store exceptions unchanged so callers
+                    # receive the correct type (e.g. DuplicateDocumentError, not a
+                    # generic DocumentStoreError wrapper).
+                    await conn.rollback()
+                    raise
+                except Exception as e:
+                    await conn.rollback()
+                    msg = f"{error_msg}: {e}"
+                    raise DocumentStoreError(msg) from e
 
     @contextmanager
     def _transaction(self, error_msg: str) -> Iterator[Any]:
@@ -660,32 +663,33 @@ class IBMDb2DocumentStore:
     async def _insert_documents_async(self, documents: list[Document]) -> int:
         """Async version: insert documents and fail on duplicates via database integrity errors."""
         rows = [self._to_row(doc) for doc in documents]
-        conn = await self._get_connection_async()
-        cur = await conn.cursor()
         sql = (
             f"INSERT INTO {self.table_name} (id, content, meta, embedding) "
             f"VALUES (?, ?, SYSTOOLS.JSON2BSON(?), "
             f"VECTOR(CAST(? AS CLOB(100000)), {self.embedding_dim}, FLOAT32))"
         )
-        async with cur:
-            try:
-                await cur.executemany(sql, rows)
-                await conn.commit()
-            except Exception as e:
-                await conn.rollback()
-                error_msg = str(e).lower()
-                duplicate_indicators = (
-                    "duplicate",
-                    "unique",
-                    "sql0803n",
-                    "primary key",
-                    "sqlcode=-803",
-                    "sqlstate=23505",
-                )
-                if any(indicator in error_msg for indicator in duplicate_indicators):
-                    msg = f"Document already exists. Use DuplicatePolicy.OVERWRITE or SKIP. Original error: {e}"
-                    raise DuplicateDocumentError(msg) from e
-                raise
+        async with self._async_transaction_lock:
+            conn = await self._get_connection_async()
+            cur = await conn.cursor()
+            async with cur:
+                try:
+                    await cur.executemany(sql, rows)
+                    await conn.commit()
+                except Exception as e:
+                    await conn.rollback()
+                    error_msg = str(e).lower()
+                    duplicate_indicators = (
+                        "duplicate",
+                        "unique",
+                        "sql0803n",
+                        "primary key",
+                        "sqlcode=-803",
+                        "sqlstate=23505",
+                    )
+                    if any(indicator in error_msg for indicator in duplicate_indicators):
+                        msg = f"Document already exists. Use DuplicatePolicy.OVERWRITE or SKIP. Original error: {e}"
+                        raise DuplicateDocumentError(msg) from e
+                    raise
         return len(documents)
 
     def _skip_duplicate_documents(self, documents: list[Document]) -> int:
@@ -922,7 +926,9 @@ class IBMDb2DocumentStore:
             deleted_count = result[0] if result else 0
 
         if recreate_index:
-            await self._ensure_table_exists_async(recreate=True)
+            # DDL commits on the shared connection, so it must not interleave with other units of work.
+            async with self._async_transaction_lock:
+                await self._ensure_table_exists_async(recreate=True)
         else:
             async with self._transaction_async("Failed to delete all documents") as cur:
                 await cur.execute(f"DELETE FROM {self.table_name}")
@@ -1461,7 +1467,6 @@ class IBMDb2DocumentStore:
         """
         self._validate_embedding(query_embedding, allow_none=False)
 
-        conn = await self._get_connection_async()
         embedding_str = f"{query_embedding}"
         where_clause, filter_params = self._build_where_clause(filters) if filters else ("", [])
 
@@ -1481,23 +1486,27 @@ class IBMDb2DocumentStore:
         )
         params: list[Any] = [embedding_str, *filter_params, top_k]
 
-        cur = await conn.cursor()
-        async with cur:
-            await cur.execute(sql, params)
-            try:
-                rows = await cur.fetchall()
-            except Exception as e:
-                error_msg = str(e)
-                cause_msg = str(e.__cause__) if hasattr(e, "__cause__") and e.__cause__ else ""
-                if (
-                    "SQL0801N" in error_msg
-                    or "Division by zero" in error_msg
-                    or "SQL0801N" in cause_msg
-                    or "Division by zero" in cause_msg
-                ):
-                    rows = []
-                else:
-                    raise
+        # Serialize with writers: the connection is shared, so a read must not observe another
+        # coroutine's uncommitted changes or interleave cursors with it.
+        async with self._async_transaction_lock:
+            conn = await self._get_connection_async()
+            cur = await conn.cursor()
+            async with cur:
+                await cur.execute(sql, params)
+                try:
+                    rows = await cur.fetchall()
+                except Exception as e:
+                    error_msg = str(e)
+                    cause_msg = str(e.__cause__) if hasattr(e, "__cause__") and e.__cause__ else ""
+                    if (
+                        "SQL0801N" in error_msg
+                        or "Division by zero" in error_msg
+                        or "SQL0801N" in cause_msg
+                        or "Division by zero" in cause_msg
+                    ):
+                        rows = []
+                    else:
+                        raise
 
         documents = []
         for row in rows:
