@@ -13,11 +13,11 @@
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
 The integration tests run against a local Otari gateway. To start one, export `OPENAI_API_KEY` and `COHERE_API_KEY`
-for the providers it routes to, and `OTARI_API_KEY` for the API key the gateway accepts. That key must start with `tk-`
-and be at least 50 characters long, for example the one CI uses. Then start the gateway and run the integration tests:
+for the providers it routes to, and a new API key as `OTARI_API_KEY`, which the gateway accepts and the tests send.
+Then start the gateway and run the integration tests:
 
 ```bash
-export OTARI_API_KEY=tk-haystack-integration-tests-0123456789-abcdefghijklmnopqrstuvwxyz
+export OTARI_API_KEY="tk-$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 docker compose up -d --wait
 hatch run test:integration
 ```

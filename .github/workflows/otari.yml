@@ -31,8 +31,6 @@ env:
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
-  # The API key that the local test gateway in integrations/otari/docker-compose.yml declares. It's not a secret.
-  OTARI_API_KEY: tk-haystack-integration-tests-0123456789-abcdefghijklmnopqrstuvwxyz
 
 jobs:
   compute-test-matrix:
@@ -112,7 +110,12 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-        run: docker compose up -d --wait
+        run: |
+          # A random API key for this run, which the gateway declares and the integration tests send
+          export OTARI_API_KEY="tk-$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          echo "::add-mask::$OTARI_API_KEY"
+          echo "OTARI_API_KEY=$OTARI_API_KEY" >> "$GITHUB_ENV"
+          docker compose up -d --wait
 
       - name: Run integration tests
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
