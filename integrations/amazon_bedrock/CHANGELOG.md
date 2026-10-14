@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v8.4.0] - 2026-10-14
+
+### 🚀 Features
+
+- *(amazon-bedrock)* Support text and image embeddings in Cohere v4 (#4100)
+
+### 🧹 Chores
+
+- Add missing amazon_bedrock 8.3.1 changelog entry (#4095)
+
 ## [integrations/amazon_bedrock-v8.3.1] - 2026-10-12
 
 ### 🐛 Bug Fixes
