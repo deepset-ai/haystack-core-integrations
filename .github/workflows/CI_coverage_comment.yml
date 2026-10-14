@@ -67,6 +67,7 @@ on:
       - "Test / nvidia"
       - "Test / oauth"
       - "Test / ollama"
+      - "Test / openai_decisions"
       - "Test / openapi"
       - "Test / opendataloader_pdf"
       - "Test / openrouter"

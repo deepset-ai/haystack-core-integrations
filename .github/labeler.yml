@@ -325,6 +325,11 @@ integration:ollama:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
 
+integration:openai-decisions:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/openai_decisions/**/*"
+      - any-glob-to-any-file: ".github/workflows/openai_decisions.yml"
+
 integration:openapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/openapi/**/*"

@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.classifiers.openai_decisions.document_classifier
+      - haystack_integrations.components.routers.openai_decisions.text_router
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: OpenAI Decisions API integration for Haystack
+  id: integrations-openai-decisions
+  filename: openai-decisions.md
+  title: OpenAI Decisions API
