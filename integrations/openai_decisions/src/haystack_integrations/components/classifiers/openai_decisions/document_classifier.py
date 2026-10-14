@@ -136,10 +136,6 @@ class OpenAIDecisionsDocumentClassifier:
                     msg = f"Choice question {name!r} must have between 2 and 255 choices."
                     raise ValueError(msg)
 
-                if not isinstance(choices, list) or not _MIN_CHOICES <= len(choices) <= _MAX_CHOICES:
-                    msg = f"Choice question {name!r} must have between 2 and 255 choices."
-                    raise ValueError(msg)
-
                 choice_values = []
 
                 for choice in choices:
