@@ -112,7 +112,8 @@ jobs:
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
         run: |
           # A random API key for this run, which the gateway declares and the integration tests send
-          export OTARI_API_KEY="tk-$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          OTARI_API_KEY="tk-$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          export OTARI_API_KEY
           echo "::add-mask::$OTARI_API_KEY"
           echo "OTARI_API_KEY=$OTARI_API_KEY" >> "$GITHUB_ENV"
           docker compose up -d --wait
