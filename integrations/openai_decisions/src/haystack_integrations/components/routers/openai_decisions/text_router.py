@@ -10,6 +10,8 @@ from openai import OpenAI
 from openai.types.decision_create_params import Question
 
 _LOW_CONFIDENCE = "low_confidence"
+_MIN_LABELS = 2
+_MAX_LABELS = 255
 
 
 @component
@@ -43,8 +45,14 @@ class OpenAIDecisionsTextRouter:
         :param max_retries: Maximum number of request retries.
         :raises ValueError: If labels or confidence threshold are invalid.
         """
-        if not labels:
-            msg = "`labels` must contain at least one label."
+        label_values = list(labels)
+
+        if not _MIN_LABELS <= len(label_values) <= _MAX_LABELS:
+            msg = "`labels` must contain between 2 and 255 labels."
+            raise ValueError(msg)
+
+        if len(set(label_values)) != len(label_values):
+            msg = "`labels` must not contain duplicate labels."
             raise ValueError(msg)
         if _LOW_CONFIDENCE in labels:
             msg = "`low_confidence` is reserved for the fallback output."
@@ -113,13 +121,16 @@ class OpenAIDecisionsTextRouter:
         if answer.type != "choice":
             msg = f"Expected a choice answer for routing, got {answer.type!r}."
             raise ValueError(msg)
-        if (
-            self.min_confidence is not None
-            and answer.confidence is not None
-            and answer.confidence < self.min_confidence
-        ):
+        choice = answer.choice
+
+        if not isinstance(choice, str) or choice not in self.labels:
+            msg = f"Unexpected routing choice: {choice!r}"
+            raise ValueError(msg)
+
+        if self.min_confidence is not None and (answer.confidence is None or answer.confidence < self.min_confidence):
             return {_LOW_CONFIDENCE: text}
-        return {answer.choice: text}
+
+        return {choice: text}
 
     def run(self, text: str) -> dict[str, str]:
         """Route text to the selected label output."""

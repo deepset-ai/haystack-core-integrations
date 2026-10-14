@@ -19,6 +19,10 @@ from openai.types.decision_create_params import Question
 
 logger = logging.getLogger(__name__)
 
+_MAX_QUESTIONS = 200
+_MIN_CHOICES = 2
+_MAX_CHOICES = 255
+
 
 def _encode_image(image: ImageContent) -> str:
     """Convert a Haystack ImageContent value to a Decisions API inline data URL."""
@@ -31,8 +35,11 @@ def _encode_image(image: ImageContent) -> str:
         return f"data:{mime_type};base64,{payload}"
     url = getattr(image, "url", None)
     if url:
-        # The Decisions API only accepts inline base64 image payloads, not hosted URLs.
-        msg = "ImageContent.url is not supported by the Decisions API; supply base64 image data instead."
+        # This integration currently requires inline or local image data.
+        msg = (
+            "URL-backed ImageContent is not supported by this integration; "
+            "supply base64 image data or a local file path instead."
+        )
         raise ValueError(msg)
     file_path = getattr(image, "file_path", None)
     if file_path:
@@ -102,20 +109,60 @@ class OpenAIDecisionsDocumentClassifier:
         if not questions:
             msg = "`questions` must contain at least one question."
             raise ValueError(msg)
+
+        if len(questions) > _MAX_QUESTIONS:
+            msg = "`questions` cannot contain more than 200 questions."
+            raise ValueError(msg)
+
         supported = {"predicate", "choice", "score"}
+
         for name, question in questions.items():
             if question.get("type") not in supported:
                 msg = f"Question {name!r} must have type one of {sorted(supported)}."
                 raise ValueError(msg)
+
             if not question.get("instructions"):
                 msg = f"Question {name!r} needs `instructions`."
                 raise ValueError(msg)
-            if question["type"] == "choice" and not question.get("choices"):
-                msg = f"Choice question {name!r} needs `choices`."
-                raise ValueError(msg)
+
+            if question["type"] == "choice":
+                choices = question.get("choices")
+
+                if not isinstance(choices, list) or not choices:
+                    msg = f"Choice question {name!r} needs `choices`."
+                    raise ValueError(msg)
+
+                if not _MIN_CHOICES <= len(choices) <= _MAX_CHOICES:
+                    msg = f"Choice question {name!r} must have between 2 and 255 choices."
+                    raise ValueError(msg)
+
+                if not isinstance(choices, list) or not _MIN_CHOICES <= len(choices) <= _MAX_CHOICES:
+                    msg = f"Choice question {name!r} must have between 2 and 255 choices."
+                    raise ValueError(msg)
+
+                choice_values = []
+
+                for choice in choices:
+                    if not isinstance(choice, dict) or "value" not in choice:
+                        msg = f"Each choice in question {name!r} must define a `value`."
+                        raise ValueError(msg)
+
+                    value = choice["value"]
+
+                    if not isinstance(value, (str, bool)):
+                        msg = f"Choice values in question {name!r} must be strings or booleans."
+                        raise ValueError(msg)
+
+                    choice_values.append((type(value), value))
+
+                if len(set(choice_values)) != len(choice_values):
+                    msg = f"Choice question {name!r} must not contain duplicate values."
+                    raise ValueError(msg)
+
             if question["type"] == "score" and not question.get("levels"):
                 msg = f"Score question {name!r} needs `levels`."
                 raise ValueError(msg)
+
         self.questions = questions
         self.model = model
         self.api_key = api_key
@@ -170,10 +217,17 @@ class OpenAIDecisionsDocumentClassifier:
             questions=cast(list[Question], [{**question, "name": name} for name, question in self.questions.items()]),
         )
         answers: dict[str, Any] = {}
+
         for answer in response.answers:
+            if answer.type == "refusal":
+                msg = f"OpenAI Decisions refused question {answer.name!r}."
+                raise ValueError(msg)
+
             name = answer.name
+
             if name is None:
                 continue
+
             answers[name] = answer.model_dump(mode="json", exclude_none=True)
         meta = dict(document.meta)
         meta.pop("classification_error", None)

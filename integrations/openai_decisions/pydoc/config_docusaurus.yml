@@ -10,5 +10,5 @@ processors:
 renderer:
   description: OpenAI Decisions API integration for Haystack
   id: integrations-openai-decisions
-  filename: openai-decisions.md
+  filename: openai_decisions.md
   title: OpenAI Decisions API

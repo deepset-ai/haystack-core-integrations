@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from haystack import Document, Pipeline
 from haystack.core.serialization import component_from_dict
+from haystack.dataclasses import ImageContent
 
 from haystack_integrations.components.classifiers.openai_decisions import OpenAIDecisionsDocumentClassifier
 from haystack_integrations.components.routers.openai_decisions import OpenAIDecisionsTextRouter
@@ -111,6 +112,133 @@ def test_router_low_confidence_fallback():
 
 def test_router_rejects_invalid_input_and_labels():
     with pytest.raises(TypeError, match="expects a string"):
-        OpenAIDecisionsTextRouter(labels=["billing"]).run(123)
+        OpenAIDecisionsTextRouter(labels=["billing", "technical"]).run(123)
     with pytest.raises(ValueError, match="reserved"):
         OpenAIDecisionsTextRouter(labels=["low_confidence", "billing"])
+
+
+def test_classifier_marks_refusal_as_failed_document():
+    classifier = OpenAIDecisionsDocumentClassifier(questions=QUESTIONS)
+
+    decision = MagicMock(
+        answers=[
+            _answer("department", "choice", choice="billing"),
+            _answer("damaged", "refusal"),
+        ]
+    )
+
+    with patch(
+        "haystack_integrations.components.classifiers.openai_decisions.document_classifier.OpenAI"
+    ) as mock_openai:
+        mock_openai.return_value.decisions.create.return_value = decision
+
+        result = classifier.run([Document(content="I was charged twice")])
+
+    assert result["documents"] == []
+    assert len(result["failed_documents"]) == 1
+    assert "refused question" in result["failed_documents"][0].meta["classification_error"]
+
+
+def test_router_rejects_unexpected_choice():
+    router = OpenAIDecisionsTextRouter(labels=["billing", "technical"])
+    answer = _answer("route", "choice", choice="unknown")
+
+    with patch("haystack_integrations.components.routers.openai_decisions.text_router.OpenAI") as mock_openai:
+        mock_openai.return_value.decisions.create.return_value.answers = [answer]
+
+        with pytest.raises(ValueError, match="Unexpected routing choice"):
+            router.run("I need help")
+
+
+def test_router_routes_missing_confidence_to_fallback():
+    router = OpenAIDecisionsTextRouter(
+        labels=["billing", "technical"],
+        min_confidence=0.7,
+    )
+    answer = _answer("route", "choice", choice="billing", confidence=None)
+
+    with patch("haystack_integrations.components.routers.openai_decisions.text_router.OpenAI") as mock_openai:
+        mock_openai.return_value.decisions.create.return_value.answers = [answer]
+
+        assert router.run("I need help") == {"low_confidence": "I need help"}
+
+
+@pytest.mark.parametrize(
+    "choices",
+    [
+        [{"value": "billing"}],
+        [{"value": "billing"}, {"value": "billing"}],
+        [{"value": f"label-{i}"} for i in range(256)],
+    ],
+)
+def test_classifier_rejects_invalid_choice_lists(choices):
+    questions = {
+        "department": {
+            "type": "choice",
+            "instructions": "Choose a department",
+            "choices": choices,
+        }
+    }
+
+    with pytest.raises(ValueError):
+        OpenAIDecisionsDocumentClassifier(questions=questions)
+
+
+def test_classifier_rejects_more_than_200_questions():
+    questions = {
+        f"question_{i}": {
+            "type": "predicate",
+            "instructions": "Is this true?",
+        }
+        for i in range(201)
+    }
+
+    with pytest.raises(ValueError, match="more than 200"):
+        OpenAIDecisionsDocumentClassifier(questions=questions)
+
+
+def test_classifier_encodes_mixed_text_and_image_input():
+    classifier = OpenAIDecisionsDocumentClassifier(
+        questions=QUESTIONS,
+        classification_field="payload",
+    )
+
+    image = ImageContent(
+        base64_image="aGVsbG8=",
+        mime_type="image/png",
+    )
+
+    document = Document(
+        content="Inspect this image",
+        meta={
+            "payload": ["Inspect this image", image],
+        },
+    )
+
+    decision = MagicMock(answers=[])
+
+    with patch(
+        "haystack_integrations.components.classifiers.openai_decisions.document_classifier.OpenAI"
+    ) as mock_openai:
+        client = mock_openai.return_value
+        client.decisions.create.return_value = decision
+
+        classifier.run([document])
+
+    sent_input = client.decisions.create.call_args.kwargs["input"]
+
+    assert sent_input == [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "Inspect this image",
+                },
+                {
+                    "type": "input_image",
+                    "image_url": "data:image/png;base64,aGVsbG8=",
+                },
+            ],
+        }
+    ]
