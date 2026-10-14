@@ -163,7 +163,9 @@ class AmazonBedrockDocumentEmbedder:
         """
         texts_to_embed = []
         for doc in documents:
-            meta_values_to_embed = [str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key) is not None]
+            meta_values_to_embed = [
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key) is not None
+            ]
 
             text_to_embed = self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
 
