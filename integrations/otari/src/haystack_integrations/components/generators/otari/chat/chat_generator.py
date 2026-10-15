@@ -100,8 +100,9 @@ class OtariChatGenerator(OpenAIChatGenerator):
     receive usage.
 
     When the model reasons, for example with `generation_kwargs={"reasoning_effort": "low"}`, the reasoning is in the
-    `reasoning` of the reply and, when streaming, of the streamed chunks. The component sends it back with the
-    reply in later requests, which Anthropic models need to keep reasoning across tool calls.
+    `reasoning` of the reply and, when streaming, of the streamed chunks. If the gateway adds provider data that the
+    next request needs, such as Anthropic's thinking signature, the component sends the reasoning back with the reply
+    in later requests. Anthropic models need this to keep reasoning across tool calls.
 
     ### Usage example
 
@@ -282,13 +283,14 @@ class OtariChatGenerator(OpenAIChatGenerator):
         )
 
     def _convert_message_to_api_format(self, message: ChatMessage) -> dict[str, Any]:
-        """Convert a ChatMessage into the request format, sending an assistant reply's reasoning back to Otari."""
+        """Convert a ChatMessage into the request format, including an assistant reply's reasoning to replay."""
         formatted = message.to_openai_dict_format()
         reasoning = message.reasoning
+        # Only reasoning that comes with provider data to replay, such as Anthropic's thinking signature, goes back.
+        # Some providers reject reasoning in a request: Cohere answers it with a 400.
         if reasoning is not None and message.is_from(ChatRole.ASSISTANT):
-            if reasoning.reasoning_text:
-                formatted["reasoning"] = reasoning.reasoning_text
             if extra_content := reasoning.extra.get("extra_content"):
+                formatted["reasoning"] = reasoning.reasoning_text
                 formatted["extra_content"] = extra_content
         return formatted
 

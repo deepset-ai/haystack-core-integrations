@@ -171,6 +171,23 @@ class TestReasoning:
         assert "reasoning" not in sent[3]
         assert sent[0] == messages[0].to_openai_dict_format()
 
+    def test_run_does_not_send_back_reasoning_without_provider_data(self, generator):
+        # some providers, such as Cohere, reject reasoning in a request
+        messages = [
+            ChatMessage.from_user("What is 17 * 23?"),
+            ChatMessage.from_assistant("391", reasoning=ReasoningContent(reasoning_text="17 * 23 = 391")),
+            ChatMessage.from_user("Now add 9."),
+        ]
+        reply = ChatCompletionMessage(role="assistant", content="400")
+        with patch(
+            "openai.resources.chat.completions.Completions.create", return_value=_completion(reply)
+        ) as mock_create:
+            generator.run(messages)
+
+        sent = mock_create.call_args.kwargs["messages"]
+        assert sent[1] == messages[1].to_openai_dict_format()
+        assert "reasoning" not in sent[1]
+
 
 # "cohere" in the test names lets the CI step against otari.ai skip them, since that organization has no Cohere key
 class TestReasoningLive:
@@ -217,7 +234,8 @@ class TestReasoningLive:
         first = generator.run(messages)["replies"][0]
         assert first.reasoning is not None
 
-        # the reply goes back to the gateway with its reasoning
+        # Cohere's reasoning comes without provider data to replay, so it isn't sent back, which Cohere would reject
+        assert "extra_content" not in first.reasoning.extra
         second = generator.run([*messages, first, ChatMessage.from_user("Now add 9. Answer with the number only.")])
         assert "400" in second["replies"][0].text
 
