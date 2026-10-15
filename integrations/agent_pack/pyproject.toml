@@ -61,7 +61,7 @@ dependencies = [
     # deep_research agent
     "tavily-haystack>=0.4.0",
     # optional Haystack docs toolset for the harness optimizer agent
-    "mcp-haystack>=0.4.0",
+    "mcp-haystack>=1.2.0",
     # the examples build their evaluation corpus from a Hugging Face dataset
     "datasets",
     "trafilatura",

@@ -28,7 +28,7 @@ from haystack_integrations.agent_pack.optimization.utils import _configuration_i
 if TYPE_CHECKING:
     from haystack_integrations.tools.mcp import MCPToolset
 
-with LazyImport(message="Run 'pip install mcp-haystack'") as mcp_import:
+with LazyImport(message="Run 'pip install \"mcp-haystack>=1.2.0\"'") as mcp_import:
     from haystack_integrations.tools.mcp import MCPToolset, StreamableHttpServerInfo
 
 

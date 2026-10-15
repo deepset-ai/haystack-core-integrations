@@ -112,7 +112,7 @@ def create_harness_optimizer_agent(
     :param additional_instructions: Guidance appended to the system prompt about what a good configuration looks
         like for one specific harness.
     :param documentation_tools: Give the agent read-only search over the public Haystack documentation, so it can
-        look up a component's parameters and serialized shape. Requires `mcp-haystack`, and reaches the
+        look up a component's parameters and serialized shape. Requires `mcp-haystack>=1.2.0`, and reaches the
         documentation server over the network.
     :returns: The harness optimizer `Agent`. Its editing tools work on the `draft` and `known` state passed to `run`,
         and a run ends when the optimizer calls `submit_candidate` or `finish`. `propose_candidate` runs one turn
@@ -287,6 +287,7 @@ def _render_outcomes(history: list[CandidateOutcome]) -> str:
 
 
 def propose_candidate(
+    *,
     optimizer_agent: Agent,
     reference: Agent | Pipeline,
     reference_yaml: str,
