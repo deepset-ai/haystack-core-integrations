@@ -4,8 +4,8 @@
 
 | Name                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/websearch/serperdev/websearch.py |      112 |       22 |       34 |        3 |     72% |139-141, 224-225, 243-257, 267-270 |
-| **TOTAL**                                                              |  **112** |   **22** |   **34** |    **3** | **72%** |           |
+| src/haystack\_integrations/components/websearch/serperdev/websearch.py |      108 |       22 |       34 |        3 |     71% |126-128, 211-212, 230-244, 254-257 |
+| **TOTAL**                                                              |  **108** |   **22** |   **34** |    **3** | **71%** |           |
 
 
 ## Setup coverage badge
