@@ -30,7 +30,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest"]'
-  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+  TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
 
 jobs:
   compute-test-matrix:
@@ -45,7 +45,7 @@ jobs:
       - id: set
         run: |
           echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
-          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.11"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
 
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -76,7 +76,7 @@ jobs:
       - name: Install Hatch
         run: pip install --upgrade hatch
       - name: Lint
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Run unit tests
@@ -87,7 +87,7 @@ jobs:
 
       # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
-        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
         with:
           GITHUB_TOKEN: ${{ github.token }}
