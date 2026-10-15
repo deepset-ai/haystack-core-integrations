@@ -8,11 +8,6 @@ from botocore.exceptions import ClientError
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -1648,26 +1643,15 @@ class TestAmazonBedrockChatGeneratorInference:
             assert usage["cache_details"] == expected, f"Unexpected usage stats: {usage}"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS[:1])  # just one model is enough
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
-    def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
+    def test_agent_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
-        Test that the AmazonBedrockChatGenerator component can be used in a pipeline
+        Test that the AmazonBedrockChatGenerator component can drive tool calls in an Agent
         """
+        agent = Agent(chat_generator=AmazonBedrockChatGenerator(model=model_name), tools=tools)
+        result = agent.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
 
-        pipeline = Pipeline()
-        pipeline.add_component("generator", AmazonBedrockChatGenerator(model=model_name, tools=tools))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
-
-        pipeline.connect("generator", "tool_invoker")
-
-        results = pipeline.run(
-            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
-        )
-
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
+        tool_results = [msg.tool_call_result.result for msg in result["messages"] if msg.tool_call_result]
+        assert "The weather in Paris is sunny and 32°C" in tool_results
 
 
 # In the CI, those tests are skipped if AWS Authentication fails
