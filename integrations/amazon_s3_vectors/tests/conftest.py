@@ -12,35 +12,23 @@ The `document_store` fixture used by the Haystack base test mixins
 A single vector bucket is created per test session (creating buckets is the
 slow part). Each test gets its own vector index inside that shared bucket so
 state is isolated.
-
-One quirk of S3 Vectors is smoothed over here so the generic base tests can run
-unchanged: **writes are eventually consistent**. We sleep briefly after
-`write_documents` and `delete_documents` so the subsequent
-`filter_documents`/`count_documents` reflects the new state.
 """
 
 from __future__ import annotations
 
 import os
-import time
 import uuid
 from collections.abc import Iterator
 
 import boto3
 import pytest
 from botocore.exceptions import ClientError
-from haystack.dataclasses import Document
-from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
 
 # Dimension used by Haystack's `FilterableDocsFixtureMixin` test corpus.
 DIMENSION = 768
 REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-
-# Eventual-consistency budget for S3 Vectors write/delete propagation.
-WRITE_SLEEP_SECONDS = 5
-DELETE_SLEEP_SECONDS = 5
 
 
 def _aws_credentials_available() -> bool:
@@ -102,11 +90,7 @@ def s3_vectors_bucket() -> Iterator[str]:
 
 @pytest.fixture
 def document_store(s3_vectors_bucket: str) -> Iterator[S3VectorsDocumentStore]:
-    """
-    Provide a fresh S3VectorsDocumentStore (one per test), with `write_documents` and
-    `delete_documents` wrapped to sleep briefly afterwards so that S3 Vectors' eventual
-    consistency doesn't make the base tests flaky.
-    """
+    """Provide a fresh S3VectorsDocumentStore (one per test)."""
     index_name = f"idx-{uuid.uuid4().hex[:10]}"
 
     store = S3VectorsDocumentStore(
@@ -121,23 +105,6 @@ def document_store(s3_vectors_bucket: str) -> Iterator[S3VectorsDocumentStore]:
 
     # Eagerly create the index so the first write doesn't race with index creation.
     store._get_client()
-
-    original_write = store.write_documents
-
-    def write_with_sleep(documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.OVERWRITE) -> int:
-        result = original_write(documents, policy)
-        time.sleep(WRITE_SLEEP_SECONDS)
-        return result
-
-    store.write_documents = write_with_sleep  # type: ignore[method-assign]
-
-    original_delete = store.delete_documents
-
-    def delete_with_sleep(document_ids: list[str]) -> None:
-        original_delete(document_ids)
-        time.sleep(DELETE_SLEEP_SECONDS)
-
-    store.delete_documents = delete_with_sleep  # type: ignore[method-assign]
 
     yield store
 

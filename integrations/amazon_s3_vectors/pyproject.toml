@@ -7,7 +7,7 @@ name = "amazon-s3-vectors-haystack"
 dynamic = ["version"]
 description = "Haystack integration for amazon_s3_vectors"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = ["aws", "s3", "vectors", "document-store", "haystack", "vector-search"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,15 +15,15 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.26.1", "boto3>=1.42.0"]
+dependencies = ["haystack-ai>=3.0.0", "boto3>=1.43.31"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_s3_vectors#readme"
@@ -135,6 +135,7 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
+    "PLR0917",
     # Allow `Any` type - used legitimately for dynamic types and SDK boundaries
     "ANN401",
 ]
@@ -148,8 +149,6 @@ ban-relative-imports = "parents"
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, relative imports, and don't need type annotations
 "tests/**/*" = ["E501", "PLC0415", "PLR2004", "S101", "S110", "TID252", "D", "ANN"]
-# Examples can contain print statements and long lines
-"examples/**/*" = ["D", "T201", "E501"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

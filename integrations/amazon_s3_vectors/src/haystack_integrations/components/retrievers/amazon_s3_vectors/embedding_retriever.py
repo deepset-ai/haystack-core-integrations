@@ -20,8 +20,10 @@ class S3VectorsEmbeddingRetriever:
     Usage example:
     ```python
     from haystack import Document, Pipeline
-    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
     from haystack.document_stores.types import DuplicatePolicy
+    # Requires: pip install sentence-transformers-haystack
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
     from haystack_integrations.components.retrievers.amazon_s3_vectors import S3VectorsEmbeddingRetriever
     from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
 
@@ -115,7 +117,7 @@ class S3VectorsEmbeddingRetriever:
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
             the `filter_policy` chosen at retriever initialization. Filters are applied server-side during
             the vector search.
-        :param top_k: Maximum number of Documents to return. S3 Vectors caps this at 100.
+        :param top_k: Maximum number of Documents to return. S3 Vectors caps this at 10,000.
         :returns: A dictionary with key `"documents"` containing the retrieved Documents.
             Returned documents will not contain embeddings.
         """
@@ -128,3 +130,9 @@ class S3VectorsEmbeddingRetriever:
             top_k=top_k,
         )
         return {"documents": docs}
+
+    def close(self) -> None:
+        """
+        Release the resources of the underlying Document Store.
+        """
+        self.document_store.close()
