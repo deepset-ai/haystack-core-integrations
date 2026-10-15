@@ -123,8 +123,20 @@ def test_convert_message_to_llamacpp_format():
     }
 
 
+def test_convert_contentless_assistant_message_to_llamacpp_format():
+    # A Chat Generator that discards a malformed tool call returns a reply with no content parts
+    message = ChatMessage.from_assistant(text=None)
+    assert _convert_message_to_llamacpp_format(message) == {"role": "assistant", "content": ""}
+
+
+def test_convert_reasoning_only_assistant_message_to_llamacpp_format():
+    # Reasoning is not sent to llama.cpp, so a reply carrying only reasoning is sent with empty content
+    message = ChatMessage.from_assistant(reasoning="only reasoning")
+    assert _convert_message_to_llamacpp_format(message) == {"role": "assistant", "content": ""}
+
+
 def test_convert_message_to_llamacpp_invalid():
-    message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+    message = ChatMessage(_role=ChatRole.USER, _content=[])
     with pytest.raises(ValueError):
         _convert_message_to_llamacpp_format(message)
 
@@ -1071,6 +1083,19 @@ class TestRun:
         assert callback.counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
+
+    @pytest.mark.integration
+    def test_run_with_contentless_assistant_message(self, generator):
+        # The contentless assistant message mimics a reply whose only tool call was discarded
+        messages = [
+            ChatMessage.from_user("What's the capital of France?"),
+            ChatMessage.from_assistant(text=None),
+            ChatMessage.from_user("Answer in a single word."),
+        ]
+        result = generator.run(messages)
+
+        assert len(result["replies"]) == 1
+        assert "paris" in result["replies"][0].text.lower()
 
     @pytest.mark.integration
     def test_run_rag_pipeline(self, generator):
