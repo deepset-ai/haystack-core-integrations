@@ -365,6 +365,11 @@ integration:orcarouter:
       - any-glob-to-any-file: "integrations/orcarouter/**/*"
       - any-glob-to-any-file: ".github/workflows/orcarouter.yml"
 
+integration:otari:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/otari/**/*"
+      - any-glob-to-any-file: ".github/workflows/otari.yml"
+
 integration:paddleocr:
   - changed-files:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
