@@ -29,5 +29,5 @@ and the API root of your account's region as `OTARI_API_BASE_URL`, for example `
 run:
 
 ```bash
-hatch run test:integration -k "chat_generator or embedder"
+hatch run test:integration -k "(chat_generator or embedder) and not cohere"
 ```

@@ -27,6 +27,10 @@ services:
             input_price_per_million: 2000
             output_price_per_million: 0
             unit: requests
+          # Cohere's reasoning model for the reasoning tests, at Cohere's list price
+          cohere:command-a-reasoning-08-2025:
+            input_price_per_million: 2.50
+            output_price_per_million: 10.00
         # The API key the tests send
         api_keys:
           haystack-tests:

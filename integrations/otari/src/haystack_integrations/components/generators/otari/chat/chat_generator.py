@@ -2,13 +2,34 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
+from dataclasses import replace
 from typing import Any
 
 from haystack import component
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingCallbackT
+from haystack.components.generators.chat.openai import (
+    _check_finish_reason,
+    _convert_chat_completion_chunk_to_streaming_chunk,
+    _convert_chat_completion_to_chat_message,
+)
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    ComponentInfo,
+    ReasoningContent,
+    StreamingCallbackT,
+    StreamingChunk,
+    SyncStreamingCallbackT,
+    select_streaming_callback,
+)
+from haystack.dataclasses.streaming_chunk import _invoke_streaming_callback
 from haystack.tools import ToolsType
 from haystack.utils.auth import Secret
+from openai import AsyncStream, Stream
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ParsedChatCompletion
+from openai.types.chat.chat_completion import Choice
 
 from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
 
@@ -24,6 +45,36 @@ _INIT_PARAMETERS: tuple[str, ...] = (
     "max_retries",
     "http_client_kwargs",
 )
+
+
+def _reasoning_content(message_or_delta: Any) -> ReasoningContent | None:
+    """
+    Read the reasoning that Otari adds to a response message or a streamed delta.
+
+    Otari sends the reasoning as `reasoning`, a plain string, and provider data that has to be sent back on the next
+    request, such as Anthropic's thinking signature, as `extra_content`.
+    """
+    reasoning = getattr(message_or_delta, "reasoning", None)
+    if isinstance(reasoning, dict):
+        reasoning = reasoning.get("content")
+    reasoning_text = reasoning if isinstance(reasoning, str) else ""
+    extra_content = getattr(message_or_delta, "extra_content", None)
+    if not isinstance(extra_content, dict):
+        extra_content = {}
+    if not reasoning_text and not extra_content:
+        return None
+    return ReasoningContent(
+        reasoning_text=reasoning_text, extra={"extra_content": extra_content} if extra_content else {}
+    )
+
+
+def _merge_extra_content(total: dict[str, Any], extra_content: dict[str, Any]) -> None:
+    """Merge the `extra_content` of one streamed delta into the total, per provider namespace."""
+    for namespace, values in extra_content.items():
+        if isinstance(values, dict) and isinstance(total.get(namespace), dict):
+            total[namespace] = {**total[namespace], **values}
+        else:
+            total[namespace] = values
 
 
 @component
@@ -47,6 +98,10 @@ class OtariChatGenerator(OpenAIChatGenerator):
     When the gateway prices a request, `meta["usage"]` of the reply contains its cost in US dollars as `cost_usd`,
     and `pricing_source`. When streaming, pass `generation_kwargs={"stream_options": {"include_usage": True}}` to
     receive usage.
+
+    When the model reasons, for example with `generation_kwargs={"reasoning_effort": "low"}`, the reasoning is in the
+    `reasoning` of the reply and, when streaming, of the streamed chunks. The component sends it back with the
+    reply in later requests, which Anthropic models need to keep reasoning across tool calls.
 
     ### Usage example
 
@@ -175,3 +230,287 @@ class OtariChatGenerator(OpenAIChatGenerator):
             key: value for key, value in data["init_parameters"].items() if key in _INIT_PARAMETERS
         }
         return data
+
+    def _convert_chat_completion_to_chat_message(
+        self, completion: ChatCompletion | ParsedChatCompletion, choice: Choice
+    ) -> ChatMessage:
+        """Convert a choice of a chat completion into a ChatMessage, including Otari's reasoning."""
+        message = _convert_chat_completion_to_chat_message(completion=completion, choice=choice)
+        reasoning = _reasoning_content(choice.message)
+        if reasoning is None:
+            return message
+        return ChatMessage.from_assistant(
+            text=message.text, meta=message.meta, name=message.name, tool_calls=message.tool_calls, reasoning=reasoning
+        )
+
+    def _convert_chat_completion_chunk_to_streaming_chunk(
+        self,
+        chunk: ChatCompletionChunk,
+        previous_chunks: list[StreamingChunk],
+        component_info: ComponentInfo | None = None,
+    ) -> StreamingChunk:
+        """Convert a streamed chunk into a StreamingChunk, including Otari's reasoning."""
+        streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
+            chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
+        )
+        reasoning = _reasoning_content(chunk.choices[0].delta) if chunk.choices else None
+        # a StreamingChunk holds one kind of content, and Otari streams reasoning and text in separate deltas
+        if reasoning is not None and not streaming_chunk.content and not streaming_chunk.tool_calls:
+            # print_streaming_chunk prints its reasoning header on the first reasoning chunk
+            start = not any(previous.reasoning for previous in previous_chunks)
+            return replace(streaming_chunk, reasoning=reasoning, index=0, start=start)
+        if streaming_chunk.content and any(previous.reasoning for previous in previous_chunks):
+            # after reasoning, the parent no longer marks the first text chunk as the start of the text
+            return replace(streaming_chunk, start=not any(previous.content for previous in previous_chunks))
+        return streaming_chunk
+
+    def _convert_streaming_chunks_to_chat_message(self, chunks: list[StreamingChunk]) -> ChatMessage:
+        """Combine streamed chunks into a ChatMessage, keeping the `extra_content` that goes with the reasoning."""
+        message = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+        extra_content: dict[str, Any] = {}
+        for chunk in chunks:
+            if chunk.reasoning and (chunk_extra_content := chunk.reasoning.extra.get("extra_content")):
+                _merge_extra_content(extra_content, chunk_extra_content)
+        if not extra_content:
+            return message
+        reasoning = ReasoningContent(
+            reasoning_text=message.reasoning.reasoning_text if message.reasoning else "",
+            extra={"extra_content": extra_content},
+        )
+        return ChatMessage.from_assistant(
+            text=message.text, meta=message.meta, name=message.name, tool_calls=message.tool_calls, reasoning=reasoning
+        )
+
+    def _convert_message_to_api_format(self, message: ChatMessage) -> dict[str, Any]:
+        """Convert a ChatMessage into the request format, sending an assistant reply's reasoning back to Otari."""
+        formatted = message.to_openai_dict_format()
+        reasoning = message.reasoning
+        if reasoning is not None and message.is_from(ChatRole.ASSISTANT):
+            if reasoning.reasoning_text:
+                formatted["reasoning"] = reasoning.reasoning_text
+            if extra_content := reasoning.extra.get("extra_content"):
+                formatted["extra_content"] = extra_content
+        return formatted
+
+    # Bridge for haystack-ai < 3.5, whose OpenAIChatGenerator doesn't call the four conversion methods above.
+    # The methods below are copied from OpenAIChatGenerator on Haystack main, except that _prepare_api_call reformats
+    # the messages. Remove them once the minimum haystack-ai version is 3.5.
+
+    def _prepare_api_call(
+        self,
+        *,
+        messages: list[ChatMessage],
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        tools: ToolsType | None = None,
+        tools_strict: bool | None = None,
+    ) -> dict[str, Any]:
+        api_args = super(OtariChatGenerator, self)._prepare_api_call(  # noqa: UP008
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+        api_args["messages"] = [self._convert_message_to_api_format(message) for message in messages]
+        return api_args
+
+    @component.output_types(replies=list[ChatMessage])
+    def run(
+        self,
+        messages: list[ChatMessage] | str,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        *,
+        tools: ToolsType | None = None,
+        tools_strict: bool | None = None,
+    ) -> dict[str, list[ChatMessage]]:
+        """
+        Invokes chat completion based on the provided messages and generation parameters.
+
+        :param messages:
+            A list of ChatMessage instances representing the input messages. If a string is provided, it is converted
+            to a list containing a ChatMessage with user role.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set
+            only at initialization are kept.
+        :param tools:
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter provided during initialization.
+        :param tools_strict:
+            Whether to enable strict schema adherence for tool calls. If set to `True`, the model will follow exactly
+            the schema provided in the `parameters` field of the tool definition, but this may increase latency.
+            If set, it will override the `tools_strict` parameter set during component initialization.
+
+        :returns:
+            A dictionary with the following key:
+            - `replies`: A list containing the generated responses as ChatMessage instances, including the
+              model's reasoning when it returns any.
+        """
+        self.warm_up()
+
+        messages = _normalize_messages(messages)
+
+        if len(messages) == 0:
+            return {"replies": []}
+
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
+        )
+        chat_completion: Stream[ChatCompletionChunk] | ChatCompletion | ParsedChatCompletion
+
+        api_args = self._prepare_api_call(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+        openai_endpoint = api_args.pop("openai_endpoint")
+        assert self.client is not None  # noqa: S101 # mypy: client is built by warm_up above
+        openai_endpoint_method = getattr(self.client.chat.completions, openai_endpoint)
+        chat_completion = openai_endpoint_method(**api_args)
+
+        if streaming_callback is not None:
+            completions = self._handle_stream_response(
+                # we cannot check isinstance(chat_completion, Stream) because some observability tools wrap Stream
+                # and return a different type. See https://github.com/deepset-ai/haystack/issues/9014.
+                chat_completion,  # type: ignore[arg-type]
+                streaming_callback,
+            )
+
+        else:
+            assert isinstance(chat_completion, ChatCompletion), "Unexpected response type for non-streaming request."  # noqa: S101
+            completions = [
+                self._convert_chat_completion_to_chat_message(completion=chat_completion, choice=choice)
+                for choice in chat_completion.choices
+            ]
+
+        # before returning, do post-processing of the completions
+        for message in completions:
+            _check_finish_reason(message.meta)
+
+        return {"replies": completions}
+
+    @component.output_types(replies=list[ChatMessage])
+    async def run_async(
+        self,
+        messages: list[ChatMessage] | str,
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        *,
+        tools: ToolsType | None = None,
+        tools_strict: bool | None = None,
+    ) -> dict[str, list[ChatMessage]]:
+        """
+        Asynchronously invokes chat completion based on the provided messages and generation parameters.
+
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
+
+        :param messages:
+            A list of ChatMessage instances representing the input messages. If a string is provided, it is converted
+            to a list containing a ChatMessage with user role.
+        :param streaming_callback:
+            A callback function that is called when a new token is received from the stream. Async callbacks are
+            preferred; a sync callback is accepted but will run synchronously on the event loop and may block it.
+        :param generation_kwargs:
+            Additional keyword arguments for text generation. These are merged per key with the
+            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set
+            only at initialization are kept.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter provided during initialization.
+        :param tools_strict:
+            Whether to enable strict schema adherence for tool calls. If set to `True`, the model will follow exactly
+            the schema provided in the `parameters` field of the tool definition, but this may increase latency.
+            If set, it will override the `tools_strict` parameter set during component initialization.
+
+        :returns:
+            A dictionary with the following key:
+            - `replies`: A list containing the generated responses as ChatMessage instances, including the
+              model's reasoning when it returns any.
+        """
+        await self.warm_up_async()
+
+        messages = _normalize_messages(messages)
+
+        # validate and select the streaming callback
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
+        )
+        chat_completion: AsyncStream[ChatCompletionChunk] | ChatCompletion | ParsedChatCompletion
+
+        if len(messages) == 0:
+            return {"replies": []}
+
+        api_args = self._prepare_api_call(
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+
+        openai_endpoint = api_args.pop("openai_endpoint")
+        assert self.async_client is not None  # noqa: S101 # mypy: async_client is built by warm_up_async above
+        openai_endpoint_method = getattr(self.async_client.chat.completions, openai_endpoint)
+        chat_completion = await openai_endpoint_method(**api_args)
+
+        if streaming_callback is not None:
+            completions = await self._handle_async_stream_response(
+                # we cannot check isinstance(chat_completion, AsyncStream) because some observability tools wrap
+                # AsyncStream and return a different type. See https://github.com/deepset-ai/haystack/issues/9014.
+                chat_completion,  # type: ignore[arg-type]
+                streaming_callback,
+            )
+
+        else:
+            assert isinstance(chat_completion, ChatCompletion), "Unexpected response type for non-streaming request."  # noqa: S101
+            completions = [
+                self._convert_chat_completion_to_chat_message(completion=chat_completion, choice=choice)
+                for choice in chat_completion.choices
+            ]
+
+        # before returning, do post-processing of the completions
+        for message in completions:
+            _check_finish_reason(message.meta)
+
+        return {"replies": completions}
+
+    def _handle_stream_response(self, chat_completion: Stream, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
+        component_info = ComponentInfo.from_component(self)
+        chunks: list[StreamingChunk] = []
+        for chunk in chat_completion:
+            assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."  # noqa: S101
+            chunk_delta = self._convert_chat_completion_chunk_to_streaming_chunk(
+                chunk=chunk, previous_chunks=chunks, component_info=component_info
+            )
+            chunks.append(chunk_delta)
+            callback(chunk_delta)
+        return [self._convert_streaming_chunks_to_chat_message(chunks=chunks)]
+
+    async def _handle_async_stream_response(
+        self, chat_completion: AsyncStream, callback: StreamingCallbackT
+    ) -> list[ChatMessage]:
+        component_info = ComponentInfo.from_component(self)
+        chunks: list[StreamingChunk] = []
+        try:
+            async for chunk in chat_completion:
+                assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."  # noqa: S101
+                chunk_delta = self._convert_chat_completion_chunk_to_streaming_chunk(
+                    chunk=chunk, previous_chunks=chunks, component_info=component_info
+                )
+                chunks.append(chunk_delta)
+                await _invoke_streaming_callback(callback, chunk_delta)
+
+        except asyncio.CancelledError:
+            await asyncio.shield(chat_completion.close())
+            # close the stream when task is cancelled
+            # asyncio.shield ensures the close operation completes
+            # https://docs.python.org/3/library/asyncio-task.html#shielding-from-cancellation
+            raise  # Re-raise to propagate cancellation
+
+        return [self._convert_streaming_chunks_to_chat_message(chunks=chunks)]
