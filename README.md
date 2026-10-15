@@ -9,7 +9,7 @@
 | src/haystack\_integrations/components/embedders/cohere/embedding\_types.py          |       17 |        3 |        2 |        1 |     79% | 25, 35-36 |
 | src/haystack\_integrations/components/embedders/cohere/text\_embedder.py            |       54 |        9 |        6 |        1 |     83% |109-\>exit, 169-181, 202-215 |
 | src/haystack\_integrations/components/embedders/cohere/utils.py                     |       30 |       13 |       16 |        2 |     50% |60-\>58, 64, 97-124 |
-| src/haystack\_integrations/components/generators/cohere/chat/chat\_generator.py     |      267 |       61 |      122 |       25 |     72% |60, 80-83, 95, 103-110, 134-\>131, 142-155, 175-\>181, 177-\>176, 183-190, 194-\>196, 204, 246-250, 253-\>256, 260-\>318, 263-\>318, 266-\>318, 270-\>318, 285-\>318, 287-\>318, 298-302, 379-407, 596, 619, 695-696, 705-712, 764-765, 774-781 |
+| src/haystack\_integrations/components/generators/cohere/chat/chat\_generator.py     |      267 |       61 |      122 |       25 |     72% |60, 80-83, 95, 103-110, 134-\>131, 142-155, 175-\>181, 177-\>176, 183-190, 194-\>196, 204, 246-250, 253-\>256, 260-\>318, 263-\>318, 266-\>318, 270-\>318, 285-\>318, 287-\>318, 298-302, 379-407, 586, 609, 685-686, 695-702, 754-755, 764-771 |
 | src/haystack\_integrations/components/rankers/cohere/ranker.py                      |       73 |        2 |       14 |        1 |     97% |   152-157 |
 | src/haystack\_integrations/utils/cohere/api\_base\_url.py                           |       11 |        0 |        2 |        0 |    100% |           |
 | **TOTAL**                                                                           |  **642** |   **89** |  **204** |   **31** | **82%** |           |
