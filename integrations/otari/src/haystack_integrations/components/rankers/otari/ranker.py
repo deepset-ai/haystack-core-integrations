@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 from haystack import Document, component
 from haystack.utils import Secret
-from haystack.utils.http_client import init_http_client
+from haystack.utils.requests_utils import async_request_with_retry, request_with_retry
 
 from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
 
@@ -54,7 +54,8 @@ class OtariRanker:
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
         max_tokens_per_doc: int | None = None,
-        http_client_kwargs: dict[str, Any] | None = None,
+        timeout: float = 30.0,
+        max_retries: int = 3,
     ) -> None:
         """
         Creates an instance of OtariRanker.
@@ -74,9 +75,9 @@ class OtariRanker:
         :param meta_data_separator: Separator used to concatenate the meta fields to the document content.
         :param max_tokens_per_doc: The maximum number of tokens of each document that the model considers.
             Longer documents are truncated. If `None`, the provider's default applies.
-        :param http_client_kwargs: A dictionary of keyword arguments to configure a custom `httpx.Client` or
-            `httpx.AsyncClient`. For more information, see the
-            [HTTPX documentation](https://www.python-httpx.org/api/#client).
+        :param timeout: The timeout for each request to the gateway, in seconds.
+        :param max_retries: The maximum number of retries after a failed request. Requests are retried on timeouts,
+            connection errors, and the HTTP status codes 408, 418, 429, and 503.
 
         :raises ValueError: If `top_k` is not > 0.
         """
@@ -92,58 +93,27 @@ class OtariRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
         self.max_tokens_per_doc = max_tokens_per_doc
-        self.http_client_kwargs = http_client_kwargs
+        self.timeout = timeout
+        self.max_retries = max_retries
 
-        self._client: httpx.Client | None = None
-        self._async_client: httpx.AsyncClient | None = None
+        self._region_checked = False
 
-    def _client_kwargs(self) -> dict[str, Any]:
-        """Build the keyword arguments used to create HTTP clients."""
-        headers = httpx.Headers((self.http_client_kwargs or {}).get("headers"))
-        headers["Content-Type"] = "application/json"
-        headers["Authorization"] = f"Bearer {self.api_key.resolve_value()}"
-
-        client_kwargs = self.http_client_kwargs.copy() if self.http_client_kwargs else {}
-        client_kwargs["headers"] = headers
-        return client_kwargs
-
-    def warm_up(self) -> None:
-        """
-        Create the synchronous HTTP client.
-
-        Logs a warning if the API key belongs to otari.ai's EU region but `api_base_url` is left at its default.
-        """
-        if self._client is None:
-            client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=False)
-            # init_http_client returns None only when it gets no kwargs, and _client_kwargs always sets headers
-            assert client is not None  # noqa: S101
-            self._client = client
+    def _headers(self) -> dict[str, str]:
+        """Build the request headers, and warn once if an EU key meets the default URL."""
+        if not self._region_checked:
             _warn_if_eu_key_on_default_url(self.api_key, self.api_base_url)
+            self._region_checked = True
+        return {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key.resolve_value()}"}
 
-    async def warm_up_async(self) -> None:
-        """
-        Create the asynchronous HTTP client.
-
-        Logs a warning if the API key belongs to otari.ai's EU region but `api_base_url` is left at its default.
-        """
-        if self._async_client is None:
-            client = init_http_client(http_client_kwargs=self._client_kwargs(), async_client=True)
-            # init_http_client returns None only when it gets no kwargs, and _client_kwargs always sets headers
-            assert client is not None  # noqa: S101
-            self._async_client = client
-            _warn_if_eu_key_on_default_url(self.api_key, self.api_base_url)
-
-    def close(self) -> None:
-        """Close the synchronous HTTP client."""
-        if self._client is not None:
-            self._client.close()
-            self._client = None
-
-    async def close_async(self) -> None:
-        """Close the asynchronous HTTP client."""
-        if self._async_client is not None:
-            await self._async_client.aclose()
-            self._async_client = None
+    def _request_kwargs(self, body: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "method": "POST",
+            "url": f"{self.api_base_url.rstrip('/')}/rerank",
+            "json": body,
+            "headers": self._headers(),
+            "timeout": self.timeout,
+            "attempts": self.max_retries + 1,
+        }
 
     def _prepare_texts(self, documents: list[Document]) -> list[str]:
         """Concatenate each Document's text with the selected meta fields."""
@@ -225,17 +195,17 @@ class OtariRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         :raises RuntimeError: If the gateway returns an error.
+        :raises httpx.RequestError: If the request still fails to reach the gateway after all retries.
         """
         if not documents:
             return {"documents": [], "meta": {}}
 
         top_k, score_threshold = self._resolve_run_params(top_k, score_threshold)
-
-        self.warm_up()
-        assert self._client is not None  # noqa: S101
-
         body = self._prepare_request(query, documents, top_k)
-        response = self._client.post(f"{self.api_base_url.rstrip('/')}/rerank", json=body)
+        try:
+            response = request_with_retry(**self._request_kwargs(body))
+        except httpx.HTTPStatusError as e:
+            response = e.response
         return self._parse_response(response, documents, score_threshold)
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
@@ -260,15 +230,15 @@ class OtariRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         :raises RuntimeError: If the gateway returns an error.
+        :raises httpx.RequestError: If the request still fails to reach the gateway after all retries.
         """
         if not documents:
             return {"documents": [], "meta": {}}
 
         top_k, score_threshold = self._resolve_run_params(top_k, score_threshold)
-
-        await self.warm_up_async()
-        assert self._async_client is not None  # noqa: S101
-
         body = self._prepare_request(query, documents, top_k)
-        response = await self._async_client.post(f"{self.api_base_url.rstrip('/')}/rerank", json=body)
+        try:
+            response = await async_request_with_retry(**self._request_kwargs(body))
+        except httpx.HTTPStatusError as e:
+            response = e.response
         return self._parse_response(response, documents, score_threshold)

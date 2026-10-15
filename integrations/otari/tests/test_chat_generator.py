@@ -106,7 +106,7 @@ class TestOtariChatGenerator:
         data = OtariChatGenerator().to_dict()
 
         assert data["type"] == COMPONENT_TYPE
-        # the OpenAI-only organization and tools_strict parameters of the parent are not serialized
+        # the OpenAI-only organization parameter of the parent is not serialized
         assert data["init_parameters"] == {
             "api_key": {"env_vars": ["OTARI_API_KEY"], "strict": True, "type": "env_var"},
             "model": DEFAULT_MODEL,
@@ -116,6 +116,7 @@ class TestOtariChatGenerator:
             "timeout": None,
             "max_retries": None,
             "tools": None,
+            "tools_strict": False,
             "http_client_kwargs": None,
         }
 
@@ -127,6 +128,7 @@ class TestOtariChatGenerator:
             streaming_callback=print_streaming_chunk,
             api_base_url="http://localhost:8000/api/v1",
             generation_kwargs={"max_tokens": 10, "response_format": CalendarEvent},
+            tools_strict=True,
             timeout=10,
             max_retries=10,
             http_client_kwargs={"proxy": "http://localhost:8080"},
@@ -137,6 +139,7 @@ class TestOtariChatGenerator:
         assert init_parameters["model"] == "openai:gpt-5"
         assert init_parameters["streaming_callback"] == "haystack.components.generators.utils.print_streaming_chunk"
         assert init_parameters["api_base_url"] == "http://localhost:8000/api/v1"
+        assert init_parameters["tools_strict"] is True
         assert init_parameters["timeout"] == 10
         assert init_parameters["max_retries"] == 10
         assert init_parameters["http_client_kwargs"] == {"proxy": "http://localhost:8080"}
@@ -161,6 +164,7 @@ class TestOtariChatGenerator:
                     "timeout": 10,
                     "max_retries": 10,
                     "tools": None,
+                    "tools_strict": True,
                     "http_client_kwargs": {"proxy": "http://localhost:8080"},
                 },
             }
@@ -174,6 +178,7 @@ class TestOtariChatGenerator:
         assert component.timeout == 10
         assert component.max_retries == 10
         assert component.tools is None
+        assert component.tools_strict is True
         assert component.http_client_kwargs == {"proxy": "http://localhost:8080"}
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):
@@ -294,6 +299,17 @@ class TestOtariChatGenerator:
         assert final_message.is_from(ChatRole.ASSISTANT)
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    @requires_api_key
+    @pytest.mark.integration
+    def test_live_run_with_strict_tools(self, tools):
+        component = OtariChatGenerator(api_base_url=OTARI_API_BASE_URL, tools=tools, tools_strict=True)
+        results = component.run([ChatMessage.from_user("What's the weather like in Paris?")])
+
+        tool_message = results["replies"][0]
+        assert tool_message.meta["finish_reason"] == "tool_calls"
+        assert tool_message.tool_call.tool_name == "weather"
+        assert tool_message.tool_call.arguments == {"city": "Paris"}
 
     @requires_api_key
     @pytest.mark.integration

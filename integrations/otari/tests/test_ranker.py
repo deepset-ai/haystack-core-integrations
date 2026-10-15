@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -34,6 +34,10 @@ def docs():
     ]
 
 
+SYNC_HELPER = "haystack_integrations.components.rankers.otari.ranker.request_with_retry"
+ASYNC_HELPER = "haystack_integrations.components.rankers.otari.ranker.async_request_with_retry"
+
+
 class TestInitializationAndSerialization:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("OTARI_API_KEY", "test-api-key")
@@ -46,7 +50,8 @@ class TestInitializationAndSerialization:
         assert ranker.meta_fields_to_embed == []
         assert ranker.meta_data_separator == "\n"
         assert ranker.max_tokens_per_doc is None
-        assert ranker.http_client_kwargs is None
+        assert ranker.timeout == 30.0
+        assert ranker.max_retries == 3
 
     def test_init_invalid_top_k(self):
         with pytest.raises(ValueError, match="top_k must be > 0"):
@@ -65,7 +70,8 @@ class TestInitializationAndSerialization:
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
                 "max_tokens_per_doc": None,
-                "http_client_kwargs": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
 
@@ -80,7 +86,8 @@ class TestInitializationAndSerialization:
             meta_fields_to_embed=["title"],
             meta_data_separator=" | ",
             max_tokens_per_doc=512,
-            http_client_kwargs={"timeout": 30},
+            timeout=5.0,
+            max_retries=1,
         )
         restored = component_from_dict(OtariRanker, component_to_dict(ranker, "ranker"), "ranker")
         assert restored.model == "voyage:rerank-2.5"
@@ -91,96 +98,67 @@ class TestInitializationAndSerialization:
         assert restored.meta_fields_to_embed == ["title"]
         assert restored.meta_data_separator == " | "
         assert restored.max_tokens_per_doc == 512
-        assert restored.http_client_kwargs == {"timeout": 30}
+        assert restored.timeout == 5.0
+        assert restored.max_retries == 1
 
 
-class TestComponentLifecycle:
-    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+class TestRequests:
+    def test_key_resolved_at_run_not_init(self, monkeypatch, docs):
         monkeypatch.delenv("OTARI_API_KEY", raising=False)
         ranker = OtariRanker()
 
         with pytest.raises(ValueError, match="OTARI_API_KEY"):
-            ranker.warm_up()
+            ranker.run(query="q", documents=docs)
 
-    def test_sync_lifecycle(self):
-        client = MagicMock(spec=httpx.Client)
-        ranker = OtariRanker(api_key=Secret.from_token("test-api-key"), http_client_kwargs={"headers": {"X-A": "b"}})
+    def test_request_uses_timeout_retries_and_headers(self, docs):
+        ranker = OtariRanker(api_key=Secret.from_token("test-api-key"), timeout=5.0, max_retries=2)
+        with patch(SYNC_HELPER, return_value=_rerank_response([{"index": 0, "relevance_score": 0.5}])) as helper:
+            ranker.run(query="q", documents=docs)
 
-        with patch(
-            "haystack_integrations.components.rankers.otari.ranker.init_http_client", return_value=client
-        ) as mock_init:
-            ranker.warm_up()
-            assert ranker._client is client
-            assert ranker._async_client is None
-            headers = mock_init.call_args.kwargs["http_client_kwargs"]["headers"]
-            assert headers["Authorization"] == "Bearer test-api-key"
-            # headers passed in http_client_kwargs are kept
-            assert headers["X-A"] == "b"
-            ranker.close()
-            client.close.assert_called_once_with()
-            assert ranker._client is None
-            ranker.warm_up()
-            assert mock_init.call_count == 2
+        kwargs = helper.call_args.kwargs
+        assert kwargs["method"] == "POST"
+        assert kwargs["url"] == "https://api.otari.ai/api/v1/rerank"
+        assert kwargs["timeout"] == 5.0
+        # max_retries counts the retries after the first attempt
+        assert kwargs["attempts"] == 3
+        assert kwargs["headers"] == {"Content-Type": "application/json", "Authorization": "Bearer test-api-key"}
+
+    def test_http_status_error_raises_runtime_error_with_detail(self, docs):
+        request = httpx.Request("POST", "https://api.otari.ai/api/v1/rerank")
+        response = httpx.Response(401, json={"detail": "Invalid API key"}, request=request)
+        error = httpx.HTTPStatusError("401", request=request, response=response)
+        ranker = OtariRanker(api_key=Secret.from_token("test-api-key"))
+        with patch(SYNC_HELPER, side_effect=error), pytest.raises(RuntimeError, match="401: Invalid API key"):
+            ranker.run(query="q", documents=docs)
 
     @pytest.mark.asyncio
-    async def test_async_lifecycle(self):
-        client = MagicMock(spec=httpx.AsyncClient)
-        client.aclose = AsyncMock()
+    async def test_http_status_error_raises_runtime_error_with_detail_async(self, docs):
+        request = httpx.Request("POST", "https://api.otari.ai/api/v1/rerank")
+        response = httpx.Response(429, json={"detail": "Rate limit exceeded"}, request=request)
+        error = httpx.HTTPStatusError("429", request=request, response=response)
         ranker = OtariRanker(api_key=Secret.from_token("test-api-key"))
+        with (
+            patch(ASYNC_HELPER, new_callable=AsyncMock, side_effect=error),
+            pytest.raises(RuntimeError, match="429: Rate limit exceeded"),
+        ):
+            await ranker.run_async(query="q", documents=docs)
 
-        with patch(
-            "haystack_integrations.components.rankers.otari.ranker.init_http_client", return_value=client
-        ) as mock_init:
-            await ranker.warm_up_async()
-            assert ranker._async_client is client
-            assert ranker._client is None
-            await ranker.close_async()
-            client.aclose.assert_awaited_once_with()
-            assert ranker._async_client is None
-            await ranker.warm_up_async()
-            assert mock_init.call_count == 2
-
-    def test_warm_up_is_idempotent(self):
-        ranker = OtariRanker(api_key=Secret.from_token("test-api-key"))
-        with patch(
-            "haystack_integrations.components.rankers.otari.ranker.init_http_client",
-            return_value=MagicMock(spec=httpx.Client),
-        ) as mock_init:
-            ranker.warm_up()
-            ranker.warm_up()
-            mock_init.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_warm_up_async_is_idempotent(self):
-        ranker = OtariRanker(api_key=Secret.from_token("test-api-key"))
-        with patch(
-            "haystack_integrations.components.rankers.otari.ranker.init_http_client",
-            return_value=MagicMock(spec=httpx.AsyncClient),
-        ) as mock_init:
-            await ranker.warm_up_async()
-            await ranker.warm_up_async()
-            mock_init.assert_called_once()
-
-    def test_warm_up_warns_once_about_eu_key_on_default_url(self, caplog):
-        component = OtariRanker(api_key=Secret.from_token("otk_v1_eu_test"))
-        component.warm_up()
-        component.warm_up()
+    def test_warns_once_about_eu_key_on_default_url(self, caplog, docs):
+        ranker = OtariRanker(api_key=Secret.from_token("otk_v1_eu_test"))
+        with patch(SYNC_HELPER, return_value=_rerank_response([{"index": 0, "relevance_score": 0.5}])):
+            ranker.run(query="q", documents=docs)
+            ranker.run(query="q", documents=docs)
         assert caplog.text.count("belongs to otari.ai's EU region") == 1
 
     @pytest.mark.asyncio
-    async def test_warm_up_async_warns_once_about_eu_key_on_default_url(self, caplog):
-        component = OtariRanker(api_key=Secret.from_token("otk_v1_eu_test"))
-        await component.warm_up_async()
-        await component.warm_up_async()
+    async def test_warns_once_about_eu_key_on_default_url_async(self, caplog, docs):
+        ranker = OtariRanker(api_key=Secret.from_token("otk_v1_eu_test"))
+        with patch(
+            ASYNC_HELPER, new_callable=AsyncMock, return_value=_rerank_response([{"index": 0, "relevance_score": 0.5}])
+        ):
+            await ranker.run_async(query="q", documents=docs)
+            await ranker.run_async(query="q", documents=docs)
         assert caplog.text.count("belongs to otari.ai's EU region") == 1
-
-    @pytest.mark.asyncio
-    async def test_close_is_safe_without_warm_up(self):
-        ranker = OtariRanker(api_key=Secret.from_token("test-api-key"))
-        ranker.close()
-        await ranker.close_async()
-        assert ranker._client is None
-        assert ranker._async_client is None
 
 
 class TestRun:
@@ -243,17 +221,12 @@ class TestRun:
 
     def test_run(self, docs):
         ranker = OtariRanker(api_key=Secret.from_token("test-api-key"), top_k=2)
-        ranker._client = MagicMock()
-        ranker._client.post.return_value = _rerank_response(
-            [{"index": 1, "relevance_score": 0.99}, {"index": 0, "relevance_score": 0.01}]
-        )
+        response = _rerank_response([{"index": 1, "relevance_score": 0.99}, {"index": 0, "relevance_score": 0.01}])
+        with patch(SYNC_HELPER, return_value=response) as helper:
+            out = ranker.run(query="What is the capital of France?", documents=docs)
 
-        out = ranker.run(query="What is the capital of France?", documents=docs)
-
-        ranker._client.post.assert_called_once()
-        call = ranker._client.post.call_args
-        assert call.args[0] == "https://api.otari.ai/api/v1/rerank"
-        assert call.kwargs["json"] == {
+        helper.assert_called_once()
+        assert helper.call_args.kwargs["json"] == {
             "model": DEFAULT_MODEL,
             "query": "What is the capital of France?",
             "documents": [doc.content for doc in docs],
@@ -268,12 +241,11 @@ class TestRun:
     @pytest.mark.asyncio
     async def test_run_async(self, docs):
         ranker = OtariRanker(api_key=Secret.from_token("test-api-key"))
-        ranker._async_client = MagicMock()
-        ranker._async_client.post = AsyncMock(return_value=_rerank_response([{"index": 1, "relevance_score": 0.42}]))
+        response = _rerank_response([{"index": 1, "relevance_score": 0.42}])
+        with patch(ASYNC_HELPER, new_callable=AsyncMock, return_value=response) as helper:
+            out = await ranker.run_async(query="q", documents=docs, top_k=1)
 
-        out = await ranker.run_async(query="q", documents=docs, top_k=1)
-
-        assert ranker._async_client.post.call_args.kwargs["json"]["top_n"] == 1
+        assert helper.call_args.kwargs["json"]["top_n"] == 1
         assert [doc.content for doc in out["documents"]] == ["The capital of France is Paris."]
         assert out["documents"][0].score == 0.42
 

@@ -124,10 +124,11 @@ jobs:
 
       # Run the chat generator and embedder tests against otari.ai as well. The ranker tests are left out because the
       # otari.ai organization has no Cohere key. The key belongs to otari.ai's EU region, which has its own host.
+      # OTARI_API_KEY already holds the local gateway's key in this job, so the otari.ai key gets its own name here.
       - name: Run chat generator and embedder integration tests against otari.ai
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
-          OTARI_AI_API_KEY: ${{ secrets.OTARI_AI_API_KEY }}
+          OTARI_AI_API_KEY: ${{ secrets.OTARI_API_KEY }}
         run: |
           OTARI_API_KEY="$OTARI_AI_API_KEY" OTARI_API_BASE_URL=https://eu.api.otari.ai/api/v1 \
             hatch run test:integration-cov-append-retry -k "chat_generator or embedder"

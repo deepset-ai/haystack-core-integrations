@@ -2,13 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Iterable
+from decimal import Decimal
 from typing import Any
 
-from haystack import component
+from haystack import component, logging
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.utils.auth import Secret
+from more_itertools import batched
+from openai import APIError
+from openai.types import CreateEmbeddingResponse
+from tqdm import tqdm
+from tqdm.asyncio import tqdm as async_tqdm
 
 from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
+
+logger = logging.getLogger(__name__)
 
 _INIT_PARAMETERS: tuple[str, ...] = (
     "api_key",
@@ -28,6 +37,22 @@ _INIT_PARAMETERS: tuple[str, ...] = (
 )
 
 
+def _merge_usage(total: dict[str, Any], batch: dict[str, Any]) -> None:
+    """
+    Add the usage of one batch to the running total.
+
+    Token counts are summed. Otari's `cost_usd` is summed only while every batch reports it, so that a partial cost is
+    never reported as the total.
+    """
+    total["prompt_tokens"] += batch["prompt_tokens"]
+    total["total_tokens"] += batch["total_tokens"]
+    if total.get("cost_usd") is not None and batch.get("cost_usd") is not None:
+        total["cost_usd"] = str(Decimal(total["cost_usd"]) + Decimal(batch["cost_usd"]))
+    else:
+        total.pop("cost_usd", None)
+        total.pop("pricing_source", None)
+
+
 @component
 class OtariDocumentEmbedder(OpenAIDocumentEmbedder):
     """
@@ -42,8 +67,7 @@ class OtariDocumentEmbedder(OpenAIDocumentEmbedder):
     Name models with a selector the gateway accepts, such as `"openai:text-embedding-3-small"`.
 
     When the gateway prices a request, `meta["usage"]` contains its cost in US dollars as `cost_usd`, and
-    `pricing_source`. If the Documents are sent in more than one batch, the token counts in `meta["usage"]` cover all
-    batches, but `cost_usd` and `pricing_source` come from the first batch only.
+    `pricing_source`. If the Documents are sent in more than one batch, `cost_usd` is the sum over all batches.
 
     ### Usage example
 
@@ -156,6 +180,81 @@ class OtariDocumentEmbedder(OpenAIDocumentEmbedder):
         await super(OtariDocumentEmbedder, self).warm_up_async()  # noqa: UP008
         if creates_client:
             _warn_if_eu_key_on_default_url(self.api_key, self.api_base_url)
+
+    def _embedding_args(self, batch: tuple[tuple[str, str], ...]) -> dict[str, Any]:
+        args: dict[str, Any] = {"model": self.model, "input": [b[1] for b in batch], "encoding_format": "float"}
+        if self.dimensions is not None:
+            args["dimensions"] = self.dimensions
+        return args
+
+    def _handle_failed_batch(self, batch: tuple[tuple[str, str], ...], exc: APIError) -> None:
+        ids = ", ".join(b[0] for b in batch)
+        logger.exception("Failed embedding of documents {ids} caused by {exc}", ids=ids, exc=exc)
+        if self.raise_on_failure:
+            raise exc
+
+    @staticmethod
+    def _add_batch_result(
+        batch: tuple[tuple[str, str], ...],
+        response: CreateEmbeddingResponse,
+        doc_ids_to_embeddings: dict[str, list[float]],
+        meta: dict[str, Any],
+    ) -> None:
+        embeddings = [el.embedding for el in response.data]
+        doc_ids_to_embeddings.update(dict(zip((b[0] for b in batch), embeddings, strict=True)))
+        if "model" not in meta:
+            meta["model"] = response.model
+        if "usage" not in meta:
+            meta["usage"] = dict(response.usage)
+        else:
+            _merge_usage(meta["usage"], dict(response.usage))
+
+    def _embed_batch(
+        self, texts_to_embed: dict[str, str], batch_size: int
+    ) -> tuple[dict[str, list[float]], dict[str, Any]]:
+        """
+        Embed a list of texts in batches.
+
+        Overrides the parent's method to sum Otari's cost over all batches, see `_merge_usage`.
+        """
+        doc_ids_to_embeddings: dict[str, list[float]] = {}
+        meta: dict[str, Any] = {}
+        for batch in tqdm(
+            batched(texts_to_embed.items(), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
+        ):
+            try:
+                # this method is invoked after warm_up, so client is not None
+                assert self.client is not None  # noqa: S101
+                response = self.client.embeddings.create(**self._embedding_args(batch))
+            except APIError as exc:
+                self._handle_failed_batch(batch, exc)
+                continue
+            self._add_batch_result(batch, response, doc_ids_to_embeddings, meta)
+        return doc_ids_to_embeddings, meta
+
+    async def _embed_batch_async(
+        self, texts_to_embed: dict[str, str], batch_size: int
+    ) -> tuple[dict[str, list[float]], dict[str, Any]]:
+        """
+        Embed a list of texts in batches asynchronously.
+
+        Overrides the parent's method to sum Otari's cost over all batches, see `_merge_usage`.
+        """
+        doc_ids_to_embeddings: dict[str, list[float]] = {}
+        meta: dict[str, Any] = {}
+        batches: Iterable[tuple[tuple[str, str], ...]] = list(batched(texts_to_embed.items(), batch_size))
+        if self.progress_bar:
+            batches = async_tqdm(batches, desc="Calculating embeddings")
+        for batch in batches:
+            try:
+                # this method is invoked after warm_up_async, so async_client is not None
+                assert self.async_client is not None  # noqa: S101
+                response = await self.async_client.embeddings.create(**self._embedding_args(batch))
+            except APIError as exc:
+                self._handle_failed_batch(batch, exc)
+                continue
+            self._add_batch_result(batch, response, doc_ids_to_embeddings, meta)
+        return doc_ids_to_embeddings, meta
 
     def to_dict(self) -> dict[str, Any]:
         """

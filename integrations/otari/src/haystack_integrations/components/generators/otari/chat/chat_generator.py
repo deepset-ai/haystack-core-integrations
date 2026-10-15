@@ -19,6 +19,7 @@ _INIT_PARAMETERS: tuple[str, ...] = (
     "api_base_url",
     "generation_kwargs",
     "tools",
+    "tools_strict",
     "timeout",
     "max_retries",
     "http_client_kwargs",
@@ -72,6 +73,7 @@ class OtariChatGenerator(OpenAIChatGenerator):
         api_base_url: str = "https://api.otari.ai/api/v1",
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
+        tools_strict: bool = False,
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
@@ -112,6 +114,9 @@ class OtariChatGenerator(OpenAIChatGenerator):
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
+        :param tools_strict:
+            Whether to enable strict schema adherence for tool calls. If set to `True`, the model will follow exactly
+            the schema provided in the `parameters` field of the tool definition, but this may increase latency.
         :param timeout:
             The timeout for the Otari API call.
         :param max_retries:
@@ -129,6 +134,7 @@ class OtariChatGenerator(OpenAIChatGenerator):
             api_base_url=api_base_url,
             generation_kwargs=generation_kwargs,
             tools=tools,
+            tools_strict=tools_strict,
             timeout=timeout,
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
@@ -164,7 +170,7 @@ class OtariChatGenerator(OpenAIChatGenerator):
             The serialized component as a dictionary.
         """
         data = super(OtariChatGenerator, self).to_dict()  # noqa: UP008
-        # the parent also serializes OpenAI-only parameters (organization, tools_strict) that this component lacks
+        # the parent also serializes the OpenAI-only organization parameter that this component lacks
         data["init_parameters"] = {
             key: value for key, value in data["init_parameters"].items() if key in _INIT_PARAMETERS
         }
