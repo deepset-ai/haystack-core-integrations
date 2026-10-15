@@ -6,8 +6,8 @@ import os
 from dataclasses import replace
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import Document, component, default_to_dict
+from haystack.utils import Secret
 
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, NimBackend, is_hosted, url_validation
@@ -143,19 +143,6 @@ class NvidiaRanker:
             embedding_separator=self.embedding_separator,
             timeout=self.timeout,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NvidiaRanker":
-        """
-        Deserialize the ranker from a dictionary.
-
-        :param data: A dictionary containing the ranker's attributes.
-        :returns: The deserialized ranker.
-        """
-        init_parameters = data.get("init_parameters", {})
-        if init_parameters:
-            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     def warm_up(self) -> None:
         """
