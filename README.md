@@ -13,11 +13,16 @@
 | src/haystack\_integrations/agent\_pack/deep\_research/prompts.py                   |        5 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/agent\_pack/deep\_research/tools.py                     |       51 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/agent\_pack/evaluation/dataclasses.py                   |       52 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/agent\_pack/evaluation/harness\_evaluator.py            |        9 |        3 |        0 |        0 |     67% |21, 31, 40 |
+| src/haystack\_integrations/agent\_pack/evaluation/harness\_evaluator.py            |       14 |        5 |        0 |        0 |     64% |21, 31, 40, 48, 58 |
 | src/haystack\_integrations/agent\_pack/evaluation/harness\_log\_collector.py       |       52 |        3 |        8 |        1 |     93% |74-75, 107 |
-| src/haystack\_integrations/agent\_pack/evaluation/retrieval\_harness\_evaluator.py |       97 |        2 |       26 |        2 |     97% |  165, 335 |
+| src/haystack\_integrations/agent\_pack/evaluation/retrieval\_harness\_evaluator.py |      102 |        2 |       26 |        2 |     97% |  165, 359 |
 | src/haystack\_integrations/agent\_pack/evaluation/tracer.py                        |      113 |        0 |       26 |        0 |    100% |           |
-| **TOTAL**                                                                          |  **772** |    **8** |  **162** |    **4** | **99%** |           |
+| src/haystack\_integrations/agent\_pack/optimization/agent.py                       |      121 |       12 |       36 |        8 |     87% |165-170, 198-199, 216-\>215, 220, 228-\>233, 231-\>233, 234, 236, 284 |
+| src/haystack\_integrations/agent\_pack/optimization/dataclasses.py                 |       64 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/agent\_pack/optimization/prompts.py                     |        2 |        0 |        0 |        0 |    100% |           |
+| src/haystack\_integrations/agent\_pack/optimization/tools.py                       |      119 |        0 |       18 |        1 |     99% |   47-\>49 |
+| src/haystack\_integrations/agent\_pack/optimization/utils.py                       |       44 |        4 |        6 |        2 |     88% |86-87, 90-91 |
+| **TOTAL**                                                                          | **1132** |   **26** |  **234** |   **15** | **97%** |           |
 
 
 ## Setup coverage badge
