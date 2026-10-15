@@ -12,6 +12,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import (
     ChatMessage,
+    ChatRole,
     ComponentInfo,
     ImageContent,
     StreamingCallbackT,
@@ -67,9 +68,12 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
     tool_call_results = message.tool_call_results
     images = message.images
 
-    if not text_contents and not tool_calls and not tool_call_results and not images:
+    has_content = bool(text_contents or tool_calls or tool_call_results or images)
+    # An assistant message with no content parts is sent with empty content, which the API accepts
+    if not has_content and not message.is_from(ChatRole.ASSISTANT):
         msg = (
-            "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, `ToolCall`, or `ToolCallResult`."
+            f"A `ChatMessage` from `{message.role.value}` must contain at least one `TextContent`, `ImageContent`, "
+            "`ToolCall`, or `ToolCallResult`. Only assistant messages can be empty."
         )
         raise ValueError(msg)
     elif len(text_contents) + len(tool_call_results) > 1:
@@ -132,6 +136,8 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
 
         if text_contents:
             result["content"] = text_contents[0]
+        elif not has_content:
+            result["content"] = ""
 
         if tool_calls:
             llamacpp_tool_calls: list[ChatCompletionMessageToolCall] = []
