@@ -4,10 +4,10 @@
 
 | Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/watsonx/document\_embedder.py    |       60 |        1 |       10 |        0 |     99% |       135 |
-| src/haystack\_integrations/components/embedders/watsonx/text\_embedder.py        |       46 |        5 |        6 |        0 |     90% |117, 172-175 |
+| src/haystack\_integrations/components/embedders/watsonx/document\_embedder.py    |       56 |        1 |       10 |        0 |     98% |       135 |
+| src/haystack\_integrations/components/embedders/watsonx/text\_embedder.py        |       42 |        5 |        6 |        0 |     90% |117, 159-162 |
 | src/haystack\_integrations/components/generators/watsonx/chat/chat\_generator.py |      176 |       15 |       56 |       10 |     88% |338, 373-374, 397-\>394, 410, 417, 490, 536, 542-\>534, 572-577, 582, 591 |
-| **TOTAL**                                                                        |  **282** |   **21** |   **72** |   **10** | **90%** |           |
+| **TOTAL**                                                                        |  **274** |   **21** |   **72** |   **10** | **90%** |           |
 
 
 ## Setup coverage badge
