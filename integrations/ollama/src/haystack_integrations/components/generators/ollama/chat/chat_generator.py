@@ -8,6 +8,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import (
     ChatMessage,
+    ChatRole,
     StreamingCallbackT,
     SyncStreamingCallbackT,
     ToolCall,
@@ -72,9 +73,12 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
     tool_call_results = message.tool_call_results
     images = message.images
 
-    if not text_contents and not tool_calls and not tool_call_results and not images:
+    has_content = bool(text_contents or tool_calls or tool_call_results or images)
+    # An assistant message with no content parts is sent with empty content, which the API accepts
+    if not has_content and not message.is_from(ChatRole.ASSISTANT):
         msg = (
-            "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, `ToolCallResult`, or `ImageContent`."
+            f"A `ChatMessage` from `{message.role.value}` must contain at least one `TextContent`, `ToolCall`, "
+            "`ToolCallResult`, or `ImageContent`. Only assistant messages can be empty."
         )
         raise ValueError(msg)
     elif len(text_contents) + len(tool_call_results) > 1:
@@ -90,6 +94,8 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
 
     if text_contents:
         ollama_msg["content"] = text_contents[0]
+    elif not has_content:
+        ollama_msg["content"] = ""
     if images:
         ollama_msg["images"] = [image.base64_image for image in images]
     if tool_calls:

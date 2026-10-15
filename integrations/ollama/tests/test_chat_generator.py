@@ -101,8 +101,21 @@ class TestUtils:
             "images": [base64_image_string, base64_image_string],
         }
 
+    def test_convert_contentless_assistant_message_to_ollama_format(self):
+        # A Chat Generator that discards a malformed tool call returns a reply with no content parts
+        message = ChatMessage.from_assistant(text=None)
+        assert _convert_chatmessage_to_ollama_format(message) == {"role": "assistant", "content": ""}
+
+    def test_convert_reasoning_only_assistant_message_to_ollama_format(self):
+        message = ChatMessage.from_assistant(reasoning="only reasoning")
+        assert _convert_chatmessage_to_ollama_format(message) == {
+            "role": "assistant",
+            "content": "",
+            "thinking": "only reasoning",
+        }
+
     def test_convert_chatmessage_to_ollama_invalid(self):
-        message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+        message = ChatMessage(_role=ChatRole.USER, _content=[])
         with pytest.raises(ValueError):
             _convert_chatmessage_to_ollama_format(message)
 
@@ -1497,8 +1510,10 @@ class TestIntegration:
     def test_live_run_with_chat_history(self, streaming_callback):
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", streaming_callback=streaming_callback)
 
+        # The contentless assistant message mimics a reply whose only tool call was discarded
         chat_messages = [
             ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
+            ChatMessage.from_assistant(text=None),
             ChatMessage.from_assistant("London is the largest city in the United Kingdom by population"),
             ChatMessage.from_user("And what is the second largest?"),
         ]
