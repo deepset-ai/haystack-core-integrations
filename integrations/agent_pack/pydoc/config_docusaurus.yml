@@ -3,10 +3,13 @@ loaders:
       - haystack_integrations.agent_pack.evaluation.harness_evaluator
       - haystack_integrations.agent_pack.evaluation.retrieval_harness_evaluator
       - haystack_integrations.agent_pack.evaluation.dataclasses
-      - haystack_integrations.agent_pack.deep_research.agent
+      - haystack_integrations.agent_pack.evaluation.agent_run_digest
+      - haystack_integrations.agent_pack.evaluation.tool_budgets
       - haystack_integrations.agent_pack.advanced_rag.agent
       - haystack_integrations.agent_pack.advanced_rag.tools
       - haystack_integrations.agent_pack.advanced_rag.hooks
+      - haystack_integrations.agent_pack.advanced_rag.harness_evaluator
+      - haystack_integrations.agent_pack.deep_research.agent
       - haystack_integrations.agent_pack.optimization.dataclasses
       - haystack_integrations.agent_pack.optimization.tools
       - haystack_integrations.agent_pack.optimization.agent
