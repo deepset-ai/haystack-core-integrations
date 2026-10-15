@@ -4,8 +4,8 @@
 
 | Name                                                                                  |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/azure\_form\_recognizer/converter.py |      216 |       15 |       90 |       11 |     90% |264-265, 271, 279, 286, 293-298, 306, 315, 317-\>321, 366, 407-413, 473 |
-| **TOTAL**                                                                             |  **216** |   **15** |   **90** |   **11** | **90%** |           |
+| src/haystack\_integrations/components/converters/azure\_form\_recognizer/converter.py |      212 |       15 |       90 |       11 |     90% |251-252, 258, 266, 273, 280-285, 293, 302, 304-\>308, 353, 394-400, 460 |
+| **TOTAL**                                                                             |  **212** |   **15** |   **90** |   **11** | **90%** |           |
 
 
 ## Setup coverage badge
