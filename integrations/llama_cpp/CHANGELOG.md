@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/llama_cpp-v3.0.1] - 2026-10-15
+
+### 🐛 Bug Fixes
+
+- *(llama_cpp)* Allow contentless assistant messages in the chat message converter (#4107)
+
+
 ## [integrations/llama_cpp-v3.0.0] - 2026-09-08
 
 ### 🚀 Features

@@ -6,7 +6,7 @@
 
 """Run AIMLAPI chat generation with tool calling and execution."""
 
-from haystack.components.tools import ToolInvoker
+from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
@@ -20,7 +20,7 @@ def weather(city: str) -> str:
 
 
 def main() -> None:
-    """Demonstrate calling a tool and feeding the result back to AIMLAPI."""
+    """Demonstrate an Agent calling a tool and feeding the result back to AIMLAPI."""
 
     tool_parameters = {
         "type": "object",
@@ -35,42 +35,19 @@ def main() -> None:
         function=weather,
     )
 
-    tool_invoker = ToolInvoker(tools=[weather_tool])
-
-    client = AIMLAPIChatGenerator(model="openai/gpt-5-mini-2025-08-07")
-
-    messages = [
-        ChatMessage.from_system("You help users by calling the provided tools when they are relevant."),
-        ChatMessage.from_user("What's the weather in Tokyo today?"),
-    ]
-
-    print("Requesting a tool call from the model...")
-    tool_request = client.run(
-        messages=messages,
+    agent = Agent(
+        chat_generator=AIMLAPIChatGenerator(model="openai/gpt-5-mini-2025-08-07"),
+        system_prompt="You help users by calling the provided tools when they are relevant.",
         tools=[weather_tool],
-        generation_kwargs={"tool_choice": {"type": "function", "function": {"name": "weather"}}},
-    )["replies"][0]
+    )
 
-    print(f"assistant tool request: {tool_request}")
+    result = agent.run(messages=[ChatMessage.from_user("What's the weather in Tokyo today?")])
 
-    if not tool_request.tool_calls:
-        print("No tool call was produced by the model.")
-        return
+    for message in result["messages"]:
+        if message.tool_call_result:
+            print(f"tool output: {message.tool_call_result.result}")
 
-    tool_messages = tool_invoker.run(messages=[tool_request])["tool_messages"]
-    for tool_message in tool_messages:
-        for tool_result in tool_message.tool_call_results:
-            print(f"tool output: {tool_result.result}")
-
-    follow_up_messages = [*messages, tool_request, *tool_messages]
-
-    final_reply = client.run(
-        messages=follow_up_messages,
-        tools=[weather_tool],
-        generation_kwargs={"tool_choice": "none"},
-    )["replies"][0]
-
-    print(f"assistant final answer: {final_reply.text}")
+    print(f"assistant final answer: {result['last_message'].text}")
 
 
 if __name__ == "__main__":
