@@ -27,7 +27,7 @@ env:
   FORCE_COLOR: "1"
   ARCADEDB_USERNAME: "root"
   TEST_MATRIX_OS: '["ubuntu-latest"]'
-  TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
+  TEST_MATRIX_PYTHON: '["3.11", "3.15"]'
 
 defaults:
   run:
