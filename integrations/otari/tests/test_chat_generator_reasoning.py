@@ -5,6 +5,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage, ReasoningContent, StreamingChunk, ToolCall
 from haystack.utils.auth import Secret
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
@@ -19,6 +20,9 @@ from .conftest import OTARI_API_BASE_URL, requires_api_key
 SIGNATURE = {"anthropic": {"signature": "c2lnbmF0dXJl"}}
 # The test gateway in docker-compose.yml routes to Cohere, whose reasoning model returns its thinking
 COHERE_REASONING_MODEL = "cohere:command-a-reasoning-08-2025"
+ANTHROPIC_REASONING_MODEL = "anthropic:claude-sonnet-4-6"
+# with a low effort, Claude often answers simple prompts without reasoning
+ANTHROPIC_GENERATION_KWARGS = {"reasoning_effort": "high", "max_tokens": 8000}
 
 
 def _completion(message: ChatCompletionMessage) -> ChatCompletion:
@@ -189,7 +193,8 @@ class TestReasoning:
         assert "reasoning" not in sent[1]
 
 
-# "cohere" in the test names lets the CI step against otari.ai skip them, since that organization has no Cohere key
+# "cohere" and "anthropic" in the test names let the CI step against otari.ai skip them, since that organization has
+# no Cohere or Anthropic key
 class TestReasoningLive:
     @requires_api_key
     @pytest.mark.integration
@@ -261,3 +266,51 @@ class TestReasoningLive:
             ]
         )["replies"][0]
         assert "22" in final.text
+
+    @requires_api_key
+    @pytest.mark.integration
+    def test_live_run_streaming_with_anthropic_reasoning(self):
+        chunks: list[StreamingChunk] = []
+        generator = OtariChatGenerator(
+            api_base_url=OTARI_API_BASE_URL,
+            model=ANTHROPIC_REASONING_MODEL,
+            streaming_callback=chunks.append,
+            generation_kwargs=ANTHROPIC_GENERATION_KWARGS,
+        )
+        reply = generator.run([ChatMessage.from_user("What is 17 * 23? Answer with the number only.")])["replies"][0]
+
+        assert "391" in reply.text
+        assert any(chunk.reasoning for chunk in chunks)
+        assert reply.reasoning is not None
+        # the thinking signature arrives in a streamed delta of its own
+        assert reply.reasoning.extra["extra_content"]["anthropic"]["signature"]
+
+    @requires_api_key
+    @pytest.mark.integration
+    def test_live_agent_loop_with_anthropic_reasoning(self, tools):
+        generator = OtariChatGenerator(
+            api_base_url=OTARI_API_BASE_URL,
+            model=ANTHROPIC_REASONING_MODEL,
+            generation_kwargs=ANTHROPIC_GENERATION_KWARGS,
+        )
+        agent = Agent(chat_generator=generator, tools=tools)
+
+        sent: list[dict] = []
+        convert = OtariChatGenerator._convert_message_to_api_format
+
+        def recording_convert(self, message):
+            formatted = convert(self, message)
+            sent.append(formatted)
+            return formatted
+
+        with patch.object(OtariChatGenerator, "_convert_message_to_api_format", recording_convert):
+            result = agent.run(messages=[ChatMessage.from_user("What's the weather in Paris? Use the tool.")])
+
+        tool_call_message = next(message for message in result["messages"] if message.tool_calls)
+        assert tool_call_message.reasoning is not None
+        signature = tool_call_message.reasoning.extra["extra_content"]["anthropic"]["signature"]
+        # the next request sends the tool-call reply back with its reasoning and signature
+        sent_tool_call_message = next(message for message in sent if message.get("tool_calls"))
+        assert sent_tool_call_message["extra_content"]["anthropic"]["signature"] == signature
+        assert sent_tool_call_message["reasoning"] == tool_call_message.reasoning.reasoning_text
+        assert "32" in result["last_message"].text

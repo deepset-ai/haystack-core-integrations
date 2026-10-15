@@ -12,9 +12,10 @@
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-The integration tests run against a local Otari gateway. To start one, export `OPENAI_API_KEY` and `COHERE_API_KEY`
-for the providers it routes to, and a new API key as `OTARI_API_KEY`, which the gateway accepts and the tests send.
-Then start the gateway and run the integration tests:
+The integration tests run against a local Otari gateway. To start one, export `OPENAI_API_KEY`, `COHERE_API_KEY`, and
+`ANTHROPIC_API_KEY` for the providers it routes to, and a new API key as `OTARI_API_KEY`, which the gateway accepts and
+the tests send. The gateway doesn't start while one of these is unset; for a provider you don't test, any placeholder
+value works. Then start the gateway and run the integration tests:
 
 ```bash
 export OTARI_API_KEY="tk-$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
@@ -29,5 +30,5 @@ and the API root of your account's region as `OTARI_API_BASE_URL`, for example `
 run:
 
 ```bash
-hatch run test:integration -k "(chat_generator or embedder) and not cohere"
+hatch run test:integration -k "(chat_generator or embedder) and not cohere and not anthropic"
 ```

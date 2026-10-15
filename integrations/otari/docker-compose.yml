@@ -11,6 +11,7 @@ services:
       OTARI_API_KEY:
       OPENAI_API_KEY:
       COHERE_API_KEY:
+      ANTHROPIC_API_KEY:
       # $${...} reaches Otari unexpanded, so Otari reads the keys from its environment
       OTARI_CONFIG_YAML: |
         default_pricing: true
@@ -21,6 +22,8 @@ services:
             api_key: $${OPENAI_API_KEY}
           cohere:
             api_key: $${COHERE_API_KEY}
+          anthropic:
+            api_key: $${ANTHROPIC_API_KEY}
         # The bundled prices don't cover rerank models; Cohere charges $2 per 1,000 search units
         pricing:
           cohere:rerank-v3.5:
