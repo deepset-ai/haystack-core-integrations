@@ -28,7 +28,14 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=3.0.0", "ollama>=0.6.2", "pydantic>=2.12.0", "tenacity>=8.2.3"]
+dependencies = [
+    "haystack-ai>=3.0.0",
+    "ollama>=0.6.2",
+    "pydantic>=2.12.0",
+    # pydantic 2.14.0 is the first release whose pydantic-core has Python 3.15 wheels.
+    "pydantic>=2.14.0; python_version >= '3.15'",
+    "tenacity>=8.2.3",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"

@@ -36,7 +36,7 @@ env:
   VLLM_CPU_KVCACHE_SPACE: "4"
   # we only test on Ubuntu to keep vLLM server running simple
   TEST_MATRIX_OS: '["ubuntu-latest"]'
-  TEST_MATRIX_PYTHON: '["3.11", "3.15"]'
+  TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
 
 jobs:
   compute-test-matrix:
