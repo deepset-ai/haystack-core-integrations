@@ -30,7 +30,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
-  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+  TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
 
 jobs:
   compute-test-matrix:
@@ -78,7 +78,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install hatch --uploaded-prior-to=P1D
       - name: Lint
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Run unit tests
