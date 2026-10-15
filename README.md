@@ -5,13 +5,13 @@
 | Name                                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/common/google\_genai/utils.py                                        |       38 |        0 |       20 |        2 |     97% |16-\>exit, 29-\>exit |
-| src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py             |      122 |        5 |       38 |        4 |     94% |274, 297, 307, 365-369 |
-| src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      180 |        8 |       64 |        7 |     94% |405-406, 428, 449-\>422, 472, 482-483, 486-491, 493-\>466 |
-| src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       68 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py             |      118 |        5 |       38 |        4 |     94% |261, 284, 294, 352-356 |
+| src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      176 |        8 |       64 |        7 |     94% |392-393, 415, 436-\>409, 459, 469-470, 473-478, 480-\>453 |
+| src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       64 |        0 |       12 |        0 |    100% |           |
 | src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py          |      184 |        1 |       46 |        2 |     99% |421-\>423, 626 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                    |      312 |       14 |      182 |       15 |     93% |234-235, 276-278, 285-\>294, 299-\>304, 343-345, 414-\>304, 477, 487-489, 527-\>561, 530-\>561, 557-\>531, 689-\>660, 762-\>768, 768-\>754, 778, 784 |
 | src/haystack\_integrations/token\_counters/google\_genai/token\_counter.py                      |       58 |        2 |       18 |        2 |     95% |146-147, 156-\>exit |
-| **TOTAL**                                                                                       |  **962** |   **30** |  **380** |   **32** | **95%** |           |
+| **TOTAL**                                                                                       |  **950** |   **30** |  **380** |   **32** | **95%** |           |
 
 
 ## Setup coverage badge
