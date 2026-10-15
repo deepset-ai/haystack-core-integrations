@@ -38,6 +38,7 @@ def outcome(passed, failures):
         "passed": passed,
         "failures": failures,
         "recall": 1.0,
+        "agent_run_digest": {"tool_steps": []},
     }
 
 

@@ -71,6 +71,10 @@ Process:
 3. Call `search_documents` with a focused query and, when metadata can narrow the question, a
    filter (the filter syntax is described in its `filters` parameter; always prefix field names
    with "meta."). Not every question needs a filter — omit it when metadata cannot help.
+   A filter must not exclude evidence the question asks for. When a question spans several
+   sources, titles or dates, cover them in one filter with an OR group (or an "in" condition over
+   the values) rather than filtering to one of them; filtering to a single value there answers
+   half the question and silently drops the other half.
    When you can identify the exact documents you need by their metadata alone (e.g. a specific
    title, source or file name), fetch them directly with `fetch_documents_by_filter` instead of
    searching. The same applies when you need the COMPLETE set of documents matching a filter:
