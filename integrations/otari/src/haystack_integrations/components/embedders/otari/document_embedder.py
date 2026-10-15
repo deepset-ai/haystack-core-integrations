@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from decimal import Decimal
 from typing import Any
 
-from haystack import component, logging
+from haystack import component, default_to_dict, logging
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.utils.auth import Secret
 from more_itertools import batched
@@ -18,23 +18,6 @@ from tqdm.asyncio import tqdm as async_tqdm
 from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
 
 logger = logging.getLogger(__name__)
-
-_INIT_PARAMETERS: tuple[str, ...] = (
-    "api_key",
-    "model",
-    "dimensions",
-    "api_base_url",
-    "prefix",
-    "suffix",
-    "batch_size",
-    "progress_bar",
-    "meta_fields_to_embed",
-    "embedding_separator",
-    "timeout",
-    "max_retries",
-    "http_client_kwargs",
-    "raise_on_failure",
-)
 
 
 def _merge_usage(total: dict[str, Any], batch: dict[str, Any]) -> None:
@@ -263,9 +246,20 @@ class OtariDocumentEmbedder(OpenAIDocumentEmbedder):
         :returns:
             Dictionary with serialized data.
         """
-        data = super(OtariDocumentEmbedder, self).to_dict()  # noqa: UP008
-        # the parent also serializes the OpenAI-only organization parameter that this component lacks
-        data["init_parameters"] = {
-            key: value for key, value in data["init_parameters"].items() if key in _INIT_PARAMETERS
-        }
-        return data
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model,
+            dimensions=self.dimensions,
+            api_base_url=self.api_base_url,
+            prefix=self.prefix,
+            suffix=self.suffix,
+            batch_size=self.batch_size,
+            progress_bar=self.progress_bar,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
+            raise_on_failure=self.raise_on_failure,
+        )

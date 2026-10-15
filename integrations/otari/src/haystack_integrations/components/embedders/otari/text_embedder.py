@@ -4,23 +4,11 @@
 
 from typing import Any
 
-from haystack import component
+from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
 from haystack.utils.auth import Secret
 
 from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
-
-_INIT_PARAMETERS: tuple[str, ...] = (
-    "api_key",
-    "model",
-    "dimensions",
-    "api_base_url",
-    "prefix",
-    "suffix",
-    "timeout",
-    "max_retries",
-    "http_client_kwargs",
-)
 
 
 @component
@@ -130,9 +118,15 @@ class OtariTextEmbedder(OpenAITextEmbedder):
         :returns:
             Dictionary with serialized data.
         """
-        data = super(OtariTextEmbedder, self).to_dict()  # noqa: UP008
-        # the parent also serializes the OpenAI-only organization parameter that this component lacks
-        data["init_parameters"] = {
-            key: value for key, value in data["init_parameters"].items() if key in _INIT_PARAMETERS
-        }
-        return data
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model,
+            dimensions=self.dimensions,
+            api_base_url=self.api_base_url,
+            prefix=self.prefix,
+            suffix=self.suffix,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
+        )

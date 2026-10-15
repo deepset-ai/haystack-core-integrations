@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import replace
 from typing import Any
 
-from haystack import component
+from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.generators.chat.openai import (
     _check_finish_reason,
@@ -25,26 +25,16 @@ from haystack.dataclasses import (
     select_streaming_callback,
 )
 from haystack.dataclasses.streaming_chunk import _invoke_streaming_callback
-from haystack.tools import ToolsType
+from haystack.tools import ToolsType, serialize_tools_or_toolset
+from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
 from openai import AsyncStream, Stream
+from openai.lib._pydantic import to_strict_json_schema
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ParsedChatCompletion
 from openai.types.chat.chat_completion import Choice
+from pydantic import BaseModel
 
 from haystack_integrations.common.otari.utils import _warn_if_eu_key_on_default_url
-
-_INIT_PARAMETERS: tuple[str, ...] = (
-    "api_key",
-    "model",
-    "streaming_callback",
-    "api_base_url",
-    "generation_kwargs",
-    "tools",
-    "tools_strict",
-    "timeout",
-    "max_retries",
-    "http_client_kwargs",
-)
 
 
 def _reasoning_content(message_or_delta: Any) -> ReasoningContent | None:
@@ -225,12 +215,40 @@ class OtariChatGenerator(OpenAIChatGenerator):
         :returns:
             The serialized component as a dictionary.
         """
-        data = super(OtariChatGenerator, self).to_dict()  # noqa: UP008
-        # the parent also serializes the OpenAI-only organization parameter that this component lacks
-        data["init_parameters"] = {
-            key: value for key, value in data["init_parameters"].items() if key in _INIT_PARAMETERS
-        }
-        return data
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        generation_kwargs = self.generation_kwargs.copy()
+        response_format = generation_kwargs.get("response_format")
+        # If the response format is a Pydantic model, it's converted to openai's json schema format
+        # If it's already a json schema, it's left as is
+        if response_format and isinstance(response_format, type) and issubclass(response_format, BaseModel):
+            json_schema = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": response_format.__name__,
+                    "strict": True,
+                    "schema": to_strict_json_schema(response_format),
+                },
+            }
+
+            generation_kwargs["response_format"] = json_schema
+
+        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
+        # which would serialize some fields that we don't want to serialize (e.g. the ones we don't have in
+        # the __init__)
+        # it would be hard to maintain the compatibility as superclass changes
+        return default_to_dict(
+            self,
+            model=self.model,
+            streaming_callback=callback_name,
+            api_base_url=self.api_base_url,
+            generation_kwargs=generation_kwargs,
+            api_key=self.api_key.to_dict(),
+            tools=serialize_tools_or_toolset(self.tools),
+            tools_strict=self.tools_strict,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
+        )
 
     def _convert_chat_completion_to_chat_message(
         self, completion: ChatCompletion | ParsedChatCompletion, choice: Choice
