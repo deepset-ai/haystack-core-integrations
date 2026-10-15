@@ -34,7 +34,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
-  TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
+  TEST_MATRIX_PYTHON: '["3.11", "3.15"]'
 
   AWS_REGION: "us-east-1"
   AWS_BEDROCK_GUARDRAIL_VERSION: "1"

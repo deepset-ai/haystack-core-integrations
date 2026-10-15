@@ -47,7 +47,7 @@ jobs:
             MATRIX='['
             # Pinecone tests are time expensive, so only test on Ubuntu
             MATRIX+='{"os":"ubuntu-latest","python-version":"3.11","INDEX_NAME":"index-310"},'
-            MATRIX+='{"os":"ubuntu-latest","python-version":"3.14","INDEX_NAME":"index-313"}'
+            MATRIX+='{"os":"ubuntu-latest","python-version":"3.15","INDEX_NAME":"index-313"}'
             MATRIX+=']'
             echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           fi
