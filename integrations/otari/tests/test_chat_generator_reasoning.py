@@ -207,7 +207,24 @@ class TestReasoningLive:
 
     @requires_api_key
     @pytest.mark.integration
+    def test_live_multi_turn_with_cohere_reasoning(self):
+        generator = OtariChatGenerator(
+            api_base_url=OTARI_API_BASE_URL,
+            model=COHERE_REASONING_MODEL,
+            generation_kwargs={"reasoning_effort": "low"},
+        )
+        messages = [ChatMessage.from_user("What is 17 * 23? Answer with the number only.")]
+        first = generator.run(messages)["replies"][0]
+        assert first.reasoning is not None
+
+        # the reply goes back to the gateway with its reasoning
+        second = generator.run([*messages, first, ChatMessage.from_user("Now add 9. Answer with the number only.")])
+        assert "400" in second["replies"][0].text
+
+    @requires_api_key
+    @pytest.mark.integration
     def test_live_tool_loop_with_cohere_reasoning(self, tools):
+        # Cohere returns no reasoning with a tool call through Otari, so this checks the tool loop of a reasoning model
         generator = OtariChatGenerator(
             api_base_url=OTARI_API_BASE_URL,
             model=COHERE_REASONING_MODEL,
@@ -217,9 +234,7 @@ class TestReasoningLive:
         messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         tool_message = generator.run(messages)["replies"][0]
         assert tool_message.tool_call is not None
-        assert tool_message.reasoning is not None
 
-        # the reasoning of the tool call goes back to the gateway with the tool result
         final = generator.run(
             [
                 *messages,
