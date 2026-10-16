@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_cf5f870db8e23248_foundry_chat_generator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-15 11:23 +0000
+            created at 2026-10-16 07:13 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -83,7 +83,7 @@
 </header>
 <main id="source">
     <p class="run"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="key">import</span> <span class="nam">inspect</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="key">from</span> <span class="nam">datetime</span> <span class="key">import</span> <span class="nam">datetime</span><span class="op">,</span> <span class="nam">timezone</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="key">from</span> <span class="nam">datetime</span> <span class="key">import</span> <span class="nam">UTC</span><span class="op">,</span> <span class="nam">datetime</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t"><span class="key">from</span> <span class="nam">typing</span> <span class="key">import</span> <span class="nam">Any</span><span class="op">,</span> <span class="nam">ClassVar</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="key">from</span> <span class="nam">haystack</span> <span class="key">import</span> <span class="nam">component</span><span class="op">,</span> <span class="nam">default_from_dict</span><span class="op">,</span> <span class="nam">default_to_dict</span><span class="op">,</span> <span class="nam">logging</span>&nbsp;</span><span class="r"></span></p>
@@ -525,7 +525,7 @@
     <p class="run"><span class="n"><a id="t441" href="#t441">441</a></span><span class="t">            <span class="nam">reasoning</span> <span class="op">=</span> <span class="nam">_process_reasoning_contents</span><span class="op">(</span><span class="nam">chunks</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t442" href="#t442">442</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t443" href="#t443">443</a></span><span class="t">            <span class="nam">completion</span><span class="op">.</span><span class="nam">meta</span><span class="op">.</span><span class="nam">update</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t444" href="#t444">444</a></span><span class="t">                <span class="op">{</span><span class="str">&quot;received_at&quot;</span><span class="op">:</span> <span class="nam">datetime</span><span class="op">.</span><span class="nam">now</span><span class="op">(</span><span class="nam">timezone</span><span class="op">.</span><span class="nam">utc</span><span class="op">)</span><span class="op">.</span><span class="nam">isoformat</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="str">&quot;model&quot;</span><span class="op">:</span> <span class="nam">model</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t444" href="#t444">444</a></span><span class="t">                <span class="op">{</span><span class="str">&quot;received_at&quot;</span><span class="op">:</span> <span class="nam">datetime</span><span class="op">.</span><span class="nam">now</span><span class="op">(</span><span class="nam">UTC</span><span class="op">)</span><span class="op">.</span><span class="nam">isoformat</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="str">&quot;model&quot;</span><span class="op">:</span> <span class="nam">model</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t445" href="#t445">445</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t446" href="#t446">446</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t447" href="#t447">447</a></span><span class="t">            <span class="com"># `completion.meta[&quot;usage&quot;]` is the usage of the last message_delta chunk</span>&nbsp;</span><span class="r"></span></p>
@@ -611,7 +611,7 @@
     <p class="run"><span class="n"><a id="t527" href="#t527">527</a></span><span class="t">            <span class="nam">reasoning</span> <span class="op">=</span> <span class="nam">_process_reasoning_contents</span><span class="op">(</span><span class="nam">chunks</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t528" href="#t528">528</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t529" href="#t529">529</a></span><span class="t">            <span class="nam">completion</span><span class="op">.</span><span class="nam">meta</span><span class="op">.</span><span class="nam">update</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">                <span class="op">{</span><span class="str">&quot;received_at&quot;</span><span class="op">:</span> <span class="nam">datetime</span><span class="op">.</span><span class="nam">now</span><span class="op">(</span><span class="nam">timezone</span><span class="op">.</span><span class="nam">utc</span><span class="op">)</span><span class="op">.</span><span class="nam">isoformat</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="str">&quot;model&quot;</span><span class="op">:</span> <span class="nam">model</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">                <span class="op">{</span><span class="str">&quot;received_at&quot;</span><span class="op">:</span> <span class="nam">datetime</span><span class="op">.</span><span class="nam">now</span><span class="op">(</span><span class="nam">UTC</span><span class="op">)</span><span class="op">.</span><span class="nam">isoformat</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="str">&quot;model&quot;</span><span class="op">:</span> <span class="nam">model</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t531" href="#t531">531</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t532" href="#t532">532</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t533" href="#t533">533</a></span><span class="t">            <span class="com"># `completion.meta[&quot;usage&quot;]` is the usage of the last message_delta chunk</span>&nbsp;</span><span class="r"></span></p>
@@ -748,7 +748,7 @@
             <a class="nav" href="z_cf5f870db8e23248_foundry_chat_generator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-15 11:23 +0000
+            created at 2026-10-16 07:13 +0000
         </p>
     </div>
 </footer>
