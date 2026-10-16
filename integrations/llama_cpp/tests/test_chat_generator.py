@@ -29,8 +29,8 @@ from huggingface_hub import hf_hub_download
 
 from haystack_integrations.components.generators.llama_cpp.chat.chat_generator import (
     LlamaCppChatGenerator,
+    _convert_chat_history_to_llamacpp_format,
     _convert_message_to_llamacpp_format,
-    _convert_messages_to_llamacpp_format,
 )
 
 
@@ -140,18 +140,18 @@ def test_convert_reasoning_only_assistant_message_to_llamacpp_format():
     "last_message",
     [ChatMessage.from_assistant(text=None), ChatMessage.from_assistant(reasoning="only reasoning")],
 )
-def test_convert_messages_to_llamacpp_format_drops_trailing_empty_assistant(last_message):
+def test_convert_chat_history_to_llamacpp_format_drops_trailing_empty_assistant(last_message):
     messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(text=None), last_message]
-    assert _convert_messages_to_llamacpp_format(messages=messages) == [
+    assert _convert_chat_history_to_llamacpp_format(messages=messages) == [
         {"role": "user", "content": "Hi"},
         {"role": "assistant", "content": ""},
     ]
 
 
-def test_convert_messages_to_llamacpp_format_keeps_trailing_assistant_with_tool_calls():
+def test_convert_chat_history_to_llamacpp_format_keeps_trailing_assistant_with_tool_calls():
     tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
     messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(tool_calls=[tool_call])]
-    assert _convert_messages_to_llamacpp_format(messages=messages)[-1] == {
+    assert _convert_chat_history_to_llamacpp_format(messages=messages)[-1] == {
         "role": "assistant",
         "tool_calls": [
             {"id": "123", "type": "function", "function": {"name": "weather", "arguments": '{"city": "Paris"}'}}

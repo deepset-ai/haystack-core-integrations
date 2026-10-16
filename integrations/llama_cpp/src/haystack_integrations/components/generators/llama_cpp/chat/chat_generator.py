@@ -161,7 +161,7 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
     raise ValueError(error_msg)
 
 
-def _convert_messages_to_llamacpp_format(messages: list[ChatMessage]) -> list[ChatCompletionRequestMessage]:
+def _convert_chat_history_to_llamacpp_format(messages: list[ChatMessage]) -> list[ChatCompletionRequestMessage]:
     """
     Convert a list of ChatMessages to the format expected by llama.cpp Chat API.
 
@@ -395,7 +395,7 @@ class LlamaCppChatGenerator:
             return {"replies": []}
 
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        formatted_messages = _convert_messages_to_llamacpp_format(messages=messages)
+        formatted_messages = _convert_chat_history_to_llamacpp_format(messages=messages)
 
         tools = tools or self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
