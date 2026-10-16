@@ -76,12 +76,17 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 
 # Haystack to Bedrock util methods
 def _format_tools(
-    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, dict[str, str]] | None = None
+    tools: list[Tool] | None = None,
+    tools_cachepoint_config: dict[str, dict[str, str]] | None = None,
+    *,
+    strict: bool = False,
 ) -> dict[str, Any] | None:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
     :param tools: List of Tool objects to format
+    :param tools_cachepoint_config: Cache point appended after the tool specs, if any.
+    :param strict: Whether to mark each tool spec `strict`, enforcing its input schema on the model's tool calls.
     :returns:
         Dictionary in Bedrock toolConfig format or None if no tools are provided
     """
@@ -90,9 +95,14 @@ def _format_tools(
 
     tool_specs: list[dict[str, Any]] = []
     for tool in tools:
-        tool_specs.append(
-            {"toolSpec": {"name": tool.name, "description": tool.description, "inputSchema": {"json": tool.parameters}}}
-        )
+        tool_spec: dict[str, Any] = {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": {"json": tool.parameters},
+        }
+        if strict:
+            tool_spec["strict"] = True
+        tool_specs.append({"toolSpec": tool_spec})
 
     if tools_cachepoint_config:
         tool_specs.append(tools_cachepoint_config)

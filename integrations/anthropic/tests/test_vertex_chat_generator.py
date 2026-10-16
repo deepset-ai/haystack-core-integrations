@@ -16,6 +16,15 @@ class TestUnit:
         assert len(AnthropicVertexChatGenerator.SUPPORTED_MODELS) > 0
         assert all(isinstance(m, str) for m in AnthropicVertexChatGenerator.SUPPORTED_MODELS)
 
+    def test_tools_strict_marks_every_tool_strict(self, tools):
+        component = AnthropicVertexChatGenerator(
+            region="us-central1", project_id="test-project-id", tools=tools, tools_strict=True
+        )
+
+        *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
+
+        assert [tool["strict"] for tool in anthropic_tools] == [True] * len(tools)
+
     def test_init_default(self):
         component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
         assert component.region == "us-central1"
@@ -62,6 +71,7 @@ class TestUnit:
                 "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
+                "tools_strict": False,
             },
         }
 
@@ -93,6 +103,7 @@ class TestUnit:
                 "anthropic_server_tools": [{"type": "web_search_20250305", "name": "web_search"}],
                 "timeout": 10.0,
                 "max_retries": 1,
+                "tools_strict": False,
             },
         }
 

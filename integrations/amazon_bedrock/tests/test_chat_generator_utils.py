@@ -106,6 +106,19 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
+    def test_format_tools_strict_marks_every_tool_spec(self, tools):
+        formatted = _format_tools(tools, tools_cachepoint_config={"cachePoint": {"type": "default"}}, strict=True)
+
+        specs = [entry["toolSpec"] for entry in formatted["tools"] if "toolSpec" in entry]
+        assert [spec["strict"] for spec in specs] == [True, True]
+        assert specs[0]["inputSchema"] == {"json": tools[0].parameters}
+        assert formatted["tools"][-1] == {"cachePoint": {"type": "default"}}
+
+    def test_format_tools_is_not_strict_by_default(self, tools):
+        formatted = _format_tools(tools)
+
+        assert all("strict" not in entry["toolSpec"] for entry in formatted["tools"])
+
     def test_format_tools_does_not_double_wrap_cachepoint(self, tools):
         # Regression test for https://github.com/deepset-ai/haystack-core-integrations/issues/3181
         # __init__ pre-formats tools_cachepoint_config via _validate_and_format_cache_point,

@@ -145,6 +145,7 @@ class AnthropicChatGenerator:
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Creates an instance of AnthropicChatGenerator.
@@ -192,6 +193,10 @@ class AnthropicChatGenerator:
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
+        :param tools_strict:
+            Whether to enable strict tool use. If `True`, each tool is sent with `strict: true`, so the model's tool
+            calls are guaranteed to match the tool's `parameters` schema. The schema must stay within what strict
+            tool use supports. See [Anthropic strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).
 
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
@@ -209,6 +214,7 @@ class AnthropicChatGenerator:
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
         self.anthropic_server_tools = anthropic_server_tools
+        self.tools_strict = tools_strict
 
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Anthropic clients."""
@@ -268,6 +274,7 @@ class AnthropicChatGenerator:
             anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod
@@ -332,9 +339,10 @@ class AnthropicChatGenerator:
         anthropic_tools: list[Any] = []
         if flattened_tools:
             for tool in flattened_tools:
-                anthropic_tools.append(
-                    ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
-                )
+                tool_param = ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
+                if self.tools_strict:
+                    tool_param["strict"] = True
+                anthropic_tools.append(tool_param)
         if self.anthropic_server_tools:
             server_tool_names = {st["name"] for st in self.anthropic_server_tools if "name" in st}
             if duplicates := server_tool_names & {tool.name for tool in flattened_tools}:
