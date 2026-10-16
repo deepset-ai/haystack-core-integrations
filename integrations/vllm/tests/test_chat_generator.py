@@ -685,6 +685,22 @@ class TestIntegration:
         else:
             assert response["replies"][0].reasoning is None
 
+    @pytest.mark.parametrize("generation_kwargs", [NO_THINKING_KWARGS, THINKING_KWARGS])
+    def test_live_run_after_contentless_assistant_message(self, generation_kwargs):
+        # After a discarded tool call, the Agent calls the LLM again with the contentless reply as the last message
+        component = VLLMChatGenerator(model=MODEL, generation_kwargs=generation_kwargs)
+        messages = [
+            ChatMessage.from_user("What is the capital of France? Answer in one short sentence."),
+            ChatMessage.from_assistant(text=None),
+        ]
+        response = component.run(messages)
+
+        assert len(response["replies"]) == 1
+        reply = response["replies"][0]
+        assert reply.text
+        assert "paris" in reply.text.lower()
+        assert "<think>" not in reply.text
+
     def test_live_run_with_reasoning_and_parallel_tool_calls(self, weather_tool):
         component = VLLMChatGenerator(
             model=MODEL,
