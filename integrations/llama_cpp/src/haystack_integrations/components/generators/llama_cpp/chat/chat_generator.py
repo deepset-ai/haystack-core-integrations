@@ -5,7 +5,7 @@
 import asyncio
 import json
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -556,7 +556,7 @@ class LlamaCppChatGenerator:
                 finish_reason=mapped_finish_reason,
                 meta={
                     "model": chunk["model"],
-                    "received_at": datetime.fromtimestamp(chunk["created"], tz=timezone.utc).isoformat(),
+                    "received_at": datetime.fromtimestamp(chunk["created"], tz=UTC).isoformat(),
                 },  # llama.cpp does not provide usage metadata during streaming
             )
 

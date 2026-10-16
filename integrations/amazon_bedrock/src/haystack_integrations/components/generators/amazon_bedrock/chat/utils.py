@@ -4,7 +4,7 @@ import inspect
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from botocore.eventstream import EventStream
@@ -553,7 +553,7 @@ def _convert_event_to_streaming_chunk(
 
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
-    base_meta = {"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
+    base_meta = {"model": model, "received_at": datetime.now(UTC).isoformat()}
     streaming_chunk = StreamingChunk(content="", meta=base_meta)
 
     if "contentBlockStart" in event:

@@ -6,7 +6,7 @@ import base64
 import mimetypes
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NotRequired
 
 from google.genai import Client
 from google.genai.client import AsyncClient
@@ -21,7 +21,7 @@ from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import TypedDict
 
 from haystack_integrations.common.google_genai.utils import _get_client
 
