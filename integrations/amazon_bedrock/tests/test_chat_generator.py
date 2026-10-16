@@ -1105,6 +1105,21 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "prompt_tokens" in first_reply.meta["usage"]
             assert "completion_tokens" in first_reply.meta["usage"]
 
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
+    def test_live_run_after_contentless_assistant_message(self, model_name):
+        # After a discarded tool call, the Agent calls the LLM again with the contentless reply as the last message
+        client = AmazonBedrockChatGenerator(model=model_name)
+        messages = [
+            ChatMessage.from_user("What is the capital of France? Answer in one short sentence."),
+            ChatMessage.from_assistant(text=None),
+        ]
+        response = client.run(messages)
+
+        assert len(response["replies"]) == 1
+        reply = response["replies"][0]
+        assert reply.text
+        assert "paris" in reply.text.lower()
+
     def test_run_with_structured_output(self):
         client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
 
