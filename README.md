@@ -4,8 +4,8 @@
 
 | Name                                                                    |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
 |------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/converters/gotenberg/converter.py |      185 |        0 |       62 |        0 |     100% |           |
-| **TOTAL**                                                               |  **185** |    **0** |   **62** |    **0** | **100%** |           |
+| src/haystack\_integrations/components/converters/gotenberg/converter.py |      184 |        0 |       62 |        0 |     100% |           |
+| **TOTAL**                                                               |  **184** |    **0** |   **62** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
