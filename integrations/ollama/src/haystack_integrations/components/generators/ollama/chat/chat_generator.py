@@ -109,6 +109,20 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
     return ollama_msg
 
 
+def _convert_chatmessages_to_ollama_format(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+    """
+    Convert a list of ChatMessages to the format expected by the Ollama Chat API.
+
+    A trailing assistant message with no text and no tool calls is left out. Ollama continues a trailing assistant
+    message as a prefill, so an empty one makes the model reply with empty content or a stray `<think></think>` block.
+    """
+    ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+    last = ollama_messages[-1] if ollama_messages else None
+    if last and last["role"] == ChatRole.ASSISTANT.value and not last.get("content") and not last.get("tool_calls"):
+        ollama_messages.pop()
+    return ollama_messages
+
+
 def _convert_ollama_meta_to_openai_format(input_response_dict: dict) -> dict[str, Any]:
     """
     Map Ollama metadata keys onto the OpenAI-compatible names Haystack expects.
@@ -661,7 +675,7 @@ class OllamaChatGenerator:
 
         is_stream = callback is not None
 
-        ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+        ollama_messages = _convert_chatmessages_to_ollama_format(messages=messages)
 
         response = self._chat(
             messages=ollama_messages, tools=ollama_tools, is_stream=is_stream, generation_kwargs=generation_kwargs
@@ -721,7 +735,7 @@ class OllamaChatGenerator:
 
         is_stream = callback is not None
 
-        ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+        ollama_messages = _convert_chatmessages_to_ollama_format(messages=messages)
 
         response = await self._chat_async(
             messages=ollama_messages, tools=ollama_tools, is_stream=is_stream, generation_kwargs=generation_kwargs
