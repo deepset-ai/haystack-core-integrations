@@ -6,8 +6,8 @@
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/embedders/ollama/document\_embedder.py    |       95 |        5 |       24 |        4 |     92% |144, 210-211, 240, 278 |
 | src/haystack\_integrations/components/embedders/ollama/text\_embedder.py        |       40 |        0 |        8 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/ollama/chat/chat\_generator.py |      257 |        3 |       82 |        8 |     97% |63, 144-\>146, 146-\>148, 148-\>156, 433-\>437, 501-502, 515-\>519, 524-\>527 |
-| **TOTAL**                                                                       |  **392** |    **8** |  **114** |   **12** | **96%** |           |
+| src/haystack\_integrations/components/generators/ollama/chat/chat\_generator.py |      266 |        3 |       86 |        8 |     97% |64, 164-\>166, 166-\>168, 168-\>176, 453-\>457, 521-522, 535-\>539, 544-\>547 |
+| **TOTAL**                                                                       |  **401** |    **8** |  **118** |   **12** | **96%** |           |
 
 
 ## Setup coverage badge
