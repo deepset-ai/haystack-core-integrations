@@ -119,7 +119,7 @@ class JinaRanker:
             raise ValueError(msg)
 
         top_k = top_k or self.top_k
-        score_threshold = score_threshold or self.score_threshold
+        score_threshold = score_threshold if score_threshold is not None else self.score_threshold
 
         data = {
             "query": query,
