@@ -4,8 +4,8 @@
 
 | Name                                                                      |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
 |-------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/converters/libreoffice/converter.py |      111 |        0 |       32 |        0 |     100% |           |
-| **TOTAL**                                                                 |  **111** |    **0** |   **32** |    **0** | **100%** |           |
+| src/haystack\_integrations/components/converters/libreoffice/converter.py |      110 |        0 |       32 |        0 |     100% |           |
+| **TOTAL**                                                                 |  **110** |    **0** |   **32** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
