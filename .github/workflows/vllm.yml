@@ -33,7 +33,9 @@ env:
   VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
   VLLM_RANKER_MODEL: "BAAI/bge-reranker-base"
   VLLM_TARGET_DEVICE: "cpu"
-  VLLM_CPU_KVCACHE_SPACE: "4"
+  # KV cache in GiB, reserved by each of the three vLLM servers. 1 GiB holds ~9k tokens for the chat model,
+  # well above its 1024-token context; larger values exhaust the runner's memory and the chat server gets killed.
+  VLLM_CPU_KVCACHE_SPACE: "1"
   # we only test on Ubuntu to keep vLLM server running simple
   TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.11", "3.14"]'
