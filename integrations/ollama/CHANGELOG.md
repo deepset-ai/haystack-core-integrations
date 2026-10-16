@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/ollama-v7.0.2] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- *(ollama)* Allow contentless assistant messages in the chat message converter (#4106)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/ollama-v7.0.1] - 2026-09-24
 
 ### 🐛 Bug Fixes
