@@ -147,6 +147,18 @@ class TestSupabaseGroongaDocumentStoreIntegration(
         assert len(result) == 1
         assert result[0].meta["lang"] == "en"
 
+    def test_filter_update_and_delete_by_filter_beyond_max_rows(
+        self, document_store: SupabaseGroongaDocumentStore
+    ) -> None:
+        # docker-compose-groonga.yml caps PostgREST responses at 1000 rows, as Supabase does by default.
+        docs = [Document(content=f"doc {i}", meta={"tag": "a"}) for i in range(1050)]
+        document_store.write_documents(docs)
+        tag_a = {"field": "meta.tag", "operator": "==", "value": "a"}
+        assert len(document_store.filter_documents(filters=tag_a)) == 1050
+        assert document_store.update_by_filter(filters=tag_a, meta={"tag": "b"}) == 1050
+        assert document_store.delete_by_filter(filters={"field": "meta.tag", "operator": "==", "value": "b"}) == 1050
+        assert document_store.count_documents() == 0
+
 
 @pytest.mark.integration
 class TestGroongaRetriever:
@@ -244,6 +256,13 @@ class TestGroongaDocumentStoreAsyncIntegration:
         await async_store.delete_documents_async([doc.id])
         results = await async_store.filter_documents_async()
         assert all(d.id != doc.id for d in results)
+
+    async def test_filter_and_delete_documents_async_beyond_max_rows(self, async_store):
+        docs = [Document(content=f"async doc {i}") for i in range(1050)]
+        await async_store.write_documents_async(docs)
+        assert len(await async_store.filter_documents_async()) == 1050
+        await async_store.delete_documents_async([d.id for d in docs])
+        assert await async_store.count_documents_async() == 0
 
     async def test_groonga_retrieval_async(self, async_store):
         docs = [
