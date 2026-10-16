@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_74cfd0ec97610721_extractive_reader_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-15 09:09 +0000
+            created at 2026-10-16 07:15 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -595,7 +595,7 @@
     <p class="pln"><span class="n"><a id="t511" href="#t511">511</a></span><span class="t">            <span class="com"># Ensure the queue processor is cleaned up properly</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t512" href="#t512">512</a></span><span class="t">            <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t513" href="#t513">513</a></span><span class="t">                <span class="key">await</span> <span class="nam">asyncio</span><span class="op">.</span><span class="nam">wait_for</span><span class="op">(</span><span class="nam">queue_processor</span><span class="op">,</span> <span class="nam">timeout</span><span class="op">=</span><span class="num">0.1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t514" href="#t514">514</a></span><span class="t">            <span class="key">except</span> <span class="nam">asyncio</span><span class="op">.</span><span class="nam">TimeoutError</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t514" href="#t514">514</a></span><span class="t">            <span class="key">except</span> <span class="nam">TimeoutError</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t515" href="#t515">515</a></span><span class="t">                <span class="nam">queue_processor</span><span class="op">.</span><span class="nam">cancel</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t516" href="#t516">516</a></span><span class="t">                <span class="key">with</span> <span class="nam">suppress</span><span class="op">(</span><span class="nam">asyncio</span><span class="op">.</span><span class="nam">CancelledError</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t517" href="#t517">517</a></span><span class="t">                    <span class="key">await</span> <span class="nam">queue_processor</span>&nbsp;</span><span class="r"></span></p>
@@ -738,7 +738,7 @@
             <a class="nav" href="z_74cfd0ec97610721_extractive_reader_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-15 09:09 +0000
+            created at 2026-10-16 07:15 +0000
         </p>
     </div>
 </footer>
