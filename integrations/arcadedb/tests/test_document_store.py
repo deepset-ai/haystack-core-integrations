@@ -406,6 +406,93 @@ class TestDocumentStoreUnit:
         assert store._session is None
 
 
+class TestEnsureInitialized:
+    """
+    `_command` raises RuntimeError for any HTTP status >= 400, so a handler here catches auth
+    rejections, timeouts and 5xx as well as the condition its log line names.
+    """
+
+    @staticmethod
+    def _store(**kwargs):
+        kwargs.setdefault("create_database", False)
+        return ArcadeDBDocumentStore(
+            url="http://localhost:2480",
+            database="test",
+            embedding_dimension=4,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _session(fail_on=None, status=403):
+        """A session that answers 200 to everything except commands containing `fail_on`."""
+        sent = []
+
+        def post(*_args, **kwargs):
+            command = (kwargs.get("json") or {}).get("command", "")
+            sent.append(command)
+            response = Mock()
+            if fail_on is not None and fail_on in command:
+                response.status_code = status
+                response.text = "refused"
+            else:
+                response.status_code = 200
+                response.json.return_value = {"result": []}
+            return response
+
+        session = Mock()
+        session.post.side_effect = post
+        session.sent = sent
+        return session
+
+    def test_refused_drop_raises_instead_of_reusing_the_old_type(self):
+        """recreate_type=True is documented as dropping the type, so a refused drop is not a success."""
+        store = self._store(recreate_type=True)
+        store._session = self._session(fail_on="DROP TYPE")
+
+        with pytest.raises(RuntimeError, match="403"):
+            store._ensure_initialized()
+
+        assert store._initialized is False
+        # It stopped at the drop: nothing was created on top of the type it failed to remove.
+        assert not any("CREATE VERTEX TYPE" in command for command in store._session.sent)
+
+    def test_failed_vector_index_raises_instead_of_deferring_to_the_first_search(self):
+        store = self._store()
+        store._session = self._session(fail_on="LSM_VECTOR", status=500)
+
+        with pytest.raises(RuntimeError, match="500"):
+            store._ensure_initialized()
+
+        assert store._initialized is False
+
+    def test_an_existing_unique_index_is_still_tolerated(self):
+        """`CREATE INDEX ... UNIQUE` has no IF NOT EXISTS, so re-initialising must not raise."""
+        store = self._store()
+        store._session = self._session(fail_on="(id) UNIQUE", status=400)
+
+        store._ensure_initialized()
+
+        assert store._initialized is True
+
+    def test_an_existing_database_is_still_tolerated(self):
+        """CREATE DATABASE has no IF NOT EXISTS either."""
+        store = self._store(create_database=True)
+        store._session = self._session(fail_on="CREATE DATABASE", status=409)
+
+        store._ensure_initialized()
+
+        assert store._initialized is True
+
+    def test_a_clean_run_initialises(self):
+        store = self._store(recreate_type=True)
+        store._session = self._session()
+
+        store._ensure_initialized()
+
+        assert store._initialized is True
+        assert any("DROP TYPE" in command for command in store._session.sent)
+
+
 @pytest.mark.skipif(
     not os.environ.get("ARCADEDB_PASSWORD"),
     reason="Set ARCADEDB_PASSWORD (e.g. via repo secret in CI) to run integration tests.",
