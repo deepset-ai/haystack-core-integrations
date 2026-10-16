@@ -161,6 +161,18 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
     raise ValueError(error_msg)
 
 
+def _convert_messages_to_llamacpp_format(messages: list[ChatMessage]) -> list[ChatCompletionRequestMessage]:
+    """
+    Convert a list of ChatMessages to the format expected by llama.cpp Chat API.
+
+    A trailing assistant message with no text and no tool calls is left out. Sent as an empty assistant turn, it makes
+    the model stop after its thinking without writing an answer.
+    """
+    if messages and messages[-1].is_from(ChatRole.ASSISTANT) and not messages[-1].texts and not messages[-1].tool_calls:
+        messages = messages[:-1]
+    return [_convert_message_to_llamacpp_format(msg) for msg in messages]
+
+
 @component
 class LlamaCppChatGenerator:
     """
@@ -383,7 +395,7 @@ class LlamaCppChatGenerator:
             return {"replies": []}
 
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
+        formatted_messages = _convert_messages_to_llamacpp_format(messages=messages)
 
         tools = tools or self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
