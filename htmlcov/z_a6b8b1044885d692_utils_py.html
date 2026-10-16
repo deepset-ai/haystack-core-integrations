@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_ad4df36e6abddf46_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-15 11:21 +0000
+            created at 2026-10-16 07:11 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -88,7 +88,7 @@
     <p class="run"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="key">import</span> <span class="nam">json</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="key">import</span> <span class="nam">os</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t"><span class="key">import</span> <span class="nam">re</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">from</span> <span class="nam">datetime</span> <span class="key">import</span> <span class="nam">datetime</span><span class="op">,</span> <span class="nam">timezone</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">from</span> <span class="nam">datetime</span> <span class="key">import</span> <span class="nam">UTC</span><span class="op">,</span> <span class="nam">datetime</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">from</span> <span class="nam">typing</span> <span class="key">import</span> <span class="nam">Any</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="key">from</span> <span class="nam">botocore</span><span class="op">.</span><span class="nam">eventstream</span> <span class="key">import</span> <span class="nam">EventStream</span>&nbsp;</span><span class="r"></span></p>
@@ -637,7 +637,7 @@
     <p class="pln"><span class="n"><a id="t553" href="#t553">553</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t554" href="#t554">554</a></span><span class="t">    <span class="com"># Initialize an empty StreamingChunk to return if no relevant event is found</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t555" href="#t555">555</a></span><span class="t">    <span class="com"># (e.g. for messageStart and contentBlockStop)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t556" href="#t556">556</a></span><span class="t">    <span class="nam">base_meta</span> <span class="op">=</span> <span class="op">{</span><span class="str">&quot;model&quot;</span><span class="op">:</span> <span class="nam">model</span><span class="op">,</span> <span class="str">&quot;received_at&quot;</span><span class="op">:</span> <span class="nam">datetime</span><span class="op">.</span><span class="nam">now</span><span class="op">(</span><span class="nam">timezone</span><span class="op">.</span><span class="nam">utc</span><span class="op">)</span><span class="op">.</span><span class="nam">isoformat</span><span class="op">(</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t556" href="#t556">556</a></span><span class="t">    <span class="nam">base_meta</span> <span class="op">=</span> <span class="op">{</span><span class="str">&quot;model&quot;</span><span class="op">:</span> <span class="nam">model</span><span class="op">,</span> <span class="str">&quot;received_at&quot;</span><span class="op">:</span> <span class="nam">datetime</span><span class="op">.</span><span class="nam">now</span><span class="op">(</span><span class="nam">UTC</span><span class="op">)</span><span class="op">.</span><span class="nam">isoformat</span><span class="op">(</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t557" href="#t557">557</a></span><span class="t">    <span class="nam">streaming_chunk</span> <span class="op">=</span> <span class="nam">StreamingChunk</span><span class="op">(</span><span class="nam">content</span><span class="op">=</span><span class="str">&quot;&quot;</span><span class="op">,</span> <span class="nam">meta</span><span class="op">=</span><span class="nam">base_meta</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t558" href="#t558">558</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t559" href="#t559">559</a></span><span class="t">    <span class="key">if</span> <span class="str">&quot;contentBlockStart&quot;</span> <span class="key">in</span> <span class="nam">event</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -852,7 +852,7 @@
             <a class="nav" href="z_ad4df36e6abddf46_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-15 11:21 +0000
+            created at 2026-10-16 07:11 +0000
         </p>
     </div>
 </footer>
