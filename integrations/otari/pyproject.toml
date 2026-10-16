@@ -7,7 +7,7 @@ name = "otari-haystack"
 dynamic = ["version"]
 description = 'An integration between the Otari LLM gateway and Haystack'
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = ["haystack", "otari", "llm gateway", "chat generator", "embedder", "ranker"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,15 +15,24 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=3.0.0", "httpx>=0.27.0", "openai>=1.99.2", "more_itertools>=9.0.0", "tqdm>=4.48.0", "pydantic>=2.12.0"]
+dependencies = [
+  "haystack-ai>=3.0.0",
+  "httpx>=0.27.0",
+  "openai>=1.99.2",
+  "more_itertools>=9.0.0",
+  "tqdm>=4.48.0",
+  "pydantic>=2.12.0",
+  # pydantic 2.14.0 is the first release whose pydantic-core has Python 3.15 wheels.
+  "pydantic>=2.14.0; python_version >= '3.15'",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/otari#readme"

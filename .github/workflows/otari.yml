@@ -30,7 +30,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
-  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+  TEST_MATRIX_PYTHON: '["3.11", "3.15"]'
 
 jobs:
   compute-test-matrix:
@@ -45,7 +45,7 @@ jobs:
       - id: set
         run: |
           echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
-          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.11"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
 
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -78,7 +78,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install hatch --uploaded-prior-to=P1D
       - name: Lint
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Run unit tests
@@ -87,7 +87,7 @@ jobs:
       # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
         id: coverage_comment
-        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
         with:
           GITHUB_TOKEN: ${{ github.token }}
@@ -97,7 +97,7 @@ jobs:
           MINIMUM_ORANGE: 60
 
       - name: Upload coverage comment to be posted
-        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-comment-otari
@@ -106,7 +106,7 @@ jobs:
       # The integration tests call a local Otari gateway that routes to OpenAI, Cohere, and Anthropic, which consumes API
       # credits, so run them only on Linux and on the minimum Python version supported
       - name: Start Otari
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
@@ -120,14 +120,14 @@ jobs:
           docker compose up -d --wait
 
       - name: Run integration tests
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run test:integration-cov-append-retry
 
       # Run the chat generator and embedder tests against otari.ai as well. The ranker and the Cohere and Anthropic
       # reasoning tests are left out because the otari.ai organization has no Cohere or Anthropic key. The key belongs to otari.ai's EU region, which has its own host.
       # OTARI_API_KEY already holds the local gateway's key in this job, so the otari.ai key gets its own name here.
       - name: Run chat generator and embedder integration tests against otari.ai
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         env:
           OTARI_AI_API_KEY: ${{ secrets.OTARI_API_KEY }}
         run: |
@@ -161,11 +161,11 @@ jobs:
       # Since this integration inherits from OpenAIChatGenerator and the OpenAI embedders, we run also integration
       # tests with Haystack main branch to catch regressions
       - name: Nightly - run integration tests with Haystack main branch
-        if: github.event_name == 'schedule' && matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: github.event_name == 'schedule' && matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run test:integration-cov-append-retry
 
       - name: Stop Otari
-        if: always() && matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: always() && matrix.python-version == '3.11' && runner.os == 'Linux'
         run: docker compose down
 
   notify-slack-on-failure:
