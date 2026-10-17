@@ -18,6 +18,7 @@ from haystack.dataclasses import (
     StreamingChunk,
     SyncStreamingCallbackT,
     ToolCall,
+    ToolCallDelta,
     select_streaming_callback,
 )
 from haystack.dataclasses.streaming_chunk import FinishReason
@@ -166,6 +167,7 @@ def _convert_tools_to_hfapi_tools(tools: ToolsType | None) -> list["ChatCompleti
 
 def _map_hf_finish_reason_to_haystack(
     choice: Union["ChatCompletionStreamOutputChoice", "ChatCompletionOutputComplete"],
+    has_tool_calls: bool = False,
 ) -> FinishReason | None:
     """
     Map HuggingFace finish reasons to Haystack FinishReason literals.
@@ -181,29 +183,29 @@ def _map_hf_finish_reason_to_haystack(
     Additionally, detects tool calls from delta.tool_calls or delta.tool_call_id.
 
     :param choice: The HuggingFace ChatCompletionStreamOutputChoice object.
+    :param has_tool_calls: Whether previous streaming chunks contained tool calls.
     :returns: The corresponding Haystack FinishReason or None.
     """
     if choice.finish_reason is None:
         return None
 
+    # A partial tool call does not turn truncation or filtering into a successful tool completion.
+    if choice.finish_reason == "length":
+        return "length"
+    if choice.finish_reason == "content_filter":
+        return "content_filter"
+
     # Check if this choice contains tool call information
     if isinstance(choice, ChatCompletionStreamOutputChoice):
-        has_tool_calls = choice.delta.tool_calls is not None or choice.delta.tool_call_id is not None
+        has_tool_calls = has_tool_calls or bool(choice.delta.tool_calls) or choice.delta.tool_call_id is not None
     else:
-        has_tool_calls = choice.message.tool_calls is not None or choice.message.tool_call_id is not None
+        has_tool_calls = has_tool_calls or bool(choice.message.tool_calls) or choice.message.tool_call_id is not None
 
-    # If we detect tool calls, override the finish reason
-    if has_tool_calls:
+    if has_tool_calls or choice.finish_reason == "tool_calls":
         return "tool_calls"
 
-    # Map HuggingFace finish reasons to Haystack standard ones
-    mapping: dict[str, FinishReason] = {
-        "length": "length",  # Direct match
-        "eos_token": "stop",  # EOS token means natural stop
-        "stop_sequence": "stop",  # Stop sequence means natural stop
-    }
-
-    return mapping.get(choice.finish_reason, "stop")  # Default to "stop" for unknown reasons
+    # "stop", "eos_token" and "stop_sequence" all indicate a natural stop.
+    return "stop"
 
 
 def _convert_chat_completion_stream_output_to_streaming_chunk(
@@ -214,14 +216,18 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
     """
     Converts the Hugging Face API ChatCompletionStreamOutput to a StreamingChunk.
     """
+    meta: dict[str, Any] = {"model": chunk.model, "received_at": datetime.now(UTC).isoformat()}
+    usage = None
+    if chunk.usage:
+        usage = {"prompt_tokens": chunk.usage.prompt_tokens, "completion_tokens": chunk.usage.completion_tokens}
+        meta["usage"] = usage
+
     # Choices is empty if include_usage is set to True where the usage information is returned.
     if len(chunk.choices) == 0:
-        usage = None
-        if chunk.usage:
-            usage = {"prompt_tokens": chunk.usage.prompt_tokens, "completion_tokens": chunk.usage.completion_tokens}
+        meta["usage"] = usage
         return StreamingChunk(
             content="",
-            meta={"model": chunk.model, "received_at": datetime.now(UTC).isoformat(), "usage": usage},
+            meta=meta,
             component_info=component_info,
         )
 
@@ -229,23 +235,41 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
     # the argument is probably allowed for compatibility with OpenAI
     # see https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.InferenceClient.chat_completion.n
     choice = chunk.choices[0]
-    mapped_finish_reason = _map_hf_finish_reason_to_haystack(choice) if choice.finish_reason else None
+    meta["finish_reason"] = choice.finish_reason
+    previous_tool_indices = (
+        {tool_call.index for previous in previous_chunks for tool_call in previous.tool_calls or []}
+        if choice.delta.tool_calls or choice.finish_reason
+        else set()
+    )
+    mapped_finish_reason = _map_hf_finish_reason_to_haystack(choice, has_tool_calls=bool(previous_tool_indices))
+
+    tool_calls = []
+    for tool_call in choice.delta.tool_calls or []:
+        if tool_call.index is None:
+            msg = "Hugging Face returned a streaming tool call without an index."
+            raise ValueError(msg)
+        function = tool_call.function
+        tool_calls.append(
+            ToolCallDelta(
+                index=tool_call.index,
+                id=tool_call.id,
+                tool_name=function.name if function else None,
+                arguments=function.arguments if function else None,
+            )
+        )
 
     # Extract reasoning content if present
     reasoning = _extract_reasoning_content(choice.delta)
+    index = 0 if choice.finish_reason is None or choice.delta.content or reasoning else None
 
     return StreamingChunk(
         content=choice.delta.content or "",
-        meta={
-            "model": chunk.model,
-            "received_at": datetime.now(UTC).isoformat(),
-            "finish_reason": choice.finish_reason,
-        },
+        meta=meta,
         component_info=component_info,
-        # Index must always be 0 since we don't allow tool calls in streaming mode.
-        index=0 if choice.finish_reason is None else None,
-        # start is True at the very beginning since first chunk contains role information + first part of the answer.
-        start=len(previous_chunks) == 0,
+        # A provider event can contain several calls; use its first call's index for the chunk itself.
+        index=tool_calls[0].index if tool_calls else index,
+        start=tool_calls[0].index not in previous_tool_indices if tool_calls else len(previous_chunks) == 0,
+        tool_calls=tool_calls or None,
         finish_reason=mapped_finish_reason,
         reasoning=reasoning,
     )
@@ -386,15 +410,14 @@ class HuggingFaceAPIChatGenerator:
         :param stop_words:
             An optional list of strings representing the stop words.
         :param streaming_callback:
-            An optional callable for handling streaming responses.
+            An optional callable for handling streaming text, reasoning, and tool-call fragments.
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            The chosen model should support tool/function calling, according to the model card.
-            Support for tools in the Hugging Face API and TGI is not yet fully refined and you may experience
-            unexpected behavior.
+            The chosen model and provider must support tool/function calling, including streaming when a callback
+            is supplied. See [Hugging Face tool calling](https://huggingface.co/docs/inference-providers/guides/function-calling).
         :raises ValueError:
             If the required `model` or `url` is missing from `api_params`, the `url` is invalid, the `api_type`
-            is unknown, `tools` and `streaming_callback` are used together, or duplicate tool names are provided.
+            is unknown, or duplicate tool names are provided.
         """
         if isinstance(api_type, str):
             api_type = HFGenerationAPIType.from_str(api_type)
@@ -421,9 +444,6 @@ class HuggingFaceAPIChatGenerator:
             msg = f"Unknown api_type {api_type}"
             raise ValueError(msg)
 
-        if tools and streaming_callback is not None:
-            msg = "Using tools and streaming at the same time is not supported. Please choose one."
-            raise ValueError(msg)
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         # handle generation kwargs setup
@@ -532,7 +552,7 @@ class HuggingFaceAPIChatGenerator:
             An optional callable for handling streaming responses. If set, it will override the `streaming_callback`
             parameter set during component initialization.
         :raises ValueError:
-            If `tools` and a streaming callback are used together, or if duplicate tool names are provided.
+            Duplicate tool names are provided.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
@@ -547,9 +567,6 @@ class HuggingFaceAPIChatGenerator:
         formatted_messages = [convert_message_to_hf_format(message) for message in messages]
 
         tools = tools or self.tools
-        if tools and self.streaming_callback:
-            msg = "Using tools and streaming at the same time is not supported. Please choose one."
-            raise ValueError(msg)
         flat_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flat_tools)
 
@@ -558,10 +575,10 @@ class HuggingFaceAPIChatGenerator:
             self.streaming_callback, streaming_callback, requires_async=False
         )
 
-        if streaming_callback:
-            return self._run_streaming(formatted_messages, generation_kwargs, streaming_callback)
-
         hf_tools = _convert_tools_to_hfapi_tools(tools)
+
+        if streaming_callback:
+            return self._run_streaming(formatted_messages, generation_kwargs, streaming_callback, hf_tools)
 
         return self._run_non_streaming(formatted_messages, generation_kwargs, hf_tools)
 
@@ -594,7 +611,7 @@ class HuggingFaceAPIChatGenerator:
             An optional callable for handling streaming responses. If set, it will override the `streaming_callback`
             parameter set during component initialization.
         :raises ValueError:
-            If `tools` and a streaming callback are used together, or if duplicate tool names are provided.
+            Duplicate tool names are provided.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
@@ -609,19 +626,16 @@ class HuggingFaceAPIChatGenerator:
         formatted_messages = [convert_message_to_hf_format(message) for message in messages]
 
         tools = tools or self.tools
-        if tools and self.streaming_callback:
-            msg = "Using tools and streaming at the same time is not supported. Please choose one."
-            raise ValueError(msg)
         flat_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flat_tools)
 
         # validate and select the streaming callback
         streaming_callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
 
-        if streaming_callback:
-            return await self._run_streaming_async(formatted_messages, generation_kwargs, streaming_callback)
-
         hf_tools = _convert_tools_to_hfapi_tools(tools)
+
+        if streaming_callback:
+            return await self._run_streaming_async(formatted_messages, generation_kwargs, streaming_callback, hf_tools)
 
         return await self._run_non_streaming_async(formatted_messages, generation_kwargs, hf_tools)
 
@@ -630,10 +644,12 @@ class HuggingFaceAPIChatGenerator:
         messages: list[dict[str, str]],
         generation_kwargs: dict[str, Any],
         streaming_callback: SyncStreamingCallbackT,
+        tools: list["ChatCompletionInputTool"] | None = None,
     ) -> dict[str, list[ChatMessage]]:
         assert self._client is not None  # noqa: S101
         api_output: Iterable[ChatCompletionStreamOutput] = self._client.chat_completion(
             messages,
+            tools=tools,
             stream=True,
             stream_options=ChatCompletionInputStreamOptions(include_usage=True),
             **generation_kwargs,
@@ -703,10 +719,12 @@ class HuggingFaceAPIChatGenerator:
         messages: list[dict[str, str]],
         generation_kwargs: dict[str, Any],
         streaming_callback: StreamingCallbackT,
+        tools: list["ChatCompletionInputTool"] | None = None,
     ) -> dict[str, list[ChatMessage]]:
         assert self._async_client is not None  # noqa: S101
         api_output: AsyncIterable[ChatCompletionStreamOutput] = await self._async_client.chat_completion(
             messages,
+            tools=tools,
             stream=True,
             stream_options=ChatCompletionInputStreamOptions(include_usage=True),
             **generation_kwargs,

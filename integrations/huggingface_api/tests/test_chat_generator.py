@@ -9,7 +9,15 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from haystack import Pipeline
-from haystack.dataclasses import ChatMessage, ImageContent, ReasoningContent, StreamingChunk, ToolCall
+from haystack.dataclasses import (
+    ChatMessage,
+    ComponentInfo,
+    ImageContent,
+    ReasoningContent,
+    StreamingChunk,
+    ToolCall,
+    ToolCallDelta,
+)
 from haystack.tools import Tool
 from haystack.tools.toolset import Toolset
 from haystack.utils.auth import Secret
@@ -135,6 +143,61 @@ def streaming_callback_handler(x):
     return x
 
 
+@pytest.fixture
+def hf_stream_chunk():
+    def create(delta=None, finish_reason=None, usage=None):
+        return ChatCompletionStreamOutput.parse_obj_as_instance(
+            {
+                "id": "completion_id",
+                "created": 1710498504,
+                "model": "some_model",
+                "system_fingerprint": "some_fingerprint",
+                "choices": [] if delta is None else [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+                "usage": usage,
+            }
+        )
+
+    return create
+
+
+@pytest.fixture
+def tool_call_stream(hf_stream_chunk):
+    return [
+        hf_stream_chunk({"role": "assistant", "content": ""}),
+        hf_stream_chunk({"reasoning": "Check both cities."}),
+        hf_stream_chunk({"content": "Checking the weather."}),
+        hf_stream_chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_paris",
+                        "type": "function",
+                        "function": {"name": "wea", "arguments": '{"city":'},
+                    },
+                    {
+                        "index": 1,
+                        "id": "call_berlin",
+                        "type": "function",
+                        "function": {"name": "weather", "arguments": '{"city":"Ber'},
+                    },
+                ]
+            }
+        ),
+        # Continuations can omit IDs and arrive in a different order within the same event.
+        hf_stream_chunk(
+            {
+                "tool_calls": [
+                    {"index": 1, "function": {"arguments": 'lin"}'}},
+                    {"index": 0, "function": {"name": "ther", "arguments": '"Paris"}'}},
+                ]
+            }
+        ),
+        hf_stream_chunk({}, finish_reason="tool_calls"),
+        hf_stream_chunk(usage={"prompt_tokens": 12, "completion_tokens": 20, "total_tokens": 32}),
+    ]
+
+
 class TestInitializationAndSerialization:
     def test_init_invalid_api_type(self):
         with pytest.raises(ValueError):
@@ -240,14 +303,17 @@ class TestInitializationAndSerialization:
                 tools=duplicate_tools,
             )
 
-    def test_init_fail_with_tools_and_streaming(self, tools):
-        with pytest.raises(ValueError):
-            HuggingFaceAPIChatGenerator(
-                api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-                api_params={"model": "irrelevant"},
-                tools=tools,
-                streaming_callback=streaming_callback_handler,
-            )
+    def test_init_with_tools_and_streaming(self, tools):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-3.1-70B-Instruct"},
+            tools=tools,
+            streaming_callback=streaming_callback_handler,
+        )
+        assert generator.tools == tools
+        assert generator.streaming_callback is streaming_callback_handler
+        restored = HuggingFaceAPIChatGenerator.from_dict(generator.to_dict())
+        assert restored.to_dict() == generator.to_dict()
 
     def test_to_dict(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
@@ -580,6 +646,7 @@ class TestRun:
             "stream": True,
             "max_tokens": 512,
             "stream_options": ChatCompletionInputStreamOptions(include_usage=True),
+            "tools": None,
         }
 
         # Assert that the streaming callback was called twice
@@ -649,6 +716,7 @@ class TestRun:
             "stream": True,
             "max_tokens": 512,
             "stream_options": ChatCompletionInputStreamOptions(include_usage=True),
+            "tools": None,
         }
 
         # Assert that the streaming callback was called twice
@@ -659,17 +727,6 @@ class TestRun:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) > 0
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    def test_run_fail_with_tools_and_streaming(self, tools, mock_check_valid_model):
-        component = HuggingFaceAPIChatGenerator(
-            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
-            streaming_callback=streaming_callback_handler,
-        )
-
-        with pytest.raises(ValueError):
-            message = ChatMessage.from_user("irrelevant")
-            component.run([message], tools=tools)
 
     def test_run_with_tools(self, mock_check_valid_model, tools):
         generator = HuggingFaceAPIChatGenerator(
@@ -843,7 +900,7 @@ class TestRun:
                     },
                     finish_reason="stop",
                 ),
-                [0],
+                [StreamingChunk(content=" Paris", index=0)],
             ),
             (
                 ChatCompletionStreamOutput(
@@ -862,7 +919,7 @@ class TestRun:
                         "usage": {"completion_tokens": 2, "prompt_tokens": 21},
                     },
                 ),
-                [0, 1],
+                [StreamingChunk(content=" Paris", index=0), StreamingChunk(content="", finish_reason="stop")],
             ),
         ],
     )
@@ -1123,6 +1180,7 @@ class TestRunAsync:
             "stream": True,
             "max_tokens": 512,
             "stream_options": ChatCompletionInputStreamOptions(include_usage=True),
+            "tools": None,
         }
 
         # Assert that the streaming callback was called twice
@@ -1655,6 +1713,243 @@ class TestReasoning:
 
         assert streaming_chunk.content == "Hello"
         assert streaming_chunk.reasoning is None
+
+
+class TestStreamingTools:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async", [False, True])
+    @pytest.mark.parametrize(
+        "tools_at_init, callback_at_init", [(True, True), (True, False), (False, True), (False, False)]
+    )
+    @pytest.mark.parametrize("as_toolset", [False, True])
+    async def test_streaming_tools(
+        self, tools, mock_check_valid_model, tool_call_stream, use_async, tools_at_init, callback_at_init, as_toolset
+    ):
+        received = []
+        callback = AsyncMock(side_effect=received.append) if use_async else Mock(side_effect=received.append)
+        selected_tools = Toolset(tools) if as_toolset else tools
+        generator = HuggingFaceAPIChatGenerator(
+            api_type="serverless_inference_api",
+            api_params={"model": "some_model"},
+            token=None,
+            tools=selected_tools if tools_at_init else None,
+            streaming_callback=callback if callback_at_init else None,
+        )
+
+        async def async_stream():
+            for chunk in tool_call_stream:
+                yield chunk
+
+        client_type = "AsyncInferenceClient" if use_async else "InferenceClient"
+        with patch(f"huggingface_hub.{client_type}.chat_completion") as api:
+            api.return_value = async_stream() if use_async else iter(tool_call_stream)
+            kwargs = {
+                "messages": [ChatMessage.from_user("What is the weather in Paris and Berlin?")],
+                "tools": None if tools_at_init else selected_tools,
+                "streaming_callback": None if callback_at_init else callback,
+            }
+            result = await generator.run_async(**kwargs) if use_async else generator.run(**kwargs)
+
+        assert api.call_args.kwargs == {
+            "tools": _convert_tools_to_hfapi_tools(tools),
+            "stream": True,
+            "stream_options": ChatCompletionInputStreamOptions(include_usage=True),
+            "stop": [],
+            "max_tokens": 512,
+        }
+        assert len(received) == len(tool_call_stream)
+        assert callback.call_count == len(received)
+        if use_async:
+            assert callback.await_count == len(received)
+        assert [chunk.content for chunk in received] == ["", "", "Checking the weather.", "", "", "", ""]
+        assert [chunk.reasoning for chunk in received] == [
+            None,
+            ReasoningContent("Check both cities."),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ]
+        assert [chunk.tool_calls for chunk in received] == [
+            None,
+            None,
+            None,
+            [
+                ToolCallDelta(index=0, id="call_paris", tool_name="wea", arguments='{"city":'),
+                ToolCallDelta(index=1, id="call_berlin", tool_name="weather", arguments='{"city":"Ber'),
+            ],
+            [ToolCallDelta(index=1, arguments='lin"}'), ToolCallDelta(index=0, tool_name="ther", arguments='"Paris"}')],
+            None,
+            None,
+        ]
+        assert [chunk.index for chunk in received] == [0, 0, 0, 0, 1, None, None]
+        assert [chunk.start for chunk in received] == [True, False, False, True, False, False, False]
+        assert [chunk.finish_reason for chunk in received] == [None, None, None, None, None, "tool_calls", None]
+        for chunk in received:
+            assert chunk.component_info == ComponentInfo.from_component(generator)
+            assert chunk.meta["model"] == "some_model"
+            assert datetime.fromisoformat(chunk.meta["received_at"]).tzinfo is not None
+        assert [chunk.meta.get("finish_reason") for chunk in received] == [
+            None,
+            None,
+            None,
+            None,
+            None,
+            "tool_calls",
+            None,
+        ]
+        assert [chunk.meta.get("usage") for chunk in received] == [None] * 6 + [
+            {"prompt_tokens": 12, "completion_tokens": 20}
+        ]
+        assert len(result["replies"]) == 1
+        reply = result["replies"][0]
+        assert reply.text == "Checking the weather."
+        assert reply.reasoning == ReasoningContent("Check both cities.")
+        assert reply.tool_calls == [
+            ToolCall(id="call_paris", tool_name="weather", arguments={"city": "Paris"}),
+            ToolCall(id="call_berlin", tool_name="weather", arguments={"city": "Berlin"}),
+        ]
+        assert reply.meta == {
+            "model": "some_model",
+            "index": 0,
+            "finish_reason": "tool_calls",
+            "completion_start_time": received[0].meta["received_at"],
+            "usage": {"prompt_tokens": 12, "completion_tokens": 20},
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async", [False, True])
+    async def test_streaming_tools_runtime_overrides(self, tools, mock_check_valid_model, tool_call_stream, use_async):
+        unused_callback = Mock()
+        received = []
+        callback = AsyncMock(side_effect=received.append) if use_async else Mock(side_effect=received.append)
+        generator = HuggingFaceAPIChatGenerator(
+            api_type="serverless_inference_api",
+            api_params={"model": "some_model"},
+            token=None,
+            tools=[Tool(name="unused", description="Unused", parameters={}, function=lambda: None)],
+            streaming_callback=unused_callback,
+        )
+
+        async def async_stream():
+            for chunk in tool_call_stream:
+                yield chunk
+
+        client_type = "AsyncInferenceClient" if use_async else "InferenceClient"
+        with patch(f"huggingface_hub.{client_type}.chat_completion") as api:
+            api.return_value = async_stream() if use_async else iter(tool_call_stream)
+            kwargs = {"messages": "Weather?", "tools": tools, "streaming_callback": callback}
+            result = await generator.run_async(**kwargs) if use_async else generator.run(**kwargs)
+        unused_callback.assert_not_called()
+        assert api.call_args.kwargs["tools"] == _convert_tools_to_hfapi_tools(tools)
+        assert len(received) == len(tool_call_stream)
+        assert len(result["replies"][0].tool_calls) == 2
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async", [False, True])
+    async def test_streaming_tools_duplicate_names(self, tools, mock_check_valid_model, use_async):
+        callback = AsyncMock() if use_async else Mock()
+        generator = HuggingFaceAPIChatGenerator(
+            api_type="serverless_inference_api",
+            api_params={"model": "some_model"},
+            token=None,
+            streaming_callback=callback,
+        )
+        with pytest.raises(ValueError, match=r"(?i)duplicate"):
+            if use_async:
+                await generator.run_async("Weather?", tools=tools * 2)
+            else:
+                generator.run("Weather?", tools=tools * 2)
+        callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async", [False, True])
+    async def test_streaming_tools_text_response(self, tools, mock_check_valid_model, hf_stream_chunk, use_async):
+        chunks = [
+            hf_stream_chunk({"role": "assistant", "content": "No tool needed."}),
+            hf_stream_chunk({}, finish_reason="stop"),
+        ]
+        received = []
+        generator = HuggingFaceAPIChatGenerator(
+            api_type="serverless_inference_api",
+            api_params={"model": "some_model"},
+            token=None,
+            tools=tools,
+            streaming_callback=received.append,
+        )
+
+        async def async_stream():
+            for chunk in chunks:
+                yield chunk
+
+        client_type = "AsyncInferenceClient" if use_async else "InferenceClient"
+        with patch(f"huggingface_hub.{client_type}.chat_completion") as api:
+            api.return_value = async_stream() if use_async else iter(chunks)
+            result = await generator.run_async("Hello") if use_async else generator.run("Hello")
+        assert api.call_args.kwargs["tools"] == _convert_tools_to_hfapi_tools(tools)
+        assert [chunk.content for chunk in received] == ["No tool needed.", ""]
+        reply = result["replies"][0]
+        assert reply.text == "No tool needed."
+        assert reply.tool_calls == []
+        assert reply.meta["finish_reason"] == "stop"
+        assert reply.meta["usage"] == {"prompt_tokens": 0, "completion_tokens": 0}
+
+    @pytest.mark.parametrize("finish_reason", [None, "tool_calls", "eos_token", "length"])
+    @pytest.mark.parametrize("function", [None, {"name": "weather", "arguments": "{}"}, {"arguments": '"Paris"}'}])
+    def test_tool_call_stream_conversion(self, hf_stream_chunk, finish_reason, function):
+        tool_call = {"index": 7, "id": "call_7", "type": "function"}
+        if function is not None:
+            tool_call["function"] = function
+        chunk = hf_stream_chunk(
+            {"tool_calls": [tool_call]},
+            finish_reason=finish_reason,
+            usage={"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
+        )
+        converted = _convert_chat_completion_stream_output_to_streaming_chunk(chunk, [])
+        assert converted.tool_calls == [
+            ToolCallDelta(
+                index=7,
+                id="call_7",
+                tool_name=function.get("name") if function else None,
+                arguments=function.get("arguments") if function else None,
+            )
+        ]
+        assert converted.index == 7
+        assert converted.start is True
+        assert converted.content == ""
+        assert converted.finish_reason == (
+            "length" if finish_reason == "length" else "tool_calls" if finish_reason else None
+        )
+        assert converted.meta["usage"] == {"prompt_tokens": 2, "completion_tokens": 3}
+
+    @pytest.mark.parametrize("had_tools", [False, True])
+    @pytest.mark.parametrize(
+        "finish_reason", ["tool_calls", "stop", "eos_token", "stop_sequence", "length", "content_filter"]
+    )
+    def test_tool_call_stream_terminal_chunk(self, hf_stream_chunk, had_tools, finish_reason):
+        previous = (
+            [StreamingChunk(content="", index=0, tool_calls=[ToolCallDelta(index=0, arguments="{}")])]
+            if had_tools
+            else []
+        )
+        chunk = hf_stream_chunk({}, finish_reason=finish_reason)
+        converted = _convert_chat_completion_stream_output_to_streaming_chunk(chunk, previous)
+        expected = (
+            finish_reason
+            if finish_reason in ("length", "content_filter", "tool_calls")
+            else "tool_calls"
+            if had_tools
+            else "stop"
+        )
+        assert converted.finish_reason == expected
+        assert converted.index is None
+        assert converted.tool_calls is None
+
+    def test_tool_call_stream_missing_index(self, hf_stream_chunk):
+        chunk = hf_stream_chunk({"tool_calls": [{"id": "call_0", "function": {"name": "weather", "arguments": "{}"}}]})
+        with pytest.raises(ValueError, match="index"):
+            _convert_chat_completion_stream_output_to_streaming_chunk(chunk, [])
 
 
 class TestToolSchema:
