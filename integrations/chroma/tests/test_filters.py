@@ -77,3 +77,18 @@ def test_document_id_filter_uses_ids():
     assert result.ids == ["target"]
     assert result.where is None
     assert result.where_document is None
+
+
+@pytest.mark.parametrize(
+    ("condition", "category"),
+    [
+        ({"field": "meta.id", "operator": "in", "value": "target"}, "metadata filter"),
+        ({"field": "content", "operator": "contains", "value": 123}, "document content filter"),
+    ],
+    ids=["invalid_metadata_membership", "invalid_content_value"],
+)
+def test_invalid_filters_wrap_chroma_validation_errors(condition, category):
+    with pytest.raises(ChromaDocumentStoreFilterError, match=f"Invalid '{category}'") as exception_info:
+        _convert_filters(condition)
+
+    assert isinstance(exception_info.value.__cause__, ValueError)
