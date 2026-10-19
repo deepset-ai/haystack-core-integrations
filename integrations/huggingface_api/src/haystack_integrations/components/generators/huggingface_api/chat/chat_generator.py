@@ -438,7 +438,7 @@ class HuggingFaceAPIChatGenerator:
         :param stop_words:
             An optional list of strings representing the stop words.
         :param streaming_callback:
-            An optional callable for handling streaming text, reasoning, and tool-call fragments.
+            An optional callable for handling streaming responses.
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             The chosen model and provider must support tool/function calling, including streaming when a callback
@@ -580,7 +580,7 @@ class HuggingFaceAPIChatGenerator:
             An optional callable for handling streaming responses. If set, it will override the `streaming_callback`
             parameter set during component initialization.
         :raises ValueError:
-            Duplicate tool names are provided.
+            If duplicate tool names are provided.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
@@ -639,7 +639,7 @@ class HuggingFaceAPIChatGenerator:
             An optional callable for handling streaming responses. If set, it will override the `streaming_callback`
             parameter set during component initialization.
         :raises ValueError:
-            Duplicate tool names are provided.
+            If duplicate tool names are provided.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
