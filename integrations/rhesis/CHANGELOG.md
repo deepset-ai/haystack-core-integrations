@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/rhesis-v1.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Rhesis - verify integration tests against the live backend (#4072)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Rhesis - bump rhesis[telemetry] to >=0.17.1 (#4034)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/rhesis-v0.0.1] - 2026-09-02
 
 ### 🚀 Features
