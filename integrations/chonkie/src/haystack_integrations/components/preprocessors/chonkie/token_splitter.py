@@ -54,11 +54,16 @@ class ChonkieTokenDocumentSplitter:
         self.skip_empty_documents = skip_empty_documents
         self.page_break_character = page_break_character
 
-        self._chunker = chonkie.TokenChunker(
-            tokenizer=tokenizer,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
+        self._chunker: chonkie.TokenChunker | None = None
+
+    def warm_up(self) -> None:
+        """Initialize the Chonkie token chunker."""
+        if self._chunker is None:
+            self._chunker = chonkie.TokenChunker(
+                tokenizer=self.tokenizer,
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.chunk_overlap,
+            )
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
@@ -68,6 +73,9 @@ class ChonkieTokenDocumentSplitter:
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
+        self.warm_up()
+        assert self._chunker is not None  # noqa: S101
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = "ChonkieTokenDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)

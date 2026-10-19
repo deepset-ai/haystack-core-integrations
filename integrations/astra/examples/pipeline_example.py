@@ -1,6 +1,8 @@
+import logging
 import os
+from pathlib import Path
 
-from haystack import Document, Pipeline, logging
+from haystack import Document, Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -87,7 +89,7 @@ rag_pipeline.connect("retriever", "answer_builder.documents")
 
 
 # Draw the pipeline
-rag_pipeline.draw("./rag_pipeline.png")
+rag_pipeline.draw(path=Path("rag_pipeline.png"))
 
 
 # Run the pipeline

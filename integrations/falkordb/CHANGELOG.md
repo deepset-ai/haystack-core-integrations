@@ -1,5 +1,51 @@
 # Changelog
 
+## [integrations/falkordb-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/falkordb-v1.5.0] - 2026-10-05
+
+### 🚀 Features
+
+- Add async methods for FalkorDBDocumentStore (#3999)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+
+
+## [integrations/falkordb-v1.4.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `FalkorDB` `get_metadata_field_unique_values` match metadata value case insensitive (#3676)
+- `FalkorDB` changing pagination to standard method (#3688)
+- `FalkorDBDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3706)
+- FalkorDB adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3743)
+
+### 🧪 Testing
+
+- `FalkorDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests + overriding one (#3788)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/falkordb-v1.3.0] - 2026-07-24
 
 ### 🚀 Features

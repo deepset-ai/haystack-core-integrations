@@ -75,6 +75,8 @@ class LinkupWebSearch:
         Called automatically on first use. Can be called explicitly to avoid cold-start latency.
         """
         if self._client is None:
+            # LinkupClient only stores configuration. `search()` and `async_search()` create and close their own HTTP
+            # clients, so we don't need separate `warm_up` and `warm_up_async` methods.
             self._client = LinkupClient(api_key=self.api_key.resolve_value())
 
     @component.output_types(documents=list[Document], links=list[str])

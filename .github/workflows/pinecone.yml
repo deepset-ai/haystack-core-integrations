@@ -42,12 +42,12 @@ jobs:
       - id: set
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            echo 'matrix=[{"os":"ubuntu-latest","python-version":"3.10","INDEX_NAME":"index-310"}]' >> "$GITHUB_OUTPUT"
+            echo 'matrix=[{"os":"ubuntu-latest","python-version":"3.11","INDEX_NAME":"index-310"}]' >> "$GITHUB_OUTPUT"
           else
             MATRIX='['
             # Pinecone tests are time expensive, so only test on Ubuntu
-            MATRIX+='{"os":"ubuntu-latest","python-version":"3.10","INDEX_NAME":"index-310"},'
-            MATRIX+='{"os":"ubuntu-latest","python-version":"3.14","INDEX_NAME":"index-313"}'
+            MATRIX+='{"os":"ubuntu-latest","python-version":"3.11","INDEX_NAME":"index-310"},'
+            MATRIX+='{"os":"ubuntu-latest","python-version":"3.15","INDEX_NAME":"index-313"}'
             MATRIX+=']'
             echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           fi
@@ -78,7 +78,7 @@ jobs:
           pip install hatch --uploaded-prior-to=P1D
 
       - name: Lint
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
       - name: Run unit tests
@@ -87,8 +87,8 @@ jobs:
       # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
         id: coverage_comment
-        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
+        if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/pinecone
@@ -97,14 +97,14 @@ jobs:
           MINIMUM_ORANGE: 60
 
       - name: Upload coverage comment to be posted
-        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-comment-pinecone
           path: python-coverage-comment-action-pinecone.txt
 
       - name: Run integration tests
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         env:
           INDEX_NAME: ${{ matrix.INDEX_NAME }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
@@ -112,7 +112,7 @@ jobs:
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71 # v4.3
+        uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/pinecone

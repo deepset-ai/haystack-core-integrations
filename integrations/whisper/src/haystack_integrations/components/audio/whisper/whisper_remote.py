@@ -97,23 +97,48 @@ class RemoteWhisperTranscriber:
             )
         whisper_params["response_format"] = "json"
         self.whisper_params = whisper_params
-        # openai>=3 annotates http_client as httpx2, but legacy httpx clients are supported at runtime.
-        # https://github.com/openai/openai-python/blob/main/httpx2.md
-        http_client = init_http_client(self.http_client_kwargs, async_client=False)
-        async_http_client = init_http_client(self.http_client_kwargs, async_client=True)
+        self.client: OpenAI | None = None
+        self.async_client: AsyncOpenAI | None = None
 
-        self.client = OpenAI(
-            api_key=api_key.resolve_value(),
-            organization=organization,
-            base_url=api_base_url,
-            http_client=http_client,  # type: ignore[arg-type]
-        )
-        self.async_client = AsyncOpenAI(
-            api_key=api_key.resolve_value(),
-            organization=organization,
-            base_url=api_base_url,
-            http_client=async_http_client,  # type: ignore[arg-type]
-        )
+    def warm_up(self) -> None:
+        """Create the synchronous OpenAI client."""
+        if self.client is None:
+            # openai>=3 annotates http_client as httpx2, but legacy httpx clients are supported at runtime.
+            # https://github.com/openai/openai-python/blob/main/httpx2.md
+            api_key = self.api_key.resolve_value()
+            http_client = init_http_client(self.http_client_kwargs, async_client=False)
+            self.client = OpenAI(
+                api_key=api_key,
+                organization=self.organization,
+                base_url=self.api_base_url,
+                http_client=http_client,  # type: ignore[arg-type]
+            )
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous OpenAI client."""
+        if self.async_client is None:
+            # openai>=3 annotates http_client as httpx2, but legacy httpx clients are supported at runtime.
+            # https://github.com/openai/openai-python/blob/main/httpx2.md
+            api_key = self.api_key.resolve_value()
+            async_http_client = init_http_client(self.http_client_kwargs, async_client=True)
+            self.async_client = AsyncOpenAI(
+                api_key=api_key,
+                organization=self.organization,
+                base_url=self.api_base_url,
+                http_client=async_http_client,  # type: ignore[arg-type]
+            )
+
+    def close(self) -> None:
+        """Close the synchronous OpenAI client."""
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous OpenAI client."""
+        if self.async_client is not None:
+            await self.async_client.close()
+            self.async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -156,6 +181,9 @@ class RemoteWhisperTranscriber:
             - `documents`: A list of documents, one document for each file.
                 The content of each document is the transcribed text.
         """
+        self.warm_up()
+        assert self.client is not None  # noqa: S101
+
         documents = []
 
         for source in sources:
@@ -189,6 +217,9 @@ class RemoteWhisperTranscriber:
             - `documents`: A list of documents, one document for each file.
                 The content of each document is the transcribed text.
         """
+        await self.warm_up_async()
+        assert self.async_client is not None  # noqa: S101
+
         documents = []
 
         for source in sources:

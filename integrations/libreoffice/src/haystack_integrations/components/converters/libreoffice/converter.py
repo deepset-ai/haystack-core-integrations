@@ -10,11 +10,10 @@ from asyncio import create_subprocess_exec
 from collections.abc import Iterable
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, ClassVar, Literal, TypedDict, get_args
+from typing import Any, ClassVar, Literal, Self, TypedDict, get_args
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
-from typing_extensions import Self
 
 OUTPUT_FILE_TYPE = Literal[
     "pdf",

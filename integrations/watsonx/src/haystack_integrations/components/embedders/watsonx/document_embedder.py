@@ -7,8 +7,8 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import Document, component, default_to_dict
+from haystack.utils import Secret
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import Embeddings
 
@@ -105,21 +105,27 @@ class WatsonxDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
 
-        # Initialize the embeddings client
-        credentials = Credentials(api_key=api_key.resolve_value(), url=api_base_url)
+        self.embedder: Embeddings | None = None
+
+    def warm_up(self) -> None:
+        """Create the Watsonx embeddings client."""
+        if self.embedder is not None:
+            return
+
+        credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
 
         params = {}
-        if truncate_input_tokens is not None:
-            params["truncate_input_tokens"] = truncate_input_tokens
+        if self.truncate_input_tokens is not None:
+            params["truncate_input_tokens"] = self.truncate_input_tokens
 
         self.embedder = Embeddings(
-            model_id=model,
+            model_id=self.model,
             credentials=credentials,
-            project_id=project_id.resolve_value(),
+            project_id=self.project_id.resolve_value(),
             params=params if params else None,  # type: ignore[arg-type]
-            batch_size=batch_size,
-            concurrency_limit=concurrency_limit,
-            max_retries=max_retries,
+            batch_size=self.batch_size,
+            concurrency_limit=self.concurrency_limit,
+            max_retries=self.max_retries,
         )
 
     def _get_telemetry_data(self) -> dict[str, Any]:
@@ -151,19 +157,6 @@ class WatsonxDocumentEmbedder:
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WatsonxDocumentEmbedder":  # noqa: UP037
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary representation of this component.
-        :returns:
-            The deserialized component instance.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
-        return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         """
@@ -203,6 +196,8 @@ class WatsonxDocumentEmbedder:
             raise TypeError(msg)
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
+        self.warm_up()
+        assert self.embedder is not None  # noqa: S101
         embeddings = self.embedder.embed_documents(texts_to_embed)
 
         new_documents = []

@@ -5,12 +5,8 @@ from unittest.mock import patch
 import pytest
 import pytz
 from haystack import Pipeline
+from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
@@ -409,30 +405,15 @@ class TestAIMLAPIChatGenerator:
         reason="Export an env var called AIMLAPI_API_KEY containing the AIMLAPI API key to run this test.",
     )
     @pytest.mark.integration
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
-    def test_pipeline_with_aimlapi_chat_generator(self, tools):
+    def test_agent_with_aimlapi_chat_generator(self, tools):
         """
-        Test that the AIMLAPIChatGenerator component can be used in a pipeline
+        Test that the AIMLAPIChatGenerator component can drive tool calls in an Agent
         """
-        pipeline = Pipeline()
-        pipeline.add_component("generator", AIMLAPIChatGenerator(tools=tools, model="openai/gpt-5-mini-2025-08-07"))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
+        agent = Agent(chat_generator=AIMLAPIChatGenerator(model="openai/gpt-5-mini-2025-08-07"), tools=tools)
+        result = agent.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
 
-        pipeline.connect("generator", "tool_invoker")
-
-        results = pipeline.run(
-            data={
-                "generator": {
-                    "messages": [ChatMessage.from_user("What's the weather like in Paris?")],
-                    "generation_kwargs": {"tool_choice": "auto"},
-                }
-            }
-        )
-
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
+        tool_results = [msg.tool_call_result.result for msg in result["messages"] if msg.tool_call_result]
+        assert "The weather in Paris is sunny and 32°C" in tool_results
 
     def test_serde_in_pipeline(self, monkeypatch):
         """

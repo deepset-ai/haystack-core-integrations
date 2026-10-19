@@ -1,4 +1,9 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import io
+import json
 import os
 from typing import Any
 from unittest.mock import patch
@@ -7,6 +12,7 @@ import pytest
 from botocore.exceptions import ClientError
 from haystack.components.converters.image.image_utils import _encode_image_to_base64
 from haystack.dataclasses import ByteStream, Document
+from haystack.utils import Secret
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -32,26 +38,15 @@ def image_paths(test_files_path):
 
 
 class TestAmazonBedrockDocumentImageEmbedder:
-    def test_init(self, mock_boto3_session, set_env_variables):
+    def test_init(self):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", input_type="fake_input_type")
 
         assert embedder.model == "cohere.embed-english-v3"
         assert embedder.kwargs == {"input_type": "fake_input_type"}
         assert embedder.progress_bar
+        assert embedder._client is None
 
-        # assert mocked boto3 client called exactly once
-        mock_boto3_session.assert_called_once()
-
-        # assert mocked boto3 client was called with the correct parameters
-        mock_boto3_session.assert_called_with(
-            aws_access_key_id="some_fake_id",
-            aws_secret_access_key="some_fake_key",
-            aws_session_token="some_fake_token",
-            profile_name="some_fake_profile",
-            region_name="fake_region",
-        )
-
-    def test_init_custom_parameters(self, mock_boto3_session, set_env_variables):
+    def test_init_custom_parameters(self):
         embedder = AmazonBedrockDocumentImageEmbedder(
             model="cohere.embed-english-v3",
             embedding_types=["float"],
@@ -62,17 +57,20 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.kwargs == {"embedding_types": ["float"]}
         assert not embedder.progress_bar
 
-    def test_connection_error(self, mock_boto3_session):
-        mock_boto3_session.side_effect = Exception("some connection error")
-
-        with pytest.raises(AmazonBedrockConfigurationError):
-            AmazonBedrockDocumentImageEmbedder(
-                model="cohere.embed-english-v3",
-                embedding_types=["float"],
-            )
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "cohere.embed-english-v3",
+            "amazon.titan-embed-image-v1",
+            "arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-english-v3",
+        ],
+    )
+    def test_init_with_include_content_rejects_unsupported_models(self, model):
+        with pytest.raises(ValueError, match="only for Cohere Embed v4"):
+            AmazonBedrockDocumentImageEmbedder(model=model, include_content=True)
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_to_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
+    def test_to_dict(self, boto3_config: dict[str, Any] | None):
         embedder = AmazonBedrockDocumentImageEmbedder(
             model="cohere.embed-english-v3",
             embedding_types=["float"],
@@ -114,13 +112,16 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "boto3_config": boto3_config,
                 "root_path": "",
                 "image_size": None,
+                "include_content": False,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
             },
         }
 
         assert embedder.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_from_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
+    def test_from_dict(self, boto3_config: dict[str, Any] | None):
         data = {
             "type": TYPE,
             "init_parameters": {
@@ -155,6 +156,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "progress_bar": True,
                 "boto3_config": boto3_config,
                 "image_size": None,
+                "include_content": False,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
             },
         }
 
@@ -165,7 +169,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.progress_bar
         assert embedder.boto3_config == boto3_config
 
-    def test_from_dict_aws_region_name(self, mock_boto3_session):
+    def test_from_dict_aws_region_name(self):
         """
         Test that aws_region_name as str value is correctly parsed
         """
@@ -198,8 +202,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
     def test_run_invocation_error(self, mock_boto3_session, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        client = mock_boto3_session.return_value.client.return_value
 
-        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+        with patch.object(client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.side_effect = ClientError(
                 error_response={"Error": {"Code": "some_code", "Message": "some_message"}},
                 operation_name="some_operation",
@@ -220,7 +225,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
             '{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}',  # dict with embedding type as key
         ],
     )
-    def test_embed_cohere(self, mock_boto3_session, image_paths, response_body):
+    def test_embed_cohere(self, image_paths, response_body):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["float"])
 
         with patch.object(embedder, "_client") as mock_client:
@@ -234,7 +239,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 mime_type, base64_image = _encode_image_to_base64(image_byte_stream)
                 base64_images.append(f"data:{mime_type};base64,{base64_image}")
 
-            result = embedder._embed_cohere(image_uris=base64_images)
+            result = embedder._embed_cohere(image_uris=base64_images, documents=docs)
 
         mock_client.invoke_model.assert_called_once_with(
             body=f'{{"images": ["{base64_images[0]}"], "input_type": "image", "embedding_types": ["float"]}}',
@@ -245,7 +250,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
         assert result[0] == [0.1, 0.2, 0.3]
 
-    def test_embed_titan(self, mock_boto3_session, image_paths):
+    def test_embed_titan(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
 
         mock_response = {
@@ -282,11 +287,11 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert result[0] == [0.1, 0.2, 0.3]
         assert result[1] == [0.1, 0.2, 0.3]
 
-    def test_embed_cohere_multiple_embedding_types(self, mock_boto3_session):
+    def test_embed_cohere_multiple_embedding_types(self):
         with pytest.raises(ValueError):
             AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["float", "int8"])
 
-    def test_run_cohere_end_to_end(self, mock_boto3_session, image_paths):
+    def test_run_cohere_end_to_end(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
 
         def mock_invoke_model(*args, **kwargs):
@@ -304,7 +309,31 @@ class TestAmazonBedrockDocumentImageEmbedder:
             "file_path_meta_field": "file_path",
         }
 
-    def test_run_titan_end_to_end(self, mock_boto3_session, image_paths):
+    def test_run_cohere_interleaved_text_and_image(self, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-v4:0",
+            include_content=True,
+            meta_fields_to_embed=["file_name"],
+            embedding_types=["float"],
+            progress_bar=False,
+        )
+        docs = [Document(content="A page about cats", meta={"file_path": image_paths[0], "file_name": "cats.pdf"})]
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.return_value = {"body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2]]}}')}
+            result = embedder.run(documents=docs)
+
+        request_body = json.loads(mock_client.invoke_model.call_args.kwargs["body"])
+        assert mock_client.invoke_model.call_args.kwargs["modelId"] == "cohere.embed-v4:0"
+        assert request_body["input_type"] == "search_document"
+        assert request_body["embedding_types"] == ["float"]
+        content = request_body["inputs"][0]["content"]
+        assert content[0] == {"type": "text", "text": "cats.pdf\nA page about cats"}
+        assert content[1]["type"] == "image_url"
+        assert content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        assert result["documents"][0].embedding == [0.1, 0.2]
+
+    def test_run_titan_end_to_end(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
 
         def mock_invoke_model(*args, **kwargs):
@@ -317,7 +346,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
         assert result["documents"][0].embedding == [0.4, 0.5]
 
-    def test_run_with_pdf_cohere(self, mock_boto3_session, image_paths):
+    def test_run_with_pdf_cohere(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
 
         def mock_invoke_model(*args, **kwargs):
@@ -330,9 +359,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
         assert result["documents"][0].embedding == [0.9]
         body_sent = mock_client.invoke_model.call_args.kwargs["body"]
-        assert "data:application/pdf;base64," in body_sent
+        assert "data:image/jpeg;base64," in body_sent
 
-    def test_embed_titan_with_embedding_config(self, mock_boto3_session, image_paths):
+    def test_embed_titan_with_embedding_config(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(
             model="amazon.titan-embed-image-v1",
             embeddingConfig={"outputEmbeddingLength": 256},
@@ -348,7 +377,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         body_sent = mock_client.invoke_model.call_args.kwargs["body"]
         assert '"embeddingConfig": {"outputEmbeddingLength": 256}' in body_sent
 
-    def test_embed_titan_invocation_error(self, mock_boto3_session):
+    def test_embed_titan_invocation_error(self):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
 
         with patch.object(embedder, "_client") as mock_client:
@@ -359,13 +388,63 @@ class TestAmazonBedrockDocumentImageEmbedder:
             with pytest.raises(AmazonBedrockInferenceError):
                 embedder._embed_titan(images=["fake_base64"])
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("AWS_ACCESS_KEY_ID")
-        or not os.getenv("AWS_SECRET_ACCESS_KEY")
-        or not os.getenv("AWS_DEFAULT_REGION"),
-        reason="AWS credentials are not set",
-    )
+
+class TestComponentLifecycle:
+    def test_warm_up_uses_resolved_credentials(self, mock_boto3_session, set_env_variables):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder.warm_up()
+        mock_boto3_session.assert_called_once_with(
+            aws_access_key_id="some_fake_id",
+            aws_secret_access_key="some_fake_key",
+            aws_session_token="some_fake_token",
+            region_name="fake_region",
+            profile_name="some_fake_profile",
+        )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_AWS_ACCESS_KEY", raising=False)
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-english-v3",
+            aws_access_key_id=Secret.from_env_var("MISSING_AWS_ACCESS_KEY"),
+        )
+        with pytest.raises(AmazonBedrockConfigurationError):
+            embedder.warm_up()
+
+    def test_warm_up_connection_error(self, mock_boto3_session):
+        mock_boto3_session.side_effect = Exception("some connection error")
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        with pytest.raises(AmazonBedrockConfigurationError):
+            embedder.warm_up()
+
+    def test_sync_lifecycle(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        client = mock_boto3_session.return_value.client.return_value
+        embedder.warm_up()
+        assert embedder._client is client
+        embedder.close()
+        client.close.assert_called_once_with()
+        assert embedder._client is None
+        embedder.warm_up()
+        assert mock_boto3_session.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_boto3_session.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+        embedder.close()
+        assert embedder._client is None
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.getenv("AWS_ACCESS_KEY_ID") or not os.getenv("AWS_SECRET_ACCESS_KEY") or not os.getenv("AWS_DEFAULT_REGION"),
+    reason="AWS credentials are not set",
+)
+class TestAmazonBedrockDocumentImageEmbedderIntegration:
     @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3"])
     def test_live_run_with_cohere(self, image_paths, model):
         embedder = AmazonBedrockDocumentImageEmbedder(model=model, embedding_types=["int8"])
@@ -392,13 +471,34 @@ class TestAmazonBedrockDocumentImageEmbedder:
             assert new_doc.meta["embedding_source"]["type"] == "image"
             assert "file_path_meta_field" in new_doc.meta["embedding_source"]
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.getenv("AWS_ACCESS_KEY_ID")
-        or not os.getenv("AWS_SECRET_ACCESS_KEY")
-        or not os.getenv("AWS_DEFAULT_REGION"),
-        reason="AWS credentials are not set",
-    )
+    def test_live_run_with_cohere_interleaved_text_and_image(self, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-v4:0",
+            include_content=True,
+            meta_fields_to_embed=["file_name"],
+            embedding_separator=" | ",
+            embedding_types=["float"],
+        )
+        documents = []
+        for i, path in enumerate(image_paths):
+            meta = {"file_path": path, "file_name": path.name}
+            if path.suffix == ".pdf":
+                meta["page_number"] = 1
+            documents.append(Document(content=f"document number {i}", meta=meta))
+
+        result = embedder.run(documents=documents)
+
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert new_doc.content == doc.content
+            assert new_doc.embedding is not None
+            assert len(new_doc.embedding) == 1536
+            assert all(isinstance(value, float) for value in new_doc.embedding)
+            assert "embedding_source" not in doc.meta
+            assert new_doc.meta["file_name"] == doc.meta["file_name"]
+
     def test_live_run_with_titan(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1", image_size=(100, 100))
 

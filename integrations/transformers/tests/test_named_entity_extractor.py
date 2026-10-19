@@ -20,6 +20,26 @@ COMPONENT_TYPE = (
 )
 
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        extractor = TransformersNamedEntityExtractor(model="model", token=Secret.from_env_var("MISSING_HF_TOKEN"))
+
+        with pytest.raises(ComponentError) as exc_info:
+            extractor.warm_up()
+        assert isinstance(exc_info.value.__cause__, ValueError)
+        assert "MISSING_HF_TOKEN" in str(exc_info.value.__cause__)
+
+    @patch("haystack_integrations.components.extractors.transformers.named_entity_extractor.pipeline")
+    def test_warm_up_is_idempotent(self, pipeline_mock):
+        extractor = TransformersNamedEntityExtractor(model="model", token=None)
+
+        extractor.warm_up()
+        extractor.warm_up()
+
+        pipeline_mock.assert_called_once()
+
+
 @pytest.fixture
 def raw_texts() -> list:
     return [
@@ -101,7 +121,7 @@ def test_named_entity_extractor_serde():
         _ = TransformersNamedEntityExtractor.from_dict(serde_data)
 
 
-def test_to_dict_default(del_hf_env_vars_if_empty):
+def test_to_dict_default():
     component = TransformersNamedEntityExtractor(
         model="dslim/bert-base-NER",
         device=ComponentDevice.from_str("mps"),
@@ -144,7 +164,7 @@ def test_to_dict_with_parameters():
     }
 
 
-def test_named_entity_extractor_from_dict_no_default_parameters(del_hf_env_vars_if_empty):
+def test_named_entity_extractor_from_dict_no_default_parameters():
     data = {
         "type": COMPONENT_TYPE,
         "init_parameters": {"model": "dslim/bert-base-NER"},
@@ -197,8 +217,6 @@ def test_named_entity_extractor_run():
 
     with patch.object(extractor, "_annotate", return_value=expected_annotations) as mock_annotate:
         extractor.pipeline = "mocked_pipeline"
-        extractor._warmed_up = True
-
         result = extractor.run(documents=documents, batch_size=2)
 
         mock_annotate.assert_called_once_with(["My name is Clara and I live in Berkeley, California."], batch_size=2)
@@ -219,7 +237,7 @@ def test_named_entity_extractor_run_fails_with_wrong_number_of_annotations():
     extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER")
 
     with patch.object(extractor, "_annotate", return_value=[[]]):
-        extractor._warmed_up = True
+        extractor.pipeline = "mocked_pipeline"
 
         with pytest.raises(ComponentError, match="did not return the correct number of annotations"):
             extractor.run(documents=documents)

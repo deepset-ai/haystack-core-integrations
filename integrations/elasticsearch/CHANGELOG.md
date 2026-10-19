@@ -1,5 +1,52 @@
 # Changelog
 
+## [integrations/elasticsearch-v7.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/elasticsearch-v6.4.2] - 2026-10-08
+
+### 🐛 Bug Fixes
+
+- *(elasticsearch,opensearch)* Keep every bound when merging same-field ranges (#3984)
+- Elasticsearch painless script injection (#4068)
+
+### 🧪 Testing
+
+- Elastisearch/OpenSearch - explicitly set the embedding model in Hybrid Retriever tests (#4053)
+
+
+## [integrations/elasticsearch-v6.4.1] - 2026-09-24
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
+## [integrations/elasticsearch-v6.4.0] - 2026-09-01
+
+### 🚀 Features
+
+- `ElasticsearchDocumentStore` with offset pagination (#3691)
+
+### 🐛 Bug Fixes
+
+- `ElasticSearch` match `search_term` against metadata field value, not content (#3646)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `ElasticSearchDocumentStore` removing duplicated tests already covered by haystack Mixin tests + overriding (#3772)
+
+
 ## [integrations/elasticsearch-v6.3.0] - 2026-07-22
 
 ### 🚀 Features
@@ -252,18 +299,29 @@
 
 ## [integrations/elasticsearch-v1.0.0] - 2024-09-12
 
-### 🚀 Features
+### 🧪 Testing
 
-- Defer the database connection to when it's needed (#766)
-- Add filter_policy to elasticsearch integration (#825)
+- Do not retry tests in `hatch run test` command (#954)
+
+### 🧹 Chores
+
+- ElasticSearch - remove legacy filters elasticsearch (#1078)
+
+### 🌀 Miscellaneous
+
+- Chore: elasticsearch - ruff update, don't ruff tests (#999)
+
+## [integrations/elasticsearch-v0.7.1] - 2024-07-17
 
 ### 🐛 Bug Fixes
 
 - `ElasticSearch` - Fallback to default filter policy when deserializing retrievers without the init parameter (#898)
 
-### 🧪 Testing
+## [integrations/elasticsearch-v0.7.0] - 2024-07-15
 
-- Do not retry tests in `hatch run test` command (#954)
+### 🚀 Features
+
+- Add filter_policy to elasticsearch integration (#825)
 
 ### ⚙️ CI
 
@@ -272,13 +330,17 @@
 ### 🧹 Chores
 
 - Update ruff invocation to include check parameter (#853)
-- ElasticSearch - remove legacy filters elasticsearch (#1078)
 
 ### 🌀 Miscellaneous
 
 - Ci: install `pytest-rerunfailures` where needed; add retry config to `test-cov` script (#845)
 - Chore: Minor retriever pydoc fix (#884)
-- Chore: elasticsearch - ruff update, don't ruff tests (#999)
+
+## [integrations/elasticsearch-v0.6.0] - 2024-05-30
+
+### 🚀 Features
+
+- Defer the database connection to when it's needed (#766)
 
 ## [integrations/elasticsearch-v0.5.0] - 2024-05-24
 

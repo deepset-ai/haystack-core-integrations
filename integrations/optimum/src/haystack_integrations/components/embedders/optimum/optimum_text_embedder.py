@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
@@ -104,7 +105,7 @@ class OptimumTextEmbedder:
             Configuration for Optimum Embedder Quantization.
             If `None`, no quantization is be applied.
         """
-        params = _EmbedderParams(
+        self._params = _EmbedderParams(
             model=model,
             token=token,
             prefix=prefix,
@@ -119,18 +120,18 @@ class OptimumTextEmbedder:
             optimizer_settings=optimizer_settings,
             quantizer_settings=quantizer_settings,
         )
-        self._backend = _EmbedderBackend(params)
-        self._initialized = False
+        self._backend: _EmbedderBackend | None = None
 
     def warm_up(self) -> None:
         """
         Initializes the component.
         """
-        if self._initialized:
+        if self._backend is not None:
             return
 
-        self._backend.warm_up()
-        self._initialized = True
+        backend = _EmbedderBackend(copy.deepcopy(self._params))
+        backend.warm_up()
+        self._backend = backend
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -139,7 +140,7 @@ class OptimumTextEmbedder:
         :returns:
             Dictionary with serialized data.
         """
-        init_params = self._backend.parameters.serialize()
+        init_params = self._params.serialize()
         # Remove init params that are not provided to the text embedder.
         init_params.pop("batch_size")
         init_params.pop("progress_bar")
@@ -170,9 +171,6 @@ class OptimumTextEmbedder:
         :raises TypeError:
             If the input is not a string.
         """
-        if not self._initialized:
-            self.warm_up()
-
         if not isinstance(text, str):
             msg = (
                 "OptimumTextEmbedder expects a string as an input. "
@@ -180,6 +178,9 @@ class OptimumTextEmbedder:
             )
             raise TypeError(msg)
 
-        text_to_embed = self._backend.parameters.prefix + text + self._backend.parameters.suffix
+        self.warm_up()
+        assert self._backend is not None
+
+        text_to_embed = self._params.prefix + text + self._params.suffix
         embedding = self._backend.embed_texts(text_to_embed)
         return {"embedding": embedding}

@@ -4,8 +4,8 @@
 
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import component, default_to_dict
+from haystack.utils import Secret
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import Embeddings
 
@@ -89,19 +89,25 @@ class WatsonxTextEmbedder:
         self.timeout = timeout
         self.max_retries = max_retries
 
-        # Initialize the embeddings client
-        credentials = Credentials(api_key=api_key.resolve_value(), url=api_base_url)
+        self.embedder: Embeddings | None = None
+
+    def warm_up(self) -> None:
+        """Create the Watsonx embeddings client."""
+        if self.embedder is not None:
+            return
+
+        credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
 
         params = {}
-        if truncate_input_tokens is not None:
-            params["truncate_input_tokens"] = truncate_input_tokens
+        if self.truncate_input_tokens is not None:
+            params["truncate_input_tokens"] = self.truncate_input_tokens
 
         self.embedder = Embeddings(
-            model_id=model,
+            model_id=self.model,
             credentials=credentials,
-            project_id=project_id.resolve_value(),
+            project_id=self.project_id.resolve_value(),
             params=params if params else None,  # type: ignore[arg-type]
-            max_retries=max_retries,
+            max_retries=self.max_retries,
         )
 
     def _get_telemetry_data(self) -> dict[str, Any]:
@@ -130,19 +136,6 @@ class WatsonxTextEmbedder:
             max_retries=self.max_retries,
         )
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WatsonxTextEmbedder":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary representation of this component.
-        :returns:
-            The deserialized component instance.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
-        return default_from_dict(cls, data)
-
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):
             msg = (
@@ -163,6 +156,8 @@ class WatsonxTextEmbedder:
             - 'meta': Information about the model usage
         """
         text_to_embed = self._prepare_input(text=text)
+        self.warm_up()
+        assert self.embedder is not None  # noqa: S101
         embedding = self.embedder.embed_query(text_to_embed)
         return {
             "embedding": embedding,

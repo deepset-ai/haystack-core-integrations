@@ -4,6 +4,7 @@
 
 import json
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -46,14 +47,15 @@ def _make_transport(captured: list[httpx.Request], response: dict | None = None,
     return httpx.MockTransport(handler)
 
 
-class TestPerplexityWebSearch:
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-key")
+class TestInitialization:
+    def test_init_default(self):
         ws = PerplexityWebSearch()
         assert ws.top_k == 10
         assert ws.search_params is None
         assert ws.timeout == 30.0
-        assert ws.api_key.resolve_value() == "test-key"
+        assert ws.api_key == Secret.from_env_var("PERPLEXITY_API_KEY")
+        assert ws._client is None
+        assert ws._async_client is None
 
     def test_init_with_params(self):
         ws = PerplexityWebSearch(
@@ -66,8 +68,9 @@ class TestPerplexityWebSearch:
         assert ws.search_params == {"search_recency_filter": "week"}
         assert ws.timeout == 10.0
 
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-key")
+
+class TestSerialization:
+    def test_to_dict(self):
         ws = PerplexityWebSearch(top_k=5, search_params={"country": "US"})
         data = component_to_dict(ws, "PerplexityWebSearch")
         expected_type = "haystack_integrations.components.websearch.perplexity.perplexity_websearch.PerplexityWebSearch"
@@ -76,8 +79,7 @@ class TestPerplexityWebSearch:
         assert data["init_parameters"]["top_k"] == 5
         assert data["init_parameters"]["search_params"] == {"country": "US"}
 
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-key")
+    def test_from_dict(self):
         data = {
             "type": ("haystack_integrations.components.websearch.perplexity.perplexity_websearch.PerplexityWebSearch"),
             "init_parameters": {
@@ -96,6 +98,68 @@ class TestPerplexityWebSearch:
         assert ws.search_params == {"search_recency_filter": "day"}
         assert ws.timeout == 15.0
 
+
+class TestComponentLifecycle:
+    @patch("haystack_integrations.components.websearch.perplexity.perplexity_websearch.httpx.Client")
+    def test_sync_lifecycle(self, mock_client_cls):
+        client = MagicMock()
+        mock_client_cls.return_value = client
+        ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
+
+        ws.close()
+        ws.warm_up()
+        ws.warm_up()
+        assert ws._client is client
+        assert ws._async_client is None
+        mock_client_cls.assert_called_once_with(timeout=30.0)
+
+        ws.close()
+        client.close.assert_called_once_with()
+        assert ws._client is None
+
+        ws.warm_up()
+        assert mock_client_cls.call_count == 2
+
+    @patch("haystack_integrations.components.websearch.perplexity.perplexity_websearch.httpx.AsyncClient")
+    @pytest.mark.asyncio
+    async def test_async_lifecycle(self, mock_client_cls):
+        client = MagicMock(aclose=AsyncMock())
+        mock_client_cls.return_value = client
+        ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
+
+        await ws.close_async()
+        await ws.warm_up_async()
+        await ws.warm_up_async()
+        assert ws._async_client is client
+        assert ws._client is None
+        mock_client_cls.assert_called_once_with(timeout=30.0)
+
+        await ws.close_async()
+        client.aclose.assert_awaited_once_with()
+        assert ws._async_client is None
+
+        await ws.warm_up_async()
+        assert mock_client_cls.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_close_and_close_async_are_independent(self):
+        sync_client = MagicMock()
+        async_client = MagicMock(aclose=AsyncMock())
+        ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
+        ws._client = sync_client
+        ws._async_client = async_client
+
+        ws.close()
+        assert ws._client is None
+        assert ws._async_client is async_client
+        async_client.aclose.assert_not_awaited()
+
+        await ws.close_async()
+        assert ws._async_client is None
+        sync_client.close.assert_called_once_with()
+
+
+class TestRun:
     def test_run_returns_documents_and_links(self):
         captured: list[httpx.Request] = []
         ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"), top_k=10)
@@ -198,31 +262,6 @@ class TestPerplexityWebSearch:
         with pytest.raises(httpx.HTTPStatusError):
             await ws.run_async(query="test")
 
-    def test_warm_up_initializes_clients(self):
-        ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
-        assert ws._client is None
-        assert ws._async_client is None
-        ws.warm_up()
-        assert ws._client is not None
-        assert ws._async_client is not None
-
-    def test_run_triggers_warm_up(self, monkeypatch):
-        ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
-        captured: list[httpx.Request] = []
-
-        original_client_init = httpx.Client.__init__
-
-        def patched_init(self, *args, **kwargs):
-            kwargs["transport"] = _make_transport(captured)
-            original_client_init(self, *args, **kwargs)
-
-        monkeypatch.setattr(httpx.Client, "__init__", patched_init)
-
-        assert ws._client is None
-        ws.run(query="test")
-        assert ws._client is not None
-        assert len(captured) == 1
-
     def test_run_empty_results(self):
         captured: list[httpx.Request] = []
         ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
@@ -248,11 +287,13 @@ class TestPerplexityWebSearch:
         assert "country" not in body
         assert body["search_recency_filter"] == "month"
 
-    @pytest.mark.skipif(
-        not os.environ.get("PERPLEXITY_API_KEY"),
-        reason="Export PERPLEXITY_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
+
+@pytest.mark.skipif(
+    not os.environ.get("PERPLEXITY_API_KEY"),
+    reason="Export PERPLEXITY_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
+class TestIntegration:
     def test_run_integration(self):
         ws = PerplexityWebSearch(api_key=Secret.from_env_var("PERPLEXITY_API_KEY"), top_k=3)
         result = ws.run(query="What is Haystack by deepset?")
@@ -260,11 +301,6 @@ class TestPerplexityWebSearch:
         assert len(result["links"]) > 0
         assert isinstance(result["documents"][0], Document)
 
-    @pytest.mark.skipif(
-        not os.environ.get("PERPLEXITY_API_KEY"),
-        reason="Export PERPLEXITY_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_run_async_integration(self):
         ws = PerplexityWebSearch(api_key=Secret.from_env_var("PERPLEXITY_API_KEY"), top_k=3)

@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from asyncio import Semaphore, gather
+from collections.abc import AsyncIterator
 from dataclasses import replace
 from itertools import chain
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
+from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret
 from haystack.utils.url_validation import is_valid_http_url
 from huggingface_hub import AsyncInferenceClient, InferenceClient
@@ -17,8 +19,16 @@ from tqdm import tqdm
 from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
+    _build_grpc_embedding_request,
     _check_valid_model,
+    _check_valid_model_async,
+    _grpc_metadata,
 )
+
+with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc support.") as grpc_import:
+    from grpc_requests import Client
+    from grpc_requests.aio import AsyncClient
+
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +119,7 @@ class HuggingFaceAPIDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         concurrency_limit: int = 4,
+        use_grpc: bool = False,
     ) -> None:
         """
         Creates a HuggingFaceAPIDocumentEmbedder component.
@@ -118,9 +129,9 @@ class HuggingFaceAPIDocumentEmbedder:
         :param api_params:
             A dictionary with the following keys:
             - `model`: Hugging Face model ID. Required when `api_type` is `SERVERLESS_INFERENCE_API`.
-            - `url`: URL of the inference endpoint. Required when `api_type` is `INFERENCE_ENDPOINTS` or
-            `TEXT_EMBEDDINGS_INFERENCE`.
-        :param token: The Hugging Face token to use as HTTP bearer authorization.
+            - `url`: URL of the inference endpoint, or gRPC target. Required when `api_type` is
+            `INFERENCE_ENDPOINTS` or `TEXT_EMBEDDINGS_INFERENCE`.
+        :param token: The Hugging Face token to use as bearer authorization.
             Check your HF token in your [account settings](https://huggingface.co/settings/tokens).
         :param prefix:
             A string to add at the beginning of each text.
@@ -137,7 +148,7 @@ class HuggingFaceAPIDocumentEmbedder:
             if the backend uses Text Embeddings Inference.
             If `api_type` is `SERVERLESS_INFERENCE_API`, this parameter is ignored.
         :param batch_size:
-            Number of documents to process at once.
+            Number of documents to process at once. Only used with HTTP.
         :param progress_bar:
             If `True`, shows a progress bar when running.
         :param meta_fields_to_embed:
@@ -145,14 +156,20 @@ class HuggingFaceAPIDocumentEmbedder:
         :param embedding_separator:
             Separator used to concatenate the metadata fields to the document text.
         :param concurrency_limit:
-            The maximum number of requests that should be allowed to run concurrently.
+            The maximum number of HTTP requests or gRPC streams that should be allowed to run concurrently.
             This parameter is only used in the `run_async` method.
+        :param use_grpc:
+            Use gRPC instead of HTTP. Requires `huggingface-api-haystack[grpc]`.
         :raises ValueError:
-            If the required `model` or `url` is missing from `api_params`, the `url` is invalid,
-            or the `api_type` is unknown.
+            If the required `model` or `url` is missing from `api_params`, the HTTP `url` is invalid,
+            or the `api_type` is unknown or is `SERVERLESS_INFERENCE_API` with `use_grpc=True`.
         """
         if isinstance(api_type, str):
             api_type = HFEmbeddingAPIType.from_str(api_type)
+
+        if use_grpc and api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+            msg = "gRPC is not supported by the Serverless Inference API."
+            raise ValueError(msg)
 
         api_params = api_params or {}
 
@@ -161,7 +178,6 @@ class HuggingFaceAPIDocumentEmbedder:
             if model is None:
                 msg = "To use the Serverless Inference API, you need to specify the `model` parameter in `api_params`."
                 raise ValueError(msg)
-            _check_valid_model(model, HFModelType.EMBEDDING, token)
             model_or_url = model
         elif api_type in [HFEmbeddingAPIType.INFERENCE_ENDPOINTS, HFEmbeddingAPIType.TEXT_EMBEDDINGS_INFERENCE]:
             url = api_params.get("url")
@@ -171,7 +187,7 @@ class HuggingFaceAPIDocumentEmbedder:
                     "parameter in `api_params`."
                 )
                 raise ValueError(msg)
-            if not is_valid_http_url(url):
+            if not use_grpc and not is_valid_http_url(url):
                 msg = f"Invalid URL: {url}"
                 raise ValueError(msg)
             model_or_url = url
@@ -179,7 +195,8 @@ class HuggingFaceAPIDocumentEmbedder:
             msg = f"Unknown api_type {api_type}"
             raise ValueError(msg)
 
-        client_args: dict[str, Any] = {"model": model_or_url, "token": token.resolve_value() if token else None}
+        if use_grpc:
+            grpc_import.check()
 
         self.api_type = api_type
         self.api_params = api_params
@@ -188,13 +205,63 @@ class HuggingFaceAPIDocumentEmbedder:
         self.suffix = suffix
         self.truncate = truncate
         self.normalize = normalize
+        self.use_grpc = use_grpc
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         self.concurrency_limit = concurrency_limit
-        self._client = InferenceClient(**client_args)
-        self._async_client = AsyncInferenceClient(**client_args)
+        self._model_or_url = model_or_url
+        self._client: InferenceClient | None = None
+        self._async_client: AsyncInferenceClient | None = None
+        self._grpc_client: Client | None = None
+        self._async_grpc_client: AsyncClient | None = None
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Hugging Face clients."""
+        return {"model": self._model_or_url, "token": self.token.resolve_value() if self.token else None}
+
+    def warm_up(self) -> None:
+        """Create the synchronous client."""
+        if self.use_grpc:
+            if self._grpc_client is None:
+                self._grpc_client = Client(self._model_or_url)
+            return
+
+        if self._client is None:
+            if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+                _check_valid_model(self._model_or_url, HFModelType.EMBEDDING, self.token)
+            self._client = InferenceClient(**self._client_kwargs())
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous client."""
+        if self.use_grpc:
+            if self._async_grpc_client is None:
+                self._async_grpc_client = await AsyncClient.create(self._model_or_url)
+            return
+
+        if self._async_client is None:
+            if self.api_type == HFEmbeddingAPIType.SERVERLESS_INFERENCE_API:
+                await _check_valid_model_async(self._model_or_url, HFModelType.EMBEDDING, self.token)
+            self._async_client = AsyncInferenceClient(**self._client_kwargs())
+
+    def close(self) -> None:
+        """Close the synchronous client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+        if self._grpc_client is not None:
+            self._grpc_client.channel.close()
+            self._grpc_client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
+        if self._async_grpc_client is not None:
+            await self._async_grpc_client.channel.close()
+            self._async_grpc_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -212,6 +279,7 @@ class HuggingFaceAPIDocumentEmbedder:
             token=self.token,
             truncate=self.truncate,
             normalize=self.normalize,
+            use_grpc=self.use_grpc,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
@@ -266,10 +334,37 @@ class HuggingFaceAPIDocumentEmbedder:
                 normalize = None
         return truncate, normalize
 
+    def _embed_batch_grpc(self, texts_to_embed: list[str]) -> list[list[float]]:
+        """Embed all texts through a single gRPC stream."""
+        if not texts_to_embed:
+            return []
+
+        assert self._grpc_client is not None  # noqa: S101
+        responses = self._grpc_client.stream_stream(
+            "tei.v1.Embed",
+            "EmbedStream",
+            (_build_grpc_embedding_request(text, self.truncate, self.normalize) for text in texts_to_embed),
+            metadata=_grpc_metadata(self.token),
+        )
+        embeddings = [
+            response["embeddings"]
+            for response in tqdm(
+                responses,
+                total=len(texts_to_embed),
+                disable=not self.progress_bar,
+                desc="Calculating embeddings",
+            )
+        ]
+        if len(embeddings) != len(texts_to_embed):
+            msg = f"Expected {len(texts_to_embed)} embeddings, got {len(embeddings)}"
+            raise ValueError(msg)
+        return embeddings
+
     def _embed_batch(self, texts_to_embed: list[str], batch_size: int) -> list[list[float]]:
         """
         Embed a list of texts in batches.
         """
+        assert self._client is not None  # noqa: S101
         truncate, normalize = self._adjust_api_parameters(self.truncate, self.normalize, self.api_type)
 
         all_embeddings: list = []
@@ -278,7 +373,12 @@ class HuggingFaceAPIDocumentEmbedder:
         ):
             batch = texts_to_embed[i : i + batch_size]
 
-            np_embeddings = self._client.feature_extraction(text=batch, truncate=truncate, normalize=normalize)
+            # a batch is accepted but text is typed as str
+            np_embeddings = self._client.feature_extraction(
+                text=batch,  # type: ignore[arg-type]
+                truncate=truncate,
+                normalize=normalize,
+            )
 
             if np_embeddings.ndim != _EXPECTED_EMBEDDING_NDIM or np_embeddings.shape[0] != len(batch):
                 msg = f"Expected embedding shape ({batch_size}, embedding_dim), got {np_embeddings.shape}"
@@ -288,10 +388,47 @@ class HuggingFaceAPIDocumentEmbedder:
 
         return all_embeddings
 
+    async def _embed_batch_grpc_async(self, texts_to_embed: list[str]) -> list[list[float]]:
+        """Embed texts through concurrent gRPC streams."""
+        if not texts_to_embed:
+            return []
+
+        # Split texts evenly into ordered streams, up to the concurrency limit.
+        stream_count = min(max(1, self.concurrency_limit), len(texts_to_embed))
+        streams = [
+            texts_to_embed[len(texts_to_embed) * i // stream_count : len(texts_to_embed) * (i + 1) // stream_count]
+            for i in range(stream_count)
+        ]
+
+        pbar = tqdm(total=stream_count, disable=not self.progress_bar, desc="Calculating embeddings")
+
+        async def _runner(texts: list[str]) -> list[list[float]]:
+            async def _requests() -> AsyncIterator[dict[str, Any]]:
+                for text in texts:
+                    yield _build_grpc_embedding_request(text, self.truncate, self.normalize)
+
+            assert self._async_grpc_client is not None  # noqa: S101
+            responses = await self._async_grpc_client.stream_stream(
+                "tei.v1.Embed", "EmbedStream", _requests(), metadata=_grpc_metadata(self.token)
+            )
+            embeddings = [response["embeddings"] async for response in responses]
+            if len(embeddings) != len(texts):
+                msg = f"Expected {len(texts)} embeddings, got {len(embeddings)}"
+                raise ValueError(msg)
+            pbar.update(1)
+            return embeddings
+
+        try:
+            return [*chain(*await gather(*(_runner(texts) for texts in streams)))]
+        finally:
+            pbar.close()
+
     async def _embed_batch_async(self, texts_to_embed: list[str], batch_size: int) -> list[list[float]]:
         """
         Embed a list of texts in batches asynchronously.
         """
+        assert self._async_client is not None  # noqa: S101
+        async_client = self._async_client
         truncate, normalize = self._adjust_api_parameters(self.truncate, self.normalize, self.api_type)
         sem = Semaphore(max(1, self.concurrency_limit))
         num_batches = (len(texts_to_embed) + batch_size - 1) // batch_size
@@ -299,8 +436,11 @@ class HuggingFaceAPIDocumentEmbedder:
 
         async def _runner(batch: list[str]) -> list[list[float]]:
             async with sem:
-                np_embeddings = await self._async_client.feature_extraction(
-                    text=batch, truncate=truncate, normalize=normalize
+                # a batch is accepted but text is typed as str
+                np_embeddings = await async_client.feature_extraction(
+                    text=batch,  # type: ignore[arg-type]
+                    truncate=truncate,
+                    normalize=normalize,
                 )
 
                 if np_embeddings.ndim != _EXPECTED_EMBEDDING_NDIM or np_embeddings.shape[0] != len(batch):
@@ -342,6 +482,8 @@ class HuggingFaceAPIDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
         """
+        self.warm_up()
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "HuggingFaceAPIDocumentEmbedder expects a list of Documents as input."
@@ -351,7 +493,10 @@ class HuggingFaceAPIDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
+        if self.use_grpc:
+            embeddings = self._embed_batch_grpc(texts_to_embed)
+        else:
+            embeddings = self._embed_batch(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
 
         new_documents = []
         for doc, emb in zip(documents, embeddings, strict=True):
@@ -375,6 +520,8 @@ class HuggingFaceAPIDocumentEmbedder:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
         """
+        await self.warm_up_async()
+
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "HuggingFaceAPIDocumentEmbedder expects a list of Documents as input."
@@ -384,7 +531,10 @@ class HuggingFaceAPIDocumentEmbedder:
 
         texts_to_embed = self._prepare_texts_to_embed(documents=documents)
 
-        embeddings = await self._embed_batch_async(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
+        if self.use_grpc:
+            embeddings = await self._embed_batch_grpc_async(texts_to_embed)
+        else:
+            embeddings = await self._embed_batch_async(texts_to_embed=texts_to_embed, batch_size=self.batch_size)
 
         new_documents = []
         for doc, emb in zip(documents, embeddings, strict=True):

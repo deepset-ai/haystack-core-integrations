@@ -4,7 +4,7 @@ import inspect
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from botocore.eventstream import EventStream
@@ -478,7 +478,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
                     "cache_read_input_tokens": response_body.get("usage", {}).get("cacheReadInputTokens", 0),
                     "cache_write_input_tokens": response_body.get("usage", {}).get("cacheWriteInputTokens", 0),
-                    "cache_details": response_body.get("usage", {}).get("CacheDetails", {}),
+                    "cache_details": response_body.get("usage", {}).get("cacheDetails", []),
                 },
             }
             # guardrail trace
@@ -553,7 +553,7 @@ def _convert_event_to_streaming_chunk(
 
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
-    base_meta = {"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
+    base_meta = {"model": model, "received_at": datetime.now(UTC).isoformat()}
     streaming_chunk = StreamingChunk(content="", meta=base_meta)
 
     if "contentBlockStart" in event:
@@ -615,10 +615,10 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                reasoning=ReasoningContent(
-                    reasoning_text=reasoning_text,
-                    extra=extra,
-                ),
+                # redactedContent-only deltas have no text or signature, skip them like the non-streaming path
+                reasoning=ReasoningContent(reasoning_text=reasoning_text, extra=extra)
+                if reasoning_text or extra
+                else None,
                 meta=base_meta,
             )
 
@@ -642,7 +642,7 @@ def _convert_event_to_streaming_chunk(
                 "total_tokens": usage.get("totalTokens", 0),
                 "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
                 "cache_write_input_tokens": usage.get("cacheWriteInputTokens", 0),
-                "cache_details": usage.get("cacheDetails", {}),
+                "cache_details": usage.get("cacheDetails", []),
             }
         if "trace" in event_meta:
             chunk_meta["trace"] = event_meta["trace"]

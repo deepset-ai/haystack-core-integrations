@@ -1,5 +1,43 @@
 # Changelog
 
+## [integrations/vllm-v3.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- VLLM - respect an empty runtime tools list (#4060)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/vllm-v2.1.0] - 2026-10-07
+
+### 🚜 Refactor
+
+- [**breaking**] VLLM - stop warming up tools in the Chat Generator (#4055)
+
+
+## [integrations/vllm-v2.0.0] - 2026-09-10
+
+### 🚀 Features
+
+- [**breaking**] VLLM - add lifecycle handling (#3942)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Fix tests for openai>=3.0.0 (#3801)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
 ## [integrations/vllm-v1.3.0] - 2026-07-07
 
 ### 🧹 Chores

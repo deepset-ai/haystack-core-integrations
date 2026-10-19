@@ -101,6 +101,12 @@ class AzureDocumentIntelligenceConverter:
                 endpoint=self.endpoint, credential=AzureKeyCredential(self.api_key.resolve_value() or "")
             )
 
+    def close(self) -> None:
+        """Close the Azure Document Intelligence client."""
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+
     @component.output_types(documents=list[Document], raw_azure_response=list[dict])
     def run(
         self,
@@ -124,8 +130,7 @@ class AzureDocumentIntelligenceConverter:
             - `documents`: List of created Documents
             - `raw_azure_response`: List of raw Azure responses used to create the Documents
         """
-        if self.client is None:
-            self.warm_up()
+        self.warm_up()
 
         documents = []
         azure_responses = []

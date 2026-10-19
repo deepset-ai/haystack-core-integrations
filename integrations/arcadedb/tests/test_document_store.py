@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
-import datetime
+import datetime as dt
 import itertools
 import os
 from unittest.mock import MagicMock, Mock
@@ -76,8 +76,8 @@ class TestSqlHelpers:
         assert _map_literal_base(value) == expected
 
     def test_map_literal_base_fallback_to_str(self):
-        dt = datetime.date(2024, 1, 2)
-        assert _map_literal_base(dt) == "'2024-01-02'"
+        date = dt.date(2024, 1, 2)
+        assert _map_literal_base(date) == "'2024-01-02'"
 
     def test_map_literal_empty_dict(self):
         assert _map_literal({}) == "{}"
@@ -503,6 +503,27 @@ class TestArcadeDBDocumentStore(
         )
         assert len(results) <= 3
         assert results[0].score is not None
+
+    def test_not_operator_multiple_conditions(self, document_store: ArcadeDBDocumentStore):
+        document_store.write_documents(
+            [
+                Document(id="both", meta={"number": 100, "name": "foo"}),
+                Document(id="first_only", meta={"number": 100, "name": "bar"}),
+                Document(id="second_only", meta={"number": 99, "name": "foo"}),
+                Document(id="neither", meta={"number": 99, "name": "bar"}),
+            ]
+        )
+        filters = {
+            "operator": "NOT",
+            "conditions": [
+                {"field": "meta.number", "operator": "==", "value": 100},
+                {"field": "meta.name", "operator": "==", "value": "foo"},
+            ],
+        }
+
+        # NOT excludes only documents matching both conditions.
+        result = document_store.filter_documents(filters)
+        assert {doc.id for doc in result} == {"first_only", "second_only", "neither"}
 
     def test_count_documents_by_empty_filter(self, document_store: ArcadeDBDocumentStore):
         """Counts all documents when an empty filter is provided."""

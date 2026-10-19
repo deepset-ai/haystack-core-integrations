@@ -7,7 +7,7 @@ name = "google-genai-haystack"
 dynamic = ["version"]
 description = 'Use models like Gemini via Google Gen AI SDK'
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -18,15 +18,15 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "google-genai[aiohttp]>=1.56.0", "jsonref>=1.0.0"]
+dependencies = ["haystack-ai>=3.0.0", "google-genai[aiohttp]>=1.56.0", "jsonref>=1.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
@@ -73,7 +73,8 @@ integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append 
 
 types = """mypy -p haystack_integrations.components.generators.google_genai \
 -p haystack_integrations.components.embedders.google_genai \
--p haystack_integrations.common.google_genai {args}"""
+-p haystack_integrations.common.google_genai \
+-p haystack_integrations.token_counters.google_genai {args}"""
 
 [tool.mypy]
 install_types = true

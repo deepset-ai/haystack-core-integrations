@@ -53,7 +53,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         self,
         *,
         api_key: Secret = Secret.from_env_var("NVIDIA_API_KEY"),
-        model: str = "meta/llama-3.1-8b-instruct",
+        model: str = "nvidia/nemotron-3.5-lightning-30b-a3b",
         streaming_callback: StreamingCallbackT | None = None,
         api_base_url: str | None = os.getenv("NVIDIA_API_URL", DEFAULT_API_URL),
         generation_kwargs: dict[str, Any] | None = None,

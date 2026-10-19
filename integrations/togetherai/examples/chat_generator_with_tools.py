@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# This example demonstrates how to use the TogetherAIChatGenerator component
-# with tools.
-# To run this example, you will need to
-# set `TOGETHER_API_KEY` environment variable
+"""Use TogetherAIChatGenerator with tools through an Agent.
 
-from haystack.components.tools import ToolInvoker
+To run this example, set the `TOGETHER_API_KEY` environment variable.
+The Agent handles the tool-calling loop and returns the final answer.
+"""
+
+from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
@@ -15,32 +16,33 @@ from haystack_integrations.components.generators.togetherai import TogetherAICha
 
 
 # Define a tool that models can call
-def weather(city: str):
+def weather(city: str) -> str:
     """Return mock weather info for the given city."""
     return f"The weather in {city} is sunny and 32°C"
 
 
-tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+def main() -> None:
+    """Let an Agent answer a question by calling the weather tool."""
+    weather_tool = Tool(
+        name="weather",
+        description="Useful for getting the weather in a specific city",
+        parameters={
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
+        function=weather,
+    )
 
-weather_tool = Tool(
-    name="weather",
-    description="Useful for getting the weather in a specific city",
-    parameters=tool_parameters,
-    function=weather,
-)
+    agent = Agent(
+        chat_generator=TogetherAIChatGenerator(),
+        tools=[weather_tool],
+        system_prompt="Use the weather tool when answering weather questions.",
+    )
 
-# Create a tool invoker with the weather tool
-tool_invoker = ToolInvoker(tools=[weather_tool])
+    result = agent.run(messages=[ChatMessage.from_user("What's the weather in Tokyo?")])
+    print(f"assistant final answer: {result['last_message'].text}")
 
 
-client = TogetherAIChatGenerator(http_client_kwargs={"verify": False})
-messages = [ChatMessage.from_user("What's the weather in Tokyo?")]
-
-response = client.run(messages=messages, tools=[weather_tool])["replies"]
-
-print(f"assistant messages: {response[0]}\n")
-
-# If the assistant message contains a tool call, run the tool invoker
-if response[0].tool_calls:
-    tool_messages = tool_invoker.run(messages=response)["tool_messages"]
-    print(f"tool messages: {tool_messages}")
+if __name__ == "__main__":
+    main()

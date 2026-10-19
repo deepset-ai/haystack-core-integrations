@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging as python_logging
+import logging as stdlib_logging
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from datetime import datetime
@@ -43,7 +43,7 @@ from azure.search.documents.models import LookupDocument, VectorizedQuery
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from haystack.utils.misc import _normalize_metadata_field_name
 
 from .errors import AzureAISearchDocumentStoreConfigError, AzureAISearchDocumentStoreError
@@ -105,8 +105,9 @@ DEFAULT_VECTOR_SEARCH = VectorSearch(
 )
 
 logger = logging.getLogger(__name__)
-python_logging.getLogger("azure").setLevel(python_logging.ERROR)
-python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
+# Suppress noisy logs from Azure SDK internals using Python's stdlib logging levels
+stdlib_logging.getLogger("azure").setLevel(stdlib_logging.ERROR)
+stdlib_logging.getLogger("azure.identity").setLevel(stdlib_logging.DEBUG)
 
 SPECIAL_FIELDS = {"id", "embedding"}
 FIELD_TYPE_MAPPING = {
@@ -356,6 +357,7 @@ class AzureAISearchDocumentStore:
             embedding_dimension=self._embedding_dimension,
             metadata_fields={key: value.as_dict() for key, value in self._metadata_fields.items()},
             vector_search_configuration=self._vector_search_configuration.as_dict(),
+            include_search_metadata=self._include_search_metadata,
             **self._serialize_index_creation_kwargs(self._index_creation_kwargs),
         )
 
@@ -383,7 +385,6 @@ class AzureAISearchDocumentStore:
                 else:
                     data["init_parameters"][key] = _instantiate_azure_model(model_class, value)
 
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_endpoint"])
         if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
             data["init_parameters"]["vector_search_configuration"] = VectorSearch(vector_search_configuration)
         return default_from_dict(cls, data)
@@ -421,14 +422,20 @@ class AzureAISearchDocumentStore:
         index_fields = self._index_client.get_index(self._index_name).fields
         return {field.name: field for field in index_fields}
 
-    def _validate_index_fields(self, field_names: list[str]) -> None:
+    def _is_index_field(self, field_name: str) -> bool:
         """
-        Validates that all provided field names exist in the index schema.
+        Returns whether the given field name is defined in the index schema.
         """
         if not self._index_fields:
             self._index_fields = list(self._get_index_schema_fields().keys())
 
-        missing_fields = [field for field in field_names if field not in self._index_fields]
+        return field_name in self._index_fields
+
+    def _validate_index_fields(self, field_names: list[str]) -> None:
+        """
+        Validates that all provided field names exist in the index schema.
+        """
+        missing_fields = [field for field in field_names if not self._is_index_field(field)]
         if missing_fields:
             msg = f"Fields {missing_fields} are not defined in index schema. Available fields: {self._index_fields}"
             raise ValueError(msg)
@@ -576,9 +583,15 @@ class AzureAISearchDocumentStore:
         :param size: Number of values to return.
         :param filters: Optional filters to restrict the documents considered.
         :returns: Tuple of (list of unique values in their original type, total count of matching values).
+            A field that is not defined in the index schema has no values, so it returns `([], 0)`.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
-        self._validate_index_fields([field_name])
+        # Azure AI Search fixes the index schema at creation time, so a metadata field that is not part
+        # of it can never hold values, and selecting it would be rejected by the service. Return an
+        # empty result rather than raising, which is how the other document stores answer for a field
+        # no document has.
+        if not self._is_index_field(field_name):
+            return [], 0
 
         documents = self._fetch_raw_documents(filters=filters, select=[field_name])
         unique_values = sorted(self._collect_unique_values(documents, field_name))
@@ -617,8 +630,9 @@ class AzureAISearchDocumentStore:
 
         if policy not in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             logger.warning(
-                f"AzureAISearchDocumentStore only supports `DuplicatePolicy.OVERWRITE`"
-                f"but got {policy}. Overwriting duplicates is enabled by default."
+                "AzureAISearchDocumentStore only supports `DuplicatePolicy.OVERWRITE` but got {policy}. "
+                "Overwriting duplicates is enabled by default.",
+                policy=policy,
             )
         client = self.client
         documents_to_write = [self._convert_haystack_document_to_azure(doc) for doc in documents]
@@ -853,7 +867,7 @@ class AzureAISearchDocumentStore:
                 document = self.client.get_document(doc_id)
                 azure_documents.append(document)
             except ResourceNotFoundError:
-                logger.warning(f"Document with ID {doc_id} not found.")
+                logger.warning("Document with ID {doc_id} not found.", doc_id=doc_id)
         return azure_documents
 
     def _convert_haystack_document_to_azure(self, document: Document) -> dict[str, Any]:

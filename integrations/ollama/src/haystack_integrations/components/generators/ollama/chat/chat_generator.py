@@ -8,6 +8,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import (
     ChatMessage,
+    ChatRole,
     StreamingCallbackT,
     SyncStreamingCallbackT,
     ToolCall,
@@ -72,9 +73,12 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
     tool_call_results = message.tool_call_results
     images = message.images
 
-    if not text_contents and not tool_calls and not tool_call_results and not images:
+    has_content = bool(text_contents or tool_calls or tool_call_results or images)
+    # An assistant message with no content parts is sent with empty content, which the API accepts
+    if not has_content and not message.is_from(ChatRole.ASSISTANT):
         msg = (
-            "A `ChatMessage` must contain at least one `TextContent`, `ToolCall`, `ToolCallResult`, or `ImageContent`."
+            f"A `ChatMessage` from `{message.role.value}` must contain at least one `TextContent`, `ToolCall`, "
+            "`ToolCallResult`, or `ImageContent`. Only assistant messages can be empty."
         )
         raise ValueError(msg)
     elif len(text_contents) + len(tool_call_results) > 1:
@@ -90,6 +94,8 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
 
     if text_contents:
         ollama_msg["content"] = text_contents[0]
+    elif not has_content:
+        ollama_msg["content"] = ""
     if images:
         ollama_msg["images"] = [image.base64_image for image in images]
     if tool_calls:
@@ -101,6 +107,20 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
     if message.reasoning:
         ollama_msg["thinking"] = message.reasoning.reasoning_text
     return ollama_msg
+
+
+def _convert_chatmessages_to_ollama_format(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+    """
+    Convert a list of ChatMessages to the format expected by the Ollama Chat API.
+
+    A trailing assistant message with no text and no tool calls is left out. Ollama continues a trailing assistant
+    message as a prefill, so an empty one makes the model reply with empty content or a stray `<think></think>` block.
+    """
+    ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+    last = ollama_messages[-1] if ollama_messages else None
+    if last and last["role"] == ChatRole.ASSISTANT.value and not last.get("content") and not last.get("tool_calls"):
+        ollama_messages.pop()
+    return ollama_messages
 
 
 def _convert_ollama_meta_to_openai_format(input_response_dict: dict) -> dict[str, Any]:
@@ -318,8 +338,30 @@ class OllamaChatGenerator:
         self.think = think
         self.response_format = response_format
 
-        self._client = Client(host=self.url, timeout=self.timeout)
-        self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
+        self._client: Client | None = None
+        self._async_client: AsyncClient | None = None
+
+    def warm_up(self) -> None:
+        """Create the synchronous Ollama client."""
+        if self._client is None:
+            self._client = Client(host=self.url, timeout=self.timeout)
+
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Ollama client."""
+        if self._async_client is None:
+            self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
+
+    def close(self) -> None:
+        """Close the synchronous Ollama client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Ollama client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -497,7 +539,7 @@ class OllamaChatGenerator:
                     arg_by_index[key] = args
 
             if callback is not None:
-                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                # Sync callbacks are allowed in async contexts, so only await async ones.
                 callback_result = callback(chunk)
                 if inspect.isawaitable(callback_result):
                     await callback_result
@@ -543,6 +585,7 @@ class OllamaChatGenerator:
         is_stream: bool,
         generation_kwargs: dict[str, Any],
     ) -> ChatResponse | Iterator[ChatResponse]:
+        assert self._client is not None  # noqa: S101
         return self._client.chat(
             model=self.model,
             messages=messages,
@@ -568,6 +611,7 @@ class OllamaChatGenerator:
         is_stream: bool,
         generation_kwargs: dict[str, Any],
     ) -> ChatResponse | AsyncIterator[ChatResponse]:
+        assert self._async_client is not None  # noqa: S101
         return await self._async_client.chat(
             model=self.model,
             messages=messages,
@@ -609,6 +653,9 @@ class OllamaChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list of ChatMessages containing the model's response
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
 
         # Validate and select the streaming callback
@@ -616,7 +663,7 @@ class OllamaChatGenerator:
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        tools_to_use = tools or self.tools
+        tools_to_use = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools_to_use)
         _check_duplicate_tool_names(flattened_tools)
 
@@ -628,7 +675,7 @@ class OllamaChatGenerator:
 
         is_stream = callback is not None
 
-        ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+        ollama_messages = _convert_chatmessages_to_ollama_format(messages=messages)
 
         response = self._chat(
             messages=ollama_messages, tools=ollama_tools, is_stream=is_stream, generation_kwargs=generation_kwargs
@@ -667,13 +714,16 @@ class OllamaChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list of ChatMessages containing the model's response
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
+
         messages = _normalize_messages(messages)
 
         # Validate and select the streaming callback
         callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
 
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        tools_to_use = tools or self.tools
+        tools_to_use = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools_to_use)
         _check_duplicate_tool_names(flattened_tools)
 
@@ -685,7 +735,7 @@ class OllamaChatGenerator:
 
         is_stream = callback is not None
 
-        ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
+        ollama_messages = _convert_chatmessages_to_ollama_format(messages=messages)
 
         response = await self._chat_async(
             messages=ollama_messages, tools=ollama_tools, is_stream=is_stream, generation_kwargs=generation_kwargs

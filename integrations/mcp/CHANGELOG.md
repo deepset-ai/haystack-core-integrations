@@ -1,5 +1,46 @@
 # Changelog
 
+## [integrations/mcp-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/mcp-v1.5.2] - 2026-10-07
+
+### 🐛 Bug Fixes
+
+- MCP - warm_up must reopen connections after close (#4065)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
+## [integrations/mcp-v1.5.1] - 2026-09-01
+
+### 🚀 Features
+
+- Support MCP Python SDK v2 - compatibility mode (#3878)
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- MCP - refactor test_toolset_combination for Toolset.__add__ removal (#3877)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/mcp-v1.4.1] - 2026-07-29
 
 ### 🐛 Bug Fixes
@@ -103,7 +144,7 @@
 
 - Add MCPTool/MCPToolset warm_up (#2384)
 
-## [integrations/mcp-v0.8.0] - 2025-10-14
+## [integrations/mcp-v0.0.8] - 2025-10-14
 
 ### 🐛 Bug Fixes
 
@@ -159,6 +200,8 @@
 ### 🧹 Chores
 
 - Align core-integrations Hatch scripts (#1898)
+
+## [integrations/mcp-v0.3.1] - 2025-05-28
 
 ### 🌀 Miscellaneous
 

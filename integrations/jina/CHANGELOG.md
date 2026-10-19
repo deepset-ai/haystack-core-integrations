@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/jina-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Jina - choose a more reliable URL for Reader testing (#4033)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/jina-v1.3.1] - 2026-07-20
 
 ### 🐛 Bug Fixes

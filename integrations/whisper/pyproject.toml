@@ -7,7 +7,7 @@ name = "whisper-haystack"
 dynamic = ["version"]
 description = "Haystack integration for whisper"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = ["Haystack", "Whisper", "OpenAI", "transcription", "speech-to-text", "audio"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -26,7 +25,7 @@ classifiers = [
 # `openai` ships with `haystack-ai` and is used by `RemoteWhisperTranscriber`. `openai-whisper` (used by
 # `LocalWhisperTranscriber`) is imported lazily, so it is an optional dependency that users install only if
 # they want local transcription: `pip install "openai-whisper>=20231106"`.
-dependencies = ["haystack-ai>=2.24.1"]
+dependencies = ["haystack-ai>=3.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/whisper#readme"

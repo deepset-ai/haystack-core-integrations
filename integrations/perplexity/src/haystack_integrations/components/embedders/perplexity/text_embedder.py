@@ -32,7 +32,8 @@ def _http_client_kwargs_with_attribution(
 ) -> dict[str, Any]:
     kwargs = dict(http_client_kwargs or {})
     headers = dict(kwargs.get("headers", {}))
-    headers["X-Pplx-Integration"] = _attribution_header()
+    if not any(name.lower() == "x-pplx-integration" for name in headers):
+        headers["X-Pplx-Integration"] = _attribution_header()
     kwargs["headers"] = headers
     return kwargs
 

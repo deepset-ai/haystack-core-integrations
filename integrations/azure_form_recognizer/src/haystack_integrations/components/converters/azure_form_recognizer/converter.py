@@ -11,10 +11,10 @@ from typing import Any, Literal
 import networkx as nx
 from azure.ai.formrecognizer import AnalyzeResult, DocumentAnalysisClient, DocumentLine, DocumentParagraph
 from azure.core.credentials import AzureKeyCredential
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, default_to_dict, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
@@ -91,9 +91,7 @@ class AzureOCRDocumentConverter:
             If True, the full path of the file is stored in the metadata of the document.
             If False, only the file name is stored.
         """
-        self.document_analysis_client = DocumentAnalysisClient(
-            endpoint=endpoint, credential=AzureKeyCredential(api_key.resolve_value() or "")
-        )
+        self.document_analysis_client: DocumentAnalysisClient | None = None
         self.endpoint = endpoint
         self.model_id = model_id
         self.api_key = api_key
@@ -105,6 +103,20 @@ class AzureOCRDocumentConverter:
         self.store_full_path = store_full_path
         if self.page_layout == "single_column" and self.threshold_y is None:
             self.threshold_y = 0.05
+
+    def warm_up(self) -> None:
+        """Create the Azure Document Analysis client."""
+        if self.document_analysis_client is None:
+            self.document_analysis_client = DocumentAnalysisClient(
+                endpoint=self.endpoint,
+                credential=AzureKeyCredential(self.api_key.resolve_value() or ""),
+            )
+
+    def close(self) -> None:
+        """Close the Azure Document Analysis client."""
+        if self.document_analysis_client is not None:
+            self.document_analysis_client.close()
+            self.document_analysis_client = None
 
     @component.output_types(documents=list[Document], raw_azure_response=list[dict])
     def run(
@@ -127,6 +139,8 @@ class AzureOCRDocumentConverter:
             - `documents`: List of created Documents
             - `raw_azure_response`: List of raw Azure responses used to create the Documents
         """
+        self.warm_up()
+        assert self.document_analysis_client is not None  # noqa: S101
         documents = []
         azure_output = []
         meta_list: list[dict[str, Any]] = normalize_metadata(meta=meta, sources_count=len(sources))
@@ -171,19 +185,6 @@ class AzureOCRDocumentConverter:
             threshold_y=self.threshold_y,
             store_full_path=self.store_full_path,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AzureOCRDocumentConverter":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     def _convert_tables_and_text(self, result: AnalyzeResult, meta: dict[str, Any] | None) -> list[Document]:
         """

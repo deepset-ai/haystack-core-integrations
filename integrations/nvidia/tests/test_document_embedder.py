@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from unittest.mock import patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaDocumentEmbedder
@@ -14,20 +16,20 @@ from haystack_integrations.utils.nvidia import DEFAULT_API_URL
 from . import MockBackend
 
 
-class TestNvidiaDocumentEmbedder:
+class TestInitialization:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         embedder = NvidiaDocumentEmbedder()
-        embedder.warm_up()
 
         assert embedder.api_key == Secret.from_env_var("NVIDIA_API_KEY")
-        assert embedder.model == "nvidia/nv-embedqa-e5-v5"
+        assert embedder.model is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
+        assert embedder.backend is None
 
     def test_init_with_parameters(self):
         embedder = NvidiaDocumentEmbedder(
@@ -51,12 +53,8 @@ class TestNvidiaDocumentEmbedder:
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-        embedder = NvidiaDocumentEmbedder("nvolveqa_40k")
-        with pytest.raises(ValueError):
-            embedder.warm_up()
 
+class TestSerialization:
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         component = NvidiaDocumentEmbedder("nvidia/nv-embedqa-e5-v5")
@@ -128,7 +126,7 @@ class TestNvidiaDocumentEmbedder:
                 "timeout": 45.0,
             },
         }
-        component = NvidiaDocumentEmbedder.from_dict(data)
+        component = component_from_dict(NvidiaDocumentEmbedder, data, name="component")
         assert component.model == "nvidia/nv-embedqa-e5-v5"
         assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
@@ -139,27 +137,46 @@ class TestNvidiaDocumentEmbedder:
         assert component.embedding_separator == " | "
         assert component.truncate == EmbeddingTruncateMode.START
         assert component.timeout == 45.0
+        assert component.api_key == Secret.from_env_var("NVIDIA_API_KEY")
 
-    def test_from_dict_defaults(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        data = {
-            "type": "haystack_integrations.components.embedders.nvidia.document_embedder.NvidiaDocumentEmbedder",
-            "init_parameters": {},
-        }
-        component = NvidiaDocumentEmbedder.from_dict(data)
-        ## updating this as model set to None as the warm_up is not done
-        ## default model will be set post warm_up()
-        assert component.model is None
-        assert component.api_url == DEFAULT_API_URL
-        assert component.prefix == ""
-        assert component.suffix == ""
-        assert component.batch_size == 32
-        assert component.progress_bar
-        assert component.meta_fields_to_embed == []
-        assert component.embedding_separator == "\n"
-        assert component.truncate is None
-        assert component.timeout == 60.0
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_NVIDIA_API_KEY", raising=False)
+        embedder = NvidiaDocumentEmbedder("nvolveqa_40k", api_key=Secret.from_env_var("MISSING_NVIDIA_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_NVIDIA_API_KEY"):
+            embedder.warm_up()
+
+    @patch("haystack_integrations.components.embedders.nvidia.document_embedder.NimBackend")
+    def test_sync_lifecycle(self, mock_backend):
+        embedder = NvidiaDocumentEmbedder("nvolveqa_40k", api_key=Secret.from_token("test-api-key"))
+        backend = mock_backend.return_value
+
+        embedder.warm_up()
+        assert embedder.backend is backend
+
+        embedder.close()
+        backend.close.assert_called_once_with()
+        assert embedder.backend is None
+
+        embedder.warm_up()
+        assert mock_backend.call_count == 2
+
+    @patch("haystack_integrations.components.embedders.nvidia.document_embedder.NimBackend")
+    def test_warm_up_is_idempotent(self, mock_backend):
+        embedder = NvidiaDocumentEmbedder("nvolveqa_40k", api_key=Secret.from_token("test-api-key"))
+        embedder.warm_up()
+        embedder.warm_up()
+        mock_backend.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        embedder = NvidiaDocumentEmbedder("nvolveqa_40k", api_key=Secret.from_token("test-api-key"))
+        embedder.close()
+        assert embedder.backend is None
+
+
+class TestRun:
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
             Document(content=f"document number {i}:\ncontent", meta={"meta_field": f"meta_value {i}"}) for i in range(5)
@@ -437,10 +454,10 @@ class TestNvidiaDocumentEmbedder:
     @pytest.mark.parametrize(
         "model, api_url",
         [
-            ("nvidia/nv-embedqa-e5-v5", "https://integrate.api.nvidia.com/v1"),
+            ("nvidia/nemotron-3-embed-1b", "https://integrate.api.nvidia.com/v1"),
         ],
         ids=[
-            "nvidia/nv-embedqa-e5-v5",
+            "nvidia/nemotron-3-embed-1b",
         ],
     )
     @pytest.mark.skipif(

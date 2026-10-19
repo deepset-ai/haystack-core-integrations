@@ -20,7 +20,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
     bool: "boolean",
 }
 
-NO_VALUE = "no_value"
+NO_VALUE = object()  # unique sentinel; can never equal a user-supplied filter value
 
 
 def _validate_filters(filters: dict[str, Any] | None = None) -> None:
@@ -48,7 +48,7 @@ def _convert_filters_to_where_clause_and_params(
         query, values = _parse_logical_condition(filters)
 
     where_clause = SQL(f" {operator} ") + query
-    params = tuple(value for value in values if value != NO_VALUE)
+    params = tuple(value for value in values if value is not NO_VALUE)
 
     return where_clause, params
 
@@ -64,6 +64,10 @@ def _parse_logical_condition(condition: dict[str, Any]) -> tuple[Composed, list[
     operator = condition["operator"]
     if operator not in ["AND", "OR"]:
         msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR'"
+        raise FilterError(msg)
+
+    if not condition["conditions"]:
+        msg = f"'conditions' must not be empty in {condition}"
         raise FilterError(msg)
 
     # logical conditions can be nested, so we need to parse them recursively

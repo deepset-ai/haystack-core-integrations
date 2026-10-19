@@ -7,8 +7,8 @@ import warnings
 from dataclasses import replace
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import Document, component, default_to_dict, logging
+from haystack.utils import Secret
 from tqdm import tqdm
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
@@ -28,7 +28,7 @@ class NvidiaDocumentEmbedder:
 
     doc = Document(content="I love pizza!")
 
-    text_embedder = NvidiaDocumentEmbedder(model="nvidia/nv-embedqa-e5-v5", api_url="https://integrate.api.nvidia.com/v1")
+    text_embedder = NvidiaDocumentEmbedder(model="nvidia/nemotron-3-embed-1b", api_url="https://integrate.api.nvidia.com/v1")
     # Components warm up automatically on first run.
 
     result = document_embedder.run([doc])
@@ -97,8 +97,7 @@ class NvidiaDocumentEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Any | None = None
-        self._initialized = False
+        self.backend: NimBackend | None = None
 
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
@@ -134,7 +133,7 @@ class NvidiaDocumentEmbedder:
         """
         Initializes the component.
         """
-        if self._initialized:
+        if self.backend is not None:
             return
 
         model_kwargs = {"input_type": "passage"}
@@ -152,10 +151,14 @@ class NvidiaDocumentEmbedder:
         if not self.model and self.backend.model:
             self.model = self.backend.model
 
-        self._initialized = True
-
         if not self.model:
             self.default_model()
+
+    def close(self) -> None:
+        """Close the backend and release its resources."""
+        if self.backend is not None:
+            self.backend.close()
+            self.backend = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -185,21 +188,6 @@ class NvidiaDocumentEmbedder:
         Get a list of available models that work with NvidiaDocumentEmbedder.
         """
         return self.backend.models() if self.backend else []
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NvidiaDocumentEmbedder":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        init_parameters = data.get("init_parameters", {})
-        if init_parameters:
-            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         texts_to_embed = []
@@ -250,8 +238,7 @@ class NvidiaDocumentEmbedder:
         :raises TypeError:
             If the input is not a list of Documents.
         """
-        if not self._initialized:
-            self.warm_up()
+        self.warm_up()
 
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (

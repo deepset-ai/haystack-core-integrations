@@ -7,8 +7,6 @@ from collections.abc import Callable
 from typing import Any, cast
 from urllib.parse import urlparse
 
-import httpx
-from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool, Toolset
@@ -25,6 +23,7 @@ from haystack.tools.tool import (
     _serialize_outputs_to_string as _hs_serialize_outputs_to_string,
 )
 
+from .compatibility_layer import http_lib, mcp_field_value
 from .mcp_tool import (
     AsyncExecutor,
     MCPClient,
@@ -244,6 +243,7 @@ class MCPToolset(Toolset):
         self.outputs_to_state = outputs_to_state or {}
         self.outputs_to_string = outputs_to_string or {}
         self._warmup_called = False
+        self._worker: _MCPClientSessionManager | None = None
 
         if not eager_connect:
             # Do not connect during validation; expose a toolset with one fake tool to pass validation
@@ -261,7 +261,7 @@ class MCPToolset(Toolset):
 
     def warm_up(self) -> None:
         """
-        Connect and load tools when eager_connect is turned off.
+        Connect and load tools unless already connected.
 
         This method is automatically called by `Agent.warm_up()` and `Pipeline.warm_up()`.
         You can also call it directly before using the toolset to ensure all tool schemas
@@ -350,7 +350,7 @@ class MCPToolset(Toolset):
                 tool = Tool(
                     name=tool_info.name,
                     description=tool_info.description or "",
-                    parameters=tool_info.inputSchema,
+                    parameters=mcp_field_value(model=tool_info, name="input_schema"),
                     function=create_invoke_tool(
                         self, client, tool_info.name, self.invocation_timeout, tool_outputs_to_state
                     ),
@@ -387,8 +387,9 @@ class MCPToolset(Toolset):
                 ]
 
                 # Add specific connection error details for network issues
-                has_connect_error = isinstance(e, httpx.ConnectError) or (
-                    isinstance(e, ExceptionGroup) and any(isinstance(exc, httpx.ConnectError) for exc in e.exceptions)
+                connect_error = http_lib.ConnectError
+                has_connect_error = isinstance(e, connect_error) or (
+                    isinstance(e, ExceptionGroup) and any(isinstance(exc, connect_error) for exc in e.exceptions)
                 )
 
                 if has_connect_error:
@@ -510,6 +511,9 @@ class MCPToolset(Toolset):
                 self._worker.stop()
             except Exception as e:
                 logger.debug(f"TOOLSET: error during worker stop: {e!s}")
+            finally:
+                self._worker = None
+                self._warmup_called = False
 
     def __del__(self) -> None:
         self.close()

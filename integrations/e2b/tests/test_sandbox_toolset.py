@@ -73,10 +73,8 @@ class TestE2BSandboxInit:
 
 
 class TestE2BSandboxWarmUp:
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_warm_up_creates_sandbox(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_warm_up_creates_sandbox(self, mock_sandbox_create):
         mock_instance = _make_sandbox_mock()
         mock_sandbox_create.return_value = mock_instance
 
@@ -91,10 +89,8 @@ class TestE2BSandboxWarmUp:
         )
         assert sb._sandbox is mock_instance
 
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_warm_up_passes_environment_vars(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_warm_up_passes_environment_vars(self, mock_sandbox_create):
         mock_sandbox_create.return_value = _make_sandbox_mock()
 
         sb = _make_sandbox(environment_vars={"MY_VAR": "value"})
@@ -103,10 +99,8 @@ class TestE2BSandboxWarmUp:
         _, kwargs = mock_sandbox_create.call_args
         assert kwargs["envs"] == {"MY_VAR": "value"}
 
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_warm_up_is_idempotent(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_warm_up_is_idempotent(self, mock_sandbox_create):
         mock_sandbox_create.return_value = _make_sandbox_mock()
 
         sb = _make_sandbox()
@@ -115,10 +109,8 @@ class TestE2BSandboxWarmUp:
 
         mock_sandbox_create.assert_called_once()
 
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_warm_up_raises_on_sandbox_error(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_warm_up_raises_on_sandbox_error(self, mock_sandbox_create):
         mock_sandbox_create.side_effect = Exception("connection refused")
 
         sb = _make_sandbox()
@@ -343,12 +335,47 @@ class TestToolClasses:
         ts = E2BToolset()
         assert ts.sandbox.api_key is not None
 
-    def test_tools_from_same_sandbox_share_state(self):
-        """Tools instantiated with the same sandbox share state."""
-        sb = _make_sandbox()
-        bash_tool = RunBashCommandTool(sandbox=sb)
-        read_tool = ReadFileTool(sandbox=sb)
-        assert bash_tool._e2b_sandbox is read_tool._e2b_sandbox
+    @pytest.mark.parametrize("tool_class", [RunBashCommandTool, ReadFileTool, WriteFileTool, ListDirectoryTool])
+    def test_warm_up_and_close(self, tool_class):
+        sandbox = MagicMock(spec=E2BSandbox)
+        tool = tool_class(sandbox=sandbox)
+
+        tool.warm_up()
+        sandbox.warm_up.assert_called_once_with()
+        tool.close()
+        sandbox.close.assert_called_once_with()
+
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
+    def test_tools_share_sandbox_lifecycle(self, create):
+        first, second = _make_sandbox_mock(), _make_sandbox_mock()
+        create.side_effect = [first, second]
+        sandbox = _make_sandbox()
+        tools = [ReadFileTool(sandbox=sandbox), ListDirectoryTool(sandbox=sandbox)]
+
+        for tool in tools:
+            tool.close()
+        create.assert_not_called()
+
+        tools[1].invoke(path="/")
+        first.files.list.assert_called_once_with("/")
+        for tool in tools:
+            tool.warm_up()
+        create.assert_called_once()
+
+        for tool in tools:
+            tool.close()
+        first.kill.assert_called_once_with()
+        assert sandbox._sandbox is None
+
+        for tool in tools:
+            tool.warm_up()
+        assert create.call_count == 2
+        assert sandbox._sandbox is second
+
+        for tool in tools:
+            tool.close()
+        first.kill.assert_called_once_with()
+        second.kill.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------
@@ -378,10 +405,8 @@ class TestRunBashCommandTool:
 
         mock.commands.run.assert_called_once_with("sleep 5", timeout=30)
 
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_wraps_warm_up_failure(self, mock_sandbox_create):
         mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = RunBashCommandTool(sandbox=sb)
@@ -421,10 +446,8 @@ class TestReadFileTool:
 
         assert result == "binary content"
 
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_wraps_warm_up_failure(self, mock_sandbox_create):
         mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = ReadFileTool(sandbox=sb)
@@ -454,10 +477,8 @@ class TestWriteFileTool:
         assert "/output/result.txt" in result
         mock.files.write.assert_called_once_with("/output/result.txt", "hello")
 
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_wraps_warm_up_failure(self, mock_sandbox_create):
         mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = WriteFileTool(sandbox=sb)
@@ -507,10 +528,8 @@ class TestListDirectoryTool:
 
         assert result == "(empty directory)"
 
-    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
     @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
-    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
-        mock_e2b_import.check.return_value = None
+    def test_wraps_warm_up_failure(self, mock_sandbox_create):
         mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = ListDirectoryTool(sandbox=sb)

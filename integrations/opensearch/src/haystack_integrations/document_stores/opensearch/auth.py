@@ -4,7 +4,7 @@ from typing import Any, Optional, TypeVar
 from haystack import default_from_dict, default_to_dict
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.lazy_imports import LazyImport
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from opensearchpy import AWSV4SignerAsyncAuth, Urllib3AWSV4SignerAuth
 
 with LazyImport("Run 'pip install \"boto3\"' to install boto3.") as boto3_import:
@@ -119,11 +119,6 @@ class AWSAuth:
         """
         Converts a dictionary representation to an AWSAuth object.
         """
-        init_parameters = data.get("init_parameters", {})
-        deserialize_secrets_inplace(
-            init_parameters,
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
-        )
         return default_from_dict(cls, data)
 
     def __call__(

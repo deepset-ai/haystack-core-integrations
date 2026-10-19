@@ -39,7 +39,8 @@ def _http_client_kwargs_with_attribution(
 ) -> dict[str, Any]:
     kwargs = dict(http_client_kwargs or {})
     headers = dict(kwargs.get("headers", {}))
-    headers["X-Pplx-Integration"] = _attribution_header()
+    if not any(name.lower() == "x-pplx-integration" for name in headers):
+        headers["X-Pplx-Integration"] = _attribution_header()
     kwargs["headers"] = headers
     return kwargs
 
@@ -158,6 +159,7 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
 
         doc_ids_to_embeddings: dict[str, list[float]] = {}
         meta: dict[str, Any] = {}
+        assert self.client is not None  # noqa: S101
         for batch in tqdm(
             batched(texts_to_embed.items(), batch_size), disable=not self.progress_bar, desc="Calculating embeddings"
         ):
@@ -168,8 +170,7 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
             }
 
             try:
-                # with haystack-ai >= 3.0 the client is Optional and built by the warm_up call in run
-                response = self.client.embeddings.create(**args)  # type: ignore[union-attr]
+                response = self.client.embeddings.create(**args)
             except APIError as exc:
                 ids = ", ".join(b[0] for b in batch)
                 msg = "Failed embedding of documents {ids} caused by {exc}"
@@ -200,6 +201,7 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
 
         doc_ids_to_embeddings: dict[str, list[float]] = {}
         meta: dict[str, Any] = {}
+        assert self.async_client is not None  # noqa: S101
 
         batches: Iterable[tuple[tuple[str, str], ...]] = list(batched(texts_to_embed.items(), batch_size))
         if self.progress_bar:
@@ -213,8 +215,7 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
             }
 
             try:
-                # with haystack-ai >= 3.0 the client is Optional and built by the warm_up_async call in run_async
-                response = await self.async_client.embeddings.create(**args)  # type: ignore[union-attr]
+                response = await self.async_client.embeddings.create(**args)
             except APIError as exc:
                 ids = ", ".join(b[0] for b in batch)
                 msg = "Failed embedding of documents {ids} caused by {exc}"

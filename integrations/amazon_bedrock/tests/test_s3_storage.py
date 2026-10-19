@@ -38,6 +38,14 @@ class TestS3Storage:
 
         storage._client.download_file.assert_called_once_with("bucket", "file.txt", str(tmp_path / "file.txt"))
 
+    def test_close(self):
+        session = MagicMock()
+        storage = S3Storage(s3_bucket="bucket", session=session)
+
+        storage.close()
+
+        session.client.return_value.close.assert_called_once_with()
+
     def test_download_missing_credentials(self, tmp_path):
         session = MagicMock()
         storage = S3Storage(s3_bucket="bucket", session=session)

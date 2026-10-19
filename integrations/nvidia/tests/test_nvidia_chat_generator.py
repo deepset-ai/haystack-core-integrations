@@ -13,7 +13,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
-from openai import AsyncOpenAI, OpenAIError
+from openai import OpenAIError
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
@@ -115,27 +115,16 @@ def mock_async_chat_completion():
         yield mock_chat_completion_create
 
 
-class TestNvidiaChatGenerator:
+class TestInitialization:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
         component = NvidiaChatGenerator()
         assert component.api_key.resolve_value() == "test-api-key"
-        assert component.model == "meta/llama-3.1-8b-instruct"
+        assert component.model == "nvidia/nemotron-3.5-lightning-30b-a3b"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
-
-    def test_warm_up(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
-        component = NvidiaChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = NvidiaChatGenerator()
-            component.warm_up()
+        assert component.client is None
+        assert component.async_client is None
 
     def test_init_with_parameters(self):
         component = NvidiaChatGenerator(
@@ -150,6 +139,8 @@ class TestNvidiaChatGenerator:
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
+
+class TestSerialization:
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
         component = NvidiaChatGenerator()
@@ -161,7 +152,7 @@ class TestNvidiaChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "meta/llama-3.1-8b-instruct",
+            "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
             "streaming_callback": None,
             "api_base_url": DEFAULT_API_URL,
             "generation_kwargs": {},
@@ -174,6 +165,56 @@ class TestNvidiaChatGenerator:
         for key, value in expected_params.items():
             assert data["init_parameters"][key] == value
 
+    def test_to_dict_with_mixed_tools_and_toolset(self, tools, monkeypatch):
+        """Test serialization with a mixed list containing both Tool and Toolset objects."""
+        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
+
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+        toolset = Toolset([echo_tool])
+        mixed_tools = [*tools, toolset]
+
+        component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
+        data = component.to_dict()
+
+        assert data["init_parameters"]["tools"] is not None
+        assert isinstance(data["init_parameters"]["tools"], list)
+        assert len(data["init_parameters"]["tools"]) == len(mixed_tools)
+
+        tool_types = [tool["type"] for tool in data["init_parameters"]["tools"]]
+        assert "haystack.tools.tool.Tool" in tool_types
+        assert "haystack.tools.toolset.Toolset" in tool_types
+
+    def test_from_dict_with_mixed_tools_and_toolset(self, tools, monkeypatch):
+        """Test deserialization with a mixed list containing both Tool and Toolset objects."""
+        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
+
+        echo_tool = Tool(
+            name="echo",
+            description="Echo a text",
+            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+            function=echo_function,
+        )
+        toolset = Toolset([echo_tool])
+        mixed_tools = [*tools, toolset]
+
+        component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
+        data = component.to_dict()
+        deserialized_component = NvidiaChatGenerator.from_dict(data)
+
+        assert isinstance(deserialized_component.tools, list)
+        assert len(deserialized_component.tools) == len(mixed_tools)
+
+        tool_types = [type(tool).__name__ for tool in deserialized_component.tools]
+        assert "Tool" in tool_types
+        assert "Toolset" in tool_types
+
+
+class TestRun:
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         component = NvidiaChatGenerator()
@@ -214,7 +255,7 @@ class TestNvidiaChatGenerator:
         # check that the component calls the OpenAI API with the correct parameters
         _, kwargs = mock_chat_completion.call_args
         assert kwargs["extra_body"] == extra_body
-        assert kwargs["model"] == "meta/llama-3.1-8b-instruct"
+        assert kwargs["model"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
         assert kwargs["messages"] == [
             {"role": "system", "content": "You are a helpful assistant"},
             {"role": "user", "content": "What's the capital of France"},
@@ -239,7 +280,7 @@ class TestNvidiaChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -275,7 +316,7 @@ class TestNvidiaChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -302,7 +343,7 @@ class TestNvidiaChatGenerator:
         ]
 
         component = NvidiaChatGenerator(
-            model="meta/llama-3.1-70b-instruct",
+            model="nvidia/nemotron-3.5-lightning-30b-a3b",
             generation_kwargs={
                 "response_format": {
                     "type": "json_schema",
@@ -336,7 +377,7 @@ class TestNvidiaChatGenerator:
         ]
 
         component = NvidiaChatGenerator(
-            model="meta/llama-3.1-70b-instruct",
+            model="nvidia/nemotron-3.5-lightning-30b-a3b",
             generation_kwargs={"response_format": {"type": "json_object"}},
         )
 
@@ -412,76 +453,8 @@ class TestNvidiaChatGenerator:
         tool_names = [call.tool_name for call in message.tool_calls]
         assert "echo" in tool_names or "weather" in tool_names
 
-    def test_to_dict_with_mixed_tools_and_toolset(self, tools, monkeypatch):
-        """Test serialization with a mixed list containing both Tool and Toolset objects."""
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
 
-        # Create additional tools for the toolset using module-level function
-        echo_tool = Tool(
-            name="echo",
-            description="Echo a text",
-            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
-            function=echo_function,
-        )
-
-        # Create a mixed list: some individual tools + a toolset
-        toolset = Toolset([echo_tool])
-        mixed_tools = [*tools, toolset]  # List containing both Tool objects and a Toolset
-
-        component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
-        data = component.to_dict()
-
-        assert data["init_parameters"]["tools"] is not None
-        assert isinstance(data["init_parameters"]["tools"], list)
-        assert len(data["init_parameters"]["tools"]) == len(mixed_tools)
-
-        # Check that we have both Tool and Toolset in the serialized data
-        tool_types = [tool["type"] for tool in data["init_parameters"]["tools"]]
-        assert "haystack.tools.tool.Tool" in tool_types
-        assert "haystack.tools.toolset.Toolset" in tool_types
-
-    def test_from_dict_with_mixed_tools_and_toolset(self, tools, monkeypatch):
-        """Test deserialization with a mixed list containing both Tool and Toolset objects."""
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
-
-        # Create additional tools for the toolset using module-level function
-        echo_tool = Tool(
-            name="echo",
-            description="Echo a text",
-            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
-            function=echo_function,
-        )
-
-        # Create a mixed list: some individual tools + a toolset
-        toolset = Toolset([echo_tool])
-        mixed_tools = [*tools, toolset]  # List containing both Tool objects and a Toolset
-
-        component = NvidiaChatGenerator(model="meta/llama-3.1-8b-instruct", tools=mixed_tools)
-        data = component.to_dict()
-
-        deserialized_component = NvidiaChatGenerator.from_dict(data)
-
-        assert isinstance(deserialized_component.tools, list)
-        assert len(deserialized_component.tools) == len(mixed_tools)
-
-        # Check that we have both Tool and Toolset objects in the deserialized list
-        tool_types = [type(tool).__name__ for tool in deserialized_component.tools]
-        assert "Tool" in tool_types
-        assert "Toolset" in tool_types
-
-
-class TestNvidiaChatGeneratorAsync:
-    @pytest.mark.asyncio
-    async def test_warm_up_async(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
-        component = NvidiaChatGenerator()
-        if hasattr(component, "warm_up_async"):
-            # haystack-ai >= 3.0 creates the async client during async warm-up
-            await component.warm_up_async()
-
-        assert isinstance(component.async_client, AsyncOpenAI)
-        assert component.async_client.api_key == "test-api-key"
-
+class TestAsyncRun:
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -525,7 +498,7 @@ class TestNvidiaChatGeneratorAsync:
         # check that the component calls the OpenAI API with the correct parameters
         _, kwargs = mock_async_chat_completion.call_args
         assert kwargs["extra_body"] == extra_body
-        assert kwargs["model"] == "meta/llama-3.1-8b-instruct"
+        assert kwargs["model"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
         assert kwargs["messages"] == [
             {"role": "system", "content": "You are a helpful assistant"},
             {"role": "user", "content": "What's the capital of France"},
@@ -551,7 +524,7 @@ class TestNvidiaChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -577,7 +550,7 @@ class TestNvidiaChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "meta/llama-3.1-8b-instruct" in message.meta["model"]
+        assert "nvidia/nemotron-3.5-lightning-30b-a3b" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert counter > 1

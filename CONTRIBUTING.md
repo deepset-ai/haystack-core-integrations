@@ -133,6 +133,11 @@ limited in scope, easy fixable and low priority, so there is absolutely no reaso
 It's also a good excuse to start looking into the project and a safe space for experimenting failure: if you don't get the
 grasp of something, pick another one!
 
+> [!NOTE]
+> **Community contributors can have only one open pull request at a time** in this repository. Please wait until your
+> open PR is merged or closed before opening another one. This lets us give each contribution the attention it deserves
+> while keeping the review queue manageable.
+
 ### Setting up your development environment
 
 Haystack makes heavy use of [Hatch](https://hatch.pypa.io/latest/), a Python project manager that we use to set up the

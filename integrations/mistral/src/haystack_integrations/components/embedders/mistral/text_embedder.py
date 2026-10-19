@@ -87,9 +87,6 @@ class MistralTextEmbedder(OpenAITextEmbedder):
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
-        # We add these since they were only added in Haystack 2.14.0
-        self.timeout = timeout
-        self.max_retries = max_retries
 
     def to_dict(self) -> dict[str, Any]:
         """

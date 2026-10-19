@@ -53,7 +53,7 @@ def mock_async_ranker_response():
         yield mock_ranker_response
 
 
-class TestCohereRanker:
+class TestInitializationAndSerialization:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker()
@@ -64,12 +64,8 @@ class TestCohereRanker:
         assert component.meta_fields_to_embed == []
         assert component.meta_data_separator == "\n"
         assert component.max_tokens_per_doc == 4096
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("CO_API_KEY", raising=False)
-        monkeypatch.delenv("COHERE_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the following authentication environment variables are set: *"):
-            CohereRanker()
+        assert component._cohere_client is None
+        assert component._cohere_async_client is None
 
     def test_init_with_parameters(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
@@ -155,21 +151,39 @@ class TestCohereRanker:
         assert component.meta_data_separator == ","
         assert component.max_tokens_per_doc == 100
 
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("CO_API_KEY", raising=False)
-        monkeypatch.delenv("COHERE_API_KEY", raising=False)
-        data = {
-            "type": "haystack_integrations.components.rankers.cohere.ranker.CohereRanker",
-            "init_parameters": {
-                "model": "rerank-multilingual-v3.0",
-                "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "top_k": 2,
-                "max_tokens_per_doc": 100,
-            },
-        }
-        with pytest.raises(ValueError, match=r"None of the following authentication environment variables are set: *"):
-            CohereRanker.from_dict(data)
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_COHERE_API_KEY", raising=False)
+        component = CohereRanker(api_key=Secret.from_env_var("MISSING_COHERE_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_COHERE_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.rankers.cohere.ranker.ClientV2")
+    def test_warm_up_is_idempotent(self, mock_client_cls):
+        component = CohereRanker(api_key=Secret.from_token("test-api-key"))
+
+        component.warm_up()
+        component.warm_up()
+
+        mock_client_cls.assert_called_once_with(api_key="test-api-key", base_url=COHERE_API_URL, client_name="haystack")
+        assert component._cohere_client is mock_client_cls.return_value
+        assert component._cohere_async_client is None
+
+    @patch("haystack_integrations.components.rankers.cohere.ranker.AsyncClientV2")
+    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
+        component = CohereRanker(api_key=Secret.from_token("test-api-key"))
+
+        await component.warm_up_async()
+        await component.warm_up_async()
+
+        mock_client_cls.assert_called_once_with(api_key="test-api-key", base_url=COHERE_API_URL, client_name="haystack")
+        assert component._cohere_async_client is mock_client_cls.return_value
+        assert component._cohere_client is None
+
+
+class TestRun:
     def test_prepare_cohere_input_docs_default_separator(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker(meta_fields_to_embed=["meta_field_1", "meta_field_2"])

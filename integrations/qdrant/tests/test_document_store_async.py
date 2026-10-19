@@ -141,17 +141,19 @@ class TestQdrantDocumentStoreAsyncUnit:
             await document_store.delete_documents_async(["doc-1"])
 
     @pytest.mark.parametrize(
-        ("method_name", "args", "expected"),
+        ("method_name", "args"),
         [
-            ("count_documents_async", (), 0),
-            ("count_documents_by_filter_async", ({},), 0),
-            ("get_metadata_fields_info_async", (), {}),
-            ("get_metadata_field_min_max_async", ("score",), {}),
-            ("count_unique_metadata_by_filter_async", ({}, ["category"]), {"category": 0}),
-            ("get_metadata_field_unique_values_async", ("category",), ([], 0)),
+            ("count_documents_async", ()),
+            ("delete_all_documents_async", (False,)),
+            ("delete_all_documents_async", (True,)),
+            ("count_documents_by_filter_async", ({},)),
+            ("get_metadata_fields_info_async", ()),
+            ("get_metadata_field_min_max_async", ("score",)),
+            ("count_unique_metadata_by_filter_async", ({}, ["category"])),
+            ("get_metadata_field_unique_values_async", ("category",)),
         ],
     )
-    async def test_metadata_methods_async_absorb_client_errors(self, method_name, args, expected):
+    async def test_operations_async_raise_on_client_errors(self, method_name, args):
         document_store = QdrantDocumentStore(location=":memory:")
         await document_store._initialize_async_client()
         err = ValueError("boom")
@@ -159,8 +161,11 @@ class TestQdrantDocumentStoreAsyncUnit:
             patch.object(document_store._async_client, "count", side_effect=err),
             patch.object(document_store._async_client, "scroll", side_effect=err),
             patch.object(document_store._async_client, "get_collection", side_effect=err),
+            patch.object(document_store._async_client, "delete", side_effect=err),
         ):
-            assert await getattr(document_store, method_name)(*args) == expected
+            with pytest.raises(QdrantStoreError) as exc_info:
+                await getattr(document_store, method_name)(*args)
+            assert exc_info.value.__cause__ is err
 
     async def test_close_async(self):
         document_store = QdrantDocumentStore(location=":memory:")
@@ -342,34 +347,3 @@ class TestQdrantDocumentStoreAsync(
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
-
-    async def test_get_metadata_field_unique_values_with_meta_prefix_async(self, document_store: QdrantDocumentStore):
-        """Test that a 'meta.'-prefixed field name is normalized before lookup."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        values, total = await document_store.get_metadata_field_unique_values_async("meta.category")
-        assert set(values) == {"A", "B"}
-        assert total == 2
-
-    async def test_get_metadata_field_unique_values_with_search_term_async(self, document_store: QdrantDocumentStore):
-        """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "Apple"}),
-            Document(content="Doc 2", meta={"category": "Banana"}),
-            Document(content="Doc 3", meta={"category": "Apricot"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        values, total = await document_store.get_metadata_field_unique_values_async("category", search_term="ap")
-        assert set(values) == {"Apple", "Apricot"}
-        assert total == 2
-
-        values, total = await document_store.get_metadata_field_unique_values_async(
-            "category", search_term="nonexistent"
-        )
-        assert values == []
-        assert total == 0

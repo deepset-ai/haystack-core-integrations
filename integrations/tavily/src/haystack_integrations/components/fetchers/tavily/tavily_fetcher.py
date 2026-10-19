@@ -74,14 +74,29 @@ class TavilyFetcher:
 
     def warm_up(self) -> None:
         """
-        Initialize the Tavily sync and async clients.
+        Initialize the Tavily sync client.
 
         Called automatically on first use. Can be called explicitly to avoid cold-start latency.
         """
         if self._tavily_client is None:
             self._tavily_client = TavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
+
+    async def warm_up_async(self) -> None:
+        """Initialize the Tavily async client."""
         if self._async_tavily_client is None:
             self._async_tavily_client = AsyncTavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
+
+    def close(self) -> None:
+        """Close the Tavily sync client."""
+        if self._tavily_client is not None:
+            self._tavily_client.close()
+            self._tavily_client = None
+
+    async def close_async(self) -> None:
+        """Close the Tavily async client."""
+        if self._async_tavily_client is not None:
+            await self._async_tavily_client.close()
+            self._async_tavily_client = None
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(
@@ -103,11 +118,11 @@ class TavilyFetcher:
             - `meta`: Request-level metadata containing `"response_time"`, `"usage"`,
               `"request_id"`, and `"failed_results"` for URLs that could not be processed.
         """
-        if self._tavily_client is None:
-            self.warm_up()
+        self.warm_up()
+        assert self._tavily_client is not None  # noqa: S101
 
         params = (extract_params if extract_params is not None else self.extract_params or {}).copy()
-        response = self._tavily_client.extract(  # type: ignore[union-attr]
+        response = self._tavily_client.extract(
             urls=urls,
             extract_depth=self.extract_depth,
             include_images=self.include_images,
@@ -135,11 +150,11 @@ class TavilyFetcher:
             - `meta`: Request-level metadata containing `"response_time"`, `"usage"`,
               `"request_id"`, and `"failed_results"` for URLs that could not be processed.
         """
-        if self._async_tavily_client is None:
-            self.warm_up()
+        await self.warm_up_async()
+        assert self._async_tavily_client is not None  # noqa: S101
 
         params = (extract_params if extract_params is not None else self.extract_params or {}).copy()
-        response = await self._async_tavily_client.extract(  # type: ignore[union-attr]
+        response = await self._async_tavily_client.extract(
             urls=urls,
             extract_depth=self.extract_depth,
             include_images=self.include_images,

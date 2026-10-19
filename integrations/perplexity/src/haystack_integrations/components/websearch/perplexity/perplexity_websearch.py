@@ -99,14 +99,29 @@ class PerplexityWebSearch:
 
     def warm_up(self) -> None:
         """
-        Initialize the sync and async HTTP clients.
+        Initialize the synchronous HTTP client.
 
         Called automatically on first use. Can be called explicitly to avoid cold-start latency.
         """
         if self._client is None:
             self._client = httpx.Client(timeout=self.timeout)
+
+    async def warm_up_async(self) -> None:
+        """Initialize the asynchronous HTTP client."""
         if self._async_client is None:
             self._async_client = httpx.AsyncClient(timeout=self.timeout)
+
+    def close(self) -> None:
+        """Release the synchronous HTTP client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Release the asynchronous HTTP client."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
 
     @component.output_types(documents=list[Document], links=list[str])
     def run(
@@ -125,10 +140,10 @@ class PerplexityWebSearch:
             - `documents`: List of Documents containing search result content.
             - `links`: List of URLs from the search results.
         """
-        if self._client is None:
-            self.warm_up()
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
 
-        response = self._client.post(  # type: ignore[union-attr]
+        response = self._client.post(
             PERPLEXITY_SEARCH_URL,
             headers=self._build_headers(),
             json=self._build_body(query, search_params),
@@ -153,10 +168,10 @@ class PerplexityWebSearch:
             - `documents`: List of Documents containing search result content.
             - `links`: List of URLs from the search results.
         """
-        if self._async_client is None:
-            self.warm_up()
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
 
-        response = await self._async_client.post(  # type: ignore[union-attr]
+        response = await self._async_client.post(
             PERPLEXITY_SEARCH_URL,
             headers=self._build_headers(),
             json=self._build_body(query, search_params),
