@@ -6,7 +6,7 @@ import inspect
 import json
 from collections.abc import AsyncIterable, Iterable
 from datetime import UTC, datetime
-from typing import Any, Union
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
@@ -38,10 +38,8 @@ from huggingface_hub import (
     ChatCompletionInputStreamOptions,
     ChatCompletionInputTool,
     ChatCompletionOutput,
-    ChatCompletionOutputComplete,
     ChatCompletionOutputToolCall,
     ChatCompletionStreamOutput,
-    ChatCompletionStreamOutputChoice,
     InferenceClient,
 )
 
@@ -53,6 +51,15 @@ from haystack_integrations.common.huggingface_api.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_message_to_hf_format_with_json_tool_arguments(message: ChatMessage) -> dict[str, Any]:
+    hf_message = convert_message_to_hf_format(message)
+    for tool_call in hf_message.get("tool_calls", []):
+        arguments = tool_call["function"]["arguments"]
+        if isinstance(arguments, dict):
+            tool_call["function"]["arguments"] = json.dumps(arguments)
+    return hf_message
 
 
 def _convert_hfapi_tool_calls(hfapi_tool_calls: list["ChatCompletionOutputToolCall"] | None) -> list[ToolCall]:
@@ -166,13 +173,11 @@ def _convert_tools_to_hfapi_tools(tools: ToolsType | None) -> list["ChatCompleti
 
 
 def _map_hf_finish_reason_to_haystack(
-    choice: Union["ChatCompletionStreamOutputChoice", "ChatCompletionOutputComplete"],
+    finish_reason: str | None,
     has_tool_calls: bool = False,
 ) -> FinishReason | None:
     """
     Map HuggingFace finish reasons to Haystack FinishReason literals.
-
-    Uses the full choice object to detect tool calls and provide accurate mapping.
 
     HuggingFace finish reasons (can be found here https://huggingface.github.io/text-generation-inference/ under
     FinishReason):
@@ -180,38 +185,61 @@ def _map_hf_finish_reason_to_haystack(
     - "eos_token": the model generated its end of sequence token
     - "stop_sequence": the model generated a text included in `stop_sequences`
 
-    Additionally, detects tool calls from delta.tool_calls or delta.tool_call_id.
-
-    :param choice: The HuggingFace ChatCompletionStreamOutputChoice object.
-    :param has_tool_calls: Whether previous streaming chunks contained tool calls.
+    :param finish_reason: The provider's finish reason, or `None` for an unfinished response.
+    :param has_tool_calls: Whether the response contains tool calls, including earlier streaming chunks.
     :returns: The corresponding Haystack FinishReason or None.
     """
-    if choice.finish_reason is None:
+    if finish_reason is None:
         return None
 
     # A partial tool call does not turn truncation or filtering into a successful tool completion.
-    if choice.finish_reason == "length":
+    if finish_reason == "length":
         return "length"
-    if choice.finish_reason == "content_filter":
+    if finish_reason == "content_filter":
         return "content_filter"
 
-    # Check if this choice contains tool call information
-    if isinstance(choice, ChatCompletionStreamOutputChoice):
-        has_tool_calls = has_tool_calls or bool(choice.delta.tool_calls) or choice.delta.tool_call_id is not None
-    else:
-        has_tool_calls = has_tool_calls or bool(choice.message.tool_calls) or choice.message.tool_call_id is not None
-
-    if has_tool_calls or choice.finish_reason == "tool_calls":
+    if has_tool_calls or finish_reason == "tool_calls":
         return "tool_calls"
 
     # "stop", "eos_token" and "stop_sequence" all indicate a natural stop.
     return "stop"
 
 
+def _get_streaming_block_info(
+    content: str,
+    reasoning: ReasoningContent | None,
+    tool_calls: list[ToolCallDelta],
+    last_content_chunk: StreamingChunk | None,
+) -> tuple[int | None, bool]:
+    """Return the display block index and whether a new block starts."""
+    if tool_calls:
+        # The function name marks the start of a tool call.
+        start = last_content_chunk is None or not last_content_chunk.tool_calls or bool(tool_calls[0].tool_name)
+    elif reasoning:
+        start = last_content_chunk is None or not last_content_chunk.reasoning
+    elif not content:
+        return None, False
+    elif not content.strip():
+        # Whitespace continues existing text but does not open a block.
+        if last_content_chunk is not None and last_content_chunk.content:
+            return last_content_chunk.index, False
+        return None, False
+    else:
+        start = last_content_chunk is None or not last_content_chunk.content
+
+    index = last_content_chunk.index if last_content_chunk is not None else None
+    if start:
+        index = index + 1 if index is not None else 0
+
+    return index, start
+
+
 def _convert_chat_completion_stream_output_to_streaming_chunk(
     chunk: "ChatCompletionStreamOutput",
-    previous_chunks: list[StreamingChunk],
+    last_content_chunk: StreamingChunk | None = None,
     component_info: ComponentInfo | None = None,
+    tool_calls_seen: bool = False,
+    last_finish_reason: FinishReason | None = None,
 ) -> StreamingChunk:
     """
     Converts the Hugging Face API ChatCompletionStreamOutput to a StreamingChunk.
@@ -236,13 +264,6 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
     # see https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.InferenceClient.chat_completion.n
     choice = chunk.choices[0]
     meta["finish_reason"] = choice.finish_reason
-    previous_tool_indices = (
-        {tool_call.index for previous in previous_chunks for tool_call in previous.tool_calls or []}
-        if choice.delta.tool_calls or choice.finish_reason
-        else set()
-    )
-    mapped_finish_reason = _map_hf_finish_reason_to_haystack(choice, has_tool_calls=bool(previous_tool_indices))
-
     tool_calls = []
     for tool_call in choice.delta.tool_calls or []:
         if tool_call.index is None:
@@ -258,17 +279,24 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
             )
         )
 
-    # Extract reasoning content if present
+    content = choice.delta.content or ""
     reasoning = _extract_reasoning_content(choice.delta)
-    index = 0 if choice.finish_reason is None or choice.delta.content or reasoning else None
+    index, start = _get_streaming_block_info(content, reasoning, tool_calls, last_content_chunk)
+
+    mapped_finish_reason = _map_hf_finish_reason_to_haystack(
+        choice.finish_reason,
+        has_tool_calls=tool_calls_seen or bool(tool_calls) or choice.delta.tool_call_id is not None,
+    )
+    if mapped_finish_reason == last_finish_reason:
+        # Some providers repeat the terminal reason in a later event.
+        mapped_finish_reason = None
 
     return StreamingChunk(
-        content=choice.delta.content or "",
+        content=content,
         meta=meta,
         component_info=component_info,
-        # A provider event can contain several calls; use its first call's index for the chunk itself.
-        index=tool_calls[0].index if tool_calls else index,
-        start=tool_calls[0].index not in previous_tool_indices if tool_calls else len(previous_chunks) == 0,
+        index=index,
+        start=start,
         tool_calls=tool_calls or None,
         finish_reason=mapped_finish_reason,
         reasoning=reasoning,
@@ -564,7 +592,7 @@ class HuggingFaceAPIChatGenerator:
         # update generation kwargs by merging with the default ones
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        formatted_messages = [convert_message_to_hf_format(message) for message in messages]
+        formatted_messages = [_convert_message_to_hf_format_with_json_tool_arguments(message) for message in messages]
 
         tools = tools or self.tools
         flat_tools = flatten_tools_or_toolsets(tools)
@@ -623,7 +651,7 @@ class HuggingFaceAPIChatGenerator:
         # update generation kwargs by merging with the default ones
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        formatted_messages = [convert_message_to_hf_format(message) for message in messages]
+        formatted_messages = [_convert_message_to_hf_format_with_json_tool_arguments(message) for message in messages]
 
         tools = tools or self.tools
         flat_tools = flatten_tools_or_toolsets(tools)
@@ -657,10 +685,21 @@ class HuggingFaceAPIChatGenerator:
 
         component_info = ComponentInfo.from_component(self)
         streaming_chunks: list[StreamingChunk] = []
+        last_content_chunk = None
+        tool_calls_seen = False
+        last_finish_reason = None
         for chunk in api_output:
             streaming_chunk = _convert_chat_completion_stream_output_to_streaming_chunk(
-                chunk=chunk, previous_chunks=streaming_chunks, component_info=component_info
+                chunk=chunk,
+                last_content_chunk=last_content_chunk,
+                component_info=component_info,
+                tool_calls_seen=tool_calls_seen,
+                last_finish_reason=last_finish_reason,
             )
+            if streaming_chunk.index is not None:
+                last_content_chunk = streaming_chunk
+            tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
+            last_finish_reason = streaming_chunk.finish_reason or last_finish_reason
             streaming_chunks.append(streaming_chunk)
             streaming_callback(streaming_chunk)
 
@@ -696,7 +735,10 @@ class HuggingFaceAPIChatGenerator:
         # Extract reasoning content if present
         reasoning = _extract_reasoning_content(choice.message)
 
-        mapped_finish_reason = _map_hf_finish_reason_to_haystack(choice) if choice.finish_reason else None
+        mapped_finish_reason = _map_hf_finish_reason_to_haystack(
+            choice.finish_reason or None,
+            has_tool_calls=bool(choice.message.tool_calls) or choice.message.tool_call_id is not None,
+        )
         meta: dict[str, Any] = {
             "model": self._client.model,
             "finish_reason": mapped_finish_reason,
@@ -732,10 +774,21 @@ class HuggingFaceAPIChatGenerator:
 
         component_info = ComponentInfo.from_component(self)
         streaming_chunks: list[StreamingChunk] = []
+        last_content_chunk = None
+        tool_calls_seen = False
+        last_finish_reason = None
         async for chunk in api_output:
             stream_chunk = _convert_chat_completion_stream_output_to_streaming_chunk(
-                chunk=chunk, previous_chunks=streaming_chunks, component_info=component_info
+                chunk=chunk,
+                last_content_chunk=last_content_chunk,
+                component_info=component_info,
+                tool_calls_seen=tool_calls_seen,
+                last_finish_reason=last_finish_reason,
             )
+            if stream_chunk.index is not None:
+                last_content_chunk = stream_chunk
+            tool_calls_seen = tool_calls_seen or bool(stream_chunk.tool_calls)
+            last_finish_reason = stream_chunk.finish_reason or last_finish_reason
             streaming_chunks.append(stream_chunk)
             # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
             callback_result = streaming_callback(stream_chunk)
@@ -771,7 +824,10 @@ class HuggingFaceAPIChatGenerator:
         # Extract reasoning content if present
         reasoning = _extract_reasoning_content(choice.message)
 
-        mapped_finish_reason = _map_hf_finish_reason_to_haystack(choice) if choice.finish_reason else None
+        mapped_finish_reason = _map_hf_finish_reason_to_haystack(
+            choice.finish_reason or None,
+            has_tool_calls=bool(choice.message.tool_calls) or choice.message.tool_call_id is not None,
+        )
         meta: dict[str, Any] = {
             "model": self._async_client.model,
             "finish_reason": mapped_finish_reason,
