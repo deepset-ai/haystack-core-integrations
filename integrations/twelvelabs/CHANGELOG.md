@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/twelvelabs-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Add short sample video for twelve labs integration tests (#3509)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- *(twelvelabs)* Avoid orphaned async embed tasks when a batch call fails (#3683)
+
+### 🧪 Testing
+
+- Twelvelabs - add unit tests (#3499)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/twelvelabs-v1.0.0] - 2026-06-25
 
 ### 🚀 Features
