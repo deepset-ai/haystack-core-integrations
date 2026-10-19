@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/hetzner-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Accept Hetzner's unsuffixed model name in live tests (#4109)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/hetzner-v1.0.0] - 2026-08-20
 
 ### 🚀 Features
