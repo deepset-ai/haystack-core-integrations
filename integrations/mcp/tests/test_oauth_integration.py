@@ -14,6 +14,7 @@ import urllib.request
 
 import pytest
 from haystack.utils import Secret
+from mcp.client.auth.extensions.client_credentials import ClientCredentialsOAuthProvider
 
 from haystack_integrations.tools.mcp import (
     MCPConnectionError,
@@ -23,12 +24,11 @@ from haystack_integrations.tools.mcp import (
     SSEServerInfo,
     StreamableHttpServerInfo,
 )
-from mcp.client.auth.extensions.client_credentials import ClientCredentialsOAuthProvider
 
 pytestmark = pytest.mark.integration
 
 CLIENT_ID = "haystack-client"
-CLIENT_SECRET = "haystack-secret"  # noqa: S105
+CLIENT_SECRET = "haystack-secret"
 
 # `issuer` is only accepted by mcp>=1.30.0 (v1) and mcp>=2.2.0 (v2)
 SDK_SUPPORTS_ISSUER = "issuer" in inspect.signature(ClientCredentialsOAuthProvider.__init__).parameters
@@ -282,10 +282,13 @@ class TestOAuthClientCredentials:
             oauth_config=_oauth_config(server, Secret.from_env_var("TEST_MCP_CLIENT_SECRET")),
         )
 
-        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info, connection_timeout=10))
-        with pytest.raises(MCPConnectionError, match="invalid_client") as exc_info:
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info, connection_timeout=30))
+        start = time.monotonic()
+        with pytest.raises(MCPConnectionError, match="invalid_client"):
             tool.warm_up()
-        print(repr(exc_info.value))
+
+        # The OAuth error must abort the connection, not leave it waiting until connection_timeout
+        assert time.monotonic() - start < 15
 
         assert server.token_requests()
 

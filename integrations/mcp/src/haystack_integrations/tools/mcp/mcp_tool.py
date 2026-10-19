@@ -17,6 +17,7 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
 from typing import Any, cast
 
+import anyio
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
@@ -32,7 +33,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 
 from .compatibility_layer import is_reconnectable, mcp_field_value
-from .oauth import OAuthConfig
+from .oauth import OAuthConfig, _FailFastAuth
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +285,8 @@ class MCPClient(ABC):
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
+        # OAuth for HTTP transports; created on first connect and reused on reconnects, so tokens are kept
+        self._auth: _FailFastAuth | None = None
 
     @abstractmethod
     async def connect(self) -> list[types.Tool]:
@@ -410,6 +413,8 @@ class MCPClient(ABC):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        # A failed OAuth flow cancels this scope; otherwise the session would wait for a response until it times out
+        auth_failure_scope = self._auth.failure_scope() if self._auth else anyio.CancelScope()
         try:
             # Use extended unpacking to handle tuples with additional values
             self.stdio, self.write, *_ = transport_tuple
@@ -417,16 +422,23 @@ class MCPClient(ABC):
 
             # Now session is guaranteed to be a ClientSession, not None
             session = cast(ClientSession, self.session)  # Tell mypy the type is now known
-            await session.initialize()
+            with auth_failure_scope:
+                await session.initialize()
 
-            # List available tools
-            response = await session.list_tools()
-            return response.tools
+                # List available tools
+                response = await session.list_tools()
 
         except Exception as e:
             # We'll clean up the session in the calling code, so we don't need to do it here.
             message = f"Failed to connect to {connection_type}: {e}"
             raise MCPConnectionError(message=message, operation="connect") from e
+
+        if auth_failure_scope.cancelled_caught:
+            error = self._auth.error if self._auth else None
+            message = f"OAuth authentication failed for {connection_type}: {error}"
+            raise MCPConnectionError(message=message, operation="connect") from error
+
+        return response.tools
 
 
 class StdioClient(MCPClient):
@@ -514,8 +526,6 @@ class SSEClient(MCPClient):
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
         self.oauth_config: OAuthConfig | None = server_info.oauth_config
-        # Created on first connect and reused on reconnects, so the token and discovered metadata are kept
-        self._auth: Any | None = None
 
     async def connect(self) -> list[types.Tool]:
         """
@@ -528,7 +538,7 @@ class SSEClient(MCPClient):
         :raises MCPConnectionError: If connection to the server fails
         """
         if self.oauth_config is not None and self._auth is None:
-            self._auth = self.oauth_config.create_auth(server_url=self.url)
+            self._auth = _FailFastAuth(self.oauth_config.create_auth(server_url=self.url))
 
         # Use custom headers if provided, otherwise fall back to token-based Authorization
         headers = None
@@ -572,8 +582,6 @@ class StreamableHttpClient(MCPClient):
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
         self.oauth_config: OAuthConfig | None = server_info.oauth_config
-        # Created on first connect and reused on reconnects, so the token and discovered metadata are kept
-        self._auth: Any | None = None
 
     async def connect(self) -> list[types.Tool]:
         """
@@ -586,7 +594,7 @@ class StreamableHttpClient(MCPClient):
         :raises MCPConnectionError: If connection to the server fails
         """
         if self.oauth_config is not None and self._auth is None:
-            self._auth = self.oauth_config.create_auth(server_url=self.url)
+            self._auth = _FailFastAuth(self.oauth_config.create_auth(server_url=self.url))
 
         # Use custom headers if provided, otherwise fall back to token-based Authorization
         headers = None
