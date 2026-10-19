@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/serperdev-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🚜 Refactor
+
+- [**breaking**] Remove from_dict overrides that only call default_from_dict from 14 components (#4059)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/serperdev-v1.0.0] - 2026-06-12
 
 ### 🚀 Features

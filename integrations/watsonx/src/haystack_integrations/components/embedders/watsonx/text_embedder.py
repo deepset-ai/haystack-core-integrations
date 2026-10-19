@@ -4,8 +4,8 @@
 
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import component, default_to_dict
+from haystack.utils import Secret
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import Embeddings
 
@@ -135,19 +135,6 @@ class WatsonxTextEmbedder:
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WatsonxTextEmbedder":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary representation of this component.
-        :returns:
-            The deserialized component instance.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
-        return default_from_dict(cls, data)
 
     def _prepare_input(self, text: str) -> str:
         if not isinstance(text, str):

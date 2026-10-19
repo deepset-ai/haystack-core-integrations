@@ -25,6 +25,13 @@ from haystack_integrations.document_stores.opensearch.opensearch_scripts import 
 
 logger = logging.getLogger(__name__)
 
+# Meta keys are passed only as params and never interpolated into the script source, so they can't inject code.
+UPDATE_SCRIPT = """
+            for (entry in params.entrySet()) {
+                ctx._source[entry.getKey()] = entry.getValue();
+            }
+            """
+
 SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "blob"}
 
 Hosts = str | list[str | Mapping[str, str | int]]
@@ -959,16 +966,10 @@ class OpenSearchDocumentStore:
 
         try:
             normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
-            # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
-            update_script_lines = []
-            for key in meta.keys():
-                update_script_lines.append(f"ctx._source.{key} = params.{key};")
-            update_script = " ".join(update_script_lines)
-
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
-                "script": {"source": update_script, "params": meta, "lang": "painless"},
+                "script": {"source": UPDATE_SCRIPT, "params": meta, "lang": "painless"},
             }
             result = self._client.update_by_query(index=self._index, body=body, refresh=refresh)
             updated_count = result.get("updated", 0)
@@ -999,16 +1000,10 @@ class OpenSearchDocumentStore:
 
         try:
             normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
-            # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
-            update_script_lines = []
-            for key in meta.keys():
-                update_script_lines.append(f"ctx._source.{key} = params.{key};")
-            update_script = " ".join(update_script_lines)
-
             body = {
                 "query": {"bool": {"filter": normalized_filters}},
-                "script": {"source": update_script, "params": meta, "lang": "painless"},
+                "script": {"source": UPDATE_SCRIPT, "params": meta, "lang": "painless"},
             }
             result = await self._async_client.update_by_query(index=self._index, body=body, refresh=refresh)
             updated_count = result.get("updated", 0)

@@ -180,6 +180,7 @@ class GoogleGenAIChatGenerator:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "gemini-4-argon",
         "gemini-3.8-flash",
         "gemini-3.7-flash",
         "gemini-3.6-flash",

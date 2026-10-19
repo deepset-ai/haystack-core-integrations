@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/litellm-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Standardize license files (#3771)
+
+### 🧹 Chores
+
+- Clarify how generation_kwargs passed in run are handled (#3805)
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/litellm-v1.2.0] - 2026-07-30
 
 ### 🚀 Features

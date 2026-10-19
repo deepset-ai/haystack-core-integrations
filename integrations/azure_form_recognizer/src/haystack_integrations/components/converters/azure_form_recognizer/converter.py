@@ -11,10 +11,10 @@ from typing import Any, Literal
 import networkx as nx
 from azure.ai.formrecognizer import AnalyzeResult, DocumentAnalysisClient, DocumentLine, DocumentParagraph
 from azure.core.credentials import AzureKeyCredential
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, default_to_dict, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
@@ -185,19 +185,6 @@ class AzureOCRDocumentConverter:
             threshold_y=self.threshold_y,
             store_full_path=self.store_full_path,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AzureOCRDocumentConverter":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     def _convert_tables_and_text(self, result: AnalyzeResult, meta: dict[str, Any] | None) -> list[Document]:
         """

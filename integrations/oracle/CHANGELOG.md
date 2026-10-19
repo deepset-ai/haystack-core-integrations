@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/oracle-v1.0.0] - 2026-10-16
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/oracle-v0.5.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

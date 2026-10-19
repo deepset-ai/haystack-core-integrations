@@ -11,6 +11,7 @@ from haystack import Document, component, default_to_dict, logging
 from haystack.utils import Secret
 from typesafe_sdk import (
     AsyncTypeSafeClient,
+    Box,
     Choice,
     Noul,
     Question,
@@ -127,13 +128,17 @@ class TypeSafeDocumentClassifier:
             If `True`, the first failed request raises its error. If `False`, documents whose request failed are
             returned in `failed_documents`.
         :raises ValueError:
-            If `questions` is empty, a question has an unknown `type`, a `choice` or `score` question has no
-            `criteria`, or `max_workers` is smaller than 1.
+            If `questions` is empty, a question has an unknown `type` or is a `Box` question, a `choice` or `score`
+            question has no `criteria`, or `max_workers` is smaller than 1.
         """
         if not questions:
             msg = "`questions` must contain at least one question."
             raise ValueError(msg)
         for question_id, question in questions.items():
+            # Box questions locate objects in an image, so they can't be answered about document text
+            if isinstance(question, Box):
+                msg = f"Question '{question_id}' is a `Box` question; use one of {_QUESTION_TYPES}."
+                raise ValueError(msg)
             # SDK question objects are validated by the SDK when they are created
             if isinstance(question, (Choice, Score, Noul)):
                 continue

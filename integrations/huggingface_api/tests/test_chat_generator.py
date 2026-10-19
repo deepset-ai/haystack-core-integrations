@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -935,7 +935,7 @@ class TestSyncIntegration:
 
         response_meta = response["replies"][0].meta
         assert "completion_start_time" in response_meta
-        assert datetime.fromisoformat(response_meta["completion_start_time"]) <= datetime.now(timezone.utc)
+        assert datetime.fromisoformat(response_meta["completion_start_time"]) <= datetime.now(UTC)
         assert "usage" in response_meta
         assert "prompt_tokens" in response_meta["usage"]
         assert response_meta["usage"]["prompt_tokens"] >= 0

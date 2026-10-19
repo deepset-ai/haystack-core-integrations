@@ -5,7 +5,7 @@
 import inspect
 import json
 from collections.abc import AsyncIterable, Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -221,7 +221,7 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
             usage = {"prompt_tokens": chunk.usage.prompt_tokens, "completion_tokens": chunk.usage.completion_tokens}
         return StreamingChunk(
             content="",
-            meta={"model": chunk.model, "received_at": datetime.now(timezone.utc).isoformat(), "usage": usage},
+            meta={"model": chunk.model, "received_at": datetime.now(UTC).isoformat(), "usage": usage},
             component_info=component_info,
         )
 
@@ -238,7 +238,7 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
         content=choice.delta.content or "",
         meta={
             "model": chunk.model,
-            "received_at": datetime.now(timezone.utc).isoformat(),
+            "received_at": datetime.now(UTC).isoformat(),
             "finish_reason": choice.finish_reason,
         },
         component_info=component_info,
