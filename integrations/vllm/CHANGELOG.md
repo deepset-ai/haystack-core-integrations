@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/vllm-v3.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- VLLM - respect an empty runtime tools list (#4060)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/vllm-v2.1.0] - 2026-10-07
 
 ### 🚜 Refactor

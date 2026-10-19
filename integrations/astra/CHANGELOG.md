@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/astra-v6.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Astra - fix examples for Haystack 3.x and bump sentence-transformers to >=5.6.0 (CVE-2026-68770) (#4035)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/astra-v5.0.0] - 2026-09-25
 
 ### ⚙️ CI

@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/aimlapi-v3.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Fix tests for openai>=3.0.0 (#3801)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Replace ToolInvoker with Agent in tests, examples and docstrings (#4108)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/aimlapi-v2.1.0] - 2026-07-13
 
 ### 🚀 Features
