@@ -200,7 +200,8 @@ class TestHetznerChatGenerator:
         assert len(results["replies"]) == 1
         message = results["replies"][0]
         assert "Paris" in message.text
-        assert DEFAULT_MODEL in message.meta["model"]
+        # the API reports the served model without the "-FP8" quantization suffix of the requested model ID
+        assert DEFAULT_MODEL.removesuffix("-FP8") in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @requires_api_key

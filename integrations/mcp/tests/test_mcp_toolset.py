@@ -195,6 +195,26 @@ class TestMCPToolset:
         toolset.warm_up()
         assert [tool.name for tool in toolset.tools] == warmed_tool_names
 
+    @pytest.mark.parametrize("eager_connect", [False, True])
+    async def test_mcp_toolset_reopens_after_close(self, eager_connect, mcp_calculator_server, mcp_tool_cleanup):
+        port = mcp_calculator_server("sse")
+        server_info = SSEServerInfo(url=f"http://127.0.0.1:{port}/sse", max_retries=0)
+        toolset = mcp_tool_cleanup(MCPToolset(server_info=server_info, eager_connect=eager_connect))
+
+        toolset.warm_up()
+        assert sorted(tool.name for tool in toolset.tools) == ["add", "subtract"]
+        for tool in toolset.tools:
+            expected = "5" if tool.name == "add" else "-1"
+            assert json.loads(tool.invoke(a=2, b=3))["content"][0]["text"] == expected
+
+        toolset.close()
+
+        toolset.warm_up()
+        assert sorted(tool.name for tool in toolset.tools) == ["add", "subtract"]
+        for tool in toolset.tools:
+            expected = "5" if tool.name == "add" else "-1"
+            assert json.loads(tool.invoke(a=2, b=3))["content"][0]["text"] == expected
+
     async def test_toolset_serde(self, calculator_toolset):
         """Test serialization and deserialization of MCPToolset."""
         toolset = calculator_toolset
@@ -249,11 +269,11 @@ class TestMCPToolset:
             },
         )
 
-        combined_tools = toolset + [multiply_tool]
+        toolset.add(multiply_tool)
 
-        assert len(combined_tools) == 4  # add, subtract, divide_by_zero, multiply
+        assert len(toolset) == 4  # add, subtract, divide_by_zero, multiply
 
-        tool_names = [tool.name for tool in combined_tools.tools]
+        tool_names = [tool.name for tool in toolset.tools]
         assert "add" in tool_names
         assert "subtract" in tool_names
         assert "divide_by_zero" in tool_names

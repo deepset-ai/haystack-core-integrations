@@ -1,14 +1,49 @@
 import os
+from contextlib import contextmanager
 
 import pytest
+from haystack import tracing
 from haystack.components.agents.state import State
 from haystack.components.generators.chat import MockChatGenerator, OpenAIResponsesChatGenerator
 from haystack.dataclasses import ChatMessage, ChatRole, ToolCall
+from haystack.tracing import Span, Tracer
 
 from haystack_integrations.agent_pack.advanced_rag.agent import _default_llm
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 
 SEARCH_CALL = ToolCall(tool_name="search_documents", arguments={"query": "x"})
+
+
+class RecordingSpan(Span):
+    """Span that appends the name and reply usage of every output it is given to a shared list."""
+
+    def __init__(self, name: str, tags: dict | None, seen: list) -> None:
+        self.name, self.tags, self.seen = name, tags or {}, seen
+
+    def set_tag(self, key: str, value: object) -> None:
+        """Keep ordinary tags on the span."""
+        self.tags[key] = value
+
+    def set_content_tag(self, key: str, value: object) -> None:
+        """Record what a generator replied, so a test can assert its usage was reported."""
+        if key == "haystack.component.output":
+            self.seen.extend((self.name, reply.meta.get("usage")) for reply in value["replies"])
+
+
+class RecordingTracer(Tracer):
+    """Tracer that collects every span into one list."""
+
+    def __init__(self, seen: list) -> None:
+        self.seen = seen
+
+    @contextmanager
+    def trace(self, operation_name: str, tags: dict | None = None, parent_span: Span | None = None):  # noqa: ARG002
+        """Open a recording span."""
+        yield RecordingSpan(operation_name, tags, self.seen)
+
+    def current_span(self) -> Span | None:
+        """No nesting is needed for these tests."""
+        return None
 
 
 class TestBackupAnswerHook:
@@ -61,6 +96,21 @@ class TestBackupAnswerHook:
         assert len(system_messages) == 1
         assert "interrupted document-search session" in system_messages[0].text
         assert "agent system prompt" not in system_messages[0].text
+
+    def test_tracing(self):
+        seen = []
+        reply = ChatMessage.from_assistant("backup", meta={"usage": {"input_tokens": 11, "output_tokens": 4}})
+        hook = BackupAnswerHook(chat_generator=MockChatGenerator(reply, model="backup-model"))
+        state = State(schema={})
+        state.set("messages", [ChatMessage.from_user("q"), ChatMessage.from_assistant(tool_calls=[SEARCH_CALL])])
+
+        tracing.enable_tracing(RecordingTracer(seen=seen))
+        try:
+            hook.run(state)
+        finally:
+            tracing.disable_tracing()
+
+        assert seen == [("haystack.chat_generator.run", {"input_tokens": 11, "output_tokens": 4})]
 
     def test_is_a_noop_when_the_run_answered(self):
         generator = MockChatGenerator("should not run")

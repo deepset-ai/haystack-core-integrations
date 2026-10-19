@@ -1,5 +1,48 @@
 # Changelog
 
+## [integrations/ibm_db-v1.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/ibm_db-v0.4.0] - 2026-10-07
+
+### 🚀 Features
+
+- *(ibm_db)* Support all 6 Db2 vector distance metrics (#4045)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+
+
+## [integrations/ibm_db-v0.3.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- `IBMDB2DocumentStore` search_term + pagination (#3689)
+- IBMDB adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3739)
+
+### 🧪 Testing
+
+- `IBMDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3779)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/ibm_db-v0.2.0] - 2026-07-27
 
 ### 🚀 Features

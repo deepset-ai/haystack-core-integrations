@@ -38,8 +38,8 @@ def mock_client():
         yield client_instance
 
 
-class TestOpenAPIConnector:
-    def test_init(self, mock_client):
+class TestInitialization:
+    def test_init(self):
         # Test initialization with credentials and service_kwargs
         service_kwargs = {"allowed_operations": ["search"]}
         connector = OpenAPIConnector(
@@ -48,13 +48,17 @@ class TestOpenAPIConnector:
         assert connector.openapi_spec == MOCK_OPENAPI_SPEC
         assert connector.credentials.resolve_value() == "test-token"
         assert connector.service_kwargs == service_kwargs
+        assert connector.client is None
 
         # Test initialization without credentials and service_kwargs
         connector = OpenAPIConnector(openapi_spec=MOCK_OPENAPI_SPEC)
         assert connector.credentials is None
         assert connector.service_kwargs == {}
+        assert connector.client is None
 
-    def test_to_dict(self, monkeypatch, mock_client):
+
+class TestSerialization:
+    def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         service_kwargs = {"allowed_operations": ["search"]}
         connector = OpenAPIConnector(
@@ -70,7 +74,7 @@ class TestOpenAPIConnector:
             },
         }
 
-    def test_from_dict(self, monkeypatch, mock_client):
+    def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         service_kwargs = {"allowed_operations": ["search"]}
         data = {
@@ -85,52 +89,9 @@ class TestOpenAPIConnector:
         assert connector.openapi_spec == MOCK_OPENAPI_SPEC
         assert connector.credentials == Secret.from_env_var("ENV_VAR")
         assert connector.service_kwargs == service_kwargs
+        assert connector.client is None
 
-    def test_run(self, mock_client):
-        service_kwargs = {"allowed_operations": ["search"]}
-        connector = OpenAPIConnector(
-            openapi_spec=MOCK_OPENAPI_SPEC, credentials=Secret.from_token("test-token"), service_kwargs=service_kwargs
-        )
-
-        # Mock the response from the client
-        mock_client.invoke.return_value = {"results": ["test result"]}
-
-        # Test with arguments
-        response = connector.run(operation_id="search", arguments={"q": "test query"})
-        mock_client.invoke.assert_called_with({"name": "search", "arguments": {"q": "test query"}})
-        assert response == {"response": {"results": ["test result"]}}
-
-        # Test without arguments
-        response = connector.run(operation_id="search")
-        mock_client.invoke.assert_called_with({"name": "search", "arguments": {}})
-        assert response == {"response": {"results": ["test result"]}}
-
-    def test_in_pipeline(self, mock_client):
-        mock_client.invoke.return_value = {"results": ["test result"]}
-
-        connector = OpenAPIConnector(openapi_spec=MOCK_OPENAPI_SPEC, credentials=Secret.from_token("test-token"))
-
-        pipe = Pipeline()
-        pipe.add_component("api", connector)
-
-        # Test pipeline execution
-        results = pipe.run(data={"api": {"operation_id": "search", "arguments": {"q": "test query"}}})
-
-        assert results == {"api": {"response": {"results": ["test result"]}}}
-
-    def test_from_dict_fail_wo_env_var(self, monkeypatch, mock_client):
-        monkeypatch.delenv("ENV_VAR", raising=False)
-        data = {
-            "type": "haystack_integrations.components.connectors.openapi.openapi.OpenAPIConnector",
-            "init_parameters": {
-                "openapi_spec": MOCK_OPENAPI_SPEC,
-                "credentials": {"env_vars": ["ENV_VAR"], "type": "env_var", "strict": True},
-            },
-        }
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            OpenAPIConnector.from_dict(data)
-
-    def test_serde_in_pipeline(self, monkeypatch, mock_client):
+    def test_serde_in_pipeline(self, monkeypatch):
         """
         Test serialization/deserialization of OpenAPIConnector in a Pipeline,
         including detailed dictionary validation
@@ -179,8 +140,77 @@ class TestOpenAPIConnector:
         assert loaded_connector.service_kwargs == connector.service_kwargs
 
 
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("ENV_VAR", raising=False)
+        data = {
+            "type": "haystack_integrations.components.connectors.openapi.openapi.OpenAPIConnector",
+            "init_parameters": {
+                "openapi_spec": MOCK_OPENAPI_SPEC,
+                "credentials": {"env_vars": ["ENV_VAR"], "type": "env_var", "strict": True},
+            },
+        }
+        connector = OpenAPIConnector.from_dict(data)
+        assert connector.client is None
+
+        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
+            connector.warm_up()
+
+    def test_warm_up_is_idempotent(self):
+        connector = OpenAPIConnector(
+            openapi_spec=MOCK_OPENAPI_SPEC,
+            credentials=Secret.from_token("test-token"),
+            service_kwargs={"allowed_operations": ["search"]},
+        )
+
+        with patch("haystack_integrations.components.connectors.openapi.openapi.OpenAPIClient") as client_class:
+            connector.warm_up()
+            connector.warm_up()
+
+        client_class.from_spec.assert_called_once_with(
+            openapi_spec=MOCK_OPENAPI_SPEC,
+            credentials="test-token",
+            allowed_operations=["search"],
+        )
+        assert connector.client is client_class.from_spec.return_value
+
+
+class TestRun:
+    def test_run(self, mock_client):
+        service_kwargs = {"allowed_operations": ["search"]}
+        connector = OpenAPIConnector(
+            openapi_spec=MOCK_OPENAPI_SPEC, credentials=Secret.from_token("test-token"), service_kwargs=service_kwargs
+        )
+
+        # Mock the response from the client
+        mock_client.invoke.return_value = {"results": ["test result"]}
+
+        # Test with arguments
+        response = connector.run(operation_id="search", arguments={"q": "test query"})
+        mock_client.invoke.assert_called_with({"name": "search", "arguments": {"q": "test query"}})
+        assert response == {"response": {"results": ["test result"]}}
+
+        # Test without arguments
+        response = connector.run(operation_id="search")
+        mock_client.invoke.assert_called_with({"name": "search", "arguments": {}})
+        assert response == {"response": {"results": ["test result"]}}
+
+    def test_run_in_pipeline(self, mock_client):
+        mock_client.invoke.return_value = {"results": ["test result"]}
+
+        connector = OpenAPIConnector(openapi_spec=MOCK_OPENAPI_SPEC, credentials=Secret.from_token("test-token"))
+
+        pipe = Pipeline()
+        pipe.add_component("api", connector)
+
+        # Test pipeline execution
+        results = pipe.run(data={"api": {"operation_id": "search", "arguments": {"q": "test query"}}})
+
+        assert results == {"api": {"response": {"results": ["test result"]}}}
+
+
 @pytest.mark.integration
-class TestOpenAPIConnectorIntegration:
+class TestIntegration:
     @pytest.mark.integration
     def test_open_meteo_integration(self):
         open_meteo_spec = {

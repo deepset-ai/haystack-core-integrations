@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 from anthropic.types import (
+    CacheCreation,
     InputJSONDelta,
     Message,
     MessageDeltaUsage,
@@ -52,6 +53,7 @@ from haystack_integrations.components.generators.anthropic.chat.utils import (
     _finalize_reasoning_group,
     _get_openai_compatible_usage,
     _has_server_tool_blocks,
+    _merge_streaming_usage,
 )
 
 CITATION = {
@@ -180,6 +182,135 @@ class TestConvertChatCompletionToChatMessage:
         # editing them must not corrupt the encrypted_index of the blocks replayed on the next turn
         message.meta["citations"][0]["encrypted_index"] = "TAMPERED"
         assert message.meta["raw_content_for_server_tools"][2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
+
+
+class TestTruncatedToolCall:
+    def test_truncated_tool_call_is_dropped(self, caplog):
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[
+                ToolUseBlock(
+                    type="tool_use",
+                    id="toolu_01",
+                    name="update_description",
+                    # the model never got to write `description`
+                    input={"issue_id": "AGE-144"},
+                )
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="max_tokens",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=8192),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert chat_message.tool_calls == []
+        assert chat_message.meta["finish_reason"] == "length"
+        assert "max_tokens" in caplog.text
+        assert "update_description" in caplog.text
+
+    def test_completed_tool_calls_before_the_truncated_one_are_kept(self):
+        """Only the final block is cut off, so earlier tool calls in the same reply are still usable."""
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[
+                ToolUseBlock(type="tool_use", id="toolu_01", name="weather", input={"city": "Paris"}),
+                ToolUseBlock(type="tool_use", id="toolu_02", name="update_description", input={}),
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="max_tokens",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=8192),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert [tool_call.tool_name for tool_call in chat_message.tool_calls] == ["weather"]
+
+    def test_tool_call_is_kept_when_the_response_ended_normally(self):
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[ToolUseBlock(type="tool_use", id="toolu_01", name="weather", input={"city": "Paris"})],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="tool_use",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=40),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert [tool_call.tool_name for tool_call in chat_message.tool_calls] == ["weather"]
+        assert chat_message.meta["finish_reason"] == "tool_calls"
+
+    def test_text_truncated_at_max_tokens_is_kept(self):
+        """Only tool calls are dropped: truncated text is still the model's answer, just a shorter one."""
+        chat_completion = Message(
+            id="msg_01MZF",
+            content=[TextBlock(type="text", text="The capital of France is", citations=None)],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="max_tokens",
+            type="message",
+            usage=Usage(input_tokens=57, output_tokens=8192),
+        )
+
+        chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert chat_message.text == "The capital of France is"
+        assert chat_message.meta["finish_reason"] == "length"
+
+    @pytest.mark.parametrize("is_async", [False, True])
+    async def test_streaming_truncated_tool_call_is_dropped(self, is_async):
+        generator = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        raw_chunks = [
+            RawMessageStartEvent(
+                message=Message(
+                    id="msg_123",
+                    content=[],
+                    model="claude-sonnet-4-5",
+                    role="assistant",
+                    stop_reason=None,
+                    stop_sequence=None,
+                    type="message",
+                    usage=Usage(input_tokens=100, output_tokens=1),
+                ),
+                type="message_start",
+            ),
+            RawContentBlockStartEvent(
+                content_block=ToolUseBlock(id="toolu_01", input={}, name="update_description", type="tool_use"),
+                index=0,
+                type="content_block_start",
+            ),
+            RawContentBlockDeltaEvent(
+                delta=InputJSONDelta(
+                    partial_json='{"issue_id": "AGE-144", "description": "Lorem ip', type="input_json_delta"
+                ),
+                index=0,
+                type="content_block_delta",
+            ),
+            RawMessageDeltaEvent(
+                delta=Delta(stop_reason="max_tokens", stop_sequence=None),
+                type="message_delta",
+                usage=MessageDeltaUsage(output_tokens=8192),
+            ),
+        ]
+
+        if is_async:
+
+            async def _astream():
+                for chunk in raw_chunks:
+                    yield chunk
+
+            message = (await generator._process_response_async(_astream()))["replies"][0]
+        else:
+            message = generator._process_response(raw_chunks)["replies"][0]
+
+        assert message.tool_calls == []
+        assert message.meta["finish_reason"] == "length"
 
 
 class TestConvertAnthropicChunkToStreamingChunk:
@@ -498,11 +629,14 @@ class TestConvertAnthropicChunkToStreamingChunk:
         message = generator._process_response(raw_chunks)
         usage = message["replies"][0].meta["usage"]
         assert isinstance(usage, dict)
-        assert usage["cache_creation_input_tokens"] is None
-        assert usage["cache_read_input_tokens"] is None
-        assert usage["input_tokens"] == 393
-        assert usage["output_tokens"] == 77
+        assert usage["cache_creation_input_tokens"] == 0
+        assert usage["cache_read_input_tokens"] == 0
+        assert usage["prompt_tokens"] == 393
+        assert usage["completion_tokens"] == 77
         assert usage["server_tool_use"] is None
+        assert usage["service_tier"] == "standard"
+        assert "input_tokens" not in usage
+        assert "output_tokens" not in usage
 
     def test_accumulate_raw_content_blocks_from_stream(self):
         component_info = ComponentInfo(name="test", type="test")
@@ -1009,6 +1143,12 @@ class TestConvertMessagesToAnthropicFormat:
             [{"role": "assistant", "content": [{"type": "text", "text": "I have an answer"}]}],
         )
 
+        messages = [ChatMessage.from_assistant(text=None)]
+        assert _convert_messages_to_anthropic_format(messages) == (
+            [],
+            [{"role": "assistant", "content": []}],
+        )
+
         messages = [
             ChatMessage.from_assistant(
                 tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
@@ -1248,7 +1388,7 @@ class TestConvertMessagesToAnthropicFormat:
         """
         Test that the AnthropicChatGenerator component fails to convert an invalid ChatMessage to Anthropic format.
         """
-        message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+        message = ChatMessage(_role=ChatRole.USER, _content=[])
         with pytest.raises(ValueError):
             _convert_messages_to_anthropic_format([message])
 
@@ -1433,3 +1573,41 @@ class TestOpenAICompatibleUsage:
     @pytest.mark.parametrize("response_dict", [{}, {"usage": {}}], ids=["no_usage_key", "empty_usage"])
     def test_empty_usage_is_unchanged(self, response_dict):
         assert _get_openai_compatible_usage(response_dict) == {}
+
+
+class TestMergeStreamingUsage:
+    def test_cache_creation_split_is_kept(self):
+        """`message_delta` usage has no `cache_creation`, so the split must come from `message_start`."""
+        start_usage = Usage(
+            input_tokens=10,
+            output_tokens=1,
+            cache_read_input_tokens=2000,
+            cache_creation_input_tokens=1500,
+            cache_creation=CacheCreation(ephemeral_5m_input_tokens=500, ephemeral_1h_input_tokens=1000),
+            service_tier="standard",
+        ).model_dump()
+        delta_usage = MessageDeltaUsage(
+            input_tokens=10, output_tokens=77, cache_read_input_tokens=2000, cache_creation_input_tokens=1500
+        ).model_dump()
+
+        usage = _merge_streaming_usage(start_usage=start_usage, delta_usage=delta_usage)
+
+        assert usage["prompt_tokens"] == 3510
+        assert usage["completion_tokens"] == 77
+        assert usage["cache_read_input_tokens"] == 2000
+        assert usage["cache_creation_input_tokens"] == 1500
+        assert usage["cache_creation"] == {"ephemeral_5m_input_tokens": 500, "ephemeral_1h_input_tokens": 1000}
+        assert usage["service_tier"] == "standard"
+        assert "input_tokens" not in usage
+        assert "output_tokens" not in usage
+
+    def test_null_delta_counts_keep_start_counts(self):
+        start_usage = {"input_tokens": 393, "output_tokens": 3, "cache_read_input_tokens": 0}
+        delta_usage = {"input_tokens": None, "output_tokens": 77, "cache_read_input_tokens": None}
+
+        usage = _merge_streaming_usage(start_usage=start_usage, delta_usage=delta_usage)
+
+        assert usage == {"prompt_tokens": 393, "completion_tokens": 77, "cache_read_input_tokens": 0}
+
+    def test_no_usage_returns_empty_dict(self):
+        assert _merge_streaming_usage(start_usage={}, delta_usage=None) == {}

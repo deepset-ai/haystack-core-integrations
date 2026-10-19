@@ -6,9 +6,9 @@ import mimetypes
 from pathlib import Path
 from typing import Any, cast
 
-from haystack import component, default_from_dict, default_to_dict, logging
+from haystack import component, default_to_dict, logging
 from haystack.dataclasses import ByteStream
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 
 from supabase import Client, create_client
 
@@ -134,14 +134,3 @@ class SupabaseBucketDownloader:
             bucket_name=self.bucket_name,
             file_extensions=self.file_extensions,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SupabaseBucketDownloader":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data: Dictionary to deserialize from.
-        :returns: Deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], ["supabase_key"])
-        return default_from_dict(cls, data)

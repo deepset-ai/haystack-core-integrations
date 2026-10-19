@@ -7,7 +7,7 @@ name = "sentence-transformers-haystack"
 dynamic = ["version"]
 description = "Haystack integration for sentence_transformers"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = ["haystack", "sentence-transformers", "embeddings", "reranking"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -23,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.0", "sentence-transformers>=5.4.0", "pillow>=11.3.0", "pypdfium2>=4.0.0"]
+dependencies = ["haystack-ai>=2.24.0", "sentence-transformers>=5.6.0", "pillow>=11.3.0", "pypdfium2>=4.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/sentence_transformers#readme"

@@ -1,4 +1,3 @@
 from .chat.chat_generator import OllamaChatGenerator
-from .generator import OllamaGenerator
 
-__all__ = ["OllamaChatGenerator", "OllamaGenerator"]
+__all__ = ["OllamaChatGenerator"]

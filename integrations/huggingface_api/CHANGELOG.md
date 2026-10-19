@@ -1,5 +1,49 @@
 # Changelog
 
+## [integrations/huggingface_api-v3.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/huggingface_api-v2.1.0] - 2026-10-06
+
+### 🚜 Refactor
+
+- [**breaking**] HF API - Stop warming up tools in Chat Generator (#4056)
+
+
+## [integrations/huggingface_api-v2.0.0] - 2026-10-01
+
+### 🚀 Features
+
+- [**breaking**] Add grpc support for the huggingface TEI components; rename HuggingFace API Sparse Embedders -> Hugging Face TEI Sparse Embedders (#3870)
+
+### 🧪 Testing
+
+- HF API - use Groq for gpt-oss-20b (#4001)
+
+
+## [integrations/huggingface_api-v1.0.0] - 2026-09-07
+
+### 🚀 Features
+
+- [**breaking**] HF API - add lifecycle handling (#3917)
+
+### 🧪 Testing
+
+- Replace retired Qwen2.5 models in `huggingface_api` live tests (#3866)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
 ## [integrations/huggingface_api-v0.6.0] - 2026-08-27
 
 ### 🚀 Features
@@ -13,6 +57,14 @@
 - Fix new issues raised by ruff 0.16.0 (#3670)
 - Serialize missing init params in to_dict (transformers, huggingface_api, ragas) (#3808)
 
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Clarify how generation_kwargs passed in run are handled (#3805)
+
+
+## [integrations/huggingface_api-v0.4.0] - 2026-07-09
+
 ### 🧪 Testing
 
 - Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
@@ -21,10 +73,6 @@
 ### 🧹 Chores
 
 - Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
-- Re-standardize READMEs (#3768)
-- Clarify how generation_kwargs passed in run are handled (#3805)
-
-### 🌀 Miscellaneous
 
 
 ## [integrations/huggingface_api-v0.3.0] - 2026-06-26

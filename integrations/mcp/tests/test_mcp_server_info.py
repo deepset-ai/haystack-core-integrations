@@ -437,7 +437,7 @@ class TestMCPServerInfo:
         [
             (
                 StreamableHttpClient,
-                "haystack_integrations.tools.mcp.mcp_tool.streamablehttp_client",
+                "haystack_integrations.tools.mcp.mcp_tool.create_mcp_http_client",
                 (MagicMock(), MagicMock(), MagicMock()),
                 {"url": "http://x/mcp", "token": "mytok"},
             ),

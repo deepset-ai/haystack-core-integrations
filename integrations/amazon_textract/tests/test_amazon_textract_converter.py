@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
+from haystack.core.serialization import component_from_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 
@@ -45,6 +46,7 @@ class TestAmazonTextractConverterInit:
         assert converter.feature_types is None
         assert converter.store_full_path is False
         assert converter.boto3_config is None
+        assert converter._client is None
 
     def test_init_custom_params(self):
         converter = AmazonTextractConverter(
@@ -115,28 +117,6 @@ class TestAmazonTextractConverterSerialization:
         assert data["init_parameters"]["store_full_path"] is False
         assert data["init_parameters"]["boto3_config"] is None
 
-    def test_from_dict(self):
-        expected_type = "haystack_integrations.components.converters.amazon_textract.converter.AmazonTextractConverter"
-        data = {
-            "type": expected_type,
-            "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                "feature_types": ["TABLES", "FORMS"],
-                "store_full_path": False,
-                "boto3_config": None,
-            },
-        }
-
-        converter = AmazonTextractConverter.from_dict(data)
-
-        assert converter.feature_types == ["TABLES", "FORMS"]
-        assert converter.store_full_path is False
-        assert converter.boto3_config is None
-
     def test_from_dict_roundtrip(self):
         converter = AmazonTextractConverter(
             aws_access_key_id=Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),
@@ -146,48 +126,88 @@ class TestAmazonTextractConverterSerialization:
         )
 
         data = converter.to_dict()
-        restored = AmazonTextractConverter.from_dict(data)
+        restored = component_from_dict(AmazonTextractConverter, data, name="restored")
 
         assert restored.feature_types == converter.feature_types
         assert restored.store_full_path == converter.store_full_path
         assert restored.boto3_config == converter.boto3_config
+        assert restored.aws_access_key_id == converter.aws_access_key_id
+        assert restored.aws_secret_access_key == converter.aws_secret_access_key
+        assert restored.aws_session_token == converter.aws_session_token
+        assert restored.aws_region_name == converter.aws_region_name
+        assert restored.aws_profile_name == converter.aws_profile_name
 
 
-class TestAmazonTextractConverterWarmUp:
+class TestComponentLifecycle:
     @patch("haystack_integrations.components.converters.amazon_textract.converter.boto3.Session")
-    def test_warm_up_creates_client(self, mock_session_cls):
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_session_cls.return_value = mock_session
-
+    def test_warm_up_uses_resolved_credentials(self, mock_session_cls):
         converter = AmazonTextractConverter(
             aws_access_key_id=Secret.from_token("fake_id"),
             aws_secret_access_key=Secret.from_token("fake_secret"),
+            aws_session_token=Secret.from_token("fake_token"),
             aws_region_name=Secret.from_token("us-east-1"),
+            aws_profile_name=Secret.from_token("fake_profile"),
         )
+
         converter.warm_up()
 
-        mock_session_cls.assert_called_once()
-        mock_session.client.assert_called_once()
-        call_args = mock_session.client.call_args
-        assert call_args[0][0] == "textract"
-        assert converter._client is mock_client
+        mock_session_cls.assert_called_once_with(
+            aws_access_key_id="fake_id",
+            aws_secret_access_key="fake_secret",
+            aws_session_token="fake_token",
+            region_name="us-east-1",
+            profile_name="fake_profile",
+        )
+
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        env_var = "AMAZON_TEXTRACT_TEST_ACCESS_KEY"
+        monkeypatch.delenv(env_var, raising=False)
+
+        converter = AmazonTextractConverter(aws_access_key_id=Secret.from_env_var(env_var))
+
+        with pytest.raises(ValueError, match=env_var):
+            converter.warm_up()
 
     @patch("haystack_integrations.components.converters.amazon_textract.converter.boto3.Session")
-    def test_warm_up_idempotent(self, mock_session_cls):
-        mock_session = MagicMock()
-        mock_session.client.return_value = MagicMock()
-        mock_session_cls.return_value = mock_session
-
+    def test_sync_lifecycle(self, mock_session_cls):
         converter = AmazonTextractConverter(
             aws_access_key_id=Secret.from_token("fake"),
             aws_secret_access_key=Secret.from_token("fake"),
         )
+        client = mock_session_cls.return_value.client.return_value
+
+        converter.warm_up()
+
+        assert converter._client is client
+
+        converter.close()
+
+        client.close.assert_called_once_with()
+        assert converter._client is None
+
+        converter.warm_up()
+
+        assert mock_session_cls.call_count == 2
+
+    @patch("haystack_integrations.components.converters.amazon_textract.converter.boto3.Session")
+    def test_warm_up_is_idempotent(self, mock_session_cls):
+        converter = AmazonTextractConverter(
+            aws_access_key_id=Secret.from_token("fake"),
+            aws_secret_access_key=Secret.from_token("fake"),
+        )
+
         converter.warm_up()
         converter.warm_up()
 
         mock_session_cls.assert_called_once()
+        mock_session_cls.return_value.client.assert_called_once()
+
+    def test_close_is_safe_without_warm_up(self):
+        converter = AmazonTextractConverter()
+
+        converter.close()
+
+        assert converter._client is None
 
     @patch(
         "haystack_integrations.components.converters.amazon_textract.converter.boto3.Session",

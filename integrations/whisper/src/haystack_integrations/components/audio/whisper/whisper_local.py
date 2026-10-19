@@ -80,7 +80,7 @@ class LocalWhisperTranscriber:
         """
         Loads the model in memory.
         """
-        if not self._model:
+        if self._model is None:
             self._model = whisper.load_model(self.model, device=self.device.to_torch())
 
     def to_dict(self) -> dict[str, Any]:
@@ -124,8 +124,8 @@ class LocalWhisperTranscriber:
                 the Whisper model, such as the alignment data and the path to the audio file used
                 for the transcription.
         """
-        if self._model is None:
-            self.warm_up()
+        self.warm_up()
+        assert self._model is not None  # noqa: S101
 
         if whisper_params is None:
             whisper_params = self.whisper_params
@@ -179,8 +179,8 @@ class LocalWhisperTranscriber:
         :returns:
             A dictionary mapping 'file_path' to 'transcription'.
         """
-        if self._model is None:
-            self.warm_up()
+        self.warm_up()
+        assert self._model is not None  # noqa: S101
 
         return_segments = kwargs.pop("return_segments", False)
         transcriptions = {}
@@ -188,8 +188,7 @@ class LocalWhisperTranscriber:
         for source in sources:
             path = self._get_path(source)
 
-            # mypy doesn't know this is set in warm_up
-            transcription = self._model.transcribe(str(path), **kwargs)  # type: ignore[attr-defined]
+            transcription = self._model.transcribe(str(path), **kwargs)
 
             if not return_segments:
                 transcription.pop("segments", None)

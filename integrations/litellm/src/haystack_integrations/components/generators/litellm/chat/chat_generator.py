@@ -25,7 +25,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 logger = logging.getLogger(__name__)
@@ -250,7 +250,6 @@ class LiteLLMChatGenerator:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LiteLLMChatGenerator":
         """Deserialize a component from a dictionary."""
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         if data["init_parameters"].get("streaming_callback"):
             data["init_parameters"]["streaming_callback"] = deserialize_callable(

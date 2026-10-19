@@ -14,7 +14,7 @@ COMPONENT_TYPE = (
 )
 
 
-class TestTransformersZeroShotTextRouter:
+class TestSerialization:
     def test_to_dict(self):
         router = TransformersZeroShotTextRouter(labels=["query", "passage"])
         router_dict = router.to_dict()
@@ -32,7 +32,7 @@ class TestTransformersZeroShotTextRouter:
             },
         }
 
-    def test_multi_label_survives_a_serialization_round_trip(self, del_hf_env_vars_if_empty):
+    def test_multi_label_survives_a_serialization_round_trip(self):
         """`multi_label` changes how the pipeline normalizes scores, so losing it changes routing decisions."""
         router = TransformersZeroShotTextRouter(labels=["query", "passage"], multi_label=True)
 
@@ -40,7 +40,7 @@ class TestTransformersZeroShotTextRouter:
 
         assert restored.multi_label is True
 
-    def test_from_dict(self, del_hf_env_vars_if_empty):
+    def test_from_dict(self):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {
@@ -64,10 +64,9 @@ class TestTransformersZeroShotTextRouter:
             "model": "MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": component.token.resolve_value(),
         }
 
-    def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
+    def test_from_dict_no_default_parameters(self):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {"labels": ["query", "passage"]},
@@ -82,9 +81,28 @@ class TestTransformersZeroShotTextRouter:
             "model": "MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": component.token.resolve_value(),
         }
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_HF_TOKEN", raising=False)
+        router = TransformersZeroShotTextRouter(labels=["label"], token=Secret.from_env_var("MISSING_HF_TOKEN"))
+
+        with pytest.raises(ValueError, match="MISSING_HF_TOKEN"):
+            router.warm_up()
+
+    @patch("haystack_integrations.components.routers.transformers.zero_shot_text_router.pipeline")
+    def test_warm_up_is_idempotent(self, pipeline_mock):
+        router = TransformersZeroShotTextRouter(labels=["label"], token=None)
+
+        router.warm_up()
+        router.warm_up()
+
+        pipeline_mock.assert_called_once()
+
+
+class TestRun:
     @patch("haystack_integrations.components.routers.transformers.zero_shot_text_router.pipeline")
     def test_warm_up(self, hf_pipeline_mock):
         router = TransformersZeroShotTextRouter(labels=["query", "passage"])
@@ -118,6 +136,8 @@ class TestTransformersZeroShotTextRouter:
         assert router.pipeline is not None
         assert out == {"query": "What is the color of the sky?"}
 
+
+class TestIntegration:
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars_if_empty):
         router = TransformersZeroShotTextRouter(labels=["query", "passage"], device=ComponentDevice.from_str("cpu"))

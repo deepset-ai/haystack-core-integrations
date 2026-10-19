@@ -9,7 +9,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs, _with_hf_token
 from transformers import Pipeline as HfPipeline
 from transformers import pipeline
 
@@ -123,9 +123,7 @@ class TransformersZeroShotDocumentClassifier:
             huggingface_pipeline_kwargs=huggingface_pipeline_kwargs or {},
             model=model,
             task="zero-shot-classification",
-            supported_tasks=["zero-shot-classification"],
             device=device,
-            token=token,
         )
 
         self.huggingface_pipeline_kwargs = huggingface_pipeline_kwargs
@@ -143,8 +141,11 @@ class TransformersZeroShotDocumentClassifier:
         """
         Initializes the component.
         """
-        if self.pipeline is None:
-            self.pipeline = pipeline(**self.huggingface_pipeline_kwargs)
+        if self.pipeline is not None:
+            return
+
+        pipeline_kwargs = _with_hf_token(self.huggingface_pipeline_kwargs, self.token)
+        self.pipeline = pipeline(**pipeline_kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -201,8 +202,8 @@ class TransformersZeroShotDocumentClassifier:
             - `documents`: A list of documents with an added metadata field called `classification`.
         """
 
-        if self.pipeline is None:
-            self.warm_up()
+        self.warm_up()
+        assert self.pipeline is not None  # noqa: S101
 
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
@@ -229,10 +230,7 @@ class TransformersZeroShotDocumentClassifier:
             for doc in documents
         ]
 
-        # mypy doesn't know this is set in warm_up
-        predictions = self.pipeline(  # type: ignore[misc]
-            texts, self.labels, multi_label=self.multi_label, batch_size=batch_size
-        )
+        predictions = self.pipeline(texts, self.labels, multi_label=self.multi_label, batch_size=batch_size)
 
         new_documents = []
         for prediction, document in zip(predictions, documents, strict=True):

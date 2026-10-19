@@ -6,8 +6,8 @@ import os
 import warnings
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import component, default_to_dict, logging
+from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, NimBackend, url_validation
@@ -29,7 +29,7 @@ class NvidiaTextEmbedder:
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = NvidiaTextEmbedder(model="nvidia/nv-embedqa-e5-v5", api_url="https://integrate.api.nvidia.com/v1")
+    text_embedder = NvidiaTextEmbedder(model="nvidia/nemotron-3-embed-1b", api_url="https://integrate.api.nvidia.com/v1")
     # Components warm up automatically on first run.
 
     print(text_embedder.run(text_to_embed))
@@ -80,8 +80,7 @@ class NvidiaTextEmbedder:
             truncate = EmbeddingTruncateMode.from_str(truncate)
         self.truncate = truncate
 
-        self.backend: Any | None = None
-        self._initialized = False
+        self.backend: NimBackend | None = None
 
         if timeout is None:
             timeout = float(os.environ.get("NVIDIA_TIMEOUT", "60.0"))
@@ -123,7 +122,7 @@ class NvidiaTextEmbedder:
         """
         Initializes the component.
         """
-        if self._initialized:
+        if self.backend is not None:
             return
 
         model_kwargs = {"input_type": "query"}
@@ -138,13 +137,17 @@ class NvidiaTextEmbedder:
             timeout=self.timeout,
             client=Client.NVIDIA_TEXT_EMBEDDER,
         )
-        self._initialized = True
-
         if not self.model:
             if self.backend.model:
                 self.model = self.backend.model
             else:
                 self.default_model()
+
+    def close(self) -> None:
+        """Close the backend and release its resources."""
+        if self.backend is not None:
+            self.backend.close()
+            self.backend = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -171,21 +174,6 @@ class NvidiaTextEmbedder:
         """
         return self.backend.models() if self.backend else []
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NvidiaTextEmbedder":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        init_parameters = data.get("init_parameters", {})
-        if init_parameters:
-            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
-
     @component.output_types(embedding=list[float], meta=dict[str, Any])
     def run(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
         """
@@ -202,8 +190,7 @@ class NvidiaTextEmbedder:
         :raises ValueError:
             If the input string is empty.
         """
-        if not self._initialized:
-            self.warm_up()
+        self.warm_up()
 
         if not isinstance(text, str):
             msg = (

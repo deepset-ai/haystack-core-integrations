@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/transformers-v1.1.0] - 2026-10-07
+
+### 🚜 Refactor
+
+- [**breaking**] Transformers - Stop warming up tools in Chat Generator (#4057)
+
+
+## [integrations/transformers-v1.0.1] - 2026-09-23
+
+### 🐛 Bug Fixes
+
+- Serialize missing init params in `to_dict` (transformers, amazon_bedrock) (#3873)
+
+
+## [integrations/transformers-v1.0.0] - 2026-09-10
+
+### 🐛 Bug Fixes
+
+- Fix (transformers): fix linting errors in transformers integration (#3867)
+
+### 🚜 Refactor
+
+- [**breaking**] Transformers - lifecycle refactor (#3939)
+
+
 ## [integrations/transformers-v0.3.0] - 2026-08-24
 
 ### 🐛 Bug Fixes

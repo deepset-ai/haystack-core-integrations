@@ -1,5 +1,50 @@
 # Changelog
 
+## [integrations/alloydb-v1.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- *(alloydb,mariadb)* Raise FilterError on empty logical conditions (#3963)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/alloydb-v0.3.1] - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- *(alloydb,mariadb)* NO_VALUE sentinel collides with 'no_value' (#3951)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
+## [integrations/alloydb-v0.3.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `AlloyDBDocumentStore` match case insensitive metadata value (#3677)
+- `AlloyDBDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3705)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- `AlloyDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3773)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/alloydb-v0.2.1] - 2026-07-23
 
 ### 🐛 Bug Fixes

@@ -308,6 +308,13 @@ CHAT_MODEL_TABLE = {
         supports_tools=True,
         supports_structured_output=True,
     ),
+    "nvidia/nemotron-3.5-lightning-30b-a3b": Model(
+        id="nvidia/nemotron-3.5-lightning-30b-a3b",
+        model_type="chat",
+        client=Client.NVIDIA_GENERATOR,
+        supports_tools=True,
+        supports_structured_output=True,
+    ),
     "meta/llama-3.1-405b-instruct": Model(
         id="meta/llama-3.1-405b-instruct",
         model_type="chat",
@@ -430,6 +437,10 @@ EMBEDDING_MODEL_TABLE = {
         id="nvidia/nv-embedqa-mistral-7b-v2",
         model_type="embedding",
     ),
+    "nvidia/nemotron-3-embed-1b": Model(
+        id="nvidia/nemotron-3-embed-1b",
+        model_type="embedding",
+    ),
     "nvidia/nv-embedqa-e5-v5": Model(
         id="nvidia/nv-embedqa-e5-v5",
         model_type="embedding",
@@ -452,6 +463,12 @@ EMBEDDING_MODEL_TABLE = {
     ),
 }
 RANKING_MODEL_TABLE = {
+    "nvidia/llama-nemotron-rerank-vl-1b-v2": Model(
+        id="nvidia/llama-nemotron-rerank-vl-1b-v2",
+        model_type="ranking",
+        client=Client.NVIDIA_RANKER,
+        endpoint="https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-nemotron-rerank-vl-1b-v2/reranking",
+    ),
     "nv-rerank-qa-mistral-4b:1": Model(
         id="nv-rerank-qa-mistral-4b:1",
         model_type="ranking",
@@ -480,9 +497,9 @@ RANKING_MODEL_TABLE = {
 }
 
 DEFAULT_MODELS = {
-    "embedding": "nvidia/nv-embedqa-e5-v5",
-    "ranking": "nv-rerank-qa-mistral-4b:1",
-    "chat": "meta/llama3-8b-instruct",
+    "embedding": "nvidia/nemotron-3-embed-1b",
+    "ranking": "nvidia/llama-nemotron-rerank-vl-1b-v2",
+    "chat": "nvidia/nemotron-3.5-lightning-30b-a3b",
 }
 
 

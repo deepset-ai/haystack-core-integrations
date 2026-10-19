@@ -1,16 +1,16 @@
 import base64
 import dataclasses
+import inspect
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from botocore.eventstream import EventStream
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ChatMessage,
     ChatRole,
     ComponentInfo,
@@ -18,6 +18,7 @@ from haystack.dataclasses import (
     FinishReason,
     ImageContent,
     ReasoningContent,
+    StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
     TextContent,
@@ -477,7 +478,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
                     "cache_read_input_tokens": response_body.get("usage", {}).get("cacheReadInputTokens", 0),
                     "cache_write_input_tokens": response_body.get("usage", {}).get("cacheWriteInputTokens", 0),
-                    "cache_details": response_body.get("usage", {}).get("CacheDetails", {}),
+                    "cache_details": response_body.get("usage", {}).get("cacheDetails", []),
                 },
             }
             # guardrail trace
@@ -552,7 +553,7 @@ def _convert_event_to_streaming_chunk(
 
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
-    base_meta = {"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
+    base_meta = {"model": model, "received_at": datetime.now(UTC).isoformat()}
     streaming_chunk = StreamingChunk(content="", meta=base_meta)
 
     if "contentBlockStart" in event:
@@ -614,10 +615,10 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                reasoning=ReasoningContent(
-                    reasoning_text=reasoning_text,
-                    extra=extra,
-                ),
+                # redactedContent-only deltas have no text or signature, skip them like the non-streaming path
+                reasoning=ReasoningContent(reasoning_text=reasoning_text, extra=extra)
+                if reasoning_text or extra
+                else None,
                 meta=base_meta,
             )
 
@@ -641,7 +642,7 @@ def _convert_event_to_streaming_chunk(
                 "total_tokens": usage.get("totalTokens", 0),
                 "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
                 "cache_write_input_tokens": usage.get("cacheWriteInputTokens", 0),
-                "cache_details": usage.get("cacheDetails", {}),
+                "cache_details": usage.get("cacheDetails", []),
             }
         if "trace" in event_meta:
             chunk_meta["trace"] = event_meta["trace"]
@@ -707,7 +708,7 @@ def _convert_chunks_to_messages(chunks: list[StreamingChunk]) -> list[ChatMessag
 
 async def _parse_streaming_response_async(
     response_stream: EventStream,
-    streaming_callback: AsyncStreamingCallbackT,
+    streaming_callback: StreamingCallbackT,
     model: str,
     component_info: ComponentInfo,
 ) -> list[ChatMessage]:
@@ -728,7 +729,10 @@ async def _parse_streaming_response_async(
         if content_block_idx is not None and content_block_idx not in content_block_idxs:
             streaming_chunk.start = True
             content_block_idxs.add(content_block_idx)
-        await streaming_callback(streaming_chunk)
+        # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+        callback_result = streaming_callback(streaming_chunk)
+        if inspect.isawaitable(callback_result):
+            await callback_result
         chunks.append(streaming_chunk)
 
     replies = _convert_chunks_to_messages(chunks)

@@ -5,7 +5,7 @@
 import inspect
 import json
 from collections.abc import AsyncIterable, Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Union
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -27,7 +27,6 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
-    warm_up_tools,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
 from haystack.utils.hf import convert_message_to_hf_format
@@ -49,6 +48,7 @@ from haystack_integrations.common.huggingface_api.utils import (
     HFGenerationAPIType,
     HFModelType,
     _check_valid_model,
+    _check_valid_model_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -221,7 +221,7 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
             usage = {"prompt_tokens": chunk.usage.prompt_tokens, "completion_tokens": chunk.usage.completion_tokens}
         return StreamingChunk(
             content="",
-            meta={"model": chunk.model, "received_at": datetime.now(timezone.utc).isoformat(), "usage": usage},
+            meta={"model": chunk.model, "received_at": datetime.now(UTC).isoformat(), "usage": usage},
             component_info=component_info,
         )
 
@@ -238,7 +238,7 @@ def _convert_chat_completion_stream_output_to_streaming_chunk(
         content=choice.delta.content or "",
         meta={
             "model": chunk.model,
-            "received_at": datetime.now(timezone.utc).isoformat(),
+            "received_at": datetime.now(UTC).isoformat(),
             "finish_reason": choice.finish_reason,
         },
         component_info=component_info,
@@ -280,7 +280,7 @@ class HuggingFaceAPIChatGenerator:
     api_type = "serverless_inference_api" # this is equivalent to the above
 
     generator = HuggingFaceAPIChatGenerator(api_type=api_type,
-                                            api_params={"model": "Qwen/Qwen2.5-7B-Instruct",
+                                            api_params={"model": "Qwen/Qwen3.5-9B",
                                                         "provider": "together"},
                                             token=Secret.from_token("<your-api-key>"))
 
@@ -305,8 +305,8 @@ class HuggingFaceAPIChatGenerator:
     generator = HuggingFaceAPIChatGenerator(
         api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
         api_params={
-            "model": "Qwen/Qwen2.5-VL-7B-Instruct",  # Vision Language Model
-            "provider": "hyperbolic"
+            "model": "Qwen/Qwen3.5-9B",  # Vision Language Model
+            "provider": "together"
         },
         token=Secret.from_token("<your-api-key>")
     )
@@ -404,7 +404,6 @@ class HuggingFaceAPIChatGenerator:
             if model is None:
                 msg = "To use the Serverless Inference API, you need to specify the `model` parameter in `api_params`."
                 raise ValueError(msg)
-            _check_valid_model(model, HFModelType.GENERATION, token)
             model_or_url = model
         elif api_type in [HFGenerationAPIType.INFERENCE_ENDPOINTS, HFGenerationAPIType.TEXT_GENERATION_INFERENCE]:
             url = api_params.get("url")
@@ -438,27 +437,44 @@ class HuggingFaceAPIChatGenerator:
         self.token = token
         self.generation_kwargs = generation_kwargs
         self.streaming_callback = streaming_callback
-
-        resolved_api_params: dict[str, Any] = {k: v for k, v in api_params.items() if k not in ("model", "url")}
-        self._client = InferenceClient(
-            model_or_url, token=token.resolve_value() if token else None, **resolved_api_params
-        )
-        self._async_client = AsyncInferenceClient(
-            model_or_url, token=token.resolve_value() if token else None, **resolved_api_params
-        )
         self.tools = tools
-        self._is_warmed_up = False
+        self._model_or_url = model_or_url
+        self._client: InferenceClient | None = None
+        self._async_client: AsyncInferenceClient | None = None
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build the keyword arguments used to create Hugging Face clients."""
+        return {
+            "model": self._model_or_url,
+            "token": self.token.resolve_value() if self.token else None,
+            **{k: v for k, v in self.api_params.items() if k not in ("model", "url")},
+        }
 
     def warm_up(self) -> None:
-        """
-        Warm up the Hugging Face API chat generator.
+        """Create the synchronous Hugging Face client."""
+        if self._client is None:
+            if self.api_type == HFGenerationAPIType.SERVERLESS_INFERENCE_API:
+                _check_valid_model(self._model_or_url, HFModelType.GENERATION, self.token)
+            self._client = InferenceClient(**self._client_kwargs())
 
-        This will warm up the tools registered in the chat generator.
-        This method is idempotent and will only warm up the tools once.
-        """
-        if not self._is_warmed_up:
-            warm_up_tools(self.tools)
-            self._is_warmed_up = True
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous Hugging Face client."""
+        if self._async_client is None:
+            if self.api_type == HFGenerationAPIType.SERVERLESS_INFERENCE_API:
+                await _check_valid_model_async(self._model_or_url, HFModelType.GENERATION, self.token)
+            self._async_client = AsyncInferenceClient(**self._client_kwargs())
+
+    def close(self) -> None:
+        """Close the synchronous Hugging Face client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous Hugging Face client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -520,8 +536,8 @@ class HuggingFaceAPIChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
-        if not self._is_warmed_up:
-            self.warm_up()
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
 
         messages = _normalize_messages(messages)
 
@@ -582,8 +598,8 @@ class HuggingFaceAPIChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
-        if not self._is_warmed_up:
-            self.warm_up()
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
 
         messages = _normalize_messages(messages)
 
@@ -615,6 +631,7 @@ class HuggingFaceAPIChatGenerator:
         generation_kwargs: dict[str, Any],
         streaming_callback: SyncStreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
+        assert self._client is not None  # noqa: S101
         api_output: Iterable[ChatCompletionStreamOutput] = self._client.chat_completion(
             messages,
             stream=True,
@@ -643,6 +660,7 @@ class HuggingFaceAPIChatGenerator:
         generation_kwargs: dict[str, Any],
         tools: list["ChatCompletionInputTool"] | None = None,
     ) -> dict[str, list[ChatMessage]]:
+        assert self._client is not None  # noqa: S101
         api_chat_output: ChatCompletionOutput = self._client.chat_completion(
             messages=messages, tools=tools, **generation_kwargs
         )
@@ -686,6 +704,7 @@ class HuggingFaceAPIChatGenerator:
         generation_kwargs: dict[str, Any],
         streaming_callback: StreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
+        assert self._async_client is not None  # noqa: S101
         api_output: AsyncIterable[ChatCompletionStreamOutput] = await self._async_client.chat_completion(
             messages,
             stream=True,
@@ -717,6 +736,7 @@ class HuggingFaceAPIChatGenerator:
         generation_kwargs: dict[str, Any],
         tools: list["ChatCompletionInputTool"] | None = None,
     ) -> dict[str, list[ChatMessage]]:
+        assert self._async_client is not None  # noqa: S101
         api_chat_output: ChatCompletionOutput = await self._async_client.chat_completion(
             messages=messages, tools=tools, **generation_kwargs
         )

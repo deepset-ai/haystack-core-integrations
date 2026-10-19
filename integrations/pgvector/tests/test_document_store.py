@@ -9,6 +9,7 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -65,6 +66,20 @@ class TestDocumentStore(
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_write_documents_counts_every_document(self, document_store: PgvectorDocumentStore):
+        docs = [Document(id="1"), Document(id="2"), Document(id="3")]
+        assert document_store.write_documents(docs) == 3
+
+    def test_write_documents_skip_counts_only_new_documents(self, document_store: PgvectorDocumentStore):
+        document_store.write_documents([Document(id="1")])
+        docs = [Document(id="1"), Document(id="2"), Document(id="3")]
+        assert document_store.write_documents(docs, DuplicatePolicy.SKIP) == 2
+
+    def test_write_documents_overwrite_counts_every_document(self, document_store: PgvectorDocumentStore):
+        document_store.write_documents([Document(id="1", content="old")])
+        docs = [Document(id="1", content="new"), Document(id="2"), Document(id="3")]
+        assert document_store.write_documents(docs, DuplicatePolicy.OVERWRITE) == 3
 
     def test_get_metadata_field_unique_values_distinct_types(self, document_store: PgvectorDocumentStore):
         """
@@ -149,6 +164,12 @@ class TestDocumentStore(
 
         assert document_store.count_documents() == 0
         assert document_store._connection is not None
+
+
+def test_delete_by_filter_rejects_an_empty_filter(mock_store):
+    """An empty filter would compile to an unqualified DELETE and empty the table."""
+    with pytest.raises(FilterError, match="non-empty filter"):
+        mock_store.delete_by_filter({})
 
 
 @pytest.mark.usefixtures("patches_for_unit_tests")

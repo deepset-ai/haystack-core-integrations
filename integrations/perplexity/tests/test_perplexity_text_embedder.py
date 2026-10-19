@@ -64,9 +64,7 @@ class TestPerplexityTextEmbedder:
         models = PerplexityTextEmbedder.SUPPORTED_MODELS
         assert models == ["pplx-embed-v1-0.6b", "pplx-embed-v1-4b"]
 
-    def test_init_default(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
-
+    def test_init_default(self):
         embedder = PerplexityTextEmbedder()
 
         assert embedder.api_key == Secret.from_env_var(["PERPLEXITY_API_KEY"])
@@ -75,6 +73,8 @@ class TestPerplexityTextEmbedder:
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.encoding_format == "base64_int8"
+        assert embedder.client is None
+        assert embedder.async_client is None
 
     def test_init_with_parameters(self):
         embedder = PerplexityTextEmbedder(
@@ -99,9 +99,7 @@ class TestPerplexityTextEmbedder:
                 encoding_format="float",
             )
 
-    def test_to_dict(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
-
+    def test_to_dict(self):
         embedder = PerplexityTextEmbedder()
         component_dict = embedder.to_dict()
 
@@ -121,8 +119,7 @@ class TestPerplexityTextEmbedder:
             },
         }
 
-    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
-        monkeypatch.setenv("ENV_VAR", "test-secret-key")
+    def test_to_dict_with_custom_init_parameters(self):
         embedder = PerplexityTextEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
             model="pplx-embed-v1-4b",
@@ -152,8 +149,7 @@ class TestPerplexityTextEmbedder:
             },
         }
 
-    def test_from_dict(self, monkeypatch):
-        monkeypatch.setenv("PERPLEXITY_API_KEY", "fake-api-key")
+    def test_from_dict(self):
         data = {
             "type": "haystack_integrations.components.embedders.perplexity.text_embedder.PerplexityTextEmbedder",
             "init_parameters": {
@@ -182,20 +178,30 @@ class TestPerplexityTextEmbedder:
         # the user-provided value; component.http_client_kwargs carries the attribution header
         assert component._http_client_kwargs is None
 
-    def test_run_sends_attribution_header(self):
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async", [False, True])
+    @pytest.mark.parametrize("header_name", [None, "X-Pplx-Integration", "x-pplx-integration", "X-PPLX-INTEGRATION"])
+    async def test_run_sends_attribution_header(self, use_async, header_name):
         captured: list[httpx.Request] = []
+        headers = {header_name: "custom"} if header_name else {}
         embedder = PerplexityTextEmbedder(
             api_key=Secret.from_token("test-api-key"),
-            http_client_kwargs={"transport": _make_transport(captured)},
+            http_client_kwargs={"transport": _make_transport(captured), "headers": headers},
         )
 
-        result = embedder.run(text="The food was delicious")
+        result = (
+            await embedder.run_async(text="The food was delicious")
+            if use_async
+            else embedder.run(text="The food was delicious")
+        )
 
         assert result["embedding"] == INT8_EMBEDDING
         assert len(captured) == 1
         request = captured[0]
         assert request.headers["Authorization"] == "Bearer test-api-key"
-        assert request.headers["X-Pplx-Integration"].startswith("haystack/")
+        integration_values = request.headers.get_list("X-Pplx-Integration")
+        assert len(integration_values) == 1
+        assert integration_values == ["custom"] if header_name else integration_values[0].startswith("haystack/")
         body = json.loads(request.content)
         assert body["model"] == "pplx-embed-v1-0.6b"
         assert body["input"] == ["The food was delicious"]

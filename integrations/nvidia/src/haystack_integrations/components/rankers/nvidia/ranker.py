@@ -6,8 +6,8 @@ import os
 from dataclasses import replace
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import Document, component, default_to_dict
+from haystack.utils import Secret
 
 from haystack_integrations.components.rankers.nvidia.truncate import RankerTruncateMode
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, NimBackend, is_hosted, url_validation
@@ -25,7 +25,7 @@ class NvidiaRanker:
     from haystack.utils import Secret
 
     ranker = NvidiaRanker(
-        model="nvidia/nv-rerankqa-mistral-4b-v3",
+        model="nvidia/llama-nemotron-rerank-vl-1b-v2",
         api_key=Secret.from_env_var("NVIDIA_API_KEY"),
     )
     # Components warm up automatically on first run.
@@ -108,8 +108,7 @@ class NvidiaRanker:
         #  - assume we won't call backend.models()
         self.api_url = url_validation(api_url)
         self.top_k = top_k
-        self._initialized = False
-        self.backend: Any | None = None
+        self.backend: NimBackend | None = None
         self.is_hosted = is_hosted(api_url)
 
         self.query_prefix = query_prefix
@@ -145,42 +144,35 @@ class NvidiaRanker:
             timeout=self.timeout,
         )
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NvidiaRanker":
-        """
-        Deserialize the ranker from a dictionary.
-
-        :param data: A dictionary containing the ranker's attributes.
-        :returns: The deserialized ranker.
-        """
-        init_parameters = data.get("init_parameters", {})
-        if init_parameters:
-            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
-
     def warm_up(self) -> None:
         """
         Initialize the ranker.
 
         :raises ValueError: If the API key is required for hosted NVIDIA NIMs.
         """
-        if not self._initialized:
-            model_kwargs: dict[str, Any] = {}
-            if self.truncate is not None:
-                model_kwargs.update(truncate=str(self.truncate))
-            self.backend = NimBackend(
-                model=self.model,
-                model_type="ranking",
-                api_url=self.api_url,
-                api_key=self.api_key,
-                model_kwargs=model_kwargs,
-                timeout=self.timeout,
-                client=Client.NVIDIA_RANKER,
-            )
-            if not self.is_hosted and not self.model:
-                if self.backend.model:
-                    self.model = self.backend.model
-            self._initialized = True
+        if self.backend is not None:
+            return
+
+        model_kwargs: dict[str, Any] = {}
+        if self.truncate is not None:
+            model_kwargs.update(truncate=str(self.truncate))
+        self.backend = NimBackend(
+            model=self.model,
+            model_type="ranking",
+            api_url=self.api_url,
+            api_key=self.api_key,
+            model_kwargs=model_kwargs,
+            timeout=self.timeout,
+            client=Client.NVIDIA_RANKER,
+        )
+        if not self.is_hosted and not self.model and self.backend.model:
+            self.model = self.backend.model
+
+    def close(self) -> None:
+        """Close the backend and release its resources."""
+        if self.backend is not None:
+            self.backend.close()
+            self.backend = None
 
     def _prepare_documents_to_embed(self, documents: list[Document]) -> list[str]:
         document_texts = []
@@ -208,8 +200,7 @@ class NvidiaRanker:
 
         :returns: A dictionary containing the ranked documents.
         """
-        if not self._initialized:
-            self.warm_up()
+        self.warm_up()
 
         if not isinstance(query, str):
             msg = "NvidiaRanker expects the `query` parameter to be a string."

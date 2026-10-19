@@ -1,15 +1,11 @@
 import os
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from cohere.core import ApiError
 from haystack import Pipeline
+from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool, Toolset
@@ -151,7 +147,7 @@ class TestFormatMessage:
         assert formatted_message["content"][2]["type"] == "image_url"
 
 
-class TestCohereChatGenerator:
+class TestInitializationAndSerialization:
     def test_supported_models(self) -> None:
         """SUPPORTED_MODELS is a non-empty list of strings."""
         models = CohereChatGenerator.SUPPORTED_MODELS
@@ -170,12 +166,8 @@ class TestCohereChatGenerator:
         assert not component.generation_kwargs
         assert component.timeout is None
         assert component.max_retries is None
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("COHERE_API_KEY", raising=False)
-        monkeypatch.delenv("CO_API_KEY", raising=False)
-        with pytest.raises(ValueError):
-            CohereChatGenerator()
+        assert component.client is None
+        assert component.async_client is None
 
     def test_init_with_parameters(self):
         component = CohereChatGenerator(
@@ -290,31 +282,6 @@ class TestCohereChatGenerator:
         }
         assert component.timeout is None
         assert component.max_retries is None
-
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("COHERE_API_KEY", raising=False)
-        monkeypatch.delenv("CO_API_KEY", raising=False)
-        data = {
-            "type": "haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
-            "init_parameters": {
-                "model": "command-a-03-2025",
-                "api_base_url": "test-base-url",
-                "api_key": {
-                    "env_vars": ["COHERE_API_KEY", "CO_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
-                "timeout": None,
-                "max_retries": None,
-            },
-        }
-        with pytest.raises(ValueError):
-            CohereChatGenerator.from_dict(data)
 
     def test_serde_in_pipeline(self, monkeypatch):
         """
@@ -450,7 +417,55 @@ class TestCohereChatGenerator:
         assert restored.tools[0].name == "tool1"
         assert len(list(restored.tools[1])) == 1
 
-    def test_run_image(self):
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_COHERE_API_KEY", raising=False)
+        component = CohereChatGenerator(api_key=Secret.from_env_var("MISSING_COHERE_API_KEY"))
+
+        with pytest.raises(ValueError, match="MISSING_COHERE_API_KEY"):
+            component.warm_up()
+
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.HTTPXClient")
+    def test_warm_up_is_idempotent(self, mock_httpx_cls, mock_client_cls):
+        component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), max_retries=2)
+
+        component.warm_up()
+        component.warm_up()
+
+        mock_client_cls.assert_called_once_with(
+            api_key="test-api-key",
+            base_url="https://api.cohere.com",
+            client_name="haystack",
+            httpx_client=mock_httpx_cls.return_value,
+        )
+        mock_httpx_cls.assert_called_once()
+        assert component.client is mock_client_cls.return_value
+        assert component.async_client is None
+
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncClientV2")
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncHTTPXClient")
+    async def test_warm_up_async_is_idempotent(self, mock_httpx_cls, mock_client_cls):
+        component = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), max_retries=2)
+
+        await component.warm_up_async()
+        await component.warm_up_async()
+
+        mock_client_cls.assert_called_once_with(
+            api_key="test-api-key",
+            base_url="https://api.cohere.com",
+            client_name="haystack",
+            httpx_client=mock_httpx_cls.return_value,
+        )
+        mock_httpx_cls.assert_called_once()
+        assert component.async_client is mock_client_cls.return_value
+        assert component.client is None
+
+
+class TestRun:
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
+    def test_run_image(self, mock_client_cls):
         """Test multimodal message processing with mocked client."""
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
@@ -469,7 +484,8 @@ class TestCohereChatGenerator:
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
 
-        generator.client.chat = MagicMock(return_value=mock_response)
+        client = mock_client_cls.return_value
+        client.chat.return_value = mock_response
 
         result = generator.run(messages=messages)
 
@@ -479,8 +495,8 @@ class TestCohereChatGenerator:
         assert result["replies"][0].text == "This is a test image response"
 
         # Verify the client was called with the correct format
-        generator.client.chat.assert_called_once()
-        call_args = generator.client.chat.call_args
+        client.chat.assert_called_once()
+        call_args = client.chat.call_args
         formatted_messages = call_args[1]["messages"]
 
         assert len(formatted_messages) == 1
@@ -493,7 +509,8 @@ class TestCohereChatGenerator:
         assert multimodal_msg["content"][0]["type"] == "text"
         assert multimodal_msg["content"][1]["type"] == "image_url"
 
-    def test_run_with_string_input(self):
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
+    def test_run_with_string_input(self, mock_client_cls):
         """Test that a string input is converted to a user ChatMessage before sending to the API."""
         generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
 
@@ -505,12 +522,13 @@ class TestCohereChatGenerator:
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
 
-        generator.client.chat = MagicMock(return_value=mock_response)
+        client = mock_client_cls.return_value
+        client.chat.return_value = mock_response
 
         result = generator.run("What's the capital of France?")
 
-        generator.client.chat.assert_called_once()
-        call_args = generator.client.chat.call_args
+        client.chat.assert_called_once()
+        call_args = client.chat.call_args
         sent_messages = call_args[1]["messages"]
 
         assert len(sent_messages) == 1
@@ -520,7 +538,8 @@ class TestCohereChatGenerator:
         assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
-    async def test_run_async_with_string_input(self):
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncClientV2")
+    async def test_run_async_with_string_input(self, mock_client_cls):
         """Test that a string input is converted to a user ChatMessage before sending to the async API."""
         generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
 
@@ -532,12 +551,13 @@ class TestCohereChatGenerator:
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
 
-        generator.async_client.chat = AsyncMock(return_value=mock_response)
+        client = mock_client_cls.return_value
+        client.chat = AsyncMock(return_value=mock_response)
 
         result = await generator.run_async("What's the capital of France?")
 
-        generator.async_client.chat.assert_called_once()
-        call_args = generator.async_client.chat.call_args
+        client.chat.assert_called_once()
+        call_args = client.chat.call_args
         sent_messages = call_args[1]["messages"]
 
         assert len(sent_messages) == 1
@@ -546,7 +566,8 @@ class TestCohereChatGenerator:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
-    def test_run_with_generation_kwargs(self):
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
+    def test_run_with_generation_kwargs(self, mock_client_cls):
         generator = CohereChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             generation_kwargs={"max_tokens": 100, "temperature": 0.5},
@@ -560,16 +581,18 @@ class TestCohereChatGenerator:
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
 
-        generator.client.chat = MagicMock(return_value=mock_response)
+        client = mock_client_cls.return_value
+        client.chat.return_value = mock_response
 
         generator.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
 
-        _, kwargs = generator.client.chat.call_args
+        _, kwargs = client.chat.call_args
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.9
 
     @pytest.mark.asyncio
-    async def test_run_async_with_generation_kwargs(self):
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncClientV2")
+    async def test_run_async_with_generation_kwargs(self, mock_client_cls):
         generator = CohereChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             generation_kwargs={"max_tokens": 100, "temperature": 0.5},
@@ -583,11 +606,12 @@ class TestCohereChatGenerator:
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
 
-        generator.async_client.chat = AsyncMock(return_value=mock_response)
+        client = mock_client_cls.return_value
+        client.chat = AsyncMock(return_value=mock_response)
 
         await generator.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
 
-        _, kwargs = generator.async_client.chat.call_args
+        _, kwargs = client.chat.call_args
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.9
 
@@ -782,10 +806,9 @@ class TestCohereChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
-    def test_pipeline_with_cohere_chat_generator(self):
+    def test_agent_with_cohere_chat_generator(self):
         """
-        Test that the CohereChatGenerator component can be used in a pipeline
+        Test that the CohereChatGenerator component can drive tool calls in an Agent
         """
         weather_tool = Tool(
             name="weather",
@@ -803,20 +826,11 @@ class TestCohereChatGeneratorInference:
             function=weather,
         )
 
-        pipeline = Pipeline()
-        pipeline.add_component("generator", CohereChatGenerator(model="command-r7b-12-2024", tools=[weather_tool]))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
+        agent = Agent(chat_generator=CohereChatGenerator(model="command-r7b-12-2024"), tools=[weather_tool])
+        result = agent.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
 
-        pipeline.connect("generator", "tool_invoker")
-
-        results = pipeline.run(
-            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
-        )
-
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
+        tool_results = [msg.tool_call_result.result for msg in result["messages"] if msg.tool_call_result]
+        assert "The weather in Paris is sunny and 32°C" in tool_results
 
     def test_live_run_multimodal(self):
         generator = CohereChatGenerator(

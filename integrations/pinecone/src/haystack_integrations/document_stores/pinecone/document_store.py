@@ -10,7 +10,7 @@ from typing import Any, Literal
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from pinecone import Pinecone, PineconeAsyncio, PodSpec, ServerlessSpec
 from pinecone.db_data import _Index, _IndexAsyncio
@@ -195,7 +195,6 @@ class PineconeDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def to_dict(self) -> dict[str, Any]:
@@ -828,12 +827,13 @@ class PineconeDocumentStore:
                         # For lists, check the type of elements if list is non-empty
                         if value:
                             # Sample first element to determine list type
-                            if isinstance(value[0], str):
+                            # bool before int/float here too, same reason as above
+                            if isinstance(value[0], bool):
+                                field_samples[field].add("boolean")
+                            elif isinstance(value[0], str):
                                 field_samples[field].add("keyword")
                             elif isinstance(value[0], (int, float)):
                                 field_samples[field].add("long")
-                            elif isinstance(value[0], bool):
-                                field_samples[field].add("boolean")
                         else:
                             # Empty list, default to keyword
                             field_samples[field].add("keyword")

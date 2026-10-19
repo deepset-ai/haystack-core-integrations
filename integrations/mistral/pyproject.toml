@@ -7,7 +7,7 @@ name = "mistral-haystack"
 dynamic = ["version"]
 description = ''
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,16 +15,16 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 # mistralai 2.4.6 is excluded because of security issue https://github.com/mistralai/client-python/security/advisories/GHSA-wx9m-wx4f-4cmg
-dependencies = ["haystack-ai>=2.30.0", "mistralai>=2.0.0,!=2.4.6"]
+dependencies = ["haystack-ai>=3.0.0", "mistralai>=2.0.0,!=2.4.6"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mistral#readme"

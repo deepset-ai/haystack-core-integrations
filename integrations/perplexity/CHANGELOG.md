@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/perplexity-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/perplexity-v1.0.1] - 2026-09-30
+
+### 🐛 Bug Fixes
+
+- Preserve Perplexity attribution header overrides (#3974)
+
+
+## [integrations/perplexity-v1.0.0] - 2026-09-09
+
+### 🚀 Features
+
+- [**breaking**] Perplexity - add lifecycle handling (#3936)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+
 ## [integrations/perplexity-v0.2.0] - 2026-07-06
 
 ### 🐛 Bug Fixes

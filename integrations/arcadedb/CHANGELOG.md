@@ -1,5 +1,54 @@
 # Changelog
 
+## [integrations/arcadedb-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Alias datetime imports as dt for ruff 0.17 ICN001 (#4088)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/arcadedb-v1.7.0] - 2026-10-06
+
+### 🐛 Bug Fixes
+
+-  fix: handle changed NULL semantics in arcadedb 26.10.1 (#4054)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+
+
+## [integrations/arcadedb-v1.6.1] - 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Fixing ArcadeDB delete_all_documents (#3989)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
+## [integrations/arcadedb-v1.6.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `ArcadeDBDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3715)
+- ArcadeDB adding optional parameter `filters` to `get_metadata_field_unique_values() ` (#3733)
+- Standardize license files (#3771)
+- `ArcadeDBDocumentStore` removing duplicated tests already covered by haystack Mixin tests + fix dedup (#3774)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/arcadedb-v1.5.0] - 2026-07-23
 
 ### 🚀 Features

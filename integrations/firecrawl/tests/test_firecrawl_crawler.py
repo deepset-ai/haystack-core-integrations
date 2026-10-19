@@ -14,38 +14,44 @@ from haystack.utils import Secret
 from haystack_integrations.components.fetchers.firecrawl import FirecrawlCrawler
 
 
-class TestFirecrawlCrawler:
-    @pytest.fixture
-    def page(self) -> MagicMock:
-        page = MagicMock()
-        page.markdown = "Page content"
-        page.metadata_dict = {"url": "https://example.com"}
-        return page
+@pytest.fixture
+def page() -> MagicMock:
+    page = MagicMock()
+    page.markdown = "Page content"
+    page.metadata_dict = {"url": "https://example.com"}
+    return page
 
-    @pytest.fixture
-    def crawl_response(self, page) -> MagicMock:
-        crawl_response = MagicMock()
-        crawl_response.status = "completed"
-        crawl_response.data = [page]
-        return crawl_response
 
-    @pytest.fixture
-    def mock_client(self, crawl_response) -> MagicMock:
-        mock_client = MagicMock()
-        mock_client.crawl.return_value = crawl_response
-        return mock_client
+@pytest.fixture
+def crawl_response(page) -> MagicMock:
+    crawl_response = MagicMock()
+    crawl_response.status = "completed"
+    crawl_response.data = [page]
+    return crawl_response
 
-    @pytest.fixture
-    def mock_async_client(self, crawl_response) -> MagicMock:
-        mock_async_client = MagicMock()
-        mock_async_client.crawl = AsyncMock(return_value=crawl_response)
-        return mock_async_client
 
+@pytest.fixture
+def mock_client(crawl_response) -> MagicMock:
+    mock_client = MagicMock()
+    mock_client.crawl.return_value = crawl_response
+    return mock_client
+
+
+@pytest.fixture
+def mock_async_client(crawl_response) -> MagicMock:
+    mock_async_client = MagicMock()
+    mock_async_client.crawl = AsyncMock(return_value=crawl_response)
+    return mock_async_client
+
+
+class TestInit:
     def test_init_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
         fetcher = FirecrawlCrawler()
         assert fetcher._params == {"limit": 1, "scrape_options": {"formats": ["markdown"]}}
         assert fetcher.api_key.resolve_value() == "test-key"
+        assert fetcher._firecrawl_client is None
+        assert fetcher._async_firecrawl_client is None
 
     def test_init_with_params(self) -> None:
         fetcher = FirecrawlCrawler(
@@ -55,8 +61,9 @@ class TestFirecrawlCrawler:
         assert fetcher._params == {"limit": 10, "scrape_options": {"formats": ["markdown"]}}
         assert fetcher.api_key.resolve_value() == "custom-key"
 
-    def test_to_dict(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
+
+class TestSerialization:
+    def test_to_dict(self) -> None:
         fetcher = FirecrawlCrawler(
             api_key=Secret.from_env_var("FIRECRAWL_API_KEY"),
             params={"limit": 5},
@@ -79,6 +86,42 @@ class TestFirecrawlCrawler:
         assert fetcher.params == {"limit": 3}
         assert fetcher.api_key.resolve_value() == "test-key"
 
+
+class TestComponentLifecycle:
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+        fetcher = FirecrawlCrawler()
+
+        with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
+            fetcher.warm_up()
+
+    def test_warm_up(self) -> None:
+        fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
+
+        with patch("haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.Firecrawl") as mock_client:
+            fetcher.warm_up()
+            fetcher.warm_up()
+
+        assert fetcher._firecrawl_client is mock_client.return_value
+        assert fetcher._async_firecrawl_client is None
+        mock_client.assert_called_once_with(api_key="test-key")
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async(self) -> None:
+        fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
+
+        with patch(
+            "haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.AsyncFirecrawl"
+        ) as mock_async_client:
+            await fetcher.warm_up_async()
+            await fetcher.warm_up_async()
+
+        assert fetcher._firecrawl_client is None
+        assert fetcher._async_firecrawl_client is mock_async_client.return_value
+        mock_async_client.assert_called_once_with(api_key="test-key")
+
+
+class TestRun:
     def test_run_with_mocked_firecrawl_client(self, mock_client) -> None:
         fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
 
@@ -135,12 +178,9 @@ class TestFirecrawlCrawler:
         )
 
     def test_run_calls_warm_up(self, crawl_response) -> None:
-        with (
-            patch(
-                "haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.Firecrawl"
-            ) as mock_firecrawl_client,
-            patch("haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.AsyncFirecrawl"),
-        ):
+        with patch(
+            "haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.Firecrawl"
+        ) as mock_firecrawl_client:
             mock_firecrawl_client.return_value.crawl.return_value = crawl_response
 
             fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
@@ -151,12 +191,9 @@ class TestFirecrawlCrawler:
 
     @pytest.mark.asyncio
     async def test_run_async_calls_warm_up(self, crawl_response) -> None:
-        with (
-            patch("haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.Firecrawl"),
-            patch(
-                "haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.AsyncFirecrawl"
-            ) as mock_async_firecrawl_client,
-        ):
+        with patch(
+            "haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.AsyncFirecrawl"
+        ) as mock_async_firecrawl_client:
             mock_async_firecrawl_client.return_value.crawl = AsyncMock(return_value=crawl_response)
 
             fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
@@ -222,21 +259,13 @@ class TestFirecrawlCrawler:
 
         assert "Failed to crawl website https://example.com: failed" in caplog.text
 
-    def test_warm_up_initializes_clients(self) -> None:
-        fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
-        assert fetcher._firecrawl_client is None
-        assert fetcher._async_firecrawl_client is None
 
-        fetcher.warm_up()
-
-        assert fetcher._firecrawl_client is not None
-        assert fetcher._async_firecrawl_client is not None
-
-    @pytest.mark.skipif(
-        not os.environ.get("FIRECRAWL_API_KEY"),
-        reason="Export FIRECRAWL_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("FIRECRAWL_API_KEY"),
+    reason="Export FIRECRAWL_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
+class TestIntegration:
     def test_run_integration(self) -> None:
         fetcher = FirecrawlCrawler(api_key=Secret.from_env_var("FIRECRAWL_API_KEY"), params={"limit": 1})
         result = fetcher.run(urls=["https://docs.haystack.deepset.ai/docs/intro"], params={"limit": 1})
@@ -247,11 +276,6 @@ class TestFirecrawlCrawler:
         assert "Haystack" in result["documents"][0].content
         assert "https://docs.haystack.deepset.ai/docs/intro" == result["documents"][0].meta["url"]
 
-    @pytest.mark.skipif(
-        not os.environ.get("FIRECRAWL_API_KEY"),
-        reason="Export FIRECRAWL_API_KEY to run integration tests.",
-    )
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_run_async_integration(self) -> None:
         fetcher = FirecrawlCrawler(api_key=Secret.from_env_var("FIRECRAWL_API_KEY"), params={"limit": 1})

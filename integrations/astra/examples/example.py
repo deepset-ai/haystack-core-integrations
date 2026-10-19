@@ -1,7 +1,8 @@
+import logging
 import os
 from pathlib import Path
 
-from haystack import Pipeline, logging
+from haystack import Pipeline
 from haystack.components.converters import TextFileToDocument
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.routers import FileTypeRouter
@@ -20,7 +21,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 HERE = Path(__file__).resolve().parent
-file_paths = [HERE / "data" / Path(name) for name in os.listdir("integrations/astra/examples/data")]
+file_paths = [HERE / "data" / Path(name) for name in os.listdir(HERE / "data")]
 logger.info(file_paths)
 
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
@@ -77,42 +78,17 @@ if documents_count != ALL_DOCUMENTS_COUNT:
     msg = f"count mismatch, expected 9 documents, got {documents_count}"
     raise ValueError(msg)
 
-logger.info(
-    f"""filter results: {
-        document_store.filter_documents(
-            {
-                "field": "meta",
-                "operator": "==",
-                "value": {
-                    "file_path": "/workspace/astra-haystack/examples/data/usr_01.txt",
-                    "source_id": "5b2d27de79bba97da6fc446180d0d99e1024bc7dd6a757037f0934162cfb0916",
-                },
-            }
-        )
-    }"""
-)
+documents = document_store.filter_documents({"field": "meta.file_path", "operator": "==", "value": "usr_01.txt"})
+logger.info(f"filter results: {documents}")
 
-logger.info(
-    f"""get_document_by_id {
-        document_store.get_document_by_id("92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10")
-    }"""
-)
+logger.info(f"get_document_by_id {document_store.get_document_by_id(documents[0].id)}")
 
-logger.info(
-    f"""get_documents_by_ids {
-        document_store.get_documents_by_id(
-            [
-                "92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10",
-                "6f2450a51eaa3eeb9239d875402bcfe24b2d3534ff27f26c1f3fc8133b04e756",
-            ]
-        )
-    }"""
-)
+logger.info(f"get_documents_by_ids {document_store.get_documents_by_id([documents[0].id, documents[1].id])}")
 
-document_store.delete_documents(["92ef055fbae55b2b0fc79d34cbf8a80b0ad7700ca526053223b0cc6d1351df10"])
+document_store.delete_documents([documents[0].id])
 
 documents_count = document_store.count_documents()
-logger.info(f"count: {document_store.count_documents()}")
+logger.info(f"count: {documents_count}")
 if documents_count != ALL_DOCUMENTS_COUNT - 1:
-    msg = f"count mismatch, expected 9 documents, got {documents_count}"
+    msg = f"count mismatch, expected {ALL_DOCUMENTS_COUNT - 1} documents, got {documents_count}"
     raise ValueError(msg)

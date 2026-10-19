@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/github-v3.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### ⚙️ CI
+
+- Annotate GitHubPRCreator pr_data to satisfy the requests stubs (#3679)
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Drop haystack-experimental references (#3674)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/github-v2.1.0] - 2026-05-13
 
 ### 📚 Documentation
@@ -47,10 +70,16 @@
 
 ## [integrations/github-v1.2.1] - 2025-10-20
 
+
+### 🌀 Miscellaneous
+
+- Fix: handle empty GitHub tokens in authentication headers (#2400)
+
+## [integrations/github-v1.2.0] - 2025-10-10
+
 ### 🚀 Features
 
 - Add support for GitHubRepoForkerTool (#1968)
-
 
 ### 🧪 Testing
 
@@ -63,7 +92,6 @@
 ### 🌀 Miscellaneous
 
 - Chore: Fix linting github (#2255)
-- Fix: handle empty GitHub tokens in authentication headers (#2400)
 
 ## [integrations/github-v1.1.0] - 2025-07-01
 

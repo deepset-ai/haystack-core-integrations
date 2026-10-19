@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import asyncio
 import dataclasses
 import inspect
@@ -30,14 +34,13 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
-    warm_up_tools,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
 from openai import AsyncOpenAI, AsyncStream, OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from openai.types.chat.chat_completion import Choice
 
-from haystack_integrations.common.vllm.utils import _create_openai_clients
+from haystack_integrations.common.vllm.utils import _create_async_openai_client, _create_openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -255,22 +258,40 @@ class VLLMChatGenerator:
 
         self._client: OpenAI | None = None
         self._async_client: AsyncOpenAI | None = None
-        self._is_warmed_up = False
 
     def warm_up(self) -> None:
-        """Create the OpenAI clients and warm up tools."""
-        if self._is_warmed_up:
-            return
+        """Create the synchronous OpenAI client."""
+        if self._client is None:
+            self._client = _create_openai_client(
+                api_key=self.api_key,
+                api_base_url=self.api_base_url,
+                timeout=self.timeout,
+                max_retries=self.max_retries,
+                http_client_kwargs=self.http_client_kwargs,
+            )
 
-        self._client, self._async_client = _create_openai_clients(
-            api_key=self.api_key,
-            api_base_url=self.api_base_url,
-            timeout=self.timeout,
-            max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
-        )
-        warm_up_tools(self.tools)
-        self._is_warmed_up = True
+    async def warm_up_async(self) -> None:
+        """Create the asynchronous OpenAI client."""
+        if self._async_client is None:
+            self._async_client = _create_async_openai_client(
+                api_key=self.api_key,
+                api_base_url=self.api_base_url,
+                timeout=self.timeout,
+                max_retries=self.max_retries,
+                http_client_kwargs=self.http_client_kwargs,
+            )
+
+    def close(self) -> None:
+        """Close the synchronous OpenAI client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """Close the asynchronous OpenAI client."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -321,7 +342,7 @@ class VLLMChatGenerator:
 
         openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        flattened_tools = flatten_tools_or_toolsets(tools if tools is not None else self.tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_definitions = None
         if flattened_tools:
@@ -464,9 +485,9 @@ class VLLMChatGenerator:
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        self.warm_up()
+        assert self._client is not None  # noqa: S101
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
@@ -476,7 +497,6 @@ class VLLMChatGenerator:
         )
 
         api_kwargs = self._prepare_api_call(messages, streaming_callback, generation_kwargs, tools)
-        assert self._client is not None  # noqa: S101
         chat_completion = self._client.chat.completions.create(**api_kwargs)
 
         if streaming_callback is not None:
@@ -523,9 +543,9 @@ class VLLMChatGenerator:
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        await self.warm_up_async()
+        assert self._async_client is not None  # noqa: S101
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
@@ -535,7 +555,6 @@ class VLLMChatGenerator:
         )
 
         api_kwargs = self._prepare_api_call(messages, streaming_callback, generation_kwargs, tools)
-        assert self._async_client is not None  # noqa: S101
         chat_completion = await self._async_client.chat.completions.create(**api_kwargs)
 
         if streaming_callback is not None:

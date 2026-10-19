@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/valkey-v0.5.0] - 2026-10-05
+
+### 🚀 Features
+
+- *(valkey)* Set client_info_tag for CLIENT SETINFO LIB-NAME attribution (#4044)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+
+## [integrations/valkey-v0.4.0] - 2026-09-01
+
+### 🐛 Bug Fixes
+
+- *(valkey)* Report accurate written count when async batch writes partially fail (#3618)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- `ValkeyDocumentStore` get_metadata_field_unique_values setting list of values to return to `Any` (#3712)
+- Valkey adding optional parameter `filters` to `get_metadata_field_unique_values()` (#3737)
+
+### 🧪 Testing
+
+- `ValkeyDocumentStore` removing duplicated tests already covered by haystack Mixin tests + allow non-schema-typed metadata values in Valkey get_metadata_field_unique_value (#3786)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/valkey-v0.3.0] - 2026-07-22
 
 ### 🚜 Refactor

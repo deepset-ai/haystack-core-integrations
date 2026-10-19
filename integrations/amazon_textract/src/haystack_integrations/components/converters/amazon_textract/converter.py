@@ -8,10 +8,10 @@ from typing import Any
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, default_to_dict, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from .errors import AmazonTextractConfigurationError
 
@@ -129,6 +129,14 @@ class AmazonTextractConverter:
             )
             raise AmazonTextractConfigurationError(msg) from e
 
+    def close(self) -> None:
+        """Closes the AWS Textract client."""
+        if self._client is None:
+            return
+
+        self._client.close()
+        self._client = None
+
     @component.output_types(documents=list[Document], raw_textract_response=list[dict])
     def run(
         self,
@@ -157,8 +165,7 @@ class AmazonTextractConverter:
             - `documents`: List of created Documents with extracted text as content.
             - `raw_textract_response`: List of raw Textract API responses.
         """
-        if self._client is None:
-            self.warm_up()
+        self.warm_up()
 
         documents: list[Document] = []
         raw_responses: list[dict[str, Any]] = []
@@ -246,25 +253,3 @@ class AmazonTextractConverter:
             store_full_path=self.store_full_path,
             boto3_config=self.boto3_config,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AmazonTextractConverter":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        deserialize_secrets_inplace(
-            data["init_parameters"],
-            keys=[
-                "aws_access_key_id",
-                "aws_secret_access_key",
-                "aws_session_token",
-                "aws_region_name",
-                "aws_profile_name",
-            ],
-        )
-        return default_from_dict(cls, data)

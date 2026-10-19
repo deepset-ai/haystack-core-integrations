@@ -122,16 +122,23 @@ class AmazonBedrockDocumentEmbedder:
         self.boto3_config = boto3_config
         self.kwargs = kwargs
 
+        self._client: Any = None
+
+    def warm_up(self) -> None:
+        """Create the Amazon Bedrock client."""
+        if self._client is not None:
+            return
+
         def resolve_secret(secret: Secret | str | None) -> str | None:
             return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(
-                aws_access_key_id=resolve_secret(aws_access_key_id),
-                aws_secret_access_key=resolve_secret(aws_secret_access_key),
-                aws_session_token=resolve_secret(aws_session_token),
-                aws_region_name=resolve_secret(aws_region_name),
-                aws_profile_name=resolve_secret(aws_profile_name),
+                aws_access_key_id=resolve_secret(self.aws_access_key_id),
+                aws_secret_access_key=resolve_secret(self.aws_secret_access_key),
+                aws_session_token=resolve_secret(self.aws_session_token),
+                aws_region_name=resolve_secret(self.aws_region_name),
+                aws_profile_name=resolve_secret(self.aws_profile_name),
             )
             config = Config(
                 user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
@@ -144,13 +151,21 @@ class AmazonBedrockDocumentEmbedder:
             )
             raise AmazonBedrockConfigurationError(msg) from exception
 
+    def close(self) -> None:
+        """Close the Amazon Bedrock client."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         """
         Prepare the texts to embed by concatenating the Document text with the metadata fields to embed.
         """
         texts_to_embed = []
         for doc in documents:
-            meta_values_to_embed = [str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key)]
+            meta_values_to_embed = [
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key) is not None
+            ]
 
             text_to_embed = self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
 
@@ -248,6 +263,7 @@ class AmazonBedrockDocumentEmbedder:
             - `documents`: The `Document`s with the `embedding` field populated.
         :raises AmazonBedrockInferenceError: If the inference fails.
         """
+        self.warm_up()
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "AmazonBedrockDocumentEmbedder expects a list of Documents as input."
