@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/elasticsearch-v7.1.0] - 2026-10-19
+
+### 🚀 Features
+
+- *(elasticsearch)* Add ElasticsearchInferenceDenseRetriever (#3525)
+
+
 ## [integrations/elasticsearch-v7.0.0] - 2026-10-16
 
 ### 🧪 Testing
