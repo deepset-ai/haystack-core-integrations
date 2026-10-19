@@ -3,18 +3,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from typing import Any, Literal, overload
 
 from haystack import logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from psycopg import AsyncConnection, Connection, Cursor, Error, IntegrityError
 from psycopg.cursor_async import AsyncCursor
-from psycopg.rows import DictRow
+from psycopg.rows import DictRow, dict_row
 from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Jsonb
+
+from pgvector.psycopg import register_vector, register_vector_async
 
 from .converters import _from_haystack_to_pg_documents, _from_pg_to_haystack_documents
 from .filters import _convert_filters_to_where_clause_and_params, _validate_filters
@@ -75,24 +79,23 @@ class PostgreSQLDocumentStore(ABC):
     """
     Abstract base class for PostgreSQL-backed Haystack document stores using the pgvector extension.
 
-    This class provides all SQL schema management, data methods (read, write, delete, retrieve),
-    and query-building logic. Subclasses only need to implement the connection layer by overriding
-    :meth:`_ensure_db_setup` and :meth:`_ensure_db_setup_async`.
+    This class provides connection management, SQL schema management, data methods (read, write, delete,
+    retrieve), and query-building logic. Subclasses only need to define how a connection is opened by
+    implementing :meth:`_create_connection` and, to support the async methods, :meth:`_create_connection_async`.
+    They must also implement `to_dict` and `from_dict` with their own init parameters.
 
-    After a successful call to either method the following attributes must be set:
-
-    - ``_connection`` — a live, autocommit-enabled :class:`psycopg.Connection`
-    - ``_cursor`` — a plain cursor on that connection
-    - ``_dict_cursor`` — a ``dict_row`` cursor on that connection
-    - ``_async_connection``, ``_async_cursor``, ``_async_dict_cursor`` — async equivalents
+    The base class takes care of everything else around the connection: reusing it while it is valid,
+    enabling autocommit, creating the pgvector extension (if `create_extension` is set), registering the
+    vector types, creating the cursors, and initializing the table.
 
     See :class:`~haystack_integrations.document_stores.pgvector.PgvectorDocumentStore` for the
-    reference psycopg implementation.
+    reference implementation.
     """
 
     def __init__(
         self,
         *,
+        create_extension: bool = True,
         schema_name: str = "public",
         table_name: str = "haystack_documents",
         language: str = "english",
@@ -107,6 +110,7 @@ class PostgreSQLDocumentStore(ABC):
         hnsw_ef_search: int | None = None,
         keyword_index_name: str = "haystack_keyword_index",
     ) -> None:
+        self.create_extension = create_extension
         self.table_name = table_name
         self.schema_name = schema_name
         self.embedding_dimension = embedding_dimension
@@ -256,32 +260,113 @@ class PostgreSQLDocumentStore(ABC):
         return result
 
     @abstractmethod
+    def _create_connection(self) -> Connection:
+        """
+        Opens a new connection to the PostgreSQL database.
+
+        This is the only connection logic subclasses must implement: return a freshly opened
+        :class:`psycopg.Connection`. Autocommit, the pgvector extension, vector type registration, cursors,
+        and table initialization are handled by :meth:`_ensure_db_setup`.
+
+        :raises DocumentStoreError: If the connection cannot be opened.
+        """
+
+    async def _create_connection_async(self) -> AsyncConnection:
+        """
+        Opens a new async connection to the PostgreSQL database.
+
+        Subclasses that support the async methods must override this and return a freshly opened
+        :class:`psycopg.AsyncConnection`. Everything else is handled by :meth:`_ensure_db_setup_async`.
+
+        :raises DocumentStoreError: If the connection cannot be opened.
+        """
+        msg = f"{self.__class__.__name__} does not support async operations."
+        raise NotImplementedError(msg)
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._connection is not None:
+            with suppress(Exception):
+                self._connection.close()
+            self._connection = None
+            self._cursor = None
+            self._dict_cursor = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_connection is not None:
+            with suppress(Exception):
+                await self._async_connection.close()
+            self._async_connection = None
+            self._async_cursor = None
+            self._async_dict_cursor = None
+
     def _ensure_db_setup(self) -> None:
         """
         Ensures that the connection to the PostgreSQL database exists and is valid.
 
-        Implementations must:
-
-        1. Check if ``_connection``, ``_cursor``, and ``_dict_cursor`` are valid; return early if so.
-        2. Create a new :class:`psycopg.Connection` (with autocommit enabled) and assign it to
-           ``self._connection``.
-        3. Create ``self._cursor`` and ``self._dict_cursor`` (``dict_row`` factory) from that connection.
-        4. Call ``self._initialize_table()`` when ``self._table_initialized`` is ``False``.
+        If not, connection and cursors are created.
+        If the table is not initialized, it will be set up.
         """
+        if self._connection and self._cursor and self._dict_cursor and self._connection_is_valid(self._connection):
+            return
 
-    @abstractmethod
+        # close the connection if it already exists
+        if self._connection:
+            try:
+                self._connection.close()
+            except Error as e:
+                logger.debug("Failed to close connection: {e}", e=str(e))
+
+        connection = self._create_connection()
+        connection.autocommit = True
+        if self.create_extension:
+            connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        register_vector(connection)  # Note: this must be called before creating the cursors.
+
+        self._connection = connection
+        self._cursor = self._connection.cursor()
+        self._dict_cursor = self._connection.cursor(row_factory=dict_row)
+
+        if not self._table_initialized:
+            self._initialize_table()
+
     async def _ensure_db_setup_async(self) -> None:
         """
-        Async version of :meth:`_ensure_db_setup`.
+        Async internal method.
 
-        Implementations must:
-
-        1. Check validity of ``_async_connection``, ``_async_cursor``, ``_async_dict_cursor``; return early if valid.
-        2. Create a new :class:`psycopg.AsyncConnection` (with autocommit enabled) and assign it to
-           ``self._async_connection``.
-        3. Create ``self._async_cursor`` and ``self._async_dict_cursor`` (``dict_row`` factory).
-        4. Call ``await self._initialize_table_async()`` when ``self._table_initialized`` is ``False``.
+        Ensures that the connection to the PostgreSQL database exists and is valid.
+        If not, connection and cursors are created.
+        If the table is not initialized, it will be set up.
         """
+        if (
+            self._async_connection
+            and self._async_cursor
+            and self._async_dict_cursor
+            and await self._connection_is_valid_async(self._async_connection)
+        ):
+            return
+
+        # close the connection if it already exists
+        if self._async_connection:
+            await self._async_connection.close()
+
+        async_connection = await self._create_connection_async()
+        await async_connection.set_autocommit(True)
+        if self.create_extension:
+            await async_connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await register_vector_async(async_connection)  # Note: this must be called before creating the cursors.
+
+        self._async_connection = async_connection
+        self._async_cursor = self._async_connection.cursor()
+        self._async_dict_cursor = self._async_connection.cursor(row_factory=dict_row)
+
+        if not self._table_initialized:
+            await self._initialize_table_async()
 
     def _build_table_creation_queries(self) -> tuple[SQL, Composed, SQL, Composed]:
         """
@@ -750,7 +835,7 @@ class PostgreSQLDocumentStore(ABC):
             )
             raise DocumentStoreError(error_msg) from e
 
-        # get the number of the inserted documents, inspired by psycopg3 docs
+        # executemany(returning=True) yields one result set per document, so walk them all with nextset()
         # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
         while True:
@@ -807,9 +892,14 @@ class PostgreSQLDocumentStore(ABC):
             )
             raise DocumentStoreError(error_msg) from e
 
+        # executemany(returning=True) yields one result set per document, so walk them all with nextset()
+        # https://www.psycopg.org/psycopg3/docs/api/cursors.html#psycopg.Cursor.executemany
         written_docs = 0
-        async for _ in self._async_cursor:
-            written_docs += 1
+        while True:
+            if await self._async_cursor.fetchone():
+                written_docs += 1
+            if not self._async_cursor.nextset():
+                break
 
         return written_docs
 
@@ -896,18 +986,21 @@ class PostgreSQLDocumentStore(ABC):
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
+        :raises FilterError: If `filters` is empty. Use `delete_all_documents()` to delete everything.
         """
         _validate_filters(filters)
+        if not filters:
+            # An empty filter would compile to an unqualified DELETE and empty the table
+            msg = "delete_by_filter requires a non-empty filter. Use delete_all_documents() to delete every document."
+            raise FilterError(msg)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
         )
 
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            delete_sql += sql_where_clause
+        sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+        delete_sql += sql_where_clause
 
         self._ensure_db_setup()
         assert self._cursor is not None
@@ -938,18 +1031,24 @@ class PostgreSQLDocumentStore(ABC):
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
+        :raises FilterError: If `filters` is empty. Use `delete_all_documents_async()` to delete everything.
         """
         _validate_filters(filters)
+        if not filters:
+            # An empty filter would compile to an unqualified DELETE and empty the table
+            msg = (
+                "delete_by_filter_async requires a non-empty filter. "
+                "Use delete_all_documents_async() to delete every document."
+            )
+            raise FilterError(msg)
 
         delete_sql = SQL("DELETE FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
         )
 
-        params = ()
-        if filters:
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-            delete_sql += sql_where_clause
+        sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+        delete_sql += sql_where_clause
 
         await self._ensure_db_setup_async()
         assert self._async_cursor is not None
@@ -1110,7 +1209,7 @@ class PostgreSQLDocumentStore(ABC):
         Retrieves documents that are most similar to the query using a full-text search.
 
         This method is not meant to be part of the public interface of
-        `PgvectorDocumentStore` and it should not be called directly.
+        the document store and it should not be called directly.
         `PgvectorKeywordRetriever` uses this method directly and is the public interface for it.
 
         :returns: List of Documents that are most similar to `query`
@@ -1173,12 +1272,13 @@ class PostgreSQLDocumentStore(ABC):
         """
         Performs checks and builds the SQL query and the where parameters for embedding retrieval.
         """
+
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
         if len(query_embedding) != self.embedding_dimension:
             msg = (
-                f"query_embedding dimension ({len(query_embedding)}) does not match PgvectorDocumentStore "
+                f"query_embedding dimension ({len(query_embedding)}) does not match PostgreSQLDocumentStore "
                 f"embedding dimension ({self.embedding_dimension})."
             )
             raise ValueError(msg)
@@ -1196,10 +1296,13 @@ class PostgreSQLDocumentStore(ABC):
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
             score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
+            order_by_definition = f"embedding <=> {query_embedding_for_postgres}"
         elif vector_function == "inner_product":
             score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
+            order_by_definition = f"embedding <#> {query_embedding_for_postgres}"
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
+            order_by_definition = f"embedding <-> {query_embedding_for_postgres}"
 
         sql_select = SQL("SELECT *, {score} FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
@@ -1212,13 +1315,9 @@ class PostgreSQLDocumentStore(ABC):
         if filters:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-        # we always want to return the most similar documents first
-        # so when using l2_distance, the sort order must be ASC
-        sort_order = "ASC" if vector_function == "l2_distance" else "DESC"
-
-        sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
+        sql_sort = SQL(" ORDER BY {order_by} ASC LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
-            sort_order=SQL(sort_order),
+            order_by=SQL(order_by_definition),
         )
 
         sql_query = sql_select + sql_where_clause + sql_sort
@@ -1237,7 +1336,7 @@ class PostgreSQLDocumentStore(ABC):
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
 
         This method is not meant to be part of the public interface of
-        `PgvectorDocumentStore` and it should not be called directly.
+        the document store and it should not be called directly.
         `PgvectorEmbeddingRetriever` uses this method directly and is the public interface for it.
 
         :returns: List of Documents that are most similar to `query_embedding`
@@ -1747,36 +1846,53 @@ class PostgreSQLDocumentStore(ABC):
         return {"min": min_value, "max": max_value}
 
     def _build_unique_values_queries(
-        self, normalized_field: str, search_term: str | None, from_: int, size: int
+        self,
+        normalized_field: str,
+        search_term: str | None,
+        from_: int,
+        size: int,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[Composed, Composed, tuple]:
         """
         Builds SQL queries for getting unique metadata field values.
 
         :param normalized_field: The normalized metadata field name.
-        :param search_term: Optional search term to filter documents by content.
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring match
+            against the metadata field's own value.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing (count_query, select_query, params).
         """
         field_literal = SQLLiteral(normalized_field)
 
         # base query components
-        sql_select = SQL("SELECT DISTINCT meta->>{} AS value").format(field_literal)
+        # Use the `->` (jsonb) operator rather than `->>` (text) so DISTINCT/ORDER BY operate on the
+        # value's original JSON type (numbers sort numerically, not lexicographically) and psycopg
+        # decodes the result to its native Python type instead of a string.
+        #
+        # Not fixable here: JSONB equality treats a whole-number float (1.0) as identical to a
+        # numerically equal int (1), so DISTINCT still collapses them - see this method's docstring.
+        sql_select = SQL("SELECT DISTINCT meta->{} AS value").format(field_literal)
         sql_from = SQL(" FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
         )
         sql_where = SQL(" WHERE meta->>{} IS NOT NULL").format(field_literal)
 
         params: tuple = ()
+        if filters:
+            _validate_filters(filters)
+            filters_where_clause, filters_params = _convert_filters_to_where_clause_and_params(filters, operator="AND")
+            sql_where += filters_where_clause
+            params += filters_params
+
         if search_term:
-            # Use full-text search with word boundaries (similar to keyword retrieval)
-            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
-                language=SQLLiteral(self.language)
-            )
-            params = (search_term,)
+            # Case-insensitive substring match against the metadata field's own (text) value.
+            sql_where += SQL(" AND meta->>{} ILIKE %s").format(field_literal)
+            params += (f"%{search_term}%",)
 
         # count query
-        sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
+        sql_count = SQL("SELECT COUNT(DISTINCT meta->{} ) AS total").format(field_literal)
         sql_count += sql_from + sql_where
 
         # paginated select query
@@ -1790,7 +1906,7 @@ class PostgreSQLDocumentStore(ABC):
     @staticmethod
     def _process_unique_values_result(
         count_result: dict[str, Any] | None, records: list[dict[str, Any]]
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Processes the results from unique values queries.
 
@@ -1799,26 +1915,40 @@ class PostgreSQLDocumentStore(ABC):
         :returns: A tuple containing (unique_values, total_count).
         """
         total_count = count_result.get("total", 0) if count_result else 0
-        unique_values = [str(record.get("value", "")) for record in records if record.get("value") is not None]
+        unique_values = [record.get("value") for record in records if record.get("value") is not None]
         return unique_values, total_count
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Returns unique values for a given metadata field, optionally filtered by a search term.
 
+        **Note**: values of different JSON type categories are kept distinct - a string, a number and
+        a boolean never collapse into each other, even when they share a textual form (e.g. the string
+        `"1"` and the number `1`). One exception: the ``meta`` column is JSONB, whose equality treats a
+        whole-number float (`1.0`) as identical to a numerically equal int (`1`), so those two collapse
+        into a single value. Floats with a fractional part (e.g. `1.5`) are unaffected.
+
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
-        :param search_term: Optional search term to filter documents by content before extracting unique values.
-            If None, all documents are considered.
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring
+            match against the metadata field's own value. If None, all values are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing:
-            - A list of unique values (as strings)
+            - A list of unique values in their original type
             - The total count of unique values
         """
         normalized_field = PostgreSQLDocumentStore._normalize_metadata_field_name(metadata_field)
-        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
+        sql_count, sql_query, params = self._build_unique_values_queries(
+            normalized_field, search_term, from_, size, filters
+        )
 
         self._ensure_db_setup()
         assert self._dict_cursor is not None
@@ -1841,22 +1971,36 @@ class PostgreSQLDocumentStore(ABC):
         return PostgreSQLDocumentStore._process_unique_values_result(count_result, records)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
-    ) -> tuple[list[str], int]:
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a given metadata field, optionally filtered by a search term.
 
+        **Note**: values of different JSON type categories are kept distinct - a string, a number and
+        a boolean never collapse into each other, even when they share a textual form (e.g. the string
+        `"1"` and the number `1`). One exception: the ``meta`` column is JSONB, whose equality treats a
+        whole-number float (`1.0`) as identical to a numerically equal int (`1`), so those two collapse
+        into a single value. Floats with a fractional part (e.g. `1.5`) are unaffected.
+
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
-        :param search_term: Optional search term to filter documents by content before extracting unique values.
-            If None, all documents are considered.
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring
+            match against the metadata field's own value. If None, all values are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing:
-            - A list of unique values (as strings)
+            - A list of unique values in their original type
             - The total count of unique values
         """
         normalized_field = PostgreSQLDocumentStore._normalize_metadata_field_name(metadata_field)
-        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
+        sql_count, sql_query, params = self._build_unique_values_queries(
+            normalized_field, search_term, from_, size, filters
+        )
 
         await self._ensure_db_setup_async()
         assert self._async_dict_cursor is not None
