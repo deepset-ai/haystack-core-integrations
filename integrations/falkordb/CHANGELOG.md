@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/falkordb-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/falkordb-v1.5.0] - 2026-10-05
 
 ### 🚀 Features

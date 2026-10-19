@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/opentelemetry-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/opentelemetry-v1.0.0] - 2026-06-23
 
 ### 🚀 Features

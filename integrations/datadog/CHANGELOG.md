@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/datadog-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/datadog-v1.0.0] - 2026-06-16
 
 ### 🚀 Features
