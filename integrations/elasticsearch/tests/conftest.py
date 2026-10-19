@@ -259,19 +259,23 @@ def hybrid_inference_document_store():
     """
     Document store fixture for ElasticsearchInferenceHybridRetriever integration tests.
 
-    Connects to a managed Elastic Cloud instance. Requires three environment variables:
-      - ELASTICSEARCH_URL         cluster endpoint, e.g. https://my-cluster.es.io:443
-      - ELASTIC_API_KEY           base64-encoded API key (id:secret)
-      - ELASTICSEARCH_INFERENCE_ID  deployed sparse inference endpoint, e.g. ".elser-2-elasticsearch"
+    Connects to a managed Elastic Cloud instance. Requires two environment variables:
+      - ELASTICSEARCH_URL    cluster endpoint, e.g. https://my-cluster.es.io:443
+      - ELASTIC_API_KEY      base64-encoded API key (id:secret)
 
-    Tests that use this fixture are skipped automatically when the variables are absent.
+    Optional:
+      - ELASTICSEARCH_INFERENCE_ID  sparse inference endpoint to use
+                                    (default: ".elser-2-elastic")
+
+    Tests that use this fixture are skipped automatically when the required variables are absent.
     """
     url = os.environ.get("ELASTICSEARCH_URL")
     api_key = os.environ.get("ELASTIC_API_KEY")
-    inference_id = os.environ.get("ELASTICSEARCH_INFERENCE_ID")
 
-    if not all([url, api_key, inference_id]):
-        pytest.skip("Set ELASTICSEARCH_URL, ELASTIC_API_KEY and ELASTICSEARCH_INFERENCE_ID to run inference tests")
+    if not all([url, api_key]):
+        pytest.skip("Set ELASTICSEARCH_URL and ELASTIC_API_KEY to run inference tests")
+
+    inference_id = os.environ.get("ELASTICSEARCH_INFERENCE_ID", ".elser-2-elastic")
 
     index = f"test_hybrid_inference_{uuid.uuid4().hex}"
     store = ElasticsearchDocumentStore(
