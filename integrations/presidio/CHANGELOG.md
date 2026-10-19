@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/presidio-v3.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Add missing click dep for presidio (#3360)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+- Re-standardize READMEs (#3768)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/presidio-v2.1.0] - 2026-04-24
 
 ### 🚀 Features
