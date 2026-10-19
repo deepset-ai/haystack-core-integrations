@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/deepeval-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### ⚙️ CI
+
+- Change pytest command (#2475)
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+- Enable ANN ruff ruleset and add missing docstrings for deepeval integration (#2985)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+- Deepeval - fix types (#3346)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/deepeval-v1.0.0] - 2025-10-30
 
 ### 📚 Documentation
