@@ -35,7 +35,12 @@
 #   Required:
 #     ELASTICSEARCH_URL                 - cluster endpoint
 #     ELASTIC_API_KEY                   - API key
+#
+#   Optional:
 #     ELASTICSEARCH_DENSE_INFERENCE_ID  - dense text-embedding inference endpoint ID
+#                                         (default: ".multilingual-e5-small-elasticsearch")
+#
+#   The fixture lives in conftest.py (dense_inference_document_store).
 #
 # --- Running the tests --------------------------------------------------------
 #
@@ -46,7 +51,6 @@
 #     pytest -m integration tests/test_cloud_dense_retriever.py
 
 
-import os
 from copy import deepcopy
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -328,23 +332,6 @@ class TestElasticsearchInferenceDenseRetriever:
     End-to-end tests against a real Elastic Cloud cluster with a deployed text-embedding endpoint.
     Run with: pytest -m integration
     """
-
-    @pytest.fixture()
-    def dense_inference_document_store(self):
-        url = os.environ.get("ELASTICSEARCH_URL")
-        api_key = os.environ.get("ELASTIC_API_KEY")
-        inference_id = os.environ.get("ELASTICSEARCH_DENSE_INFERENCE_ID")
-        if not all([url, api_key, inference_id]):
-            pytest.skip(
-                "Set ELASTICSEARCH_URL, ELASTIC_API_KEY, and ELASTICSEARCH_DENSE_INFERENCE_ID to run integration tests"
-            )
-        store = ElasticsearchDocumentStore(
-            hosts=url,
-            api_key=api_key,
-            index=f"test-dense-inference-{inference_id.strip('.').replace('-', '_')}",
-        )
-        yield store, inference_id
-        store.client.indices.delete(index=store._index, ignore_unavailable=True)
 
     def _index_documents_with_inference(self, client, index, inference_id, docs):
         response = client.inference.inference(
