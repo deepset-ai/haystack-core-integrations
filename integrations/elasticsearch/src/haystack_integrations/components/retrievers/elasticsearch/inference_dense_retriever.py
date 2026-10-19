@@ -22,6 +22,12 @@ class ElasticsearchInferenceDenseRetriever:
     Elastic Inference API such as ``".multilingual-e5-small-elasticsearch"`` on Serverless or a
     custom endpoint on a stateful cluster).
 
+    Only the query is embedded at search time. The indexed documents must already have their
+    ``embedding`` field populated with vectors produced by the **same** inference endpoint, for
+    example by writing them through an ingest pipeline with an ``inference`` processor whose
+    ``output_field`` is ``"embedding"``. Vectors from a different model, or a different dimension,
+    will return meaningless results or fail at query time.
+
     Usage example:
 
     ```python
@@ -143,7 +149,7 @@ class ElasticsearchInferenceDenseRetriever:
             query=query,
             inference_id=self._inference_id,
             filters=filters,
-            top_k=top_k or self._top_k,
+            top_k=top_k if top_k is not None else self._top_k,
             num_candidates=self._num_candidates,
         )
         return {"documents": docs}
@@ -171,7 +177,7 @@ class ElasticsearchInferenceDenseRetriever:
             query=query,
             inference_id=self._inference_id,
             filters=filters,
-            top_k=top_k or self._top_k,
+            top_k=top_k if top_k is not None else self._top_k,
             num_candidates=self._num_candidates,
         )
         return {"documents": docs}
