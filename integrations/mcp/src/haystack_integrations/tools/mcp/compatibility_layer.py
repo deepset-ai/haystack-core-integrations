@@ -4,13 +4,15 @@
 
 """Compatibility helpers for the mcp SDK v1 and v2"""
 
+import inspect
 from importlib.metadata import version
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 from pydantic import BaseModel
 
 from mcp import types
+from mcp.client.auth.extensions.client_credentials import ClientCredentialsOAuthProvider
 
 MCP_V2 = int(version("mcp").split(".")[0]) >= 2  # noqa: PLR2004
 
@@ -72,3 +74,43 @@ def mcp_field_value(model: BaseModel, name: str) -> Any:
         field_name = first + "".join(word.title() for word in rest)
 
     return getattr(model, field_name, None)
+
+
+def create_client_credentials_provider(
+    *,
+    server_url: str,
+    storage: Any,
+    client_id: str,
+    client_secret: str,
+    token_endpoint_auth_method: Literal["client_secret_basic", "client_secret_post"],
+    scope: str | None,
+    issuer: str | None,
+) -> Any:
+    """
+    Create the SDK's OAuth Client Credentials provider irrespective of the installed SDK.
+
+    The scope argument is named `scopes` in v1 and `scope` in v2, so it is passed positionally. `issuer` is only
+    accepted from mcp 1.30.0 (v1) and 2.2.0 (v2).
+
+    :param server_url: URL of the MCP server.
+    :param storage: Implementation of the `mcp.client.auth.TokenStorage` protocol.
+    :param client_id: OAuth client identifier.
+    :param client_secret: OAuth client secret.
+    :param token_endpoint_auth_method: `"client_secret_basic"` or `"client_secret_post"`.
+    :param scope: Space-separated scopes to request.
+    :param issuer: Expected issuer of the authorization server.
+    :returns: A `ClientCredentialsOAuthProvider`, usable as `auth` of the SDK's HTTP client.
+    :raises ValueError: If `issuer` is set but the installed SDK doesn't support it.
+    """
+    kwargs: dict[str, Any] = {}
+    if issuer is not None:
+        if "issuer" not in inspect.signature(ClientCredentialsOAuthProvider.__init__).parameters:
+            message = (
+                f"OAuthConfig.issuer needs mcp>=1.30.0 (v1) or mcp>=2.2.0 (v2), but mcp {version('mcp')} is installed."
+            )
+            raise ValueError(message)
+        kwargs["issuer"] = issuer
+
+    return ClientCredentialsOAuthProvider(
+        server_url, storage, client_id, client_secret, token_endpoint_auth_method, scope, **kwargs
+    )

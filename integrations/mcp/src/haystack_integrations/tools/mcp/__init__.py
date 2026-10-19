@@ -18,7 +18,7 @@ from .mcp_tool import (
     StreamableHttpServerInfo,
 )
 from .mcp_toolset import MCPToolset
-from .oauth import InMemoryTokenStorage, OAuthConfig, TokenData, TokenStorage
+from .oauth import InMemoryTokenStorage, OAuthConfig
 
 __all__ = [
     "InMemoryTokenStorage",
@@ -37,6 +37,4 @@ __all__ = [
     "StdioServerInfo",
     "StreamableHttpClient",
     "StreamableHttpServerInfo",
-    "TokenData",
-    "TokenStorage",
 ]

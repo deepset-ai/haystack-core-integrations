@@ -2,245 +2,307 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-End-to-end integration tests for OAuth Client Credentials flow.
+import inspect
+import json
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
 
-Starts a real HTTP mock OAuth server on localhost using the stdlib http.server
-and verifies the full token-fetch-and-inject path without mocking httpx.
-"""
+import pytest
+from haystack.utils import Secret
 
+from haystack_integrations.tools.mcp import (
+    MCPConnectionError,
+    MCPTool,
+    MCPToolset,
+    OAuthConfig,
+    SSEServerInfo,
+    StreamableHttpServerInfo,
+)
+from mcp.client.auth.extensions.client_credentials import ClientCredentialsOAuthProvider
+
+pytestmark = pytest.mark.integration
+
+CLIENT_ID = "haystack-client"
+CLIENT_SECRET = "haystack-secret"  # noqa: S105
+
+# `issuer` is only accepted by mcp>=1.30.0 (v1) and mcp>=2.2.0 (v2)
+SDK_SUPPORTS_ISSUER = "issuer" in inspect.signature(ClientCredentialsOAuthProvider.__init__).parameters
+
+# An MCP server protected with OAuth, and the authorization server issuing its tokens, in a single process.
+# The authorization server only knows the Client Credentials grant with HTTP Basic client authentication, and
+# exposes `/stats` so tests can inspect the token requests it received.
+_OAUTH_SERVER_TEMPLATE = """
+import base64
 import json
 import threading
 import time
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import httpx
-import pytest
-from haystack.utils import Secret
+from mcp.server.auth.provider import AccessToken
+from mcp.server.auth.settings import AuthSettings
 
-from haystack_integrations.tools.mcp import InMemoryTokenStorage, OAuthConfig, SSEServerInfo, StreamableHttpServerInfo
-from haystack_integrations.tools.mcp.oauth import TokenData, _fetch_client_credentials_token, ensure_oauth
+MCP_PORT, AS_PORT, TRANSPORT, EXPIRES_IN = {mcp_port}, {as_port}, "{transport}", {expires_in}
+CLIENT_ID, CLIENT_SECRET = "{client_id}", "{client_secret}"
+ISSUER = f"http://127.0.0.1:{{AS_PORT}}"
+RESOURCE = f"http://127.0.0.1:{{MCP_PORT}}/{{'sse' if TRANSPORT == 'sse' else 'mcp'}}"
 
-# ---------------------------------------------------------------------------
-# Mock OAuth server using stdlib http.server
-# ---------------------------------------------------------------------------
-
-VALID_CLIENT_ID = "test-client"
-VALID_CLIENT_SECRET = "test-secret"
-ISSUED_TOKEN = "mock-access-token-xyz"
-SERVER_PORT = 19876
-
-TOKEN_ENDPOINT = f"http://127.0.0.1:{SERVER_PORT}/oauth/token"
-NO_EXPIRY_ENDPOINT = f"http://127.0.0.1:{SERVER_PORT}/oauth/no-expiry-token"
-DISCOVERY_BASE = f"http://127.0.0.1:{SERVER_PORT}"
+issued_tokens = {{}}
+token_requests = []
 
 
-class _OAuthHandler(BaseHTTPRequestHandler):
-    def log_message(self, *args):  # silence request log output
+class AuthServerHandler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
         pass
 
-    def do_GET(self):
-        if self.path == "/.well-known/oauth-authorization-server":
-            body = json.dumps({"token_endpoint": TOKEN_ENDPOINT}).encode()
-            self._send(200, body)
-        else:
-            self._send(404, b"{}")
-
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        raw = self.rfile.read(length).decode()
-        params = dict(urllib.parse.parse_qsl(raw))
-
-        if self.path == "/oauth/token":
-            if params.get("grant_type") != "client_credentials":
-                self._send(400, json.dumps({"error": "unsupported_grant_type"}).encode())
-                return
-            if params.get("client_id") != VALID_CLIENT_ID or params.get("client_secret") != VALID_CLIENT_SECRET:
-                self._send(401, json.dumps({"error": "invalid_client"}).encode())
-                return
-            scope = params.get("scope", "")
-            body = json.dumps(
-                {
-                    "access_token": ISSUED_TOKEN,
-                    "token_type": "Bearer",
-                    "expires_in": 3600,
-                    "scope": scope,
-                }
-            ).encode()
-            self._send(200, body)
-
-        elif self.path == "/oauth/no-expiry-token":
-            if params.get("client_id") != VALID_CLIENT_ID:
-                self._send(401, json.dumps({"error": "invalid_client"}).encode())
-                return
-            body = json.dumps({"access_token": "no-expiry-token", "token_type": "Bearer"}).encode()
-            self._send(200, body)
-
-        else:
-            self._send(404, b"{}")
-
-    def _send(self, status: int, body: bytes) -> None:
+    def _send_json(self, status, body):
+        payload = json.dumps(body).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(body)
+        self.wfile.write(payload)
+
+    def do_GET(self):
+        if self.path.startswith("/.well-known/oauth-authorization-server"):
+            self._send_json(
+                200,
+                {{
+                    "issuer": ISSUER,
+                    "authorization_endpoint": f"{{ISSUER}}/authorize",
+                    "token_endpoint": f"{{ISSUER}}/token",
+                    "grant_types_supported": ["client_credentials"],
+                    "token_endpoint_auth_methods_supported": ["client_secret_basic"],
+                }},
+            )
+        elif self.path == "/stats":
+            self._send_json(200, {{"token_requests": token_requests}})
+        else:
+            self._send_json(404, {{"error": "not_found"}})
+
+    def do_POST(self):
+        if self.path != "/token":
+            self._send_json(404, {{"error": "not_found"}})
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        form = {{k: v[0] for k, v in urllib.parse.parse_qs(self.rfile.read(length).decode()).items()}}
+        authorization = self.headers.get("Authorization", "")
+        token_requests.append({{"form": form, "basic_auth": authorization.startswith("Basic ")}})
+
+        expected = "Basic " + base64.b64encode(f"{{CLIENT_ID}}:{{CLIENT_SECRET}}".encode()).decode()
+        if authorization != expected or form.get("grant_type") != "client_credentials":
+            self._send_json(401, {{"error": "invalid_client", "error_description": "Client authentication failed"}})
+            return
+
+        token = f"access-token-{{len(token_requests)}}"
+        issued_tokens[token] = time.time() + EXPIRES_IN
+        self._send_json(200, {{"access_token": token, "token_type": "Bearer", "expires_in": EXPIRES_IN}})
 
 
-@pytest.fixture(scope="session", autouse=True)
-def mock_oauth_server():
-    """Start the mock OAuth server once for the whole test session."""
-    server = HTTPServer(("127.0.0.1", SERVER_PORT), _OAuthHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    # Wait until the server is accepting connections
-    deadline = time.time() + 10
-    while time.time() < deadline:
+class TokenVerifier:
+    async def verify_token(self, token):
+        expires_at = issued_tokens.get(token)
+        if expires_at is None or time.time() > expires_at:
+            return None
+        return AccessToken(token=token, client_id=CLIENT_ID, scopes=[], expires_at=int(expires_at))
+
+
+auth = AuthSettings(issuer_url=ISSUER, resource_server_url=RESOURCE)
+try:
+    from mcp.server import MCPServer  # mcp v2
+
+    mcp = MCPServer("OAuth Calculator", token_verifier=TokenVerifier(), auth=auth)
+    run_kwargs = {{"host": "127.0.0.1", "port": MCP_PORT}}
+except ImportError:
+    from mcp.server.fastmcp import FastMCP  # mcp v1
+
+    mcp = FastMCP("OAuth Calculator", host="127.0.0.1", port=MCP_PORT, token_verifier=TokenVerifier(), auth=auth)
+    run_kwargs = {{}}
+
+
+@mcp.tool()
+def add(a: int, b: int) -> int:
+    \"\"\"Add two numbers\"\"\"
+    return a + b
+
+
+if __name__ == "__main__":
+    auth_server = ThreadingHTTPServer(("127.0.0.1", AS_PORT), AuthServerHandler)
+    threading.Thread(target=auth_server.serve_forever, daemon=True).start()
+    mcp.run(transport=TRANSPORT, **run_kwargs)
+"""
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
+def _wait_for_port(process: subprocess.Popen, port: int) -> None:
+    deadline = time.time() + 30
+    while True:
+        if process.poll() is not None:
+            stderr = process.stderr.read() if process.stderr else ""
+            message = f"OAuth MCP server process exited early (code {process.returncode}):\n{stderr}"
+            raise RuntimeError(message)
         try:
-            httpx.get(f"http://127.0.0.1:{SERVER_PORT}/.well-known/oauth-authorization-server", timeout=1)
-            break
-        except Exception:
-            time.sleep(0.1)
-    yield
-    server.shutdown()
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                return
+        except OSError as e:
+            if time.time() > deadline:
+                message = f"OAuth MCP server did not start listening on port {port} within 30s"
+                raise TimeoutError(message) from e
+            time.sleep(0.2)
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+class OAuthServer:
+    """Handle to a running OAuth-protected MCP server and its authorization server."""
+
+    def __init__(self, url: str, issuer: str) -> None:
+        self.url = url
+        self.issuer = issuer
+
+    def token_requests(self) -> list[dict]:
+        with urllib.request.urlopen(f"{self.issuer}/stats", timeout=5) as response:  # noqa: S310
+            return json.loads(response.read())["token_requests"]
 
 
-class TestFetchClientCredentialsLive:
-    def test_successful_token_fetch(self):
-        cfg = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=VALID_CLIENT_SECRET,
-            token_endpoint=TOKEN_ENDPOINT,
+@pytest.fixture
+def oauth_mcp_server():
+    """
+    Factory fixture that starts an OAuth-protected MCP server exposing an `add` tool.
+
+    Call it with a transport ("sse" or "streamable-http") and the lifetime of the issued tokens in seconds.
+    """
+    processes = []
+    script_paths = []
+
+    def _start(transport: str = "streamable-http", expires_in: int = 3600) -> OAuthServer:
+        mcp_port, as_port = _free_port(), _free_port()
+        script = _OAUTH_SERVER_TEMPLATE.format(
+            mcp_port=mcp_port,
+            as_port=as_port,
+            transport=transport,
+            expires_in=expires_in,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
         )
-        token = _fetch_client_credentials_token(cfg)
-        assert token.access_token == ISSUED_TOKEN
-        assert token.token_type == "Bearer"
-        assert token.is_valid()
-        assert token.expires_at > time.time()
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as temp_file:
+            temp_file.write(script)
+        script_paths.append(temp_file.name)
 
-    def test_secret_object_resolved_correctly(self, monkeypatch):
-        monkeypatch.setenv("OAUTH_CS", VALID_CLIENT_SECRET)
-        cfg = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=Secret.from_env_var("OAUTH_CS"),
-            token_endpoint=TOKEN_ENDPOINT,
+        process = subprocess.Popen(
+            [sys.executable, temp_file.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
-        token = _fetch_client_credentials_token(cfg)
-        assert token.access_token == ISSUED_TOKEN
+        processes.append(process)
+        _wait_for_port(process, mcp_port)
+        _wait_for_port(process, as_port)
 
-    def test_wrong_credentials_raises(self):
-        cfg = OAuthConfig(
-            client_id="bad-client",
-            client_secret="bad-secret",
-            token_endpoint=TOKEN_ENDPOINT,
+        path = "sse" if transport == "sse" else "mcp"
+        return OAuthServer(url=f"http://127.0.0.1:{mcp_port}/{path}", issuer=f"http://127.0.0.1:{as_port}")
+
+    yield _start
+
+    for process in processes:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+    for script_path in script_paths:
+        if os.path.exists(script_path):
+            os.remove(script_path)
+
+
+@pytest.fixture
+def client_secret(monkeypatch):
+    monkeypatch.setenv("TEST_MCP_CLIENT_SECRET", CLIENT_SECRET)
+    return Secret.from_env_var("TEST_MCP_CLIENT_SECRET")
+
+
+def _oauth_config(server: OAuthServer, client_secret: Secret) -> OAuthConfig:
+    return OAuthConfig(
+        client_id=CLIENT_ID,
+        client_secret=client_secret,
+        issuer=server.issuer if SDK_SUPPORTS_ISSUER else None,
+    )
+
+
+def _add(tool: MCPTool, a: int, b: int) -> str:
+    result = json.loads(tool.invoke(a=a, b=b))
+    assert not result["isError"]
+    return result["content"][0]["text"]
+
+
+class TestOAuthClientCredentials:
+    @pytest.mark.parametrize("transport", ["streamable-http", "sse"])
+    def test_tool_call_on_oauth_protected_server(self, oauth_mcp_server, client_secret, mcp_tool_cleanup, transport):
+        server = oauth_mcp_server(transport)
+        server_info_class = SSEServerInfo if transport == "sse" else StreamableHttpServerInfo
+        server_info = server_info_class(url=server.url, oauth_config=_oauth_config(server, client_secret))
+
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info))
+
+        assert _add(tool, 2, 3) == "5"
+        token_requests = server.token_requests()
+        assert len(token_requests) == 1
+        assert token_requests[0]["basic_auth"]
+        assert token_requests[0]["form"]["grant_type"] == "client_credentials"
+        assert token_requests[0]["form"]["resource"] == server.url
+
+    def test_new_token_is_fetched_after_expiry(self, oauth_mcp_server, client_secret, mcp_tool_cleanup):
+        server = oauth_mcp_server("streamable-http", expires_in=2)
+        server_info = StreamableHttpServerInfo(url=server.url, oauth_config=_oauth_config(server, client_secret))
+
+        toolset = mcp_tool_cleanup(MCPToolset(server_info=server_info))
+        toolset.warm_up()
+        add_tool = next(tool for tool in toolset if tool.name == "add")
+
+        assert _add(add_tool, 1, 1) == "2"
+        assert len(server.token_requests()) == 1
+
+        time.sleep(3)
+
+        assert _add(add_tool, 2, 2) == "4"
+        assert len(server.token_requests()) == 2
+
+    def test_invalid_client_credentials(self, oauth_mcp_server, monkeypatch, mcp_tool_cleanup):
+        server = oauth_mcp_server("streamable-http")
+        monkeypatch.setenv("TEST_MCP_CLIENT_SECRET", "wrong-secret")
+        server_info = StreamableHttpServerInfo(
+            url=server.url,
+            oauth_config=_oauth_config(server, Secret.from_env_var("TEST_MCP_CLIENT_SECRET")),
         )
-        with pytest.raises(httpx.HTTPStatusError):
-            _fetch_client_credentials_token(cfg)
 
-    def test_scopes_sent_to_server(self):
-        cfg = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=VALID_CLIENT_SECRET,
-            token_endpoint=TOKEN_ENDPOINT,
-            scopes=["read", "write"],
-        )
-        token = _fetch_client_credentials_token(cfg)
-        assert token.scope == "read write"
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info, connection_timeout=10))
+        with pytest.raises(MCPConnectionError, match="invalid_client") as exc_info:
+            tool.warm_up()
+        print(repr(exc_info.value))
 
-    def test_token_without_expiry_has_zero_expires_at(self):
-        cfg = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            token_endpoint=NO_EXPIRY_ENDPOINT,
-        )
-        token = _fetch_client_credentials_token(cfg)
-        assert token.access_token == "no-expiry-token"
-        assert token.expires_at == 0.0
-        assert token.is_valid()  # 0.0 means "never expires"
+        assert server.token_requests()
 
-    def test_discovery_endpoint_resolves_token_url(self):
-        cfg = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=VALID_CLIENT_SECRET,
-            authorization_server_url=DISCOVERY_BASE,
-        )
-        token = _fetch_client_credentials_token(cfg)
-        assert token.access_token == ISSUED_TOKEN
+    def test_serialized_toolset_contains_no_credentials(self, oauth_mcp_server, client_secret, mcp_tool_cleanup):
+        server = oauth_mcp_server("streamable-http")
+        server_info = StreamableHttpServerInfo(url=server.url, oauth_config=_oauth_config(server, client_secret))
 
+        toolset = mcp_tool_cleanup(MCPToolset(server_info=server_info))
+        toolset.warm_up()
+        add_tool = next(tool for tool in toolset if tool.name == "add")
+        assert _add(add_tool, 1, 2) == "3"
 
-class TestEnsureOAuthLive:
-    def test_token_injected_into_sse_server_info(self):
-        oauth = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=VALID_CLIENT_SECRET,
-            token_endpoint=TOKEN_ENDPOINT,
-        )
-        server_info = SSEServerInfo(url="http://example.com/sse", oauth_config=oauth)
-        ensure_oauth(server_info)
-        assert server_info.headers is not None
-        assert server_info.headers["Authorization"] == f"Bearer {ISSUED_TOKEN}"
-
-    def test_token_injected_into_streamable_http_server_info(self):
-        oauth = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=VALID_CLIENT_SECRET,
-            token_endpoint=TOKEN_ENDPOINT,
-        )
-        server_info = StreamableHttpServerInfo(url="http://example.com/mcp", oauth_config=oauth)
-        ensure_oauth(server_info)
-        assert server_info.headers["Authorization"] == f"Bearer {ISSUED_TOKEN}"
-
-    def test_token_cached_second_call_does_not_hit_server(self):
-        storage = InMemoryTokenStorage()
-        oauth = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=VALID_CLIENT_SECRET,
-            token_endpoint=TOKEN_ENDPOINT,
-            token_storage=storage,
-        )
-        server_info = SSEServerInfo(url="http://example.com/sse", oauth_config=oauth)
-
-        # First call — hits the real server and populates the cache
-        ensure_oauth(server_info)
-        first_header = server_info.headers["Authorization"]
-        assert first_header == f"Bearer {ISSUED_TOKEN}"
-
-        # Verify the token landed in the cache
-        cache_key = f"{VALID_CLIENT_ID}@{TOKEN_ENDPOINT}"
-        cached = storage.get_token(cache_key)
-        assert cached is not None
-        assert cached.access_token == ISSUED_TOKEN
-
-        # Second call with the same storage — token still valid, no new fetch needed
-        server_info2 = SSEServerInfo(url="http://example.com/sse2", oauth_config=oauth)
-        ensure_oauth(server_info2)
-        assert server_info2.headers["Authorization"] == first_header
-
-    def test_expired_token_refetched_live(self):
-        storage = InMemoryTokenStorage()
-        oauth = OAuthConfig(
-            client_id=VALID_CLIENT_ID,
-            client_secret=VALID_CLIENT_SECRET,
-            token_endpoint=TOKEN_ENDPOINT,
-            token_storage=storage,
-        )
-        server_info = SSEServerInfo(url="http://example.com/sse", oauth_config=oauth)
-
-        # Plant an expired token in cache
-        expired = TokenData(access_token="expired-token", expires_at=time.time() - 1)
-        cache_key = f"{oauth.client_id}@{oauth.token_endpoint}"
-        storage.store_token(cache_key, expired)
-
-        ensure_oauth(server_info)
-        # Should have fetched a fresh token
-        assert server_info.headers["Authorization"] == f"Bearer {ISSUED_TOKEN}"
-
-    def test_noop_when_no_oauth_config(self):
-        server_info = SSEServerInfo(url="http://example.com/sse")
-        ensure_oauth(server_info)  # should not raise
+        serialized = json.dumps(toolset.to_dict())
+        assert "access-token-" not in serialized
+        assert CLIENT_SECRET not in serialized
+        assert "TEST_MCP_CLIENT_SECRET" in serialized
         assert server_info.headers is None
+
+        restored = MCPToolset.from_dict(json.loads(serialized))
+        assert restored.server_info == server_info

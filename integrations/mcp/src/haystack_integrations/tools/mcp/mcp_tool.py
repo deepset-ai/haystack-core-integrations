@@ -25,7 +25,6 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.auth import SecretType
 from haystack.utils.url_validation import is_valid_http_url
 
-from haystack_integrations.tools.mcp.oauth import OAuthConfig, ensure_oauth
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
@@ -33,6 +32,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 
 from .compatibility_layer import is_reconnectable, mcp_field_value
+from .oauth import OAuthConfig
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,29 @@ def _resolve_headers(headers: dict[str, str | Secret] | None) -> dict[str, str] 
             resolved_headers[key] = resolved_value
 
     return resolved_headers
+
+
+def _validate_oauth_config(
+    oauth_config: OAuthConfig | None, token: str | Secret | None, headers: dict[str, str | Secret] | None
+) -> None:
+    """
+    Check that OAuth isn't combined with another way of setting the Authorization header.
+
+    The OAuth provider sets the Authorization header on every request, so it would silently override them.
+
+    :param oauth_config: The OAuth configuration, if any
+    :param token: The static authentication token, if any
+    :param headers: The custom HTTP headers, if any
+    :raises ValueError: If `oauth_config` is combined with `token` or an `Authorization` header
+    """
+    if oauth_config is None:
+        return
+    if token is not None:
+        message = "`token` and `oauth_config` can't be used together. Use one of them to authenticate."
+        raise ValueError(message)
+    if headers and any(key.lower() == "authorization" for key in headers):
+        message = "An `Authorization` header can't be used together with `oauth_config`."
+        raise ValueError(message)
 
 
 def _extract_first_text_element(tool_call_result: str) -> str | dict[str, Any]:
@@ -487,21 +510,26 @@ class SSEClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
-        # Ensure OAuth token is fetched and injected into server_info.headers before resolving
-        ensure_oauth(server_info)
         # Resolve Secret values in headers dictionary
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
+        self.oauth_config: OAuthConfig | None = server_info.oauth_config
+        # Created on first connect and reused on reconnects, so the token and discovered metadata are kept
+        self._auth: Any | None = None
 
     async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using SSE transport.
 
         Note: If both custom headers and token are provided, custom headers take precedence.
+        If `oauth_config` is set, an OAuth access token is obtained and attached to every request.
 
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        if self.oauth_config is not None and self._auth is None:
+            self._auth = self.oauth_config.create_auth(server_url=self.url)
+
         # Use custom headers if provided, otherwise fall back to token-based Authorization
         headers = None
         if self.headers:
@@ -510,7 +538,7 @@ class SSEClient(MCPClient):
             headers = {"Authorization": f"Bearer {self.token}"}
 
         sse_transport = await self.exit_stack.enter_async_context(
-            sse_client(self.url, headers=headers, timeout=self.timeout)
+            sse_client(self.url, headers=headers, timeout=self.timeout, auth=self._auth)
         )
         return await self._initialize_session_with_transport(sse_transport, f"HTTP server at {self.url}")
 
@@ -540,21 +568,26 @@ class StreamableHttpClient(MCPClient):
         self.token: str | None = (
             server_info.token.resolve_value() if isinstance(server_info.token, Secret) else server_info.token
         )
-        # Ensure OAuth token is fetched and injected into server_info.headers before resolving
-        ensure_oauth(server_info)
         # Resolve Secret values in headers dictionary
         self.headers: dict[str, str] | None = _resolve_headers(server_info.headers)
         self.timeout: int = server_info.timeout
+        self.oauth_config: OAuthConfig | None = server_info.oauth_config
+        # Created on first connect and reused on reconnects, so the token and discovered metadata are kept
+        self._auth: Any | None = None
 
     async def connect(self) -> list[types.Tool]:
         """
         Connect to an MCP server using streamable HTTP transport.
 
         Note: If both custom headers and token are provided, custom headers take precedence.
+        If `oauth_config` is set, an OAuth access token is obtained and attached to every request.
 
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
+        if self.oauth_config is not None and self._auth is None:
+            self._auth = self.oauth_config.create_auth(server_url=self.url)
+
         # Use custom headers if provided, otherwise fall back to token-based Authorization
         headers = None
         if self.headers:
@@ -562,7 +595,11 @@ class StreamableHttpClient(MCPClient):
         elif self.token:
             headers = {"Authorization": f"Bearer {self.token}"}
 
-        http_client = create_mcp_http_client(headers=headers, timeout=self.timeout)  # type: ignore[arg-type]
+        http_client = create_mcp_http_client(
+            headers=headers,
+            timeout=self.timeout,  # type: ignore[arg-type]
+            auth=self._auth,
+        )
         streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamable_http_client(self.url, http_client=http_client)
         )
@@ -634,16 +671,9 @@ class MCPServerInfo(ABC):
                 deserialize_secrets_inplace(data_copy, keys=[name])
                 continue
 
-            # Nested object with its own from_dict (e.g. OAuthConfig)?
-            type_name = value.get("type")
-            if isinstance(type_name, str) and type_name not in secret_types:
-                try:
-                    klass = import_class_by_name(type_name)
-                    if hasattr(klass, "from_dict"):
-                        data_copy[name] = klass.from_dict(value)
-                        continue
-                except (ImportError, AttributeError):
-                    pass
+            if name == "oauth_config":
+                data_copy[name] = OAuthConfig.from_dict(value)
+                continue
 
             # Nested secrets (one level deep)
             nested_keys: list[str] = [
@@ -690,11 +720,26 @@ class SSEServerInfo(MCPServerInfo):
     )
     ```
 
+    For servers protected with OAuth 2.0, using the Client Credentials grant:
+
+    ```python
+    server_info = SSEServerInfo(
+        url="https://my-mcp-server.com/sse",
+        oauth_config=OAuthConfig(
+            client_id="my-client-id",
+            client_secret=Secret.from_env_var("MCP_CLIENT_SECRET"),
+            issuer="https://auth.example.com",
+        ),
+    )
+    ```
+
     :param url: Full URL of the MCP server (including /sse endpoint)
     :param base_url: Base URL of the MCP server (deprecated, use url instead)
     :param token: Authentication token for the server (optional, generates "Authorization: Bearer `<token>`" header)
     :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
+    :param oauth_config: OAuth 2.0 configuration (optional). Can't be combined with `token` or an
+        `Authorization` header.
     """
 
     url: str | None = None
@@ -732,6 +777,8 @@ class SSEServerInfo(MCPServerInfo):
         elif self.url and not is_valid_http_url(self.url):
             message = f"Invalid url: {self.url}"
             raise ValueError(message)
+
+        _validate_oauth_config(self.oauth_config, self.token, self.headers)
 
     def create_client(self) -> MCPClient:
         """
@@ -779,10 +826,25 @@ class StreamableHttpServerInfo(MCPServerInfo):
     )
     ```
 
+    For servers protected with OAuth 2.0, using the Client Credentials grant:
+
+    ```python
+    server_info = StreamableHttpServerInfo(
+        url="https://my-mcp-server.com/mcp",
+        oauth_config=OAuthConfig(
+            client_id="my-client-id",
+            client_secret=Secret.from_env_var("MCP_CLIENT_SECRET"),
+            issuer="https://auth.example.com",
+        ),
+    )
+    ```
+
     :param url: Full URL of the MCP server (streamable HTTP endpoint)
     :param token: Authentication token for the server (optional, generates "Authorization: Bearer `<token>`" header)
     :param headers: Custom HTTP headers (optional, takes precedence over token parameter if provided)
     :param timeout: Connection timeout in seconds
+    :param oauth_config: OAuth 2.0 configuration (optional). Can't be combined with `token` or an
+        `Authorization` header.
     """
 
     url: str
@@ -795,10 +857,12 @@ class StreamableHttpServerInfo(MCPServerInfo):
     oauth_config: OAuthConfig | None = None
 
     def __post_init__(self) -> None:
-        """Validate the URL."""
+        """Validate the URL and the authentication settings."""
         if not is_valid_http_url(self.url):
             message = f"Invalid url: {self.url}"
             raise ValueError(message)
+
+        _validate_oauth_config(self.oauth_config, self.token, self.headers)
 
     def create_client(self) -> MCPClient:
         """

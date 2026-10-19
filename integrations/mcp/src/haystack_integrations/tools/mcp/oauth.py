@@ -3,250 +3,208 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-OAuth 2.0 Client Credentials support for MCP server connections.
+OAuth 2.0 support for MCP server connections.
 
-Only the Client Credentials grant (RFC 6749 §4.4) is implemented here.
-Authorization Code + PKCE requires a local callback server (see issue #2547)
-and will be added in a follow-up.
+Authentication is delegated to the OAuth providers shipped with the `mcp` SDK, which handle the MCP authorization
+spec: authorization server discovery (RFC 9728 and RFC 8414), the `resource` parameter (RFC 8707), and fetching a
+new token when the MCP server rejects the current one.
+
+Only the Client Credentials grant (RFC 6749 §4.4) is supported for now.
 """
 
-from __future__ import annotations
-
-import time
-from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any, Literal
 
-import httpx
-from haystack import logging
+import anyio
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.auth import SecretType
 
-if TYPE_CHECKING:
-    pass
+from mcp.client.auth import OAuthFlowError, TokenStorage
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class TokenData:
-    """Cached OAuth token with expiry information."""
-
-    access_token: str
-    token_type: str = "Bearer"
-    expires_at: float = 0.0
-    scope: str | None = None
-
-    def is_valid(self, leeway: float = 30.0) -> bool:
-        """Return True if the token has not yet expired (with a leeway buffer in seconds)."""
-        if self.expires_at == 0.0:
-            return True
-        return time.time() < (self.expires_at - leeway)
+from .compatibility_layer import create_client_credentials_provider, http_lib
 
 
-class TokenStorage(ABC):
-    """Abstract token storage interface."""
+class InMemoryTokenStorage:
+    """
+    Token storage that keeps OAuth tokens in memory.
 
-    @abstractmethod
-    def get_token(self, key: str) -> TokenData | None:
-        """Return a cached token for *key*, or None if absent / expired."""
-
-    @abstractmethod
-    def store_token(self, key: str, token: TokenData) -> None:
-        """Persist *token* under *key*."""
-
-    @abstractmethod
-    def clear_token(self, key: str) -> None:
-        """Remove the cached token for *key* if present."""
-
-
-class InMemoryTokenStorage(TokenStorage):
-    """In-process token cache. Tokens are lost when the process exits."""
+    Implements the `mcp.client.auth.TokenStorage` protocol. Tokens are lost when the process exits.
+    """
 
     def __init__(self) -> None:
-        self._store: dict[str, TokenData] = {}
+        self._tokens: OAuthToken | None = None
+        self._client_info: OAuthClientInformationFull | None = None
 
-    def get_token(self, key: str) -> TokenData | None:
-        """Return the cached token for *key*, or None if absent or expired."""
-        token = self._store.get(key)
-        if token is None:
-            return None
-        if not token.is_valid():
-            del self._store[key]
-            return None
-        return token
+    async def get_tokens(self) -> OAuthToken | None:
+        """Return the stored tokens, if any."""
+        return self._tokens
 
-    def store_token(self, key: str, token: TokenData) -> None:
-        """Persist *token* under *key*."""
-        self._store[key] = token
+    async def set_tokens(self, tokens: OAuthToken) -> None:
+        """Store the given tokens."""
+        self._tokens = tokens
 
-    def clear_token(self, key: str) -> None:
-        """Remove the cached token for *key* if present."""
-        self._store.pop(key, None)
+    async def get_client_info(self) -> OAuthClientInformationFull | None:
+        """Return the stored client information, if any."""
+        return self._client_info
 
-
-def _default_storage() -> InMemoryTokenStorage:
-    return InMemoryTokenStorage()
+    async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
+        """Store the given client information."""
+        self._client_info = client_info
 
 
 @dataclass
 class OAuthConfig:
     """
-    OAuth 2.0 configuration for MCP server authentication.
+    OAuth 2.0 configuration for authenticating to an MCP server.
 
-    Currently supports the **Client Credentials** grant (RFC 6749 §4.4),
-    which is non-interactive and suitable for machine-to-machine connections.
+    Supports the Client Credentials grant (RFC 6749 §4.4), which is non-interactive and suited for
+    machine-to-machine connections. The authorization server and its token endpoint are discovered from the
+    MCP server, as described in the MCP authorization spec.
 
     Usage example:
     ```python
     from haystack.utils import Secret
-    from haystack_integrations.tools.mcp import OAuthConfig, StreamableHttpServerInfo
+    from haystack_integrations.tools.mcp import MCPToolset, OAuthConfig, StreamableHttpServerInfo
 
     server_info = StreamableHttpServerInfo(
         url="https://my-mcp-server.com/mcp",
         oauth_config=OAuthConfig(
             client_id="my-client-id",
             client_secret=Secret.from_env_var("MCP_CLIENT_SECRET"),
-            token_endpoint="https://auth.example.com/oauth/token",
+            issuer="https://auth.example.com",
             scopes=["mcp:tools"],
         ),
     )
+    toolset = MCPToolset(server_info=server_info)
     ```
 
     :param client_id: OAuth client identifier.
-    :param client_secret: OAuth client secret (use a `Secret` for secure handling).
-    :param token_endpoint: Full URL of the token endpoint.
-        Required for Client Credentials; optional when `authorization_server_url`
-        is set (the endpoint is then discovered via ``<authorization_server_url>/.well-known/…``).
-    :param authorization_server_url: Base URL of the authorisation server.
-        Used for metadata discovery when `token_endpoint` is not given.
+    :param client_secret: OAuth client secret.
+    :param issuer: Issuer identifier of the authorization server that issued the client credentials.
+        When set, tokens are only requested from an authorization server whose metadata names exactly this issuer.
+        Recommended, and required by future versions of the `mcp` SDK. Needs `mcp>=1.30.0` (v1) or `mcp>=2.2.0`
+        (v2).
     :param scopes: OAuth scopes to request.
-    :param token_storage: Where to cache tokens.  Defaults to `InMemoryTokenStorage`.
+    :param token_endpoint_auth_method: How the client authenticates to the token endpoint:
+        `"client_secret_basic"` (HTTP Basic, the default) or `"client_secret_post"` (credentials in the request body).
+    :param grant_type: The OAuth grant type. Only `"client_credentials"` is supported for now.
+    :param token_storage: Where tokens are kept between connections. Any implementation of the
+        `mcp.client.auth.TokenStorage` protocol works. Defaults to an `InMemoryTokenStorage`. Not serialized.
     """
 
     client_id: str
-    client_secret: str | Secret | None = None
-    token_endpoint: str | None = None
-    authorization_server_url: str | None = None
+    client_secret: Secret
+    issuer: str | None = None
     scopes: list[str] | None = None
-    token_storage: TokenStorage = field(default_factory=_default_storage)
+    token_endpoint_auth_method: Literal["client_secret_basic", "client_secret_post"] = "client_secret_basic"
+    grant_type: Literal["client_credentials"] = "client_credentials"
+    token_storage: TokenStorage = field(default_factory=InMemoryTokenStorage, compare=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Validate the configuration."""
+        if self.grant_type != "client_credentials":
+            message = f"Unsupported grant_type '{self.grant_type}'. Only 'client_credentials' is supported."
+            raise ValueError(message)
+        if self.token_endpoint_auth_method not in ("client_secret_basic", "client_secret_post"):
+            message = (
+                f"Unsupported token_endpoint_auth_method '{self.token_endpoint_auth_method}'. "
+                "Use 'client_secret_basic' or 'client_secret_post'."
+            )
+            raise ValueError(message)
+
+    def create_auth(self, server_url: str) -> Any:
+        """
+        Create the `httpx.Auth` that authenticates requests to the given MCP server.
+
+        :param server_url: URL of the MCP server.
+        :returns: An `mcp` SDK OAuth provider, to be passed as `auth` to the HTTP client.
+        :raises ValueError: If the client secret can't be resolved.
+        """
+        client_secret = self.client_secret.resolve_value()
+        if not client_secret:
+            message = "OAuthConfig.client_secret resolved to an empty value."
+            raise ValueError(message)
+        return create_client_credentials_provider(
+            server_url=server_url,
+            storage=self.token_storage,
+            client_id=self.client_id,
+            client_secret=client_secret,
+            token_endpoint_auth_method=self.token_endpoint_auth_method,
+            scope=" ".join(self.scopes) if self.scopes else None,
+            issuer=self.issuer,
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dictionary (token_storage is not serialized)."""
-        secret = self.client_secret
+        """
+        Serialize this configuration to a dictionary.
+
+        `token_storage` is not serialized.
+
+        :returns: Dictionary representation of this configuration.
+        """
         return {
-            "type": "haystack_integrations.tools.mcp.oauth.OAuthConfig",
             "client_id": self.client_id,
-            "client_secret": secret.to_dict() if isinstance(secret, Secret) else secret,
-            "token_endpoint": self.token_endpoint,
-            "authorization_server_url": self.authorization_server_url,
+            "client_secret": self.client_secret.to_dict(),
+            "issuer": self.issuer,
             "scopes": self.scopes,
+            "token_endpoint_auth_method": self.token_endpoint_auth_method,
+            "grant_type": self.grant_type,
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> OAuthConfig:
-        """Deserialize from a dictionary produced by `to_dict`."""
-        d = {k: v for k, v in data.items() if k != "type"}
-        secret_types = {e.value for e in SecretType}
-        cs = d.get("client_secret")
-        if isinstance(cs, dict) and cs.get("type") in secret_types:
-            deserialize_secrets_inplace(d, keys=["client_secret"])
-        return cls(**d)
+    def from_dict(cls, data: dict[str, Any]) -> "OAuthConfig":
+        """
+        Deserialize a configuration from a dictionary.
+
+        :param data: Dictionary created by `to_dict`.
+        :returns: The deserialized configuration.
+        """
+        data = data.copy()
+        deserialize_secrets_inplace(data, keys=["client_secret"])
+        return cls(**data)
 
 
-def _discover_token_endpoint(authorization_server_url: str) -> str:
+class _FailFastAuth(http_lib.Auth):
     """
-    Discover the token endpoint via OAuth 2.0 Server Metadata (RFC 8414).
+    Wraps an `mcp` SDK OAuth provider so that a failed OAuth flow aborts the pending MCP request.
 
-    :param authorization_server_url: Base URL of the authorisation server.
-    :returns: Token endpoint URL.
-    :raises ValueError: If discovery fails or the endpoint is not found.
+    The SDK raises OAuth errors (e.g. rejected client credentials) inside the transport's background task, where
+    they are only logged: the session keeps waiting for a response until it times out. This wrapper records the
+    error and cancels the scope returned by `failure_scope()`, so the caller can fail immediately with the error.
     """
-    base = authorization_server_url.rstrip("/")
-    # Try RFC 8414 well-known first, then OIDC discovery
-    for path in ("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration"):
+
+    def __init__(self, provider: Any) -> None:
+        self._provider = provider
+        self.requires_request_body = provider.requires_request_body
+        self.requires_response_body = provider.requires_response_body
+        self.error: OAuthFlowError | None = None
+        self._scope: anyio.CancelScope | None = None
+
+    def failure_scope(self) -> anyio.CancelScope:
+        """
+        Return a cancel scope that is cancelled when the OAuth flow fails while it is active.
+
+        :returns: The cancel scope to wrap the MCP requests with.
+        """
+        self.error = None
+        self._scope = anyio.CancelScope()
+        return self._scope
+
+    async def async_auth_flow(self, request: Any) -> AsyncGenerator[Any, Any]:
+        """Run the wrapped provider's auth flow, recording OAuth errors."""
+        flow = self._provider.async_auth_flow(request)
         try:
-            resp = httpx.get(f"{base}{path}", timeout=10)
-            if resp.status_code == 200:  # noqa: PLR2004
-                metadata = resp.json()
-                endpoint = metadata.get("token_endpoint")
-                if endpoint:
-                    return str(endpoint)
-        except httpx.HTTPError:
-            continue
-    msg = f"Could not discover token_endpoint from {authorization_server_url}"
-    raise ValueError(msg)
-
-
-def _fetch_client_credentials_token(oauth_config: OAuthConfig) -> TokenData:
-    """
-    Obtain an access token via the OAuth 2.0 Client Credentials grant.
-
-    :param oauth_config: OAuth configuration containing client credentials and endpoint.
-    :returns: A `TokenData` instance with the obtained token.
-    :raises ValueError: If neither `token_endpoint` nor `authorization_server_url` is set.
-    :raises httpx.HTTPStatusError: If the token endpoint returns an error.
-    """
-    token_endpoint = oauth_config.token_endpoint
-    if not token_endpoint:
-        if not oauth_config.authorization_server_url:
-            msg = "OAuthConfig requires either token_endpoint or authorization_server_url"
-            raise ValueError(msg)
-        token_endpoint = _discover_token_endpoint(oauth_config.authorization_server_url)
-
-    payload: dict[str, str] = {
-        "grant_type": "client_credentials",
-        "client_id": oauth_config.client_id,
-    }
-
-    secret = oauth_config.client_secret
-    client_secret_value = secret.resolve_value() if isinstance(secret, Secret) else secret
-    if client_secret_value:
-        payload["client_secret"] = client_secret_value
-
-    if oauth_config.scopes:
-        payload["scope"] = " ".join(oauth_config.scopes)
-
-    resp = httpx.post(token_endpoint, data=payload, timeout=30)
-    resp.raise_for_status()
-    body = resp.json()
-
-    expires_in = body.get("expires_in")
-    expires_at = (time.time() + float(expires_in)) if expires_in else 0.0
-
-    return TokenData(
-        access_token=body["access_token"],
-        token_type=body.get("token_type", "Bearer"),
-        expires_at=expires_at,
-        scope=body.get("scope"),
-    )
-
-
-def ensure_oauth(server_info: Any) -> None:
-    """
-    Ensure that a valid OAuth access token is injected into *server_info.headers*.
-
-    If the server info has no `oauth_config` this is a no-op.  Otherwise the
-    token cache is checked first; a fresh token is fetched only when necessary.
-    The token is written to ``server_info.headers["Authorization"]`` and takes
-    precedence over the ``token`` field.
-
-    :param server_info: An `SSEServerInfo` or `StreamableHttpServerInfo` instance.
-    """
-    oauth_config: OAuthConfig | None = getattr(server_info, "oauth_config", None)
-    if oauth_config is None:
-        return
-
-    cache_key = f"{oauth_config.client_id}@{oauth_config.token_endpoint or oauth_config.authorization_server_url}"
-    token = oauth_config.token_storage.get_token(cache_key)
-
-    if token is None:
-        logger.info("Fetching OAuth token for client_id={cid}", cid=oauth_config.client_id)
-        token = _fetch_client_credentials_token(oauth_config)
-        oauth_config.token_storage.store_token(cache_key, token)
-        logger.info("OAuth token obtained (expires_at={exp})", exp=token.expires_at or "never")
-
-    # Inject into headers — takes precedence over the token field
-    if server_info.headers is None:
-        server_info.headers = {}
-    server_info.headers["Authorization"] = f"{token.token_type} {token.access_token}"
+            outgoing = await flow.__anext__()
+            while True:
+                response = yield outgoing
+                outgoing = await flow.asend(response)
+        except StopAsyncIteration:
+            return
+        except OAuthFlowError as e:
+            self.error = e
+            if self._scope is not None:
+                self._scope.cancel()
+            raise
+        finally:
+            await flow.aclose()
