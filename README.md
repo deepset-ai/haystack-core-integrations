@@ -10,9 +10,9 @@
 | src/haystack\_integrations/components/embedders/huggingface\_api/sparse\_embedding\_utils.py   |       42 |        0 |       14 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/huggingface\_api/sparse\_text\_embedder.py     |       93 |        0 |       30 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/huggingface\_api/text\_embedder.py             |      142 |        4 |       60 |        5 |     96% |158-159, 236-\>240, 240-\>245, 360, 362 |
-| src/haystack\_integrations/components/generators/huggingface\_api/chat/chat\_generator.py      |      253 |        8 |       94 |       13 |     94% |135-\>139, 137-\>139, 187, 220-\>222, 421-422, 506, 613-614, 669, 691-\>696, 724-\>717, 728-\>731, 745, 764-\>769 |
+| src/haystack\_integrations/components/generators/huggingface\_api/chat/chat\_generator.py      |      296 |        5 |      116 |        9 |     97% |60-\>58, 143-\>147, 145-\>147, 472-473, 554, 724, 749-\>754, 816, 838-\>843 |
 | src/haystack\_integrations/components/rankers/huggingface\_api/ranker.py                       |      132 |       10 |       42 |        3 |     93% |293-295, 335-336, 343, 348, 374-376 |
-| **TOTAL**                                                                                      | **1114** |   **40** |  **378** |   **34** | **95%** |           |
+| **TOTAL**                                                                                      | **1157** |   **37** |  **400** |   **30** | **96%** |           |
 
 
 ## Setup coverage badge
