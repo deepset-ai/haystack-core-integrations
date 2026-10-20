@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
-import datetime
+import datetime as dt
 import importlib.metadata
 import json
 from contextlib import suppress
@@ -876,7 +876,7 @@ class WeaviateDocumentStore:
         document_data.pop("blob_mime_type", None)
 
         for key, value in document_data.items():
-            if isinstance(value, datetime.datetime):
+            if isinstance(value, dt.datetime):
                 document_data[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         if weaviate_meta := getattr(data, "metadata", None):

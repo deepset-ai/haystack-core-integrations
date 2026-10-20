@@ -14,8 +14,8 @@ Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/hay
 
 To run integration tests locally, you need to export the following environment variables:
 
-- `RHESIS_API_KEY`
-- `RHESIS_BASE_URL` — optional, defaults to `http://localhost:8080`
+- `RHESIS_API_KEY` — a project-scoped key; the tests read their traces back from that project
+- `RHESIS_BASE_URL` — optional, defaults to `https://api.rhesis.ai`
 
 ```bash
 cd integrations/rhesis

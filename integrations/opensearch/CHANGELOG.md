@@ -1,5 +1,44 @@
 # Changelog
 
+## [integrations/opensearch-v9.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/opensearch-v8.3.0] - 2026-10-08
+
+### 🚀 Features
+
+- `OpenSearchDocumentStore` emulating offset with cursor (#3692)
+
+### 🐛 Bug Fixes
+
+- `OpenSearchDocumentStore` adding filter to unique metadata values (#3754)
+- Standardize license files (#3771)
+- *(elasticsearch,opensearch)* Keep every bound when merging same-field ranges (#3984)
+- OpenSearch fixing painless script code injection (#4067)
+
+### 🧪 Testing
+
+- `OpenSearchDocumentStore` removing duplicated tests already covered by haystack Mixin tests (#3780)
+- Elastisearch/OpenSearch - explicitly set the embedding model in Hybrid Retriever tests (#4053)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+
+
 ## [integrations/opensearch-v8.2.1] - 2026-08-03
 
 ### 🐛 Bug Fixes

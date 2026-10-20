@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from haystack import Document, component, logging
@@ -157,7 +157,7 @@ class FirecrawlCrawler:
             doc = Document(
                 content=page.markdown,
                 meta={
-                    "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                    "timestamp": datetime.now(tz=UTC).isoformat(),
                     **metadata,
                 },
             )

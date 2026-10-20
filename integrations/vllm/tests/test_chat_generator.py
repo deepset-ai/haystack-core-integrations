@@ -4,7 +4,7 @@
 
 import json
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -65,7 +65,7 @@ def _make_reasoning_chunk(text):
                 delta=chat_completion_chunk.ChoiceDelta(content=None, role=None),
             )
         ],
-        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        created=int(datetime.now(tz=UTC).timestamp()),
         usage=None,
     )
     chunk.choices[0].delta.reasoning = text
@@ -85,7 +85,7 @@ def _make_content_chunk(text, finish_reason=None):
                 delta=chat_completion_chunk.ChoiceDelta(content=text, role=None),
             )
         ],
-        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        created=int(datetime.now(tz=UTC).timestamp()),
         usage=None,
     )
 
@@ -104,7 +104,7 @@ def completion():
                 "message": {"content": "Paris is the capital of France.", "role": "assistant"},
             }
         ],
-        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        created=int(datetime.now(tz=UTC).timestamp()),
         usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
     )
 
@@ -141,6 +141,16 @@ def mock_async_chat_completion_with_reasoning(completion_with_reasoning):
     with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
         mock.return_value = completion_with_reasoning
         yield mock
+
+
+@pytest.fixture
+def weather_tool():
+    @tool
+    def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
+        """Get the weather in a given city."""
+        return f"The weather in {city} is sunny"
+
+    return weather
 
 
 class TestConvertChatCompletionToChatMessage:
@@ -182,7 +192,7 @@ class TestConvertChatCompletionToChatMessage:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=timezone.utc).timestamp()),
+            created=int(datetime.now(tz=UTC).timestamp()),
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         )
 
@@ -214,7 +224,7 @@ class TestConvertChatCompletionToChatMessage:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=timezone.utc).timestamp()),
+            created=int(datetime.now(tz=UTC).timestamp()),
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         )
 
@@ -251,7 +261,6 @@ class TestInitialization:
 
         assert component._client is None
         assert component._async_client is None
-        assert not component._tools_warmed_up
         assert component.tools is None
         assert component.http_client_kwargs is None
         assert component.streaming_callback is None
@@ -446,6 +455,21 @@ class TestRun:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
+    def test_run_with_empty_tools_override(self, mock_chat_completion, weather_tool):
+        # an empty runtime list must disable the init tools for this call, not fall back to them
+        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
+        component.run([ChatMessage.from_user("Hello")], tools=[])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert "tools" not in kwargs
+
+    def test_run_with_init_tools(self, mock_chat_completion, weather_tool):
+        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
+        component.run([ChatMessage.from_user("Hello")])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
+
     def test_run_empty_messages(self):
         component = VLLMChatGenerator(model=MODEL)
         assert component.run([]) == {"replies": []}
@@ -532,6 +556,20 @@ class TestRunAsync:
         _, kwargs = mock_async_chat_completion.call_args
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.9
+
+    async def test_run_async_with_empty_tools_override(self, mock_async_chat_completion, weather_tool):
+        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
+        await component.run_async([ChatMessage.from_user("Hello")], tools=[])
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert "tools" not in kwargs
+
+    async def test_run_async_with_init_tools(self, mock_async_chat_completion, weather_tool):
+        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
+        await component.run_async([ChatMessage.from_user("Hello")])
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
 
     async def test_run_async(self, mock_async_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model=MODEL)
@@ -647,16 +685,10 @@ class TestIntegration:
         else:
             assert response["replies"][0].reasoning is None
 
-    def test_live_run_with_reasoning_and_parallel_tool_calls(self):
-
-        @tool
-        def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
-            """Get the weather in a given city."""
-            return f"The weather in {city} is sunny"
-
+    def test_live_run_with_reasoning_and_parallel_tool_calls(self, weather_tool):
         component = VLLMChatGenerator(
             model=MODEL,
-            tools=[weather],
+            tools=[weather_tool],
             generation_kwargs=THINKING_KWARGS,
         )
         response = component.run([ChatMessage.from_user("What is the weather in Paris? And in Berlin?")])

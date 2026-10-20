@@ -1,5 +1,32 @@
 # Changelog
 
+## [integrations/llama_stack-v3.0.1] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+- Clean up CI workflows (#3070)
+- Re-standardize READMEs (#3768)
+- Replace ToolInvoker with Agent in tests, examples and docstrings (#4108)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/llama_stack-v3.0.0] - 2026-02-03
 
 ### 🐛 Bug Fixes

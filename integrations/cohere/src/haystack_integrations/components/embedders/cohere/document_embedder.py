@@ -5,7 +5,7 @@ from dataclasses import replace
 from typing import Any, ClassVar
 
 from haystack import Document, component, default_from_dict, default_to_dict
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from cohere import AsyncClientV2, ClientV2
 from haystack_integrations.utils.cohere import validate_api_base_url
@@ -158,8 +158,6 @@ class CohereDocumentEmbedder:
 
         # drop legacy use_async_client parameter
         init_params.pop("use_async_client", None)
-
-        deserialize_secrets_inplace(init_params, ["api_key"])
 
         # Convert embedding_type string to EmbeddingTypes enum value
         init_params["embedding_type"] = EmbeddingTypes.from_str(init_params["embedding_type"])

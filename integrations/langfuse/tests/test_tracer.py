@@ -4,7 +4,7 @@
 
 import asyncio
 import base64
-import datetime
+import datetime as dt
 import logging
 import sys
 from unittest.mock import MagicMock, Mock, patch
@@ -462,7 +462,7 @@ class TestDefaultSpanHandler:
         assert mock_span.update.call_args_list[0][1] == {
             "usage_details": None,
             "model": "test_model",
-            "completion_start_time": datetime.datetime(  # noqa: DTZ001
+            "completion_start_time": dt.datetime(  # noqa: DTZ001
                 2021, 7, 27, 16, 2, 8, 12345
             ),
         }
@@ -888,7 +888,7 @@ class TestLangfuseTracer:
                 ...
             assert span.raw_span()._data["usage_details"] is None
             assert span.raw_span()._data["model"] == "test_model"
-            assert span.raw_span()._data["completion_start_time"] == datetime.datetime(2021, 7, 27, 16, 2, 8, 12345)  # noqa: DTZ001
+            assert span.raw_span()._data["completion_start_time"] == dt.datetime(2021, 7, 27, 16, 2, 8, 12345)  # noqa: DTZ001
 
     def test_trace_generation_invalid_start_time(self):
         with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):

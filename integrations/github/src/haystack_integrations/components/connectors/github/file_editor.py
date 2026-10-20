@@ -12,7 +12,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 logger = logging.getLogger(__name__)
 
 
-class Command(str, Enum):
+class Command(str, Enum):  # noqa: UP042 # StrEnum would change str() of this public enum
     """
     Available commands for file operations in GitHub.
 

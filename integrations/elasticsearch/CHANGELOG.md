@@ -1,5 +1,35 @@
 # Changelog
 
+## [integrations/elasticsearch-v7.1.0] - 2026-10-19
+
+### 🚀 Features
+
+- *(elasticsearch)* Add ElasticsearchInferenceDenseRetriever (#3525)
+
+
+## [integrations/elasticsearch-v7.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/elasticsearch-v6.4.2] - 2026-10-08
+
+### 🐛 Bug Fixes
+
+- *(elasticsearch,opensearch)* Keep every bound when merging same-field ranges (#3984)
+- Elasticsearch painless script injection (#4068)
+
+### 🧪 Testing
+
+- Elastisearch/OpenSearch - explicitly set the embedding model in Hybrid Retriever tests (#4053)
+
+
 ## [integrations/elasticsearch-v6.4.1] - 2026-09-24
 
 ### ⚙️ CI

@@ -4,7 +4,7 @@
 
 import base64
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from google.genai import types
@@ -697,7 +697,7 @@ def _convert_google_chunk_to_streaming_chunk(
     start = index == 0 or len(tool_calls) > 0
 
     meta: dict[str, Any] = {
-        "received_at": datetime.now(timezone.utc).isoformat(),
+        "received_at": datetime.now(UTC).isoformat(),
         "model": model,
         "usage": usage,
     }

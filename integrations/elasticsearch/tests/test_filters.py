@@ -204,6 +204,19 @@ def test_or_of_ranges_on_same_field_are_not_merged():
     }
 
 
+def test_equal_with_list_passes_field_as_script_param():
+    # The field name must be bound as a script parameter, never interpolated into the Painless source,
+    # otherwise a quote in the field name breaks out of the string literal and injects code.
+    field = "x'].size()); return 1; //"
+    result = _normalize_filters({"field": f"meta.{field}", "operator": "==", "value": ["a", "b"]})
+
+    script = result["bool"]["must"]["terms_set"][field]["minimum_should_match_script"]
+    assert script == {
+        "source": "Math.max(params.num_terms, doc[params.field].size())",
+        "params": {"field": field},
+    }
+
+
 def test_normalize_filters_invalid_operator():
     with pytest.raises(FilterError):
         _normalize_filters({"operator": "INVALID", "conditions": []})

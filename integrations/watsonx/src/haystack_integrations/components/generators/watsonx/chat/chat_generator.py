@@ -5,7 +5,7 @@
 import inspect
 import json
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, ClassVar, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -31,7 +31,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.utils import Secret, deserialize_callable, serialize_callable
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import ModelInference
 
@@ -250,7 +250,6 @@ class WatsonxChatGenerator:
         :returns:
             The deserialized component instance.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback = init_params.get("streaming_callback")
@@ -430,7 +429,7 @@ class WatsonxChatGenerator:
             "model_version": chunk.get("model_version"),
             "created": chunk.get("created"),
             "created_at": chunk.get("created_at"),
-            "received_at": datetime.now(timezone.utc).isoformat(),
+            "received_at": datetime.now(UTC).isoformat(),
         }
 
         if choice["delta"] and (choice_delta_tool_calls := choice["delta"].get("tool_calls")):

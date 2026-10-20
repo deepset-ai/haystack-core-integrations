@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/snowflake-v4.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 📚 Documentation
+
+- *(snowflake)* Remove explicit warm_up from examples (#2840)
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake (#2992)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/snowflake-v3.0.0] - 2026-01-13
 
 ### 🧹 Chores

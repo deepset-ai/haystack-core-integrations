@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v9.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Replace ToolInvoker with Agent in tests, examples and docstrings (#4108)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/amazon_bedrock-v8.4.0] - 2026-10-14
+
+### 🚀 Features
+
+- *(amazon-bedrock)* Support text and image embeddings in Cohere v4 (#4100)
+
+### 🧹 Chores
+
+- Add missing amazon_bedrock 8.3.1 changelog entry (#4095)
+
+## [integrations/amazon_bedrock-v8.3.1] - 2026-10-12
+
+### 🐛 Bug Fixes
+
+- Forward cacheDetails in Amazon Bedrock chat generator usage (#4090)
+
 ## [integrations/amazon_bedrock-v8.3.0] - 2026-10-01
 
 ### 🚜 Refactor

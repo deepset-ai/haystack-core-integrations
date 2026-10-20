@@ -17,7 +17,6 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, fields
 from typing import Any, cast
 
-from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
@@ -1121,7 +1120,7 @@ class MCPTool(Tool):
                 return _extract_first_text_element(result)
 
             return result
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             message = f"Tool invocation timed out after {self._invocation_timeout} seconds"
             raise TimeoutError(message) from e
         except Exception as e:
@@ -1155,7 +1154,7 @@ class MCPTool(Tool):
         return set(properties.keys())
 
     def warm_up(self) -> None:
-        """Connect and fetch the tool schema if eager_connect is turned off."""
+        """Connect and fetch the tool schema unless already connected."""
         with self._lock:
             if self._client is not None:
                 return
@@ -1266,6 +1265,9 @@ class MCPTool(Tool):
                     self._worker.stop()
             except Exception as e:
                 logger.debug(f"TOOL: Error during synchronous worker stop: {e!s}")
+            finally:
+                self._client = None
+                self._worker = None
 
     def __del__(self) -> None:
         """Cleanup resources when the tool is garbage collected."""

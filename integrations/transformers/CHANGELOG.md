@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/transformers-v2.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/transformers-v1.1.0] - 2026-10-07
+
+### 🚜 Refactor
+
+- [**breaking**] Transformers - Stop warming up tools in Chat Generator (#4057)
+
+
 ## [integrations/transformers-v1.0.1] - 2026-09-23
 
 ### 🐛 Bug Fixes

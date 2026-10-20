@@ -7,7 +7,7 @@
 # To run this example, you will need to
 # set `OPENROUTER_API_KEY` environment variable
 
-from haystack.components.tools import ToolInvoker
+from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
@@ -29,9 +29,6 @@ weather_tool = Tool(
     function=weather,
 )
 
-# Create a tool invoker with the weather tool
-tool_invoker = ToolInvoker(tools=[weather_tool])
-
 # We can setup model routing by setting the `model` parameter to `openrouter/auto`
 # and providing a list of models to route to.
 client = OpenRouterChatGenerator(
@@ -40,13 +37,10 @@ client = OpenRouterChatGenerator(
         "models": ["openai/gpt-4o-mini", "anthropic/claude-3-haiku"],
     },
 )
-messages = [ChatMessage.from_user("What's the weather in Tokyo?")]
 
-response = client.run(messages=messages, tools=[weather_tool])["replies"]
+# The Agent calls the tool and feeds the result back to the model
+agent = Agent(chat_generator=client, tools=[weather_tool])
+result = agent.run(messages=[ChatMessage.from_user("What's the weather in Tokyo?")])
 
-print(f"assistant messages: {response[0]}\n")
-
-# If the assistant message contains a tool call, run the tool invoker
-if response[0].tool_calls:
-    tool_messages = tool_invoker.run(messages=response)["tool_messages"]
-    print(f"tool messages: {tool_messages}")
+print(f"messages: {result['messages']}\n")
+print(f"assistant final answer: {result['last_message'].text}")

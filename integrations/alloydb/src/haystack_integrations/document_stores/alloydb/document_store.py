@@ -9,7 +9,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from pgvector.psycopg import register_vector
 from psycopg import Connection, Cursor, Error, IntegrityError
 from psycopg.rows import DictRow, dict_row
@@ -252,7 +252,6 @@ class AlloyDBDocumentStore(DocumentStore):
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["instance_uri", "user", "password"])
         return default_from_dict(cls, data)
 
     def close(self) -> None:

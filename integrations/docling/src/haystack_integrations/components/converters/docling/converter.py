@@ -46,7 +46,7 @@ def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
     return DocumentStream(name=name, stream=BytesIO(source.data))
 
 
-class ExportType(str, Enum):
+class ExportType(str, Enum):  # noqa: UP042 # StrEnum would change str() of this public enum
     """Enumeration of available export types."""
 
     MARKDOWN = "markdown"

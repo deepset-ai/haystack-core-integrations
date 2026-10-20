@@ -43,7 +43,7 @@ from azure.search.documents.models import LookupDocument, VectorizedQuery
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from haystack.utils.misc import _normalize_metadata_field_name
 
 from .errors import AzureAISearchDocumentStoreConfigError, AzureAISearchDocumentStoreError
@@ -385,7 +385,6 @@ class AzureAISearchDocumentStore:
                 else:
                     data["init_parameters"][key] = _instantiate_azure_model(model_class, value)
 
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_endpoint"])
         if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
             data["init_parameters"]["vector_search_configuration"] = VectorSearch(vector_search_configuration)
         return default_from_dict(cls, data)
