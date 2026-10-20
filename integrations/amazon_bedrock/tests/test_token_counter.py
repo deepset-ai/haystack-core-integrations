@@ -14,7 +14,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 from haystack_integrations.token_counters.amazon_bedrock import AmazonBedrockTokenCounter
 
 CLASS_TYPE = "haystack_integrations.token_counters.amazon_bedrock.token_counter.AmazonBedrockTokenCounter"
-MODEL = "global.anthropic.claude-sonnet-4-6"
+MODEL = "anthropic.claude-sonnet-4-6"
 
 _GET_AWS_SESSION = "haystack_integrations.token_counters.amazon_bedrock.token_counter.get_aws_session"
 
