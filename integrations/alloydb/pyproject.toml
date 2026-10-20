@@ -72,8 +72,8 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
-integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations.document_stores.alloydb --cov=haystack_integrations.components.retrievers.alloydb --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations.document_stores.alloydb --cov=haystack_integrations.components.retrievers.alloydb --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 
 types = "mypy -p haystack_integrations.document_stores.alloydb -p haystack_integrations.components.retrievers.alloydb {args}"
 
@@ -170,7 +170,7 @@ ban-relative-imports = "parents"
 
 
 [tool.coverage.run]
-source = ["haystack_integrations"]
+source = ["haystack_integrations.document_stores.alloydb", "haystack_integrations.components.retrievers.alloydb"]
 branch = true
 relative_files = true
 parallel = false
