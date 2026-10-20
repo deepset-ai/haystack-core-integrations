@@ -108,6 +108,7 @@ jobs:
           name: coverage-comment-alloydb
           path: python-coverage-comment-action-alloydb.txt
 
+      # We are not running this against a real AlloyDB instance here.
       # AlloyDB is PostgreSQL-compatible: the integration tests run against a plain PostgreSQL with pgvector,
       # with the AlloyDB Python Connector replaced by a direct connection (see tests/conftest.py).
       # Containers only run on Linux runners.
