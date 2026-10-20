@@ -6,7 +6,7 @@ import json
 import re
 import traceback
 from collections.abc import Callable
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -117,39 +117,6 @@ def _fingerprint_eval_cases(eval_cases: list[Any]) -> list[dict[str, Any]]:
     return sorted((eval_case.to_dict() for eval_case in eval_cases), key=lambda entry: str(entry["question"]))
 
 
-def _describe_setting(value: Any) -> Any:
-    """
-    Reduce one evaluator setting to plain JSON that comes out the same on every run.
-
-    :param value: An attribute the evaluator was configured with.
-    :returns: The value as JSON, with sets and mapping keys in a fixed order, and any other object named by its type
-        so a memory address never reaches the fingerprint.
-    """
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if is_dataclass(value) and not isinstance(value, type):
-        return _describe_setting(value=asdict(value))
-    if isinstance(value, dict):
-        return dict(sorted((_setting_key(key=key), _describe_setting(value=item)) for key, item in value.items()))
-    if isinstance(value, (set, frozenset)):
-        return sorted((_describe_setting(value=item) for item in value), key=json.dumps)
-    if isinstance(value, (list, tuple)):
-        return [_describe_setting(value=item) for item in value]
-    return type(value).__qualname__
-
-
-def _setting_key(key: Any) -> str:
-    """
-    Name a mapping key as a string, joining a group of tool names in a fixed order.
-
-    :param key: A key from an evaluator setting, such as one tool name or a tuple of them.
-    :returns: The key as a string.
-    """
-    if isinstance(key, (tuple, list, set, frozenset)):
-        return "+".join(sorted(str(part) for part in key))
-    return str(key)
-
-
 def _serialization(reference: Agent | Pipeline) -> tuple[Callable[[Any], str], Callable[[str], Agent | Pipeline]]:
     """
     Pick the pair that round-trips this reference through YAML.
@@ -167,6 +134,7 @@ class HarnessOptimizationExperiment:
 
     def __init__(
         self,
+        *,
         reference: Agent | Pipeline,
         evaluator: HarnessEvaluator,
         eval_cases: list[Any],
@@ -203,7 +171,7 @@ class HarnessOptimizationExperiment:
             a good configuration looks like for this harness.
         :param optimizer_max_agent_steps: Maximum steps the optimizer agent takes to produce one candidate.
         :param optimizer_documentation_tools: Give the optimizer agent read-only search over the public Haystack
-            documentation. Requires `mcp-haystack`.
+            documentation. Requires `mcp-haystack>=1.2.0`.
         :param configuration_key: Optional caller-supplied identifier for external measurement inputs, such as a
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
@@ -240,7 +208,12 @@ class HarnessOptimizationExperiment:
         self.on_candidate = on_candidate
 
     def run(self) -> ExperimentResult:
-        """Measure a baseline and a bounded number of validated YAML candidates."""
+        """
+        Measure the reference, then propose, measure and gate up to `max_iterations` candidates.
+
+        :returns: The baseline, every candidate measured and its gate failures, the optimizer's own usage and cost,
+            and a recommendation when a candidate cleared every gate and outranked the reference.
+        """
         dump, load = _serialization(reference=self.reference)
         reference_yaml = dump(self.reference)
 
@@ -248,8 +221,7 @@ class HarnessOptimizationExperiment:
         # configuration key. The reference YAML is left out, since its serialization carries incidental values such
         # as an in-memory store's generated index; it is saved as `reference.yaml` instead.
         payload = {
-            "evaluator": type(self.evaluator).__qualname__,
-            "evaluator_settings": _describe_setting(value=vars(self.evaluator)),
+            "evaluator": self.evaluator.to_dict(),
             "eval_cases": _fingerprint_eval_cases(eval_cases=self.eval_cases),
             "configuration_key": self.configuration_key,
         }
@@ -280,6 +252,7 @@ class HarnessOptimizationExperiment:
         if self.objectives.primary == "cost" and (ref_cost is None or not ref_eval_metrics.all_tokens_reported):
             msg = "The reference has unavailable cost; supply prices for its models and complete usage."
             raise ValueError(msg)
+        # Fail before the search when the evaluator does not report the metric the objectives treat as quality
         self.objectives.get_quality(metrics=ref_eval_metrics)
         if self.on_baseline is not None:
             self.on_baseline(ref_eval_metrics, ref_cost)
@@ -287,6 +260,7 @@ class HarnessOptimizationExperiment:
         # Search: propose one candidate, measure it, and feed the outcome into the next proposal.
         outcomes: list[CandidateEvaluation] = []
         history: list[CandidateOutcome] = []
+        gates: dict[str, tuple[str, ...]] = {}
         best_id: str | None = None
         optimizer_usage: dict[str, ModelTokenUsage] = {}
         optimizer_tracer = HarnessTracer()
@@ -368,6 +342,7 @@ class HarnessOptimizationExperiment:
             self.journal.append(evaluation)
             outcomes.append(evaluation)
             gate_failures = self._find_failed_gates(candidate=evaluation, baseline=ref_eval_metrics)
+            gates[proposed.candidate_id] = gate_failures
             history.append(
                 CandidateOutcome(
                     candidate_id=proposed.candidate_id,
@@ -381,11 +356,7 @@ class HarnessOptimizationExperiment:
                 )
             )
             # The next turn edits the best candidate so far
-            eligible = [
-                outcome
-                for outcome in outcomes
-                if not self._find_failed_gates(candidate=outcome, baseline=ref_eval_metrics)
-            ]
+            eligible = [outcome for outcome in outcomes if not gates[outcome.candidate_id]]
             best_id = min(eligible, key=self._candidate_sort_key).candidate_id if eligible else None
 
             logger.info(
@@ -409,10 +380,6 @@ class HarnessOptimizationExperiment:
                 )
 
         # Recommend the best candidate that clears every gate and actually beats the reference.
-        gates = {
-            outcome.candidate_id: self._find_failed_gates(candidate=outcome, baseline=ref_eval_metrics)
-            for outcome in outcomes
-        }
         eligible = sorted(
             (outcome for outcome in outcomes if not gates[outcome.candidate_id]), key=self._candidate_sort_key
         )

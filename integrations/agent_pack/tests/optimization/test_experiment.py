@@ -398,9 +398,17 @@ class TestJournal:
 class TestMeasurementContext:
     def test_evaluator_settings_split_contexts(self, tmp_path):
         """A rank cutoff or a tool budget changes what is measured, so runs set up differently do not compare."""
-        first, _ = configured(tmp_path, ["cheap", None])
-        second, _ = configured(tmp_path, ["cheap", None])
-        second.evaluator.k = 5
+
+        class RankedEvaluator(ModelEvaluator):
+            def __init__(self, k):
+                super().__init__()
+                self.k = k
+
+            def to_dict(self):
+                return default_to_dict(self, k=self.k)
+
+        first, _ = configured(tmp_path, ["cheap", None], evaluator=RankedEvaluator(k=10))
+        second, _ = configured(tmp_path, ["cheap", None], evaluator=RankedEvaluator(k=5))
         assert first.run().measurement_context != second.run().measurement_context
 
     def test_same_inputs_share_a_context(self, tmp_path):

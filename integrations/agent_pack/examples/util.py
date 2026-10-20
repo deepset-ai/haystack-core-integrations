@@ -2,13 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import atexit
 import logging
-import os
 import re
 import shutil
 import sys
-import threading
 from collections.abc import Callable
 from statistics import median
 from typing import Any, cast
@@ -56,36 +53,9 @@ def preview(text: str, limit: int) -> str:
 
 
 def quiet_hub_warnings() -> None:
-    """
-    Stop the Hugging Face Hub's unauthenticated-request notice from interleaving with a walkthrough's output.
-
-    The corpus is public and cached after the first run, so the notice says nothing a reader can act on. It is
-    written straight to the standard error descriptor rather than logged or warned, so neither a logging filter
-    nor a `sys.stderr` replacement reaches it; the descriptor itself is routed through a pipe and everything but
-    that one line is passed on unchanged.
-    """
-    noise = b"unauthenticated requests to the HF Hub"
-    original = os.dup(2)
-    reading, writing = os.pipe()
-    os.dup2(writing, 2)
-    os.close(writing)
-
-    def forward() -> None:
-        with os.fdopen(reading, "rb") as incoming:
-            for line in incoming:
-                if noise not in line:
-                    os.write(original, line)
-
-    pump = threading.Thread(target=forward, daemon=True)
-    pump.start()
-
-    def restore() -> None:
-        """Put the descriptor back, so a final traceback is not lost to a daemon thread on the way out."""
-        sys.stderr.flush()
-        os.dup2(original, 2)
-        pump.join(timeout=2.0)
-
-    atexit.register(restore)
+    """Hide the Hugging Face Hub's notice about unauthenticated requests, which the public corpus does not need."""
+    # The Hub sends the notice as a response header, and `huggingface_hub` logs it from this logger
+    logging.getLogger("huggingface_hub.utils._http").setLevel(logging.ERROR)
 
 
 def build_optimizer_generator(model: str | None) -> OpenAIResponsesChatGenerator | None:
@@ -184,11 +154,7 @@ def _summarize(value: str, limit: int = 28) -> str:
 
 def _changes(diff: str, limit: int = 5) -> str:
     """
-    Reduce a unified diff to the settings it actually changed.
-
-    A candidate's diff is mostly re-indented YAML and rewritten prompts. What a reader wants from it is which
-    knobs moved, so keys are paired across the removed and added sides, prose inside a rewritten prompt is
-    skipped, and anything past the limit is counted.
+    Reduce a unified diff to the settings it changed, skipping prompt text.
 
     :param diff: The unified diff between this candidate and its parent.
     :param limit: How many changed settings to name before counting the rest.

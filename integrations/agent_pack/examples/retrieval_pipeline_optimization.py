@@ -43,7 +43,7 @@ from haystack_integrations.agent_pack.optimization import (
     OptimizationObjectives,
 )
 
-WORKSPACE = Path(".agent-pack-retrieval-poc")
+WORKSPACE = Path(".agent-pack-retrieval-optimization")
 EXPANDER_MODEL = "gpt-5.6-luna"
 # The measurement the experiment treats as quality.
 QUALITY_METRIC = "mean_recall_at_k"
@@ -56,92 +56,37 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
 }
 
 _RETRIEVAL_OPTIMIZER_GUIDANCE = """
-The configuration is a one-shot retrieval pipeline, and retrieval is all of it. A question enters at the `query`
-input, whatever the pipeline does with it must end at exactly one unconnected `documents` output, and that output
-is scored against the documents the answer needed.
-Quality is the mean recall over the eval cases, so retrieving more
-of what a question needs registers even when no single eval case is yet complete; an eval case that breaks one of its
-budgets contributes nothing at all, however much of the evidence it found. Nothing writes an answer, so nothing is
-gained by adding a generator.
+The configuration is a one-shot retrieval pipeline. A question enters at the `query` input and the pipeline must end
+in exactly one unconnected `documents` output, which is scored against the documents the answer needs. Nothing
+writes an answer, so adding a generator gains nothing.
 
-Every document carries `title`, `category`, `source`, `author`, `published_at` and `url` alongside its content,
-and nothing in this pipeline shows them to a model unless a prompt renders them. The questions name outlets and
-dates constantly, so a component that judges documents can be given those fields to judge on.
+Quality is the mean recall over the eval cases, so finding more of what a question needs registers even before any
+eval case is complete. Precision is reported but not scored. Each eval case needs evidence spread across several
+documents, and one query phrased for the whole question tends to surface only the documents that share its wording.
 
-Eval cases require evidence spread across several documents, and one query phrased for the whole question tends to
-surface only the documents that share its wording. Expansion buys recall with model calls, and a wider candidate
-set buys it with precision; the eval case reports recall and precision separately, and names the documents that were
-missed, so the two are distinguishable.
+Every document carries `title`, `category`, `source`, `author`, `published_at` and `url` alongside its content. The
+questions name outlets and dates constantly, but no model sees those fields unless a prompt renders them.
 
-One property of the expander is worth knowing before a measurement is spent discovering it. Its expansion count is
-applied by truncating whatever the model returned and keeping that many from the front, and the worked examples
-built into its default prompt demonstrate three or four expansions whatever the count is set to. A low count
-therefore does not ask the model for fewer queries: it pays for the three or four the examples elicit and then
-discards all but an arbitrary prefix of them, which the run reports as a truncation warning. That prompt is part
-of this configuration and can be edited, so the count and the examples it shows can be made to agree. The original
-question is also appended unless the model already produced it, so the queries actually issued are usually one
-more than the count.
+`QueryExpander` applies its expansion count by keeping that many queries from the front of whatever the model
+returned, and the examples in its default prompt show three or four expansions whatever the count is. A low count
+therefore pays for three or four queries and discards the rest, which the run reports as a truncation warning. The
+prompt is part of this configuration and can be edited. The original question is also appended, so the queries
+issued are usually one more than the count.
 
-Each eval case also limits how many documents are scored, and how many queries the pipeline may issue; the exact
-numbers are stated below. The document limit is on what comes out, not on what the pipeline looks at, so past a
-certain point recall cannot be bought by widening: what is returned has to be the right subset of whatever was
-considered. Only the first that-many documents count towards recall, in the order the pipeline returned them, so
-returning more than the limit wastes the places past it rather than voiding the eval case: set the final ranker's
-ceiling at the limit rather than above it, and a run that overshoots by one has lost one document's worth of
-credit. The query limit is not forgiving in the same way, since a query already cost what it cost: exceed it and
-the eval case scores nothing.
+A keyword retriever's score belongs to the query that produced it, so pooling several queries' results and sorting
+them by score gives a nearly arbitrary order. Check whether this configuration pools them: if it does, the way to
+improve what is returned is to rank it on something other than those scores.
 
-Once that limit binds, the way past it is to stop treating those two things as the same. Retrieve a wide candidate
-set, then rank it and return only the best of it: the limit applies to the ranked output, while the candidate set
-behind it can be as wide as recall needs. Use `LLMRanker` for that, placed between retrieval and the pipeline's
-`documents` output. It takes a `query` input of its own alongside the documents, and its `top_k` decides how many
-survive. Inspect it before writing it in, so its parameters and serialized shape come from the component rather
-than from memory.
+Retrieving a wide candidate set and then ranking it is usually what moves recall past the cutoff. Use `LLMRanker`
+between retrieval and the `documents` output: it takes its own `query` input and judges every candidate in one prompt,
+so it can pick documents that cover different parts of the question rather than near-duplicates of one part. Set its
+`top_k` at the cutoff and ask its prompt for the most useful documents up to that many, best first, rather than for
+the smallest set that looks sufficient. It costs one model call per eval case, growing with the candidate set, and it
+must not be given a `temperature`: the models here reject it, and the failure only shows as a warning with the
+documents left unranked.
 
-Why that kind of ranker, on this evaluation set. Its questions are answered by several documents together, and no
-one document answers such a question on its own; what the output needs is coverage of the separate facets, not the
-several best matches for the question as a whole. `LLMRanker` puts the whole question and every candidate into one
-prompt and chooses from them together, so it can see that a candidate repeats evidence already selected and pick
-one that adds a facet instead. A ranker that scores each candidate on its own cannot: it has no way to know what
-else it is returning, so it fills the output with the nearest matches to whichever facet the question words most
-strongly, and the remaining facets go unretrieved. Measured here, judging the candidates jointly retrieved close
-to twice the evidence that scoring them one at a time did.
-
-The two stages are answerable to different things. Retrieval before the ranker is judged only on whether the
-evidence is somewhere in the candidate set, so widening it costs nothing that is measured and a candidate document
-that is never retrieved cannot be recovered later. The ranker is what decides the answer, so it is where being
-selective matters. What the eval case scores in the end is recall, so a ranker that leaves a needed document out has
-lost something a narrower candidate set could never have given back.
-
-Fill the allowance, and start there rather than working up to it. Only the documents inside the limit are scored,
-precision is not scored at all, and one more document inside the limit can either match a needed one or be
-ignored — it cannot cost anything. Returning fewer than the limit is giving those places away. Set the ranker's
-`top_k` at the limit and write its prompt to use it: ask for the most useful documents up to that many, ordered
-best first, rather than for the smallest set that looks sufficient. A question needing two documents loses nothing
-by coming back with the limit's worth, and a question needing four is what the other places were for. Asking for a
-minimal or "two to four" set has measured worse here more than once, and never better.
-
-Trimming what comes back is worth measuring only once recall has stopped moving, and then as a latency and cost
-question rather than a scoring one.
-
-Two things about running it. It calls a chat model once per eval case with every candidate's text in the prompt, so
-what it costs grows with the candidate set. And it must not be given a `temperature`; the models available here
-reject the parameter outright, and the failure is swallowed into a warning that leaves the documents unranked
-rather than raising.
-
-Merging the results of several queries is where this goes wrong quietly, and it decides which kind of ranking is
-worth adding. A keyword retriever's score is a property of the query that produced it, not a scale shared between
-queries, so an order produced by pooling per-query results and sorting them by score means little, and taking the
-best few of that order is close to taking an arbitrary few. Reciprocal rank fusion is the standard answer to that
-problem, but it merges on each document's rank within its own result list and therefore needs those lists kept
-apart. Check whether the retrieval in this configuration keeps them apart or pools them before anything downstream
-sees them: if they are already pooled, a joiner placed after it can only deduplicate and trim, and the way to
-improve the returned subset is to rank it on something other than those scores.
-
-The retrieval path is part of the configuration and can be restructured, not only retuned. A keyword retriever
-ranks by wording alone; a wider candidate set that is then reranked by something else is a different mechanism,
-not a bigger version of the same one. Confirm what any component you introduce serializes to, and that this
-environment can import it, before spending a measurement on it.
+Inspect any component before writing it into the configuration, so its parameters and serialized shape come from the
+installed code rather than from memory.
 """.strip()
 
 
@@ -185,7 +130,7 @@ def retrieval_guidance(k: int) -> str:
         f"Each eval case is scored at recall@{k}: only the first {k} documents the pipeline returns count towards "
         f"its score, in the order it returned them. Returning more than {k} is not penalized, it simply earns "
         f"nothing for the documents past the cutoff. Nothing caps how many queries the pipeline may issue, but "
-        f"every query costs a model call and wall-clock time, and both are measured."
+        f"each one adds a retrieval, model calls add cost, and both cost and duration are measured."
     )
     return f"{_RETRIEVAL_OPTIMIZER_GUIDANCE}\n\n{cutoff}"
 
@@ -225,7 +170,7 @@ def retrieval_details(metrics: EvalMetrics, baseline: EvalMetrics | None) -> lis
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse the PoC command line."""
+    """Read the command line."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--store", choices=("in_memory", "opensearch"), default="in_memory")
     parser.add_argument("--workspace", type=Path, default=WORKSPACE, help="Directory for runs and YAML artifacts.")
@@ -274,7 +219,7 @@ def main() -> None:
     arguments = parse_args()
     enable_progress_reporting()
     if not os.environ.get("OPENAI_API_KEY"):
-        message = "OPENAI_API_KEY must be set to run this walkthrough."
+        message = "OPENAI_API_KEY must be set to run this example."
         raise SystemExit(message)
     if arguments.max_eval_cases < 1:
         message = "--max-eval-cases must be at least 1."
