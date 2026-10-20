@@ -100,11 +100,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install hatch --uploaded-prior-to=P1D
 
-      # SupabasePgvectorDocumentStore extends PgvectorDocumentStore: test against the local source
-      # so that changes to pgvector that break Supabase are caught before a pgvector release
-      - name: Install pgvector-haystack from local source
-        run: hatch -e test env run -- uv pip install ../pgvector
-
       - name: Lint
         if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -166,6 +161,17 @@ jobs:
           SUBPROJECT_ID: supabase-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
+
+      # SupabasePgvectorDocumentStore extends PgvectorDocumentStore: repeat the tests against the local
+      # pgvector source so that changes to pgvector that break Supabase are caught before a pgvector release
+      - name: Test with pgvector from local source
+        if: runner.os == 'Linux'
+        env:
+          SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
+        run: |
+          hatch env prune
+          hatch -e test env run -- uv pip install ../pgvector
+          hatch run test:all
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
