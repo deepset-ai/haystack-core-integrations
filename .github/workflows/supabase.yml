@@ -9,6 +9,7 @@ on:
     paths:
       - "integrations/supabase/**"
       - "!integrations/supabase/*.md"
+      - "integrations/pgvector/src/**"
       - ".github/workflows/supabase.yml"
   push:
     branches:
@@ -16,6 +17,7 @@ on:
     paths:
       - "integrations/supabase/**"
       - "!integrations/supabase/*.md"
+      - "integrations/pgvector/src/**"
       - ".github/workflows/supabase.yml"
 
 defaults:
@@ -77,6 +79,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # tags are needed to compute the version of the local pgvector-haystack package
+          fetch-depth: 0
 
       - name: Create pgvector extension
         run: >
@@ -94,6 +99,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install hatch --uploaded-prior-to=P1D
+
       - name: Lint
         if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -155,6 +161,17 @@ jobs:
           SUBPROJECT_ID: supabase-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
+
+      # SupabasePgvectorDocumentStore extends PgvectorDocumentStore: repeat the tests against the local
+      # pgvector source so that changes to pgvector that break Supabase are caught before a pgvector release
+      - name: Test with pgvector from local source
+        if: runner.os == 'Linux'
+        env:
+          SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
+        run: |
+          hatch env prune
+          hatch -e test env run -- uv pip install ../pgvector
+          hatch run test:all
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

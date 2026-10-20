@@ -370,6 +370,47 @@ class PgvectorDocumentStore:
 
         return result
 
+    def _create_connection(self) -> Connection:
+        """
+        Opens a new connection to the PostgreSQL database.
+
+        Subclasses can override this method to connect differently (e.g. through a cloud provider's connector).
+        It must only open and return the connection: autocommit, the pgvector extension, vector type
+        registration, cursors, and table initialization are handled by `_ensure_db_setup`.
+
+        :raises DocumentStoreError: If the connection cannot be opened.
+        """
+        conn_str = self.connection_string.resolve_value() or ""
+        try:
+            return Connection.connect(conn_str)
+        except Error as e:
+            msg = (
+                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
+                "PostgreSQL connection specification: "
+                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
+            )
+            raise DocumentStoreError(msg) from e
+
+    async def _create_connection_async(self) -> AsyncConnection:
+        """
+        Opens a new async connection to the PostgreSQL database.
+
+        Async counterpart of `_create_connection`, overridable in the same way. Everything else is handled by
+        `_ensure_db_setup_async`.
+
+        :raises DocumentStoreError: If the connection cannot be opened.
+        """
+        conn_str = self.connection_string.resolve_value() or ""
+        try:
+            return await AsyncConnection.connect(conn_str)
+        except Error as e:
+            msg = (
+                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
+                "PostgreSQL connection specification: "
+                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
+            )
+            raise DocumentStoreError(msg) from e
+
     def _ensure_db_setup(self) -> None:
         """
         Ensures that the connection to the PostgreSQL database exists and is valid.
@@ -387,16 +428,7 @@ class PgvectorDocumentStore:
             except Error as e:
                 logger.debug("Failed to close connection: {e}", e=str(e))
 
-        conn_str = self.connection_string.resolve_value() or ""
-        try:
-            connection = Connection.connect(conn_str)
-        except Error as e:
-            msg = (
-                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
-                "PostgreSQL connection specification: "
-                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
-            )
-            raise DocumentStoreError(msg) from e
+        connection = self._create_connection()
         connection.autocommit = True
         if self.create_extension:
             connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -430,16 +462,7 @@ class PgvectorDocumentStore:
         if self._async_connection:
             await self._async_connection.close()
 
-        conn_str = self.connection_string.resolve_value() or ""
-        try:
-            async_connection = await AsyncConnection.connect(conn_str)
-        except Error as e:
-            msg = (
-                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
-                "PostgreSQL connection specification: "
-                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
-            )
-            raise DocumentStoreError(msg) from e
+        async_connection = await self._create_connection_async()
         await async_connection.set_autocommit(True)
         if self.create_extension:
             await async_connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
