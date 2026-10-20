@@ -28,9 +28,9 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.28.0",
-  "pgvector>=0.3.0",
+  "pgvector-haystack>=8.1.0",
   "psycopg[binary]",
-  "google-cloud-alloydb-connector[psycopg]>=1.0.0",
+  "google-cloud-alloydb-connector[psycopg]>=1.9.0",
 ]
 
 [project.urls]

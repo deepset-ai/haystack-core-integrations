@@ -194,3 +194,9 @@ class TestKeywordRetriever:
 
         assert len(result["documents"]) == 1
         assert result["documents"][0].content == "Python is a great programming language"
+
+
+@pytest.mark.parametrize("retriever_cls", [AlloyDBEmbeddingRetriever, AlloyDBKeywordRetriever])
+def test_retrievers_have_no_run_async(retriever_cls):
+    # AlloyDBDocumentStore has no async support: without `run_async`, AsyncPipeline runs the sync `run` in a thread
+    assert not hasattr(retriever_cls, "run_async")
