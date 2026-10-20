@@ -82,7 +82,7 @@ def document_store_w_halfvec_hnsw_index(request, monkeypatch):
 @pytest.fixture
 def patches_for_unit_tests():
     with (
-        patch("haystack_integrations.document_stores.pgvector._base.register_vector") as mock_register,
+        patch("haystack_integrations.document_stores.pgvector.document_store.register_vector") as mock_register,
         patch(
             "haystack_integrations.document_stores.pgvector.document_store.PgvectorDocumentStore.delete_table"
         ) as mock_delete,
