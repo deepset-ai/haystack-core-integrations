@@ -265,7 +265,7 @@ class ExperimentPrinter:
             *(self.detail_lines(metrics, baseline) if self.detail_lines else []),
         ]
 
-    def on_baseline(self, metrics: EvalMetrics, cost: float | None) -> None:
+    def print_baseline(self, metrics: EvalMetrics, cost: float | None) -> None:
         """
         Print the reference measurement every candidate is ranked against.
 
@@ -277,7 +277,7 @@ class ExperimentPrinter:
         for line in self._measurement(metrics=metrics, cost=cost):
             print(line)
 
-    def on_candidate(self, progress: CandidateProgress) -> None:
+    def print_candidate(self, progress: CandidateProgress) -> None:
         """
         Print one candidate as the search measures it, so a long run can be watched.
 

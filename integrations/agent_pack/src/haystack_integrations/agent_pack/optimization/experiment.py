@@ -31,6 +31,7 @@ from haystack_integrations.agent_pack.optimization.dataclasses import (
     ExperimentRecommendation,
     ExperimentResult,
     OptimizationObjectives,
+    ProposalResult,
 )
 from haystack_integrations.agent_pack.optimization.utils import (
     _configuration_id,
@@ -51,7 +52,7 @@ class ExperimentJournal:
         """
         Open a directory of experiment journals.
 
-        Each run gets its own run ID and journal file, even when its measurement context matches an earlier run.
+        Each run gets its own run ID and journal file, even when its eval context ID matches an earlier run.
 
         :param directory: Directory to write journals into. Created automatically.
         """
@@ -99,7 +100,7 @@ class ExperimentJournal:
 
         :param evaluation: The raw measurement or failure to record.
         """
-        # Keys keep the `to_dict` order, so each line starts with the context and the candidate
+        # Keys keep the `to_dict` order, so each line starts with the eval context ID and the candidate
         with (
             self._lock,
             self.path_for(run_id=evaluation.run_id).open("a", encoding="utf-8") as stream,
@@ -107,9 +108,9 @@ class ExperimentJournal:
             stream.write(json.dumps(evaluation.to_dict()) + "\n")
 
 
-def _fingerprint_eval_cases(eval_cases: list[Any]) -> list[dict[str, Any]]:
+def _sorted_eval_case_dicts(eval_cases: list[Any]) -> list[dict[str, Any]]:
     """
-    Describe the evaluation set, so two measurements are comparable only when it matches.
+    Serialize the eval cases and sort them by question, so the same set gives the same list in any order.
 
     :param eval_cases: The labelled expectations every configuration is measured against.
     :returns: Every eval case as a dictionary, ordered by question.
@@ -149,8 +150,8 @@ class HarnessOptimizationExperiment:
         configuration_key: str | None = None,
         max_iterations: int = 8,
         history_digest_window: int = 1,
-        on_baseline: Callable[[EvalMetrics, float | None], None] | None = None,
-        on_candidate: Callable[[CandidateProgress], None] | None = None,
+        baseline_callback: Callable[[EvalMetrics, float | None], None] | None = None,
+        candidate_callback: Callable[[CandidateProgress], None] | None = None,
     ) -> None:
         """
         Configure an iterative, journaled harness optimization run.
@@ -176,8 +177,8 @@ class HarnessOptimizationExperiment:
             corpus or harness version, that cannot be inferred from the serialized Agent and evaluator.
         :param max_iterations: Maximum number of candidate outcomes included in the experiment.
         :param history_digest_window: How many of the most recent outcomes are shown to the optimizer in full.
-        :param on_baseline: Called with the reference measurement and its cost before the search starts.
-        :param on_candidate: Called with each candidate's `CandidateProgress` right after it is measured, priced
+        :param baseline_callback: Called with the reference measurement and its cost before the search starts.
+        :param candidate_callback: Called with each candidate's `CandidateProgress` right after it is measured, priced
             and gated.
         """
         if max_iterations < 0:
@@ -204,8 +205,8 @@ class HarnessOptimizationExperiment:
         self.configuration_key = configuration_key
         self.max_iterations = max_iterations
         self.history_digest_window = history_digest_window
-        self.on_baseline = on_baseline
-        self.on_candidate = on_candidate
+        self.baseline_callback = baseline_callback
+        self.candidate_callback = candidate_callback
 
     def run(self) -> ExperimentResult:
         """
@@ -216,34 +217,17 @@ class HarnessOptimizationExperiment:
         """
         dump, load = _serialization(reference=self.reference)
         reference_yaml = dump(self.reference)
-
-        # Fingerprint what makes two measurements comparable: the evaluator and its settings, the eval cases and the
-        # configuration key. The reference YAML is left out, since its serialization carries incidental values such
-        # as an in-memory store's generated index; it is saved as `reference.yaml` instead.
-        payload = {
-            "evaluator": self.evaluator.to_dict(),
-            "eval_cases": _fingerprint_eval_cases(eval_cases=self.eval_cases),
-            "configuration_key": self.configuration_key,
-        }
-        context = content_digest(payload=json.dumps(payload, sort_keys=True, default=str))
-
-        # Claim a run directory for this run's artifacts
+        eval_context_id, payload = self._eval_context()
         run_id, artifacts = self.journal.claim_run()
         (artifacts / "reference.yaml").write_text(reference_yaml, encoding="utf-8")
-        reference_id = _configuration_id(reference_yaml)
 
-        # Measure the reference, which every candidate is ranked and gated against.
-        ref_target = load(reference_yaml)
-        try:
-            ref_eval_metrics = self.evaluator.evaluate(target=ref_target, eval_cases=self.eval_cases)
-        finally:
-            ref_target.close()
-        ref_cost = cost_of_model_usage(model_usage=ref_eval_metrics.model_usage, prices=self.prices)
+        # Measure the reference, which every candidate is ranked and gated against
+        ref_eval_metrics, ref_cost = self._evaluate_config(yaml=reference_yaml, load=load)
         self.journal.append(
             CandidateEvaluation(
-                measurement_context=context,
+                eval_context_id=eval_context_id,
                 run_id=run_id,
-                candidate_id=reference_id,
+                candidate_id=_configuration_id(text=reference_yaml),
                 configuration=None,
                 metrics=ref_eval_metrics,
                 cost=ref_cost,
@@ -254,10 +238,10 @@ class HarnessOptimizationExperiment:
             raise ValueError(msg)
         # Fail before the search when the evaluator does not report the metric the objectives treat as quality
         self.objectives.get_quality(metrics=ref_eval_metrics)
-        if self.on_baseline is not None:
-            self.on_baseline(ref_eval_metrics, ref_cost)
+        if self.baseline_callback is not None:
+            self.baseline_callback(ref_eval_metrics, ref_cost)
 
-        # Search: propose one candidate, measure it, and feed the outcome into the next proposal.
+        # Search: propose one candidate, measure it, and feed the outcome into the next proposal
         outcomes: list[CandidateEvaluation] = []
         history: list[CandidateOutcome] = []
         gates: dict[str, tuple[str, ...]] = {}
@@ -266,36 +250,22 @@ class HarnessOptimizationExperiment:
         optimizer_tracer = HarnessTracer()
         while len(outcomes) < self.max_iterations:
             # Each turn starts from the best candidate so far, or from the last one submitted when none has cleared
-            # the gates yet, and can restore any configuration already tried
-            last_id = outcomes[-1].candidate_id if outcomes else None
-            # Trace the optimizer's own model calls, so the search's spend can be reported
-            with optimizer_tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as turn_span:
-                turn = propose_candidate(
-                    optimizer_agent=self.optimizer_agent,
-                    reference=self.reference,
-                    reference_yaml=reference_yaml,
-                    prices=self.prices,
-                    objectives=self.objectives,
-                    baseline=ref_eval_metrics,
-                    history=history,
-                    history_digest_window=self.history_digest_window,
-                    remaining_evaluations=self.max_iterations - len(outcomes),
-                    candidates={
-                        outcome.candidate_id: outcome.configuration.yaml
-                        for outcome in outcomes
-                        if outcome.configuration is not None
-                    },
-                    base_id=best_id or last_id,
-                )
-            # An empty summary when a HarnessTracer was not the active tracer.
-            collected = turn_span.collected if isinstance(turn_span, HarnessSpan) else None
-            for model, tokens in (collected.summarize().model_usage if collected is not None else {}).items():
+            # the gates yet
+            turn, turn_usage = self._propose(
+                tracer=optimizer_tracer,
+                reference_yaml=reference_yaml,
+                baseline=ref_eval_metrics,
+                history=history,
+                outcomes=outcomes,
+                base_id=best_id or (outcomes[-1].candidate_id if outcomes else None),
+            )
+            for model, tokens in turn_usage.items():
                 optimizer_usage[model] = optimizer_usage.get(model, ModelTokenUsage()) + tokens
             # Journal drafts that failed validation, so the run shows what the optimizer had to repair
             for failure in turn.validation_failures:
                 self.journal.append(
                     CandidateEvaluation(
-                        measurement_context=context,
+                        eval_context_id=eval_context_id,
                         run_id=run_id,
                         candidate_id=failure["revision"],
                         configuration=None,
@@ -317,22 +287,18 @@ class HarnessOptimizationExperiment:
             # Measure the proposal; a failure to build or run it is recorded and the search continues
             (artifacts / f"{proposed.candidate_id}.yaml").write_text(proposed.yaml, encoding="utf-8")
             try:
-                candidate = load(proposed.yaml)
-                try:
-                    metrics = self.evaluator.evaluate(target=candidate, eval_cases=self.eval_cases)
-                finally:
-                    candidate.close()
+                metrics, cost = self._evaluate_config(yaml=proposed.yaml, load=load)
                 evaluation = CandidateEvaluation(
-                    measurement_context=context,
+                    eval_context_id=eval_context_id,
                     run_id=run_id,
                     candidate_id=proposed.candidate_id,
                     configuration=proposed,
                     metrics=metrics,
-                    cost=cost_of_model_usage(model_usage=metrics.model_usage, prices=self.prices),
+                    cost=cost,
                 )
             except Exception as error:
                 evaluation = CandidateEvaluation(
-                    measurement_context=context,
+                    eval_context_id=eval_context_id,
                     run_id=run_id,
                     candidate_id=proposed.candidate_id,
                     configuration=proposed,
@@ -366,8 +332,8 @@ class HarnessOptimizationExperiment:
                 candidate_id=proposed.candidate_id,
                 gates=gate_failures,
             )
-            if self.on_candidate is not None:
-                self.on_candidate(
+            if self.candidate_callback is not None:
+                self.candidate_callback(
                     CandidateProgress(
                         position=len(outcomes),
                         total=self.max_iterations,
@@ -379,25 +345,10 @@ class HarnessOptimizationExperiment:
                     )
                 )
 
-        # Recommend the best candidate that clears every gate and actually beats the reference.
-        eligible = sorted(
-            (outcome for outcome in outcomes if not gates[outcome.candidate_id]), key=self._candidate_sort_key
+        recommendation = self._recommend(
+            outcomes=outcomes, gates=gates, baseline=ref_eval_metrics, baseline_cost=ref_cost, artifacts=artifacts
         )
-        recommendation = None
-        for evaluated in eligible:
-            reasons = self._recommendation_reasons(
-                candidate=evaluated, baseline=ref_eval_metrics, baseline_cost=ref_cost
-            )
-            if reasons is not None and evaluated.configuration is not None:
-                recommendation = ExperimentRecommendation(
-                    configuration=evaluated.configuration,
-                    evaluation=evaluated,
-                    reasons=reasons,
-                )
-                (artifacts / "recommended.yaml").write_text(evaluated.configuration.yaml, encoding="utf-8")
-                break
-
-        # The optimizer is not a candidate, so its spend is priced and reported but never ranked or gated.
+        # The optimizer is not a candidate, so its spend is priced and reported but never ranked or gated
         optimizer_cost = cost_of_model_usage(model_usage=optimizer_usage, prices=self.prices)
         logger.info(
             "optimizer spend across {turns} turns: {usage} ({cost})",
@@ -405,12 +356,154 @@ class HarnessOptimizationExperiment:
             usage={model: asdict(obj=tokens) for model, tokens in optimizer_usage.items()},
             cost="unpriced" if optimizer_cost is None else f"${optimizer_cost:.6f}",
         )
+        self._write_context(
+            artifacts=artifacts,
+            eval_context_id=eval_context_id,
+            run_id=run_id,
+            payload=payload,
+            optimizer_usage=optimizer_usage,
+            optimizer_cost=optimizer_cost,
+        )
 
-        # One file per run naming what its measurements can be compared against.
+        return ExperimentResult(
+            baseline=ref_eval_metrics,
+            baseline_cost=ref_cost,
+            candidates=tuple(outcomes),
+            recommendation=recommendation,
+            eval_context_id=eval_context_id,
+            run_id=run_id,
+            artifact_directory=artifacts,
+            gate_failures=gates,
+            optimizer_usage=optimizer_usage,
+            optimizer_cost=optimizer_cost,
+        )
+
+    def _eval_context(self) -> tuple[str, dict[str, Any]]:
+        """
+        Fingerprint what makes two runs' measurements comparable: the evaluator, eval cases and configuration key.
+
+        :returns: The fingerprint, and the values it was taken from.
+        """
+        payload = {
+            "evaluator": self.evaluator.to_dict(),
+            "eval_cases": _sorted_eval_case_dicts(eval_cases=self.eval_cases),
+            "configuration_key": self.configuration_key,
+        }
+        return content_digest(payload=json.dumps(payload, sort_keys=True, default=str)), payload
+
+    def _evaluate_config(self, yaml: str, load: Callable[[str], Agent | Pipeline]) -> tuple[EvalMetrics, float | None]:
+        """
+        Build a configuration from its YAML, run the evaluator on it and price its token usage.
+
+        :param yaml: The configuration to evaluate.
+        :param load: Builds the configuration from YAML.
+        :returns: The evaluator's measurement, and its cost, or `None` when a model it used has no known price.
+        """
+        target = load(yaml)
+        try:
+            metrics = self.evaluator.evaluate(target=target, eval_cases=self.eval_cases)
+        finally:
+            target.close()
+        return metrics, cost_of_model_usage(model_usage=metrics.model_usage, prices=self.prices)
+
+    def _propose(
+        self,
+        *,
+        tracer: HarnessTracer,
+        reference_yaml: str,
+        baseline: EvalMetrics,
+        history: list[CandidateOutcome],
+        outcomes: list[CandidateEvaluation],
+        base_id: str | None,
+    ) -> tuple[ProposalResult, dict[str, ModelTokenUsage]]:
+        """
+        Run one optimizer turn, tracing the optimizer's own model calls so the search's spend can be reported.
+
+        :param tracer: The tracer collecting the optimizer's spans.
+        :param reference_yaml: The reference configuration.
+        :param baseline: The reference measurement.
+        :param history: Every candidate outcome so far, as the optimizer is shown it.
+        :param outcomes: Every candidate measured so far, whose configurations the optimizer can restore.
+        :param base_id: The candidate the turn starts from, or `None` for the reference.
+        :returns: The turn's result, and the tokens the optimizer spent on it by model.
+        """
+        with tracer.activate(), tracing.tracer.trace(EVAL_CASE_SPAN) as turn_span:
+            turn = propose_candidate(
+                optimizer_agent=self.optimizer_agent,
+                reference=self.reference,
+                reference_yaml=reference_yaml,
+                prices=self.prices,
+                objectives=self.objectives,
+                baseline=baseline,
+                history=history,
+                history_digest_window=self.history_digest_window,
+                remaining_evaluations=self.max_iterations - len(outcomes),
+                candidates={
+                    outcome.candidate_id: outcome.configuration.yaml
+                    for outcome in outcomes
+                    if outcome.configuration is not None
+                },
+                base_id=base_id,
+            )
+        # No usage is reported when a HarnessTracer was not the active tracer
+        collected = turn_span.collected if isinstance(turn_span, HarnessSpan) else None
+        return turn, (collected.summarize().model_usage if collected is not None else {})
+
+    def _recommend(
+        self,
+        *,
+        outcomes: list[CandidateEvaluation],
+        gates: dict[str, tuple[str, ...]],
+        baseline: EvalMetrics,
+        baseline_cost: float | None,
+        artifacts: Path,
+    ) -> ExperimentRecommendation | None:
+        """
+        Pick the best candidate that cleared every gate and outranks the reference, and save it as `recommended.yaml`.
+
+        :param outcomes: Every candidate measured.
+        :param gates: The gates each candidate failed, by candidate ID.
+        :param baseline: The reference measurement.
+        :param baseline_cost: The reference's cost, or `None` when it could not be priced.
+        :param artifacts: The run's artifact directory.
+        :returns: The recommendation, or `None` when no candidate qualifies.
+        """
+        eligible = sorted(
+            (outcome for outcome in outcomes if not gates[outcome.candidate_id]), key=self._candidate_sort_key
+        )
+        for evaluated in eligible:
+            reasons = self._recommendation_reasons(candidate=evaluated, baseline=baseline, baseline_cost=baseline_cost)
+            if reasons is not None and evaluated.configuration is not None:
+                (artifacts / "recommended.yaml").write_text(evaluated.configuration.yaml, encoding="utf-8")
+                return ExperimentRecommendation(
+                    configuration=evaluated.configuration, evaluation=evaluated, reasons=reasons
+                )
+        return None
+
+    def _write_context(
+        self,
+        *,
+        artifacts: Path,
+        eval_context_id: str,
+        run_id: str,
+        payload: dict[str, Any],
+        optimizer_usage: dict[str, ModelTokenUsage],
+        optimizer_cost: float | None,
+    ) -> None:
+        """
+        Write `context.json`, naming what the run's measurements compare against and what the search itself spent.
+
+        :param artifacts: The run's artifact directory.
+        :param eval_context_id: The eval context ID.
+        :param run_id: The run's ID.
+        :param payload: The values the fingerprint was taken from.
+        :param optimizer_usage: The optimizer's token usage by model.
+        :param optimizer_cost: What that usage costs, or `None` when a model has no known price.
+        """
         (artifacts / "context.json").write_text(
             json.dumps(
                 {
-                    "measurement_context": context,
+                    "eval_context_id": eval_context_id,
                     "run_id": run_id,
                     **payload,
                     "optimizer_usage": {model: asdict(obj=tokens) for model, tokens in optimizer_usage.items()},
@@ -420,19 +513,6 @@ class HarnessOptimizationExperiment:
                 default=str,
             ),
             encoding="utf-8",
-        )
-
-        return ExperimentResult(
-            baseline=ref_eval_metrics,
-            baseline_cost=ref_cost,
-            candidates=tuple(outcomes),
-            recommendation=recommendation,
-            measurement_context=context,
-            run_id=run_id,
-            artifact_directory=artifacts,
-            gate_failures=gates,
-            optimizer_usage=optimizer_usage,
-            optimizer_cost=optimizer_cost,
         )
 
     def _find_failed_gates(self, candidate: CandidateEvaluation, baseline: EvalMetrics) -> tuple[str, ...]:

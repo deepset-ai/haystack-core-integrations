@@ -321,7 +321,7 @@ def propose_candidate(
     :raises ValueError: If `base_id` is not one of `candidates`.
     """
     # The turn's starting point, which the editing tools read from the agent's state
-    reference_id = _configuration_id(reference_yaml)
+    reference_id = _configuration_id(text=reference_yaml)
     known = KnownConfigurations(
         reference_id=reference_id, yaml_by_id={reference_id: reference_yaml, **(candidates or {})}
     )

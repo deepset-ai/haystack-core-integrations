@@ -204,7 +204,8 @@ class CandidateEvaluation:
     """
     Journaled measurement or failure for one complete YAML configuration.
 
-    :param measurement_context: Fingerprint of what makes two measurements comparable.
+    :param eval_context_id: Fingerprint of what makes two measurements comparable: the evaluator, the eval
+        cases and the configuration key.
     :param run_id: The experiment run this record belongs to.
     :param candidate_id: Identifier of the measured configuration.
     :param configuration: The submitted configuration, or None for the reference and for drafts that failed
@@ -215,7 +216,7 @@ class CandidateEvaluation:
     :param failure: Why the configuration could not be measured.
     """
 
-    measurement_context: str
+    eval_context_id: str
     run_id: str
     candidate_id: str
     configuration: CandidateConfiguration | None
@@ -226,7 +227,7 @@ class CandidateEvaluation:
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible journal record."""
         return {
-            "measurement_context": self.measurement_context,
+            "eval_context_id": self.eval_context_id,
             "run_id": self.run_id,
             "candidate_id": self.candidate_id,
             "configuration": asdict(self.configuration) if self.configuration is not None else None,
@@ -239,7 +240,7 @@ class CandidateEvaluation:
 @dataclass(kw_only=True)
 class CandidateProgress:
     """
-    One measured candidate, passed to `on_candidate` as soon as it has been measured.
+    One measured candidate, passed to `candidate_callback` as soon as it has been measured.
 
     :param position: Which candidate this is, counting from one.
     :param total: How many candidates the experiment may measure in all.
@@ -276,7 +277,7 @@ class ExperimentResult:
     baseline_cost: float | None
     candidates: tuple[CandidateEvaluation, ...]
     recommendation: ExperimentRecommendation | None
-    measurement_context: str
+    eval_context_id: str
     run_id: str
     artifact_directory: Path
     gate_failures: dict[str, tuple[str, ...]] = field(default_factory=dict)

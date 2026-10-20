@@ -265,8 +265,8 @@ def main() -> None:
         optimizer_max_agent_steps=arguments.optimizer_steps,
         optimizer_documentation_tools=arguments.docs_mcp,
         max_iterations=arguments.max_iterations,
-        on_baseline=printer.on_baseline,
-        on_candidate=printer.on_candidate,
+        baseline_callback=printer.print_baseline,
+        candidate_callback=printer.print_candidate,
         configuration_key=f"{CORPUS_KEY}:{SPLIT_LENGTH}:{SPLIT_OVERLAP}:{document_count}",
     )
     result = experiment.run()
@@ -275,7 +275,7 @@ def main() -> None:
     printer.report(result=result)
     print()
     print(paint(f"    journal  {experiment.journal.path_for(result.run_id)}", "dim"))
-    print(paint(f"    context  {result.measurement_context} · {result.run_id}", "dim"))
+    print(paint(f"    context  {result.eval_context_id} · {result.run_id}", "dim"))
 
 
 if __name__ == "__main__":

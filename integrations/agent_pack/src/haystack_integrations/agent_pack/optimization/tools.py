@@ -278,7 +278,7 @@ def submit_candidate(
     if expected_revision != draft.revision or draft.validated_revision != expected_revision:
         msg = "Validate the current revision before submitting."
         raise ValueError(msg)
-    candidate_id = _configuration_id(draft.yaml)
+    candidate_id = _configuration_id(text=draft.yaml)
     if candidate_id in known.yaml_by_id:
         msg = "duplicate_or_no_op: this configuration was already submitted or is the reference."
         raise ValueError(msg)

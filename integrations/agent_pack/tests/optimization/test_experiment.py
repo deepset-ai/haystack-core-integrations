@@ -18,7 +18,7 @@ from haystack_integrations.agent_pack.optimization import (
     HarnessOptimizationExperiment,
     OptimizationObjectives,
 )
-from haystack_integrations.agent_pack.optimization.experiment import _fingerprint_eval_cases
+from haystack_integrations.agent_pack.optimization.experiment import _sorted_eval_case_dicts
 from haystack_integrations.agent_pack.optimization.utils import load_agent, load_pipeline
 
 
@@ -409,17 +409,17 @@ class TestMeasurementContext:
 
         first, _ = configured(tmp_path, ["cheap", None], evaluator=RankedEvaluator(k=10))
         second, _ = configured(tmp_path, ["cheap", None], evaluator=RankedEvaluator(k=5))
-        assert first.run().measurement_context != second.run().measurement_context
+        assert first.run().eval_context_id != second.run().eval_context_id
 
     def test_same_inputs_share_a_context(self, tmp_path):
-        """The context answers whether two runs' numbers compare, which a changed reference must not break."""
+        """The eval context ID answers whether two runs' numbers compare, which a changed reference must not break."""
         first, _ = configured(tmp_path, ["cheap", None])
         second, _ = configured(tmp_path, ["cheap", None])
         # A different reference configuration, measured against the same runs, eval cases and evaluator.
         second.reference = Agent(chat_generator=MockChatGenerator(model="reference"), max_agent_steps=7)
         one = first.run()
         two = second.run()
-        assert one.measurement_context == two.measurement_context
+        assert one.eval_context_id == two.eval_context_id
         # The configurations themselves are still distinguishable, and still recorded.
         assert (one.artifact_directory / "reference.yaml").read_text() != (
             two.artifact_directory / "reference.yaml"
@@ -429,12 +429,12 @@ class TestMeasurementContext:
         """Two callers listing the same questions differently are measuring the same thing."""
         one = [StubEvalCase("zeta"), StubEvalCase("alpha")]
         other = [StubEvalCase("alpha"), StubEvalCase("zeta")]
-        assert _fingerprint_eval_cases(eval_cases=one) == _fingerprint_eval_cases(eval_cases=other)
-        assert [entry["question"] for entry in _fingerprint_eval_cases(eval_cases=one)] == ["alpha", "zeta"]
-        assert _fingerprint_eval_cases(eval_cases=one) != _fingerprint_eval_cases(eval_cases=[StubEvalCase("alpha")])
+        assert _sorted_eval_case_dicts(eval_cases=one) == _sorted_eval_case_dicts(eval_cases=other)
+        assert [entry["question"] for entry in _sorted_eval_case_dicts(eval_cases=one)] == ["alpha", "zeta"]
+        assert _sorted_eval_case_dicts(eval_cases=one) != _sorted_eval_case_dicts(eval_cases=[StubEvalCase("alpha")])
 
     def test_a_different_eval_set_is_not_comparable(self, tmp_path):
         """Measurements only compare when they were taken against the same questions."""
         first, _ = configured(tmp_path, ["cheap", None])
         second, _ = configured(tmp_path, ["cheap", None], eval_cases=[StubEvalCase("a different question")])
-        assert first.run().measurement_context != second.run().measurement_context
+        assert first.run().eval_context_id != second.run().eval_context_id
