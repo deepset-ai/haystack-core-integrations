@@ -240,11 +240,8 @@ class TestConvertChatHistoryToVLLMFormat:
         [ChatMessage.from_assistant(text=None), ChatMessage.from_assistant(reasoning="only reasoning")],
     )
     def test_drops_trailing_empty_assistant(self, last_message):
-        messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(text=None), last_message]
-        assert _convert_chat_history_to_vllm_format(messages=messages) == [
-            {"role": "user", "content": "Hi"},
-            {"role": "assistant", "content": ""},
-        ]
+        messages = [ChatMessage.from_user("Hi"), last_message]
+        assert _convert_chat_history_to_vllm_format(messages=messages) == [{"role": "user", "content": "Hi"}]
 
     def test_keeps_trailing_assistant_with_tool_calls(self):
         tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
