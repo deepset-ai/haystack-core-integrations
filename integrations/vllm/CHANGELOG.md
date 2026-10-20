@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/vllm-v3.0.1] - 2026-10-20
+
+### 🐛 Bug Fixes
+
+- *(vllm)* Drop trailing empty assistant message before sending to vLLM (#4131)
+
+
 ## [integrations/vllm-v3.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
