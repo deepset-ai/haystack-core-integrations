@@ -1023,18 +1023,19 @@ class PgvectorDocumentStore:
         if not document_ids:
             return
 
-        document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
-
-        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id IN ({document_ids_str})").format(
+        # pass the ids as a bound parameter, so they are never interpreted as SQL
+        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id = ANY(%s)").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
-            document_ids_str=SQL(document_ids_str),
         )
 
         self._ensure_db_setup()
         assert self._cursor is not None
         self._execute_sql(
-            cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore"
+            cursor=self._cursor,
+            sql_query=delete_sql,
+            params=(document_ids,),
+            error_msg="Could not delete documents from PgvectorDocumentStore",
         )
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
@@ -1046,12 +1047,10 @@ class PgvectorDocumentStore:
         if not document_ids:
             return
 
-        document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
-
-        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id IN ({document_ids_str})").format(
+        # pass the ids as a bound parameter, so they are never interpreted as SQL
+        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id = ANY(%s)").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
-            document_ids_str=SQL(document_ids_str),
         )
 
         await self._ensure_db_setup_async()
@@ -1059,6 +1058,7 @@ class PgvectorDocumentStore:
         await self._execute_sql_async(
             cursor=self._async_cursor,
             sql_query=delete_sql,
+            params=(document_ids,),
             error_msg="Could not delete documents from PgvectorDocumentStore",
         )
 
