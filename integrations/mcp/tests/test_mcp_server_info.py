@@ -151,6 +151,7 @@ class TestMCPServerInfo:
             "max_retries": 3,
             "base_delay": 1.0,
             "max_delay": 30.0,
+            "oauth_config": None,
         }
 
         # Test from_dict - Secret is properly deserialized
