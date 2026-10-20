@@ -423,12 +423,11 @@ class TestEnsureInitialized:
         )
 
     @staticmethod
-    def _session(fail_on=None, status=403):
+    def _session(fail_on=None, status=403, *, database_exists=True):
         """A session that answers 200 to everything except commands containing `fail_on`."""
         sent = []
 
-        def post(*_args, **kwargs):
-            command = (kwargs.get("json") or {}).get("command", "")
+        def respond(command, result):
             sent.append(command)
             response = Mock()
             if fail_on is not None and fail_on in command:
@@ -436,52 +435,61 @@ class TestEnsureInitialized:
                 response.text = "refused"
             else:
                 response.status_code = 200
-                response.json.return_value = {"result": []}
+                response.json.return_value = {"result": result}
             return response
+
+        def post(*_args, **kwargs):
+            return respond((kwargs.get("json") or {}).get("command", ""), [])
+
+        def get(url, **_kwargs):
+            return respond(f"GET {url}", database_exists)
 
         session = Mock()
         session.post.side_effect = post
+        session.get.side_effect = get
         session.sent = sent
         return session
 
-    def test_refused_drop_raises_instead_of_reusing_the_old_type(self):
-        """recreate_type=True is documented as dropping the type, so a refused drop is not a success."""
-        store = self._store(recreate_type=True)
-        store._session = self._session(fail_on="DROP TYPE")
+    @pytest.mark.parametrize(
+        ("store_kwargs", "fail_on", "status"),
+        [({"recreate_type": True}, "DROP TYPE", 403), ({}, "LSM_VECTOR", 500)],
+    )
+    def test_failed_statement_raises(self, store_kwargs, fail_on, status):
+        store = self._store(**store_kwargs)
+        store._session = self._session(fail_on=fail_on, status=status)
 
-        with pytest.raises(RuntimeError, match="403"):
+        with pytest.raises(RuntimeError, match=str(status)):
             store._ensure_initialized()
 
         assert store._initialized is False
-        # It stopped at the drop: nothing was created on top of the type it failed to remove.
-        assert not any("CREATE VERTEX TYPE" in command for command in store._session.sent)
+        # Initialization stops at the failing statement
+        assert fail_on in store._session.sent[-1]
 
-    def test_failed_vector_index_raises_instead_of_deferring_to_the_first_search(self):
-        store = self._store()
-        store._session = self._session(fail_on="LSM_VECTOR", status=500)
+    @pytest.mark.parametrize("database_exists", [True, False])
+    def test_database_is_created_only_when_missing(self, database_exists):
+        store = self._store(create_database=True)
+        store._session = self._session(database_exists=database_exists)
+
+        store._ensure_initialized()
+
+        assert store._initialized is True
+        assert store._session.sent[0] == "GET http://localhost:2480/api/v1/exists/test"
+        created = any("CREATE DATABASE" in command for command in store._session.sent)
+        assert created == (not database_exists)
+
+    @pytest.mark.parametrize(
+        ("fail_on", "database_exists"),
+        [("/api/v1/exists/", True), ("CREATE DATABASE", False)],
+    )
+    def test_failed_database_check_or_create_raises(self, fail_on, database_exists):
+        store = self._store(create_database=True)
+        store._session = self._session(fail_on=fail_on, status=500, database_exists=database_exists)
 
         with pytest.raises(RuntimeError, match="500"):
             store._ensure_initialized()
 
         assert store._initialized is False
-
-    def test_an_existing_unique_index_is_still_tolerated(self):
-        """`CREATE INDEX ... UNIQUE` has no IF NOT EXISTS, so re-initialising must not raise."""
-        store = self._store()
-        store._session = self._session(fail_on="(id) UNIQUE", status=400)
-
-        store._ensure_initialized()
-
-        assert store._initialized is True
-
-    def test_an_existing_database_is_still_tolerated(self):
-        """CREATE DATABASE has no IF NOT EXISTS either."""
-        store = self._store(create_database=True)
-        store._session = self._session(fail_on="CREATE DATABASE", status=409)
-
-        store._ensure_initialized()
-
-        assert store._initialized is True
+        assert fail_on in store._session.sent[-1]
 
     def test_a_clean_run_initialises(self):
         store = self._store(recreate_type=True)
@@ -550,6 +558,13 @@ class TestArcadeDBDocumentStore(
         assert document_store._session is None
 
         assert document_store.count_documents() == 1
+
+    def test_init_raises_on_vector_index_config_mismatch(self, document_store: ArcadeDBDocumentStore):
+        document_store.write_documents([Document(id="1", embedding=[0.1] * 768)])
+        mismatched_store = ArcadeDBDocumentStore(url=ARCADEDB_URL, database="haystack_test", embedding_dimension=384)
+
+        with pytest.raises(RuntimeError, match="different configuration"):
+            mismatched_store.count_documents()
 
     def test_write_documents(self, document_store: ArcadeDBDocumentStore):
         """Override mixin: test default write_documents and duplicate fail behaviour."""

@@ -185,21 +185,25 @@ class ArcadeDBDocumentStore:
             raise RuntimeError(msg)
         return resp.json()
 
+    def _database_exists(self) -> bool:
+        """Check whether the database exists on the server."""
+        url = f"{self._url}/api/v1/exists/{self._database}"
+        resp = self._ensure_session().get(url, auth=self._auth())
+        if resp.status_code >= HTTPStatus.BAD_REQUEST:
+            msg = f"ArcadeDB exists check failed ({resp.status_code}): {resp.text}"
+            raise RuntimeError(msg)
+        return resp.json().get("result") is True
+
     def _ensure_initialized(self) -> None:
         if self._initialized:
             return
 
         # 1. Optionally create the database
-        if self._create_database:
-            try:
-                self._server_command(f"CREATE DATABASE {self._database}")
-                logger.info("Created database '{database}'", database=self._database)
-            except RuntimeError:
-                logger.debug("Database '{database}' already exists or cannot be created", database=self._database)
+        if self._create_database and not self._database_exists():
+            self._server_command(f"CREATE DATABASE {self._database}")
+            logger.info("Created database '{database}'", database=self._database)
 
-        # 2. Optionally drop existing type. `IF EXISTS` already makes an absent type a non-error, so
-        # any failure here is a real one - and swallowing it leaves the old type in place while
-        # reporting a successful recreate, so every later write lands in stale data.
+        # 2. Optionally drop existing type. `IF EXISTS` already covers a missing type, so any error here is a real one.
         if self._recreate_type:
             self._command(f"DROP TYPE `{self._type_name}` IF EXISTS UNSAFE")
 
@@ -211,16 +215,12 @@ class ArcadeDBDocumentStore:
         self._command(f"CREATE PROPERTY `{self._type_name}`.meta IF NOT EXISTS MAP")
 
         # 4. Unique index on id
-        try:
-            self._command(f"CREATE INDEX ON `{self._type_name}` (id) UNIQUE")
-        except RuntimeError:
-            logger.debug("Unique index on id already exists")
+        self._command(f"CREATE INDEX IF NOT EXISTS ON `{self._type_name}` (id) UNIQUE")
 
         # 5. LSM_VECTOR index on embedding (HNSW-based, ACID-compliant)
         metric = self._SIMILARITY_MAP.get(self._similarity_function, "COSINE")
-        # `IF NOT EXISTS` covers the index already being there, so a failure means it was not created.
-        # `_embedding_retrieval` addresses that index by name through `vectorNeighbors`, so the store
-        # is unusable for retrieval either way - say so here rather than at the first search.
+        # Since ArcadeDB 26.10.1, this also raises if the index exists with a different dimension or similarity.
+        # We don't catch it, so a store that doesn't match the existing index fails early.
         self._command(
             f"CREATE INDEX IF NOT EXISTS ON `{self._type_name}` (embedding) LSM_VECTOR "
             f"METADATA {{ dimensions: {self._embedding_dimension}, similarity: '{metric}' }}"
