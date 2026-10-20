@@ -156,6 +156,8 @@ class TestAmazonBedrockTokenCounterInference:
             ChatMessage.from_assistant("Let me check the weather for you.", tool_calls=[tool_call]),
             ChatMessage.from_tool(tool_result="Weather in Paris: sunny", origin=tool_call),
             ChatMessage.from_assistant("The weather in Paris is sunny."),
+            # Current Claude models reject a conversation that ends with an assistant message
+            ChatMessage.from_user("And what about tomorrow?"),
         ]
         counter = AmazonBedrockTokenCounter(
             model=MODEL,
