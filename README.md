@@ -6,9 +6,9 @@
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/arcadedb/embedding\_retriever.py |       33 |        2 |        8 |        4 |     85% |94, 96, 142-\>144, 144-\>146 |
 | src/haystack\_integrations/document\_stores/arcadedb/converters.py                |       14 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      373 |       77 |      144 |       18 |     79% |154, 186, 193-231, 253, 337-\>330, 345-\>328, 375-379, 409, 423-\>425, 431-441, 464-465, 471-473, 493-495, 518-523, 538-\>541, 543, 570-\>572, 590-\>593, 619, 644-671 |
+| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      368 |       49 |      146 |       16 |     85% |154, 252, 336-\>329, 344-\>327, 374-378, 408, 422-\>424, 430-440, 463-464, 470-472, 492-494, 517-522, 537-\>540, 542, 569-\>571, 589-\>592, 618, 643-670 |
 | src/haystack\_integrations/document\_stores/arcadedb/filters.py                   |       89 |        0 |       56 |        0 |    100% |           |
-| **TOTAL**                                                                         |  **509** |   **79** |  **212** |   **22** | **84%** |           |
+| **TOTAL**                                                                         |  **504** |   **51** |  **214** |   **20** | **89%** |           |
 
 
 ## Setup coverage badge
