@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/huggingface_api-v3.1.0] - 2026-10-20
+
+### 🚀 Features
+
+- *(huggingface_api)* Support streaming tool calls (#4123)
+
+
 ## [integrations/huggingface_api-v3.0.0] - 2026-10-16
 
 ### 🧪 Testing
