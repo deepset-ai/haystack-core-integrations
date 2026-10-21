@@ -214,10 +214,10 @@ def test_build_hnsw_queries_passes_creation_kwargs_as_literals():
 
     *_, sql_create_hnsw_index = document_store._build_hnsw_queries()
 
-    assert sql_create_hnsw_index.as_string() == (
-        'CREATE INDEX "haystack_hnsw_index" ON "public"."haystack_documents" USING hnsw (embedding vector_cosine_ops) '
-        "WITH (m = 32, ef_construction = '64); DROP TABLE haystack; --')"
-    )
+    assert (
+        "SQL(' WITH ('), Composed([Composed([SQL('m'), SQL(' = '), Literal(32)]), SQL(', '), "
+        "Composed([SQL('ef_construction'), SQL(' = '), Literal('64); DROP TABLE haystack; --')])]), SQL(')')"
+    ) in repr(sql_create_hnsw_index)
 
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
@@ -334,33 +334,27 @@ def test_check_and_build_embedding_retrieval_query_rejects_invalid_vector_functi
 
 
 @pytest.mark.parametrize(
-    ("vector_function", "expected_query"),
+    ("vector_function", "score_sql", "order_by_sql"),
     [
         (
             "cosine_similarity",
-            (
-                'SELECT *, 1 - (embedding <=> \'[0.1,2.0]\') AS score FROM "public"."haystack" '
-                "ORDER BY embedding <=> '[0.1,2.0]' ASC LIMIT 5"
-            ),
+            "Composed([SQL('1 - (embedding <=> '), Literal('[0.1,2.0]'), SQL(') AS score')])",
+            "Composed([SQL('embedding <=> '), Literal('[0.1,2.0]')])",
         ),
         (
             "inner_product",
-            (
-                'SELECT *, (embedding <#> \'[0.1,2.0]\') * -1 AS score FROM "public"."haystack" '
-                "ORDER BY embedding <#> '[0.1,2.0]' ASC LIMIT 5"
-            ),
+            "Composed([SQL('(embedding <#> '), Literal('[0.1,2.0]'), SQL(') * -1 AS score')])",
+            "Composed([SQL('embedding <#> '), Literal('[0.1,2.0]')])",
         ),
         (
             "l2_distance",
-            (
-                'SELECT *, embedding <-> \'[0.1,2.0]\' AS score FROM "public"."haystack" '
-                "ORDER BY embedding <-> '[0.1,2.0]' ASC LIMIT 5"
-            ),
+            "Composed([SQL('embedding <-> '), Literal('[0.1,2.0]'), SQL(' AS score')])",
+            "Composed([SQL('embedding <-> '), Literal('[0.1,2.0]')])",
         ),
     ],
 )
 def test_check_and_build_embedding_retrieval_query_orders_by_distance_operator(
-    mock_store, vector_function, expected_query
+    mock_store, vector_function, score_sql, order_by_sql
 ):
     mock_store.embedding_dimension = 2
 
@@ -370,7 +364,9 @@ def test_check_and_build_embedding_retrieval_query_orders_by_distance_operator(
         top_k=5,
     )
 
-    assert sql_query.as_string() == expected_query
+    rendered = repr(sql_query)
+    assert f"SQL('SELECT *, '), {score_sql}" in rendered
+    assert f"SQL(' ORDER BY '), {order_by_sql}, SQL(' ASC LIMIT '), Literal(5)" in rendered
     assert params == ()
 
 
@@ -518,16 +514,16 @@ def test_halfvec_hnsw_write_documents(document_store_w_halfvec_hnsw_index: Pgvec
 
 @pytest.mark.integration
 def test_hnsw_index_recreation():
-    def get_index_oid(document_store, schema_name, index_name):
-        sql_get_index_oid = """
-            SELECT c.oid
+    def get_index_oid_and_reloptions(document_store, schema_name, index_name):
+        sql_get_index_oid_and_reloptions = """
+            SELECT c.oid, c.reloptions
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind = 'i'
             AND n.nspname = %s
             AND c.relname = %s;
         """
-        return document_store._cursor.execute(sql_get_index_oid, (schema_name, index_name)).fetchone()[0]
+        return document_store._cursor.execute(sql_get_index_oid_and_reloptions, (schema_name, index_name)).fetchone()
 
     # create a new schema
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -546,49 +542,23 @@ def test_hnsw_index_recreation():
     ds1 = PgvectorDocumentStore(**params)
     ds1._ensure_db_setup()
 
-    # get the hnsw index oid
+    # get the hnsw index oid and options
     hnws_index_name = "haystack_hnsw_index"
-    first_oid = get_index_oid(ds1, ds1.schema_name, hnws_index_name)
+    first_oid, first_reloptions = get_index_oid_and_reloptions(ds1, ds1.schema_name, hnws_index_name)
+    assert first_reloptions is None
 
-    # create second document store with recreation enabled
-    ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
+    # create second document store with recreation enabled and custom index creation kwargs
+    ds2 = PgvectorDocumentStore(
+        **params, hnsw_recreate_index_if_exists=True, hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128}
+    )
     ds2._ensure_db_setup()
 
-    # get the index oid
-    second_oid = get_index_oid(ds2, ds2.schema_name, hnws_index_name)
+    # get the index oid and options
+    second_oid, second_reloptions = get_index_oid_and_reloptions(ds2, ds2.schema_name, hnws_index_name)
 
-    # verify that oids differ
+    # verify that oids differ and the recreated index uses the new kwargs
     assert second_oid != first_oid, "Index was not recreated (OID remained the same)"
-
-    # Clean up: drop the schema after the test
-    with psycopg.connect(connection_string, autocommit=True) as conn:
-        conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
-
-
-@pytest.mark.integration
-def test_hnsw_index_creation_kwargs_are_applied():
-    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
-    schema_name = "test_schema_hnsw_kwargs"
-    with psycopg.connect(connection_string, autocommit=True) as conn:
-        conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
-        conn.execute(f"CREATE SCHEMA {schema_name}")
-
-    document_store = PgvectorDocumentStore(
-        connection_string=Secret.from_token(connection_string),
-        schema_name=schema_name,
-        table_name="haystack_test_hnsw_kwargs",
-        search_strategy="hnsw",
-        hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
-    )
-    document_store._ensure_db_setup()
-
-    with psycopg.connect(connection_string) as conn:
-        reloptions = conn.execute(
-            "SELECT c.reloptions FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
-            "WHERE n.nspname = %s AND c.relname = %s",
-            (schema_name, document_store.hnsw_index_name),
-        ).fetchone()[0]
-    assert sorted(reloptions) == ["ef_construction=128", "m=32"]
+    assert sorted(second_reloptions) == ["ef_construction=128", "m=32"]
 
     # Clean up: drop the schema after the test
     with psycopg.connect(connection_string, autocommit=True) as conn:

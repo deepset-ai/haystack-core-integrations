@@ -226,9 +226,9 @@ class TestDocumentStoreAsync(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_hnsw_index_recreation():
-    async def get_index_oid(cursor, document_store, schema_name, index_name):
-        sql_get_index_oid = SQL("""
-            SELECT c.oid
+    async def get_index_oid_and_reloptions(cursor, document_store, schema_name, index_name):
+        sql_get_index_oid_and_reloptions = SQL("""
+            SELECT c.oid, c.reloptions
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind = 'i'
@@ -236,15 +236,16 @@ async def test_hnsw_index_recreation():
             AND c.relname = %s;
         """)
         result = await document_store._execute_sql_async(
-            cursor=cursor, sql_query=sql_get_index_oid, params=(schema_name, index_name)
+            cursor=cursor, sql_query=sql_get_index_oid_and_reloptions, params=(schema_name, index_name)
         )
-        return (await result.fetchone())[0]
+        return await result.fetchone()
 
     # create a new schema
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
     schema_name = "test_schema"
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
-        await conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+        await conn.execute(f"CREATE SCHEMA {schema_name}")
 
     # create a first document store and trigger the creation of the hnsw index
     params = {
@@ -256,55 +257,27 @@ async def test_hnsw_index_recreation():
     ds1 = PgvectorDocumentStore(**params)
     await ds1._ensure_db_setup_async()
 
-    # get the hnsw index oid
+    # get the hnsw index oid and options
     hnws_index_name = "haystack_hnsw_index"
-    first_oid = await get_index_oid(
+    first_oid, first_reloptions = await get_index_oid_and_reloptions(
         cursor=ds1._async_cursor, document_store=ds1, schema_name=ds1.schema_name, index_name=hnws_index_name
     )
+    assert first_reloptions is None
 
-    # create second document store with recreation enabled
-    ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
+    # create second document store with recreation enabled and custom index creation kwargs
+    ds2 = PgvectorDocumentStore(
+        **params, hnsw_recreate_index_if_exists=True, hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128}
+    )
     await ds2._ensure_db_setup_async()
 
-    # get the index oid
-    second_oid = await get_index_oid(
+    # get the index oid and options
+    second_oid, second_reloptions = await get_index_oid_and_reloptions(
         cursor=ds2._async_cursor, document_store=ds2, schema_name=ds2.schema_name, index_name=hnws_index_name
     )
 
-    # verify that oids differ
+    # verify that oids differ and the recreated index uses the new kwargs
     assert second_oid != first_oid, "Index was not recreated (OID remained the same)"
-
-    # Clean up: drop the schema after the test
-    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
-        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_hnsw_index_creation_kwargs_are_applied():
-    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
-    schema_name = "test_schema_hnsw_kwargs_async"
-    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
-        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
-        await conn.execute(f"CREATE SCHEMA {schema_name}")
-
-    document_store = PgvectorDocumentStore(
-        connection_string=Secret.from_token(connection_string),
-        schema_name=schema_name,
-        table_name="haystack_test_hnsw_kwargs",
-        search_strategy="hnsw",
-        hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
-    )
-    await document_store._ensure_db_setup_async()
-
-    async with await psycopg.AsyncConnection.connect(connection_string) as conn:
-        result = await conn.execute(
-            "SELECT c.reloptions FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
-            "WHERE n.nspname = %s AND c.relname = %s",
-            (schema_name, document_store.hnsw_index_name),
-        )
-        reloptions = (await result.fetchone())[0]
-    assert sorted(reloptions) == ["ef_construction=128", "m=32"]
+    assert sorted(second_reloptions) == ["ef_construction=128", "m=32"]
 
     # Clean up: drop the schema after the test
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
