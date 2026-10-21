@@ -257,7 +257,6 @@ class TestOtariChatGenerator:
         component = OtariChatGenerator(
             api_base_url=OTARI_API_BASE_URL,
             streaming_callback=callback,
-            generation_kwargs={"stream_options": {"include_usage": True}},
         )
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
