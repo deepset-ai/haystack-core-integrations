@@ -233,6 +233,25 @@ class TestJinaRanker:
         assert len(ranked) == 2
         assert all(doc.score >= 2.5 for doc in ranked)
 
+    def test_run_score_threshold_zero_overrides_init(self):
+        docs = [Document(content=f"doc {i}") for i in range(4)]
+
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
+            ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"), score_threshold=2.5)
+            result = ranker.run(query="q", documents=docs, score_threshold=0.0)
+
+        assert len(result["documents"]) == 4
+
+    @pytest.mark.asyncio
+    async def test_run_async_score_threshold_zero_overrides_init(self):
+        docs = [Document(content=f"doc {i}") for i in range(4)]
+
+        with patch("httpx.AsyncClient.post", side_effect=mock_httpx_post_response):
+            ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"), score_threshold=2.5)
+            result = await ranker.run_async(query="q", documents=docs, score_threshold=0.0)
+
+        assert len(result["documents"]) == 4
+
     def test_run_with_top_k_truncates_results(self):
         docs = [Document(content=f"doc {i}") for i in range(5)]
 
