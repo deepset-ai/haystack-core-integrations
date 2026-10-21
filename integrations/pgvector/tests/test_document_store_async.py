@@ -281,6 +281,69 @@ async def test_hnsw_index_recreation():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_hnsw_index_creation_kwargs_are_applied():
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema_hnsw_kwargs_async"
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+        await conn.execute(f"CREATE SCHEMA {schema_name}")
+
+    document_store = PgvectorDocumentStore(
+        connection_string=Secret.from_token(connection_string),
+        schema_name=schema_name,
+        table_name="haystack_test_hnsw_kwargs",
+        search_strategy="hnsw",
+        hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128},
+    )
+    await document_store._ensure_db_setup_async()
+
+    async with await psycopg.AsyncConnection.connect(connection_string) as conn:
+        result = await conn.execute(
+            "SELECT c.reloptions FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = %s AND c.relname = %s",
+            (schema_name, document_store.hnsw_index_name),
+        )
+        reloptions = (await result.fetchone())[0]
+    assert sorted(reloptions) == ["ef_construction=128", "m=32"]
+
+    # Clean up: drop the schema after the test
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_hnsw_index_creation_kwargs_values_are_not_interpreted_as_sql():
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema_hnsw_kwargs_injection_async"
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+        await conn.execute(f"CREATE SCHEMA {schema_name}")
+        await conn.execute(f"CREATE TABLE {schema_name}.canary (id int)")
+
+    document_store = PgvectorDocumentStore(
+        connection_string=Secret.from_token(connection_string),
+        schema_name=schema_name,
+        table_name="haystack_test_hnsw_kwargs_injection",
+        search_strategy="hnsw",
+        hnsw_index_creation_kwargs={"m": f"16); DROP TABLE {schema_name}.canary; --"},
+    )
+
+    # the value is passed as a literal, so PostgreSQL rejects it as an invalid value for "m"
+    with pytest.raises(DocumentStoreError, match="Could not create HNSW index"):
+        await document_store._ensure_db_setup_async()
+
+    async with await psycopg.AsyncConnection.connect(connection_string) as conn:
+        canary = await (await conn.execute("SELECT to_regclass(%s)", (f"{schema_name}.canary",))).fetchone()
+    assert canary[0] is not None
+
+    # Clean up: drop the schema after the test
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_create_table_if_not_exists():
     async def get_table_oid(cursor, document_store, schema_name, table_name):
         sql_get_table_oid = SQL("""
