@@ -143,6 +143,22 @@ class TestDocumentStore:
         assert [c.args for c in mock_table.range.call_args_list] == [(0, 999), (500, 1499), (700, 1699)]
         mock_table.order.assert_called_with("id")
 
+    def test_filter_documents_applies_filters_on_every_page(self, groonga_store, mock_supabase_client):
+        mock_table = mock_supabase_client.table.return_value
+        mock_table.order.return_value = mock_table
+        mock_table.eq.return_value = mock_table
+        mock_table.range.return_value = mock_table
+        mock_table.execute.side_effect = [
+            MagicMock(data=[{"id": "1", "content": "c", "meta": {"lang": "en"}}]),
+            MagicMock(data=[{"id": "2", "content": "c", "meta": {"lang": "en"}}]),
+            MagicMock(data=[]),
+        ]
+
+        docs = groonga_store.filter_documents(filters={"field": "meta.lang", "operator": "==", "value": "en"})
+
+        assert [d.id for d in docs] == ["1", "2"]
+        assert [c.args for c in mock_table.eq.call_args_list] == [("meta->>lang", "en")] * 3
+
     def test_delete_documents_batches_ids(self, groonga_store, mock_supabase_client):
         ids = [f"{i}" for i in range(250)]
         groonga_store.delete_documents(ids)

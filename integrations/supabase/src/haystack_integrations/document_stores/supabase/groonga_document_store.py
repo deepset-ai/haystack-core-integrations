@@ -629,12 +629,17 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         """
         Deletes documents with the given IDs.
 
+        IDs are deleted in batches of 100 per request to keep request URLs short. The operation is not
+        atomic: if a batch fails, documents in earlier batches are already deleted.
+
         :param document_ids: List of document IDs to delete.
         """
         if self._client is None:
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
 
+        if not document_ids:
+            return
         for start in range(0, len(document_ids), _DELETE_BATCH_SIZE):
             batch = document_ids[start : start + _DELETE_BATCH_SIZE]
             self._client.table(self.table_name).delete().in_("id", batch).execute()
@@ -642,6 +647,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
     async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
         Async version of delete_documents.
+
+        IDs are deleted in batches of 100 per request to keep request URLs short. The operation is not
+        atomic: if a batch fails, documents in earlier batches are already deleted.
 
         :param document_ids: List of document IDs to delete.
         """

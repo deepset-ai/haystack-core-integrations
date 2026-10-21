@@ -150,13 +150,13 @@ class TestSupabaseGroongaDocumentStoreIntegration(
     def test_filter_update_and_delete_by_filter_beyond_max_rows(
         self, document_store: SupabaseGroongaDocumentStore
     ) -> None:
-        # docker-compose-groonga.yml caps PostgREST responses at 1000 rows, as Supabase does by default.
-        docs = [Document(content=f"doc {i}", meta={"tag": "a"}) for i in range(1050)]
+        # docker-compose-groonga.yml caps PostgREST responses at 100 rows, like Supabase's "Max rows" setting.
+        docs = [Document(content=f"doc {i}", meta={"tag": "a"}) for i in range(150)]
         document_store.write_documents(docs)
         tag_a = {"field": "meta.tag", "operator": "==", "value": "a"}
-        assert len(document_store.filter_documents(filters=tag_a)) == 1050
-        assert document_store.update_by_filter(filters=tag_a, meta={"tag": "b"}) == 1050
-        assert document_store.delete_by_filter(filters={"field": "meta.tag", "operator": "==", "value": "b"}) == 1050
+        assert len(document_store.filter_documents(filters=tag_a)) == 150
+        assert document_store.update_by_filter(filters=tag_a, meta={"tag": "b"}) == 150
+        assert document_store.delete_by_filter(filters={"field": "meta.tag", "operator": "==", "value": "b"}) == 150
         assert document_store.count_documents() == 0
 
 
@@ -258,9 +258,9 @@ class TestGroongaDocumentStoreAsyncIntegration:
         assert all(d.id != doc.id for d in results)
 
     async def test_filter_and_delete_documents_async_beyond_max_rows(self, async_store):
-        docs = [Document(content=f"async doc {i}") for i in range(1050)]
+        docs = [Document(content=f"async doc {i}") for i in range(150)]
         await async_store.write_documents_async(docs)
-        assert len(await async_store.filter_documents_async()) == 1050
+        assert len(await async_store.filter_documents_async()) == 150
         await async_store.delete_documents_async([d.id for d in docs])
         assert await async_store.count_documents_async() == 0
 
