@@ -239,7 +239,12 @@ class QdrantDocumentStore:
             List of payload fields to index.
         :param client_kwargs:
             Additional keyword arguments passed to both `QdrantClient` and `AsyncQdrantClient`.
-            Explicitly supported arguments defined in this constructor take precedence in case of overlap.
+            These arguments take precedence over named client parameters in case of overlap.
+            Serialized as-is by `to_dict()`: callbacks and `httpx.Limits` may not serialize, and
+            authentication headers will appear in plain text in pipeline YAML.
+            The same arguments are used for sync and async clients. For example, an async
+            `auth_token_provider` is also passed to `QdrantClient`, where it may not work with
+            synchronous requests.
         """
 
         self._client: qdrant_client.QdrantClient | None = None
@@ -259,7 +264,7 @@ class QdrantDocumentStore:
         self.path = path
         self.force_disable_check_same_thread = force_disable_check_same_thread
         self.metadata = metadata or {}
-        self.client_kwargs = client_kwargs or {}
+        self.client_kwargs = dict(client_kwargs or {})
 
         # Store the Qdrant collection specific attributes
         self.shard_number = shard_number
@@ -2475,7 +2480,6 @@ class QdrantDocumentStore:
 
         """
         return {
-            **self.client_kwargs,
             "location": self.location,
             "url": self.url,
             "port": self.port,
@@ -2492,6 +2496,7 @@ class QdrantDocumentStore:
             # when using a hosted Qdrant service, which means running to_dict() exposes the api key.
             "metadata": {**self.metadata},
             "force_disable_check_same_thread": self.force_disable_check_same_thread,
+            **{key: {**value} if isinstance(value, dict) else value for key, value in self.client_kwargs.items()},
         }
 
     def _prepare_collection_config(

@@ -349,9 +349,19 @@ class TestQdrantDocumentStoreUnit:
         params["metadata"]["added"] = "x"
         assert metadata == {"key": "value"}
 
-    def test_client_kwargs_are_forwarded_with_explicit_parameters_taking_precedence(self):
+    def test_prepare_client_params_does_not_mutate_client_kwargs(self):
+        client_kwargs = {"grpc_options": {"custom_option": "value"}}
+        document_store = QdrantDocumentStore(location=":memory:", client_kwargs=client_kwargs)
+        params = document_store._prepare_client_params()
+        params["grpc_options"]["grpc.primary_user_agent"] = "qdrant-client"
+
+        assert client_kwargs == {"grpc_options": {"custom_option": "value"}}
+        assert document_store.to_dict()["init_parameters"]["client_kwargs"] == client_kwargs
+
+    @pytest.mark.parametrize("port", [6333, 7333])
+    def test_client_kwargs_are_forwarded_with_client_kwargs_taking_precedence(self, port):
         document_store = QdrantDocumentStore(
-            location=":memory:", port=7333, client_kwargs={"check_compatibility": False, "port": 8333}
+            location=":memory:", port=port, client_kwargs={"check_compatibility": False, "port": 8333}
         )
 
         with (
@@ -361,7 +371,7 @@ class TestQdrantDocumentStoreUnit:
             document_store._initialize_client()
 
         assert client.call_args.kwargs["check_compatibility"] is False
-        assert client.call_args.kwargs["port"] == 7333
+        assert client.call_args.kwargs["port"] == 8333
 
     def test_get_batches_from_generator(self):
         batches = list(get_batches_from_generator([1, 2, 3, 4, 5], 2))
