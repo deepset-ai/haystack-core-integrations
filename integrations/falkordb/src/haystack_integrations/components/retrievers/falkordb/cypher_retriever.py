@@ -112,8 +112,44 @@ class FalkorDBCypherRetriever:
 
         return {"documents": docs}
 
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self,
+        query: str | None = None,
+        parameters: dict[str, Any] | None = None,
+    ) -> dict[str, list[Document]]:
+        """
+        Retrieve documents asynchronously by executing an OpenCypher query.
+
+        If a `query` is provided here, it overrides the `custom_cypher_query`
+        set during initialisation.
+
+        :param query: Optional OpenCypher query string.
+        :param parameters: Optional dictionary of query parameters (referenced as
+            `$param_name` in the Cypher string).
+        :raises ValueError: If no query string is provided (both here and at init).
+        :returns: Dictionary containing a `"documents"` key with the retrieved documents.
+        """
+        cypher = query or self.custom_cypher_query
+        if not cypher:
+            msg = "A Cypher query string must be provided either at init or at runtime."
+            raise ValueError(msg)
+
+        docs = await self.document_store._cypher_retrieval_async(
+            cypher_query=cypher,
+            parameters=parameters,
+        )
+
+        return {"documents": docs}
+
     def close(self) -> None:
         """
         Release the synchronous resources of the underlying Document Store.
         """
         self.document_store.close()
+
+    async def close_async(self) -> None:
+        """
+        Release the asynchronous resources of the underlying Document Store.
+        """
+        await self.document_store.close_async()

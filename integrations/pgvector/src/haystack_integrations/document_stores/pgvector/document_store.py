@@ -10,7 +10,7 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.errors import FilterError
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from psycopg import AsyncConnection, Connection, Cursor, Error, IntegrityError
 from psycopg.cursor_async import AsyncCursor
 from psycopg.rows import DictRow, dict_row
@@ -222,7 +222,6 @@ class PgvectorDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
         return default_from_dict(cls, data)
 
     def close(self) -> None:
@@ -371,6 +370,47 @@ class PgvectorDocumentStore:
 
         return result
 
+    def _create_connection(self) -> Connection:
+        """
+        Opens a new connection to the PostgreSQL database.
+
+        Subclasses can override this method to connect differently (e.g. through a cloud provider's connector).
+        It must only open and return the connection: autocommit, the pgvector extension, vector type
+        registration, cursors, and table initialization are handled by `_ensure_db_setup`.
+
+        :raises DocumentStoreError: If the connection cannot be opened.
+        """
+        conn_str = self.connection_string.resolve_value() or ""
+        try:
+            return Connection.connect(conn_str)
+        except Error as e:
+            msg = (
+                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
+                "PostgreSQL connection specification: "
+                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
+            )
+            raise DocumentStoreError(msg) from e
+
+    async def _create_connection_async(self) -> AsyncConnection:
+        """
+        Opens a new async connection to the PostgreSQL database.
+
+        Async counterpart of `_create_connection`, overridable in the same way. Everything else is handled by
+        `_ensure_db_setup_async`.
+
+        :raises DocumentStoreError: If the connection cannot be opened.
+        """
+        conn_str = self.connection_string.resolve_value() or ""
+        try:
+            return await AsyncConnection.connect(conn_str)
+        except Error as e:
+            msg = (
+                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
+                "PostgreSQL connection specification: "
+                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
+            )
+            raise DocumentStoreError(msg) from e
+
     def _ensure_db_setup(self) -> None:
         """
         Ensures that the connection to the PostgreSQL database exists and is valid.
@@ -388,16 +428,7 @@ class PgvectorDocumentStore:
             except Error as e:
                 logger.debug("Failed to close connection: {e}", e=str(e))
 
-        conn_str = self.connection_string.resolve_value() or ""
-        try:
-            connection = Connection.connect(conn_str)
-        except Error as e:
-            msg = (
-                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
-                "PostgreSQL connection specification: "
-                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
-            )
-            raise DocumentStoreError(msg) from e
+        connection = self._create_connection()
         connection.autocommit = True
         if self.create_extension:
             connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -431,16 +462,7 @@ class PgvectorDocumentStore:
         if self._async_connection:
             await self._async_connection.close()
 
-        conn_str = self.connection_string.resolve_value() or ""
-        try:
-            async_connection = await AsyncConnection.connect(conn_str)
-        except Error as e:
-            msg = (
-                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
-                "PostgreSQL connection specification: "
-                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
-            )
-            raise DocumentStoreError(msg) from e
+        async_connection = await self._create_connection_async()
         await async_connection.set_autocommit(True)
         if self.create_extension:
             await async_connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -656,8 +678,10 @@ class PgvectorDocumentStore:
             k: v for k, v in self.hnsw_index_creation_kwargs.items() if k in HNSW_INDEX_CREATION_VALID_KWARGS
         }
         if valid_kwargs:
-            kwargs_str = ", ".join(f"{k} = {v}" for k, v in valid_kwargs.items())
-            sql_create_hnsw_index += SQL(" WITH ({})").format(SQL(kwargs_str))
+            # the names are allowlisted; pass the values as literals, so they are never interpreted as SQL
+            sql_create_hnsw_index += SQL(" WITH ({})").format(
+                SQL(", ").join(SQL("{} = {}").format(SQL(k), SQLLiteral(v)) for k, v in valid_kwargs.items())
+            )
 
         return sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index
 
@@ -1001,18 +1025,19 @@ class PgvectorDocumentStore:
         if not document_ids:
             return
 
-        document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
-
-        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id IN ({document_ids_str})").format(
+        # pass the ids as a bound parameter, so they are never interpreted as SQL
+        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id = ANY(%s)").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
-            document_ids_str=SQL(document_ids_str),
         )
 
         self._ensure_db_setup()
         assert self._cursor is not None
         self._execute_sql(
-            cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore"
+            cursor=self._cursor,
+            sql_query=delete_sql,
+            params=(document_ids,),
+            error_msg="Could not delete documents from PgvectorDocumentStore",
         )
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
@@ -1024,12 +1049,10 @@ class PgvectorDocumentStore:
         if not document_ids:
             return
 
-        document_ids_str = ", ".join(f"'{document_id}'" for document_id in document_ids)
-
-        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id IN ({document_ids_str})").format(
+        # pass the ids as a bound parameter, so they are never interpreted as SQL
+        delete_sql = SQL("DELETE FROM {schema_name}.{table_name} WHERE id = ANY(%s)").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
-            document_ids_str=SQL(document_ids_str),
         )
 
         await self._ensure_db_setup_async()
@@ -1037,6 +1060,7 @@ class PgvectorDocumentStore:
         await self._execute_sql_async(
             cursor=self._async_cursor,
             sql_query=delete_sql,
+            params=(document_ids,),
             error_msg="Could not delete documents from PgvectorDocumentStore",
         )
 
@@ -1381,26 +1405,31 @@ class PgvectorDocumentStore:
             msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, but got {vector_function}"
             raise ValueError(msg)
 
-        # the vector must be a string with this format: "'[3,1,2]'"
-        query_embedding_for_postgres = f"'[{','.join(str(el) for el in query_embedding)}]'"
+        # the vector must be a string with this format: "'[3.0,1.0,2.0]'"; the elements are converted to floats
+        # and the string is passed as a literal, so it is never interpreted as SQL
+        try:
+            query_embedding_for_postgres = SQLLiteral(f"[{','.join(str(float(el)) for el in query_embedding)}]")
+        except (TypeError, ValueError) as e:
+            msg = "query_embedding must be a list of floats"
+            raise TypeError(msg) from e
 
         # to compute the scores, we use the approach described in pgvector README:
         # https://github.com/pgvector/pgvector?tab=readme-ov-file#distances
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
-            score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
-            order_by_definition = f"embedding <=> {query_embedding_for_postgres}"
+            score_definition = SQL("1 - (embedding <=> {}) AS score").format(query_embedding_for_postgres)
+            order_by_definition = SQL("embedding <=> {}").format(query_embedding_for_postgres)
         elif vector_function == "inner_product":
-            score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
-            order_by_definition = f"embedding <#> {query_embedding_for_postgres}"
+            score_definition = SQL("(embedding <#> {}) * -1 AS score").format(query_embedding_for_postgres)
+            order_by_definition = SQL("embedding <#> {}").format(query_embedding_for_postgres)
         elif vector_function == "l2_distance":
-            score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
-            order_by_definition = f"embedding <-> {query_embedding_for_postgres}"
+            score_definition = SQL("embedding <-> {} AS score").format(query_embedding_for_postgres)
+            order_by_definition = SQL("embedding <-> {}").format(query_embedding_for_postgres)
 
         sql_select = SQL("SELECT *, {score} FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
-            score=SQL(score_definition),
+            score=score_definition,
         )
 
         sql_where_clause: Composed | SQL = SQL("")
@@ -1410,7 +1439,7 @@ class PgvectorDocumentStore:
 
         sql_sort = SQL(" ORDER BY {order_by} ASC LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
-            order_by=SQL(order_by_definition),
+            order_by=order_by_definition,
         )
 
         sql_query = sql_select + sql_where_clause + sql_sort

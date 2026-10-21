@@ -18,7 +18,6 @@ from haystack.tools import (
 from haystack.utils import (
     Secret,
     deserialize_callable,
-    deserialize_secrets_inplace,
     serialize_callable,
 )
 
@@ -32,11 +31,11 @@ logger = logging.getLogger(__name__)
 @component
 class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     """
-    Enables text generation using Anthropic's Claude models via Azure Foundry.
+    Enables text generation using Anthropic's Claude models via Microsoft Foundry.
 
-    A variety of Claude models (Opus, Sonnet, Haiku, and others) are available through Azure Foundry.
+    A variety of Claude models (Opus, Sonnet, Haiku, and others) are available through Microsoft Foundry.
 
-    To use AnthropicFoundryChatGenerator, you must have an Azure subscription with Foundry enabled
+    To use AnthropicFoundryChatGenerator, you must have an Azure subscription with Microsoft Foundry enabled
     and the desired Anthropic model deployed in your Foundry resource.
 
     For more details, refer to the [Anthropic Foundry documentation](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/lib/foundry.md).
@@ -68,8 +67,9 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.")],
-    >> _name=None, _meta={'model': 'claude-sonnet-4-5', 'index': 0, 'finish_reason': 'end_turn',
-    >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
+    >> _name=None, _meta={'model': 'claude-sonnet-4-5', 'index': 0, 'finish_reason': 'stop',
+    >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 64, 'cache_read_input_tokens': 0,
+    >> 'cache_creation_input_tokens': 0, ...}})]}
     ```
 
     For more details on supported models and their capabilities, refer to the Anthropic
@@ -90,7 +90,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         "claude-haiku-4-5",
     ]
     """A non-exhaustive list of chat models supported by this component.
-    The actual availability depends on your Azure Foundry resource configuration."""
+    The actual availability depends on your Microsoft Foundry resource configuration."""
 
     def __init__(
         self,
@@ -258,7 +258,6 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             The deserialized component instance.
         """
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
 
         init_params = data.get("init_parameters", {})
         if serialized_callback := init_params.get("streaming_callback"):

@@ -26,6 +26,9 @@ services:
       # supabase-py still sends an apikey header but PostgREST ignores it.
       PGRST_DB_ANON_ROLE: postgres
       PGRST_LOG_LEVEL: info
+      # Cap responses like Supabase's API "Max rows" (1000 by default) so tests catch truncated reads.
+      # Kept low so tests need few documents, and below the store's page size to cover a lowered cap.
+      PGRST_DB_MAX_ROWS: "100"
     ports:
       - "3000:3000"
     depends_on:

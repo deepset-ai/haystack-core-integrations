@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import asyncio
 import dataclasses
 import inspect
@@ -15,7 +19,7 @@ from haystack.components.generators.utils import (
     _serialize_object,
 )
 from haystack.core.component import component
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ToolCall
 from haystack.dataclasses.chat_message import ReasoningContent
 from haystack.dataclasses.streaming_chunk import (
     ComponentInfo,
@@ -30,7 +34,6 @@ from haystack.tools import (
     deserialize_tools_or_toolset_inplace,
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
-    warm_up_tools,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
 from openai import AsyncOpenAI, AsyncStream, OpenAI, Stream
@@ -40,6 +43,18 @@ from openai.types.chat.chat_completion import Choice
 from haystack_integrations.common.vllm.utils import _create_async_openai_client, _create_openai_client
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_chat_history_to_vllm_format(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+    """
+    Convert a list of ChatMessages to the OpenAI format expected by the vLLM Chat API.
+
+    A trailing assistant message with no text and no tool calls is left out. Sent as an empty assistant turn, it makes
+    some models, such as Qwen3 with thinking enabled, stop after their reasoning without writing an answer.
+    """
+    if messages and messages[-1].is_from(ChatRole.ASSISTANT) and not messages[-1].texts and not messages[-1].tool_calls:
+        messages = messages[:-1]
+    return [message.to_openai_dict_format() for message in messages]
 
 
 def _convert_chat_completion_to_chat_message(completion: ChatCompletion, choice: Choice) -> ChatMessage:
@@ -255,16 +270,9 @@ class VLLMChatGenerator:
 
         self._client: OpenAI | None = None
         self._async_client: AsyncOpenAI | None = None
-        self._tools_warmed_up = False
-
-    def _warm_up_tools(self) -> None:
-        if not self._tools_warmed_up:
-            warm_up_tools(self.tools)
-            self._tools_warmed_up = True
 
     def warm_up(self) -> None:
-        """Create the synchronous OpenAI client and warm up tools."""
-        self._warm_up_tools()
+        """Create the synchronous OpenAI client."""
         if self._client is None:
             self._client = _create_openai_client(
                 api_key=self.api_key,
@@ -275,8 +283,7 @@ class VLLMChatGenerator:
             )
 
     async def warm_up_async(self) -> None:
-        """Create the asynchronous OpenAI client and warm up tools."""
-        self._warm_up_tools()
+        """Create the asynchronous OpenAI client."""
         if self._async_client is None:
             self._async_client = _create_async_openai_client(
                 api_key=self.api_key,
@@ -345,9 +352,9 @@ class VLLMChatGenerator:
         """Build the kwargs dict for the OpenAI chat completions API call."""
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
+        openai_formatted_messages = _convert_chat_history_to_vllm_format(messages=messages)
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        flattened_tools = flatten_tools_or_toolsets(tools if tools is not None else self.tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_definitions = None
         if flattened_tools:

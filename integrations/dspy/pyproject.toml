@@ -7,7 +7,7 @@ name = "dspy-haystack"
 dynamic = ["version"]
 description = 'An integration between DSPy and Haystack for prompt optimization and structured generation'
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = ["haystack", "dspy", "prompt-optimization", "llm", "nlp"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }, { name = "Arsenii Shkunkov", email = "shkunkov.as@gmail.com" }]
@@ -15,7 +15,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

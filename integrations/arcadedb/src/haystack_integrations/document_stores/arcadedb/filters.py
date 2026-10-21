@@ -48,8 +48,10 @@ def _parse_condition(condition: dict[str, Any]) -> str:
         conditions = condition.get("conditions", [])
         if not conditions:
             return ""
-        inner = _parse_condition(conditions[0])
-        return f"NOT ({inner})" if inner else ""
+        inner = _parse_condition({"operator": "AND", "conditions": conditions})
+        # We want NOT(number == 100) to also match documents with no number or number=None.
+        # coalesce replaces NULL with false before NOT is applied.
+        return f"NOT coalesce(({inner}), false)" if inner else ""
 
     field = condition.get("field")
     value = condition.get("value")
@@ -80,7 +82,7 @@ def _comparison_to_sql(field: str, operator: str, value: Any) -> str:
     if operator == "!=":
         if value is None:
             return f"{field} IS NOT NULL"
-        return f"{field} <> {_sql_value(value)}"
+        return f"({field} <> {_sql_value(value)} OR {field} IS NULL)"
 
     if operator in (">", ">=", "<", "<="):
         if value is None:

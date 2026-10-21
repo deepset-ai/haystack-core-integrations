@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/microsoft_sharepoint-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/microsoft_sharepoint-v1.2.0] - 2026-09-24
 
 ### 🚀 Features

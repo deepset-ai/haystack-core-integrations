@@ -29,6 +29,7 @@ from huggingface_hub import hf_hub_download
 
 from haystack_integrations.components.generators.llama_cpp.chat.chat_generator import (
     LlamaCppChatGenerator,
+    _convert_chat_history_to_llamacpp_format,
     _convert_message_to_llamacpp_format,
 )
 
@@ -123,8 +124,43 @@ def test_convert_message_to_llamacpp_format():
     }
 
 
+def test_convert_contentless_assistant_message_to_llamacpp_format():
+    # A Chat Generator that discards a malformed tool call returns a reply with no content parts
+    message = ChatMessage.from_assistant(text=None)
+    assert _convert_message_to_llamacpp_format(message) == {"role": "assistant", "content": ""}
+
+
+def test_convert_reasoning_only_assistant_message_to_llamacpp_format():
+    # Reasoning is not sent to llama.cpp, so a reply carrying only reasoning is sent with empty content
+    message = ChatMessage.from_assistant(reasoning="only reasoning")
+    assert _convert_message_to_llamacpp_format(message) == {"role": "assistant", "content": ""}
+
+
+@pytest.mark.parametrize(
+    "last_message",
+    [ChatMessage.from_assistant(text=None), ChatMessage.from_assistant(reasoning="only reasoning")],
+)
+def test_convert_chat_history_to_llamacpp_format_drops_trailing_empty_assistant(last_message):
+    messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(text=None), last_message]
+    assert _convert_chat_history_to_llamacpp_format(messages=messages) == [
+        {"role": "user", "content": "Hi"},
+        {"role": "assistant", "content": ""},
+    ]
+
+
+def test_convert_chat_history_to_llamacpp_format_keeps_trailing_assistant_with_tool_calls():
+    tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+    messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(tool_calls=[tool_call])]
+    assert _convert_chat_history_to_llamacpp_format(messages=messages)[-1] == {
+        "role": "assistant",
+        "tool_calls": [
+            {"id": "123", "type": "function", "function": {"name": "weather", "arguments": '{"city": "Paris"}'}}
+        ],
+    }
+
+
 def test_convert_message_to_llamacpp_invalid():
-    message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+    message = ChatMessage(_role=ChatRole.USER, _content=[])
     with pytest.raises(ValueError):
         _convert_message_to_llamacpp_format(message)
 
@@ -1071,6 +1107,32 @@ class TestRun:
         assert callback.counter > 0, "No streaming chunks received"
         message: ChatMessage = results["replies"][0]
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
+
+    @pytest.mark.integration
+    def test_run_with_contentless_assistant_message(self, generator):
+        # The contentless assistant message mimics a reply whose only tool call was discarded
+        messages = [
+            ChatMessage.from_user("What's the capital of France?"),
+            ChatMessage.from_assistant(text=None),
+            ChatMessage.from_user("Answer in a single word."),
+        ]
+        result = generator.run(messages)
+
+        assert len(result["replies"]) == 1
+        assert "paris" in result["replies"][0].text.lower()
+
+    @pytest.mark.integration
+    def test_run_after_contentless_assistant_message(self, generator):
+        # After a discarded tool call, the Agent calls the LLM again with the contentless reply as the last message
+        messages = [
+            ChatMessage.from_user("What is the capital of France? Answer in one short sentence."),
+            ChatMessage.from_assistant(text=None),
+        ]
+        reply = generator.run(messages)["replies"][0]
+
+        # The model's thinking stays in the reply text, so check the answer written after it
+        assert "</think>" in reply.text
+        assert "paris" in reply.text.split("</think>")[-1].lower()
 
     @pytest.mark.integration
     def test_run_rag_pipeline(self, generator):

@@ -4,7 +4,7 @@
 
 """Unit tests for filter conversion (no ArcadeDB instance required)."""
 
-import datetime
+import datetime as dt
 
 import pytest
 
@@ -25,7 +25,7 @@ class TestFilterConversion:
 
     def test_not_equal(self):
         result = _convert_filters({"field": "meta.name", "operator": "!=", "value": "bob"})
-        assert result == "meta.name <> 'bob'"
+        assert result == "(meta.name <> 'bob' OR meta.name IS NULL)"
 
     def test_not_equal_null(self):
         result = _convert_filters({"field": "meta.name", "operator": "!=", "value": None})
@@ -76,7 +76,7 @@ class TestFilterConversion:
                 ],
             }
         )
-        assert result == "NOT (meta.deleted = true)"
+        assert result == "NOT coalesce((meta.deleted = true), false)"
 
     def test_nested(self):
         result = _convert_filters(
@@ -125,7 +125,7 @@ class TestFilterConversion:
             ({"field": "meta.price", "operator": "==", "value": 1.5}, "meta.price = 1.5"),
             ({"operator": "AND", "conditions": [{"operator": "AND", "conditions": []}]}, ""),
             (
-                {"field": "x", "operator": "==", "value": datetime.date(2024, 1, 2)},
+                {"field": "x", "operator": "==", "value": dt.date(2024, 1, 2)},
                 "x = '2024-01-02'",
             ),
         ],

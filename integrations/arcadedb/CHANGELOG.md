@@ -1,5 +1,35 @@
 # Changelog
 
+## [integrations/arcadedb-v3.0.0] - 2026-10-20
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Arcadedb - a refused DROP TYPE is not a completed recreate (#4027)
+
+
+## [integrations/arcadedb-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Alias datetime imports as dt for ruff 0.17 ICN001 (#4088)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/arcadedb-v1.7.0] - 2026-10-06
+
+### 🐛 Bug Fixes
+
+-  fix: handle changed NULL semantics in arcadedb 26.10.1 (#4054)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+
+
 ## [integrations/arcadedb-v1.6.1] - 2026-09-24
 
 ### 🐛 Bug Fixes

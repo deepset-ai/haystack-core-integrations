@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
-import datetime
+import datetime as dt
 import itertools
 import os
 from unittest.mock import MagicMock, Mock
@@ -76,8 +76,8 @@ class TestSqlHelpers:
         assert _map_literal_base(value) == expected
 
     def test_map_literal_base_fallback_to_str(self):
-        dt = datetime.date(2024, 1, 2)
-        assert _map_literal_base(dt) == "'2024-01-02'"
+        date = dt.date(2024, 1, 2)
+        assert _map_literal_base(date) == "'2024-01-02'"
 
     def test_map_literal_empty_dict(self):
         assert _map_literal({}) == "{}"
@@ -406,6 +406,101 @@ class TestDocumentStoreUnit:
         assert store._session is None
 
 
+class TestEnsureInitialized:
+    """
+    `_command` raises RuntimeError for any HTTP status >= 400, so a handler here catches auth
+    rejections, timeouts and 5xx as well as the condition its log line names.
+    """
+
+    @staticmethod
+    def _store(**kwargs):
+        kwargs.setdefault("create_database", False)
+        return ArcadeDBDocumentStore(
+            url="http://localhost:2480",
+            database="test",
+            embedding_dimension=4,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _session(fail_on=None, status=403, *, database_exists=True):
+        """A session that answers 200 to everything except commands containing `fail_on`."""
+        sent = []
+
+        def respond(command, result):
+            sent.append(command)
+            response = Mock()
+            if fail_on is not None and fail_on in command:
+                response.status_code = status
+                response.text = "refused"
+            else:
+                response.status_code = 200
+                response.json.return_value = {"result": result}
+            return response
+
+        def post(*_args, **kwargs):
+            return respond((kwargs.get("json") or {}).get("command", ""), [])
+
+        def get(url, **_kwargs):
+            return respond(f"GET {url}", database_exists)
+
+        session = Mock()
+        session.post.side_effect = post
+        session.get.side_effect = get
+        session.sent = sent
+        return session
+
+    @pytest.mark.parametrize(
+        ("store_kwargs", "fail_on", "status"),
+        [({"recreate_type": True}, "DROP TYPE", 403), ({}, "LSM_VECTOR", 500)],
+    )
+    def test_failed_statement_raises(self, store_kwargs, fail_on, status):
+        store = self._store(**store_kwargs)
+        store._session = self._session(fail_on=fail_on, status=status)
+
+        with pytest.raises(RuntimeError, match=str(status)):
+            store._ensure_initialized()
+
+        assert store._initialized is False
+        # Initialization stops at the failing statement
+        assert fail_on in store._session.sent[-1]
+
+    @pytest.mark.parametrize("database_exists", [True, False])
+    def test_database_is_created_only_when_missing(self, database_exists):
+        store = self._store(create_database=True)
+        store._session = self._session(database_exists=database_exists)
+
+        store._ensure_initialized()
+
+        assert store._initialized is True
+        assert store._session.sent[0] == "GET http://localhost:2480/api/v1/exists/test"
+        created = any("CREATE DATABASE" in command for command in store._session.sent)
+        assert created == (not database_exists)
+
+    @pytest.mark.parametrize(
+        ("fail_on", "database_exists"),
+        [("/api/v1/exists/", True), ("CREATE DATABASE", False)],
+    )
+    def test_failed_database_check_or_create_raises(self, fail_on, database_exists):
+        store = self._store(create_database=True)
+        store._session = self._session(fail_on=fail_on, status=500, database_exists=database_exists)
+
+        with pytest.raises(RuntimeError, match="500"):
+            store._ensure_initialized()
+
+        assert store._initialized is False
+        assert fail_on in store._session.sent[-1]
+
+    def test_a_clean_run_initialises(self):
+        store = self._store(recreate_type=True)
+        store._session = self._session()
+
+        store._ensure_initialized()
+
+        assert store._initialized is True
+        assert any("DROP TYPE" in command for command in store._session.sent)
+
+
 @pytest.mark.skipif(
     not os.environ.get("ARCADEDB_PASSWORD"),
     reason="Set ARCADEDB_PASSWORD (e.g. via repo secret in CI) to run integration tests.",
@@ -464,6 +559,13 @@ class TestArcadeDBDocumentStore(
 
         assert document_store.count_documents() == 1
 
+    def test_init_raises_on_vector_index_config_mismatch(self, document_store: ArcadeDBDocumentStore):
+        document_store.write_documents([Document(id="1", embedding=[0.1] * 768)])
+        mismatched_store = ArcadeDBDocumentStore(url=ARCADEDB_URL, database="haystack_test", embedding_dimension=384)
+
+        with pytest.raises(RuntimeError, match="different configuration"):
+            mismatched_store.count_documents()
+
     def test_write_documents(self, document_store: ArcadeDBDocumentStore):
         """Override mixin: test default write_documents and duplicate fail behaviour."""
         docs = [Document(id="1")]
@@ -503,6 +605,27 @@ class TestArcadeDBDocumentStore(
         )
         assert len(results) <= 3
         assert results[0].score is not None
+
+    def test_not_operator_multiple_conditions(self, document_store: ArcadeDBDocumentStore):
+        document_store.write_documents(
+            [
+                Document(id="both", meta={"number": 100, "name": "foo"}),
+                Document(id="first_only", meta={"number": 100, "name": "bar"}),
+                Document(id="second_only", meta={"number": 99, "name": "foo"}),
+                Document(id="neither", meta={"number": 99, "name": "bar"}),
+            ]
+        )
+        filters = {
+            "operator": "NOT",
+            "conditions": [
+                {"field": "meta.number", "operator": "==", "value": 100},
+                {"field": "meta.name", "operator": "==", "value": "foo"},
+            ],
+        }
+
+        # NOT excludes only documents matching both conditions.
+        result = document_store.filter_documents(filters)
+        assert {doc.id for doc in result} == {"first_only", "second_only", "neither"}
 
     def test_count_documents_by_empty_filter(self, document_store: ArcadeDBDocumentStore):
         """Counts all documents when an empty filter is provided."""

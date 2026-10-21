@@ -27,7 +27,7 @@ _TERMINAL_TASK_STATUSES = {"success", "failure"}
 _FAILED_CONVERSION_STATUSES = {"failure", "skipped"}
 
 
-class ExportType(str, Enum):
+class ExportType(str, Enum):  # noqa: UP042 # StrEnum would change str() of this public enum
     """
     Enumeration of export formats supported by DoclingServe.
 
@@ -41,7 +41,7 @@ class ExportType(str, Enum):
     JSON = "json"
 
 
-class ConversionMode(str, Enum):
+class ConversionMode(str, Enum):  # noqa: UP042 # StrEnum would change str() of this public enum
     """
     Execution mode for DoclingServe conversions.
 

@@ -145,7 +145,10 @@ def _equal(field: str, value: Any) -> dict[str, Any]:
             "terms_set": {
                 field: {
                     "terms": value,
-                    "minimum_should_match_script": {"source": f"Math.max(params.num_terms, doc['{field}'].size())"},
+                    "minimum_should_match_script": {
+                        "source": "Math.max(params.num_terms, doc[params.field].size())",
+                        "params": {"field": field},
+                    },
                 }
             }
         }

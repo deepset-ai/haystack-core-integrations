@@ -971,3 +971,27 @@ class TestDocumentStoreAsync(
         )
         assert len(unique_values_beyond) == 0
         assert total_beyond == 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("key", ["file-name", "x = 1; ctx.op = 'delete'; //"])
+    async def test_update_by_filter_async_treats_meta_keys_as_data(
+        self, document_store: OpenSearchDocumentStore, key: str
+    ):
+        # Keys that aren't valid Painless identifiers must neither break the update script nor be executed by it.
+        docs = [
+            Document(content="a", meta={"tenant": "t1"}),
+            Document(content="b", meta={"tenant": "t1"}),
+            Document(content="c", meta={"tenant": "t2"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        updated = await document_store.update_by_filter_async(
+            filters={"field": "meta.tenant", "operator": "==", "value": "t1"}, meta={key: "v"}, refresh=True
+        )
+
+        assert updated == 2
+        assert await document_store.count_documents_async() == 3
+        result = await document_store.filter_documents_async(
+            filters={"field": "meta.tenant", "operator": "==", "value": "t1"}
+        )
+        assert [doc.meta[key] for doc in result] == ["v", "v"]

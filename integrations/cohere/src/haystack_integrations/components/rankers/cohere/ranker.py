@@ -2,7 +2,7 @@ from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from cohere import AsyncClientV2, ClientV2
 from haystack_integrations.utils.cohere import validate_api_base_url
@@ -123,7 +123,6 @@ class CohereRanker:
         # was serialized with the old version
         data["init_parameters"].pop("max_chunks_per_doc", None)
 
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _prepare_cohere_input_docs(self, documents: list[Document], top_k: int | None = None) -> tuple[list[str], int]:

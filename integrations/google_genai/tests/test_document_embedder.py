@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder, GoogleGenAITextEmbedder
@@ -156,7 +157,7 @@ class TestGoogleGenAIDocumentEmbedderInitSerDe:
             },
         }
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
-        embedder = GoogleGenAIDocumentEmbedder.from_dict(data)
+        embedder = component_from_dict(GoogleGenAIDocumentEmbedder, data, name="embedder")
         assert embedder._api_key.resolve_value() == "fake-api-key"
         assert embedder._model == "gemini-embedding-001"
         assert embedder._prefix == ""
