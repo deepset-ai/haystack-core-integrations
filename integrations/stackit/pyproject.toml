@@ -23,12 +23,15 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=3.0.0", "vllm-haystack>=2.1.0"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@728f9380ae340dd4c431db5764d54e1bd153e2bd", "vllm-haystack>=2.1.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/stackit#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/stackit"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
@@ -43,7 +46,7 @@ git_describe_command = 'git describe --tags --match="integrations/stackit-v[0-9]
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["haystack-pydoc-tools", "ruff"]
+dependencies = ["haystack-pydoc-tools", "ruff", "vllm-haystack @ {root:uri}/../vllm"]
 [tool.hatch.envs.default.scripts]
 docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args}; ruff format {args}"
@@ -51,6 +54,7 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
 dependencies = [
+    "vllm-haystack @ {root:uri}/../vllm",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",

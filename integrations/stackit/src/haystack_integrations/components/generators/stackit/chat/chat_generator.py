@@ -89,9 +89,8 @@ class STACKITChatGenerator(VLLMChatGenerator):
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `safe_prompt`: Whether to inject a safety prompt before all conversations.
             - `random_seed`: The seed to use for random sampling.
-            - `response_format`: A response format dictionary containing a JSON schema.
-                For Pydantic models, use `model_json_schema()` to build the schema;
-                passing the model class directly is not supported.
+            - `response_format`: A response format dictionary or, for non-streaming requests, a Pydantic model
+                class that enforces the structure of the response.
         :param timeout:
             Timeout for STACKIT client calls. If not set, uses the OpenAI SDK default.
         :param max_retries:
