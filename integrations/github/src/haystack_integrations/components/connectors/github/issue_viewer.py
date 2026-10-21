@@ -9,6 +9,8 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.utils import deserialize_secrets_inplace
 from haystack.utils.auth import Secret
 
+from haystack_integrations.components.connectors.github.utils import validate_repo_part
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,6 +88,8 @@ class GitHubIssueViewer:
             raise ValueError(msg)
 
         owner, repo, issue_number = match.groups()
+        validate_repo_part(owner)
+        validate_repo_part(repo)
         return owner, repo, int(issue_number)
 
     def _fetch_issue(self, owner: str, repo: str, issue_number: int) -> Any:

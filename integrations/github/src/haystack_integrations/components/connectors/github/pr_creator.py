@@ -8,6 +8,8 @@ import requests
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+from haystack_integrations.components.connectors.github.utils import encode_ref, validate_repo_part
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,6 +90,8 @@ class GitHubPRCreator:
         if not match:
             msg = "Invalid GitHub issue URL format"
             raise ValueError(msg)
+        validate_repo_part(match.group(1))
+        validate_repo_part(match.group(2))
         return match.group(1), match.group(2), match.group(3)
 
     def _get_authenticated_user(self) -> str:
@@ -124,7 +128,7 @@ class GitHubPRCreator:
     def _create_branch(self, owner: str, repo: str, branch_name: str, base_branch: str) -> bool:
         """Create a new branch in the repository."""
         # Get the SHA of the base branch
-        url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{base_branch}"
+        url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encode_ref(base_branch)}"
         try:
             response = requests.get(url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()
@@ -153,9 +157,9 @@ class GitHubPRCreator:
     ) -> bool:
         """Create a commit with the file changes."""
         # Get the current commit SHA
-        url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch_name}"
+        ref_url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encode_ref(branch_name)}"
         try:
-            response = requests.get(url, headers=self._get_request_headers(), timeout=10)
+            response = requests.get(ref_url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()
             current_sha = response.json()["object"]["sha"]
 
@@ -184,9 +188,8 @@ class GitHubPRCreator:
             commit_sha = response.json()["sha"]
 
             # Update the branch reference
-            url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch_name}"
             data = {"sha": commit_sha}
-            response = requests.patch(url, headers=self._get_request_headers(), json=data, timeout=10)
+            response = requests.patch(ref_url, headers=self._get_request_headers(), json=data, timeout=10)
             response.raise_for_status()
             return True
         except requests.RequestException as e:

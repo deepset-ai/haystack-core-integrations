@@ -9,6 +9,8 @@ import requests
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+from haystack_integrations.components.connectors.github.utils import encode_path, encode_ref, validate_repo_part
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,7 +124,7 @@ class GitHubFileEditor:
 
     def _get_file_content(self, owner: str, repo: str, path: str, branch: str) -> tuple[str, str]:
         """Get file content and SHA from GitHub."""
-        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{encode_path(path)}"
         response = requests.get(url, headers=self._get_request_headers(), params={"ref": branch}, timeout=10)
         response.raise_for_status()
         data = response.json()
@@ -131,7 +133,7 @@ class GitHubFileEditor:
 
     def _update_file(self, owner: str, repo: str, path: str, content: str, message: str, sha: str, branch: str) -> bool:
         """Update file content on GitHub."""
-        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{encode_path(path)}"
         payload = {
             "message": message,
             "content": b64encode(content.encode("utf-8")).decode("utf-8"),
@@ -175,7 +177,7 @@ class GitHubFileEditor:
             success = self._update_file(owner, repo, payload["path"], new_content, payload["message"], sha, branch)
             return "Edit successful" if success else "Edit failed"
 
-        except requests.RequestException as e:
+        except (requests.RequestException, ValueError) as e:
             if self.raise_on_failure:
                 raise
             return f"Error: {e!s}"
@@ -183,11 +185,12 @@ class GitHubFileEditor:
     def _undo_changes(self, owner: str, repo: str, payload: dict[str, Any], branch: str) -> str:
         """Handle undoing changes."""
         try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encode_ref(branch)}"
+
             if not self._check_last_commit(owner, repo, branch):
                 return "Error: Last commit was not made by the current user"
 
             # Reset to previous commit
-            url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{branch}"
             commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
 
             # Get the previous commit SHA
@@ -202,7 +205,7 @@ class GitHubFileEditor:
 
             return "Successfully undid last change"
 
-        except requests.RequestException as e:
+        except (requests.RequestException, ValueError) as e:
             if self.raise_on_failure:
                 raise
             return f"Error: {e!s}"
@@ -210,7 +213,7 @@ class GitHubFileEditor:
     def _create_file(self, owner: str, repo: str, payload: dict[str, str], branch: str) -> str:
         """Handle file creation."""
         try:
-            url = f"https://api.github.com/repos/{owner}/{repo}/contents/{payload['path']}"
+            url = f"https://api.github.com/repos/{owner}/{repo}/contents/{encode_path(payload['path'])}"
             content = b64encode(payload["content"].encode("utf-8")).decode("utf-8")
 
             data = {"message": payload["message"], "content": content, "branch": branch}
@@ -219,7 +222,7 @@ class GitHubFileEditor:
             response.raise_for_status()
             return "File created successfully"
 
-        except requests.RequestException as e:
+        except (requests.RequestException, ValueError) as e:
             if self.raise_on_failure:
                 raise
             return f"Error: {e!s}"
@@ -228,7 +231,7 @@ class GitHubFileEditor:
         """Handle file deletion."""
         try:
             _, sha = self._get_file_content(owner, repo, payload["path"], branch)
-            url = f"https://api.github.com/repos/{owner}/{repo}/contents/{payload['path']}"
+            url = f"https://api.github.com/repos/{owner}/{repo}/contents/{encode_path(payload['path'])}"
 
             data = {"message": payload["message"], "sha": sha, "branch": branch}
 
@@ -236,7 +239,7 @@ class GitHubFileEditor:
             response.raise_for_status()
             return "File deleted successfully"
 
-        except requests.RequestException as e:
+        except (requests.RequestException, ValueError) as e:
             if self.raise_on_failure:
                 raise
             return f"Error: {e!s}"
@@ -258,7 +261,8 @@ class GitHubFileEditor:
         :param branch: Branch to perform operations on (overrides default if provided)
         :return: Dictionary containing operation result
 
-        :raises ValueError: If command is not a valid Command enum value
+        :raises ValueError: If command is not a valid Command enum value, or if repo is not in owner/repo format or
+            contains characters other than letters, digits, `.`, `_` and `-`
         """
         if repo is None:
             if self.default_repo is None:
@@ -269,6 +273,8 @@ class GitHubFileEditor:
 
         working_branch = branch if branch is not None else self.default_branch
         owner, repo_name = repo.split("/")
+        validate_repo_part(owner)
+        validate_repo_part(repo_name)
 
         # Convert string command to Command enum if needed
         if isinstance(command, str):
