@@ -409,3 +409,30 @@ async def test_close_async_is_exception_safe(mock_store):
     await mock_store.close_async()
 
     assert mock_store._async_connection is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_db_setup_async_uses_overridden_create_connection_async(monkeypatch):
+    monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.set_autocommit = AsyncMock()
+    mock_connection.execute = AsyncMock()
+
+    class CustomConnectionDocumentStore(PgvectorDocumentStore):
+        async def _create_connection_async(self) -> AsyncConnection:
+            return mock_connection
+
+    store = CustomConnectionDocumentStore()
+    with (
+        patch("haystack_integrations.document_stores.pgvector.document_store.register_vector_async") as mock_register,
+        patch.object(CustomConnectionDocumentStore, "_initialize_table_async") as mock_initialize_table,
+    ):
+        await store._ensure_db_setup_async()
+
+    assert store._async_connection is mock_connection
+    mock_connection.set_autocommit.assert_awaited_once_with(True)
+    mock_connection.execute.assert_awaited_once_with("CREATE EXTENSION IF NOT EXISTS vector")
+    mock_register.assert_awaited_once_with(mock_connection)
+    assert store._async_cursor is not None
+    assert store._async_dict_cursor is not None
+    mock_initialize_table.assert_awaited_once()

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v8.1.0] - 2026-10-20
+
+### 🚀 Features
+
+- *(pgvector)* Make PgvectorDocumentStore connection overridable for PostgreSQL-backed stores (#4129)
+
+
 ## [integrations/pgvector-v8.0.0] - 2026-10-16
 
 ### 🧪 Testing

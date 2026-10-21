@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mcp-v2.1.0] - 2026-10-20
+
+### 🚀 Features
+
+- *(mcp)* Add OAuth 2.0 Client Credentials support for MCP server connections (#3960)
+
+
 ## [integrations/mcp-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

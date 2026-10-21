@@ -448,6 +448,27 @@ def test_close_is_exception_safe(mock_store):
     assert mock_store._connection is None
 
 
+@pytest.mark.usefixtures("patches_for_unit_tests")
+def test_ensure_db_setup_uses_overridden_create_connection(monkeypatch):
+    monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
+    mock_connection = Mock(spec=Connection)
+
+    class CustomConnectionDocumentStore(PgvectorDocumentStore):
+        def _create_connection(self) -> Connection:
+            return mock_connection
+
+    store = CustomConnectionDocumentStore()
+    with patch.object(CustomConnectionDocumentStore, "_initialize_table") as mock_initialize_table:
+        store._ensure_db_setup()
+
+    assert store._connection is mock_connection
+    assert mock_connection.autocommit is True
+    mock_connection.execute.assert_called_once_with("CREATE EXTENSION IF NOT EXISTS vector")
+    assert store._cursor is not None
+    assert store._dict_cursor is not None
+    mock_initialize_table.assert_called_once()
+
+
 @pytest.mark.integration
 def test_halfvec_hnsw_write_documents(document_store_w_halfvec_hnsw_index: PgvectorDocumentStore):
     documents = [

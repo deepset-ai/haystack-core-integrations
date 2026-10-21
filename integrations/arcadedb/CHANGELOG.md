@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/arcadedb-v3.0.0] - 2026-10-20
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Arcadedb - a refused DROP TYPE is not a completed recreate (#4027)
+
+
 ## [integrations/arcadedb-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing
