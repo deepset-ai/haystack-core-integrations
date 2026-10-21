@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/jina-v2.0.1] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- *(jina)* Respect a falsy score_threshold override in JinaRanker (#4084)
+
+
 ## [integrations/jina-v2.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
