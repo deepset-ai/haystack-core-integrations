@@ -243,6 +243,7 @@ class TestAmazonBedrockChatGenerator:
                 },
                 "tools_cachepoint_config": None,
                 "system_cachepoint_config": None,
+                "tools_strict": False,
             },
         }
 
@@ -415,6 +416,7 @@ class TestAmazonBedrockChatGenerator:
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
                         "system_cachepoint_config": None,
+                        "tools_strict": False,
                     },
                 }
             },
@@ -607,6 +609,38 @@ class TestAmazonBedrockChatGenerator:
                 },
             ]
         }
+
+    def test_prepare_request_params_tools_strict(self):
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=lambda city: city,
+        )
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", tools=[weather_tool], tools_strict=True
+        )
+
+        request_params, _ = generator._prepare_request_params(messages=[ChatMessage.from_user("Weather in Paris?")])
+
+        assert request_params["toolConfig"]["tools"][0]["toolSpec"]["strict"] is True
+
+    def test_tools_strict_leaves_a_tool_config_in_generation_kwargs_as_given(self):
+        tool_config = {"tools": [{"toolSpec": {"name": "weather", "inputSchema": {"json": {"type": "object"}}}}]}
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", generation_kwargs={"toolConfig": tool_config}, tools_strict=True
+        )
+
+        request_params, _ = generator._prepare_request_params(messages=[ChatMessage.from_user("Weather in Paris?")])
+
+        assert request_params["toolConfig"] == tool_config
+
+    def test_tools_strict_survives_serialization(self):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6", tools_strict=True)
+
+        restored = AmazonBedrockChatGenerator.from_dict(generator.to_dict())
+
+        assert restored.tools_strict is True
 
     @pytest.mark.parametrize(
         "generation_kwargs,additional_model_request_fields",
