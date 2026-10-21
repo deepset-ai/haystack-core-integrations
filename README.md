@@ -6,10 +6,8 @@
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/alloydb/embedding\_retriever.py |       33 |        4 |        4 |        1 |     86% |83-90, 118 |
 | src/haystack\_integrations/components/retrievers/alloydb/keyword\_retriever.py   |       32 |        8 |        4 |        0 |     72% |70-76, 100-104 |
-| src/haystack\_integrations/document\_stores/alloydb/converters.py                |       42 |        3 |       18 |        4 |     88% |35-\>45, 38, 68, 71 |
-| src/haystack\_integrations/document\_stores/alloydb/document\_store.py           |      479 |      328 |      128 |        9 |     28% |269-271, 287-\>exit, 292-\>exit, 332, 341-403, 409-429, 435-473, 482-490, 500-538, 546-575, 583-598, 618-640, 646-657, 676-707, 715-725, 736-743, 757-789, 800-839, 842-850, 860-873, 906-924, 937-939, 959-971, 981-989, 999-1014, 1017, 1038-1048, 1056-1072, 1090-1106, 1119-1120, 1122-1126, 1134-1166, 1185-1198, 1208-1219, 1242-1261, 1282-1313, 1351-1374 |
-| src/haystack\_integrations/document\_stores/alloydb/filters.py                   |      152 |       55 |       64 |        8 |     62% |34-36, 86-\>89, 92, 115, 158, 165, 169-181, 185-197, 201-213, 217-229, 234-235, 240-245, 252, 259 |
-| **TOTAL**                                                                        |  **738** |  **398** |  **218** |   **22** | **43%** |           |
+| src/haystack\_integrations/document\_stores/alloydb/document\_store.py           |       52 |        3 |        6 |        0 |     95% |   227-232 |
+| **TOTAL**                                                                        |  **117** |   **15** |   **14** |    **1** | **86%** |           |
 
 
 ## Setup coverage badge
