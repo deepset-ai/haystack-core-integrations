@@ -9,8 +9,8 @@
 | src/haystack\_integrations/components/retrievers/supabase/groonga\_bm25\_retriever.py      |       60 |        0 |       14 |        1 |     99% | 181-\>183 |
 | src/haystack\_integrations/components/retrievers/supabase/keyword\_retriever.py            |       23 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/supabase/document\_store.py                    |       12 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/supabase/groonga\_document\_store.py           |      392 |      252 |      192 |       19 |     32% |101-102, 105, 136-137, 140, 165-169, 202-212, 222-229, 240-248, 253-255, 270-335, 339-405, 420-421, 423-425, 428-429, 434-461, 476-477, 479-481, 486-515, 524-528, 537-541, 553-570, 580-593, 599-602, 608-609, 618-619, 623, 633-634, 651-652, 664, 682-694, 731, 743, 761 |
-| **TOTAL**                                                                                  |  **555** |  **254** |  **226** |   **22** | **48%** |           |
+| src/haystack\_integrations/document\_stores/supabase/groonga\_document\_store.py           |      410 |      219 |      200 |       28 |     42% |108-109, 112, 143-144, 147, 172-176, 210-211, 241, 258, 261-262, 264, 271, 288, 293-352, 359-360, 363-364, 375-422, 437-438, 440-442, 445-446, 451-478, 493-494, 496-498, 503-532, 541-545, 554-558, 570-587, 597-610, 616-619, 625-626, 638-639, 678-679, 691, 709-721, 758, 770, 788 |
+| **TOTAL**                                                                                  |  **573** |  **221** |  **234** |   **31** | **56%** |           |
 
 
 ## Setup coverage badge
