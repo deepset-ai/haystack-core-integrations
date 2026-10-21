@@ -5,8 +5,8 @@
 | Name                                                                                      |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/snowflake/auth.py                        |      130 |        0 |       64 |       11 |     94% |97-\>exit, 138-\>151, 141-\>151, 164-\>166, 166-\>168, 168-\>170, 244-\>259, 247-\>249, 249-\>259, 251-\>259, 252-\>255 |
-| src/haystack\_integrations/components/retrievers/snowflake/snowflake\_table\_retriever.py |      178 |        6 |       56 |       11 |     93% |167, 284-\>288, 305-\>310, 310-\>316, 360-\>362, 362-\>364, 364-\>368, 372, 377, 432, 452-453 |
-| **TOTAL**                                                                                 |  **308** |    **6** |  **120** |   **22** | **93%** |           |
+| src/haystack\_integrations/components/retrievers/snowflake/snowflake\_table\_retriever.py |      182 |        8 |       58 |       12 |     92% |167, 284-\>288, 305-\>310, 310-\>316, 360-\>362, 362-\>364, 364-\>368, 372, 377, 388-389, 439, 459-460 |
+| **TOTAL**                                                                                 |  **312** |    **8** |  **122** |   **23** | **93%** |           |
 
 
 ## Setup coverage badge
