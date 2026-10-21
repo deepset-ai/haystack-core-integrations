@@ -12,7 +12,7 @@
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run integration tests locally, you need two vLLM servers running in parallel: one for the chat generator on port `8000` and one for the embedders on port `8001`. Refer to the [workflow file](https://github.com/deepset-ai/haystack-core-integrations/blob/main/.github/workflows/vllm.yml) for more details.
+To run all integration tests locally, you need four vLLM servers running in parallel: chat generation on port `8000`, embeddings on port `8001`, ranking on port `8002`, and multivector embeddings on port `8003`. Refer to the [workflow file](https://github.com/deepset-ai/haystack-core-integrations/blob/main/.github/workflows/vllm.yml) for more details.
 
 For example, on macOs, you can install [vLLM-metal](https://github.com/vllm-project/vllm-metal) and start the chat generator server with:
 
@@ -34,4 +34,12 @@ To run the ranker server, use CPU Docker image:
 # ranker server (port 8002)
 docker run --rm -p 8002:8000 -e VLLM_CPU_OMP_THREADS_BIND=0-3 vllm/vllm-openai-cpu:latest \
     --model BAAI/bge-reranker-base --enforce-eager
+```
+
+To run the pooling server, use CPU Docker image:
+```bash
+# pooling server (port 8003)
+docker run --rm -p 8003:8000 -e VLLM_CPU_OMP_THREADS_BIND=0-3 vllm/vllm-openai-cpu:latest \
+    --model answerdotai/answerai-colbert-small-v1 --runner pooling \
+    --pooler-config '{"task":"token_embed"}' --enforce-eager
 ```
