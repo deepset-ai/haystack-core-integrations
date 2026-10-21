@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/supabase-v1.0.1] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- Paginate SupabaseGroongaDocumentStore reads and batch deletes (#4061)
+
+
 ## [integrations/supabase-v1.0.0] - 2026-10-16
 
 ### 🚜 Refactor
