@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
@@ -58,6 +58,41 @@ class TestDocumentStore(
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldUniqueValuesTest,
 ):
+    def test_get_metadata_field_unique_values_distinct_types(self, document_store: AlloyDBDocumentStore):
+        """
+        Override: the base mixin test stores int, float, str and bool under the *same* metadata field
+        name and expects all four back as distinct values. This store's ``meta`` column is JSONB, and
+        PostgreSQL's JSONB equality treats a whole-number float (e.g. 1.0) and a numerically equal int
+        (1) as the same value, so ``SELECT DISTINCT meta->'field'`` collapses them regardless of which
+        other values share that field.
+
+        This adapts the same intent - int, float, str and bool must come back as distinct, unmangled
+        types via get_metadata_field_unique_values() - using one field per type instead of one shared
+        field, which is what this store can actually support.
+
+        The float value is a non-whole number (1.5, not 1.0): a whole-number float would still collapse
+        with an int under PostgreSQL's JSONB numeric equality even in its own field, so a fractional
+        value is used to sidestep that ambiguity entirely.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"priority_int": 1}),
+            Document(content="Doc 2", meta={"priority_str": "1"}),
+            Document(content="Doc 3", meta={"priority_float": 1.5}),
+            Document(content="Doc 4", meta={"priority_bool": True}),
+        ]
+        document_store.write_documents(docs)
+
+        int_values, int_count = document_store.get_metadata_field_unique_values(metadata_field="priority_int")
+        str_values, str_count = document_store.get_metadata_field_unique_values(metadata_field="priority_str")
+        float_values, float_count = document_store.get_metadata_field_unique_values(metadata_field="priority_float")
+        bool_values, bool_count = document_store.get_metadata_field_unique_values(metadata_field="priority_bool")
+
+        assert (int_count, str_count, float_count, bool_count) == (1, 1, 1, 1)
+        assert int_values == [1] and type(int_values[0]) is int
+        assert str_values == ["1"] and type(str_values[0]) is str
+        assert float_values == [1.5] and type(float_values[0]) is float
+        assert bool_values == [True] and type(bool_values[0]) is bool
+
     def test_close_and_reopen(self, document_store: AlloyDBDocumentStore):
         assert document_store.count_documents() == 0
         assert document_store._connection is not None
@@ -293,3 +328,92 @@ def test_init_is_lazy(monkeypatch):
     assert store._cursor is None
     assert store._dict_cursor is None
     assert store._connector is None
+
+
+INSTANCE_URI = "projects/p/locations/r/clusters/c/instances/i"
+
+
+@pytest.fixture
+def alloydb_env(monkeypatch):
+    monkeypatch.setenv("ALLOYDB_INSTANCE_URI", INSTANCE_URI)
+    monkeypatch.setenv("ALLOYDB_USER", "my-user")
+    monkeypatch.setenv("ALLOYDB_PASSWORD", "my-password")
+
+
+@pytest.mark.usefixtures("alloydb_env")
+def test_create_connection_uses_alloydb_connector():
+    store = AlloyDBDocumentStore(db="my-db", ip_type="PUBLIC")
+
+    with patch("google.cloud.alloydbconnector.Connector") as mock_connector_cls:
+        connection = store._create_connection()
+        store._create_connection()
+
+    # the connector is created once and reused for later connections
+    mock_connector_cls.assert_called_once_with(ip_type="PUBLIC")
+    mock_connector = mock_connector_cls.return_value
+    assert connection is mock_connector.connect.return_value
+    assert mock_connector.connect.call_count == 2
+    mock_connector.connect.assert_called_with(
+        INSTANCE_URI, driver="psycopg", user="my-user", db="my-db", enable_iam_auth=False, password="my-password"
+    )
+
+
+@pytest.mark.usefixtures("alloydb_env")
+def test_create_connection_with_iam_auth_omits_password():
+    store = AlloyDBDocumentStore(enable_iam_auth=True)
+
+    with patch("google.cloud.alloydbconnector.Connector") as mock_connector_cls:
+        store._create_connection()
+
+    mock_connector_cls.return_value.connect.assert_called_once_with(
+        INSTANCE_URI, driver="psycopg", user="my-user", db="postgres", enable_iam_auth=True
+    )
+
+
+@pytest.mark.usefixtures("alloydb_env")
+def test_create_connection_raises_document_store_error_when_connector_fails():
+    store = AlloyDBDocumentStore()
+
+    with patch("google.cloud.alloydbconnector.Connector") as mock_connector_cls:
+        mock_connector_cls.return_value.connect.side_effect = RuntimeError("unauthorized")
+        with pytest.raises(DocumentStoreError, match="Failed to connect to AlloyDB instance"):
+            store._create_connection()
+
+
+@pytest.mark.usefixtures("alloydb_env")
+def test_ensure_db_setup_uses_connection_from_alloydb_connector():
+    store = AlloyDBDocumentStore()
+
+    with (
+        patch("google.cloud.alloydbconnector.Connector") as mock_connector_cls,
+        patch("haystack_integrations.document_stores.pgvector.document_store.register_vector") as mock_register,
+        patch.object(AlloyDBDocumentStore, "_initialize_table") as mock_initialize_table,
+    ):
+        store._ensure_db_setup()
+
+    mock_connection = mock_connector_cls.return_value.connect.return_value
+    assert store._connection is mock_connection
+    assert mock_connection.autocommit is True
+    mock_connection.execute.assert_called_once_with("CREATE EXTENSION IF NOT EXISTS vector")
+    mock_register.assert_called_once_with(mock_connection)
+    assert store._cursor is not None
+    assert store._dict_cursor is not None
+    mock_initialize_table.assert_called_once()
+
+
+def test_close_closes_connector(mock_store):
+    mock_connector = Mock()
+    mock_store._connector = mock_connector
+    mock_store._table_initialized = True
+
+    mock_store.close()
+
+    mock_connector.close.assert_called_once()
+    assert mock_store._connector is None
+    assert mock_store._table_initialized is False
+
+
+@pytest.mark.asyncio
+async def test_async_methods_are_not_supported(mock_store):
+    with pytest.raises(NotImplementedError, match="does not support async operations"):
+        await mock_store.count_documents_async()

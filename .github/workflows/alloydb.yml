@@ -9,6 +9,7 @@ on:
     paths:
       - "integrations/alloydb/**"
       - "!integrations/alloydb/*.md"
+      - "integrations/pgvector/src/**"
       - ".github/workflows/alloydb.yml"
   push:
     branches:
@@ -16,6 +17,7 @@ on:
     paths:
       - "integrations/alloydb/**"
       - "!integrations/alloydb/*.md"
+      - "integrations/pgvector/src/**"
       - ".github/workflows/alloydb.yml"
 
 defaults:
@@ -68,6 +70,9 @@ jobs:
         run: git config --system core.longpaths true
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # tags are needed to compute the version of the local pgvector-haystack package
+          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -103,6 +108,30 @@ jobs:
           name: coverage-comment-alloydb
           path: python-coverage-comment-action-alloydb.txt
 
+      # We are not running this against a real AlloyDB instance here.
+      # AlloyDB is PostgreSQL-compatible: the integration tests run against a plain PostgreSQL with pgvector,
+      # with the AlloyDB Python Connector replaced by a direct connection (see tests/conftest.py).
+      # Containers only run on Linux runners.
+      - name: Start PostgreSQL with pgvector
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --name pgvector -p 5432:5432 \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
+            pgvector/pgvector:pg17
+          for i in $(seq 1 30); do
+            if docker exec pgvector pg_isready -U postgres; then
+              break
+            fi
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run integration tests against PostgreSQL
+        if: runner.os == 'Linux'
+        env:
+          PG_CONN_STR: "postgresql://postgres:postgres@localhost:5432/postgres"
+        run: hatch run test:integration-cov-append-retry
+
       - name: Run integration tests
         if: env.ALLOYDB_INSTANCE_URI != ''
         env:
@@ -112,9 +141,7 @@ jobs:
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
-        if: github.event_name == 'push' && env.ALLOYDB_INSTANCE_URI != ''
-        env:
-          ALLOYDB_INSTANCE_URI: ${{ secrets.ALLOYDB_INSTANCE_URI }}
+        if: github.event_name == 'push' && runner.os == 'Linux'
         uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
         with:
           GITHUB_TOKEN: ${{ github.token }}
@@ -122,6 +149,17 @@ jobs:
           SUBPROJECT_ID: alloydb-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
+
+      # AlloyDBDocumentStore extends PgvectorDocumentStore: repeat the tests against the local
+      # pgvector source so that changes to pgvector that break AlloyDB are caught before a pgvector release
+      - name: Test with pgvector from local source
+        if: runner.os == 'Linux'
+        env:
+          PG_CONN_STR: "postgresql://postgres:postgres@localhost:5432/postgres"
+        run: |
+          hatch env prune
+          hatch -e test env run -- uv pip install ../pgvector
+          hatch run test:all
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
