@@ -189,6 +189,27 @@ class TestDocumentStoreAsync(
         """
         await document_store.delete_table_async()  # if throw error, test fails
 
+    async def test_delete_documents_async_with_quotes_in_ids(self, document_store: PgvectorDocumentStore):
+        """
+        The ids are passed as a bound parameter, so quotes in them are not interpreted as SQL.
+        """
+        docs = [
+            Document(id="O'Brien", content="quote in id"),
+            Document(id="x') OR ('1'='1", content="injection-shaped id"),
+            Document(id="1", content="hello"),
+            Document(id="2", content="world"),
+        ]
+        await document_store.write_documents_async(docs)
+
+        await document_store.delete_documents_async(["O'Brien"])
+        remaining = await document_store.filter_documents_async()
+        assert sorted(doc.id for doc in remaining) == ["1", "2", "x') OR ('1'='1"]
+
+        # only matches the document with this exact id, instead of every document
+        await document_store.delete_documents_async(["x') OR ('1'='1"])
+        remaining = await document_store.filter_documents_async()
+        assert sorted(doc.id for doc in remaining) == ["1", "2"]
+
     async def test_close_async_and_reopen(self, document_store: PgvectorDocumentStore):
         assert await document_store.count_documents_async() == 0
         assert document_store._async_connection is not None

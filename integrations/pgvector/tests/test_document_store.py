@@ -606,6 +606,27 @@ def test_delete_documents_empty_list_is_noop(document_store: PgvectorDocumentSto
 
 
 @pytest.mark.integration
+def test_delete_documents_with_quotes_in_ids(document_store: PgvectorDocumentStore):
+    """
+    The ids are passed as a bound parameter, so quotes in them are not interpreted as SQL.
+    """
+    docs = [
+        Document(id="O'Brien", content="quote in id"),
+        Document(id="x') OR ('1'='1", content="injection-shaped id"),
+        Document(id="1", content="hello"),
+        Document(id="2", content="world"),
+    ]
+    document_store.write_documents(docs)
+
+    document_store.delete_documents(["O'Brien"])
+    assert sorted(doc.id for doc in document_store.filter_documents()) == ["1", "2", "x') OR ('1'='1"]
+
+    # only matches the document with this exact id, instead of every document
+    document_store.delete_documents(["x') OR ('1'='1"])
+    assert sorted(doc.id for doc in document_store.filter_documents()) == ["1", "2"]
+
+
+@pytest.mark.integration
 def test_update_by_filter_empty_meta_raises_error(document_store: PgvectorDocumentStore):
     docs = [Document(content="Doc 1", meta={"category": "A"})]
     document_store.write_documents(docs)
