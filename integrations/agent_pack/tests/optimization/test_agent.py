@@ -238,7 +238,7 @@ class TestProposeCandidate:
 
     def test_starts_from_the_base(self):
         cheap = model_yaml("cheap")
-        cheap_id = _configuration_id(cheap)
+        cheap_id = _configuration_id(text=cheap)
         seen = []
 
         def respond(messages):
