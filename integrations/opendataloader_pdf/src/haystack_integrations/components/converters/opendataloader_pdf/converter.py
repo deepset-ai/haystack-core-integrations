@@ -214,7 +214,7 @@ class OpenDataLoaderConverter:
                 **conversion_kwargs,
             )
             contents = [self._read_output(output_dir=output_dir, pdf_path=pdf_path) for pdf_path, _ in sources]
-        except Exception as exc:
+        except (subprocess.CalledProcessError, RuntimeError) as exc:
             if not self.skip_failed_pdfs:
                 raise
             # Failed attempts may leave seemingly valid text and images. Never reuse their outputs.
