@@ -356,7 +356,7 @@ class OpenDataLoaderConverter:
                 documents.append(
                     Document(content=content, meta={**extra_meta, **document_meta, "output_format": self.output_format})
                 )
-        except Exception as exc:
+        except (subprocess.CalledProcessError, RuntimeError) as exc:
             if not self.skip_failed_pdfs:
                 raise
             # Failed attempts may leave seemingly valid text and images. Never reuse their outputs.
