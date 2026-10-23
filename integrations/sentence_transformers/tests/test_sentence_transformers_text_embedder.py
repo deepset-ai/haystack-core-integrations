@@ -64,10 +64,10 @@ class TestSentenceTransformersTextEmbedder:
         assert embedder.precision == "int8"
         assert embedder.quantization_ranges == [[-1.0, -1.0], [1.0, 1.0]]
 
-    def test_init_quantized_precision_without_ranges_warns(self, caplog):
-        with caplog.at_level("WARNING"):
-            SentenceTransformersTextEmbedder(model="model", precision="int8")
-        assert "quantization_ranges" in caplog.text
+    @pytest.mark.parametrize("precision", ["int8", "uint8"])
+    def test_init_quantized_precision_without_ranges_raises(self, precision):
+        with pytest.raises(ValueError, match="requires `quantization_ranges`"):
+            SentenceTransformersTextEmbedder(model="model", precision=precision)
 
     def test_to_dict(self):
         component = SentenceTransformersTextEmbedder(model="model", device=ComponentDevice.from_str("cpu"))
@@ -114,6 +114,7 @@ class TestSentenceTransformersTextEmbedder:
             tokenizer_kwargs={"model_max_length": 512},
             config_kwargs={"use_memory_efficient_attention": False},
             precision="int8",
+            quantization_ranges=[[-1.0] * 256, [1.0] * 256],
             encode_kwargs={"task": "clustering"},
         )
         data = component.to_dict()
@@ -138,7 +139,7 @@ class TestSentenceTransformersTextEmbedder:
                 "precision": "int8",
                 "encode_kwargs": {"task": "clustering"},
                 "backend": "torch",
-                "quantization_ranges": None,
+                "quantization_ranges": [[-1.0] * 256, [1.0] * 256],
             },
         }
 
@@ -223,6 +224,7 @@ class TestSentenceTransformersTextEmbedder:
                 "local_files_only": False,
                 "truncate_dim": 256,
                 "precision": "int8",
+                "quantization_ranges": [[-1.0] * 256, [1.0] * 256],
             },
         }
         component = SentenceTransformersTextEmbedder.from_dict(data)
@@ -239,6 +241,7 @@ class TestSentenceTransformersTextEmbedder:
         assert component.local_files_only is False
         assert component.truncate_dim == 256
         assert component.precision == "int8"
+        assert component.quantization_ranges == [[-1.0] * 256, [1.0] * 256]
 
     @patch(
         "haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_text_embedder._SentenceTransformersEmbeddingBackendFactory"
@@ -433,24 +436,6 @@ class TestSentenceTransformersTextEmbedder:
         assert len(embedding_trunc) == 64
 
     @pytest.mark.integration
-    def test_run_quantization(self, del_hf_env_vars_if_empty):
-        """
-        sentence-transformers-testing/stsb-bert-tiny-safetensors maps sentences & paragraphs to a 128 dimensional dense
-        vector space
-        """
-        checkpoint = "sentence-transformers-testing/stsb-bert-tiny-safetensors"
-        text = "a nice text to embed"
-
-        embedder_def = SentenceTransformersTextEmbedder(
-            model=checkpoint, precision="int8", device=ComponentDevice.from_str("cpu")
-        )
-        result_def = embedder_def.run(text=text)
-        embedding_def = result_def["embedding"]
-
-        assert len(embedding_def) == 128
-        assert all(isinstance(el, int) for el in embedding_def)
-
-    @pytest.mark.integration
     def test_run_quantization_with_ranges(self, del_hf_env_vars_if_empty):
         """
         sentence-transformers-testing/stsb-bert-tiny-safetensors maps sentences & paragraphs to a 128 dimensional dense
@@ -466,5 +451,4 @@ class TestSentenceTransformersTextEmbedder:
 
         assert len(embedding) == 128
         assert all(isinstance(el, int) for el in embedding)
-        # without explicit ranges, a single text produces a degenerate all-equal embedding
         assert len(set(embedding)) > 1
