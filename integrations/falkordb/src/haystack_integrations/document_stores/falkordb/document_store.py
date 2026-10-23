@@ -9,7 +9,7 @@ import re
 from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -26,6 +26,49 @@ from falkordb.asyncio.graph import AsyncGraph  # type: ignore[import-untyped]
 logger = logging.getLogger(__name__)
 
 _CYPHER_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+_GRAPH_SCHEMA_QUERIES = {
+    "labels": "CALL db.labels() YIELD label RETURN label ORDER BY label",
+    "relationship_types": (
+        "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType"
+    ),
+    "property_keys": "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey ORDER BY propertyKey",
+    "node_samples": (
+        "MATCH (n) WITH n LIMIT $sample_size "
+        "RETURN {labels: labels(n), properties: [key IN keys(n) | {name: key, type: typeOf(n[key])}]}"
+    ),
+    "relationship_samples": (
+        "MATCH (source)-[r]->(target) WITH source, r, target LIMIT $sample_size "
+        "RETURN {type: type(r), source_labels: labels(source), target_labels: labels(target), "
+        "properties: [key IN keys(r) | {name: key, type: typeOf(r[key])}]}"
+    ),
+}
+
+
+class _PropertySchema(TypedDict):
+    name: str
+    type: str
+
+
+class _NodeSchema(TypedDict):
+    labels: list[str]
+    properties: list[_PropertySchema]
+
+
+class _RelationshipSchema(TypedDict):
+    type: str
+    source_labels: list[str]
+    target_labels: list[str]
+    properties: list[_PropertySchema]
+
+
+class _GraphSchema(TypedDict):
+    labels: list[str]
+    relationship_types: list[str]
+    property_keys: list[str]
+    node_samples: list[_NodeSchema]
+    relationship_samples: list[_RelationshipSchema]
+
 
 # Haystack filter operators → Cypher comparison operators.
 _COMPARISON_OPS: dict[str, str] = {
@@ -1309,10 +1352,45 @@ ORDER BY score ASC, d.id ASC
             documents.append(doc)
         return documents
 
+    def _get_graph_schema(self, *, sample_size: int = 100) -> _GraphSchema:
+        """
+        Fetch graph catalogs and sampled property types and relationship endpoints.
+
+        :param sample_size: Positive limit for each of the node and relationship samples; rare patterns may be missed.
+        :returns: Sorted catalogs and schema samples, without property values.
+        """
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
+        results = {
+            key: self.graph.ro_query(query, {"sample_size": sample_size}).result_set
+            for key, query in _GRAPH_SCHEMA_QUERIES.items()
+        }
+        return _format_graph_schema(results)
+
+    async def _get_graph_schema_async(self, *, sample_size: int = 100) -> _GraphSchema:
+        """
+        Fetch graph catalogs and sampled schema using concurrent async queries.
+
+        :param sample_size: Positive limit for each of the node and relationship samples; rare patterns may be missed.
+        :returns: Sorted catalogs and schema samples, without property values.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        query_results = await asyncio.gather(
+            *(
+                self.async_graph.ro_query(query, {"sample_size": sample_size})
+                for query in _GRAPH_SCHEMA_QUERIES.values()
+            )
+        )
+        results = {key: result.result_set for key, result in zip(_GRAPH_SCHEMA_QUERIES, query_results, strict=True)}
+        return _format_graph_schema(results)
+
     def _cypher_retrieval(
         self,
         cypher_query: str,
         parameters: dict[str, Any] | None = None,
+        *,
+        read_only: bool = False,
     ) -> list[Document]:
         """
         Execute an arbitrary OpenCypher query and map the results to Documents.
@@ -1322,6 +1400,7 @@ ORDER BY score ASC, d.id ASC
 
         :param cypher_query: A valid OpenCypher query string.
         :param parameters: Optional query parameters (`$param` placeholders).
+        :param read_only: Execute with the server-enforced read-only command. Store warm-up still initializes indexes.
         :returns: List of :class:`Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
@@ -1331,7 +1410,8 @@ ORDER BY score ASC, d.id ASC
         try:
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
-            result = self.graph.query(cypher_query, parameters or {})
+            query_method = self.graph.ro_query if read_only else self.graph.query
+            result = query_method(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
@@ -1341,6 +1421,8 @@ ORDER BY score ASC, d.id ASC
         self,
         cypher_query: str,
         parameters: dict[str, Any] | None = None,
+        *,
+        read_only: bool = False,
     ) -> list[Document]:
         """
         Execute an arbitrary OpenCypher query asynchronously and map the results to Documents.
@@ -1349,6 +1431,7 @@ ORDER BY score ASC, d.id ASC
 
         :param cypher_query: A valid OpenCypher query string.
         :param parameters: Optional query parameters (`$param` placeholders).
+        :param read_only: Execute with the server-enforced read-only command. Store warm-up still initializes indexes.
         :returns: List of `Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
@@ -1356,7 +1439,8 @@ ORDER BY score ASC, d.id ASC
         assert self.async_graph is not None  # noqa: S101
 
         try:
-            result = await self.async_graph.query(cypher_query, parameters or {})
+            query_method = self.async_graph.ro_query if read_only else self.async_graph.query
+            result = await query_method(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
@@ -1381,6 +1465,16 @@ ORDER BY score ASC, d.id ASC
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
+
+
+def _format_graph_schema(results: dict[str, list[list[Any]]]) -> _GraphSchema:
+    return {
+        "labels": [row[0] for row in results["labels"]],
+        "relationship_types": [row[0] for row in results["relationship_types"]],
+        "property_keys": [row[0] for row in results["property_keys"]],
+        "node_samples": [row[0] for row in results["node_samples"]],
+        "relationship_samples": [row[0] for row in results["relationship_samples"]],
+    }
 
 
 def _document_to_falkordb_record(doc: Document) -> dict[str, Any]:
