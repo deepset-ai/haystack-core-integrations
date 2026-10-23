@@ -10,7 +10,7 @@
 | src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_document\_embedder.py         |       69 |        2 |       18 |        1 |     97% |  175, 267 |
 | src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_document\_embedder.py |       61 |        2 |       16 |        1 |     96% |  135, 221 |
 | src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_text\_embedder.py     |       50 |        2 |       12 |        1 |     95% |  112, 195 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_text\_embedder.py             |       59 |        2 |       14 |        1 |     96% |  162, 252 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_text\_embedder.py             |       59 |        2 |       14 |        1 |     96% |  160, 250 |
 | src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_diversity.py                    |      151 |        9 |       40 |        6 |     91% |204-\>exit, 244, 259, 390-391, 412, 425-428 |
 | src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_similarity.py                   |       78 |        2 |       20 |        2 |     96% |146, 152-\>exit, 250 |
 | **TOTAL**                                                                                                                    |  **605** |   **22** |  **152** |   **15** | **95%** |           |
