@@ -567,6 +567,65 @@ def _make_store(graph_name: str, embedding_dim: int = 3) -> FalkorDBDocumentStor
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY is required for OpenAI integration tests"
+)
+class TestFalkorDBTextToCypherRetrieverIntegration:
+    @pytest.fixture
+    def retriever(self, request):
+        graph_name = f"test_text_cypher_{request.node.name[:40]}"
+        store = _make_store(graph_name)
+        store.write_documents(
+            [
+                Document(id="astronomy", content="The stars are bright.", meta={"topic": "astronomy"}),
+                Document(id="botany", content="The trees are green.", meta={"topic": "botany"}),
+            ]
+        )
+        generator = OpenAIChatGenerator(
+            model="gpt-4o-mini",
+            api_key=Secret.from_env_var("OPENAI_API_KEY"),
+            generation_kwargs={
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "cypher_query",
+                        "strict": True,
+                        "schema": FalkorDBTextToCypherRetriever.RESPONSE_SCHEMA,
+                    },
+                }
+            },
+        )
+        retriever = FalkorDBTextToCypherRetriever(store, generator)
+        yield retriever
+        try:
+            store.client.select_graph(graph_name).delete()
+        except Exception:
+            logger.debug("Could not delete graph %s during teardown", graph_name)
+        finally:
+            store.close()
+
+    def test_run_with_openai(self, retriever):
+        result = retriever.run("Find only Document nodes whose topic is astronomy. Return the matching documents.")
+
+        assert [(doc.id, doc.content, doc.meta["topic"]) for doc in result["documents"]] == [
+            ("astronomy", "The stars are bright.", "astronomy")
+        ]
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_openai(self, retriever):
+        try:
+            result = await retriever.run_async(
+                "Find only Document nodes whose topic is astronomy. Return the matching documents."
+            )
+
+            assert [(doc.id, doc.content, doc.meta["topic"]) for doc in result["documents"]] == [
+                ("astronomy", "The stars are bright.", "astronomy")
+            ]
+        finally:
+            await retriever.close_async()
+
+
+@pytest.mark.integration
 class TestFalkorDBEmbeddingRetrieverIntegration:
     """
     Integration tests for FalkorDBEmbeddingRetriever.
