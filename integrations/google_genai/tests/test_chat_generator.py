@@ -104,6 +104,22 @@ def test_supported_models_is_non_empty_list_of_strings():
     assert all(isinstance(model, str) and model for model in GoogleGenAIChatGenerator.SUPPORTED_MODELS)
 
 
+def _parallel_call_stream_chunks():
+    """Chunks shaped like a Gemini 3 stream where each parallel function call arrives in its own chunk."""
+
+    def google_chunk(parts, finish_reason=None):
+        return types.GenerateContentResponse(
+            candidates=[types.Candidate(content=types.Content(role="model", parts=parts), finish_reason=finish_reason)]
+        )
+
+    return [
+        google_chunk([types.Part(text="Let me check both cities.")]),
+        google_chunk([types.Part(function_call=types.FunctionCall(id="c1", name="weather", args={"city": "Paris"}))]),
+        google_chunk([types.Part(function_call=types.FunctionCall(id="c2", name="weather", args={"city": "Berlin"}))]),
+        google_chunk([types.Part(text="")], finish_reason=types.FinishReason.STOP),
+    ]
+
+
 class TestGoogleGenAIChatGeneratorInitSerDe:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -442,6 +458,22 @@ class TestGoogleGenAIChatGeneratorRun:
         assert results["replies"][0].meta["finish_reason"] == "tool_calls"
         assert results["replies"][0].tool_calls[0].tool_name == "weather"
 
+    def test_run_streaming_parallel_tool_calls_in_separate_chunks(self):
+        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview")
+        component._client = MagicMock()
+        component._client.models.generate_content_stream = Mock(return_value=iter(_parallel_call_stream_chunks()))
+
+        results = component.run(
+            [ChatMessage.from_user("Weather in Paris and Berlin?")], streaming_callback=lambda c: None
+        )
+
+        reply = results["replies"][0]
+        assert [(tc.id, tc.tool_name, tc.arguments) for tc in reply.tool_calls] == [
+            ("c1", "weather", {"city": "Paris"}),
+            ("c2", "weather", {"city": "Berlin"}),
+        ]
+        assert reply.meta["finish_reason"] == "tool_calls"
+
     def test_run_extracts_system_message(self, mock_response):
         component = GoogleGenAIChatGenerator()
         component._client = MagicMock()
@@ -643,6 +675,31 @@ class TestGoogleGenAIChatGeneratorRun:
         # Async indices must match the sync path (0-based); the first text chunk must mark the stream start
         assert [c.index for c in callback_chunks] == [0, 1]
         assert callback_chunks[0].start is True
+
+    @pytest.mark.asyncio
+    async def test_run_async_streaming_parallel_tool_calls_in_separate_chunks(self):
+        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview")
+        component._async_client = MagicMock()
+
+        async def mock_stream():
+            for chunk in _parallel_call_stream_chunks():
+                yield chunk
+
+        component._async_client.models.generate_content_stream = AsyncMock(return_value=mock_stream())
+
+        async def callback(c):
+            pass
+
+        results = await component.run_async(
+            [ChatMessage.from_user("Weather in Paris and Berlin?")], streaming_callback=callback
+        )
+
+        reply = results["replies"][0]
+        assert [(tc.id, tc.tool_name, tc.arguments) for tc in reply.tool_calls] == [
+            ("c1", "weather", {"city": "Paris"}),
+            ("c2", "weather", {"city": "Berlin"}),
+        ]
+        assert reply.meta["finish_reason"] == "tool_calls"
 
     @pytest.mark.asyncio
     async def test_run_async_extracts_system_message(self, mock_response):
