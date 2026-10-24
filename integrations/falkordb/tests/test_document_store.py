@@ -295,12 +295,80 @@ class TestFalkorDBDocumentStoreUnit:
         assert docs[0].score == pytest.approx(expected_score)
         assert ("WHERE" in graph.query.call_args_list[-1].args[0]) is where_expected
 
+    @pytest.mark.parametrize(
+        "catalogs",
+        [(["Article", "Document"], ["REFERENCES"], ["content", "id"]), ([], [], [])],
+    )
+    def test_get_graph_schema(self, mock_falkordb, catalogs):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        nodes = [{"labels": ["Article"], "properties": [{"name": "content", "type": "String"}]}] if catalogs[0] else []
+        relationships = (
+            [
+                {
+                    "type": "REFERENCES",
+                    "source_labels": ["Article"],
+                    "target_labels": ["Document"],
+                    "properties": [{"name": "weight", "type": "Integer"}],
+                }
+            ]
+            if catalogs[0]
+            else []
+        )
+        graph.ro_query.side_effect = [
+            _result([[name] for name in names]) for names in (*catalogs, nodes, relationships)
+        ]
+        expected = dict(zip(("labels", "relationship_types", "property_keys"), catalogs, strict=True))
+        assert store._get_graph_schema(sample_size=7) == {
+            **expected,
+            "node_samples": nodes,
+            "relationship_samples": relationships,
+        }
+        assert [call.args[0] for call in graph.ro_query.call_args_list[:3]] == [
+            "CALL db.labels() YIELD label RETURN label ORDER BY label",
+            "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType",
+            "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey ORDER BY propertyKey",
+        ]
+        for call in graph.ro_query.call_args_list:
+            assert call.args[1] == {"sample_size": 7}
+        for call in graph.ro_query.call_args_list[3:]:
+            assert "LIMIT $sample_size RETURN" in call.args[0]
+            assert "typeOf(" in call.args[0]
+        graph.query.assert_not_called()
+
+    def test_get_graph_schema_propagates_errors(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        error = ResponseError("metadata unavailable")
+        graph.ro_query.side_effect = error
+        with pytest.raises(ResponseError) as exc:
+            FalkorDBDocumentStore()._get_graph_schema()
+        assert exc.value is error
+
     def test_cypher_retrieval_returns_documents(self, mock_falkordb):
         _, _, graph = mock_falkordb
         node = SimpleNamespace(properties={"id": "n1", "content": "hello"})
         graph.query.side_effect = [_result([]), _result([]), _result([[node]])]
         docs = FalkorDBDocumentStore()._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1})
         assert docs[0].content == "hello"
+
+    def test_read_only_cypher_retrieval(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.ro_query.return_value = _result([[SimpleNamespace(properties={"id": "n1", "content": "hello"})]])
+        docs = store._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1}, read_only=True)
+        assert docs[0].content == "hello"
+        graph.ro_query.assert_called_once_with("MATCH (d) RETURN d", {"k": 1})
+        graph.query.assert_not_called()
+
+    def test_read_only_cypher_failure(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.ro_query.side_effect = ResponseError("Write commands are not allowed")
+        with pytest.raises(DocumentStoreError, match="Write commands are not allowed"):
+            FalkorDBDocumentStore()._cypher_retrieval("CREATE (:Document)", read_only=True)
 
     @pytest.mark.usefixtures("mock_falkordb")
     def test_write_documents_rejects_non_documents(self):
@@ -548,6 +616,30 @@ class TestDocumentStore(
             store.client.select_graph(graph_name).delete()
         except Exception:
             logger.debug("Could not delete graph %s during teardown", graph_name)
+
+    def test_sampled_graph_schema(self, document_store):
+        document_store.warm_up()
+        document_store.graph.query(
+            "CREATE (:Article {content: 'hello', count: 1})-[:REFERENCES {weight: 2}]->(:Topic {name: 'Graphs'})"
+        )
+        schema = document_store._get_graph_schema(sample_size=7)
+        assert {"Article", "Topic"} <= set(schema["labels"])
+        assert schema["relationship_types"] == ["REFERENCES"]
+        assert {
+            "labels": ["Article"],
+            "properties": [{"name": "content", "type": "String"}, {"name": "count", "type": "Integer"}],
+        } in schema["node_samples"]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "REFERENCES",
+                "source_labels": ["Article"],
+                "target_labels": ["Topic"],
+                "properties": [{"name": "weight", "type": "Integer"}],
+            }
+        ]
+        bounded = document_store._get_graph_schema(sample_size=1)
+        assert len(bounded["node_samples"]) == 1
+        assert len(bounded["relationship_samples"]) == 1
 
     def test_write_documents(self, document_store):
         """

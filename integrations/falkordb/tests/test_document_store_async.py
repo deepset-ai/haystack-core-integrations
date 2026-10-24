@@ -474,6 +474,81 @@ class TestFalkorDBDocumentStoreAsyncUnit:
             assert params["p0"] == 2024
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "catalogs",
+        [(["Article", "Document"], ["REFERENCES"], ["content", "id"]), ([], [], [])],
+    )
+    async def test_get_graph_schema_async(self, warmed_async_store, catalogs):
+        store, graph = warmed_async_store
+        nodes = [{"labels": ["Article"], "properties": [{"name": "content", "type": "String"}]}] if catalogs[0] else []
+        relationships = (
+            [
+                {
+                    "type": "REFERENCES",
+                    "source_labels": ["Article"],
+                    "target_labels": ["Document"],
+                    "properties": [{"name": "weight", "type": "Integer"}],
+                }
+            ]
+            if catalogs[0]
+            else []
+        )
+        graph.ro_query = AsyncMock(
+            side_effect=[_result([[name] for name in names]) for names in (*catalogs, nodes, relationships)]
+        )
+        expected = dict(zip(("labels", "relationship_types", "property_keys"), catalogs, strict=True))
+        assert await store._get_graph_schema_async(sample_size=7) == {
+            **expected,
+            "node_samples": nodes,
+            "relationship_samples": relationships,
+        }
+        assert [call.args[0] for call in graph.ro_query.await_args_list[:3]] == [
+            "CALL db.labels() YIELD label RETURN label ORDER BY label",
+            "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType",
+            "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey ORDER BY propertyKey",
+        ]
+        for call in graph.ro_query.await_args_list:
+            assert call.args[1] == {"sample_size": 7}
+        for call in graph.ro_query.await_args_list[3:]:
+            assert "LIMIT $sample_size RETURN" in call.args[0]
+            assert "typeOf(" in call.args[0]
+        graph.query.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_graph_schema_async_queries_run_concurrently(self, warmed_async_store):
+        store, graph = warmed_async_store
+        all_started = asyncio.Event()
+        started = 0
+
+        async def query(*_args):
+            nonlocal started
+            started += 1
+            if started == 5:
+                all_started.set()
+            await all_started.wait()
+            return _result([])
+
+        graph.ro_query = AsyncMock(side_effect=query)
+        schema = await asyncio.wait_for(store._get_graph_schema_async(), timeout=5)
+        assert started == 5
+        assert schema == {
+            "labels": [],
+            "relationship_types": [],
+            "property_keys": [],
+            "node_samples": [],
+            "relationship_samples": [],
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_graph_schema_async_propagates_errors(self, warmed_async_store):
+        store, graph = warmed_async_store
+        error = ResponseError("metadata unavailable")
+        graph.ro_query = AsyncMock(side_effect=error)
+        with pytest.raises(ResponseError) as exc:
+            await store._get_graph_schema_async()
+        assert exc.value is error
+
+    @pytest.mark.asyncio
     async def test_cypher_retrieval_async(self, warmed_async_store) -> None:
         store, graph = warmed_async_store
         node = SimpleNamespace(properties={"id": "doc-1", "content": "hello"})
@@ -483,6 +558,23 @@ class TestFalkorDBDocumentStoreAsyncUnit:
 
         assert [document.content for document in documents] == ["hello"]
         graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
+
+    @pytest.mark.asyncio
+    async def test_read_only_cypher_retrieval_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.ro_query = AsyncMock(return_value=_result([[SimpleNamespace(properties={"content": "hello"})]]))
+        documents = await store._cypher_retrieval_async("MATCH (d) RETURN d", {"k": 1}, read_only=True)
+        assert documents[0].content == "hello"
+        graph.ro_query.assert_awaited_once_with("MATCH (d) RETURN d", {"k": 1})
+        graph.query.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_read_only_cypher_failure_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.ro_query = AsyncMock(side_effect=ResponseError("Write commands are not allowed"))
+        with pytest.raises(DocumentStoreError, match="Write commands are not allowed"):
+            await store._cypher_retrieval_async("CREATE (:Document)", read_only=True)
+        graph.query.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cypher_retrieval_async_wraps_errors(self, warmed_async_store) -> None:
@@ -529,6 +621,30 @@ class TestFalkorDBDocumentStoreAsync(
             logger.debug("Could not delete graph %s during teardown", graph_name)
         finally:
             await store.close_async()
+
+    async def test_sampled_graph_schema_async(self, document_store):
+        await document_store.warm_up_async()
+        await document_store.async_graph.query(
+            "CREATE (:Article {content: 'hello', count: 1})-[:REFERENCES {weight: 2}]->(:Topic {name: 'Graphs'})"
+        )
+        schema = await document_store._get_graph_schema_async(sample_size=7)
+        assert {"Article", "Topic"} <= set(schema["labels"])
+        assert schema["relationship_types"] == ["REFERENCES"]
+        assert {
+            "labels": ["Article"],
+            "properties": [{"name": "content", "type": "String"}, {"name": "count", "type": "Integer"}],
+        } in schema["node_samples"]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "REFERENCES",
+                "source_labels": ["Article"],
+                "target_labels": ["Topic"],
+                "properties": [{"name": "weight", "type": "Integer"}],
+            }
+        ]
+        bounded = await document_store._get_graph_schema_async(sample_size=1)
+        assert len(bounded["node_samples"]) == 1
+        assert len(bounded["relationship_samples"]) == 1
 
     async def test_write_documents_async(self, document_store: FalkorDBDocumentStore) -> None:
         """FalkorDB defaults to failing on duplicates; verify a normal default write."""
