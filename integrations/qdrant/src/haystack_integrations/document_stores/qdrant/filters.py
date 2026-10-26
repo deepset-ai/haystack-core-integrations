@@ -134,7 +134,19 @@ def _build_comparison_condition(operator: str, key: str, value: Any) -> models.C
     return builder(key, value)
 
 
+# Qdrant compares ranges as float64, so ints beyond 2**53 can't be matched exactly with a range.
+_MAX_EXACT_FLOAT_INT = 2**53
+
+
 def _build_eq_condition(key: str, value: models.ValueVariants) -> models.Condition:
+    # Qdrant ranges are compared as float64, so a huge int can't be matched exactly: keep MatchValue for it.
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and not (isinstance(value, int) and abs(value) > _MAX_EXACT_FLOAT_INT)
+    ):
+        # MatchValue rejects floats and doesn't match float payloads for int values; a closed range does both.
+        return models.FieldCondition(key=key, range=models.Range(gte=value, lte=value))
     return models.FieldCondition(key=key, match=models.MatchValue(value=value))
 
 
