@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/openrouter-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Replace ToolInvoker with Agent in tests, examples and docstrings (#4108)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/openrouter-v1.3.0] - 2026-10-07
 
 ### 🚀 Features

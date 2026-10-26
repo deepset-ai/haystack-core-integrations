@@ -14,7 +14,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 from haystack_integrations.token_counters.amazon_bedrock import AmazonBedrockTokenCounter
 
 CLASS_TYPE = "haystack_integrations.token_counters.amazon_bedrock.token_counter.AmazonBedrockTokenCounter"
-MODEL = "anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL = "anthropic.claude-sonnet-4-6"
 
 _GET_AWS_SESSION = "haystack_integrations.token_counters.amazon_bedrock.token_counter.get_aws_session"
 
@@ -156,9 +156,11 @@ class TestAmazonBedrockTokenCounterInference:
             ChatMessage.from_assistant("Let me check the weather for you.", tool_calls=[tool_call]),
             ChatMessage.from_tool(tool_result="Weather in Paris: sunny", origin=tool_call),
             ChatMessage.from_assistant("The weather in Paris is sunny."),
+            # Current Claude models reject a conversation that ends with an assistant message
+            ChatMessage.from_user("And what about tomorrow?"),
         ]
         counter = AmazonBedrockTokenCounter(
-            model="anthropic.claude-sonnet-4-20250514-v1:0",
+            model=MODEL,
             aws_region_name=Secret.from_token(os.environ["AWS_REGION"]),
         )
         count = counter.count(messages, tools=[_weather_tool()])

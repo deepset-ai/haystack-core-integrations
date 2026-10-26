@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/mcp-v2.1.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- MCP - fix lazy `MCPTool` initialization with `inputs_from_state` (#4153)
+
+
+## [integrations/mcp-v2.1.0] - 2026-10-20
+
+### 🚀 Features
+
+- *(mcp)* Add OAuth 2.0 Client Credentials support for MCP server connections (#3960)
+
+
+## [integrations/mcp-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/mcp-v1.5.2] - 2026-10-07
 
 ### 🐛 Bug Fixes

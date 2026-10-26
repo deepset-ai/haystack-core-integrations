@@ -4,13 +4,13 @@
 
 import json
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.tools import tool
 from haystack.utils.auth import Secret
 from openai import AsyncStream, Stream
@@ -21,6 +21,7 @@ from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from haystack_integrations.components.generators.vllm.chat.chat_generator import (
     VLLMChatGenerator,
     _convert_chat_completion_to_chat_message,
+    _convert_chat_history_to_vllm_format,
 )
 
 MODEL = "Qwen/Qwen3-0.6B"
@@ -65,7 +66,7 @@ def _make_reasoning_chunk(text):
                 delta=chat_completion_chunk.ChoiceDelta(content=None, role=None),
             )
         ],
-        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        created=int(datetime.now(tz=UTC).timestamp()),
         usage=None,
     )
     chunk.choices[0].delta.reasoning = text
@@ -85,7 +86,7 @@ def _make_content_chunk(text, finish_reason=None):
                 delta=chat_completion_chunk.ChoiceDelta(content=text, role=None),
             )
         ],
-        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        created=int(datetime.now(tz=UTC).timestamp()),
         usage=None,
     )
 
@@ -104,7 +105,7 @@ def completion():
                 "message": {"content": "Paris is the capital of France.", "role": "assistant"},
             }
         ],
-        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        created=int(datetime.now(tz=UTC).timestamp()),
         usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
     )
 
@@ -192,7 +193,7 @@ class TestConvertChatCompletionToChatMessage:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=timezone.utc).timestamp()),
+            created=int(datetime.now(tz=UTC).timestamp()),
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         )
 
@@ -224,13 +225,33 @@ class TestConvertChatCompletionToChatMessage:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=timezone.utc).timestamp()),
+            created=int(datetime.now(tz=UTC).timestamp()),
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         )
 
         message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
 
         assert len(message.tool_calls) == 0
+
+
+class TestConvertChatHistoryToVLLMFormat:
+    @pytest.mark.parametrize(
+        "last_message",
+        [ChatMessage.from_assistant(text=None), ChatMessage.from_assistant(reasoning="only reasoning")],
+    )
+    def test_drops_trailing_empty_assistant(self, last_message):
+        messages = [ChatMessage.from_user("Hi"), last_message]
+        assert _convert_chat_history_to_vllm_format(messages=messages) == [{"role": "user", "content": "Hi"}]
+
+    def test_keeps_trailing_assistant_with_tool_calls(self):
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(tool_calls=[tool_call])]
+        assert _convert_chat_history_to_vllm_format(messages=messages)[-1] == {
+            "role": "assistant",
+            "tool_calls": [
+                {"id": "123", "type": "function", "function": {"name": "weather", "arguments": '{"city": "Paris"}'}}
+            ],
+        }
 
 
 class TestInitialization:
@@ -684,6 +705,22 @@ class TestIntegration:
             assert len(response["replies"][0].reasoning.reasoning_text) > 0
         else:
             assert response["replies"][0].reasoning is None
+
+    @pytest.mark.parametrize("generation_kwargs", [NO_THINKING_KWARGS, THINKING_KWARGS])
+    def test_live_run_after_contentless_assistant_message(self, generation_kwargs):
+        # After a discarded tool call, the Agent calls the LLM again with the contentless reply as the last message
+        component = VLLMChatGenerator(model=MODEL, generation_kwargs=generation_kwargs)
+        messages = [
+            ChatMessage.from_user("What is the capital of France? Answer in one short sentence."),
+            ChatMessage.from_assistant(text=None),
+        ]
+        response = component.run(messages)
+
+        assert len(response["replies"]) == 1
+        reply = response["replies"][0]
+        assert reply.text
+        assert "paris" in reply.text.lower()
+        assert "<think>" not in reply.text
 
     def test_live_run_with_reasoning_and_parallel_tool_calls(self, weather_tool):
         component = VLLMChatGenerator(

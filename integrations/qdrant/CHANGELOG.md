@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/qdrant-v13.1.0] - 2026-10-22
+
+### 🚀 Features
+
+- Add ability to specify qdrant client kwargs (#4048)
+
+
+## [integrations/qdrant-v13.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/qdrant-v12.0.0] - 2026-10-09
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Use exact matching for Qdrant equality and membership filters (#3950)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+
+
 ## [integrations/qdrant-v11.1.0] - 2026-10-01
 
 ### 🐛 Bug Fixes

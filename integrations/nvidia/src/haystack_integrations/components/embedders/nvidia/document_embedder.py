@@ -7,8 +7,8 @@ import warnings
 from dataclasses import replace
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import Document, component, default_to_dict, logging
+from haystack.utils import Secret
 from tqdm import tqdm
 
 from haystack_integrations.components.embedders.nvidia.truncate import EmbeddingTruncateMode
@@ -188,21 +188,6 @@ class NvidiaDocumentEmbedder:
         Get a list of available models that work with NvidiaDocumentEmbedder.
         """
         return self.backend.models() if self.backend else []
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NvidiaDocumentEmbedder":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        init_parameters = data.get("init_parameters", {})
-        if init_parameters:
-            deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: list[Document]) -> list[str]:
         texts_to_embed = []

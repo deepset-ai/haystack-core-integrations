@@ -49,6 +49,7 @@ class TestQdrantDocumentStoreUnit:
             wait_result_from_api=True,
             use_sparse_embeddings=False,
             api_key=Secret.from_env_var("QDRANT_API_KEY"),
+            client_kwargs={"check_compatibility": False},
         )
         expected_dict = {
             "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
@@ -91,6 +92,7 @@ class TestQdrantDocumentStoreUnit:
                 "write_batch_size": 100,
                 "scroll_size": 10000,
                 "payload_fields_to_index": None,
+                "client_kwargs": {"check_compatibility": False},
             },
         }
         assert doc_store.to_dict() == expected_dict
@@ -346,6 +348,30 @@ class TestQdrantDocumentStoreUnit:
         params = document_store._prepare_client_params()
         params["metadata"]["added"] = "x"
         assert metadata == {"key": "value"}
+
+    def test_prepare_client_params_does_not_mutate_client_kwargs(self):
+        client_kwargs = {"grpc_options": {"custom_option": "value"}}
+        document_store = QdrantDocumentStore(location=":memory:", client_kwargs=client_kwargs)
+        params = document_store._prepare_client_params()
+        params["grpc_options"]["grpc.primary_user_agent"] = "qdrant-client"
+
+        assert client_kwargs == {"grpc_options": {"custom_option": "value"}}
+        assert document_store.to_dict()["init_parameters"]["client_kwargs"] == client_kwargs
+
+    @pytest.mark.parametrize("port", [6333, 7333])
+    def test_client_kwargs_are_forwarded_with_client_kwargs_taking_precedence(self, port):
+        document_store = QdrantDocumentStore(
+            location=":memory:", port=port, client_kwargs={"check_compatibility": False, "port": 8333}
+        )
+
+        with (
+            patch("haystack_integrations.document_stores.qdrant.document_store.qdrant_client.QdrantClient") as client,
+            patch.object(document_store, "_set_up_collection"),
+        ):
+            document_store._initialize_client()
+
+        assert client.call_args.kwargs["check_compatibility"] is False
+        assert client.call_args.kwargs["port"] == 8333
 
     def test_get_batches_from_generator(self):
         batches = list(get_batches_from_generator([1, 2, 3, 4, 5], 2))

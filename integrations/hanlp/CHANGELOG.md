@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/hanlp-v3.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/hanlp-v2.2.0] - 2026-04-22
 
 ### 📚 Documentation

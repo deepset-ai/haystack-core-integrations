@@ -149,6 +149,19 @@ class TestFilterConversion:
                 {"operator": "XOR", "conditions": [{"field": "meta.x", "operator": "==", "value": 1}]},
                 "Unknown logical operator",
             ),
+            ({"operator": "AND", "conditions": []}, "must not be empty"),
+            ({"operator": "OR", "conditions": []}, "must not be empty"),
+            ({"operator": "NOT", "conditions": []}, "must not be empty"),
+            (
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.x", "operator": "==", "value": 1},
+                        {"operator": "OR", "conditions": []},
+                    ],
+                },
+                "must not be empty",
+            ),
             ({"field": "meta.bad; DROP TABLE t", "operator": "==", "value": 1}, "Invalid meta field name"),
             ({"field": "meta.x", "operator": "in", "value": "not-a-list"}, None),
             ({"field": "meta.x", "operator": "like", "value": 5}, None),

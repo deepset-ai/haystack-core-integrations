@@ -1,5 +1,38 @@
 # Changelog
 
+## [integrations/anthropic-v8.0.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- Anthropic - fix type error in MessageParam creation (#4152)
+
+
+## [integrations/anthropic-v8.0.0] - 2026-10-16
+
+### 📚 Documentation
+
+- Use Microsoft Foundry naming in AnthropicFoundryChatGenerator docstrings (#4093)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/anthropic-v7.0.0] - 2026-10-12
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Forward full usage in Anthropic streaming responses (#4089)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+
+
 ## [integrations/anthropic-v6.3.0] - 2026-10-01
 
 ### 🚜 Refactor

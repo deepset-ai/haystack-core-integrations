@@ -187,7 +187,7 @@ class AmazonBedrockRanker:
         concatenated_input_list = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta.get(key)
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key) is not None
             ]
             concatenated_input = self.meta_data_separator.join([*meta_values_to_embed, doc.content or ""])
             concatenated_input_list.append(concatenated_input)

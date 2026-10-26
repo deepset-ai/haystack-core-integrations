@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/tavily-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/tavily-v1.0.0] - 2026-09-10
 
 ### 🚀 Features

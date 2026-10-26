@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/google_genai-v7.0.0] - 2026-10-16
+
+### 🚜 Refactor
+
+- [**breaking**] Remove from_dict overrides that only call default_from_dict from 14 components (#4059)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/google_genai-v6.0.2] - 2026-10-14
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- Add gemini-4-argon to Google GenAI SUPPORTED_MODELS (#4099)
+
+
 ## [integrations/google_genai-v6.0.1] - 2026-09-25
 
 ### 🐛 Bug Fixes

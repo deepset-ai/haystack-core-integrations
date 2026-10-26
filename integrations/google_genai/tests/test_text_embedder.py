@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from google.genai.types import ContentEmbedding, EmbedContentResponse
+from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.embedders.google_genai import GoogleGenAITextEmbedder
@@ -111,7 +112,7 @@ class TestGoogleGenAITextEmbedderInitSerDe:
                 "max_retries": 3,
             },
         }
-        component = GoogleGenAITextEmbedder.from_dict(data)
+        component = component_from_dict(GoogleGenAITextEmbedder, data, name="component")
         assert component._api_key.resolve_value() == "fake-api-key"
         assert component._model_name == "gemini-embedding-001"
         assert component._prefix == ""

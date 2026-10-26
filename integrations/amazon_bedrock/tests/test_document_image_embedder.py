@@ -1,4 +1,9 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import io
+import json
 import os
 from typing import Any
 from unittest.mock import patch
@@ -53,6 +58,18 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.kwargs == {"embedding_types": ["float"]}
         assert not embedder.progress_bar
 
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "cohere.embed-english-v3",
+            "amazon.titan-embed-image-v1",
+            "arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-english-v3",
+        ],
+    )
+    def test_init_with_include_content_rejects_unsupported_models(self, model):
+        with pytest.raises(ValueError, match="only for Cohere Embed v4"):
+            AmazonBedrockDocumentImageEmbedder(model=model, include_content=True)
+
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
     def test_to_dict(self, boto3_config: dict[str, Any] | None):
         embedder = AmazonBedrockDocumentImageEmbedder(
@@ -97,6 +114,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "root_path": "",
                 "image_size": None,
                 "model_family": None,
+                "include_content": False,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
             },
         }
 
@@ -138,6 +158,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 "progress_bar": True,
                 "boto3_config": boto3_config,
                 "image_size": None,
+                "include_content": False,
+                "meta_fields_to_embed": [],
+                "embedding_separator": "\n",
             },
         }
 
@@ -240,7 +263,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
                 mime_type, base64_image = _encode_image_to_base64(image_byte_stream)
                 base64_images.append(f"data:{mime_type};base64,{base64_image}")
 
-            result = embedder._embed_cohere(image_uris=base64_images)
+            result = embedder._embed_cohere(image_uris=base64_images, documents=docs)
 
         mock_client.invoke_model.assert_called_once_with(
             body=f'{{"images": ["{base64_images[0]}"], "input_type": "image", "embedding_types": ["float"]}}',
@@ -347,6 +370,30 @@ class TestAmazonBedrockDocumentImageEmbedder:
             "file_path_meta_field": "file_path",
         }
 
+    def test_run_cohere_interleaved_text_and_image(self, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-v4:0",
+            include_content=True,
+            meta_fields_to_embed=["file_name"],
+            embedding_types=["float"],
+            progress_bar=False,
+        )
+        docs = [Document(content="A page about cats", meta={"file_path": image_paths[0], "file_name": "cats.pdf"})]
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.return_value = {"body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2]]}}')}
+            result = embedder.run(documents=docs)
+
+        request_body = json.loads(mock_client.invoke_model.call_args.kwargs["body"])
+        assert mock_client.invoke_model.call_args.kwargs["modelId"] == "cohere.embed-v4:0"
+        assert request_body["input_type"] == "search_document"
+        assert request_body["embedding_types"] == ["float"]
+        content = request_body["inputs"][0]["content"]
+        assert content[0] == {"type": "text", "text": "cats.pdf\nA page about cats"}
+        assert content[1]["type"] == "image_url"
+        assert content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        assert result["documents"][0].embedding == [0.1, 0.2]
+
     def test_run_titan_end_to_end(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
 
@@ -373,7 +420,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
         assert result["documents"][0].embedding == [0.9]
         body_sent = mock_client.invoke_model.call_args.kwargs["body"]
-        assert "data:application/pdf;base64," in body_sent
+        assert "data:image/jpeg;base64," in body_sent
 
     def test_embed_titan_with_embedding_config(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(
@@ -484,6 +531,34 @@ class TestAmazonBedrockDocumentImageEmbedderIntegration:
             assert "embedding_source" in new_doc.meta
             assert new_doc.meta["embedding_source"]["type"] == "image"
             assert "file_path_meta_field" in new_doc.meta["embedding_source"]
+
+    def test_live_run_with_cohere_interleaved_text_and_image(self, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="cohere.embed-v4:0",
+            include_content=True,
+            meta_fields_to_embed=["file_name"],
+            embedding_separator=" | ",
+            embedding_types=["float"],
+        )
+        documents = []
+        for i, path in enumerate(image_paths):
+            meta = {"file_path": path, "file_name": path.name}
+            if path.suffix == ".pdf":
+                meta["page_number"] = 1
+            documents.append(Document(content=f"document number {i}", meta=meta))
+
+        result = embedder.run(documents=documents)
+
+        assert len(result["documents"]) == len(documents)
+        for doc, new_doc in zip(documents, result["documents"], strict=True):
+            assert doc.embedding is None
+            assert new_doc is not doc
+            assert new_doc.content == doc.content
+            assert new_doc.embedding is not None
+            assert len(new_doc.embedding) == 1536
+            assert all(isinstance(value, float) for value in new_doc.embedding)
+            assert "embedding_source" not in doc.meta
+            assert new_doc.meta["file_name"] == doc.meta["file_name"]
 
     def test_live_run_with_titan(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1", image_size=(100, 100))

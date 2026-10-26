@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/funasr-v1.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/funasr-v0.1.0] - 2026-10-05
 
 ### 🐛 Bug Fixes

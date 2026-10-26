@@ -8,11 +8,6 @@ from botocore.exceptions import ClientError
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -80,7 +75,8 @@ MODELS_TO_TEST_WITH_THINKING_TOOLS_STREAMING = [
     "global.anthropic.claude-sonnet-4-6",
 ]
 
-MODELS_TO_TEST_WITH_PROMPT_CACHING = ["us.amazon.nova-micro-v1:0"]  # cheap, fast model
+# smallest Claude model; Claude models report cache writes split by TTL
+MODELS_TO_TEST_WITH_PROMPT_CACHING = ["global.anthropic.claude-haiku-4-5-20251001-v1:0"]
 
 
 def hello_world():
@@ -1626,8 +1622,9 @@ class TestAmazonBedrockChatGeneratorInference:
 
         system_message = ChatMessage.from_system("Always respond with: 'Life is beautiful' (and nothing else).")
 
+        # Claude Haiku 4.5 caches only prompts of at least 4,096 tokens
         user_message = ChatMessage.from_user(
-            "User message that should be long enough to cache. " * 100,
+            "User message that should be long enough to cache. " * 450,
             meta={"cachePoint": {"type": "default"}},
         )
         messages = [system_message, user_message]
@@ -1640,29 +1637,21 @@ class TestAmazonBedrockChatGeneratorInference:
         # tests run in parallel based on the workflow matrix, so this request should either hit the cache (read tokens)
         # or populate it (write tokens)
         assert usage["cache_read_input_tokens"] > 1000 or usage["cache_write_input_tokens"] > 1000
-        assert "cache_details" in usage
+        if usage["cache_write_input_tokens"] > 0:
+            # a cache point without `ttl` uses the default 5-minute TTL
+            expected = [{"ttl": "5m", "inputTokens": usage["cache_write_input_tokens"]}]
+            assert usage["cache_details"] == expected, f"Unexpected usage stats: {usage}"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS[:1])  # just one model is enough
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
-    def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
+    def test_agent_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
-        Test that the AmazonBedrockChatGenerator component can be used in a pipeline
+        Test that the AmazonBedrockChatGenerator component can drive tool calls in an Agent
         """
+        agent = Agent(chat_generator=AmazonBedrockChatGenerator(model=model_name), tools=tools)
+        result = agent.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
 
-        pipeline = Pipeline()
-        pipeline.add_component("generator", AmazonBedrockChatGenerator(model=model_name, tools=tools))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
-
-        pipeline.connect("generator", "tool_invoker")
-
-        results = pipeline.run(
-            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
-        )
-
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
+        tool_results = [msg.tool_call_result.result for msg in result["messages"] if msg.tool_call_result]
+        assert "The weather in Paris is sunny and 32°C" in tool_results
 
 
 # In the CI, those tests are skipped if AWS Authentication fails

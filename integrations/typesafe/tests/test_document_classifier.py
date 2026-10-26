@@ -11,7 +11,7 @@ import pytest
 from haystack import Document, Pipeline
 from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
-from typesafe_sdk import Choice, Noul, SystemOneResponse, TypeSafeAPIConnectionError
+from typesafe_sdk import Box, Choice, Noul, SystemOneResponse, TypeSafeAPIConnectionError
 
 from haystack_integrations.components.classifiers.typesafe import TypeSafeDocumentClassifier
 
@@ -82,6 +82,7 @@ class TestInit:
         [
             ({"questions": {}}, "at least one question"),
             ({"questions": {"q": {"type": "yesno", "instructions": "?"}}}, "has type 'yesno'"),
+            ({"questions": {"q": Box(instructions="The dog")}}, "is a `Box` question"),
             ({"questions": {"q": {"type": "choice", "instructions": "?"}}}, "needs `criteria`"),
             ({"questions": {"q": {"type": "score", "instructions": "?", "criteria": []}}}, "needs `criteria`"),
             ({"questions": QUESTIONS, "max_workers": 0}, "at least 1"),

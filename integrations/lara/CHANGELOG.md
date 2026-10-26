@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/lara-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Standardize license files (#3771)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Add ANN type annotations to google_genai, hanlp, jina, langfuse, lara (#2990)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+- Improve consistency of integrations folder structure (#3430)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/lara-v1.0.0] - 2026-02-24
 
 ### 🚀 Features
