@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@7e07aaaf686ccebb21ba79f3f95b3da38d78dd40",
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@4ea6773b38abad1371f036418cb1ea1bf3501fa8",
     "sentence-transformers>=6.0.1",
     "pillow>=11.3.0",
     "pypdfium2>=4.0.0",
