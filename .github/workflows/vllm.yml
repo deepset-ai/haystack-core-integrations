@@ -32,8 +32,9 @@ env:
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
   VLLM_RANKER_MODEL: "BAAI/bge-reranker-base"
+  VLLM_SPARSE_EMBEDDING_MODEL: "prithivida/Splade_PP_en_v1"
   VLLM_TARGET_DEVICE: "cpu"
-  # KV cache in GiB, reserved by each of the three vLLM servers. 1 GiB holds ~9k tokens for the chat model,
+  # KV cache in GiB, reserved by each of the four vLLM servers. 1 GiB holds ~9k tokens for the chat model,
   # well above its 1024-token context; larger values exhaust the runner's memory and the chat server gets killed.
   VLLM_CPU_KVCACHE_SPACE: "1"
   # we only test on Ubuntu to keep vLLM server running simple
@@ -176,6 +177,32 @@ jobs:
           fi
 
           echo "vLLM ranker server started successfully."
+
+      - name: Start vLLM sparse embedding server
+        run: |
+          # SPLADE checkpoints declare BertForMaskedLM, so vLLM needs the override to serve them as sparse embedders.
+          nohup hatch run -- vllm serve ${{ env.VLLM_SPARSE_EMBEDDING_MODEL }} \
+            --port 8003 \
+            --runner pooling \
+            --hf-overrides '{"architectures": ["BertSpladeSparseEmbeddingModel"]}' \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM sparse embedding server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8003/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM sparse embedding server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM sparse embedding server to start."
+            exit 1
+          fi
+
+          echo "vLLM sparse embedding server started successfully."
+
       - name: Lint
         if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
