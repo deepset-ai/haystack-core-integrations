@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -290,3 +291,30 @@ class TestRunAsync:
     async def test_run_async_no_documents(self):
         result = await TypeSafeRanker().run_async(query="q", documents=[])
         assert result["documents"] == []
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("TYPESAFE_BASE_URL"),
+    reason="Set TYPESAFE_BASE_URL to a TypeSafe-compatible server, such as Ollaya, to run the integration tests.",
+)
+class TestTypeSafeRankerInference:
+    @pytest.mark.parametrize("use_async", [False, True])
+    @pytest.mark.asyncio
+    async def test_run(self, use_async):
+        ranker = TypeSafeRanker(model="laya:en", timeout=60.0)
+        query = "How do I reset my password?"
+        documents = [
+            Document(content="Our offices are closed on public holidays."),
+            Document(content="To reset your password, click 'Forgot password' on the login page."),
+        ]
+        result = (
+            await ranker.run_async(query=query, documents=documents)
+            if use_async
+            else ranker.run(query=query, documents=documents)
+        )
+        ranked = result["documents"]
+        assert ranked[0].content == documents[1].content
+        assert ranked[0].score > ranked[1].score
+        assert all(0 <= document.score <= 1 for document in ranked)
+        assert result["meta"]["usage"]["input_tokens"] > 0
