@@ -5,7 +5,7 @@
     <title>Coverage for src/haystack_integrations/components/readers/transformers/extractive_reader.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
-    <script src="coverage_html_cb_15cffcd0.js" defer></script>
+    <script src="coverage_html_cb_54cfdca1.js" defer></script>
 </head>
 <body class="pyfile">
 <header>
@@ -56,18 +56,18 @@
         </aside>
         <h2>
             <span class="text">235 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">228<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">7<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">229<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">6<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">6<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">5<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_092edd057603c2c8_chat_generator_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_d804addc0043e347_text_router_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-16 07:15 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.17.0">coverage.py v7.17.0</a>,
+            created at 2026-10-27 09:06 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -500,8 +500,8 @@
     <p class="run run2"><span class="n"><a id="t416" href="#t416">416</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t417" href="#t417">417</a></span><span class="t">                <span class="nam">current_answers</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">answer_</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t418" href="#t418">418</a></span><span class="t">            <span class="nam">current_answers</span> <span class="op">=</span> <span class="nam">sorted</span><span class="op">(</span><span class="nam">current_answers</span><span class="op">,</span> <span class="nam">key</span><span class="op">=</span><span class="key">lambda</span> <span class="nam">ans</span><span class="op">:</span> <span class="nam">ans</span><span class="op">.</span><span class="nam">score</span><span class="op">,</span> <span class="nam">reverse</span><span class="op">=</span><span class="key">True</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t419" href="#t419">419</a></span><span class="t">            <span class="key">if</span> <span class="nam">score_threshold</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">419&#x202F;&#x219B;&#x202F;420</span><span class="annotate long">line 419 didn't jump to line 420 because the condition on line 419 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t420" href="#t420">420</a></span><span class="t">                <span class="nam">current_answers</span> <span class="op">=</span> <span class="op">[</span><span class="nam">answer</span> <span class="key">for</span> <span class="nam">answer</span> <span class="key">in</span> <span class="nam">current_answers</span> <span class="key">if</span> <span class="nam">answer</span><span class="op">.</span><span class="nam">score</span> <span class="op">&gt;=</span> <span class="nam">score_threshold</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t419" href="#t419">419</a></span><span class="t">            <span class="key">if</span> <span class="nam">score_threshold</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t420" href="#t420">420</a></span><span class="t">                <span class="nam">current_answers</span> <span class="op">=</span> <span class="op">[</span><span class="nam">answer</span> <span class="key">for</span> <span class="nam">answer</span> <span class="key">in</span> <span class="nam">current_answers</span> <span class="key">if</span> <span class="nam">answer</span><span class="op">.</span><span class="nam">score</span> <span class="op">&gt;=</span> <span class="nam">score_threshold</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t421" href="#t421">421</a></span><span class="t">            <span class="nam">nested_answers</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">current_answers</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t422" href="#t422">422</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t423" href="#t423">423</a></span><span class="t">        <span class="key">return</span> <span class="nam">nested_answers</span>&nbsp;</span><span class="r"></span></p>
@@ -681,13 +681,13 @@
     <p class="run"><span class="n"><a id="t597" href="#t597">597</a></span><span class="t">        <span class="nam">queries</span> <span class="op">=</span> <span class="op">[</span><span class="nam">query</span><span class="op">]</span>  <span class="com"># Temporary solution until we have decided what batching should look like in v2</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t598" href="#t598">598</a></span><span class="t">        <span class="nam">nested_documents</span> <span class="op">=</span> <span class="op">[</span><span class="nam">documents</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t599" href="#t599">599</a></span><span class="t">        <span class="nam">top_k</span> <span class="op">=</span> <span class="nam">top_k</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">top_k</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t600" href="#t600">600</a></span><span class="t">        <span class="nam">score_threshold</span> <span class="op">=</span> <span class="nam">score_threshold</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">score_threshold</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t600" href="#t600">600</a></span><span class="t">        <span class="nam">score_threshold</span> <span class="op">=</span> <span class="nam">score_threshold</span> <span class="key">if</span> <span class="nam">score_threshold</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">score_threshold</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t601" href="#t601">601</a></span><span class="t">        <span class="nam">max_seq_length</span> <span class="op">=</span> <span class="nam">max_seq_length</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">max_seq_length</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t602" href="#t602">602</a></span><span class="t">        <span class="nam">stride</span> <span class="op">=</span> <span class="nam">stride</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">stride</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t603" href="#t603">603</a></span><span class="t">        <span class="nam">max_batch_size</span> <span class="op">=</span> <span class="nam">max_batch_size</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">max_batch_size</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t604" href="#t604">604</a></span><span class="t">        <span class="nam">answers_per_seq</span> <span class="op">=</span> <span class="nam">answers_per_seq</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">answers_per_seq</span> <span class="key">or</span> <span class="num">20</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t605" href="#t605">605</a></span><span class="t">        <span class="nam">no_answer</span> <span class="op">=</span> <span class="nam">no_answer</span> <span class="key">if</span> <span class="nam">no_answer</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">no_answer</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t606" href="#t606">606</a></span><span class="t">        <span class="nam">overlap_threshold</span> <span class="op">=</span> <span class="nam">overlap_threshold</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">overlap_threshold</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t606" href="#t606">606</a></span><span class="t">        <span class="nam">overlap_threshold</span> <span class="op">=</span> <span class="nam">overlap_threshold</span> <span class="key">if</span> <span class="nam">overlap_threshold</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">overlap_threshold</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t607" href="#t607">607</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t608" href="#t608">608</a></span><span class="t">        <span class="nam">flattened_queries</span><span class="op">,</span> <span class="nam">flattened_documents</span><span class="op">,</span> <span class="nam">query_ids</span> <span class="op">=</span> <span class="nam">TransformersExtractiveReader</span><span class="op">.</span><span class="nam">_flatten_documents</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t609" href="#t609">609</a></span><span class="t">            <span class="nam">queries</span><span class="op">,</span> <span class="nam">nested_documents</span>&nbsp;</span><span class="r"></span></p>
@@ -759,8 +759,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_d804addc0043e347_text_router_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.16.2">coverage.py v7.16.2</a>,
-            created at 2026-10-16 07:15 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.17.0">coverage.py v7.17.0</a>,
+            created at 2026-10-27 09:06 +0000
         </p>
     </div>
 </footer>
