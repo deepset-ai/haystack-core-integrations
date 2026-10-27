@@ -77,7 +77,8 @@ class FalkorDBTextToCypherRetriever:
 
         :param document_store: Store against which generated read-only queries are executed.
         :param chat_generator: Haystack chat generator configured for `RESPONSE_SCHEMA` structured output.
-        :param schema_sample_size: Positive maximum number of nodes and relationships sampled separately at warm-up.
+        :param schema_sample_size: Positive number of nodes sampled per label and of relationships sampled per type
+            at warm-up.
         :raises ValueError: The schema sample size is not positive.
         """
         if schema_sample_size <= 0:
@@ -91,21 +92,27 @@ class FalkorDBTextToCypherRetriever:
 
     def warm_up(self) -> None:
         """
-        Discover the sampled graph schema and cache the system prompt once.
+        Warm up the chat generator, then discover the sampled graph schema and cache the system prompt once.
 
-        Called lazily by `run()`. Does not initialize the generator.
+        Called lazily by `run()`.
         """
+        if hasattr(self.chat_generator, "warm_up"):
+            self.chat_generator.warm_up()
         if not self._system_prompt:
             schema = self.document_store._get_graph_schema(sample_size=self.schema_sample_size)
             self._system_prompt = self._build_system_prompt(json.dumps(schema))
 
     async def warm_up_async(self) -> None:
         """
-        Discover the sampled graph schema asynchronously and cache the system prompt once.
+        Warm up the chat generator, then discover the sampled graph schema asynchronously and cache the prompt once.
 
-        Called lazily by `run_async()`. Concurrent async calls share a single discovery.
-        Does not initialize the generator.
+        Called lazily by `run_async()`. Uses the generator's `warm_up_async()` when available, otherwise
+        its `warm_up()`. Concurrent async calls share a single schema discovery.
         """
+        if hasattr(self.chat_generator, "warm_up_async"):
+            await self.chat_generator.warm_up_async()
+        elif hasattr(self.chat_generator, "warm_up"):
+            self.chat_generator.warm_up()
         async with self._warm_up_lock:
             if not self._system_prompt:
                 schema = await self.document_store._get_graph_schema_async(sample_size=self.schema_sample_size)

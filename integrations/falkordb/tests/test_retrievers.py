@@ -27,6 +27,13 @@ from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 logger = logging.getLogger(__name__)
 
 
+def _mock_generator() -> MagicMock:
+    # A plain MagicMock exposes a non-awaitable `warm_up_async`; real generators define it as a coroutine
+    generator = MagicMock()
+    generator.warm_up_async = AsyncMock()
+    return generator
+
+
 class TestFalkorDBTextToCypherRetriever:
     @pytest.fixture
     def store(self):
@@ -40,15 +47,41 @@ class TestFalkorDBTextToCypherRetriever:
         }
         return store
 
+    def test_warm_up_warms_generator(self, store):
+        generator = MagicMock(spec=["run", "warm_up"])
+        FalkorDBTextToCypherRetriever(store, generator).warm_up()
+        generator.warm_up.assert_called_once_with()
+
+    def test_warm_up_with_generator_without_warm_up(self, store):
+        # The ChatGenerator protocol only requires run()
+        FalkorDBTextToCypherRetriever(store, MagicMock(spec=["run"])).warm_up()
+        store._get_graph_schema.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async_prefers_generator_warm_up_async(self, store):
+        store._get_graph_schema_async.return_value = store._get_graph_schema.return_value
+        generator = MagicMock(spec=["run", "warm_up", "warm_up_async"])
+        generator.warm_up_async = AsyncMock()
+        await FalkorDBTextToCypherRetriever(store, generator).warm_up_async()
+        generator.warm_up_async.assert_awaited_once_with()
+        generator.warm_up.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_warm_up_async_falls_back_to_generator_warm_up(self, store):
+        store._get_graph_schema_async.return_value = store._get_graph_schema.return_value
+        generator = MagicMock(spec=["run", "warm_up"])
+        await FalkorDBTextToCypherRetriever(store, generator).warm_up_async()
+        generator.warm_up.assert_called_once_with()
+
     def test_generator_error_does_not_execute_query(self, store):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run.side_effect = RuntimeError("provider failed")
         with pytest.raises(RuntimeError, match="provider failed"):
             FalkorDBTextToCypherRetriever(store, generator).run("Find documents")
         store._cypher_retrieval.assert_not_called()
 
     def test_run(self, store):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run.return_value = {"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
         store._cypher_retrieval.return_value = [Document(content="GraphRAG")]
         retriever = FalkorDBTextToCypherRetriever(store, generator)
@@ -61,7 +94,7 @@ class TestFalkorDBTextToCypherRetriever:
         assert json.dumps(store._get_graph_schema.return_value) in messages[0].text
         store._get_graph_schema.assert_called_once_with(sample_size=100)
         assert messages[1].text == "Find GraphRAG"
-        generator.warm_up.assert_not_called()
+        generator.warm_up.assert_called_once_with()
 
     @pytest.mark.parametrize(
         "text",
@@ -77,7 +110,7 @@ class TestFalkorDBTextToCypherRetriever:
         ],
     )
     def test_invalid_json(self, text, store):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run.return_value = {"replies": [ChatMessage.from_assistant(text)]}
         retriever = FalkorDBTextToCypherRetriever(store, generator)
         with pytest.raises(ValueError, match="Generator reply"):
@@ -88,7 +121,7 @@ class TestFalkorDBTextToCypherRetriever:
         "replies", [None, [], ["text"], [ChatMessage.from_assistant("{}"), ChatMessage.from_assistant("{}")]]
     )
     def test_invalid_replies(self, replies, store):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run.return_value = {"replies": replies}
         with pytest.raises(ValueError, match="Generator reply"):
             FalkorDBTextToCypherRetriever(store, generator).run("Find documents")
@@ -96,14 +129,14 @@ class TestFalkorDBTextToCypherRetriever:
 
     def test_schema_failure_does_not_generate_or_execute(self, store):
         store._get_graph_schema.side_effect = DocumentStoreError("schema failed")
-        generator = MagicMock()
+        generator = _mock_generator()
         with pytest.raises(DocumentStoreError, match="schema failed"):
             FalkorDBTextToCypherRetriever(store, generator).run("Find documents")
         generator.run.assert_not_called()
         store._cypher_retrieval.assert_not_called()
 
     def test_schema_is_cached_until_close(self, store):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run.return_value = {"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
         retriever = FalkorDBTextToCypherRetriever(store, generator)
         retriever.warm_up()
@@ -123,7 +156,7 @@ class TestFalkorDBTextToCypherRetriever:
 
     @pytest.mark.asyncio
     async def test_run_async(self, store):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run_async = AsyncMock(
             return_value={"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
         )
@@ -174,7 +207,7 @@ class TestFalkorDBTextToCypherRetriever:
         ],
     )
     async def test_run_async_invalid_reply(self, store, replies):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run_async = AsyncMock(return_value={"replies": replies})
         store._get_graph_schema_async.return_value = store._get_graph_schema.return_value
         with pytest.raises(ValueError):
@@ -216,7 +249,7 @@ class TestFalkorDBTextToCypherRetriever:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("stage", ["schema", "generator", "retrieval"])
     async def test_run_async_propagates_errors(self, store, stage):
-        generator = MagicMock()
+        generator = _mock_generator()
         generator.run_async = AsyncMock(
             return_value={"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
         )
@@ -244,7 +277,7 @@ class TestFalkorDBTextToCypherRetriever:
     @pytest.mark.asyncio
     async def test_concurrent_warm_up_async(self, store):
         store._get_graph_schema_async.return_value = store._get_graph_schema.return_value
-        retriever = FalkorDBTextToCypherRetriever(store, MagicMock(), schema_sample_size=7)
+        retriever = FalkorDBTextToCypherRetriever(store, _mock_generator(), schema_sample_size=7)
         await asyncio.gather(retriever.warm_up_async(), retriever.warm_up_async())
         store._get_graph_schema_async.assert_awaited_once_with(sample_size=7)
         retriever.warm_up()
@@ -252,7 +285,7 @@ class TestFalkorDBTextToCypherRetriever:
 
     @pytest.mark.asyncio
     async def test_warm_up_retries_after_failure(self, store):
-        retriever = FalkorDBTextToCypherRetriever(store, MagicMock())
+        retriever = FalkorDBTextToCypherRetriever(store, _mock_generator())
         store._get_graph_schema_async.side_effect = [DocumentStoreError("failed"), store._get_graph_schema.return_value]
         with pytest.raises(DocumentStoreError):
             await retriever.warm_up_async()
