@@ -47,6 +47,10 @@ class TestFalkorDBTextToCypherRetriever:
         }
         return store
 
+    def test_init_invalid_store(self):
+        with pytest.raises(ValueError, match="must be an instance of FalkorDBDocumentStore"):
+            FalkorDBTextToCypherRetriever(document_store=MagicMock(), chat_generator=_mock_generator())
+
     def test_warm_up_warms_generator(self, store):
         generator = MagicMock(spec=["run", "warm_up"])
         FalkorDBTextToCypherRetriever(store, generator).warm_up()

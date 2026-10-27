@@ -85,8 +85,12 @@ class FalkorDBTextToCypherRetriever:
             `LIMIT`, and results are deduplicated by document ID and truncated in case it does not.
         :param timeout: Positive maximum query runtime in milliseconds, enforced by the FalkorDB server; `None` uses
             the server default. Bounds the cost of expensive generated queries, which `top_k` alone cannot.
-        :raises ValueError: `schema_sample_size`, `top_k`, or `timeout` is not positive.
+        :raises ValueError: `document_store` is not a `FalkorDBDocumentStore`, or `schema_sample_size`, `top_k`, or
+            `timeout` is not positive.
         """
+        if not isinstance(document_store, FalkorDBDocumentStore):
+            msg = "document_store must be an instance of FalkorDBDocumentStore"
+            raise ValueError(msg)
         for name, value in (("schema_sample_size", schema_sample_size), ("top_k", top_k), ("timeout", timeout)):
             if value is not None and value <= 0:
                 msg = f"{name} must be positive"
