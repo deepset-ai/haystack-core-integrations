@@ -13,6 +13,7 @@ from typesafe_sdk import (
     AsyncTypeSafeClient,
     RetryPolicy,
     Score,
+    ScoreAnswer,
     SystemOneResponse,
     TypeSafeClient,
     TypeSafeError,
@@ -253,7 +254,10 @@ class TypeSafeRanker:
 
     def _succeed(self, document: Document, response: SystemOneResponse) -> _Ranked:
         answer = response.answers[_QUESTION_ID]
-        relevance = answer.score / (len(self.criteria) - 1)  # type: ignore[union-attr]
+        if not isinstance(answer, ScoreAnswer):
+            msg = f"Expected a `score` answer for question '{_QUESTION_ID}', got '{answer.type}'."
+            raise TypeError(msg)
+        relevance = answer.score / (len(self.criteria) - 1)
         usage = response.usage
         answers = document.meta.get(self.metadata_field)
         if not isinstance(answers, dict):
@@ -272,7 +276,7 @@ class TypeSafeRanker:
                     **{key: value for key, value in document.meta.items() if key != _ERROR_FIELD},
                     self.metadata_field: {
                         **answers,
-                        _QUESTION_ID: {"score": answer.score, "confidence": answer.confidence},  # type: ignore[union-attr]
+                        _QUESTION_ID: {"score": answer.score, "confidence": answer.confidence},
                     },
                 },
             ),
@@ -351,6 +355,8 @@ class TypeSafeRanker:
             If `top_k` is smaller than 1.
         :raises TypeSafeError:
             If a request fails and `raise_on_failure` is `True`.
+        :raises TypeError:
+            If the server answers the relevance question with something other than a `score` answer.
         """
         top_k = self._top_k(top_k)
         if not documents:
@@ -384,6 +390,8 @@ class TypeSafeRanker:
             If `top_k` is smaller than 1.
         :raises TypeSafeError:
             If a request fails and `raise_on_failure` is `True`.
+        :raises TypeError:
+            If the server answers the relevance question with something other than a `score` answer.
         """
         top_k = self._top_k(top_k)
         if not documents:

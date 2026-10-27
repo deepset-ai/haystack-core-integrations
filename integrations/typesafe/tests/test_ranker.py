@@ -238,6 +238,18 @@ class TestRun:
         with pytest.raises(TypeSafeAPIConnectionError):
             ranker.run(query="q", documents=DOCUMENTS)
 
+    @patch("haystack_integrations.components.rankers.typesafe.ranker.TypeSafeClient")
+    def test_run_non_score_answer(self, mock_client):
+        mock_client.return_value.system_one.return_value = SystemOneResponse.model_validate(
+            {
+                "model": "jev-test",
+                "answers": {"relevance": {"type": "noul", "noul": 0.9}},
+                "usage": {"input_tokens": 10, "output_tokens": 0},
+            }
+        )
+        with pytest.raises(TypeError, match="Expected a `score` answer"):
+            TypeSafeRanker(criteria=CRITERIA).run(query="q", documents=DOCUMENTS)
+
     def test_run_no_documents(self):
         result = TypeSafeRanker(model="laya").run(query="q", documents=[])
         assert result == {"documents": [], "meta": {"model": "laya", "usage": {"input_tokens": 0, "output_tokens": 0}}}
