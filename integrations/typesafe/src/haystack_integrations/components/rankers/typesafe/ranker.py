@@ -51,6 +51,9 @@ class TypeSafeRanker:
     and the passage as a JSON object, `{"query": ..., "passage": ...}`, so `instructions` and `criteria` can refer to
     both. The score is the model's expected level, divided by the highest level, so it is a relevance from 0 to 1.
 
+    Because each document is a separate request, latency and token usage grow with the number of documents. Place
+    the ranker after a retriever with a small `top_k`, and tune `max_workers` to the server's capacity.
+
     The ranker also reports what the requests cost. Its `meta` output holds the model and the summed `usage`, in the
     same shape generators use, so that tools reading usage from pipeline traces can pick it up.
 
