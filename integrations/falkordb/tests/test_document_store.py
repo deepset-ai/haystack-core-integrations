@@ -357,9 +357,9 @@ class TestFalkorDBDocumentStoreUnit:
         store.warm_up()
         graph.query.reset_mock()
         graph.ro_query.return_value = _result([[SimpleNamespace(properties={"id": "n1", "content": "hello"})]])
-        docs = store._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1}, read_only=True)
+        docs = store._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1}, read_only=True, timeout=250)
         assert docs[0].content == "hello"
-        graph.ro_query.assert_called_once_with("MATCH (d) RETURN d", {"k": 1})
+        graph.ro_query.assert_called_once_with("MATCH (d) RETURN d", {"k": 1}, timeout=250)
         graph.query.assert_not_called()
 
     def test_read_only_cypher_failure(self, mock_falkordb):

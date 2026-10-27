@@ -558,15 +558,15 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         documents = await store._cypher_retrieval_async("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
 
         assert [document.content for document in documents] == ["hello"]
-        graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
+        graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"}, timeout=None)
 
     @pytest.mark.asyncio
     async def test_read_only_cypher_retrieval_async(self, warmed_async_store):
         store, graph = warmed_async_store
         graph.ro_query = AsyncMock(return_value=_result([[SimpleNamespace(properties={"content": "hello"})]]))
-        documents = await store._cypher_retrieval_async("MATCH (d) RETURN d", {"k": 1}, read_only=True)
+        documents = await store._cypher_retrieval_async("MATCH (d) RETURN d", {"k": 1}, read_only=True, timeout=250)
         assert documents[0].content == "hello"
-        graph.ro_query.assert_awaited_once_with("MATCH (d) RETURN d", {"k": 1})
+        graph.ro_query.assert_awaited_once_with("MATCH (d) RETURN d", {"k": 1}, timeout=250)
         graph.query.assert_not_called()
 
     @pytest.mark.asyncio

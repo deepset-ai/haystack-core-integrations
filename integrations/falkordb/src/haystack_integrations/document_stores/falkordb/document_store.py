@@ -1402,6 +1402,7 @@ ORDER BY score ASC, d.id ASC
         parameters: dict[str, Any] | None = None,
         *,
         read_only: bool = False,
+        timeout: int | None = None,
     ) -> list[Document]:
         """
         Execute an arbitrary OpenCypher query and map the results to Documents.
@@ -1412,6 +1413,7 @@ ORDER BY score ASC, d.id ASC
         :param cypher_query: A valid OpenCypher query string.
         :param parameters: Optional query parameters (`$param` placeholders).
         :param read_only: Execute with the server-enforced read-only command. Store warm-up still initializes indexes.
+        :param timeout: Maximum query runtime in milliseconds, enforced by the server; `None` uses the server default.
         :returns: List of :class:`Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
@@ -1422,7 +1424,7 @@ ORDER BY score ASC, d.id ASC
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
             query_method = self.graph.ro_query if read_only else self.graph.query
-            result = query_method(cypher_query, parameters or {})
+            result = query_method(cypher_query, parameters or {}, timeout=timeout)
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
@@ -1434,6 +1436,7 @@ ORDER BY score ASC, d.id ASC
         parameters: dict[str, Any] | None = None,
         *,
         read_only: bool = False,
+        timeout: int | None = None,
     ) -> list[Document]:
         """
         Execute an arbitrary OpenCypher query asynchronously and map the results to Documents.
@@ -1443,6 +1446,7 @@ ORDER BY score ASC, d.id ASC
         :param cypher_query: A valid OpenCypher query string.
         :param parameters: Optional query parameters (`$param` placeholders).
         :param read_only: Execute with the server-enforced read-only command. Store warm-up still initializes indexes.
+        :param timeout: Maximum query runtime in milliseconds, enforced by the server; `None` uses the server default.
         :returns: List of `Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
@@ -1451,7 +1455,7 @@ ORDER BY score ASC, d.id ASC
 
         try:
             query_method = self.async_graph.ro_query if read_only else self.async_graph.query
-            result = await query_method(cypher_query, parameters or {})
+            result = await query_method(cypher_query, parameters or {}, timeout=timeout)
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"

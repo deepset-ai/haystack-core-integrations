@@ -71,6 +71,8 @@ class FalkorDBTextToCypherRetriever:
         chat_generator: ChatGenerator,
         *,
         schema_sample_size: int = 100,
+        top_k: int = 10,
+        timeout: int | None = None,
     ) -> None:
         """
         Initialize the retriever without opening connections.
@@ -79,14 +81,21 @@ class FalkorDBTextToCypherRetriever:
         :param chat_generator: Haystack chat generator configured for `RESPONSE_SCHEMA` structured output.
         :param schema_sample_size: Positive number of nodes sampled per label and of relationships sampled per type
             at warm-up.
-        :raises ValueError: The schema sample size is not positive.
+        :param top_k: Positive maximum number of unique documents to return. The generator is asked to add a matching
+            `LIMIT`, and results are deduplicated by document ID and truncated in case it does not.
+        :param timeout: Positive maximum query runtime in milliseconds, enforced by the FalkorDB server; `None` uses
+            the server default. Bounds the cost of expensive generated queries, which `top_k` alone cannot.
+        :raises ValueError: `schema_sample_size`, `top_k`, or `timeout` is not positive.
         """
-        if schema_sample_size <= 0:
-            msg = "schema_sample_size must be positive"
-            raise ValueError(msg)
+        for name, value in (("schema_sample_size", schema_sample_size), ("top_k", top_k), ("timeout", timeout)):
+            if value is not None and value <= 0:
+                msg = f"{name} must be positive"
+                raise ValueError(msg)
         self.document_store = document_store
         self.chat_generator = chat_generator
         self.schema_sample_size = schema_sample_size
+        self.top_k = top_k
+        self.timeout = timeout
         self._system_prompt = ""
         self._warm_up_lock = asyncio.Lock()
 
@@ -147,6 +156,8 @@ class FalkorDBTextToCypherRetriever:
             document_store=self.document_store.to_dict(),
             chat_generator=component_to_dict(self.chat_generator, "chat_generator"),
             schema_sample_size=self.schema_sample_size,
+            top_k=self.top_k,
+            timeout=self.timeout,
         )
 
     @classmethod
@@ -164,25 +175,28 @@ class FalkorDBTextToCypherRetriever:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str) -> dict[str, list[Document]]:
+    def run(self, query: str, *, top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Generate a Cypher query and execute it through FalkorDB's read-only command.
 
         Graph traversal can be expensive even when the query returns few documents.
 
         :param query: Natural-language retrieval request.
-        :returns: Mapping with `documents` (list of retrieved Documents).
-        :raises ValueError: The generator reply violates the structured-output contract.
-        :raises DocumentStoreError: Database retrieval or document conversion fails.
+        :param top_k: Positive maximum number of unique documents to return; overrides the init value.
+        :returns: Mapping with `documents` (list of at most `top_k` unique retrieved Documents).
+        :raises ValueError: `top_k` is not positive, or the generator reply violates the structured-output contract.
+        :raises DocumentStoreError: Database retrieval or document conversion fails, or the query exceeds `timeout`.
         """
+        top_k = self._resolve_top_k(top_k)
         self.warm_up()
-        messages = [ChatMessage.from_system(self._system_prompt), ChatMessage.from_user(query)]
-        cypher_query = self._parse_reply(self.chat_generator.run(messages=messages))
-        documents = self.document_store._cypher_retrieval(cypher_query=cypher_query, read_only=True)
-        return {"documents": documents}
+        cypher_query = self._parse_reply(self.chat_generator.run(messages=self._build_messages(query, top_k)))
+        documents = self.document_store._cypher_retrieval(
+            cypher_query=cypher_query, read_only=True, timeout=self.timeout
+        )
+        return {"documents": self._unique_documents(documents, top_k)}
 
     @component.output_types(documents=list[Document])
-    async def run_async(self, query: str) -> dict[str, list[Document]]:
+    async def run_async(self, query: str, *, top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Generate and execute a read-only Cypher query asynchronously.
 
@@ -191,21 +205,45 @@ class FalkorDBTextToCypherRetriever:
         Graph traversal can be expensive even when few documents are returned.
 
         :param query: Natural-language retrieval request.
-        :returns: Mapping with `documents` (list of retrieved Documents).
-        :raises ValueError: The generator reply violates the structured-output contract.
-        :raises DocumentStoreError: Database retrieval or document conversion fails.
+        :param top_k: Positive maximum number of unique documents to return; overrides the init value.
+        :returns: Mapping with `documents` (list of at most `top_k` unique retrieved Documents).
+        :raises ValueError: `top_k` is not positive, or the generator reply violates the structured-output contract.
+        :raises DocumentStoreError: Database retrieval or document conversion fails, or the query exceeds `timeout`.
         """
+        top_k = self._resolve_top_k(top_k)
         # Haystack's ChatGenerator protocol only declares run(), not run_async().
         run_async = getattr(self.chat_generator, "run_async", None)
         await self.warm_up_async()
-        messages = [ChatMessage.from_system(self._system_prompt), ChatMessage.from_user(query)]
+        messages = self._build_messages(query, top_k)
         if run_async is not None:
             result = await run_async(messages=messages)
         else:
             result = await asyncio.to_thread(self.chat_generator.run, messages=messages)
         cypher_query = self._parse_reply(result)
-        documents = await self.document_store._cypher_retrieval_async(cypher_query=cypher_query, read_only=True)
-        return {"documents": documents}
+        documents = await self.document_store._cypher_retrieval_async(
+            cypher_query=cypher_query, read_only=True, timeout=self.timeout
+        )
+        return {"documents": self._unique_documents(documents, top_k)}
+
+    def _resolve_top_k(self, top_k: int | None) -> int:
+        top_k = self.top_k if top_k is None else top_k
+        if top_k <= 0:
+            msg = "top_k must be positive"
+            raise ValueError(msg)
+        return top_k
+
+    def _build_messages(self, query: str, top_k: int) -> list[ChatMessage]:
+        # The cached prompt holds the schema; the limit is appended per call because `top_k` can change at runtime
+        system_prompt = f"{self._system_prompt}\nReturn at most {top_k} rows: end the query with LIMIT {top_k}."
+        return [ChatMessage.from_system(system_prompt), ChatMessage.from_user(query)]
+
+    @staticmethod
+    def _unique_documents(documents: list[Document], top_k: int) -> list[Document]:
+        # Generated queries can repeat rows (e.g. joins) or ignore the LIMIT instruction
+        unique: dict[str, Document] = {}
+        for document in documents:
+            unique.setdefault(document.id, document)
+        return list(unique.values())[:top_k]
 
     @staticmethod
     def _build_system_prompt(graph_schema: str) -> str:

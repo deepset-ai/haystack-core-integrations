@@ -89,7 +89,7 @@ class TestFalkorDBTextToCypherRetriever:
         generator.warm_up.assert_not_called()
         result = retriever.run("Find GraphRAG")
         assert result == {"documents": [Document(content="GraphRAG")]}
-        store._cypher_retrieval.assert_called_once_with(cypher_query="MATCH (d) RETURN d", read_only=True)
+        store._cypher_retrieval.assert_called_once_with(cypher_query="MATCH (d) RETURN d", read_only=True, timeout=None)
         messages = generator.run.call_args.kwargs["messages"]
         assert json.dumps(store._get_graph_schema.return_value) in messages[0].text
         store._get_graph_schema.assert_called_once_with(sample_size=100)
@@ -154,6 +154,52 @@ class TestFalkorDBTextToCypherRetriever:
         assert store._get_graph_schema.call_count == 2
         assert json.dumps(store._get_graph_schema.return_value) in generator.run.call_args.kwargs["messages"][0].text
 
+    def test_run_deduplicates_and_limits_documents(self, store):
+        # Generated queries can return repeated rows or ignore the LIMIT instruction
+        generator = _mock_generator()
+        generator.run.return_value = {"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
+        docs = [Document(id=str(i), content=str(i)) for i in range(5)]
+        store._cypher_retrieval.return_value = [docs[0], docs[0], docs[1], docs[2], docs[1], docs[3], docs[4]]
+        retriever = FalkorDBTextToCypherRetriever(store, generator, top_k=3, timeout=250)
+        assert retriever.run("Find documents") == {"documents": docs[:3]}
+        assert "LIMIT 3" in generator.run.call_args.kwargs["messages"][0].text
+        store._cypher_retrieval.assert_called_once_with(cypher_query="MATCH (d) RETURN d", read_only=True, timeout=250)
+        assert retriever.run("Find documents", top_k=2) == {"documents": docs[:2]}
+        assert "LIMIT 2" in generator.run.call_args.kwargs["messages"][0].text
+
+    @pytest.mark.asyncio
+    async def test_run_async_deduplicates_and_limits_documents(self, store):
+        store._get_graph_schema_async.return_value = store._get_graph_schema.return_value
+        generator = _mock_generator()
+        generator.run_async = AsyncMock(
+            return_value={"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
+        )
+        docs = [Document(id=str(i), content=str(i)) for i in range(5)]
+        store._cypher_retrieval_async.return_value = [docs[0], docs[0], docs[1], docs[2], docs[1], docs[3], docs[4]]
+        retriever = FalkorDBTextToCypherRetriever(store, generator, top_k=3, timeout=250)
+        assert await retriever.run_async("Find documents") == {"documents": docs[:3]}
+        assert "LIMIT 3" in generator.run_async.call_args.kwargs["messages"][0].text
+        store._cypher_retrieval_async.assert_awaited_once_with(
+            cypher_query="MATCH (d) RETURN d", read_only=True, timeout=250
+        )
+        assert await retriever.run_async("Find documents", top_k=2) == {"documents": docs[:2]}
+        assert "LIMIT 2" in generator.run_async.call_args.kwargs["messages"][0].text
+
+    @pytest.mark.parametrize("kwargs", [{"top_k": 0}, {"top_k": -1}, {"timeout": 0}, {"timeout": -1}])
+    def test_init_rejects_non_positive_limits(self, store, kwargs):
+        with pytest.raises(ValueError, match="must be positive"):
+            FalkorDBTextToCypherRetriever(store, _mock_generator(), **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_run_rejects_non_positive_top_k(self, store):
+        retriever = FalkorDBTextToCypherRetriever(store, _mock_generator())
+        with pytest.raises(ValueError, match="top_k must be positive"):
+            retriever.run("Find documents", top_k=0)
+        with pytest.raises(ValueError, match="top_k must be positive"):
+            await retriever.run_async("Find documents", top_k=0)
+        store._cypher_retrieval.assert_not_called()
+        store._cypher_retrieval_async.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_run_async(self, store):
         generator = _mock_generator()
@@ -167,7 +213,9 @@ class TestFalkorDBTextToCypherRetriever:
         result = await retriever.run_async("Find GraphRAG")
         assert result == {"documents": [Document(content="GraphRAG")]}
         store._get_graph_schema_async.assert_awaited_once_with(sample_size=100)
-        store._cypher_retrieval_async.assert_awaited_once_with(cypher_query="MATCH (d) RETURN d", read_only=True)
+        store._cypher_retrieval_async.assert_awaited_once_with(
+            cypher_query="MATCH (d) RETURN d", read_only=True, timeout=None
+        )
         messages = generator.run_async.call_args.kwargs["messages"]
         assert json.dumps(store._get_graph_schema_async.return_value) in messages[0].text
         assert messages[1].text == "Find GraphRAG"
@@ -240,7 +288,9 @@ class TestFalkorDBTextToCypherRetriever:
         else:
             result = await retriever.run_async("Find documents")
             assert result == {"documents": [Document(content="GraphRAG")]}
-            store._cypher_retrieval_async.assert_awaited_once_with(cypher_query="MATCH (d) RETURN d", read_only=True)
+            store._cypher_retrieval_async.assert_awaited_once_with(
+                cypher_query="MATCH (d) RETURN d", read_only=True, timeout=None
+            )
         generator.run.assert_called_once()
         store._get_graph_schema_async.assert_awaited_once_with(sample_size=100)
         store._get_graph_schema.assert_not_called()
@@ -309,13 +359,15 @@ class TestFalkorDBTextToCypherRetriever:
             },
         )
         retriever = FalkorDBTextToCypherRetriever(
-            FalkorDBDocumentStore(graph_name="custom"), generator, schema_sample_size=7
+            FalkorDBDocumentStore(graph_name="custom"), generator, schema_sample_size=7, top_k=5, timeout=250
         )
         serialized = retriever.to_dict()
         assert "graph_schema" not in serialized["init_parameters"]
         restored = FalkorDBTextToCypherRetriever.from_dict(serialized)
         assert restored.to_dict() == serialized
         assert restored.schema_sample_size == 7
+        assert restored.top_k == 5
+        assert restored.timeout == 250
         assert restored._system_prompt == ""
         assert restored.chat_generator.api_key.resolve_value() == "test-key"
 
