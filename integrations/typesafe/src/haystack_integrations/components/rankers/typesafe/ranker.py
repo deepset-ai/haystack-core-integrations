@@ -93,7 +93,7 @@ class TypeSafeRanker:
         api_base_url: str | None = None,
         instructions: str = DEFAULT_INSTRUCTIONS,
         criteria: list[str] | None = None,
-        meta_fields_to_include: list[str] | None = None,
+        meta_fields_to_embed: list[str] | None = None,
         max_chars: int | None = None,
         metadata_field: str = "typesafe",
         top_k: int = 10,
@@ -119,9 +119,10 @@ class TypeSafeRanker:
             The ordered score levels, from the least to the most relevant, each described by a concrete situation. At
             least two. Levels are judged independently and never see their index. If `None`, five generic levels are
             used.
-        :param meta_fields_to_include:
+        :param meta_fields_to_embed:
             Names of metadata fields to show the model next to the text, under their own names in the passage. Fields a
-            document doesn't have are left out.
+            document doesn't have are left out. Named like the other rankers' parameter, but nothing is embedded:
+            the fields are sent as structured keys next to `text`, not concatenated into it.
         :param max_chars:
             Truncate each document's text to this many characters. If `None`, the text is sent in full.
         :param metadata_field:
@@ -161,7 +162,7 @@ class TypeSafeRanker:
         self.api_base_url = api_base_url
         self.instructions = instructions
         self.criteria = criteria
-        self.meta_fields_to_include = meta_fields_to_include
+        self.meta_fields_to_embed = meta_fields_to_embed
         self.max_chars = max_chars
         self.metadata_field = metadata_field
         self.top_k = top_k
@@ -231,7 +232,7 @@ class TypeSafeRanker:
             api_base_url=self.api_base_url,
             instructions=self.instructions,
             criteria=self.criteria,
-            meta_fields_to_include=self.meta_fields_to_include,
+            meta_fields_to_embed=self.meta_fields_to_embed,
             max_chars=self.max_chars,
             metadata_field=self.metadata_field,
             top_k=self.top_k,
@@ -243,8 +244,9 @@ class TypeSafeRanker:
 
     def _state(self, query: str, document: Document) -> dict[str, Any]:
         text = document.content or ""
+        # Unlike other rankers, metadata fields are kept as separate keys instead of being joined into the text
         passage: dict[str, Any] = {
-            name: document.meta[name] for name in self.meta_fields_to_include or [] if name in document.meta
+            name: document.meta[name] for name in self.meta_fields_to_embed or [] if name in document.meta
         }
         passage["text"] = text[: self.max_chars] if self.max_chars is not None else text
         return {"query": query, "passage": passage}

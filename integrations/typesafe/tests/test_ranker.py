@@ -89,7 +89,7 @@ class TestSerialization:
             api_base_url="http://localhost:11435",
             instructions="Does `passage` answer `query`?",
             criteria=CRITERIA,
-            meta_fields_to_include=["title"],
+            meta_fields_to_embed=["title"],
             max_chars=500,
             metadata_field="ranking",
             top_k=4,
@@ -107,7 +107,7 @@ class TestSerialization:
                 "api_base_url": "http://localhost:11435",
                 "instructions": "Does `passage` answer `query`?",
                 "criteria": CRITERIA,
-                "meta_fields_to_include": ["title"],
+                "meta_fields_to_embed": ["title"],
                 "max_chars": 500,
                 "metadata_field": "ranking",
                 "top_k": 4,
@@ -203,7 +203,7 @@ class TestRun:
         ranker = TypeSafeRanker(
             criteria=CRITERIA,
             instructions="Does `passage` answer `query`?",
-            meta_fields_to_include=["title", "missing"],
+            meta_fields_to_embed=["title", "missing"],
             max_chars=3,
         )
         ranker.run(query="the query", documents=[Document(content="abcdef", meta={"title": "T", "other": 1})])
