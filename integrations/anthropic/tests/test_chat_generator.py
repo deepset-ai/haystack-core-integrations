@@ -124,6 +124,42 @@ class TestInit:
             component._prepare_request_params([ChatMessage.from_user("hi")])
 
 
+class TestToolsStrict:
+    def test_tools_are_not_strict_by_default(self, monkeypatch, tool_with_no_parameters):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(tools=[tool_with_no_parameters])
+
+        *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
+
+        assert "strict" not in anthropic_tools[0]
+
+    def test_tools_strict_marks_every_tool_strict(self, monkeypatch, tools):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(tools=tools, tools_strict=True)
+
+        *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
+
+        assert [tool["strict"] for tool in anthropic_tools] == [True] * len(tools)
+        assert anthropic_tools[0]["input_schema"] == tools[0].parameters
+
+    def test_tools_strict_leaves_server_tools_as_given(self, monkeypatch, tools):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        server_tool = {"type": "web_search_20250305", "name": "web_search"}
+        component = AnthropicChatGenerator(tools=tools, anthropic_server_tools=[server_tool], tools_strict=True)
+
+        *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
+
+        assert anthropic_tools[-1] == server_tool
+
+    def test_tools_strict_survives_serialization(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(tools_strict=True)
+
+        restored = AnthropicChatGenerator.from_dict(component.to_dict())
+
+        assert restored.tools_strict is True
+
+
 class TestSerialization:
     def test_to_dict_default(self, monkeypatch):
         """
@@ -144,6 +180,7 @@ class TestSerialization:
                 "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
+                "tools_strict": False,
             },
         }
 
@@ -182,6 +219,7 @@ class TestSerialization:
                 "anthropic_server_tools": [{"type": "web_search_20250305", "name": "web_search"}],
                 "timeout": 10.0,
                 "max_retries": 1,
+                "tools_strict": False,
             },
         }
 
@@ -268,6 +306,7 @@ class TestSerialization:
                         "anthropic_server_tools": None,
                         "timeout": None,
                         "max_retries": None,
+                        "tools_strict": False,
                     },
                 }
             },
