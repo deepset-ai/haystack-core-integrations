@@ -27,22 +27,19 @@ logger = logging.getLogger(__name__)
 
 _CYPHER_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-_GRAPH_SCHEMA_QUERIES = {
+_GRAPH_CATALOG_QUERIES = {
     "labels": "CALL db.labels() YIELD label RETURN label ORDER BY label",
     "relationship_types": (
         "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType"
     ),
     "property_keys": "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey ORDER BY propertyKey",
-    "node_samples": (
-        "MATCH (n) WITH n LIMIT $sample_size "
-        "RETURN {labels: labels(n), properties: [key IN keys(n) | {name: key, type: typeOf(n[key])}]}"
-    ),
-    "relationship_samples": (
-        "MATCH (source)-[r]->(target) WITH source, r, target LIMIT $sample_size "
-        "RETURN {type: type(r), source_labels: labels(source), target_labels: labels(target), "
-        "properties: [key IN keys(r) | {name: key, type: typeOf(r[key])}]}"
-    ),
 }
+
+_NODE_SAMPLE_RETURN = "RETURN {labels: labels(n), properties: [key IN keys(n) | {name: key, type: typeOf(n[key])}]}"
+_RELATIONSHIP_SAMPLE_RETURN = (
+    "RETURN {type: type(r), source_labels: labels(source), target_labels: labels(target), "
+    "properties: [key IN keys(r) | {name: key, type: typeOf(r[key])}]}"
+)
 
 
 class _PropertySchema(TypedDict):
@@ -1356,34 +1353,48 @@ ORDER BY score ASC, d.id ASC
         """
         Fetch graph catalogs and sampled property types and relationship endpoints.
 
-        :param sample_size: Positive limit for each of the node and relationship samples; rare patterns may be missed.
-        :returns: Sorted catalogs and schema samples, without property values.
+        :param sample_size: Positive number of nodes sampled per label and of relationships sampled per type;
+            property sets that only occur outside the sample may be missed.
+        :returns: Sorted catalogs and the distinct sampled shapes, without property values.
         """
         self.warm_up()
         assert self.graph is not None  # noqa: S101
-        results = {
-            key: self.graph.ro_query(query, {"sample_size": sample_size}).result_set
-            for key, query in _GRAPH_SCHEMA_QUERIES.items()
+        catalogs = {
+            key: [row[0] for row in self.graph.ro_query(query).result_set]
+            for key, query in _GRAPH_CATALOG_QUERIES.items()
         }
-        return _format_graph_schema(results)
+        node_queries, relationship_queries = _graph_sample_queries(catalogs)
+        params = {"sample_size": sample_size}
+        node_samples = [row[0] for query in node_queries for row in self.graph.ro_query(query, params).result_set]
+        relationship_samples = [
+            row[0] for query in relationship_queries for row in self.graph.ro_query(query, params).result_set
+        ]
+        return _format_graph_schema(catalogs, node_samples, relationship_samples)
 
     async def _get_graph_schema_async(self, *, sample_size: int = 100) -> _GraphSchema:
         """
         Fetch graph catalogs and sampled schema using concurrent async queries.
 
-        :param sample_size: Positive limit for each of the node and relationship samples; rare patterns may be missed.
-        :returns: Sorted catalogs and schema samples, without property values.
+        :param sample_size: Positive number of nodes sampled per label and of relationships sampled per type;
+            property sets that only occur outside the sample may be missed.
+        :returns: Sorted catalogs and the distinct sampled shapes, without property values.
         """
         await self.warm_up_async()
         assert self.async_graph is not None  # noqa: S101
-        query_results = await asyncio.gather(
-            *(
-                self.async_graph.ro_query(query, {"sample_size": sample_size})
-                for query in _GRAPH_SCHEMA_QUERIES.values()
-            )
+        catalog_results = await asyncio.gather(*(self.async_graph.ro_query(q) for q in _GRAPH_CATALOG_QUERIES.values()))
+        catalogs = {
+            key: [row[0] for row in result.result_set]
+            for key, result in zip(_GRAPH_CATALOG_QUERIES, catalog_results, strict=True)
+        }
+        node_queries, relationship_queries = _graph_sample_queries(catalogs)
+        params = {"sample_size": sample_size}
+        sample_results = await asyncio.gather(
+            *(self.async_graph.ro_query(query, params) for query in (*node_queries, *relationship_queries))
         )
-        results = {key: result.result_set for key, result in zip(_GRAPH_SCHEMA_QUERIES, query_results, strict=True)}
-        return _format_graph_schema(results)
+        samples = [[row[0] for row in result.result_set] for result in sample_results]
+        node_samples = [sample for rows in samples[: len(node_queries)] for sample in rows]
+        relationship_samples = [sample for rows in samples[len(node_queries) :] for sample in rows]
+        return _format_graph_schema(catalogs, node_samples, relationship_samples)
 
     def _cypher_retrieval(
         self,
@@ -1467,13 +1478,38 @@ ORDER BY score ASC, d.id ASC
 # ---------------------------------------------------------------------------
 
 
-def _format_graph_schema(results: dict[str, list[list[Any]]]) -> _GraphSchema:
+def _graph_sample_queries(catalogs: dict[str, list[str]]) -> tuple[list[str], list[str]]:
+    # Labels and relationship types cannot be query parameters. Names come from the server catalogs, and FalkorDB
+    # cannot create names containing a backtick, so backtick quoting is enough to keep them inert.
+    node_queries = [
+        f"MATCH (n:`{label}`) WITH n LIMIT $sample_size {_NODE_SAMPLE_RETURN}" for label in catalogs["labels"]
+    ]
+    relationship_queries = [
+        f"MATCH (source)-[r:`{rel_type}`]->(target) WITH source, r, target LIMIT $sample_size "
+        f"{_RELATIONSHIP_SAMPLE_RETURN}"
+        for rel_type in catalogs["relationship_types"]
+    ]
+    return node_queries, relationship_queries
+
+
+def _unique_shapes(samples: list[Any]) -> list[Any]:
+    # Sort properties so equal shapes compare equal regardless of insertion order; keep first-seen order otherwise
+    shapes: dict[str, dict[str, Any]] = {}
+    for sample in samples:
+        shape = {**sample, "properties": sorted((dict(p) for p in sample["properties"]), key=lambda p: p["name"])}
+        shapes.setdefault(repr(sorted(shape.items())), shape)
+    return list(shapes.values())
+
+
+def _format_graph_schema(
+    catalogs: dict[str, list[str]], node_samples: list[Any], relationship_samples: list[Any]
+) -> _GraphSchema:
     return {
-        "labels": [row[0] for row in results["labels"]],
-        "relationship_types": [row[0] for row in results["relationship_types"]],
-        "property_keys": [row[0] for row in results["property_keys"]],
-        "node_samples": [row[0] for row in results["node_samples"]],
-        "relationship_samples": [row[0] for row in results["relationship_samples"]],
+        "labels": catalogs["labels"],
+        "relationship_types": catalogs["relationship_types"],
+        "property_keys": catalogs["property_keys"],
+        "node_samples": _unique_shapes(node_samples),
+        "relationship_samples": _unique_shapes(relationship_samples),
     }
 
 
@@ -1507,13 +1543,18 @@ def _node_to_document(node: Any) -> Document:
 
     :param node: A FalkorDB `Node` object or a plain `dict`.
     :returns: Reconstructed :class:`haystack.dataclasses.Document`.
+    :raises TypeError: If `node` is neither a node nor a `dict`, e.g. a scalar returned by `RETURN d.content`.
     """
     if hasattr(node, "properties"):
         record: dict[str, Any] = dict(node.properties)
     elif isinstance(node, dict):
         record = node
     else:
-        record = {}
+        msg = (
+            f"Cannot convert a query result of type '{type(node).__name__}' to a Document: "
+            "the first returned column must be a node or a map."
+        )
+        raise TypeError(msg)
 
     # Standard Document fields
     doc_id = record.pop("id", None)
