@@ -90,6 +90,7 @@ class TestSerialization:
             criteria=CRITERIA,
             meta_fields_to_include=["title"],
             max_chars=500,
+            metadata_field="ranking",
             top_k=4,
             timeout=30.0,
             max_retries=5,
@@ -107,6 +108,7 @@ class TestSerialization:
                 "criteria": CRITERIA,
                 "meta_fields_to_include": ["title"],
                 "max_chars": 500,
+                "metadata_field": "ranking",
                 "top_k": 4,
                 "timeout": 30.0,
                 "max_retries": 5,
@@ -168,8 +170,22 @@ class TestRun:
 
         assert [d.content for d in result["documents"]] == ["high", "mid"]
         assert [d.score for d in result["documents"]] == pytest.approx([0.9, 0.5])
-        assert result["documents"][0].meta["typesafe"] == {"score": 1.8, "confidence": 0.9}
+        assert result["documents"][0].meta["typesafe"] == {"relevance": {"score": 1.8, "confidence": 0.9}}
         assert result["meta"] == {"model": "jev-test", "usage": {"input_tokens": 30, "output_tokens": 0}}
+
+    @patch("haystack_integrations.components.rankers.typesafe.ranker.TypeSafeClient")
+    def test_run_keeps_classifier_answers(self, mock_client):
+        # TypeSafeDocumentClassifier writes its answers to the same default metadata field
+        mock_client.return_value.system_one.side_effect = _by_content
+        classifier_answers = {"department": {"type": "choice", "choice": "billing", "confidence": 0.95}}
+        document = Document(content="high", meta={"typesafe": classifier_answers})
+
+        result = TypeSafeRanker(criteria=CRITERIA).run(query="q", documents=[document])
+
+        assert result["documents"][0].meta["typesafe"] == {
+            **classifier_answers,
+            "relevance": {"score": 1.8, "confidence": 0.9},
+        }
 
     @patch("haystack_integrations.components.rankers.typesafe.ranker.TypeSafeClient")
     def test_run_top_k_override_and_input_untouched(self, mock_client):

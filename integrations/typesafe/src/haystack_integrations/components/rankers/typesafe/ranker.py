@@ -92,6 +92,7 @@ class TypeSafeRanker:
         criteria: list[str] | None = None,
         meta_fields_to_include: list[str] | None = None,
         max_chars: int | None = None,
+        metadata_field: str = "typesafe",
         top_k: int = 10,
         timeout: float | None = None,
         max_retries: int | None = None,
@@ -120,6 +121,9 @@ class TypeSafeRanker:
             document doesn't have are left out.
         :param max_chars:
             Truncate each document's text to this many characters. If `None`, the text is sent in full.
+        :param metadata_field:
+            Name of the metadata field the raw answer is written to, under the `relevance` key. Answers already in
+            this field, such as those of a `TypeSafeDocumentClassifier` using the same field, are kept.
         :param top_k:
             Maximum number of documents to return. Can be overridden in `run`.
         :param timeout:
@@ -156,6 +160,7 @@ class TypeSafeRanker:
         self.criteria = criteria
         self.meta_fields_to_include = meta_fields_to_include
         self.max_chars = max_chars
+        self.metadata_field = metadata_field
         self.top_k = top_k
         self.timeout = timeout
         self.max_retries = max_retries
@@ -225,6 +230,7 @@ class TypeSafeRanker:
             criteria=self.criteria,
             meta_fields_to_include=self.meta_fields_to_include,
             max_chars=self.max_chars,
+            metadata_field=self.metadata_field,
             top_k=self.top_k,
             timeout=self.timeout,
             max_retries=self.max_retries,
@@ -244,13 +250,25 @@ class TypeSafeRanker:
         answer = response.answers[_QUESTION_ID]
         relevance = answer.score / (len(self.criteria) - 1)  # type: ignore[union-attr]
         usage = response.usage
+        answers = document.meta.get(self.metadata_field)
+        if not isinstance(answers, dict):
+            if answers is not None:
+                logger.warning(
+                    "Overwriting the non-dict value of metadata field {field} of document {document_id}",
+                    field=self.metadata_field,
+                    document_id=document.id,
+                )
+            answers = {}
         return _Ranked(
             document=replace(
                 document,
                 score=relevance,
                 meta={
                     **{key: value for key, value in document.meta.items() if key != _ERROR_FIELD},
-                    "typesafe": {"score": answer.score, "confidence": answer.confidence},  # type: ignore[union-attr]
+                    self.metadata_field: {
+                        **answers,
+                        _QUESTION_ID: {"score": answer.score, "confidence": answer.confidence},  # type: ignore[union-attr]
+                    },
                 },
             ),
             relevance=relevance,
@@ -322,7 +340,7 @@ class TypeSafeRanker:
         :returns:
             A dictionary with the following keys:
             - `documents`: Up to `top_k` documents, most relevant first. Each has its relevance from 0 to 1 as `score`
-              and the raw answer under `meta["typesafe"]`.
+              and the raw answer under `meta[metadata_field]["relevance"]`.
             - `meta`: The `model` and the `usage` (`input_tokens` and `output_tokens`) summed over all requests.
         :raises ValueError:
             If `top_k` is smaller than 1.
