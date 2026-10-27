@@ -44,6 +44,7 @@ def test_to_dict():
             "scroll_size": 10000,
             "payload_fields_to_index": None,
             "client_kwargs": {},
+            "multi_vector_embedding_dim": None,
         },
     }
 

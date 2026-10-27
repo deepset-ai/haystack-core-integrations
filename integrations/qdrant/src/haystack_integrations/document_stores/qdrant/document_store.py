@@ -18,6 +18,7 @@ from qdrant_client.http import models as rest
 from tqdm import tqdm
 
 from .converters import (
+    _MULTI_VECTOR_NAME,
     DENSE_VECTORS_NAME,
     SPARSE_VECTORS_NAME,
     convert_haystack_documents_to_qdrant_points,
@@ -151,6 +152,8 @@ class QdrantDocumentStore:
         scroll_size: int = 10_000,
         payload_fields_to_index: list[dict] | None = None,
         client_kwargs: dict[str, Any] | None = None,
+        *,
+        multi_vector_embedding_dim: int | None = None,
     ) -> None:
         """
         Initializes a QdrantDocumentStore.
@@ -245,8 +248,14 @@ class QdrantDocumentStore:
             The same arguments are used for sync and async clients. For example, an async
             `auth_token_provider` is also passed to `QdrantClient`, where it may not work with
             synchronous requests.
+        :param multi_vector_embedding_dim:
+            Enable multivector storage with this per-vector dimension. Uses dot-product MaxSim without HNSW.
         """
 
+        if multi_vector_embedding_dim is not None and multi_vector_embedding_dim <= 0:
+            msg = "multi_vector_embedding_dim must be greater than zero."
+            raise ValueError(msg)
+        self.multi_vector_embedding_dim = multi_vector_embedding_dim
         self._client: qdrant_client.QdrantClient | None = None
         self._async_client: qdrant_client.AsyncQdrantClient | None = None
 
@@ -459,6 +468,7 @@ class QdrantDocumentStore:
                 batch = convert_haystack_documents_to_qdrant_points(
                     document_batch,
                     use_sparse_embeddings=self.use_sparse_embeddings,
+                    use_multi_vector_embeddings=self.multi_vector_embedding_dim is not None,
                 )
 
                 self._client.upsert(
@@ -514,6 +524,7 @@ class QdrantDocumentStore:
                 batch = convert_haystack_documents_to_qdrant_points(
                     document_batch,
                     use_sparse_embeddings=self.use_sparse_embeddings,
+                    use_multi_vector_embeddings=self.multi_vector_embedding_dim is not None,
                 )
 
                 await self._async_client.upsert(
@@ -943,6 +954,9 @@ class QdrantDocumentStore:
                 # get current collection config as json
                 collection_info = self._client.get_collection(collection_name=self.index)
                 info_json = collection_info.model_dump()
+                vector_config = info_json["config"]["params"]["vectors"]
+                if self.multi_vector_embedding_dim is not None:
+                    vector_config = vector_config[DENSE_VECTORS_NAME]
 
                 # deal with the Optional use_sparse_embeddings
                 sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
@@ -955,9 +969,9 @@ class QdrantDocumentStore:
                 # recreate collection
                 self._set_up_collection(
                     collection_name=self.index,
-                    embedding_dim=info_json["config"]["params"]["vectors"]["size"],
+                    embedding_dim=vector_config["size"],
                     recreate_collection=True,
-                    similarity=info_json["config"]["params"]["vectors"]["distance"].lower(),
+                    similarity=self.similarity,
                     use_sparse_embeddings=use_sparse_embeddings,
                     sparse_idf=sparse_idf,
                     on_disk=info_json["config"]["hnsw_config"]["on_disk"],
@@ -994,6 +1008,9 @@ class QdrantDocumentStore:
                 # get current collection config as json
                 collection_info = await self._async_client.get_collection(collection_name=self.index)
                 info_json = collection_info.model_dump()
+                vector_config = info_json["config"]["params"]["vectors"]
+                if self.multi_vector_embedding_dim is not None:
+                    vector_config = vector_config[DENSE_VECTORS_NAME]
 
                 # deal with the Optional use_sparse_embeddings
                 sparse_vectors = info_json["config"]["params"]["sparse_vectors"]
@@ -1006,9 +1023,9 @@ class QdrantDocumentStore:
                 # recreate collection
                 await self._set_up_collection_async(
                     collection_name=self.index,
-                    embedding_dim=info_json["config"]["params"]["vectors"]["size"],
+                    embedding_dim=vector_config["size"],
                     recreate_collection=True,
-                    similarity=info_json["config"]["params"]["vectors"]["distance"].lower(),
+                    similarity=self.similarity,
                     use_sparse_embeddings=use_sparse_embeddings,
                     sparse_idf=sparse_idf,
                     on_disk=info_json["config"]["hnsw_config"]["on_disk"],
@@ -1718,7 +1735,7 @@ class QdrantDocumentStore:
             groups = self._client.query_points_groups(
                 collection_name=self.index,
                 query=query_embedding,
-                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings or self.multi_vector_embedding_dim else None,
                 query_filter=qdrant_filters,
                 limit=top_k,
                 group_by=group_by,
@@ -1732,13 +1749,78 @@ class QdrantDocumentStore:
             points = self._client.query_points(
                 collection_name=self.index,
                 query=query_embedding,
-                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings or self.multi_vector_embedding_dim else None,
                 query_filter=qdrant_filters,
                 limit=top_k,
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).points
             return self._process_query_point_results(points, scale_score=scale_score)
+
+    def _prepare_multi_vector_query(
+        self,
+        query_embedding: list[list[float]],
+        filters: dict[str, Any] | None,
+        top_k: int,
+        return_embedding: bool,
+    ) -> dict[str, Any]:
+        if self.multi_vector_embedding_dim is None:
+            msg = "Set multi_vector_embedding_dim on the Document Store to query multivector embeddings."
+            raise ValueError(msg)
+        if top_k <= 0:
+            msg = "top_k must be greater than zero."
+            raise ValueError(msg)
+        if not query_embedding or any(len(vector) != self.multi_vector_embedding_dim for vector in query_embedding):
+            msg = "Query must be a non-empty matrix with the configured multi_vector_embedding_dim."
+            raise ValueError(msg)
+        return {
+            "collection_name": self.index,
+            "query": query_embedding,
+            "using": _MULTI_VECTOR_NAME,
+            "query_filter": convert_filters_to_qdrant(filters),
+            "limit": top_k,
+            "with_vectors": return_embedding,
+        }
+
+    def _query_by_multi_vector_embedding(
+        self,
+        query_embedding: list[list[float]],
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+        return_embedding: bool = False,
+    ) -> list[Document]:
+        params = self._prepare_multi_vector_query(
+            query_embedding=query_embedding, filters=filters, top_k=top_k, return_embedding=return_embedding
+        )
+        self._initialize_client()
+        assert self._client is not None
+        try:
+            result = self._client.query_points(**params)
+        except Exception as error:
+            msg = f"Error querying multivector embeddings: {error}"
+            raise QdrantStoreError(msg) from error
+        return self._process_query_point_results(result.points)
+
+    async def _query_by_multi_vector_embedding_async(
+        self,
+        query_embedding: list[list[float]],
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+        return_embedding: bool = False,
+    ) -> list[Document]:
+        params = self._prepare_multi_vector_query(
+            query_embedding=query_embedding, filters=filters, top_k=top_k, return_embedding=return_embedding
+        )
+        await self._initialize_async_client()
+        assert self._async_client is not None
+        try:
+            result = await self._async_client.query_points(**params)
+        except Exception as error:
+            msg = f"Error querying multivector embeddings: {error}"
+            raise QdrantStoreError(msg) from error
+        return self._process_query_point_results(result.points)
 
     def _query_hybrid(
         self,
@@ -1979,7 +2061,7 @@ class QdrantDocumentStore:
             response = await self._async_client.query_points_groups(
                 collection_name=self.index,
                 query=query_embedding,
-                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings or self.multi_vector_embedding_dim else None,
                 query_filter=qdrant_filters,
                 limit=top_k,
                 group_by=group_by,
@@ -1993,7 +2075,7 @@ class QdrantDocumentStore:
             query_response = await self._async_client.query_points(
                 collection_name=self.index,
                 query=query_embedding,
-                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings else None,
+                using=DENSE_VECTORS_NAME if self.use_sparse_embeddings or self.multi_vector_embedding_dim else None,
                 query_filter=qdrant_filters,
                 limit=top_k,
                 with_vectors=return_embedding,
@@ -2535,6 +2617,18 @@ class QdrantDocumentStore:
                 ),
             }
 
+        if self.multi_vector_embedding_dim is not None:
+            vectors_config = {
+                DENSE_VECTORS_NAME: base_vectors_config,
+                _MULTI_VECTOR_NAME: rest.VectorParams(
+                    size=self.multi_vector_embedding_dim,
+                    distance=rest.Distance.DOT,
+                    on_disk=on_disk,
+                    multivector_config=rest.MultiVectorConfig(comparator=rest.MultiVectorComparator.MAX_SIM),
+                    hnsw_config=rest.HnswConfigDiff(m=0),
+                ),
+            }
+
         return vectors_config, sparse_vectors_config
 
     @staticmethod
@@ -2611,6 +2705,20 @@ class QdrantDocumentStore:
 
         has_named_vectors = isinstance(vectors_config, dict)
 
+        multi_config = vectors_config.get(_MULTI_VECTOR_NAME) if isinstance(vectors_config, dict) else None
+        if multi_config is not None and self.multi_vector_embedding_dim is None:
+            msg = f"Collection '{collection_name}' uses multivectors. Set multi_vector_embedding_dim to match it."
+            raise QdrantStoreError(msg)
+        if self.multi_vector_embedding_dim is not None and (
+            multi_config is None
+            or multi_config.size != self.multi_vector_embedding_dim
+            or multi_config.distance != rest.Distance.DOT
+            or multi_config.multivector_config is None
+            or multi_config.multivector_config.comparator != rest.MultiVectorComparator.MAX_SIM
+        ):
+            msg = f"Collection '{collection_name}' has incompatible multivector configuration. Create a new collection."
+            raise QdrantStoreError(msg)
+
         if has_named_vectors and DENSE_VECTORS_NAME not in vectors_config:
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
@@ -2633,7 +2741,7 @@ class QdrantDocumentStore:
             )
             raise QdrantStoreError(msg)
 
-        if not self.use_sparse_embeddings and has_named_vectors:
+        if not self.use_sparse_embeddings and self.multi_vector_embedding_dim is None and has_named_vectors:
             msg = (
                 f"Collection '{collection_name}' already exists in Qdrant, "
                 f"but it has been originally created with sparse embedding vectors."
@@ -2642,7 +2750,7 @@ class QdrantDocumentStore:
             raise QdrantStoreError(msg)
 
         # Get current distance and vector size based on collection configuration
-        if self.use_sparse_embeddings:
+        if self.use_sparse_embeddings or self.multi_vector_embedding_dim is not None:
             if not isinstance(vectors_config, dict):
                 msg = f"Collection '{collection_name}' has invalid vector configuration for sparse embeddings."
                 raise QdrantStoreError(msg)
