@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mcp-v2.1.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- MCP - fix lazy `MCPTool` initialization with `inputs_from_state` (#4153)
+
+
 ## [integrations/mcp-v2.1.0] - 2026-10-20
 
 ### 🚀 Features
