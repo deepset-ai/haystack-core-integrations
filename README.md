@@ -5,8 +5,9 @@
 | Name                                                                               |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
 |----------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
 | src/haystack\_integrations/components/classifiers/typesafe/document\_classifier.py |      115 |        0 |       34 |        0 |     100% |           |
+| src/haystack\_integrations/components/rankers/typesafe/ranker.py                   |      146 |        0 |       36 |        0 |     100% |           |
 | src/haystack\_integrations/components/routers/typesafe/text\_router.py             |       75 |        0 |       24 |        0 |     100% |           |
-| **TOTAL**                                                                          |  **190** |    **0** |   **58** |    **0** | **100%** |           |
+| **TOTAL**                                                                          |  **336** |    **0** |   **94** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
