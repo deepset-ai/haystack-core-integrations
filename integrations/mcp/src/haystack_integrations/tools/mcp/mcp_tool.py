@@ -1219,29 +1219,21 @@ class MCPTool(Tool):
             message = f"Failed to invoke tool '{self.name}' with args: {kwargs} , got error: {e!s}"
             raise MCPInvocationError(message, self.name, kwargs) from e
 
-    def _get_valid_inputs(self) -> set[str]:
+    # Older Haystack versions annotate the return as set[str], but also skip validation for None.
+    def _get_valid_inputs(self) -> set[str] | None:  # type: ignore[override]
         """
-        Return the set of valid input parameter names from the MCP tool schema.
+        Return valid input names from the MCP schema, or None before lazy discovery.
 
-        Used to validate that `inputs_from_state` only references parameters that actually exist.
-        Unlike the default implementation that introspects the function signature,
-        this returns parameters from the MCP tool's JSON schema.
+        MCPTool wraps a generic callable, so accepted parameter names come from the
+        remote JSON schema.
 
-        When eager_connect=False and we have placeholder parameters, returns an empty set
-        to skip validation until warm_up() is called.
-
-        :returns: Set of valid input parameter names from the MCP tool schema.
+        :returns: Schema property names, an empty set for a tool without inputs,
+            or None when the lazy connection has not fetched the schema yet.
         """
-        # Get parameters from the JSON schema (not from function introspection)
-        # MCPTool uses _invoke_tool(**kwargs) so introspection would only find 'kwargs'
-        properties = self.parameters.get("properties", {})
+        if not self._eager_connect and self._client is None:
+            return None
 
-        # If we have placeholder parameters (eager_connect=False), return empty set to skip validation
-        # Validation will happen during warm_up when real schema is fetched
-        if not properties:
-            return set()
-
-        return set(properties.keys())
+        return set(self.parameters.get("properties", {}))
 
     def warm_up(self) -> None:
         """Connect and fetch the tool schema unless already connected."""
@@ -1251,9 +1243,7 @@ class MCPTool(Tool):
             tool = self._connect_and_initialize(self.name)
             self.parameters = mcp_field_value(model=tool, name="input_schema")
 
-            # Validate inputs_from_state now that we have the real schema
-            # Note: Duplicates Tool.__post_init__() logic, but needed here for early error detection
-            # when eager_connect=False (validation was skipped during __init__ via empty _get_valid_inputs())
+            # Lazy construction skips name validation until the remote schema is available.
             if self._inputs_from_state:
                 valid_inputs = set(self.parameters.get("properties", {}).keys())
                 for state_key, param_name in self._inputs_from_state.items():

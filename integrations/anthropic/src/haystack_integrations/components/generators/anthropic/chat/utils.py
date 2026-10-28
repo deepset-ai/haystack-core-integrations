@@ -272,7 +272,7 @@ def _convert_messages_to_anthropic_format(
                         # ignore: blk is an untyped block dict, not a TypedDict declaring cache_control
                         blk["cache_control"] = cache_control  # type: ignore[typeddict-unknown-key]
                         break
-            anthropic_non_system_messages.append(MessageParam(role="assistant", content=content))
+            anthropic_non_system_messages.append({"role": "assistant", "content": content})
             i += 1
             continue
 
@@ -351,11 +351,12 @@ def _convert_messages_to_anthropic_format(
 
         # Anthropic only supports assistant and user roles in messages. User role is also used for tool messages.
         # System messages are passed separately.
-        role: Literal["assistant"] | Literal["user"] = "user"
+        anthropic_message: MessageParam
         if message._role == ChatRole.ASSISTANT:
-            role = "assistant"
+            anthropic_message = {"role": "assistant", "content": content}
+        else:
+            anthropic_message = {"role": "user", "content": content}
 
-        anthropic_message = MessageParam(role=role, content=content)
         anthropic_non_system_messages.append(anthropic_message)
         i += 1
 

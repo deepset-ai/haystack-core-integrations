@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v8.0.1] - 2026-10-23
+
+### 🐛 Bug Fixes
+
+- Anthropic - fix type error in MessageParam creation (#4152)
+
+
 ## [integrations/anthropic-v8.0.0] - 2026-10-16
 
 ### 📚 Documentation
