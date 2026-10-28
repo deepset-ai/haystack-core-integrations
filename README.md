@@ -2,12 +2,13 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-falkordb-combined/htmlcov/index.html)
 
-| Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/falkordb/cypher\_retriever.py    |       39 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/falkordb/embedding\_retriever.py |       40 |        0 |        4 |        1 |     98% |   90-\>92 |
-| src/haystack\_integrations/document\_stores/falkordb/document\_store.py           |      652 |       16 |      188 |        8 |     97% |260, 278, 343, 360, 567-569, 702, 705, 789, 1336-1338, 1419-1422 |
-| **TOTAL**                                                                         |  **731** |   **16** |  **198** |    **9** | **97%** |           |
+| Name                                                                                     |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|----------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/retrievers/falkordb/cypher\_retriever.py           |       39 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/falkordb/embedding\_retriever.py        |       40 |        0 |        4 |        1 |     98% |   90-\>92 |
+| src/haystack\_integrations/components/retrievers/falkordb/text\_to\_cypher\_retriever.py |      109 |        0 |       26 |        1 |     99% |147-\>exit |
+| src/haystack\_integrations/document\_stores/falkordb/document\_store.py                  |      708 |       11 |      190 |        8 |     98% |300, 318, 383, 400, 607-609, 742, 745, 829, 1555 |
+| **TOTAL**                                                                                |  **896** |   **11** |  **226** |   **10** | **98%** |           |
 
 
 ## Setup coverage badge
