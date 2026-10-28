@@ -189,6 +189,34 @@ class TestFalkorDBTextToCypherRetriever:
         assert await retriever.run_async("Find documents", top_k=2) == {"documents": docs[:2]}
         assert "LIMIT 2" in generator.run_async.call_args.kwargs["messages"][0].text
 
+    def test_run_with_custom_system_prompt(self, store):
+        generator = _mock_generator()
+        generator.run.return_value = {"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
+        store._cypher_retrieval.return_value = []
+        # Braces in Cypher examples must survive templating
+        template = "Match people like (p:Person {name: $name}).\nSchema: {graph_schema}"
+        retriever = FalkorDBTextToCypherRetriever(store, generator, system_prompt=template, top_k=3)
+        retriever.run("Find people")
+        schema = json.dumps(store._get_graph_schema.return_value)
+        expected = f"Match people like (p:Person {{name: $name}}).\nSchema: {schema}\n"
+        expected += "Return at most 3 rows: end the query with LIMIT 3."
+        assert generator.run.call_args.kwargs["messages"][0].text == expected
+
+    def test_default_system_prompt(self, store):
+        generator = _mock_generator()
+        generator.run.return_value = {"replies": [ChatMessage.from_assistant('{"query": "MATCH (d) RETURN d"}')]}
+        store._cypher_retrieval.return_value = []
+        retriever = FalkorDBTextToCypherRetriever(store, generator)
+        assert retriever.system_prompt == FalkorDBTextToCypherRetriever.DEFAULT_SYSTEM_PROMPT
+        retriever.run("Find documents")
+        schema = json.dumps(store._get_graph_schema.return_value)
+        prompt = generator.run.call_args.kwargs["messages"][0].text
+        assert prompt.startswith(FalkorDBTextToCypherRetriever.DEFAULT_SYSTEM_PROMPT.replace("{graph_schema}", schema))
+
+    def test_init_rejects_system_prompt_without_placeholder(self, store):
+        with pytest.raises(ValueError, match="graph_schema"):
+            FalkorDBTextToCypherRetriever(store, _mock_generator(), system_prompt="Write Cypher.")
+
     @pytest.mark.parametrize("kwargs", [{"top_k": 0}, {"top_k": -1}, {"timeout": 0}, {"timeout": -1}])
     def test_init_rejects_non_positive_limits(self, store, kwargs):
         with pytest.raises(ValueError, match="must be positive"):
@@ -363,7 +391,12 @@ class TestFalkorDBTextToCypherRetriever:
             },
         )
         retriever = FalkorDBTextToCypherRetriever(
-            FalkorDBDocumentStore(graph_name="custom"), generator, schema_sample_size=7, top_k=5, timeout=250
+            FalkorDBDocumentStore(graph_name="custom"),
+            generator,
+            schema_sample_size=7,
+            top_k=5,
+            timeout=250,
+            system_prompt="Custom prompt: {graph_schema}",
         )
         serialized = retriever.to_dict()
         assert "graph_schema" not in serialized["init_parameters"]
@@ -372,7 +405,8 @@ class TestFalkorDBTextToCypherRetriever:
         assert restored.schema_sample_size == 7
         assert restored.top_k == 5
         assert restored.timeout == 250
-        assert restored._system_prompt == ""
+        assert restored.system_prompt == "Custom prompt: {graph_schema}"
+        assert restored._rendered_prompt == ""
         assert restored.chat_generator.api_key.resolve_value() == "test-key"
 
 
