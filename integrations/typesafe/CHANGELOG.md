@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/typesafe-v0.2.0] - 2026-10-28
+
+### 🚀 Features
+
+- Add TypeSafeRanker to the TypeSafe integration (#4164)
+
+
 ## [integrations/typesafe-v0.1.1] - 2026-10-16
 
 ### 🐛 Bug Fixes

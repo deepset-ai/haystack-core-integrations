@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/monty-v3.0.0] - 2026-10-26
+
+### 🐛 Bug Fixes
+
+- *(monty)* Update default description and tests for pydantic-monty 1.3.0 (match, bisect support) (#4155)
+
+
 ## [integrations/monty-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing
