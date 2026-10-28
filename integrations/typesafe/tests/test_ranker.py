@@ -160,6 +160,16 @@ class TestWarmUp:
         ranker.close()
         client.close.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        ranker = TypeSafeRanker()
+        client = MagicMock(aclose=AsyncMock())
+        ranker._async_client = client
+        await ranker.close_async()
+        await ranker.close_async()
+        client.aclose.assert_awaited_once()
+        assert ranker._async_client is None
+
 
 @pytest.mark.usefixtures("api_key")
 class TestRun:
@@ -187,6 +197,16 @@ class TestRun:
             **classifier_answers,
             "relevance": {"score": 1.8, "confidence": 0.9},
         }
+
+    @patch("haystack_integrations.components.rankers.typesafe.ranker.TypeSafeClient")
+    def test_run_overwrites_non_dict_metadata_field(self, mock_client, caplog):
+        mock_client.return_value.system_one.side_effect = _by_content
+        document = Document(content="high", meta={"typesafe": "not a dict"})
+
+        result = TypeSafeRanker(criteria=CRITERIA).run(query="q", documents=[document])
+
+        assert result["documents"][0].meta["typesafe"] == {"relevance": {"score": 1.8, "confidence": 0.9}}
+        assert "Overwriting the non-dict value of metadata field typesafe" in caplog.text
 
     @patch("haystack_integrations.components.rankers.typesafe.ranker.TypeSafeClient")
     def test_run_top_k_override_and_input_untouched(self, mock_client):
