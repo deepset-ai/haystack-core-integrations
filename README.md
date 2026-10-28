@@ -2,12 +2,13 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-falkordb/htmlcov/index.html)
 
-| Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/falkordb/cypher\_retriever.py    |       39 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/falkordb/embedding\_retriever.py |       40 |        0 |        4 |        1 |     98% |   90-\>92 |
-| src/haystack\_integrations/document\_stores/falkordb/document\_store.py           |      652 |       40 |      188 |       12 |     93% |143, 192-\>exit, 253-260, 270-278, 336-343, 352-360, 567-569, 665-666, 702, 705, 709, 769-771, 789, 1063-1064, 1336-1338, 1399, 1419-1422, 1521-1522 |
-| **TOTAL**                                                                         |  **731** |   **40** |  **198** |   **13** | **93%** |           |
+| Name                                                                                     |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|----------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/retrievers/falkordb/cypher\_retriever.py           |       39 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/falkordb/embedding\_retriever.py        |       40 |        0 |        4 |        1 |     98% |   90-\>92 |
+| src/haystack\_integrations/components/retrievers/falkordb/text\_to\_cypher\_retriever.py |      109 |        0 |       26 |        1 |     99% |147-\>exit |
+| src/haystack\_integrations/document\_stores/falkordb/document\_store.py                  |      708 |       38 |      190 |       12 |     93% |183, 232-\>exit, 293-300, 310-318, 376-383, 392-400, 607-609, 705-706, 742, 745, 749, 809-811, 829, 1103-1104, 1533, 1554-1561, 1660-1661 |
+| **TOTAL**                                                                                |  **896** |   **38** |  **226** |   **14** | **94%** |           |
 
 
 ## Setup coverage badge
