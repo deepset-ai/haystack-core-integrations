@@ -8,6 +8,7 @@ import httpx
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
@@ -519,7 +520,7 @@ class TestPureHelpers:
         params = SolrDocumentStore._unique_values_params("meta_s_a", _FILTERS, "needle")
         assert params["facet.contains"] == "needle"
         assert params["facet.contains.ignoreCase"] is True
-        assert params["fq"] == "meta_l_page:1"
+        assert params["fq"] == "(meta_l_page:1 OR meta_d_page:1)"
         assert "facet.contains" not in SolrDocumentStore._unique_values_params("meta_s_a", None, None)
 
     def test_no_facets_means_every_field_counts_zero(self):
@@ -869,6 +870,37 @@ class TestSolrSpecificBehaviour:
         """Solr's schemaless chain strips blank values; the store must have disabled it."""
         document_store.write_documents([Document(id="1", content="")], DuplicatePolicy.OVERWRITE)
         assert document_store.filter_documents()[0].content == ""
+
+    @pytest.mark.parametrize(
+        ("operator", "value"),
+        [
+            (">=", 4),
+            (">=", 4.0),
+            (">", 4.5),
+            ("<", 4.2),
+            ("<=", 4.5),
+            (">=", -1.5),
+            ("<", -0.5),
+            ("==", 5),
+            ("==", 4.0),
+            ("!=", 4),
+            ("!=", 4.0),
+            ("in", [4, 5]),
+            ("not in", [4.5, 5]),
+        ],
+    )
+    def test_numeric_filters_match_ints_and_floats_alike(self, document_store, operator, value):
+        """An int and a float of the same key live in different fields, and a filter must look in both."""
+        # 5 and 5.0 are both present so that a fractional bound moved onto the int field is checked at its edge.
+        ratings = [-1.5, -1, 3, 4, 4.5, 5, 5.0]
+        documents = [Document(id=str(rating), content="x", meta={"rating": rating}) for rating in ratings]
+        document_store.write_documents(documents, DuplicatePolicy.OVERWRITE)
+        reference = InMemoryDocumentStore()
+        reference.write_documents(documents)
+
+        filters = {"field": "meta.rating", "operator": operator, "value": value}
+        expected = sorted(document.id for document in reference.filter_documents(filters))
+        assert sorted(document.id for document in document_store.filter_documents(filters)) == expected
 
     def test_numeric_looking_strings_stay_strings(self, document_store):
         """Solr's `parse-long` processor would turn "100" into 100 if it were still active."""
