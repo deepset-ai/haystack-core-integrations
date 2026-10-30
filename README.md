@@ -6,7 +6,7 @@
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/arcadedb/embedding\_retriever.py |       33 |        2 |        8 |        4 |     85% |94, 96, 142-\>144, 144-\>146 |
 | src/haystack\_integrations/document\_stores/arcadedb/converters.py                |       14 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      368 |       49 |      146 |       16 |     85% |154, 252, 336-\>329, 344-\>327, 374-378, 408, 422-\>424, 430-440, 463-464, 470-472, 492-494, 517-522, 537-\>540, 542, 569-\>571, 589-\>592, 618, 643-670 |
+| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      368 |       49 |      146 |       16 |     85% |154, 252, 338-\>331, 346-\>329, 376-380, 410, 424-\>426, 432-442, 465-466, 472-474, 494-496, 519-524, 540-\>543, 545, 573-\>575, 594-\>597, 624, 648-675 |
 | src/haystack\_integrations/document\_stores/arcadedb/filters.py                   |       89 |        0 |       56 |        0 |    100% |           |
 | **TOTAL**                                                                         |  **504** |   **51** |  **214** |   **20** | **89%** |           |
 
