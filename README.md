@@ -6,7 +6,7 @@
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/arcadedb/embedding\_retriever.py |       33 |        2 |        8 |        4 |     85% |94, 96, 142-\>144, 144-\>146 |
 | src/haystack\_integrations/document\_stores/arcadedb/converters.py                |       14 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      368 |        2 |      146 |        2 |     99% |336-\>329, 344-\>327, 651-652 |
+| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      368 |        2 |      146 |        2 |     99% |338-\>331, 346-\>329, 656-657 |
 | src/haystack\_integrations/document\_stores/arcadedb/filters.py                   |       89 |        0 |       56 |        0 |    100% |           |
 | **TOTAL**                                                                         |  **504** |    **4** |  **214** |    **6** | **99%** |           |
 
