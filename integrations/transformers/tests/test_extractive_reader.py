@@ -390,7 +390,8 @@ def test_run_respects_zero_stride_override(mock_reader: TransformersExtractiveRe
         mock_reader.run(example_queries[0], example_documents[0], top_k=3, stride=0)
 
     assert preprocess.call_args.kwargs["stride"] == 0
-        
+
+
 def test_flatten_documents(mock_reader: TransformersExtractiveReader):
     queries, docs, query_ids = mock_reader._flatten_documents(example_queries, example_documents)
     i = 0
