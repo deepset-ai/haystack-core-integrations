@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -183,6 +184,22 @@ class TestQdrantDocumentStoreAsyncUnit:
             with pytest.raises(QdrantStoreError) as exc_info:
                 await getattr(document_store, method_name)(*args)
             assert exc_info.value.__cause__ is err
+
+    async def test_get_metadata_fields_info_async_includes_unindexed_fields_when_some_are_indexed(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        schema = {"meta.category": rest.PayloadIndexInfo(data_type=rest.PayloadSchemaType.KEYWORD, points=1)}
+        client = AsyncMock()
+        client.get_collection.return_value = SimpleNamespace(payload_schema=schema)
+        client.scroll.return_value = (
+            [SimpleNamespace(payload={"meta": {"category": "news", "priority": 1}})],
+            None,
+        )
+        document_store._async_client = client
+
+        fields = await document_store.get_metadata_fields_info_async()
+
+        assert fields == {"category": {"type": "keyword"}, "priority": {"type": "long"}}
+        client.scroll.assert_awaited_once()
 
     async def test_close_async(self):
         document_store = QdrantDocumentStore(location=":memory:")

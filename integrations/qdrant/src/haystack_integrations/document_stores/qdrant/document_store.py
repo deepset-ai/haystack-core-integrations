@@ -694,8 +694,8 @@ class QdrantDocumentStore:
         """
         Build field name -> {type: ...} dict from Qdrant payload_schema.
 
-        Used when payload_schema has indexed metadata fields (e.g. meta.category).
-        Returns empty dict when schema has no metadata field info.
+        Covers only the indexed metadata fields (e.g. meta.category); unindexed fields
+        are added by scrolling. Returns empty dict when schema has no metadata field info.
         """
         fields_info: dict[str, dict[str, str]] = {}
         for field_name, field_config in payload_schema.items():
@@ -1082,9 +1082,9 @@ class QdrantDocumentStore:
         """
         Returns the information about the metadata fields in the collection.
 
-        Since Qdrant may not have a payload schema for unindexed metadata,
-        this method scrolls through documents to infer field types from
-        payload["meta"].
+        Indexed metadata fields take their type from the collection's payload schema.
+        Qdrant has no schema for unindexed metadata, so this method also scrolls
+        through documents to infer the type of every other field from payload["meta"].
 
         :returns:
             A dictionary mapping field names to their type information e.g.:
@@ -1101,20 +1101,21 @@ class QdrantDocumentStore:
             payload_schema = collection_info.payload_schema or {}
             fields_info = self._metadata_fields_info_from_schema(payload_schema)
 
-            if not fields_info:
-                next_offset = None
-                while True:
-                    records, next_offset = self._client.scroll(
-                        collection_name=self.index,
-                        scroll_filter=None,
-                        limit=self.scroll_size,
-                        offset=next_offset,
-                        with_payload=True,
-                        with_vectors=False,
-                    )
-                    self._process_records_fields_info(records, fields_info)
-                    if self._check_stop_scrolling(next_offset):
-                        break
+            # Indexed fields only cover part of the metadata, so scroll even when the schema
+            # has entries. Fields already typed by the schema keep their indexed type.
+            next_offset = None
+            while True:
+                records, next_offset = self._client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=None,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                self._process_records_fields_info(records, fields_info)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             return fields_info
         except Exception as e:
@@ -1125,9 +1126,9 @@ class QdrantDocumentStore:
         """
         Asynchronously returns the information about the metadata fields in the collection.
 
-        Since Qdrant may not have a payload schema for unindexed metadata,
-        this method scrolls through documents to infer field types from
-        payload["meta"].
+        Indexed metadata fields take their type from the collection's payload schema.
+        Qdrant has no schema for unindexed metadata, so this method also scrolls
+        through documents to infer the type of every other field from payload["meta"].
 
         :returns:
             A dictionary mapping field names to their type information e.g.:
@@ -1144,20 +1145,21 @@ class QdrantDocumentStore:
             payload_schema = collection_info.payload_schema or {}
             fields_info = self._metadata_fields_info_from_schema(payload_schema)
 
-            if not fields_info:
-                next_offset = None
-                while True:
-                    records, next_offset = await self._async_client.scroll(
-                        collection_name=self.index,
-                        scroll_filter=None,
-                        limit=self.scroll_size,
-                        offset=next_offset,
-                        with_payload=True,
-                        with_vectors=False,
-                    )
-                    self._process_records_fields_info(records, fields_info)
-                    if self._check_stop_scrolling(next_offset):
-                        break
+            # Indexed fields only cover part of the metadata, so scroll even when the schema
+            # has entries. Fields already typed by the schema keep their indexed type.
+            next_offset = None
+            while True:
+                records, next_offset = await self._async_client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=None,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                self._process_records_fields_info(records, fields_info)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             return fields_info
         except Exception as e:
