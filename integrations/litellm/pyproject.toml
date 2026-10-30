@@ -78,7 +78,10 @@ disallow_incomplete_defs = true
 line-length = 120
 
 [tool.ruff.lint]
-select = ["A", "B", "E", "F", "I", "N", "Q", "RUF", "S", "T", "UP", "W"]
+select = [
+  "A", "B", "D102", "D103", "D205", "D209", "D213", "D417", "D419",
+  "E", "F", "I", "N", "Q", "RUF", "S", "T", "UP", "W",
+]
 ignore = ["T201", "B027", "S105", "S106", "S107"]
 
 [tool.ruff.lint.isort]
