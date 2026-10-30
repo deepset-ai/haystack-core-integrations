@@ -22,6 +22,7 @@ from pgvector.psycopg import register_vector, register_vector_async
 
 from .converters import _from_haystack_to_pg_documents, _from_pg_to_haystack_documents
 from .filters import _convert_filters_to_where_clause_and_params, _validate_filters
+from .table_replacement import replace_table, replace_table_async
 
 logger = logging.getLogger(__name__)
 
@@ -633,6 +634,61 @@ class PgvectorDocumentStore:
             cursor=self._async_cursor,
             sql_query=delete_sql,
             error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
+        )
+
+    def replace_table(
+        self,
+        staging_store: "PgvectorDocumentStore",
+        *,
+        backup_table_name: str | None = None,
+        lock_timeout_ms: int = 5000,
+    ) -> str:
+        """
+        Atomically promote a populated staging table and retain the former table as a backup.
+
+        Writers must be paused for the cutover. The table-name changes are atomic, but this method does not
+        synchronize writes that are already in flight. The staging store must use the same PostgreSQL database,
+        schema, document column definitions, constraints, and compatible index configuration. Staging index names
+        must be unique in the schema.
+
+        :param staging_store: A populated, compatible store to promote.
+        :param backup_table_name: Optional name to retain the former active table under.
+        :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
+        :returns: The backup table name. The staging store instance is repointed to the backup.
+
+        The backup is retained and ``recreate_table`` plus ``hnsw_recreate_index_if_exists`` are disabled on both
+        instances after success.
+        Use ``staging_store.delete_table()`` when the backup is no longer needed.
+        """
+        return replace_table(
+            self,
+            staging_store,
+            backup_table_name=backup_table_name,
+            lock_timeout_ms=lock_timeout_ms,
+        )
+
+    async def replace_table_async(
+        self,
+        staging_store: "PgvectorDocumentStore",
+        *,
+        backup_table_name: str | None = None,
+        lock_timeout_ms: int = 5000,
+    ) -> str:
+        """
+        Asynchronously promote a staging table and retain the former table as a backup.
+
+        Writers must be paused for the cutover; this method does not synchronize in-flight writes.
+
+        :param staging_store: A populated, compatible store to promote.
+        :param backup_table_name: Optional name to retain the former active table under.
+        :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
+        :returns: The backup table name.
+        """
+        return await replace_table_async(
+            self,
+            staging_store,
+            backup_table_name=backup_table_name,
+            lock_timeout_ms=lock_timeout_ms,
         )
 
     def _build_hnsw_queries(self) -> tuple[Composed | None, SQL, Composed, Composed]:
