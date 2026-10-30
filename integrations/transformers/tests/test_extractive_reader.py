@@ -383,6 +383,14 @@ def test_run_respects_zero_threshold_overrides(mock_reader: TransformersExtracti
     assert len(answers) == 4
 
 
+def test_run_respects_zero_stride_override(mock_reader: TransformersExtractiveReader):
+    mock_reader.stride = 64
+
+    with patch.object(mock_reader, "_preprocess", wraps=mock_reader._preprocess) as preprocess:
+        mock_reader.run(example_queries[0], example_documents[0], top_k=3, stride=0)
+
+    assert preprocess.call_args.kwargs["stride"] == 0
+        
 def test_flatten_documents(mock_reader: TransformersExtractiveReader):
     queries, docs, query_ids = mock_reader._flatten_documents(example_queries, example_documents)
     i = 0
