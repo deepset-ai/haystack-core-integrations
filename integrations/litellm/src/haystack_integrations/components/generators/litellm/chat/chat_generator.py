@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 @component
 class LiteLLMChatGenerator:
-    """Completes chats using any of 100+ LLM providers via LiteLLM.
+    """
+    Completes chats using any of 100+ LLM providers via LiteLLM.
 
     LiteLLM routes to OpenAI, Anthropic, Google, AWS Bedrock, Azure, Cohere,
     Mistral, Groq, and many more through a single unified interface.
@@ -74,7 +75,8 @@ class LiteLLMChatGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
     ) -> None:
-        """Create a LiteLLMChatGenerator instance.
+        """
+        Create a LiteLLMChatGenerator instance.
 
         :param api_key:
             The API key for the provider. Optional: when not set, LiteLLM resolves
@@ -144,7 +146,8 @@ class LiteLLMChatGenerator:
         *,
         tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
-        """Invoke chat completion via LiteLLM.
+        """
+        Invoke chat completion via LiteLLM.
 
         :param messages: Input messages as ChatMessage instances.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
@@ -183,7 +186,8 @@ class LiteLLMChatGenerator:
         *,
         tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
-        """Async version of run(). Invoke chat completion via LiteLLM.
+        """
+        Async version of run(). Invoke chat completion via LiteLLM.
 
         :param messages: Input messages as ChatMessage instances.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
@@ -316,7 +320,8 @@ def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
 def _convert_litellm_chunk_to_streaming_chunk(
     chunk: Any, previous_chunks: list[StreamingChunk], component_info: ComponentInfo
 ) -> StreamingChunk:
-    """Convert a single litellm streaming chunk into a Haystack ``StreamingChunk``.
+    """
+    Convert a single litellm streaming chunk into a Haystack ``StreamingChunk``.
 
     The structured fields (``tool_calls``, ``finish_reason``, ``index``) are populated so that
     ``_convert_streaming_chunks_to_chat_message`` can reconstruct tool calls and metadata; it reads

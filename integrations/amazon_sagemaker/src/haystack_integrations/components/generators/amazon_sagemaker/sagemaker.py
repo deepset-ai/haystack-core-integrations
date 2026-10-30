@@ -117,6 +117,7 @@ class SagemakerGenerator:
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
         Returns data that is sent to Posthog for usage analytics.
+
         :returns: A dictionary with the following keys:
             - `model`: The name of the model.
         """
