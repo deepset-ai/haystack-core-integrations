@@ -3,9 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 
-from haystack_integrations.common.vllm.utils import _create_async_openai_client, _create_openai_client
+from haystack_integrations.common.vllm.utils import (
+    _create_async_openai_client,
+    _create_openai_client,
+    _to_sparse_embedding,
+)
 
 
 def test_create_openai_client_placeholder_when_no_key():
@@ -39,3 +44,11 @@ async def test_create_async_openai_client_placeholder_when_no_key():
     assert client.api_key == "placeholder-api-key"
     assert str(client.base_url) == "http://localhost:8000/v1/"
     await client.close()
+
+
+def test_to_sparse_embedding_keeps_nonzero_entries():
+    assert _to_sparse_embedding([0.0, 0.5, 0.0, 1.25, 0.0]) == SparseEmbedding(indices=[1, 3], values=[0.5, 1.25])
+
+
+def test_to_sparse_embedding_all_zeros():
+    assert _to_sparse_embedding([0.0, 0.0]) == SparseEmbedding(indices=[], values=[])
