@@ -259,10 +259,13 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
     thought_signatures = message.meta.get("thought_signatures", []) if message.meta else []
 
     # If we have thought signatures, we need to reconstruct the exact part structure
-    # from the previous assistant response to maintain multi-turn thinking context
+    # from the previous assistant response to maintain multi-turn thinking context.
+    # Gemini attaches a thought signature to the *first* function call of a parallel
+    # batch only, so unsigned tool calls / text must still be appended afterward.
     if thought_signatures and message.is_from(ChatRole.ASSISTANT):
         # Track which tool calls we've used (to handle multiple tool calls)
         tool_call_index = 0
+        included_non_thought_text = False
 
         # Reconstruct parts with their original thought signatures
         for sig_info in thought_signatures:
@@ -279,6 +282,7 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                 else:
                     # Regular text part
                     part_dict["text"] = message.text or ""
+                    included_non_thought_text = True
 
             if sig_info.get("has_function_call"):
                 # Find the corresponding tool call by index
@@ -294,6 +298,23 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
             part_dict["thought_signature"] = sig_info["signature"]
 
             parts.append(types.Part(**part_dict))
+
+        # Append parallel tool calls that had no thought signature of their own.
+        if message.tool_calls:
+            while tool_call_index < len(message.tool_calls):
+                tool_call = message.tool_calls[tool_call_index]
+                parts.append(
+                    types.Part(
+                        function_call=types.FunctionCall(
+                            id=tool_call.id, name=tool_call.tool_name, args=tool_call.arguments
+                        )
+                    )
+                )
+                tool_call_index += 1
+
+        # Append unsigned text that was not covered by a signed text part.
+        if message.text and message.text.strip() and not included_non_thought_text:
+            parts.append(types.Part(text=message.text))
 
         # If we reconstructed from signatures, we're done
         if parts:
@@ -760,9 +781,9 @@ def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> 
         if chunk.meta and "thought_signature_deltas" in chunk.meta:
             signature_deltas = chunk.meta["thought_signature_deltas"]
             if isinstance(signature_deltas, list):
-                # Aggregate thought signatures - they should come from the final chunks
-                # We'll keep the last set of signatures as they represent the complete state
-                thought_signatures = signature_deltas
+                # Accumulate across chunks: parallel tool-call signatures can arrive
+                # in earlier chunks, and replacing would drop them.
+                thought_signatures.extend(signature_deltas)
 
         # Extract token usage metadata (from the last chunk that has it)
         if chunk.meta and "usage" in chunk.meta:
