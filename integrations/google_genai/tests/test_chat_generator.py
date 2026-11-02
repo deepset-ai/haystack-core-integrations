@@ -463,8 +463,9 @@ class TestGoogleGenAIChatGeneratorRun:
         component._client = MagicMock()
         component._client.models.generate_content_stream = Mock(return_value=iter(_parallel_call_stream_chunks()))
 
+        callback_chunks = []
         results = component.run(
-            [ChatMessage.from_user("Weather in Paris and Berlin?")], streaming_callback=lambda c: None
+            [ChatMessage.from_user("Weather in Paris and Berlin?")], streaming_callback=callback_chunks.append
         )
 
         reply = results["replies"][0]
@@ -473,6 +474,7 @@ class TestGoogleGenAIChatGeneratorRun:
             ("c2", "weather", {"city": "Berlin"}),
         ]
         assert reply.meta["finish_reason"] == "tool_calls"
+        assert [c.tool_calls[0].index for c in callback_chunks if c.tool_calls] == [0, 1]
 
     def test_run_extracts_system_message(self, mock_response):
         component = GoogleGenAIChatGenerator()
@@ -687,8 +689,10 @@ class TestGoogleGenAIChatGeneratorRun:
 
         component._async_client.models.generate_content_stream = AsyncMock(return_value=mock_stream())
 
+        callback_chunks = []
+
         async def callback(c):
-            pass
+            callback_chunks.append(c)
 
         results = await component.run_async(
             [ChatMessage.from_user("Weather in Paris and Berlin?")], streaming_callback=callback
@@ -700,6 +704,7 @@ class TestGoogleGenAIChatGeneratorRun:
             ("c2", "weather", {"city": "Berlin"}),
         ]
         assert reply.meta["finish_reason"] == "tool_calls"
+        assert [c.tool_calls[0].index for c in callback_chunks if c.tool_calls] == [0, 1]
 
     @pytest.mark.asyncio
     async def test_run_async_extracts_system_message(self, mock_response):
