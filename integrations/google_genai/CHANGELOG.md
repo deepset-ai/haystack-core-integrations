@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v7.1.0] - 2026-11-02
+
+### 🐛 Bug Fixes
+
+- Keep parallel tool calls from separate Gemini stream chunks in GoogleGenAIChatGenerator (#4141)
+
+
 ## [integrations/google_genai-v7.0.0] - 2026-10-16
 
 ### 🚜 Refactor
