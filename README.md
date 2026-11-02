@@ -4,12 +4,13 @@
 
 | Name                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/github/file\_editor.py     |      132 |        4 |       28 |        6 |     94% |117-\>121, 207, 224, 241, 274-\>277, 285 |
-| src/haystack\_integrations/components/connectors/github/issue\_commenter.py |       61 |        1 |       12 |        2 |     96% |69-\>73, 116 |
-| src/haystack\_integrations/components/connectors/github/issue\_viewer.py    |       66 |        0 |       10 |        1 |     99% | 198-\>202 |
-| src/haystack\_integrations/components/connectors/github/pr\_creator.py      |      138 |       41 |       20 |        1 |     71% |72-\>76, 156-196, 208-218 |
-| src/haystack\_integrations/components/connectors/github/repo\_forker.py     |      122 |        2 |       24 |        3 |     97% |87-\>91, 156, 292 |
-| src/haystack\_integrations/components/connectors/github/repo\_viewer.py     |       88 |        1 |       24 |        3 |     96% |114, 159-\>162, 221-\>224 |
+| src/haystack\_integrations/components/connectors/github/file\_editor.py     |      135 |        2 |       28 |        4 |     96% |119-\>123, 210, 280-\>283, 291 |
+| src/haystack\_integrations/components/connectors/github/issue\_commenter.py |       64 |        1 |       12 |        2 |     96% |71-\>75, 120 |
+| src/haystack\_integrations/components/connectors/github/issue\_viewer.py    |       69 |        0 |       10 |        1 |     99% | 202-\>206 |
+| src/haystack\_integrations/components/connectors/github/pr\_creator.py      |      140 |       16 |       20 |        1 |     87% |74-\>78, 195-199, 211-221 |
+| src/haystack\_integrations/components/connectors/github/repo\_forker.py     |      125 |        2 |       24 |        3 |     97% |89-\>93, 160, 296 |
+| src/haystack\_integrations/components/connectors/github/repo\_viewer.py     |       90 |        1 |       22 |        2 |     97% |116, 224-\>227 |
+| src/haystack\_integrations/components/connectors/github/utils.py            |       20 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/prompts/github/context\_prompt.py                |        1 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/prompts/github/file\_editor\_prompt.py           |        2 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/prompts/github/issue\_commenter\_prompt.py       |        2 |        0 |        0 |        0 |    100% |           |
@@ -25,7 +26,7 @@
 | src/haystack\_integrations/tools/github/repo\_forker\_tool.py               |       27 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/tools/github/repo\_viewer\_tool.py               |       30 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/tools/github/utils.py                            |       40 |        0 |       26 |        0 |    100% |           |
-| **TOTAL**                                                                   |  **830** |   **49** |  **144** |   **16** | **93%** |           |
+| **TOTAL**                                                                   |  **866** |   **22** |  **148** |   **13** | **96%** |           |
 
 
 ## Setup coverage badge
