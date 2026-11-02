@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/qdrant-v13.1.0] - 2026-10-22
+
+### 🚀 Features
+
+- Add ability to specify qdrant client kwargs (#4048)
+
+
 ## [integrations/qdrant-v13.0.0] - 2026-10-16
 
 ### 🧪 Testing

@@ -678,8 +678,10 @@ class PgvectorDocumentStore:
             k: v for k, v in self.hnsw_index_creation_kwargs.items() if k in HNSW_INDEX_CREATION_VALID_KWARGS
         }
         if valid_kwargs:
-            kwargs_str = ", ".join(f"{k} = {v}" for k, v in valid_kwargs.items())
-            sql_create_hnsw_index += SQL(" WITH ({})").format(SQL(kwargs_str))
+            # the names are allowlisted; pass the values as literals, so they are never interpreted as SQL
+            sql_create_hnsw_index += SQL(" WITH ({})").format(
+                SQL(", ").join(SQL("{} = {}").format(SQL(k), SQLLiteral(v)) for k, v in valid_kwargs.items())
+            )
 
         return sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index
 
@@ -1403,26 +1405,31 @@ class PgvectorDocumentStore:
             msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, but got {vector_function}"
             raise ValueError(msg)
 
-        # the vector must be a string with this format: "'[3,1,2]'"
-        query_embedding_for_postgres = f"'[{','.join(str(el) for el in query_embedding)}]'"
+        # the vector must be a string with this format: "'[3.0,1.0,2.0]'"; the elements are converted to floats
+        # and the string is passed as a literal, so it is never interpreted as SQL
+        try:
+            query_embedding_for_postgres = SQLLiteral(f"[{','.join(str(float(el)) for el in query_embedding)}]")
+        except (TypeError, ValueError) as e:
+            msg = "query_embedding must be a list of floats"
+            raise TypeError(msg) from e
 
         # to compute the scores, we use the approach described in pgvector README:
         # https://github.com/pgvector/pgvector?tab=readme-ov-file#distances
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
-            score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
-            order_by_definition = f"embedding <=> {query_embedding_for_postgres}"
+            score_definition = SQL("1 - (embedding <=> {}) AS score").format(query_embedding_for_postgres)
+            order_by_definition = SQL("embedding <=> {}").format(query_embedding_for_postgres)
         elif vector_function == "inner_product":
-            score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
-            order_by_definition = f"embedding <#> {query_embedding_for_postgres}"
+            score_definition = SQL("(embedding <#> {}) * -1 AS score").format(query_embedding_for_postgres)
+            order_by_definition = SQL("embedding <#> {}").format(query_embedding_for_postgres)
         elif vector_function == "l2_distance":
-            score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
-            order_by_definition = f"embedding <-> {query_embedding_for_postgres}"
+            score_definition = SQL("embedding <-> {} AS score").format(query_embedding_for_postgres)
+            order_by_definition = SQL("embedding <-> {}").format(query_embedding_for_postgres)
 
         sql_select = SQL("SELECT *, {score} FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
             table_name=Identifier(self.table_name),
-            score=SQL(score_definition),
+            score=score_definition,
         )
 
         sql_where_clause: Composed | SQL = SQL("")
@@ -1432,7 +1439,7 @@ class PgvectorDocumentStore:
 
         sql_sort = SQL(" ORDER BY {order_by} ASC LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
-            order_by=SQL(order_by_definition),
+            order_by=order_by_definition,
         )
 
         sql_query = sql_select + sql_where_clause + sql_sort

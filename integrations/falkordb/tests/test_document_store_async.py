@@ -474,6 +474,82 @@ class TestFalkorDBDocumentStoreAsyncUnit:
             assert params["p0"] == 2024
 
     @pytest.mark.asyncio
+    async def test_get_graph_schema_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        article = {
+            "labels": ["Article"],
+            "properties": [{"name": "title", "type": "String"}, {"name": "content", "type": "String"}],
+        }
+        cites = {"type": "CITES", "source_labels": ["Article"], "target_labels": ["Article"], "properties": []}
+        # Answer by query prefix: the number of sample queries depends on the catalogs
+        responses = {
+            "CALL db.labels()": [["Article"], ["Topic"]],
+            "CALL db.relationshipTypes()": [["CITES"]],
+            "CALL db.propertyKeys()": [["content"], ["title"]],
+            "MATCH (n:`Article`)": [[article], [article]],
+            "MATCH (n:`Topic`)": [],
+            "MATCH (source)-[r:`CITES`]->": [[cites], [cites]],
+        }
+        graph.ro_query = AsyncMock(
+            side_effect=lambda query, *_: _result(
+                next(rows for prefix, rows in responses.items() if query.startswith(prefix))
+            )
+        )
+        assert await store._get_graph_schema_async(sample_size=7) == {
+            "labels": ["Article", "Topic"],
+            "relationship_types": ["CITES"],
+            "property_keys": ["content", "title"],
+            "node_samples": [
+                {
+                    "labels": ["Article"],
+                    "properties": [{"name": "content", "type": "String"}, {"name": "title", "type": "String"}],
+                }
+            ],
+            "relationship_samples": [cites],
+        }
+        # One query per catalog, label and relationship type; only sample queries take the limit
+        calls = [call.args for call in graph.ro_query.await_args_list]
+        assert len(calls) == len(responses)
+        for query, *params in calls:
+            assert params == ([{"sample_size": 7}] if query.startswith("MATCH") else [])
+        graph.query.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_graph_schema_async_queries_run_concurrently(self, warmed_async_store):
+        store, graph = warmed_async_store
+        all_started = asyncio.Event()
+        started = 0
+
+        async def query(*_args):
+            nonlocal started
+            started += 1
+            # On an empty graph only the three catalog queries run; they must all be in flight together
+            if started == 3:
+                all_started.set()
+            await all_started.wait()
+            return _result([])
+
+        graph.ro_query = AsyncMock(side_effect=query)
+        schema = await asyncio.wait_for(store._get_graph_schema_async(), timeout=5)
+        assert started == 3
+        assert schema == {
+            "labels": [],
+            "relationship_types": [],
+            "property_keys": [],
+            "node_samples": [],
+            "relationship_samples": [],
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_graph_schema_async_propagates_errors(self, warmed_async_store):
+        store, graph = warmed_async_store
+        error = ResponseError("metadata unavailable")
+        graph.ro_query = AsyncMock(side_effect=error)
+        with pytest.raises(ResponseError) as exc:
+            await store._get_graph_schema_async()
+        assert exc.value is error
+
+    @pytest.mark.asyncio
     async def test_cypher_retrieval_async(self, warmed_async_store) -> None:
         store, graph = warmed_async_store
         node = SimpleNamespace(properties={"id": "doc-1", "content": "hello"})
@@ -482,7 +558,24 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         documents = await store._cypher_retrieval_async("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
 
         assert [document.content for document in documents] == ["hello"]
-        graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
+        graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"}, timeout=None)
+
+    @pytest.mark.asyncio
+    async def test_read_only_cypher_retrieval_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.ro_query = AsyncMock(return_value=_result([[SimpleNamespace(properties={"content": "hello"})]]))
+        documents = await store._cypher_retrieval_async("MATCH (d) RETURN d", {"k": 1}, read_only=True, timeout=250)
+        assert documents[0].content == "hello"
+        graph.ro_query.assert_awaited_once_with("MATCH (d) RETURN d", {"k": 1}, timeout=250)
+        graph.query.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_read_only_cypher_failure_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.ro_query = AsyncMock(side_effect=ResponseError("Write commands are not allowed"))
+        with pytest.raises(DocumentStoreError, match="Write commands are not allowed"):
+            await store._cypher_retrieval_async("CREATE (:Document)", read_only=True)
+        graph.query.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cypher_retrieval_async_wraps_errors(self, warmed_async_store) -> None:
@@ -529,6 +622,66 @@ class TestFalkorDBDocumentStoreAsync(
             logger.debug("Could not delete graph %s during teardown", graph_name)
         finally:
             await store.close_async()
+
+    async def test_sampled_graph_schema_async(self, document_store):
+        await document_store.warm_up_async()
+        await document_store.async_graph.query(
+            "CREATE (:Article {content: 'hello', count: 1})-[:REFERENCES {weight: 2}]->(:Topic {name: 'Graphs'}), "
+            "(:Article {title: 'untitled'})"
+        )
+        schema = await document_store._get_graph_schema_async(sample_size=7)
+        assert {"Article", "Topic"} <= set(schema["labels"])
+        assert schema["relationship_types"] == ["REFERENCES"]
+        assert {
+            "labels": ["Article"],
+            "properties": [{"name": "content", "type": "String"}, {"name": "count", "type": "Integer"}],
+        } in schema["node_samples"]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "REFERENCES",
+                "source_labels": ["Article"],
+                "target_labels": ["Topic"],
+                "properties": [{"name": "weight", "type": "Integer"}],
+            }
+        ]
+        bounded = await document_store._get_graph_schema_async(sample_size=1)
+        # The limit applies per label: only one of the two Article shapes is sampled
+        assert [sample["labels"] for sample in bounded["node_samples"]] == [["Article"], ["Topic"]]
+        assert len(bounded["relationship_samples"]) == 1
+
+    async def test_graph_schema_samples_every_label_once_async(self, document_store):
+        # Documents written first fill the first `sample_size` nodes; Person must still be sampled, and
+        # identical shapes must appear once instead of once per sampled entity
+        await document_store.write_documents_async(
+            [Document(content=f"doc {i}", meta={"topic": "astro", "year": 2000 + i}) for i in range(30)]
+        )
+        await document_store.async_graph.query(
+            "MATCH (d:Document) CREATE (:Person {name: 'Ada', born: 1815})-[:WROTE {role: 'author'}]->(d)"
+        )
+        schema = await document_store._get_graph_schema_async(sample_size=10)
+        assert schema["node_samples"] == [
+            {
+                "labels": ["Document"],
+                "properties": [
+                    {"name": "content", "type": "String"},
+                    {"name": "id", "type": "String"},
+                    {"name": "topic", "type": "String"},
+                    {"name": "year", "type": "Integer"},
+                ],
+            },
+            {
+                "labels": ["Person"],
+                "properties": [{"name": "born", "type": "Integer"}, {"name": "name", "type": "String"}],
+            },
+        ]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "WROTE",
+                "source_labels": ["Person"],
+                "target_labels": ["Document"],
+                "properties": [{"name": "role", "type": "String"}],
+            }
+        ]
 
     async def test_write_documents_async(self, document_store: FalkorDBDocumentStore) -> None:
         """FalkorDB defaults to failing on duplicates; verify a normal default write."""

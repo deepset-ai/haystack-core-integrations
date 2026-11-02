@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v8.1.2] - 2026-10-21
+
+### 🚀 Features
+
+- *(pgvector)* Ensure safe SQL handling for HNSW index creation and embedding queries (#4139)
+
+
 ## [integrations/pgvector-v8.1.1] - 2026-10-21
 
 ### 🐛 Bug Fixes

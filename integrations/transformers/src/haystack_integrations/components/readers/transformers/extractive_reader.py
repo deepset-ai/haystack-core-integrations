@@ -597,13 +597,13 @@ class TransformersExtractiveReader:
         queries = [query]  # Temporary solution until we have decided what batching should look like in v2
         nested_documents = [documents]
         top_k = top_k or self.top_k
-        score_threshold = score_threshold or self.score_threshold
+        score_threshold = score_threshold if score_threshold is not None else self.score_threshold
         max_seq_length = max_seq_length or self.max_seq_length
         stride = stride or self.stride
         max_batch_size = max_batch_size or self.max_batch_size
         answers_per_seq = answers_per_seq or self.answers_per_seq or 20
         no_answer = no_answer if no_answer is not None else self.no_answer
-        overlap_threshold = overlap_threshold or self.overlap_threshold
+        overlap_threshold = overlap_threshold if overlap_threshold is not None else self.overlap_threshold
 
         flattened_queries, flattened_documents, query_ids = TransformersExtractiveReader._flatten_documents(
             queries, nested_documents
