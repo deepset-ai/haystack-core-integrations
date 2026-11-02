@@ -8,7 +8,7 @@ import requests
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.connectors.github.utils import encode_ref, validate_repo_part
+from haystack_integrations.components.connectors.github.utils import _encode_ref, _validate_repo_part
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +90,8 @@ class GitHubPRCreator:
         if not match:
             msg = "Invalid GitHub issue URL format"
             raise ValueError(msg)
-        validate_repo_part(match.group(1))
-        validate_repo_part(match.group(2))
+        _validate_repo_part(match.group(1))
+        _validate_repo_part(match.group(2))
         return match.group(1), match.group(2), match.group(3)
 
     def _get_authenticated_user(self) -> str:
@@ -128,7 +128,7 @@ class GitHubPRCreator:
     def _create_branch(self, owner: str, repo: str, branch_name: str, base_branch: str) -> bool:
         """Create a new branch in the repository."""
         # Get the SHA of the base branch
-        url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encode_ref(base_branch)}"
+        url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{_encode_ref(base_branch)}"
         try:
             response = requests.get(url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()
@@ -157,7 +157,7 @@ class GitHubPRCreator:
     ) -> bool:
         """Create a commit with the file changes."""
         # Get the current commit SHA
-        ref_url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{encode_ref(branch_name)}"
+        ref_url = f"https://api.github.com/repos/{owner}/{repo}/git/refs/heads/{_encode_ref(branch_name)}"
         try:
             response = requests.get(ref_url, headers=self._get_request_headers(), timeout=10)
             response.raise_for_status()

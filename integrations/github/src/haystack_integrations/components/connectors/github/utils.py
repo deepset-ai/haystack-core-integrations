@@ -17,7 +17,7 @@ def _encode_segments(value: str, kind: str) -> str:
     return "/".join(quote(segment, safe="") for segment in segments)
 
 
-def encode_path(path: str, *, allow_empty: bool = False) -> str:
+def _encode_path(path: str, *, allow_empty: bool = False) -> str:
     """
     Percent-encode a repository file path for use in a GitHub REST API URL path.
 
@@ -35,7 +35,7 @@ def encode_path(path: str, *, allow_empty: bool = False) -> str:
     return _encode_segments(stripped, "path")
 
 
-def encode_ref(ref: str) -> str:
+def _encode_ref(ref: str) -> str:
     """
     Percent-encode a branch name for use in a GitHub REST API URL path.
 
@@ -48,7 +48,7 @@ def encode_ref(ref: str) -> str:
     return _encode_segments(ref, "branch")
 
 
-def validate_repo_part(name: str) -> None:
+def _validate_repo_part(name: str) -> None:
     """
     Check that a repository owner or name is safe to use in a GitHub REST API URL path.
 

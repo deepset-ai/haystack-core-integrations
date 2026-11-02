@@ -9,7 +9,7 @@ import requests
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.connectors.github.utils import validate_repo_part
+from haystack_integrations.components.connectors.github.utils import _encode_ref, _validate_repo_part
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +107,8 @@ class GitHubRepoForker:
             raise ValueError(error_message)
 
         owner, repo, issue_number = match.groups()
-        validate_repo_part(owner)
-        validate_repo_part(repo)
+        _validate_repo_part(owner)
+        _validate_repo_part(repo)
         return owner, repo, issue_number
 
     def _check_fork_status(self, fork_path: str) -> bool:
@@ -193,7 +193,7 @@ class GitHubRepoForker:
         default_branch = response.json()["default_branch"]
 
         # Get the SHA of the default branch
-        url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{default_branch}"
+        url = f"https://api.github.com/repos/{fork_path}/git/ref/heads/{_encode_ref(default_branch)}"
         response = requests.get(url, headers=self._get_request_headers(), timeout=10)
         response.raise_for_status()
         sha = response.json()["object"]["sha"]

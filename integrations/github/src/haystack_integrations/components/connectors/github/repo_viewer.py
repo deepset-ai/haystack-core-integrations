@@ -9,7 +9,7 @@ import requests
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.connectors.github.utils import encode_path, validate_repo_part
+from haystack_integrations.components.connectors.github.utils import _encode_path, _validate_repo_part
 
 logger = logging.getLogger(__name__)
 
@@ -149,8 +149,8 @@ class GitHubRepoViewer:
         if len(parts) != 2:  # noqa: PLR2004
             msg = f"Invalid repository format. Expected 'owner/repo', got '{repo}'"
             raise ValueError(msg)
-        validate_repo_part(parts[0])
-        validate_repo_part(parts[1])
+        _validate_repo_part(parts[0])
+        _validate_repo_part(parts[1])
         return parts[0], parts[1]
 
     def _normalize_path(self, path: str) -> str:
@@ -159,7 +159,7 @@ class GitHubRepoViewer:
 
     def _fetch_contents(self, owner: str, repo: str, path: str, ref: str) -> Any:
         """Fetch repository contents from GitHub API"""
-        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{encode_path(path, allow_empty=True)}"
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{_encode_path(path, allow_empty=True)}"
         params = {"ref": ref} if ref else None
 
         response = requests.get(url, headers=self._get_request_headers(), params=params, timeout=10)
