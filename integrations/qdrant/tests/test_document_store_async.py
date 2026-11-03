@@ -207,6 +207,20 @@ class TestQdrantDocumentStoreAsyncUnit:
 
         assert document_store._async_client is None
 
+    async def test_failed_collection_setup_is_retried_on_next_use_async(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        with patch.object(
+            QdrantDocumentStore, "_set_up_collection_async", side_effect=[ConnectionError("refused"), None]
+        ) as set_up:
+            with pytest.raises(ConnectionError):
+                await document_store._initialize_async_client()
+            assert document_store._async_client is None
+
+            await document_store._initialize_async_client()
+
+        assert set_up.call_count == 2
+        assert document_store._async_client is not None
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio

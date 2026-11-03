@@ -452,6 +452,20 @@ class TestQdrantDocumentStoreUnit:
 
         assert document_store._client is None
 
+    def test_failed_collection_setup_is_retried_on_next_use(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        with patch.object(
+            QdrantDocumentStore, "_set_up_collection", side_effect=[ConnectionError("refused"), None]
+        ) as set_up:
+            with pytest.raises(ConnectionError):
+                document_store._initialize_client()
+            assert document_store._client is None
+
+            document_store._initialize_client()
+
+        assert set_up.call_count == 2
+        assert document_store._client is not None
+
 
 @pytest.mark.integration
 class TestQdrantDocumentStore(

@@ -294,17 +294,22 @@ class QdrantDocumentStore:
             client_params = self._prepare_client_params()
             # This step adds the api-key and User-Agent to metadata
             self._client = qdrant_client.QdrantClient(**client_params)
-            # Make sure the collection is properly set up
-            self._set_up_collection(
-                self.index,
-                self.embedding_dim,
-                self.recreate_index,
-                self.similarity,
-                self.use_sparse_embeddings,
-                self.sparse_idf,
-                self.on_disk,
-                self.payload_fields_to_index,
-            )
+            # Make sure the collection is properly set up. If that fails, drop the client
+            # so the next call runs setup again instead of finding a client and no collection.
+            try:
+                self._set_up_collection(
+                    self.index,
+                    self.embedding_dim,
+                    self.recreate_index,
+                    self.similarity,
+                    self.use_sparse_embeddings,
+                    self.sparse_idf,
+                    self.on_disk,
+                    self.payload_fields_to_index,
+                )
+            except BaseException:
+                self.close()
+                raise
 
     async def _initialize_async_client(self) -> None:
         """
@@ -315,16 +320,20 @@ class QdrantDocumentStore:
             self._async_client = qdrant_client.AsyncQdrantClient(
                 **client_params,
             )
-            await self._set_up_collection_async(
-                self.index,
-                self.embedding_dim,
-                self.recreate_index,
-                self.similarity,
-                self.use_sparse_embeddings,
-                self.sparse_idf,
-                self.on_disk,
-                self.payload_fields_to_index,
-            )
+            try:
+                await self._set_up_collection_async(
+                    self.index,
+                    self.embedding_dim,
+                    self.recreate_index,
+                    self.similarity,
+                    self.use_sparse_embeddings,
+                    self.sparse_idf,
+                    self.on_disk,
+                    self.payload_fields_to_index,
+                )
+            except BaseException:
+                await self.close_async()
+                raise
 
     def close(self) -> None:
         """
