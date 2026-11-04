@@ -9,8 +9,8 @@
 | src/haystack\_integrations/components/retrievers/weaviate/hybrid\_retriever.py    |       51 |        0 |        8 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/weaviate/\_filters.py                 |      156 |        1 |       68 |        1 |     99% |       110 |
 | src/haystack\_integrations/document\_stores/weaviate/auth.py                      |       85 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/weaviate/document\_store.py           |      664 |       40 |      212 |       15 |     93% |539, 589, 617-\>621, 842-\>852, 897-899, 907-909, 1064, 1093, 1111-1112, 1127-\>1109, 1166-\>1146, 1290, 1339-1345, 1403-1408, 1476-1477, 1494-1495, 1522, 1542-\>1545, 1551-1555, 1558-1561, 1569-1574 |
-| **TOTAL**                                                                         | **1043** |   **41** |  **304** |   **16** | **96%** |           |
+| src/haystack\_integrations/document\_stores/weaviate/document\_store.py           |      666 |       41 |      214 |       16 |     93% |539, 589, 617-\>621, 842-\>852, 853, 905-907, 915-917, 1072, 1101, 1119-1120, 1135-\>1117, 1174-\>1154, 1298, 1347-1353, 1411-1416, 1484-1485, 1502-1503, 1530, 1550-\>1553, 1559-1563, 1566-1569, 1577-1582 |
+| **TOTAL**                                                                         | **1045** |   **42** |  **306** |   **17** | **95%** |           |
 
 
 ## Setup coverage badge
