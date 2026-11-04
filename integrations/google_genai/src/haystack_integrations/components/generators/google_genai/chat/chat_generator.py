@@ -46,6 +46,9 @@ class GoogleGenAIChatGenerator:
     Supports models like gemini-3.8-flash and other Gemini variants. For Gemini 2.5 series models,
     enables thinking features via `generation_kwargs={"thinking_budget": value}`.
 
+    This component uses the `generateContent` API. Some models and quotas, such as the free tier of newer Flash
+    models, are only available through the Interactions API: use `GoogleGenAIInteractionsChatGenerator` for those.
+
     ### Thinking Support (Gemini 2.5 and Gemini 3 Series)
     - **Reasoning transparency**: Models can show their reasoning process
     - **Thought signatures**: Maintains thought context across multi-turn conversations with tools
