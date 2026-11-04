@@ -849,6 +849,14 @@ class WeaviateDocumentStore:
                     id=data["_original_id"],
                 )
 
+        if data.pop("multivector_embedding", None):
+            logger.warning(
+                "Document {id} has the `multivector_embedding` field set, "
+                "but storing multivector embeddings in Weaviate is not currently supported. "
+                "The `multivector_embedding` field will be ignored.",
+                id=data["_original_id"],
+            )
+
         return data
 
     @staticmethod
