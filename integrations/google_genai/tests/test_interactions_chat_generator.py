@@ -245,6 +245,10 @@ class TestRun:
             },
         ]
 
+        # An empty list disables the init tools for this call
+        component.run("Hi", tools=[])
+        assert component._client.interactions.create.call_args.kwargs["tools"] == [{"type": "google_search"}]
+
     def test_run_streaming(self, stream_events):
         chunks = []
         component = self._component(streaming_callback=chunks.append)

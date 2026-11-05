@@ -292,7 +292,7 @@ class GoogleGenAIInteractionsChatGenerator:
             request["generation_config"] = {**init_config, **runtime_config}
         request = _process_response_format(request)
 
-        tools = tools or self._tools
+        tools = tools if tools is not None else self._tools
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         if tools:
             request["tools"] = [*request.get("tools", []), *_convert_tools_to_interactions_format(tools)]
