@@ -8,5 +8,3 @@ exclude-newer = "24 hours"
 haystack-ai = false
 tavily-haystack = false
 pgvector-haystack = false
-
-sentencepiece = false  # Temporary: validate the llama_cpp CI fix before the 24-hour cutoff.
