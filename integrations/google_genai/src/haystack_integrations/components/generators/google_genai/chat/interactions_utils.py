@@ -412,7 +412,7 @@ def _convert_step_start_to_streaming_chunk(event: StepStart, meta: dict[str, Any
         if step.get("signature"):
             extra["signature"] = step["signature"]
         reasoning = ReasoningContent(reasoning_text=_summary_text(summary), extra=extra)
-        return StreamingChunk(content="", index=event.index, start=True, reasoning=reasoning, meta=meta)
+        return StreamingChunk(content="", index=event.index, reasoning=reasoning, meta=meta)
     if step_type == "function_call":
         arguments = step.get("arguments")
         tool_call = ToolCallDelta(
@@ -421,10 +421,10 @@ def _convert_step_start_to_streaming_chunk(event: StepStart, meta: dict[str, Any
             tool_name=step.get("name"),
             arguments=json.dumps(arguments) if arguments else None,
         )
-        return StreamingChunk(content="", index=event.index, start=True, tool_calls=[tool_call], meta=meta)
+        return StreamingChunk(content="", index=event.index, tool_calls=[tool_call], meta=meta)
     if step_type == "model_output":
         text = "".join(item["text"] for item in step.get("content", []) if item.get("type") == "text")
-        return StreamingChunk(content=text, index=event.index, start=True, meta=meta)
+        return StreamingChunk(content=text, index=event.index, meta=meta)
     return StreamingChunk(content="", meta=meta)
 
 
@@ -454,7 +454,7 @@ def _convert_step_delta_to_streaming_chunk(event: StepDelta, meta: dict[str, Any
 
 
 def _convert_interaction_event_to_streaming_chunk(
-    event: InteractionSSEEvent, component_info: ComponentInfo, model: str
+    event: InteractionSSEEvent, component_info: ComponentInfo, model: str, *, previous_chunks: list[StreamingChunk]
 ) -> StreamingChunk:
     """
     Convert an Interactions streaming event into a Haystack StreamingChunk.
@@ -465,6 +465,7 @@ def _convert_interaction_event_to_streaming_chunk(
     :param event: The streaming event.
     :param component_info: The component info.
     :param model: The model name.
+    :param previous_chunks: The chunks already produced for this stream, used to mark where each step starts.
     :returns: The StreamingChunk.
     :raises RuntimeError: If the event is an error event.
     """
@@ -493,7 +494,11 @@ def _convert_interaction_event_to_streaming_chunk(
         # `step.stop` and events unknown to this SDK version carry nothing to stream
         chunk = StreamingChunk(content="", meta=meta)
 
-    return replace(chunk, component_info=component_info)
+    # A step starts with its first chunk that carries something to show. `step.start` events and thought signatures
+    # usually don't, and `print_streaming_chunk` only prints a block's label on a `start` chunk with content.
+    has_content = bool(chunk.content or chunk.tool_calls or (chunk.reasoning and chunk.reasoning.reasoning_text))
+    started = any(c.start and c.index == chunk.index for c in previous_chunks)
+    return replace(chunk, component_info=component_info, start=has_content and not started)
 
 
 def _aggregate_streaming_chunks(chunks: list[StreamingChunk], model: str) -> ChatMessage:

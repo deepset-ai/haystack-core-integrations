@@ -344,7 +344,9 @@ class GoogleGenAIInteractionsChatGenerator:
             component_info = ComponentInfo.from_component(self)
             chunks: list[StreamingChunk] = []
             for event in self._client.interactions.create(**request, stream=True):
-                chunk = _convert_interaction_event_to_streaming_chunk(event, component_info, self._model)
+                chunk = _convert_interaction_event_to_streaming_chunk(
+                    event, component_info, self._model, previous_chunks=chunks
+                )
                 chunks.append(chunk)
                 streaming_callback(chunk)
             return {"replies": [_aggregate_streaming_chunks(chunks, self._model)]}
@@ -395,7 +397,9 @@ class GoogleGenAIInteractionsChatGenerator:
             chunks: list[StreamingChunk] = []
             stream = await self._async_client.interactions.create(**request, stream=True)
             async for event in stream:
-                chunk = _convert_interaction_event_to_streaming_chunk(event, component_info, self._model)
+                chunk = _convert_interaction_event_to_streaming_chunk(
+                    event, component_info, self._model, previous_chunks=chunks
+                )
                 chunks.append(chunk)
                 # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
                 callback_result = streaming_callback(chunk)

@@ -6,6 +6,7 @@ import base64
 
 import pytest
 from google.genai import interactions as gi
+from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
     ChatMessage,
     ComponentInfo,
@@ -81,6 +82,16 @@ def _step_delta(index, delta):
 
 def _step_stop(index):
     return gi.StepStop.model_validate({"event_type": "step.stop", "index": index})
+
+
+def _convert_stream(events, component_info):
+    """Convert a stream the way `run()` does, passing the chunks produced so far."""
+    chunks = []
+    for event in events:
+        chunks.append(
+            _convert_interaction_event_to_streaming_chunk(event, component_info, MODEL, previous_chunks=chunks)
+        )
+    return chunks
 
 
 @pytest.fixture
@@ -342,7 +353,7 @@ class TestInteractionToChatMessage:
         interaction = gi.Interaction.model_validate(
             {"id": "int_1", "status": "failed", "errors": [{"code": "500", "message": "model overloaded"}]}
         )
-        with pytest.raises(RuntimeError, match="int_1 failed.*model overloaded"):
+        with pytest.raises(RuntimeError, match=r"int_1 failed.*model overloaded"):
             _convert_interaction_to_chat_message(interaction, MODEL)
 
 
@@ -356,12 +367,12 @@ class TestStreaming:
             _step_stop(0),
             _interaction_event("interaction.completed", "completed", usage=USAGE),
         ]
-        chunks = [_convert_interaction_event_to_streaming_chunk(e, component_info, MODEL) for e in events]
+        chunks = _convert_stream(events, component_info)
 
         assert [(c.content, c.index, c.start, c.finish_reason) for c in chunks] == [
             ("", None, False, None),
-            ("", 0, True, None),
-            ("Hello", 0, False, None),
+            ("", 0, False, None),
+            ("Hello", 0, True, None),
             (" world", 0, False, None),
             ("", None, False, None),
             ("", None, False, "stop"),
@@ -400,7 +411,7 @@ class TestStreaming:
             _step_stop(2),
             _interaction_event("interaction.completed", "requires_action", usage=USAGE),
         ]
-        chunks = [_convert_interaction_event_to_streaming_chunk(e, component_info, MODEL) for e in events]
+        chunks = _convert_stream(events, component_info)
 
         assert [c.reasoning for c in chunks[1:5]] == [
             ReasoningContent(reasoning_text=""),
@@ -415,7 +426,9 @@ class TestStreaming:
         ]
         assert chunks[10].tool_calls == [ToolCallDelta(index=2, id="fc_2", tool_name="weather")]
         assert [c.index for c in chunks] == [None, 0, 0, 0, 0, None, 1, 1, 1, None, 2, 2, None, None]
-        assert [c.start for c in chunks] == [False, True, *[False] * 4, True, *[False] * 3, True, *[False] * 3]
+        # Each step starts at its first chunk with something to show: the first summary item, not the empty
+        # `step.start` of the thought; the `step.start` of each function call, which carries the tool name
+        assert [c.start for c in chunks] == [False, False, True, *[False] * 3, True, *[False] * 3, True, *[False] * 3]
         assert chunks[-1].finish_reason == "tool_calls"
 
         message = _aggregate_streaming_chunks(chunks, MODEL)
@@ -431,6 +444,31 @@ class TestStreaming:
         assert message.text is None
         assert message.meta["finish_reason"] == "tool_calls"
         assert message.meta["usage"] == EXPECTED_USAGE
+
+    @pytest.mark.parametrize(
+        ("summary", "expected", "unexpected"),
+        [
+            # Without thinking summaries, the thought only streams its signature: no empty [REASONING] section
+            ([], ["[ASSISTANT]\nIt is sunny."], ["[REASONING]"]),
+            ([SUMMARY_ITEMS[0]], [f"[REASONING]\n{SUMMARY_ITEMS[0]['text']}", "[ASSISTANT]\nIt is sunny."], []),
+        ],
+    )
+    def test_print_streaming_chunk_labels(self, component_info, capsys, summary, expected, unexpected):
+        events = [
+            _step_start(0, {"type": "thought"}),
+            *[_step_delta(0, {"type": "thought_summary", "content": item}) for item in summary],
+            _step_delta(0, {"type": "thought_signature", "signature": "c2lnLTE="}),
+            _step_start(1, {"type": "model_output"}),
+            _step_delta(1, {"type": "text", "text": "It is "}),
+            _step_delta(1, {"type": "text", "text": "sunny."}),
+            _interaction_event("interaction.completed", "completed", usage=USAGE),
+        ]
+        for chunk in _convert_stream(events, component_info):
+            print_streaming_chunk(chunk)
+
+        output = capsys.readouterr().out
+        assert all(text in output for text in expected)
+        assert not any(text in output for text in unexpected)
 
     def test_streaming_and_non_streaming_produce_the_same_message(self, component_info):
         image_item = {"type": "image", "mime_type": "image/png", "data": PNG_BASE64}
@@ -448,7 +486,7 @@ class TestStreaming:
             _step_start(2, {"type": "function_call", "id": "fc_1", "name": "weather", "arguments": {"city": "Paris"}}),
             _interaction_event("interaction.completed", "requires_action", usage=USAGE),
         ]
-        chunks = [_convert_interaction_event_to_streaming_chunk(e, component_info, MODEL) for e in events]
+        chunks = _convert_stream(events, component_info)
 
         streamed = _aggregate_streaming_chunks(chunks, MODEL)
         assert streamed == _convert_interaction_to_chat_message(_interaction(steps, status="requires_action"), MODEL)
@@ -458,7 +496,7 @@ class TestStreaming:
             _step_start(0, {"type": "function_call", "id": "fc_1", "name": "weather", "arguments": {}}),
             _step_delta(0, {"type": "arguments_delta", "arguments": '{"city": '}),
         ]
-        chunks = [_convert_interaction_event_to_streaming_chunk(e, component_info, MODEL) for e in events]
+        chunks = _convert_stream(events, component_info)
         assert _aggregate_streaming_chunks(chunks, MODEL).tool_calls == [
             ToolCall(tool_name="weather", arguments={}, id="fc_1")
         ]
@@ -470,11 +508,11 @@ class TestStreaming:
             ),
             _step_delta(0, {"type": "text_annotation_delta", "annotations": []}),
         ]
-        chunks = [_convert_interaction_event_to_streaming_chunk(e, component_info, MODEL) for e in events]
+        chunks = _convert_stream(events, component_info)
         assert all(c.content == "" and not c.tool_calls and c.reasoning is None for c in chunks)
         assert chunks[0].meta["status"] == "in_progress"
 
     def test_error_event_raises(self, component_info):
         event = gi.ErrorEvent.model_validate({"event_type": "error", "error": {"code": "500", "message": "boom"}})
         with pytest.raises(RuntimeError, match="boom"):
-            _convert_interaction_event_to_streaming_chunk(event, component_info, MODEL)
+            _convert_interaction_event_to_streaming_chunk(event, component_info, MODEL, previous_chunks=[])
