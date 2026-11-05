@@ -616,6 +616,7 @@ def _convert_google_chunk_to_streaming_chunk(
     model: str,
     *,
     tool_calls_seen: bool = False,
+    tool_call_index_offset: int = 0,
 ) -> StreamingChunk:
     """
     Convert a chunk from Google Gen AI to a Haystack StreamingChunk.
@@ -626,6 +627,8 @@ def _convert_google_chunk_to_streaming_chunk(
     :param model: The model name.
     :param tool_calls_seen: Whether an earlier chunk of the same stream already carried a tool call. Needed to
         report the correct finish reason, since Gemini 3 models send the terminal finish reason in its own chunk.
+    :param tool_call_index_offset: Number of tool calls already emitted by earlier chunks of the same stream. Gemini
+        sends parallel function calls in separate chunks, so indices must continue across chunks.
     :returns: A StreamingChunk object.
     """
     content = ""
@@ -656,7 +659,7 @@ def _convert_google_chunk_to_streaming_chunk(
         usage["cached_content_token_count"] = cached_content_token_count
 
     if chunk.candidates and candidate.content and candidate.content.parts:
-        tc_index = -1
+        tc_index = tool_call_index_offset - 1
         for part_index, part in enumerate(candidate.content.parts):
             # Check for thought signature on this part (for multi-turn context)
             if hasattr(part, "thought_signature") and part.thought_signature:
