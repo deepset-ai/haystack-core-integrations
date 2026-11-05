@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.extractors.docling_graph.extractor
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Docling Graph integration for Haystack
+  id: integrations-docling-graph
+  filename: docling_graph.md
+  title: Docling Graph
