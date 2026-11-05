@@ -54,6 +54,24 @@ SUMMARY_ITEMS = [
     {"type": "text", "text": "**Planning**\n\nI need the weather in Paris and Rome.\n\n\n"},
     {"type": "text", "text": "**Calling the tool**\n\nI'll call the weather tool for both cities.\n\n\n"},
 ]
+# A turn in which the model ran Google Search and called a function in parallel. Google interleaves the steps like
+# this and only accepts them back exactly as received, in this order.
+SEARCH_CALL = {
+    "type": "google_search_call",
+    "id": "gs_1",
+    "arguments": {"queries": ["latest python release"]},
+    "search_type": "web_search",
+    "signature": "c2lnLTI=",
+}
+FUNCTION_CALL = {"type": "function_call", "id": "fc_1", "name": "get_local_data", "arguments": {}}
+SEARCH_RESULT = {
+    "type": "google_search_result",
+    "call_id": "gs_1",
+    "result": [{"search_suggestions": "<div>python.org</div>"}],
+    "is_error": False,
+    "signature": "c2lnLTM=",
+}
+BUILTIN_TOOL_TURN = [SEARCH_CALL, FUNCTION_CALL, SEARCH_RESULT]
 PNG_BASE64 = base64.b64encode(b"fake-png").decode()
 DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -335,19 +353,39 @@ class TestInteractionToChatMessage:
         ]
         assert message.meta["finish_reason"] == "tool_calls"
 
-    def test_multiple_text_items_and_unsupported_steps(self):
+    def test_multiple_text_items_are_merged(self):
         interaction = _interaction(
             [
-                {"type": "google_search_call", "id": "gs_1", "arguments": {"queries": ["weather"]}},
                 {
                     "type": "model_output",
                     "content": [{"type": "text", "text": "Sunny "}, {"type": "text", "text": "today."}],
-                },
+                }
             ]
         )
         message = _convert_interaction_to_chat_message(interaction, MODEL)
         assert message.texts == ["Sunny today."]
         assert message.reasoning is None
+
+    def test_builtin_tool_steps_are_resent_as_received(self):
+        message = _convert_interaction_to_chat_message(_interaction(BUILTIN_TOOL_TURN, status="requires_action"), MODEL)
+        assert message.tool_calls == [ToolCall(tool_name="get_local_data", arguments={}, id="fc_1")]
+        assert message.meta["raw_steps_for_builtin_tools"] == BUILTIN_TOOL_TURN
+
+        history = [
+            ChatMessage.from_user("Compare the latest Python release with our minimum version."),
+            message,
+            ChatMessage.from_tool(tool_result="Minimum Python version: 3.12", origin=message.tool_calls[0]),
+        ]
+        _, input_steps = _convert_messages_to_interaction_input(history)
+        # The search steps stay interleaved with the function call, as Google returned them
+        assert [step["type"] for step in input_steps] == [
+            "user_input",
+            "google_search_call",
+            "function_call",
+            "google_search_result",
+            "function_result",
+        ]
+        assert input_steps[1:4] == BUILTIN_TOOL_TURN
 
     def test_failed_interaction_raises(self):
         interaction = gi.Interaction.model_validate(
@@ -490,6 +528,44 @@ class TestStreaming:
 
         streamed = _aggregate_streaming_chunks(chunks, MODEL)
         assert streamed == _convert_interaction_to_chat_message(_interaction(steps, status="requires_action"), MODEL)
+
+    def test_builtin_tool_steps_stream(self, component_info):
+        # Built-in tool steps stream as a `step.start` plus one delta with their contents and signature
+        events = [
+            _step_start(0, {**SEARCH_CALL, "arguments": {"queries": []}, "signature": None}),
+            _step_delta(
+                0,
+                {
+                    "type": "google_search_call",
+                    "arguments": SEARCH_CALL["arguments"],
+                    "signature": SEARCH_CALL["signature"],
+                },
+            ),
+            _step_start(1, FUNCTION_CALL),
+            _step_start(2, {"type": "google_search_result", "call_id": "gs_1", "result": []}),
+            _step_delta(
+                2,
+                {
+                    "type": "google_search_result",
+                    "result": SEARCH_RESULT["result"],
+                    "is_error": False,
+                    "signature": SEARCH_RESULT["signature"],
+                },
+            ),
+            _interaction_event("interaction.completed", "requires_action", usage=USAGE),
+        ]
+        chunks = _convert_stream(events, component_info)
+
+        # Only the function call has something to show
+        assert not any(c.content or c.reasoning for c in chunks)
+        assert [c.start for c in chunks] == [False, False, True, False, False, False]
+
+        streamed = _aggregate_streaming_chunks(chunks, MODEL)
+        expected = _convert_interaction_to_chat_message(
+            _interaction(BUILTIN_TOOL_TURN, status="requires_action"), MODEL
+        )
+        assert streamed == expected
+        assert streamed.meta["raw_steps_for_builtin_tools"] == BUILTIN_TOOL_TURN
 
     def test_invalid_streamed_arguments_fall_back_to_empty_dict(self, component_info):
         events = [

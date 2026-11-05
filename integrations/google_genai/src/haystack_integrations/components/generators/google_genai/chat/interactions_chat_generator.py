@@ -164,8 +164,11 @@ class GoogleGenAIInteractionsChatGenerator:
             Set `generation_config={"thinking_summaries": "auto"}` to receive reasoning summaries.
             `response_format` also accepts a Pydantic model class or a JSON schema dict for structured output.
             `tools` declared here in the Interactions format, such as
-            [built-in Google tools](https://aistudio.google.com/docs/tools), are sent along with `tools`; the steps they
-            produce are not converted into the reply.
+            [built-in Google tools](https://aistudio.google.com/docs/tools), are sent along with `tools`. Combining them
+            with `tools` requires Gemini 3 or newer, see
+            [tool combination](https://aistudio.google.com/docs/tool-combination). The steps built-in tools produce
+            aren't converted into reply content; they're kept in the reply's `meta["raw_steps_for_builtin_tools"]` and
+            sent back on later turns.
         :param streaming_callback: A callback function that is called when a new chunk is received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.

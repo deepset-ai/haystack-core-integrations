@@ -58,6 +58,14 @@ STATUS_TO_FINISH_REASON: dict[str, FinishReason] = {
 # OpenDocument formats at the time of writing).
 _MEDIA_MIME_PREFIXES = {"image/": "image", "audio/": "audio", "video/": "video"}
 
+# Model steps converted into Haystack content. Other step types come from built-in tools like Google Search, which
+# run on Google's side.
+_CONVERTED_STEP_TYPES = {"thought", "model_output", "function_call"}
+
+# Meta key holding the steps of a turn in which built-in tools ran. Their steps carry signatures and must be sent back
+# exactly as received and in their original order, interleaved with the function calls, or the API rejects the request.
+_RAW_STEPS_KEY = "raw_steps_for_builtin_tools"
+
 
 def _to_dict(obj: BaseModel) -> dict[str, Any]:
     """
@@ -159,14 +167,19 @@ def _convert_tool_call_result_to_step(result: ToolCallResult) -> dict[str, Any]:
 
 def _convert_assistant_message_to_steps(message: ChatMessage) -> list[dict[str, Any]]:
     """
-    Convert an assistant ChatMessage into Interactions steps: thoughts, then model output, then function calls.
+    Convert an assistant ChatMessage into Interactions steps.
 
-    Thought steps are resent exactly as received, which the API requires for multi-turn conversations with thinking.
+    If built-in tools ran in that turn, its steps are resent exactly as received, in their original order. Otherwise,
+    the message becomes thoughts, then model output, then function calls. Thought steps are always resent exactly as
+    received, which the API requires for multi-turn conversations with thinking.
 
     :param message: The assistant ChatMessage to convert.
     :returns: The list of steps.
     :raises ValueError: If a ToolCall has no ID.
     """
+    if raw_steps := message.meta.get(_RAW_STEPS_KEY):
+        return list(raw_steps)
+
     steps: list[dict[str, Any]] = []
     for reasoning in message.reasonings:
         thought_steps = reasoning.extra.get("thought_steps")
@@ -333,7 +346,8 @@ def _convert_steps_to_chat_message(
     Convert the model-generated steps of an interaction into a Haystack ChatMessage.
 
     Used for both streaming and non-streaming responses. Thought steps are kept verbatim in
-    `ReasoningContent.extra["thought_steps"]` so they can be sent back in later turns.
+    `ReasoningContent.extra["thought_steps"]` so they can be sent back in later turns. Steps of built-in tools are not
+    converted into content; if any are present, all steps are kept in `meta["raw_steps_for_builtin_tools"]` instead.
 
     :param steps: The steps as dicts.
     :param model: The model name.
@@ -354,8 +368,6 @@ def _convert_steps_to_chat_message(
             texts.extend(item["text"] for item in step.get("content", []) if item.get("type") == "text")
         elif step_type == "function_call":
             tool_calls.append(ToolCall(tool_name=step["name"], arguments=step.get("arguments") or {}, id=step["id"]))
-        else:
-            logger.debug("Skipping unsupported Interactions step type: {step_type}", step_type=step_type)
 
     reasoning = None
     if thought_steps:
@@ -369,6 +381,8 @@ def _convert_steps_to_chat_message(
         "finish_reason": _map_status_to_finish_reason(status, has_tool_calls=bool(tool_calls)),
         "usage": usage,
     }
+    if any(step.get("type") not in _CONVERTED_STEP_TYPES for step in steps):
+        meta[_RAW_STEPS_KEY] = steps
     # `ChatMessage.text` returns only the first text part, so all model output text is merged into one
     return ChatMessage.from_assistant(
         text="".join(texts) or None, tool_calls=tool_calls, reasoning=reasoning, meta=meta
@@ -425,7 +439,8 @@ def _convert_step_start_to_streaming_chunk(event: StepStart, meta: dict[str, Any
     if step_type == "model_output":
         text = "".join(item["text"] for item in step.get("content", []) if item.get("type") == "text")
         return StreamingChunk(content=text, index=event.index, meta=meta)
-    return StreamingChunk(content="", meta=meta)
+    # Steps of built-in tools like Google Search have no content to show, but must be sent back on the next turn
+    return StreamingChunk(content="", index=event.index, meta={**meta, "builtin_tool_step": step})
 
 
 def _convert_step_delta_to_streaming_chunk(event: StepDelta, meta: dict[str, Any]) -> StreamingChunk:
@@ -449,8 +464,9 @@ def _convert_step_delta_to_streaming_chunk(event: StepDelta, meta: dict[str, Any
     if isinstance(delta, ArgumentsDelta):
         tool_call = ToolCallDelta(index=event.index, arguments=delta.arguments)
         return StreamingChunk(content="", index=event.index, tool_calls=[tool_call], meta=meta)
-    # Annotations and built-in tool deltas are not mapped to Haystack content yet
-    return StreamingChunk(content="", meta=meta)
+    # A built-in tool step gets its contents (arguments or results, and the signature) in one delta of its own type.
+    # Annotations are not mapped to Haystack content yet.
+    return StreamingChunk(content="", index=event.index, meta={**meta, "step_delta": _to_dict(delta)})
 
 
 def _convert_interaction_event_to_streaming_chunk(
@@ -531,6 +547,12 @@ def _aggregate_streaming_chunks(chunks: list[StreamingChunk], model: str) -> Cha
         elif chunk.content and chunk.index is not None:
             step = steps.setdefault(chunk.index, {"type": "model_output", "text": ""})
             step["text"] += chunk.content
+        elif "builtin_tool_step" in chunk.meta and chunk.index is not None:
+            steps[chunk.index] = dict(chunk.meta["builtin_tool_step"])
+        elif "step_delta" in chunk.meta and chunk.index in steps:
+            step = steps[chunk.index]
+            if step["type"] not in _CONVERTED_STEP_TYPES:
+                step.update({key: value for key, value in chunk.meta["step_delta"].items() if key != "type"})
 
         interaction_id = chunk.meta.get("interaction_id", interaction_id)
         status = chunk.meta.get("status", status)
@@ -557,8 +579,10 @@ def _aggregate_streaming_chunks(chunks: list[StreamingChunk], model: str) -> Cha
                 )
                 arguments = {}
             step_dicts.append({"type": "function_call", "id": step["id"], "name": step["name"], "arguments": arguments})
-        else:
+        elif step["type"] == "model_output":
             step_dicts.append({"type": "model_output", "content": [{"type": "text", "text": step["text"]}]})
+        else:
+            step_dicts.append(step)
 
     return _convert_steps_to_chat_message(
         step_dicts,
