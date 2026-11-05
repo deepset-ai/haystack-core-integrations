@@ -4,6 +4,7 @@
 
 from typing import Any
 
+from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 from haystack.utils.http_client import init_http_client
 from openai import AsyncOpenAI, OpenAI
@@ -63,3 +64,14 @@ def _create_async_openai_client(
     # openai>=3 annotates http_client as httpx2, but legacy httpx clients are supported at runtime.
     # https://github.com/openai/openai-python/blob/main/httpx2.md
     return AsyncOpenAI(http_client=async_http_client, **client_kwargs)  # type: ignore[arg-type]
+
+
+def _to_sparse_embedding(vector: list[float]) -> SparseEmbedding:
+    """
+    Convert the vocabulary-sized vector returned by a vLLM SPLADE model into a `SparseEmbedding`.
+
+    vLLM returns sparse embeddings as dense vectors with one weight per vocabulary token, so only the nonzero entries
+    are kept.
+    """
+    indices = [index for index, value in enumerate(vector) if value != 0.0]
+    return SparseEmbedding(indices=indices, values=[vector[index] for index in indices])

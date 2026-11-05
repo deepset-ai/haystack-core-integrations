@@ -32,8 +32,9 @@ env:
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
   VLLM_RANKER_MODEL: "BAAI/bge-reranker-base"
+  VLLM_SPARSE_EMBEDDING_MODEL: "prithivida/Splade_PP_en_v1"
   VLLM_TARGET_DEVICE: "cpu"
-  # KV cache in GiB, reserved by each of the three vLLM servers. 1 GiB holds ~9k tokens for the chat model,
+  # KV cache in GiB, reserved by each vLLM server. 1 GiB holds ~9k tokens for the chat model,
   # well above its 1024-token context; larger values exhaust the runner's memory and the chat server gets killed.
   VLLM_CPU_KVCACHE_SPACE: "1"
   # we only test on Ubuntu to keep vLLM server running simple
@@ -202,8 +203,12 @@ jobs:
           name: coverage-comment-vllm
           path: python-coverage-comment-action-vllm.txt
 
+      # The sparse embedders run against their own vLLM server in the sparse-embedders job.
       - name: Run integration tests
-        run: hatch run test:integration-cov-append-retry
+        run: >
+          hatch run test:integration-cov-append-retry
+          --ignore=tests/test_sparse_text_embedder.py
+          --ignore=tests/test_sparse_document_embedder.py
 
       - name: Store combined coverage
         if: github.event_name == 'push'
@@ -229,8 +234,91 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
+  sparse-embedders:
+    # Runs on its own runner so the SPLADE server doesn't compete for memory with the three vLLM servers in `run`.
+    name: Sparse embedders - Python ${{ matrix.python-version }} on Linux
+    needs: compute-test-matrix
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
+
+      - name: Install FFmpeg
+        run: |
+          # Recent vLLM imports torchcodec at startup, which needs FFmpeg's shared libraries
+          # (libavutil.so.*); without them `vllm serve` crashes on import and never binds its port.
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install vLLM (CPU)
+        run: |
+          # vLLM on PyPI is GPU-only and requires CUDA, so it won't run on CPU-only systems.
+          # CPU wheels are not published to PyPI; they are only available as direct downloads from GitHub releases.
+          # We query the latest release's assets and pick the x86_64 CPU wheel, since the manylinux/ABI
+          # tags in the filename can change between releases.
+          # The --torch-backend cpu flag ensures uv installs PyTorch from the official CPU-only index,
+          # since the required torch+cpu builds are also not available on PyPI.
+          VLLM_WHEEL_URL="$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest \
+            | jq -r '.assets[] | select(.name | test("\\+cpu.*x86_64\\.whl$")) | .browser_download_url' \
+            | head -n1)"
+          if [ -z "${VLLM_WHEEL_URL}" ]; then
+            echo "Could not find a CPU x86_64 wheel in the latest vLLM release" >&2
+            exit 1
+          fi
+          echo "Installing ${VLLM_WHEEL_URL}"
+          hatch run -- uv pip install "${VLLM_WHEEL_URL}" --torch-backend cpu
+
+      - name: Start vLLM sparse embedding server
+        run: |
+          # SPLADE checkpoints declare BertForMaskedLM, so vLLM needs the override to serve them as sparse embedders.
+          # The braces are doubled because `hatch run` treats `{...}` as a context field.
+          nohup hatch run -- vllm serve ${{ env.VLLM_SPARSE_EMBEDDING_MODEL }} \
+            --port 8003 \
+            --runner pooling \
+            --hf-overrides '{{"architectures": ["BertSpladeSparseEmbeddingModel"]}}' \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM sparse embedding server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8003/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM sparse embedding server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM sparse embedding server to start."
+            exit 1
+          fi
+
+          echo "vLLM sparse embedding server started successfully."
+
+      - name: Run sparse embedders integration tests
+        run: >
+          hatch run test:integration-cov-append-retry
+          tests/test_sparse_text_embedder.py
+          tests/test_sparse_document_embedder.py
+
   notify-slack-on-failure:
-    needs: run
+    needs: [run, sparse-embedders]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
