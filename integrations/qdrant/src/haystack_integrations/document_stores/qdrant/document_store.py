@@ -467,7 +467,7 @@ class QdrantDocumentStore:
                     wait=self.wait_result_from_api,
                 )
 
-                progress_bar.update(self.write_batch_size)
+                progress_bar.update(len(document_batch))
         return len(document_objects)
 
     async def write_documents_async(
@@ -522,7 +522,7 @@ class QdrantDocumentStore:
                     wait=self.wait_result_from_api,
                 )
 
-                progress_bar.update(self.write_batch_size)
+                progress_bar.update(len(document_batch))
         return len(document_objects)
 
     def delete_documents(self, document_ids: list[str]) -> None:
@@ -1664,7 +1664,7 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).groups
-            return self._process_group_results(groups)
+            return self._process_group_results(groups, scale_score=scale_score)
         else:
             points = self._client.query_points(
                 collection_name=self.index,
@@ -1726,7 +1726,7 @@ class QdrantDocumentStore:
                 with_vectors=return_embedding,
                 score_threshold=score_threshold,
             ).groups
-            return self._process_group_results(groups)
+            return self._process_group_results(groups, scale_score=scale_score)
 
         else:
             points = self._client.query_points(
@@ -1924,7 +1924,7 @@ class QdrantDocumentStore:
                 score_threshold=score_threshold,
             )
             groups = response.groups
-            return self._process_group_results(groups)
+            return self._process_group_results(groups, scale_score=scale_score)
         else:
             query_response = await self._async_client.query_points(
                 collection_name=self.index,
@@ -1988,7 +1988,7 @@ class QdrantDocumentStore:
                 score_threshold=score_threshold,
             )
             groups = response.groups
-            return self._process_group_results(groups)
+            return self._process_group_results(groups, scale_score=scale_score)
         else:
             query_response = await self._async_client.query_points(
                 collection_name=self.index,
@@ -2579,7 +2579,7 @@ class QdrantDocumentStore:
 
         return documents
 
-    def _process_group_results(self, groups: list[rest.PointGroup]) -> list[Document]:
+    def _process_group_results(self, groups: list[rest.PointGroup], scale_score: bool = False) -> list[Document]:
         """
         Processes grouped query results from Qdrant.
 
@@ -2587,11 +2587,9 @@ class QdrantDocumentStore:
         if not groups:
             return []
 
-        return [
-            convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=self.use_sparse_embeddings)
-            for group in groups
-            for point in group.hits
-        ]
+        return self._process_query_point_results(
+            [point for group in groups for point in group.hits], scale_score=scale_score
+        )
 
     def _validate_collection_compatibility(
         self,

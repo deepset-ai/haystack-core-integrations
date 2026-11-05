@@ -207,6 +207,17 @@ class TestQdrantDocumentStoreAsyncUnit:
 
         assert document_store._async_client is None
 
+    async def test_write_documents_async_progress_bar_counts_documents(self):
+        document_store = QdrantDocumentStore(location=":memory:", write_batch_size=2)
+        document_store._async_client = AsyncMock()
+        with patch("haystack_integrations.document_stores.qdrant.document_store.tqdm") as mock_tqdm:
+            await document_store.write_documents_async(
+                [Document(content=str(i)) for i in range(3)], policy=DuplicatePolicy.OVERWRITE
+            )
+
+        progress_bar = mock_tqdm.return_value.__enter__.return_value
+        assert [c.args[0] for c in progress_bar.update.call_args_list] == [2, 1]
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
