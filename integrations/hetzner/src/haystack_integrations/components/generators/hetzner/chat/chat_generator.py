@@ -65,7 +65,7 @@ class HetznerChatGenerator(OpenAIChatGenerator):
         api_key: Secret = Secret.from_env_var("HETZNER_API_KEY"),
         model: str = "Qwen/Qwen3.6-35B-A3B-FP8",
         streaming_callback: StreamingCallbackT | None = None,
-        api_base_url: str | None = "https://inference.hetzner.com/api/v1",
+        api_base_url: str | None = "https://inference.hetzner.com/v1",
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
         timeout: float | None = None,

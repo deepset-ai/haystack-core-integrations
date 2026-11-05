@@ -295,12 +295,78 @@ class TestFalkorDBDocumentStoreUnit:
         assert docs[0].score == pytest.approx(expected_score)
         assert ("WHERE" in graph.query.call_args_list[-1].args[0]) is where_expected
 
+    def test_get_graph_schema(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        article = {
+            "labels": ["Article"],
+            "properties": [{"name": "title", "type": "String"}, {"name": "content", "type": "String"}],
+        }
+        cites = {"type": "CITES", "source_labels": ["Article"], "target_labels": ["Article"], "properties": []}
+        # Answer by query prefix: the number of sample queries depends on the catalogs
+        responses = {
+            "CALL db.labels()": [["Article"], ["Topic"]],
+            "CALL db.relationshipTypes()": [["CITES"]],
+            "CALL db.propertyKeys()": [["content"], ["title"]],
+            "MATCH (n:`Article`)": [[article], [article]],
+            "MATCH (n:`Topic`)": [],
+            "MATCH (source)-[r:`CITES`]->": [[cites], [cites]],
+        }
+        graph.ro_query.side_effect = lambda query, *_: _result(
+            next(rows for prefix, rows in responses.items() if query.startswith(prefix))
+        )
+        assert store._get_graph_schema(sample_size=7) == {
+            "labels": ["Article", "Topic"],
+            "relationship_types": ["CITES"],
+            "property_keys": ["content", "title"],
+            "node_samples": [
+                {
+                    "labels": ["Article"],
+                    "properties": [{"name": "content", "type": "String"}, {"name": "title", "type": "String"}],
+                }
+            ],
+            "relationship_samples": [cites],
+        }
+        # One query per catalog, label and relationship type; only sample queries take the limit
+        calls = [call.args for call in graph.ro_query.call_args_list]
+        assert len(calls) == len(responses)
+        for query, *params in calls:
+            assert params == ([{"sample_size": 7}] if query.startswith("MATCH") else [])
+        graph.query.assert_not_called()
+
+    def test_get_graph_schema_propagates_errors(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        error = ResponseError("metadata unavailable")
+        graph.ro_query.side_effect = error
+        with pytest.raises(ResponseError) as exc:
+            FalkorDBDocumentStore()._get_graph_schema()
+        assert exc.value is error
+
     def test_cypher_retrieval_returns_documents(self, mock_falkordb):
         _, _, graph = mock_falkordb
         node = SimpleNamespace(properties={"id": "n1", "content": "hello"})
         graph.query.side_effect = [_result([]), _result([]), _result([[node]])]
         docs = FalkorDBDocumentStore()._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1})
         assert docs[0].content == "hello"
+
+    def test_read_only_cypher_retrieval(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.ro_query.return_value = _result([[SimpleNamespace(properties={"id": "n1", "content": "hello"})]])
+        docs = store._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1}, read_only=True, timeout=250)
+        assert docs[0].content == "hello"
+        graph.ro_query.assert_called_once_with("MATCH (d) RETURN d", {"k": 1}, timeout=250)
+        graph.query.assert_not_called()
+
+    def test_read_only_cypher_failure(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.ro_query.side_effect = ResponseError("Write commands are not allowed")
+        with pytest.raises(DocumentStoreError, match="Write commands are not allowed"):
+            FalkorDBDocumentStore()._cypher_retrieval("CREATE (:Document)", read_only=True)
 
     @pytest.mark.usefixtures("mock_falkordb")
     def test_write_documents_rejects_non_documents(self):
@@ -548,6 +614,80 @@ class TestDocumentStore(
             store.client.select_graph(graph_name).delete()
         except Exception:
             logger.debug("Could not delete graph %s during teardown", graph_name)
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "MATCH (d:Document) RETURN d.content",
+            "MATCH (d:Document) RETURN count(d)",
+            "MATCH (d:Document) RETURN d.missing_property",
+        ],
+    )
+    def test_cypher_retrieval_rejects_non_node_rows(self, document_store, query):
+        # Scalar results must fail instead of yielding empty Documents
+        document_store.write_documents([Document(content="The stars are bright.")])
+        with pytest.raises(DocumentStoreError, match="must be a node or a map"):
+            document_store._cypher_retrieval(query, read_only=True)
+
+    def test_sampled_graph_schema(self, document_store):
+        document_store.warm_up()
+        document_store.graph.query(
+            "CREATE (:Article {content: 'hello', count: 1})-[:REFERENCES {weight: 2}]->(:Topic {name: 'Graphs'}), "
+            "(:Article {title: 'untitled'})"
+        )
+        schema = document_store._get_graph_schema(sample_size=7)
+        assert {"Article", "Topic"} <= set(schema["labels"])
+        assert schema["relationship_types"] == ["REFERENCES"]
+        assert {
+            "labels": ["Article"],
+            "properties": [{"name": "content", "type": "String"}, {"name": "count", "type": "Integer"}],
+        } in schema["node_samples"]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "REFERENCES",
+                "source_labels": ["Article"],
+                "target_labels": ["Topic"],
+                "properties": [{"name": "weight", "type": "Integer"}],
+            }
+        ]
+        bounded = document_store._get_graph_schema(sample_size=1)
+        # The limit applies per label: only one of the two Article shapes is sampled
+        assert [sample["labels"] for sample in bounded["node_samples"]] == [["Article"], ["Topic"]]
+        assert len(bounded["relationship_samples"]) == 1
+
+    def test_graph_schema_samples_every_label_once(self, document_store):
+        # Documents written first fill the first `sample_size` nodes; Person must still be sampled, and
+        # identical shapes must appear once instead of once per sampled entity
+        document_store.write_documents(
+            [Document(content=f"doc {i}", meta={"topic": "astro", "year": 2000 + i}) for i in range(30)]
+        )
+        document_store.graph.query(
+            "MATCH (d:Document) CREATE (:Person {name: 'Ada', born: 1815})-[:WROTE {role: 'author'}]->(d)"
+        )
+        schema = document_store._get_graph_schema(sample_size=10)
+        assert schema["node_samples"] == [
+            {
+                "labels": ["Document"],
+                "properties": [
+                    {"name": "content", "type": "String"},
+                    {"name": "id", "type": "String"},
+                    {"name": "topic", "type": "String"},
+                    {"name": "year", "type": "Integer"},
+                ],
+            },
+            {
+                "labels": ["Person"],
+                "properties": [{"name": "born", "type": "Integer"}, {"name": "name", "type": "String"}],
+            },
+        ]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "WROTE",
+                "source_labels": ["Person"],
+                "target_labels": ["Document"],
+                "properties": [{"name": "role", "type": "String"}],
+            }
+        ]
 
     def test_write_documents(self, document_store):
         """

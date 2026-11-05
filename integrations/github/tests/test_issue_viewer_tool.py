@@ -27,7 +27,7 @@ class TestGitHubIssueViewerTool:
             "data": {
                 "name": "test_issue_viewer",
                 "description": "Test description",
-                "parameters": {"type": "object", "properties": {}},
+                "parameters": ISSUE_VIEWER_SCHEMA,
                 "github_token": None,
                 "raise_on_failure": True,
                 "retry_attempts": 2,
@@ -39,7 +39,7 @@ class TestGitHubIssueViewerTool:
         tool = GitHubIssueViewerTool.from_dict(tool_dict)
         assert tool.name == "test_issue_viewer"
         assert tool.description == "Test description"
-        assert tool.parameters == {"type": "object", "properties": {}}
+        assert tool.parameters == ISSUE_VIEWER_SCHEMA
         assert tool.github_token is None
         assert tool.raise_on_failure
         assert tool.retry_attempts == 2

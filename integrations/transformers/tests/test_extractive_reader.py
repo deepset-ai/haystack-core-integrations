@@ -369,6 +369,20 @@ def test_output(mock_reader: TransformersExtractiveReader):
     assert answers[-1].score == pytest.approx(no_answer_prob)
 
 
+def test_run_respects_zero_threshold_overrides(mock_reader: TransformersExtractiveReader):
+    mock_reader.score_threshold = 0.9
+    mock_reader.overlap_threshold = 0.5
+
+    with patch.object(mock_reader, "_nest_answers", wraps=mock_reader._nest_answers) as nest_answers:
+        answers = mock_reader.run(
+            example_queries[0], example_documents[0], top_k=3, score_threshold=0.0, overlap_threshold=0.0
+        )["answers"]
+
+    assert nest_answers.call_args.kwargs["score_threshold"] == 0.0
+    assert nest_answers.call_args.kwargs["overlap_threshold"] == 0.0
+    assert len(answers) == 4
+
+
 def test_flatten_documents(mock_reader: TransformersExtractiveReader):
     queries, docs, query_ids = mock_reader._flatten_documents(example_queries, example_documents)
     i = 0
