@@ -41,9 +41,9 @@ class GoogleGenAIInteractionsChatGenerator:
     """
     Generates chat completions with Gemini models through the Gemini Interactions API.
 
-    The [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview) is Google's successor to the
-    `generateContent` API used by `GoogleGenAIChatGenerator`. Some models and quotas, such as the free tier of newer
-    Flash models, are only available through it. It supports Gemini 2.5 and newer models.
+    The [Interactions API](https://aistudio.google.com/docs/interactions-overview) supports Gemini 2.5 and newer
+    models. It also gives access to models and quotas that the `generateContent` API used by
+    `GoogleGenAIChatGenerator` doesn't offer, such as the free tier of newer Flash models.
 
     The component is stateless like other Haystack Chat Generators: every call sends the full chat history.
     Thought signatures are kept in `ReasoningContent` and sent back automatically, so multi-turn conversations with
@@ -163,8 +163,9 @@ class GoogleGenAIInteractionsChatGenerator:
             See the [Interactions API Documentation](https://ai.google.dev/api/interactions-api) for all options.
             Set `generation_config={"thinking_summaries": "auto"}` to receive reasoning summaries.
             `response_format` also accepts a Pydantic model class or a JSON schema dict for structured output.
-            `tools` declared here in the Interactions format, such as built-in Google tools, are sent along with
-            `tools`; the steps they produce are not converted into the reply.
+            `tools` declared here in the Interactions format, such as
+            [built-in Google tools](https://aistudio.google.com/docs/tools), are sent along with `tools`; the steps they
+            produce are not converted into the reply.
         :param streaming_callback: A callback function that is called when a new chunk is received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
