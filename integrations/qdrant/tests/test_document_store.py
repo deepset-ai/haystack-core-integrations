@@ -34,6 +34,79 @@ from haystack_integrations.document_stores.qdrant.document_store import (
 )
 
 
+@pytest.mark.parametrize("use_sparse_embeddings", [False, True])
+def test_multivector_persistence_and_dense_retrieval(tmp_path, use_sparse_embeddings):
+    store = QdrantDocumentStore(
+        path=str(tmp_path),
+        embedding_dim=2,
+        multi_vector_embedding_dim=2,
+        use_sparse_embeddings=use_sparse_embeddings,
+        similarity="dot_product",
+        progress_bar=False,
+    )
+    documents = [
+        Document(id="multi-only", content="first", multi_vector_embedding=[[1.0, 0.0], [0.0, 1.0]]),
+        Document(
+            id="combined",
+            content="second",
+            embedding=[0.5, 0.25],
+            multi_vector_embedding=[[0.5, 0.25]],
+            sparse_embedding=SparseEmbedding(indices=[1], values=[0.5]) if use_sparse_embeddings else None,
+        ),
+    ]
+    try:
+        assert store.write_documents(documents=documents) == 2
+        assert sorted(store.filter_documents(), key=lambda doc: doc.id) == sorted(documents, key=lambda doc: doc.id)
+        assert store._client is not None
+        records, _ = store._client.scroll(collection_name=store.index, with_vectors=True)
+        assert all("multi_vector_embedding" not in (record.payload or {}) for record in records)
+        dense_results = store._query_by_embedding(query_embedding=[1.0, 0.0], return_embedding=True)
+        assert dense_results[0].id == "combined"
+        assert dense_results[0].multi_vector_embedding == documents[1].multi_vector_embedding
+        if use_sparse_embeddings:
+            sparse_results = store._query_by_sparse(
+                query_sparse_embedding=SparseEmbedding(indices=[1], values=[1.0]), return_embedding=True
+            )
+            assert sparse_results[0].multi_vector_embedding == documents[1].multi_vector_embedding
+        config = store.to_dict()
+    finally:
+        store.close()
+
+    reopened = QdrantDocumentStore.from_dict(config)
+    try:
+        assert reopened.count_documents() == 2
+        assert reopened.get_documents_by_id(ids=["multi-only"])[0].multi_vector_embedding == [[1.0, 0.0], [0.0, 1.0]]
+        reopened.delete_all_documents(recreate_index=True)
+        assert reopened.count_documents() == 0
+        assert reopened.write_documents(documents=documents) == 2
+    finally:
+        reopened.close()
+
+
+@pytest.mark.parametrize("dimension", [None, 3])
+def test_multivector_collection_rejects_incompatible_configuration(tmp_path, dimension):
+    original = QdrantDocumentStore(path=str(tmp_path), multi_vector_embedding_dim=2)
+    try:
+        original.count_documents()
+    finally:
+        original.close()
+    incompatible = QdrantDocumentStore(path=str(tmp_path), multi_vector_embedding_dim=dimension)
+    try:
+        with pytest.raises(QdrantStoreError, match="multivector"):
+            incompatible.count_documents()
+    finally:
+        incompatible.close()
+
+
+def test_multivectors_require_configuration():
+    store = QdrantDocumentStore(location=":memory:", progress_bar=False)
+    try:
+        with pytest.raises(ValueError, match="Set multi_vector_embedding_dim"):
+            store.write_documents(documents=[Document(multi_vector_embedding=[[1.0]])])
+    finally:
+        store.close()
+
+
 class TestQdrantDocumentStoreUnit:
     def test_init_is_lazy(self):
         with patch("haystack_integrations.document_stores.qdrant.document_store.qdrant_client") as mocked_qdrant:
@@ -93,6 +166,7 @@ class TestQdrantDocumentStoreUnit:
                 "scroll_size": 10000,
                 "payload_fields_to_index": None,
                 "client_kwargs": {"check_compatibility": False},
+                "multi_vector_embedding_dim": None,
             },
         }
         assert doc_store.to_dict() == expected_dict

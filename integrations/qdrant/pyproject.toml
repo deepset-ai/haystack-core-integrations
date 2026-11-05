@@ -28,7 +28,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.29.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@4ea6773b38abad1371f036418cb1ea1bf3501fa8",
   "qdrant-client>=1.17.0"
 ]
 
@@ -36,6 +36,9 @@ dependencies = [
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
