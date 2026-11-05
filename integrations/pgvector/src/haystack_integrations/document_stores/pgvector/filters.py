@@ -13,10 +13,12 @@ from psycopg.types.json import Jsonb
 
 # we need this mapping to cast meta values to the correct type,
 # since they are stored in the JSONB field as strings.
+# int and float both map to numeric: it is exact and accepts any JSON number, so an int filter value
+# matches float meta values (and vice versa) and float values are not rounded to single precision.
 # this dict can be extended if needed
 PYTHON_TYPES_TO_PG_TYPES = {
-    int: "integer",
-    float: "real",
+    int: "numeric",
+    float: "numeric",
     bool: "boolean",
 }
 
