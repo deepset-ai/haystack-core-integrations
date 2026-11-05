@@ -50,6 +50,11 @@ EXPECTED_USAGE = {
     "cached_content_token_count": 2,
 }
 THOUGHT_STEP = {"type": "thought", "signature": "c2lnLTE=", "summary": [{"type": "text", "text": "Check the weather."}]}
+# Summary items are self-contained Markdown sections; each streamed `thought_summary` delta is one item
+SUMMARY_ITEMS = [
+    {"type": "text", "text": "**Planning**\n\nI need the weather in Paris and Rome.\n\n\n"},
+    {"type": "text", "text": "**Calling the tool**\n\nI'll call the weather tool for both cities.\n\n\n"},
+]
 PNG_BASE64 = base64.b64encode(b"fake-png").decode()
 DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -381,8 +386,8 @@ class TestStreaming:
         events = [
             _interaction_event("interaction.created", "in_progress"),
             _step_start(0, {"type": "thought"}),
-            _step_delta(0, {"type": "thought_summary", "content": {"type": "text", "text": "Check the "}}),
-            _step_delta(0, {"type": "thought_summary", "content": {"type": "text", "text": "weather."}}),
+            _step_delta(0, {"type": "thought_summary", "content": SUMMARY_ITEMS[0]}),
+            _step_delta(0, {"type": "thought_summary", "content": SUMMARY_ITEMS[1]}),
             _step_delta(0, {"type": "thought_signature", "signature": "c2lnLTE="}),
             _step_stop(0),
             _step_start(1, {"type": "function_call", "id": "fc_1", "name": "weather", "arguments": {}}),
@@ -398,8 +403,8 @@ class TestStreaming:
 
         assert [c.reasoning for c in chunks[1:5]] == [
             ReasoningContent(reasoning_text=""),
-            ReasoningContent(reasoning_text="Check the "),
-            ReasoningContent(reasoning_text="weather."),
+            ReasoningContent(reasoning_text=SUMMARY_ITEMS[0]["text"], extra={"summary": [SUMMARY_ITEMS[0]]}),
+            ReasoningContent(reasoning_text=SUMMARY_ITEMS[1]["text"], extra={"summary": [SUMMARY_ITEMS[1]]}),
             ReasoningContent(reasoning_text="", extra={"signature": "c2lnLTE="}),
         ]
         assert [c.tool_calls for c in chunks[6:9]] == [
@@ -413,8 +418,10 @@ class TestStreaming:
         assert chunks[-1].finish_reason == "tool_calls"
 
         message = _aggregate_streaming_chunks(chunks, MODEL)
+        # The summary items are resent to the API, so they must stay separate items as received
         assert message.reasoning == ReasoningContent(
-            reasoning_text="Check the weather.", extra={"thought_steps": [THOUGHT_STEP]}
+            reasoning_text=SUMMARY_ITEMS[0]["text"] + SUMMARY_ITEMS[1]["text"],
+            extra={"thought_steps": [{"type": "thought", "signature": "c2lnLTE=", "summary": SUMMARY_ITEMS}]},
         )
         assert message.tool_calls == [
             ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="fc_1"),
@@ -425,14 +432,16 @@ class TestStreaming:
         assert message.meta["usage"] == EXPECTED_USAGE
 
     def test_streaming_and_non_streaming_produce_the_same_message(self, component_info):
+        image_item = {"type": "image", "mime_type": "image/png", "data": PNG_BASE64}
+        summary = [SUMMARY_ITEMS[0], image_item, SUMMARY_ITEMS[1]]
         steps = [
-            THOUGHT_STEP,
+            {"type": "thought", "signature": "c2lnLTE=", "summary": summary},
             {"type": "model_output", "content": [{"type": "text", "text": "Checking."}]},
             {"type": "function_call", "id": "fc_1", "name": "weather", "arguments": {"city": "Paris"}},
         ]
         events = [
             _step_start(0, {"type": "thought", "signature": "c2lnLTE="}),
-            _step_delta(0, {"type": "thought_summary", "content": {"type": "text", "text": "Check the weather."}}),
+            *[_step_delta(0, {"type": "thought_summary", "content": item}) for item in summary],
             _step_start(1, {"type": "model_output"}),
             _step_delta(1, {"type": "text", "text": "Checking."}),
             _step_start(2, {"type": "function_call", "id": "fc_1", "name": "weather", "arguments": {"city": "Paris"}}),
@@ -459,7 +468,6 @@ class TestStreaming:
                 {"event_type": "interaction.status_update", "interaction_id": "int_1", "status": "in_progress"}
             ),
             _step_delta(0, {"type": "text_annotation_delta", "annotations": []}),
-            _step_delta(0, {"type": "thought_summary", "content": {"type": "image", "mime_type": "image/png"}}),
         ]
         chunks = [_convert_interaction_event_to_streaming_chunk(e, component_info, MODEL) for e in events]
         assert all(c.content == "" and not c.tool_calls and c.reasoning is None for c in chunks)

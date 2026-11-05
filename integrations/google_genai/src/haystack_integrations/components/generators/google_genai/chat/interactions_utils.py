@@ -396,8 +396,11 @@ def _convert_step_start_to_streaming_chunk(event: Any, meta: dict[str, Any]) -> 
     step = _to_dict(event.step)
     step_type = step.get("type")
     if step_type == "thought":
-        extra = {"signature": step["signature"]} if step.get("signature") else {}
-        reasoning = ReasoningContent(reasoning_text=_summary_text(step.get("summary")), extra=extra)
+        summary = step.get("summary") or []
+        extra: dict[str, Any] = {"summary": summary} if summary else {}
+        if step.get("signature"):
+            extra["signature"] = step["signature"]
+        reasoning = ReasoningContent(reasoning_text=_summary_text(summary), extra=extra)
         return StreamingChunk(content="", index=event.index, start=True, reasoning=reasoning, meta=meta)
     if step_type == "function_call":
         arguments = step.get("arguments")
@@ -426,18 +429,17 @@ def _convert_step_delta_to_streaming_chunk(event: Any, meta: dict[str, Any]) -> 
     delta_type = getattr(delta, "type", None)
     if delta_type == "text":
         return StreamingChunk(content=delta.text or "", index=event.index, meta=meta)
-    if delta_type == "thought_summary":
-        content = _to_dict(delta.content) if delta.content is not None else {}
-        if content.get("type") == "text":
-            reasoning = ReasoningContent(reasoning_text=content.get("text", ""))
-            return StreamingChunk(content="", index=event.index, reasoning=reasoning, meta=meta)
-    elif delta_type == "thought_signature":
+    if delta_type == "thought_summary" and delta.content is not None:
+        item = _to_dict(delta.content)
+        reasoning = ReasoningContent(reasoning_text=_summary_text([item]), extra={"summary": [item]})
+        return StreamingChunk(content="", index=event.index, reasoning=reasoning, meta=meta)
+    if delta_type == "thought_signature":
         reasoning = ReasoningContent(reasoning_text="", extra={"signature": delta.signature})
         return StreamingChunk(content="", index=event.index, reasoning=reasoning, meta=meta)
-    elif delta_type == "arguments_delta":
+    if delta_type == "arguments_delta":
         tool_call = ToolCallDelta(index=event.index, arguments=delta.arguments)
         return StreamingChunk(content="", index=event.index, tool_calls=[tool_call], meta=meta)
-    # Image thought summaries, annotations and built-in tool deltas are not mapped to Haystack content yet
+    # Annotations and built-in tool deltas are not mapped to Haystack content yet
     return StreamingChunk(content="", meta=meta)
 
 
@@ -489,7 +491,7 @@ def _aggregate_streaming_chunks(chunks: list[StreamingChunk], model: str) -> Cha
     """
     Rebuild the interaction steps from streaming chunks and convert them into a Haystack ChatMessage.
 
-    Produces the same ChatMessage as the non-streaming path, including thought signatures.
+    Produces the same ChatMessage as the non-streaming path, including thought summary items and signatures.
 
     :param chunks: The streaming chunks, in the order they were received.
     :param model: The model name.
@@ -502,8 +504,8 @@ def _aggregate_streaming_chunks(chunks: list[StreamingChunk], model: str) -> Cha
 
     for chunk in chunks:
         if chunk.reasoning is not None and chunk.index is not None:
-            step = steps.setdefault(chunk.index, {"type": "thought", "summary": ""})
-            step["summary"] += chunk.reasoning.reasoning_text
+            step = steps.setdefault(chunk.index, {"type": "thought", "summary": []})
+            step["summary"].extend(chunk.reasoning.extra.get("summary", []))
             if chunk.reasoning.extra.get("signature"):
                 step["signature"] = chunk.reasoning.extra["signature"]
         elif chunk.tool_calls:
@@ -528,7 +530,7 @@ def _aggregate_streaming_chunks(chunks: list[StreamingChunk], model: str) -> Cha
             if step.get("signature"):
                 thought["signature"] = step["signature"]
             if step["summary"]:
-                thought["summary"] = [{"type": "text", "text": step["summary"]}]
+                thought["summary"] = step["summary"]
             step_dicts.append(thought)
         elif step["type"] == "function_call":
             try:
