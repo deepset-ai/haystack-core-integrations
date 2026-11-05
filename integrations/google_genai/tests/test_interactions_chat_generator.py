@@ -16,8 +16,6 @@ from pydantic import BaseModel
 
 from haystack_integrations.components.generators.google_genai import GoogleGenAIInteractionsChatGenerator
 
-TIMESTAMPS = {"created": "2026-11-03T10:00:00Z", "updated": "2026-11-03T10:00:01Z"}
-
 
 def weather(city: str):
     """Get weather information for a city."""
@@ -49,14 +47,13 @@ def interaction():
             "model": "gemini-3.8-flash",
             "steps": [{"type": "model_output", "content": [{"type": "text", "text": "Paris."}]}],
             "usage": {"total_input_tokens": 5, "total_output_tokens": 2, "total_tokens": 7},
-            **TIMESTAMPS,
         }
     )
 
 
 @pytest.fixture
 def stream_events():
-    interaction = {"id": "int_1", "steps": [], **TIMESTAMPS}
+    interaction = {"id": "int_1"}
     return [
         gi.InteractionCreatedEvent.model_validate(
             {"event_type": "interaction.created", "interaction": {**interaction, "status": "in_progress"}}

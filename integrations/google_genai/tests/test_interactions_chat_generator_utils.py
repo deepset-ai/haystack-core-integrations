@@ -33,8 +33,6 @@ from haystack_integrations.components.generators.google_genai.chat.interactions_
 )
 
 MODEL = "gemini-3.8-flash"
-# Older SDK versions require the timestamps on every Interaction
-TIMESTAMPS = {"created": "2026-11-03T10:00:00Z", "updated": "2026-11-03T10:00:01Z"}
 USAGE = {
     "total_input_tokens": 12,
     "total_output_tokens": 8,
@@ -61,12 +59,12 @@ DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml
 
 def _interaction(steps, status="completed", usage=USAGE):
     return gi.Interaction.model_validate(
-        {"id": "int_1", "status": status, "model": MODEL, "steps": steps, "usage": usage, **TIMESTAMPS}
+        {"id": "int_1", "status": status, "model": MODEL, "steps": steps, "usage": usage}
     )
 
 
 def _interaction_event(event_type, status, usage=None):
-    interaction = {"id": "int_1", "status": status, "steps": [], **TIMESTAMPS}
+    interaction = {"id": "int_1", "status": status}
     if usage:
         interaction["usage"] = usage
     event_class = gi.InteractionCreatedEvent if event_type == "interaction.created" else gi.InteractionCompletedEvent
@@ -341,8 +339,11 @@ class TestInteractionToChatMessage:
         assert message.reasoning is None
 
     def test_failed_interaction_raises(self):
-        with pytest.raises(RuntimeError, match="int_1 failed"):
-            _convert_interaction_to_chat_message(_interaction([], status="failed"), MODEL)
+        interaction = gi.Interaction.model_validate(
+            {"id": "int_1", "status": "failed", "errors": [{"code": "500", "message": "model overloaded"}]}
+        )
+        with pytest.raises(RuntimeError, match="int_1 failed.*model overloaded"):
+            _convert_interaction_to_chat_message(interaction, MODEL)
 
 
 class TestStreaming:

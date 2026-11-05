@@ -3,14 +3,27 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Helpers for the Gemini Interactions API.
-# SDK objects are typed as `Any`: google-genai generates the Interactions types in `_interactions` up to 2.8 and in
-# `_gaos` from 2.9 on. Field names match, but some class names (e.g. the step deltas) and field types differ.
 
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
+from google.genai.interactions import (
+    ArgumentsDelta,
+    ErrorEvent,
+    Interaction,
+    InteractionCompletedEvent,
+    InteractionCreatedEvent,
+    InteractionSSEEvent,
+    InteractionStatusUpdate,
+    StepDelta,
+    StepStart,
+    TextDelta,
+    ThoughtSignatureDelta,
+    ThoughtSummaryDelta,
+    Usage,
+)
 from haystack import logging
 from haystack.dataclasses import (
     ComponentInfo,
@@ -46,15 +59,13 @@ STATUS_TO_FINISH_REASON: dict[str, FinishReason] = {
 _MEDIA_MIME_PREFIXES = {"image/": "image", "audio/": "audio", "video/": "video"}
 
 
-def _to_dict(obj: Any) -> dict[str, Any]:
+def _to_dict(obj: BaseModel) -> dict[str, Any]:
     """
-    Convert an Interactions SDK object (or a dict) to a JSON-compatible dict without `None` values.
+    Convert an Interactions SDK object to a JSON-compatible dict without `None` values.
 
-    :param obj: A Pydantic model from the google-genai SDK or a dict.
+    :param obj: A Pydantic model from the google-genai SDK.
     :returns: The object as a dict.
     """
-    if isinstance(obj, dict):
-        return obj
     return obj.model_dump(mode="json", exclude_none=True)
 
 
@@ -262,7 +273,7 @@ def _convert_tools_to_interactions_format(tools: ToolsType) -> list[dict[str, An
     ]
 
 
-def _convert_usage(usage: Any) -> dict[str, Any]:
+def _convert_usage(usage: Usage | None) -> dict[str, Any]:
     """
     Convert Interactions usage into the usage dict used by `GoogleGenAIChatGenerator`.
 
@@ -364,7 +375,7 @@ def _convert_steps_to_chat_message(
     )
 
 
-def _convert_interaction_to_chat_message(interaction: Any, model: str) -> ChatMessage:
+def _convert_interaction_to_chat_message(interaction: Interaction, model: str) -> ChatMessage:
     """
     Convert a non-streaming Interactions response into a Haystack ChatMessage.
 
@@ -374,18 +385,18 @@ def _convert_interaction_to_chat_message(interaction: Any, model: str) -> ChatMe
     :raises RuntimeError: If the interaction failed.
     """
     if interaction.status == "failed":
-        msg = f"Interaction {interaction.id} failed: {getattr(interaction, 'errors', None)}"
+        msg = f"Interaction {interaction.id} failed: {interaction.errors}"
         raise RuntimeError(msg)
     return _convert_steps_to_chat_message(
         [_to_dict(step) for step in interaction.steps or []],
-        model=getattr(interaction, "model", None) or model,
+        model=interaction.model or model,
         interaction_id=interaction.id,
         status=interaction.status,
         usage=_convert_usage(interaction.usage),
     )
 
 
-def _convert_step_start_to_streaming_chunk(event: Any, meta: dict[str, Any]) -> StreamingChunk:
+def _convert_step_start_to_streaming_chunk(event: StepStart, meta: dict[str, Any]) -> StreamingChunk:
     """
     Convert a `step.start` event into a StreamingChunk.
 
@@ -417,7 +428,7 @@ def _convert_step_start_to_streaming_chunk(event: Any, meta: dict[str, Any]) -> 
     return StreamingChunk(content="", meta=meta)
 
 
-def _convert_step_delta_to_streaming_chunk(event: Any, meta: dict[str, Any]) -> StreamingChunk:
+def _convert_step_delta_to_streaming_chunk(event: StepDelta, meta: dict[str, Any]) -> StreamingChunk:
     """
     Convert a `step.delta` event into a StreamingChunk.
 
@@ -426,17 +437,16 @@ def _convert_step_delta_to_streaming_chunk(event: Any, meta: dict[str, Any]) -> 
     :returns: The StreamingChunk.
     """
     delta = event.delta
-    delta_type = getattr(delta, "type", None)
-    if delta_type == "text":
+    if isinstance(delta, TextDelta):
         return StreamingChunk(content=delta.text or "", index=event.index, meta=meta)
-    if delta_type == "thought_summary" and delta.content is not None:
+    if isinstance(delta, ThoughtSummaryDelta) and delta.content is not None:
         item = _to_dict(delta.content)
         reasoning = ReasoningContent(reasoning_text=_summary_text([item]), extra={"summary": [item]})
         return StreamingChunk(content="", index=event.index, reasoning=reasoning, meta=meta)
-    if delta_type == "thought_signature":
+    if isinstance(delta, ThoughtSignatureDelta):
         reasoning = ReasoningContent(reasoning_text="", extra={"signature": delta.signature})
         return StreamingChunk(content="", index=event.index, reasoning=reasoning, meta=meta)
-    if delta_type == "arguments_delta":
+    if isinstance(delta, ArgumentsDelta):
         tool_call = ToolCallDelta(index=event.index, arguments=delta.arguments)
         return StreamingChunk(content="", index=event.index, tool_calls=[tool_call], meta=meta)
     # Annotations and built-in tool deltas are not mapped to Haystack content yet
@@ -444,7 +454,7 @@ def _convert_step_delta_to_streaming_chunk(event: Any, meta: dict[str, Any]) -> 
 
 
 def _convert_interaction_event_to_streaming_chunk(
-    event: Any, component_info: ComponentInfo, model: str
+    event: InteractionSSEEvent, component_info: ComponentInfo, model: str
 ) -> StreamingChunk:
     """
     Convert an Interactions streaming event into a Haystack StreamingChunk.
@@ -458,30 +468,29 @@ def _convert_interaction_event_to_streaming_chunk(
     :returns: The StreamingChunk.
     :raises RuntimeError: If the event is an error event.
     """
-    event_type = getattr(event, "event_type", None)
     meta: dict[str, Any] = {"model": model, "received_at": datetime.now(UTC).isoformat()}
 
-    if event_type == "error":
+    if isinstance(event, ErrorEvent):
         msg = f"Error in Interactions stream: {event.error}"
         raise RuntimeError(msg)
 
-    if event_type == "step.start":
+    if isinstance(event, StepStart):
         chunk = _convert_step_start_to_streaming_chunk(event, meta)
-    elif event_type == "step.delta":
+    elif isinstance(event, StepDelta):
         chunk = _convert_step_delta_to_streaming_chunk(event, meta)
-    elif event_type in ("interaction.created", "interaction.completed"):
+    elif isinstance(event, (InteractionCreatedEvent, InteractionCompletedEvent)):
         interaction = event.interaction
         meta.update({"interaction_id": interaction.id, "status": interaction.status})
         finish_reason = None
-        if event_type == "interaction.completed":
+        if isinstance(event, InteractionCompletedEvent):
             meta["usage"] = _convert_usage(interaction.usage)
             finish_reason = _map_status_to_finish_reason(interaction.status, has_tool_calls=False)
         chunk = StreamingChunk(content="", finish_reason=finish_reason, meta=meta)
-    elif event_type == "interaction.status_update":
+    elif isinstance(event, InteractionStatusUpdate):
         meta.update({"interaction_id": event.interaction_id, "status": event.status})
         chunk = StreamingChunk(content="", meta=meta)
     else:
-        # `step.stop` and events unknown to this version carry nothing to stream
+        # `step.stop` and events unknown to this SDK version carry nothing to stream
         chunk = StreamingChunk(content="", meta=meta)
 
     return replace(chunk, component_info=component_info)
