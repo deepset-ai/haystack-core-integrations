@@ -73,6 +73,37 @@ class TestConvertFiltersToQdrantUnit:
         assert isinstance(qdrant_filter, models.Filter)
         assert len(qdrant_filter.must) == 2
 
+    @pytest.mark.parametrize("value", [4, 4.5, -3, 2**53])
+    def test_eq_numeric_uses_closed_range(self, value):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "==", "field": "meta.x", "value": value})
+        condition = qdrant_filter.must[0]
+        assert condition.match is None
+        assert condition.range == models.Range(gte=value, lte=value)
+
+    @pytest.mark.parametrize("value", [True, False, "a", 2**53 + 1, -(2**60)])
+    def test_eq_non_numeric_or_unsafe_int_keeps_match_value(self, value):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "==", "field": "meta.x", "value": value})
+        condition = qdrant_filter.must[0]
+        assert condition.range is None
+        assert condition.match == models.MatchValue(value=value)
+        assert type(condition.match.value) is type(value)
+
+    def test_in_and_not_in_mixed_numerics(self):
+        values = [1, 2.5, "a", True]
+        in_filter = convert_filters_to_qdrant({"operator": "in", "field": "meta.x", "value": values})
+        nin_filter = convert_filters_to_qdrant({"operator": "not in", "field": "meta.x", "value": values})
+        for conditions in (in_filter.should, nin_filter.must_not):
+            assert [(c.range, c.match) for c in conditions] == [
+                (models.Range(gte=1, lte=1), None),
+                (models.Range(gte=2.5, lte=2.5), None),
+                (None, models.MatchValue(value="a")),
+                (None, models.MatchValue(value=True)),
+            ]
+
+    def test_ne_float(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "!=", "field": "meta.x", "value": 4.5})
+        assert qdrant_filter.must_not[0].range == models.Range(gte=4.5, lte=4.5)
+
 
 def test_is_datetime_string():
     assert is_datetime_string("2024-01-01T00:00:00") is True
@@ -329,3 +360,39 @@ class TestQdrantFilters(FilterDocumentsTest):
 
     @pytest.mark.skip(reason="Cannot distinguish errors yet")
     def test_missing_top_level_operator_key(self, document_store, filterable_docs): ...
+
+    @pytest.mark.parametrize(
+        ("operator", "value", "expected"),
+        [
+            ("==", 4, [4, 4.0]),
+            ("==", 4.5, [4.5]),
+            ("==", 4.0, [4, 4.0]),
+            ("!=", 4.5, [3, 4, 4.0]),
+            ("!=", 4, [3, 4.5]),
+            ("in", [3, 4.5], [3, 4.5]),
+            ("in", [4.0, 9], [4, 4.0]),
+            ("not in", [3, 4.5], [4, 4.0]),
+            ("not in", [4, 9.5], [3, 4.5]),
+        ],
+    )
+    def test_numeric_filters_match_int_and_float_payloads(self, document_store, operator, value, expected):
+        ratings = [3, 4, 4.0, 4.5]
+        document_store.write_documents(
+            [Document(content=str(r), meta={"rating": r}, embedding=[0.1] * 768) for r in ratings]
+        )
+
+        result = document_store.filter_documents({"field": "meta.rating", "operator": operator, "value": value})
+
+        assert sorted(d.meta["rating"] for d in result) == sorted(expected)
+
+    def test_eq_bool_does_not_match_numeric_payload(self, document_store):
+        document_store.write_documents(
+            [
+                Document(content="int", meta={"flag": 1}, embedding=[0.1] * 768),
+                Document(content="bool", meta={"flag": True}, embedding=[0.1] * 768),
+            ]
+        )
+
+        result = document_store.filter_documents({"field": "meta.flag", "operator": "==", "value": True})
+
+        assert [d.content for d in result] == ["bool"]
