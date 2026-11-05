@@ -10,6 +10,7 @@ loaders:
       - haystack_integrations.agent_pack.optimization.dataclasses
       - haystack_integrations.agent_pack.optimization.tools
       - haystack_integrations.agent_pack.optimization.agent
+      - haystack_integrations.agent_pack.optimization.experiment
     search_path: [../src]
 processors:
   - type: filter
