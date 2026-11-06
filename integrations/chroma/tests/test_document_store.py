@@ -57,6 +57,52 @@ class TestDocumentStoreUnit:
         assert store._host is None
         assert store._port is None
 
+    @pytest.mark.parametrize(
+        ("filters", "expected_ids"),
+        [
+            ({"field": "meta.id", "operator": "==", "value": "target"}, ["document-a"]),
+            ({"field": "meta.id", "operator": "!=", "value": "target"}, ["target"]),
+            ({"field": "meta.id", "operator": "in", "value": ["target"]}, ["document-a"]),
+            ({"field": "meta.id", "operator": "not in", "value": ["target"]}, ["target"]),
+            (
+                {
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.id", "operator": "==", "value": "target"},
+                        {"field": "meta.kind", "operator": "==", "value": "note"},
+                    ],
+                },
+                ["document-a"],
+            ),
+            ({"field": "id", "operator": "==", "value": "target"}, ["target"]),
+            ({"field": "meta.id", "operator": "==", "value": "absent"}, []),
+        ],
+        ids=["equal", "not_equal", "in", "not_in", "logical_and", "document_id", "no_match"],
+    )
+    def test_metadata_id_filters_preserve_document_identity(self, clear_chroma_system_cache, filters, expected_ids):
+        store = ChromaDocumentStore(
+            collection_name=f"metadata-id-{uuid.uuid4().hex}", client_settings={"anonymized_telemetry": False}
+        )
+        documents = [
+            Document(
+                id="document-a",
+                content="matching metadata",
+                meta={"id": "target", "kind": "note"},
+                embedding=[1.0, 0.0],
+            ),
+            Document(
+                id="target",
+                content="nonmatching metadata",
+                meta={"id": "other", "kind": "note"},
+                embedding=[0.0, 1.0],
+            ),
+        ]
+        try:
+            store.write_documents(documents)
+            assert [document.id for document in store.filter_documents(filters)] == expected_ids
+        finally:
+            store.close()
+
     def test_init_persistent_storage(self):
         store = ChromaDocumentStore(persist_path="./path/to/local/store")
 

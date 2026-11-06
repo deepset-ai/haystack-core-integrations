@@ -66,8 +66,8 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
         where_document.update(_create_where_document_filter(field, value))
         if where_document:
             continue
-        # if field is "id", it'll be passed to Chroma's ids filter
-        elif field == "id":
+        # Only the unprefixed id field targets Chroma document IDs.
+        elif field == "id" and filters.get("field") == "id":
             if "$eq" not in value or not value["$eq"]:
                 msg = f"id filter only supports '==' operator, got {value}"
                 raise ChromaDocumentStoreFilterError(msg)
@@ -75,6 +75,12 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
         else:
             where[field] = value
 
+    _validate_chroma_filters(where, where_document)
+
+    return ChromaFilter(ids=ids, where=where or None, where_document=where_document or None)
+
+
+def _validate_chroma_filters(where: dict[str, Any], where_document: dict[str, Any]) -> None:
     try:
         if where_document:
             test_clause = "document content filter"
@@ -85,8 +91,6 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
     except ValueError as e:
         msg = f"Invalid '{test_clause}' : {e}"
         raise ChromaDocumentStoreFilterError(msg) from e
-
-    return ChromaFilter(ids=ids, where=where or None, where_document=where_document or None)
 
 
 def _convert_filter_clause(filters: dict[str, Any]) -> dict[str, Any]:
