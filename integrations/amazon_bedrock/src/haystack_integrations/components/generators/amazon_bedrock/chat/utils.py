@@ -318,7 +318,14 @@ def _format_reasoning_content(reasoning_content: ReasoningContent | None) -> dic
     :returns: Dictionary representing the formatted reasoning content for Bedrock, or `None` if there is no
         reasoning or it has no `signature`.
     """
-    if reasoning_content is None or not reasoning_content.extra.get("signature"):
+    if reasoning_content is None:
+        return None
+
+    if not reasoning_content.extra.get("signature"):
+        logger.debug(
+            "Dropping reasoning content from the request because it has no `signature`, which Bedrock requires. "
+            "This usually means the reasoning was produced by a different provider."
+        )
         return None
 
     return {
