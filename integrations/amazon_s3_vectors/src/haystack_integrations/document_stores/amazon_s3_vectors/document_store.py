@@ -98,7 +98,8 @@ class S3VectorsDocumentStore:
 
         :param vector_bucket_name: Name of the S3 vector bucket.
         :param index_name: Name of the vector index within the bucket.
-        :param dimension: Dimensionality of the embeddings (e.g. 768, 1536).
+        :param dimension: Dimensionality of the embeddings when creating an index (e.g. 768, 1536).
+            When connecting to an existing index, its actual dimension is used.
         :param distance_metric: Distance metric for similarity search: `"cosine"` or `"euclidean"`.
         :param region_name: AWS region. If not provided, uses the default from the environment/config.
         :param aws_access_key_id: AWS access key ID. If not provided, uses the default credential chain.
@@ -120,9 +121,7 @@ class S3VectorsDocumentStore:
         self.create_bucket_and_index = create_bucket_and_index
         self.non_filterable_metadata_keys = non_filterable_metadata_keys or []
 
-        # S3 Vectors requires a vector on every record, and a cosine index rejects zero-norm
-        # vectors, so documents written without an embedding get this non-zero placeholder.
-        self._dummy_vector = [-10.0] * dimension
+        self._dummy_vector: list[float]
 
         self._client: Any = None
 
@@ -143,8 +142,17 @@ class S3VectorsDocumentStore:
 
         self._client = boto3.client(**kwargs)
 
-        if self.create_bucket_and_index:
-            self._ensure_bucket_and_index()
+        try:
+            if self.create_bucket_and_index:
+                self._ensure_bucket_and_index()
+
+            response = self._client.get_index(vectorBucketName=self.vector_bucket_name, indexName=self.index_name)
+            self.dimension = response["index"]["dimension"]
+            # Cosine indexes reject zero-norm vectors, even for documents without embeddings.
+            self._dummy_vector = [-10.0] * self.dimension
+        except Exception:
+            self.close()
+            raise
 
         return self._client
 

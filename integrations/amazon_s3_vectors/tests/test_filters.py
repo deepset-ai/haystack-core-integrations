@@ -97,11 +97,6 @@ def test_validate_filters():
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
         assert len(received) == len(expected)
-        received.sort(key=lambda d: d.id)
-        expected.sort(key=lambda d: d.id)
-        for r, e in zip(received, expected, strict=True):
-            r_norm = replace(r, embedding=None, score=None)
-            e_norm = replace(e, embedding=None, score=None)
-            assert r_norm == e_norm
-            if r.embedding is not None and e.embedding is not None:
-                assert r.embedding == pytest.approx(e.embedding, abs=1e-5)
+        for r, e in zip(sorted(received, key=lambda d: d.id), sorted(expected, key=lambda d: d.id), strict=True):
+            assert replace(r, embedding=None, score=None) == replace(e, embedding=None, score=None)
+            assert r.embedding == pytest.approx(e.embedding, abs=1e-5)

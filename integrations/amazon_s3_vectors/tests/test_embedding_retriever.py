@@ -135,19 +135,18 @@ def test_run():
 @pytest.mark.integration
 def test_embedding_retrieval(document_store: S3VectorsDocumentStore) -> None:
     docs = [
-        Document(id="r-1", content="First", embedding=[0.1] * 768),
-        Document(id="r-2", content="Second", embedding=[0.5] * 768),
-        Document(id="r-3", content="Third", embedding=[0.9] * 768),
+        Document(id="r-1", content="First", embedding=[1.0, 0.0] + [0.0] * 766),
+        Document(id="r-2", content="Second", embedding=[0.8, 0.6] + [0.0] * 766),
+        Document(id="r-3", content="Third", embedding=[0.0, 1.0] + [0.0] * 766),
     ]
     document_store.write_documents(docs)
 
-    results = document_store._embedding_retrieval(query_embedding=[0.1] * 768, top_k=10)
-    assert len(results) > 0
-    for doc in results:
-        assert doc.score is not None
-        assert doc.content is not None
-        # query_vectors does not return vector data
-        assert doc.embedding is None
+    results = document_store._embedding_retrieval(query_embedding=[1.0, 0.0] + [0.0] * 766, top_k=2)
+    assert [doc.id for doc in results] == ["r-1", "r-2"]
+    assert [doc.score for doc in results] == pytest.approx([1.0, 0.8], abs=1e-5)
+    assert [doc.content for doc in results] == ["First", "Second"]
+    # query_vectors does not return vector data
+    assert all(doc.embedding is None for doc in results)
 
 
 @pytest.mark.integration

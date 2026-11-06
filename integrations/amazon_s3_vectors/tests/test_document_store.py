@@ -100,16 +100,29 @@ def test_from_dict(_mock_boto3):
     assert store.create_bucket_and_index is False
 
 
+@pytest.mark.parametrize("create_bucket_and_index", [True, False])
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
-def test_write_documents_missing_embedding_uses_placeholder(mock_boto3):
+def test_write_documents_missing_embedding_uses_placeholder(mock_boto3, create_bucket_and_index):
     """Every S3 Vectors record needs a vector, so embedding-less documents get the placeholder."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     mock_boto3.client.return_value = client
 
-    store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
+    store = S3VectorsDocumentStore(
+        vector_bucket_name="b",
+        index_name="i",
+        dimension=3,
+        region_name="us-east-1",
+        create_bucket_and_index=create_bucket_and_index,
+    )
     docs = [Document(id="1", content="ok", embedding=[0.1] * 4), Document(id="2", content="missing")]
+    client.list_vectors.return_value = {
+        "vectors": [{"key": "2", "data": {"float32": [-10.0] * 4}, "metadata": {"_content": "missing"}}]
+    }
+    # Reading first initializes the placeholder using the index dimension, not the constructor's.
+    assert store.filter_documents() == [docs[1]]
+    assert store.dimension == 4
     assert store.write_documents(docs) == 2
 
     written = client.put_vectors.call_args.kwargs["vectors"]
@@ -129,7 +142,7 @@ def test_write_documents_unsupported_policy_overwrites(mock_boto3, policy):
     """
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     mock_boto3.client.return_value = client
 
     store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
@@ -152,7 +165,7 @@ def test_embedding_retrieval_score_conversion(mock_boto3):
     """Tests our distance-to-score conversion logic — the only non-trivial transform in retrieval."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     client.query_vectors.return_value = {
         "vectors": [{"key": "1", "distance": 0.05, "metadata": {"_content": "Hello", "category": "news"}}],
         "distanceMetric": "cosine",
@@ -173,7 +186,7 @@ def test_embedding_retrieval_euclidean_score(mock_boto3):
     """Tests euclidean distance-to-score conversion (negated)."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     client.query_vectors.return_value = {
         "vectors": [{"key": "1", "distance": 1.5, "metadata": {}}],
         "distanceMetric": "euclidean",
@@ -192,7 +205,7 @@ def test_embedding_retrieval_passes_filters(mock_boto3):
     """Tests that Haystack filters are converted and passed to query_vectors."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     client.query_vectors.return_value = {"vectors": [], "distanceMetric": "cosine"}
     mock_boto3.client.return_value = client
 
@@ -208,7 +221,7 @@ def test_embedding_retrieval_passes_filters(mock_boto3):
 def test_embedding_retrieval_follows_pagination(mock_boto3):
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     client.query_vectors.side_effect = [
         {"vectors": [{"key": "1", "distance": 0.1, "metadata": {}}], "distanceMetric": "cosine", "nextToken": "t"},
         {"vectors": [{"key": "2", "distance": 0.2, "metadata": {}}], "distanceMetric": "cosine"},
@@ -365,7 +378,7 @@ def test_close_releases_the_client_and_allows_reopen(mock_boto3):
     """close() closes the boto3 client; the store stays usable and lazily builds a new one."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     mock_boto3.client.return_value = client
 
     store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
@@ -393,7 +406,7 @@ def test_close_is_exception_safe(mock_boto3):
     """A failure while closing must not propagate to the caller."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
-    client.get_index.return_value = {}
+    client.get_index.return_value = {"index": {"dimension": 4}}
     client.close.side_effect = RuntimeError("boom")
     mock_boto3.client.return_value = client
 
@@ -420,14 +433,9 @@ class TestDocumentStore(
           we ignore it for equality.
         """
         assert len(received) == len(expected)
-        received.sort(key=lambda d: d.id)
-        expected.sort(key=lambda d: d.id)
-        for r, e in zip(received, expected, strict=True):
-            r_norm = replace(r, embedding=None, score=None)
-            e_norm = replace(e, embedding=None, score=None)
-            assert r_norm == e_norm
-            if r.embedding is not None and e.embedding is not None:
-                assert r.embedding == pytest.approx(e.embedding, abs=1e-5)
+        for r, e in zip(sorted(received, key=lambda d: d.id), sorted(expected, key=lambda d: d.id), strict=True):
+            assert replace(r, embedding=None, score=None) == replace(e, embedding=None, score=None)
+            assert r.embedding == pytest.approx(e.embedding, abs=1e-5)
 
     def test_write_documents(self, document_store: S3VectorsDocumentStore) -> None:
         """
