@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/haystack_integrations/components/generators/amazon_bedrock/chat/utils.py: 95%</title>
+    <title>Coverage for src/haystack_integrations/components/generators/amazon_bedrock/chat/utils.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_54cfdca1.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src<span class="sep">/</span>haystack_integrations<span class="sep">/</span>components<span class="sep">/</span>generators<span class="sep">/</span>amazon_bedrock<span class="sep">/</span>chat<span class="sep">/</span>utils.py</b>:
-            <span class="pc_cov">95%</span>
+            <span class="pc_cov">96%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">321 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">314<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">7<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">316<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">5<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">18<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">16<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_a6b8b1044885d692_chat_generator_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_ad4df36e6abddf46_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.0">coverage.py v7.17.0</a>,
-            created at 2026-11-06 09:26 +0000
+            created at 2026-11-06 17:18 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -437,11 +437,11 @@
     <p class="run"><span class="n"><a id="t353" href="#t353">353</a></span><span class="t">        <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">part</span><span class="op">,</span> <span class="nam">TextContent</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t354" href="#t354">354</a></span><span class="t">            <span class="nam">bedrock_content_blocks</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="op">{</span><span class="str">&quot;text&quot;</span><span class="op">:</span> <span class="nam">part</span><span class="op">.</span><span class="nam">text</span><span class="op">}</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t355" href="#t355">355</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t356" href="#t356">356</a></span><span class="t">        <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">part</span><span class="op">,</span> <span class="nam">ImageContent</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">356&#x202F;&#x219B;&#x202F;359</span><span class="annotate long">line 356 didn't jump to line 359 because the condition on line 356 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t356" href="#t356">356</a></span><span class="t">        <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">part</span><span class="op">,</span> <span class="nam">ImageContent</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t357" href="#t357">357</a></span><span class="t">            <span class="nam">bedrock_content_blocks</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">_convert_image_content_to_bedrock_format</span><span class="op">(</span><span class="nam">part</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t358" href="#t358">358</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t359" href="#t359">359</a></span><span class="t">        <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">part</span><span class="op">,</span> <span class="nam">FileContent</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t360" href="#t360">360</a></span><span class="t">            <span class="nam">bedrock_content_blocks</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">_convert_file_content_to_bedrock_format</span><span class="op">(</span><span class="nam">part</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="par run show_par"><span class="n"><a id="t359" href="#t359">359</a></span><span class="t">        <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">part</span><span class="op">,</span> <span class="nam">FileContent</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">359&#x202F;&#x219B;&#x202F;352</span><span class="annotate long">line 359 didn't jump to line 352 because the condition on line 359 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t360" href="#t360">360</a></span><span class="t">            <span class="nam">bedrock_content_blocks</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">_convert_file_content_to_bedrock_format</span><span class="op">(</span><span class="nam">part</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t361" href="#t361">361</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t362" href="#t362">362</a></span><span class="t">    <span class="key">return</span> <span class="op">{</span><span class="str">&quot;role&quot;</span><span class="op">:</span> <span class="nam">message</span><span class="op">.</span><span class="nam">role</span><span class="op">.</span><span class="nam">value</span><span class="op">,</span> <span class="str">&quot;content&quot;</span><span class="op">:</span> <span class="nam">bedrock_content_blocks</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t363" href="#t363">363</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -610,7 +610,7 @@
     <p class="par run show_par"><span class="n"><a id="t526" href="#t526">526</a></span><span class="t">                <span class="key">if</span> <span class="str">&quot;reasoningText&quot;</span> <span class="key">in</span> <span class="nam">reasoning_content</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">526&#x202F;&#x219B;&#x202F;533</span><span class="annotate long">line 526 didn't jump to line 533 because the condition on line 526 was always true</span></span></p>
     <p class="run"><span class="n"><a id="t527" href="#t527">527</a></span><span class="t">                    <span class="nam">reasoning_text</span> <span class="op">=</span> <span class="nam">reasoning_content</span><span class="op">[</span><span class="str">&quot;reasoningText&quot;</span><span class="op">]</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">&quot;text&quot;</span><span class="op">,</span> <span class="str">&quot;&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t528" href="#t528">528</a></span><span class="t">                    <span class="nam">signature</span> <span class="op">=</span> <span class="nam">reasoning_content</span><span class="op">[</span><span class="str">&quot;reasoningText&quot;</span><span class="op">]</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">&quot;signature&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t529" href="#t529">529</a></span><span class="t">                    <span class="key">if</span> <span class="nam">signature</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">529&#x202F;&#x219B;&#x202F;533</span><span class="annotate long">line 529 didn't jump to line 533 because the condition on line 529 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t529" href="#t529">529</a></span><span class="t">                    <span class="key">if</span> <span class="nam">signature</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">                        <span class="nam">reasoning_extra</span><span class="op">[</span><span class="str">&quot;signature&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">signature</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t531" href="#t531">531</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t532" href="#t532">532</a></span><span class="t">            <span class="com"># Create a single ChatMessage with combined text and tool calls</span>&nbsp;</span><span class="r"></span></p>
@@ -784,7 +784,7 @@
     <p class="pln"><span class="n"><a id="t700" href="#t700">700</a></span><span class="t">    <span class="com"># reasoning signatures are ignored in _convert_streaming_chunks_to_chat_message</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t701" href="#t701">701</a></span><span class="t">    <span class="com"># so we need to process them separately</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t702" href="#t702">702</a></span><span class="t">    <span class="key">if</span> <span class="nam">reply</span><span class="op">.</span><span class="nam">reasoning</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t703" href="#t703">703</a></span><span class="t">        <span class="key">for</span> <span class="nam">chunk</span> <span class="key">in</span> <span class="nam">reversed</span><span class="op">(</span><span class="nam">chunks</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">703&#x202F;&#x219B;&#x202F;710</span><span class="annotate long">line 703 didn't jump to line 710 because the loop on line 703 didn't complete</span></span></p>
+    <p class="run"><span class="n"><a id="t703" href="#t703">703</a></span><span class="t">        <span class="key">for</span> <span class="nam">chunk</span> <span class="key">in</span> <span class="nam">reversed</span><span class="op">(</span><span class="nam">chunks</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t704" href="#t704">704</a></span><span class="t">            <span class="key">if</span> <span class="nam">chunk</span><span class="op">.</span><span class="nam">reasoning</span> <span class="key">and</span> <span class="nam">chunk</span><span class="op">.</span><span class="nam">reasoning</span><span class="op">.</span><span class="nam">extra</span> <span class="key">and</span> <span class="str">&quot;signature&quot;</span> <span class="key">in</span> <span class="nam">chunk</span><span class="op">.</span><span class="nam">reasoning</span><span class="op">.</span><span class="nam">extra</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t705" href="#t705">705</a></span><span class="t">                <span class="nam">reply</span><span class="op">.</span><span class="nam">reasoning</span><span class="op">.</span><span class="nam">extra</span><span class="op">[</span><span class="str">&quot;signature&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">chunk</span><span class="op">.</span><span class="nam">reasoning</span><span class="op">.</span><span class="nam">extra</span><span class="op">[</span><span class="str">&quot;signature&quot;</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t706" href="#t706">706</a></span><span class="t">                <span class="key">break</span>&nbsp;</span><span class="r"></span></p>
@@ -860,7 +860,7 @@
             <a class="nav" href="z_ad4df36e6abddf46_ranker_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.0">coverage.py v7.17.0</a>,
-            created at 2026-11-06 09:26 +0000
+            created at 2026-11-06 17:18 +0000
         </p>
     </div>
 </footer>
