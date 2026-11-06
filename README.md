@@ -4,13 +4,13 @@
 
 | Name                                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      167 |       85 |       44 |        5 |     46% |35-36, 55-60, 124-125, 128-133, 138-140, 153-199, 210-218, 225-228, 231-\>exit, 234-\>exit, 240-280, 284-303 |
+| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      174 |       72 |       50 |        9 |     57% |36-37, 56-61, 128, 131-136, 141-143, 157, 163-\>169, 176-182, 185-197, 221-229, 236-239, 242-\>exit, 245-\>exit, 251-291, 295-314 |
 | src/haystack\_integrations/components/embedders/optimum/optimization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
-| src/haystack\_integrations/components/embedders/optimum/optimum\_document\_embedder.py |       53 |        8 |       10 |        1 |     83% |   225-235 |
-| src/haystack\_integrations/components/embedders/optimum/optimum\_text\_embedder.py     |       38 |        5 |        4 |        1 |     86% |   181-186 |
-| src/haystack\_integrations/components/embedders/optimum/pooling.py                     |       18 |        1 |        2 |        0 |     95% |        36 |
+| src/haystack\_integrations/components/embedders/optimum/optimum\_document\_embedder.py |       53 |        8 |       10 |        1 |     83% |   228-238 |
+| src/haystack\_integrations/components/embedders/optimum/optimum\_text\_embedder.py     |       38 |        5 |        4 |        1 |     86% |   184-189 |
+| src/haystack\_integrations/components/embedders/optimum/pooling.py                     |       18 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/optimum/quantization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
-| **TOTAL**                                                                              |  **352** |  **107** |   **80** |   **11** | **67%** |           |
+| **TOTAL**                                                                              |  **359** |   **93** |   **86** |   **15** | **72%** |           |
 
 
 ## Setup coverage badge
