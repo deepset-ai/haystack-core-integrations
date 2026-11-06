@@ -9,13 +9,13 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
-from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
+from haystack_integrations.document_stores.amazon_s3_vectors import AmazonS3VectorsDocumentStore
 
 
 @component
-class S3VectorsEmbeddingRetriever:
+class AmazonS3VectorsEmbeddingRetriever:
     """
-    Retrieve documents from an `S3VectorsDocumentStore` based on their dense embeddings.
+    Retrieve documents from an `AmazonS3VectorsDocumentStore` based on their dense embeddings.
 
     Usage example:
     ```python
@@ -24,10 +24,10 @@ class S3VectorsEmbeddingRetriever:
     # Requires: pip install sentence-transformers-haystack
     from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
     from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
-    from haystack_integrations.components.retrievers.amazon_s3_vectors import S3VectorsEmbeddingRetriever
-    from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
+    from haystack_integrations.components.retrievers.amazon_s3_vectors import AmazonS3VectorsEmbeddingRetriever
+    from haystack_integrations.document_stores.amazon_s3_vectors import AmazonS3VectorsDocumentStore
 
-    document_store = S3VectorsDocumentStore(
+    document_store = AmazonS3VectorsDocumentStore(
         vector_bucket_name="my-vectors",
         index_name="my-index",
         dimension=768,
@@ -47,7 +47,7 @@ class S3VectorsEmbeddingRetriever:
 
     query_pipeline = Pipeline()
     query_pipeline.add_component("text_embedder", SentenceTransformersTextEmbedder())
-    query_pipeline.add_component("retriever", S3VectorsEmbeddingRetriever(document_store=document_store))
+    query_pipeline.add_component("retriever", AmazonS3VectorsEmbeddingRetriever(document_store=document_store))
     query_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
 
     query = "How many languages are there?"
@@ -58,22 +58,22 @@ class S3VectorsEmbeddingRetriever:
     def __init__(
         self,
         *,
-        document_store: S3VectorsDocumentStore,
+        document_store: AmazonS3VectorsDocumentStore,
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
-        Initialize the S3VectorsEmbeddingRetriever.
+        Initialize the AmazonS3VectorsEmbeddingRetriever.
 
-        :param document_store: An instance of `S3VectorsDocumentStore`.
+        :param document_store: An instance of `AmazonS3VectorsDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param filter_policy: Policy to determine how filters are applied.
-        :raises ValueError: If `document_store` is not an `S3VectorsDocumentStore`.
+        :raises ValueError: If `document_store` is not an `AmazonS3VectorsDocumentStore`.
         """
-        if not isinstance(document_store, S3VectorsDocumentStore):
-            msg = "document_store must be an instance of S3VectorsDocumentStore"
+        if not isinstance(document_store, AmazonS3VectorsDocumentStore):
+            msg = "document_store must be an instance of AmazonS3VectorsDocumentStore"
             raise ValueError(msg)
 
         self.document_store = document_store
@@ -94,9 +94,9 @@ class S3VectorsEmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "S3VectorsEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonS3VectorsEmbeddingRetriever":
         """Deserialize the component from a dictionary."""
-        data["init_parameters"]["document_store"] = S3VectorsDocumentStore.from_dict(
+        data["init_parameters"]["document_store"] = AmazonS3VectorsDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
         if filter_policy := data["init_parameters"].get("filter_policy"):
@@ -111,7 +111,7 @@ class S3VectorsEmbeddingRetriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Retrieve documents from the S3VectorsDocumentStore based on dense embeddings.
+        Retrieve documents from the AmazonS3VectorsDocumentStore based on dense embeddings.
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on

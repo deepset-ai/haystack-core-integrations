@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .document_store import S3VectorsDocumentStore
+from .document_store import AmazonS3VectorsDocumentStore
 
-__all__ = ["S3VectorsDocumentStore"]
+__all__ = ["AmazonS3VectorsDocumentStore"]

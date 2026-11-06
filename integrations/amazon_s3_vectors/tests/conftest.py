@@ -24,7 +24,7 @@ import boto3
 import pytest
 from botocore.exceptions import ClientError
 
-from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
+from haystack_integrations.document_stores.amazon_s3_vectors import AmazonS3VectorsDocumentStore
 
 # Dimension used by Haystack's `FilterableDocsFixtureMixin` test corpus.
 DIMENSION = 768
@@ -89,11 +89,11 @@ def s3_vectors_bucket() -> Iterator[str]:
 
 
 @pytest.fixture
-def document_store(s3_vectors_bucket: str) -> Iterator[S3VectorsDocumentStore]:
-    """Provide a fresh S3VectorsDocumentStore (one per test)."""
+def document_store(s3_vectors_bucket: str) -> Iterator[AmazonS3VectorsDocumentStore]:
+    """Provide a fresh AmazonS3VectorsDocumentStore (one per test)."""
     index_name = f"idx-{uuid.uuid4().hex[:10]}"
 
-    store = S3VectorsDocumentStore(
+    store = AmazonS3VectorsDocumentStore(
         vector_bucket_name=s3_vectors_bucket,
         index_name=index_name,
         dimension=DIMENSION,

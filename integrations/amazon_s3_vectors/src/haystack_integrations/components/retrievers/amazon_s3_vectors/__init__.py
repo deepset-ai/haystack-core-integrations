@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .embedding_retriever import S3VectorsEmbeddingRetriever
+from .embedding_retriever import AmazonS3VectorsEmbeddingRetriever
 
-__all__ = ["S3VectorsEmbeddingRetriever"]
+__all__ = ["AmazonS3VectorsEmbeddingRetriever"]

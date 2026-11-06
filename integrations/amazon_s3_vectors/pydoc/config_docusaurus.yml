@@ -9,6 +9,6 @@ processors:
     skip_empty_modules: true
 renderer:
   description: Amazon S3 Vectors integration for Haystack
-  id: integrations-amazon_s3_vectors
+  id: integrations-amazon-s3-vectors
   filename: amazon_s3_vectors.md
   title: Amazon S3 Vectors

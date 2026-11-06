@@ -35,27 +35,24 @@ def test_comparison_operators():
         assert _normalize_filters(haystack_filter) == expected
 
 
-def test_logical_operators():
-    """AND/OR produce $and/$or with nested conditions."""
-    assert _normalize_filters(
-        {
-            "operator": "AND",
-            "conditions": [
-                {"field": "meta.a", "operator": "==", "value": 1},
-                {"field": "meta.b", "operator": ">", "value": 2},
-            ],
-        }
-    ) == {"$and": [{"a": {"$eq": 1}}, {"b": {"$gt": 2}}]}
-
-    assert _normalize_filters(
-        {
-            "operator": "OR",
-            "conditions": [
-                {"field": "meta.a", "operator": "==", "value": "x"},
-                {"field": "meta.a", "operator": "==", "value": "y"},
-            ],
-        }
-    ) == {"$or": [{"a": {"$eq": "x"}}, {"a": {"$eq": "y"}}]}
+@pytest.mark.parametrize(("operator", "expected_operator"), [("AND", "$and"), ("OR", "$or")])
+def test_logical_operators(operator, expected_operator):
+    filters = {
+        "operator": operator,
+        "conditions": [
+            {"field": "meta.a", "operator": "==", "value": 1},
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.b", "operator": ">", "value": 2},
+                    {"field": "meta.c", "operator": "==", "value": "x"},
+                ],
+            },
+        ],
+    }
+    assert _normalize_filters(filters) == {
+        expected_operator: [{"a": {"$eq": 1}}, {"$or": [{"b": {"$gt": 2}}, {"c": {"$eq": "x"}}]}]
+    }
 
 
 def test_meta_prefix_stripped():
@@ -67,23 +64,26 @@ def test_meta_prefix_stripped():
     assert _normalize_filters({"field": "category", "operator": "==", "value": "news"}) == {"category": {"$eq": "news"}}
 
 
-def test_unsupported_type_raises():
-    with pytest.raises(FilterError):
-        _normalize_filters({"field": "meta.x", "operator": "==", "value": [1, 2, 3]})
-
-
-def test_in_requires_list():
-    with pytest.raises(FilterError):
-        _normalize_filters({"field": "meta.x", "operator": "in", "value": "not-a-list"})
-
-
-def test_missing_keys_raise():
-    with pytest.raises(FilterError):
-        _normalize_filters({"field": "meta.x", "value": "a"})  # missing operator
-    with pytest.raises(FilterError):
-        _normalize_filters({"field": "meta.x", "operator": "=="})  # missing value
-    with pytest.raises(FilterError):
-        _normalize_filters("not a dict")
+@pytest.mark.parametrize(
+    ("filters", "error"),
+    [
+        ("not a dict", "Filters must be a dictionary"),
+        ({"field": "meta.x", "value": "a"}, "'operator' key missing"),
+        ({"field": "meta.x", "operator": "=="}, "'value' key missing"),
+        ({"conditions": []}, "'operator' key missing"),
+        ({"operator": "AND"}, "'conditions' key missing"),
+        ({"operator": "XOR", "conditions": []}, "Unknown logical operator"),
+        ({"field": "meta.x", "operator": "unknown", "value": 1}, "Unknown comparison operator"),
+        ({"field": "meta.x", "operator": "==", "value": [1]}, "Unsupported type"),
+        ({"field": "meta.x", "operator": ">", "value": "text"}, "Unsupported type"),
+        ({"field": "meta.x", "operator": "in", "value": "text"}, "must be a list"),
+        ({"field": "meta.x", "operator": "not in", "value": "text"}, "must be a list"),
+        ({"field": "meta.x", "operator": "in", "value": [{}]}, "Unsupported type"),
+    ],
+)
+def test_invalid_filters(filters, error):
+    with pytest.raises(FilterError, match=error):
+        _normalize_filters(filters)
 
 
 def test_validate_filters():

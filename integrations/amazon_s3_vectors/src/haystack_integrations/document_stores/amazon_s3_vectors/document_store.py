@@ -42,7 +42,7 @@ _RESERVED_META_KEYS = {_CONTENT_KEY}
 _NON_FILTERABLE_KEYS = [_CONTENT_KEY]
 
 
-class S3VectorsDocumentStore:
+class AmazonS3VectorsDocumentStore:
     """
     A Document Store using [Amazon S3 Vectors](https://aws.amazon.com/s3/features/vectors/).
 
@@ -64,14 +64,14 @@ class S3VectorsDocumentStore:
       retrievable via `filter_documents()`
     - Only `DuplicatePolicy.OVERWRITE` is supported, since `put_vectors` is an upsert
     - Distance metrics: `cosine` or `euclidean` (set at index creation, immutable)
-    - `filter_documents()` filters locally, so prefer `S3VectorsEmbeddingRetriever` with filters
+    - `filter_documents()` filters locally, so prefer `AmazonS3VectorsEmbeddingRetriever` with filters
     - `Document.blob` is not stored
 
     Usage example:
     ```python
-    from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
+    from haystack_integrations.document_stores.amazon_s3_vectors import AmazonS3VectorsDocumentStore
 
-    document_store = S3VectorsDocumentStore(
+    document_store = AmazonS3VectorsDocumentStore(
         vector_bucket_name="my-vectors",
         index_name="my-index",
         dimension=768,
@@ -94,7 +94,7 @@ class S3VectorsDocumentStore:
         non_filterable_metadata_keys: list[str] | None = None,
     ) -> None:
         """
-        Create an S3VectorsDocumentStore instance.
+        Create an AmazonS3VectorsDocumentStore instance.
 
         :param vector_bucket_name: Name of the S3 vector bucket.
         :param index_name: Name of the vector index within the bucket.
@@ -218,7 +218,7 @@ class S3VectorsDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "S3VectorsDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "AmazonS3VectorsDocumentStore":
         """Deserialize a document store from a dictionary."""
         deserialize_secrets_inplace(
             data["init_parameters"],
@@ -265,7 +265,7 @@ class S3VectorsDocumentStore:
         """
         Write Documents to the S3 Vectors index.
 
-        `S3VectorsDocumentStore` only supports `DuplicatePolicy.OVERWRITE`: `put_vectors` is an
+        `AmazonS3VectorsDocumentStore` only supports `DuplicatePolicy.OVERWRITE`: `put_vectors` is an
         upsert, and S3 Vectors offers no cheap existence check (only `get_vectors` on batches of
         100 keys, or a full index scan), so enforcing any other policy would cost an extra read
         pass on every write. Other policies are ignored with a warning.
@@ -292,7 +292,7 @@ class S3VectorsDocumentStore:
         # DuplicatePolicy.NONE means "the store decides", so it needs no warning.
         if policy not in (DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE):
             logger.warning(
-                "S3VectorsDocumentStore only supports DuplicatePolicy.OVERWRITE because put_vectors is an "
+                "AmazonS3VectorsDocumentStore only supports DuplicatePolicy.OVERWRITE because put_vectors is an "
                 "upsert. Ignoring policy={policy} and overwriting.",
                 policy=str(policy),
             )
@@ -330,7 +330,7 @@ class S3VectorsDocumentStore:
 
         Note: S3 Vectors only supports metadata filtering during vector similarity queries, not as a
         standalone operation. This method lists all vectors and filters them locally with Haystack,
-        which can be slow for large indexes. `S3VectorsEmbeddingRetriever` filters through S3
+        which can be slow for large indexes. `AmazonS3VectorsEmbeddingRetriever` filters through S3
         Vectors instead, and the two can match different documents for the same filter, especially
         on array metadata: S3 Vectors matches an array field when any element matches, while
         Haystack compares the whole array.
@@ -345,7 +345,7 @@ class S3VectorsDocumentStore:
                 "S3 Vectors does not support standalone filtered listing. "
                 "filter_documents() will fetch ALL vectors and apply filters client-side, "
                 "which can be very slow for large indexes. "
-                "Prefer using S3VectorsEmbeddingRetriever with filters for efficient filtered retrieval."
+                "Prefer using AmazonS3VectorsEmbeddingRetriever with filters for efficient filtered retrieval."
             )
 
         # list_vectors supports returnData and returnMetadata directly,
@@ -413,7 +413,7 @@ class S3VectorsDocumentStore:
         Retrieve documents most similar to the query embedding.
 
         This method is not part of the public interface.
-        Use `S3VectorsEmbeddingRetriever` instead.
+        Use `AmazonS3VectorsEmbeddingRetriever` instead.
 
         :param query_embedding: The query embedding vector.
         :param filters: Optional Haystack-format metadata filters.
@@ -500,7 +500,7 @@ class S3VectorsDocumentStore:
 
         if doc.blob is not None:
             logger.warning(
-                "Document '{doc_id}' has a blob, which S3VectorsDocumentStore does not store.", doc_id=doc.id
+                "Document '{doc_id}' has a blob, which AmazonS3VectorsDocumentStore does not store.", doc_id=doc.id
             )
 
         # Store user metadata
@@ -513,7 +513,7 @@ class S3VectorsDocumentStore:
                         key=key,
                     )
                     continue
-                if not S3VectorsDocumentStore._is_supported_metadata_value(value):
+                if not AmazonS3VectorsDocumentStore._is_supported_metadata_value(value):
                     dropped.append(key)
                     continue
                 # A tuple is an array as far as S3 Vectors is concerned, but botocore's document-type
