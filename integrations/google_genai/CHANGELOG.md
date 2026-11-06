@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v7.2.0] - 2026-11-06
+
+### 🚀 Features
+
+- *(google_genai)* Add `GoogleGenAIInteractionsChatGenerator` for the Gemini Interactions API (#4199)
+
+
 ## [integrations/google_genai-v7.1.0] - 2026-11-02
 
 ### 🐛 Bug Fixes
