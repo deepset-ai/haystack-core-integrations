@@ -72,9 +72,15 @@ class TestSentenceTransformersSimilarityRanker:
     @patch(
         "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.CrossEncoder"
     )
-    def test_warm_up_onnx_session_options(self, mocked_cross_encoder):
-        ranker = SentenceTransformersSimilarityRanker(
-            model_kwargs={"session_options": {"intra_op_num_threads": 1}}, backend="onnx"
+    def test_from_dict_warm_up_onnx_session_options(self, mocked_cross_encoder):
+        ranker = SentenceTransformersSimilarityRanker.from_dict(
+            {
+                "type": "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.SentenceTransformersSimilarityRanker",
+                "init_parameters": {
+                    "backend": "onnx",
+                    "model_kwargs": {"session_options": {"intra_op_num_threads": 1}},
+                },
+            }
         )
         ranker.warm_up()
 
