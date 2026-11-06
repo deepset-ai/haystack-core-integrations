@@ -4,6 +4,7 @@
 
 """Translation of Haystack filters into Solr filter query (`fq`) clauses."""
 
+import math
 from datetime import datetime
 from typing import Any
 
@@ -72,6 +73,31 @@ def _resolve_field(field: str, value: Any) -> str:
     return meta_field_name(normalized, type_code_for_value(value))
 
 
+def _is_numeric_meta(field: str, value: Any) -> bool:
+    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+    return is_number and _normalize_field_name(field) not in _SPECIAL_FIELDS
+
+
+def _numeric_terms(field: str, value: float) -> list[tuple[str, float]]:
+    """
+    Pair a number with every Solr field a number under `field` can be stored in.
+
+    An int is written to a `plong` field and a float to a `pdouble` one, so a key whose values mix the two,
+    as metadata parsed from JSON routinely does, has values in both. `plong` rejects a fractional term,
+    so only a whole number is also compared there. The field of the value's own type comes first.
+    """
+    normalized = _normalize_field_name(field)
+    double_term = (meta_field_name(normalized, "d"), value)
+    if isinstance(value, float) and not value.is_integer():
+        return [double_term]
+    long_term = (meta_field_name(normalized, "l"), int(value))
+    return [long_term, double_term] if isinstance(value, int) else [double_term, long_term]
+
+
+def _any_of(clauses: list[str]) -> str:
+    return clauses[0] if len(clauses) == 1 else "(" + " OR ".join(clauses) + ")"
+
+
 def _negate(clause: str) -> str:
     """
     Wrap `clause` in a negation that is valid in every position.
@@ -107,6 +133,8 @@ def _equality_clause(field: str, value: Any) -> str:
             return _negate(_existence_clause(field))
         solr_field = _resolve_field(field, value)
         return "(" + " AND ".join(f"{solr_field}:{_format_value(element)}" for element in value) + ")"
+    if _is_numeric_meta(field, value):
+        return _any_of([f"{solr_field}:{_format_value(term)}" for solr_field, term in _numeric_terms(field, value)])
     return f"{_resolve_field(field, value)}:{_format_value(value)}"
 
 
@@ -129,7 +157,22 @@ def _range_clause(field: str, operator: str, value: Any) -> str:
         msg = f"Filter value can't be of type bool using operator {operator!r}"
         raise FilterError(msg)
 
-    solr_field = _resolve_field(field, value)
+    if _is_numeric_meta(field, value):
+        ranges = [(solr_field, operator, term) for solr_field, term in _numeric_terms(field, value)]
+        if isinstance(value, float) and not value.is_integer() and math.isfinite(value):
+            # `plong` rejects a fractional bound, so the int field is compared with the nearest whole number the
+            # range still admits, inclusively: `> 4.5` becomes `>= 5` and `< 4.5` becomes `<= 4`.
+            long_field = meta_field_name(_normalize_field_name(field), "l")
+            if operator in (">", ">="):
+                ranges.append((long_field, ">=", math.ceil(value)))
+            else:
+                ranges.append((long_field, "<=", math.floor(value)))
+        return _any_of([_range_term(*solr_range) for solr_range in ranges])
+
+    return _range_term(_resolve_field(field, value), operator, value)
+
+
+def _range_term(solr_field: str, operator: str, value: Any) -> str:
     return f"{solr_field}:{_RANGE_TEMPLATES[operator].format(value=_format_value(value))}"
 
 
@@ -144,6 +187,10 @@ def _in_clause(field: str, operator: str, value: Any) -> str:
     grouped: dict[str, list[Any]] = {}
     for element in value:
         if element is None:
+            continue
+        if _is_numeric_meta(field, element):
+            for solr_field, term in _numeric_terms(field, element):
+                grouped.setdefault(solr_field, []).append(term)
             continue
         grouped.setdefault(_resolve_field(field, element), []).append(element)
     if not grouped:
