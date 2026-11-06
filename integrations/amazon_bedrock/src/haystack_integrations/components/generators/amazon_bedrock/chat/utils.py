@@ -448,6 +448,16 @@ def _format_messages(
     return system_prompts, repaired_bedrock_formatted_messages
 
 
+def _total_prompt_tokens(usage: dict[str, Any]) -> int:
+    """
+    Total prompt size from a Converse `usage` dict.
+
+    With prompt caching, `inputTokens` counts only the non-cached tokens; the total input is
+    `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`.
+    """
+    return usage.get("inputTokens", 0) + usage.get("cacheReadInputTokens", 0) + usage.get("cacheWriteInputTokens", 0)
+
+
 def _parse_completion_response(response_body: dict[str, Any], model: str) -> list[ChatMessage]:
     """
     Parse a Bedrock API response into Haystack ChatMessage objects.
@@ -473,7 +483,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                 "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason", "")),
                 "usage": {
                     # OpenAI's format for usage for cross ChatGenerator compatibility
-                    "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
+                    "prompt_tokens": _total_prompt_tokens(response_body.get("usage", {})),
                     "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
                     "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
                     "cache_read_input_tokens": response_body.get("usage", {}).get("cacheReadInputTokens", 0),
@@ -637,7 +647,7 @@ def _convert_event_to_streaming_chunk(
         if "usage" in event_meta:
             usage = event_meta["usage"]
             chunk_meta["usage"] = {
-                "prompt_tokens": usage.get("inputTokens", 0),
+                "prompt_tokens": _total_prompt_tokens(usage),
                 "completion_tokens": usage.get("outputTokens", 0),
                 "total_tokens": usage.get("totalTokens", 0),
                 "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
