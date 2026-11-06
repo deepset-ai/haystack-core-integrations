@@ -11,9 +11,9 @@
 | src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py               |      188 |        1 |       46 |        2 |     99% |430-\>432, 635 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/interactions\_chat\_generator.py |      124 |        0 |       28 |        3 |     98% |219-\>exit, 225-\>exit, 407-\>400 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/interactions\_utils.py           |      255 |        6 |      134 |        6 |     97% |217-221, 230-231, 236-\>234, 246-247, 554-\>557, 566-\>568 |
-| src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                         |      312 |       14 |      182 |       15 |     93% |234-235, 276-278, 285-\>294, 299-\>304, 343-345, 414-\>304, 477, 487-489, 527-\>561, 530-\>561, 557-\>531, 692-\>663, 765-\>771, 771-\>757, 781, 787 |
+| src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                         |      318 |       14 |      186 |       15 |     93% |234-235, 279-281, 289-\>298, 317-\>322, 361-363, 432-\>322, 495, 505-507, 545-\>579, 548-\>579, 575-\>549, 710-\>681, 783-\>789, 789-\>775, 799, 805 |
 | src/haystack\_integrations/token\_counters/google\_genai/token\_counter.py                           |       58 |        2 |       18 |        2 |     95% |146-147, 156-\>exit |
-| **TOTAL**                                                                                            | **1333** |   **36** |  **542** |   **41** | **96%** |           |
+| **TOTAL**                                                                                            | **1339** |   **36** |  **546** |   **41** | **96%** |           |
 
 
 ## Setup coverage badge
