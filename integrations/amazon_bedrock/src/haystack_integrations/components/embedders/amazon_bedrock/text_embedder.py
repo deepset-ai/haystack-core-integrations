@@ -11,6 +11,11 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockInferenceError,
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.components.embedders.amazon_bedrock.utils import (
+    EmbeddingModelFamily,
+    _resolve_model_family,
+    _supports_titan_v2_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +58,8 @@ class AmazonBedrockTextEmbedder:
         aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: dict[str, Any] | None = None,
+        *,
+        model_family: EmbeddingModelFamily | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -73,6 +80,7 @@ class AmazonBedrockTextEmbedder:
             To find all supported models, refer to the Amazon Bedrock
             [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) and
             filter for "embedding", then select models from the Amazon Titan and Cohere series.
+            Inference profile IDs and ARNs are accepted too. If the ID doesn't name the model, set `model_family`.
         :param aws_access_key_id: AWS access key ID.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token.
@@ -81,16 +89,22 @@ class AmazonBedrockTextEmbedder:
         :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
             Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
             and other low-level settings like timeouts and connection management.
-        :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
-            Cohere models, or `dimensions` and `normalize` for Amazon Titan Text Embeddings V2.
-        :raises ValueError: If the model is not supported.
+        :param model_family: The model family that determines the request and response format, `"cohere"` or
+            `"titan"`. Set it when `model` doesn't name the model, for example for an
+            [application inference profile](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles.html)
+            ARN. If not set, the family is detected from `model`.
+            With `"titan"` and such an ARN, `dimensions` and `normalize` are sent as configured, so set them only if
+            the profile uses Amazon Titan Text Embeddings V2.
+        :param kwargs: Additional parameters to pass for model inference. For example, `input_type`, `truncate`, and
+            `output_dimension` (Cohere Embed v4 only) for Cohere models, or `dimensions` and `normalize` for
+            Amazon Titan Text Embeddings V2.
+        :raises ValueError: If the model is not supported or `model_family` is invalid.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
-        if "titan" not in model and "cohere" not in model:
-            msg = f"Model {model} is not supported. Only Amazon Titan and Cohere embedding models are supported."
-            raise ValueError(msg)
+        self._resolved_model_family = _resolve_model_family(model, model_family)
 
         self.model = model
+        self.model_family = model_family
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
@@ -153,20 +167,21 @@ class AmazonBedrockTextEmbedder:
             )
             raise TypeError(msg)
 
-        if "cohere" in self.model:
+        if self._resolved_model_family == "cohere":
             body = {
                 "texts": [text],
                 "input_type": self.kwargs.get("input_type", "search_query"),  # mandatory parameter for Cohere models
             }
             if truncate := self.kwargs.get("truncate"):
                 body["truncate"] = truncate  # optional parameter for Cohere models
+            if (output_dimension := self.kwargs.get("output_dimension")) is not None:
+                body["output_dimension"] = output_dimension  # optional parameter for Cohere Embed v4
 
-        elif "titan" in self.model:
+        else:
             body = {
                 "inputText": text,
             }
-            if self.model.startswith("amazon.titan-embed-text-v2"):
-                # `dimensions` and `normalize` are only supported by Amazon Titan Text Embeddings V2
+            if _supports_titan_v2_params(self.model):
                 if (dimensions := self.kwargs.get("dimensions")) is not None:
                     body["dimensions"] = dimensions
                 if (normalize := self.kwargs.get("normalize")) is not None:
@@ -182,18 +197,15 @@ class AmazonBedrockTextEmbedder:
 
         response_body = json.loads(response.get("body").read())
 
-        if "cohere" in self.model:
+        if self._resolved_model_family == "cohere":
             cohere_embeddings = response_body["embeddings"]
             # depending on the model, Cohere returns a dict with the embedding types as keys or a list of lists
             embeddings_list = (
                 next(iter(cohere_embeddings.values())) if isinstance(cohere_embeddings, dict) else cohere_embeddings
             )
             embedding = embeddings_list[0]
-        elif "titan" in self.model:
-            embedding = response_body["embedding"]
         else:
-            msg = f"Model {self.model} is not supported. Only Amazon Titan and Cohere embedding models are supported."
-            raise ValueError(msg)
+            embedding = response_body["embedding"]
 
         return {"embedding": embedding}
 
@@ -213,6 +225,7 @@ class AmazonBedrockTextEmbedder:
             aws_profile_name=self.aws_profile_name,
             model=self.model,
             boto3_config=self.boto3_config,
+            model_family=self.model_family,
             **self.kwargs,
         )
 

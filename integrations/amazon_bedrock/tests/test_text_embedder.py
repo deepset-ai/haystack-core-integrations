@@ -14,6 +14,8 @@ from haystack_integrations.components.embedders.amazon_bedrock import (
     AmazonBedrockTextEmbedder,
 )
 
+APPLICATION_INFERENCE_PROFILE_ARN = "arn:aws:bedrock:eu-west-1:123456789012:application-inference-profile/a1b2c3d4e5f6"
+
 
 class TestAmazonBedrockTextEmbedder:
     def test_init(self):
@@ -63,6 +65,7 @@ class TestAmazonBedrockTextEmbedder:
                 "model": "cohere.embed-english-v3",
                 "input_type": "search_query",
                 "boto3_config": None,
+                "model_family": None,
             },
         }
 
@@ -130,12 +133,34 @@ class TestAmazonBedrockTextEmbedder:
         serialized = embedder.to_dict()
         assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
 
+    def test_to_dict_from_dict_with_model_family(self):
+        embedder = AmazonBedrockTextEmbedder(
+            model=APPLICATION_INFERENCE_PROFILE_ARN, model_family="cohere", output_dimension=1024
+        )
+
+        serialized = embedder.to_dict()
+        assert serialized["init_parameters"]["model_family"] == "cohere"
+        assert serialized["init_parameters"]["output_dimension"] == 1024
+
+        deserialized = AmazonBedrockTextEmbedder.from_dict(serialized)
+        assert deserialized.model == APPLICATION_INFERENCE_PROFILE_ARN
+        assert deserialized.model_family == "cohere"
+        assert deserialized.kwargs == {"output_dimension": 1024}
+
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):
             AmazonBedrockTextEmbedder(model="")
 
         with pytest.raises(ValueError):
             AmazonBedrockTextEmbedder(model="my-unsupported-model")
+
+        # the ARN doesn't name the model, so the family can't be detected
+        with pytest.raises(ValueError, match="set `model_family`"):
+            AmazonBedrockTextEmbedder(model=APPLICATION_INFERENCE_PROFILE_ARN)
+
+    def test_init_invalid_model_family(self):
+        with pytest.raises(ValueError, match="Model family 'mistral' is not supported"):
+            AmazonBedrockTextEmbedder(model=APPLICATION_INFERENCE_PROFILE_ARN, model_family="mistral")
 
     def test_run_wrong_type(self, mock_boto3_session):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
@@ -168,6 +193,63 @@ class TestAmazonBedrockTextEmbedder:
 
             assert result == {"embedding": [0.1, 0.2, 0.3]}
 
+    def test_cohere_v4_invocation_with_output_dimension(self, mock_boto3_session):
+        embedder = AmazonBedrockTextEmbedder(model="eu.cohere.embed-v4:0", output_dimension=1024)
+        client = mock_boto3_session.return_value.client.return_value
+
+        with patch.object(client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.return_value = {
+                "body": io.StringIO('{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}'),
+            }
+            embedder.run(text="some text")
+
+            mock_invoke_model.assert_called_once_with(
+                body='{"texts": ["some text"], "input_type": "search_query", "output_dimension": 1024}',
+                modelId="eu.cohere.embed-v4:0",
+                accept="*/*",
+                contentType="application/json",
+            )
+
+    @pytest.mark.parametrize(
+        ("model_family", "kwargs", "expected_body", "response_body"),
+        [
+            (
+                "cohere",
+                {"output_dimension": 1024},
+                '{"texts": ["some text"], "input_type": "search_query", "output_dimension": 1024}',
+                '{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}',
+            ),
+            (
+                "titan",
+                {"dimensions": 512, "normalize": False},
+                '{"inputText": "some text", "dimensions": 512, "normalize": false}',
+                '{"embedding": [0.1, 0.2, 0.3]}',
+            ),
+        ],
+    )
+    def test_application_inference_profile_invocation(
+        self, mock_boto3_session, model_family, kwargs, expected_body, response_body
+    ):
+        embedder = AmazonBedrockTextEmbedder(
+            model=APPLICATION_INFERENCE_PROFILE_ARN, model_family=model_family, **kwargs
+        )
+        client = mock_boto3_session.return_value.client.return_value
+
+        with patch.object(client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.return_value = {
+                "body": io.StringIO(response_body),
+            }
+            result = embedder.run(text="some text")
+
+            mock_invoke_model.assert_called_once_with(
+                body=expected_body,
+                modelId=APPLICATION_INFERENCE_PROFILE_ARN,
+                accept="*/*",
+                contentType="application/json",
+            )
+
+            assert result == {"embedding": [0.1, 0.2, 0.3]}
+
     def test_titan_invocation(self, mock_boto3_session):
         embedder = AmazonBedrockTextEmbedder(model="amazon.titan-embed-text-v1")
         client = mock_boto3_session.return_value.client.return_value
@@ -187,9 +269,13 @@ class TestAmazonBedrockTextEmbedder:
 
             assert result == {"embedding": [0.1, 0.2, 0.3]}
 
-    def test_titan_v2_invocation_with_dimensions_and_normalize(self, mock_boto3_session):
+    @pytest.mark.parametrize(
+        "model",
+        ["amazon.titan-embed-text-v2:0", "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"],
+    )
+    def test_titan_v2_invocation_with_dimensions_and_normalize(self, mock_boto3_session, model):
         embedder = AmazonBedrockTextEmbedder(
-            model="amazon.titan-embed-text-v2:0",
+            model=model,
             dimensions=512,
             normalize=False,
         )
@@ -203,7 +289,7 @@ class TestAmazonBedrockTextEmbedder:
 
             mock_invoke_model.assert_called_once_with(
                 body='{"inputText": "some text", "dimensions": 512, "normalize": false}',
-                modelId="amazon.titan-embed-text-v2:0",
+                modelId=model,
                 accept="*/*",
                 contentType="application/json",
             )
@@ -350,3 +436,10 @@ class TestAmazonBedrockTextEmbedderIntegration:
         assert isinstance(embedding, list)
         assert len(embedding) > 1000
         assert all(isinstance(embedding, float) for embedding in embedding)
+
+    def test_live_run_with_output_dimension(self):
+        embedder = AmazonBedrockTextEmbedder(model="cohere.embed-v4:0", output_dimension=256)
+
+        embedding = embedder.run(text="some text")["embedding"]
+
+        assert len(embedding) == 256
