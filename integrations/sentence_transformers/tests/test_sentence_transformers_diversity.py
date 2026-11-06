@@ -4,6 +4,7 @@
 
 from unittest.mock import MagicMock, call, patch
 
+import onnxruntime as ort
 import pytest
 import torch
 from haystack import Document, Pipeline
@@ -740,6 +741,20 @@ class TestSentenceTransformersDiversityRanker:
             config_kwargs=None,
             backend="onnx",
         )
+
+    @patch(
+        "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_diversity.SentenceTransformer"
+    )
+    def test_warm_up_onnx_session_options(self, mocked_sentence_transformer):
+        ranker = SentenceTransformersDiversityRanker(
+            model_kwargs={"session_options": {"intra_op_num_threads": 1}}, backend="onnx"
+        )
+        ranker.warm_up()
+
+        session_options = mocked_sentence_transformer.call_args.kwargs["model_kwargs"]["session_options"]
+        assert isinstance(session_options, ort.SessionOptions)
+        assert session_options.intra_op_num_threads == 1
+        assert ranker.to_dict()["init_parameters"]["model_kwargs"]["session_options"] == {"intra_op_num_threads": 1}
 
     @patch(
         "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_diversity.SentenceTransformer"
