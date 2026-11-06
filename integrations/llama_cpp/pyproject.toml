@@ -7,7 +7,7 @@ name = "llama-cpp-haystack"
 dynamic = ["version"]
 description = 'An integration between the llama.cpp LLM framework and Haystack'
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = []
 authors = [
@@ -18,7 +18,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -65,6 +64,7 @@ dependencies = [
     "pip",
     "huggingface_hub",
     "transformers[sentencepiece]<5",
+    "sentencepiece>=0.2.3",  # Provides Python 3.15 wheels, avoiding GCC 15 build failures
 ]
 
 [tool.hatch.envs.test.scripts]

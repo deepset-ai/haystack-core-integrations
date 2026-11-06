@@ -1,5 +1,14 @@
 # Changelog
 
+## [integrations/langfuse-v8.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- Alias datetime imports as dt for ruff 0.17 ICN001 (#4088)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/langfuse-v7.0.0] - 2026-09-29
 
 ### 🐛 Bug Fixes

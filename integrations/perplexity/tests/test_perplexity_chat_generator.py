@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import httpx
@@ -24,7 +24,7 @@ from haystack_integrations.components.generators.perplexity.chat.chat_generator 
 def _make_response() -> Response:
     response_data = {
         "id": "resp_test",
-        "created_at": datetime.now(tz=timezone.utc).timestamp(),
+        "created_at": datetime.now(tz=UTC).timestamp(),
         "model": "openai/gpt-5.4",
         "object": "response",
         "output": [],
@@ -45,7 +45,7 @@ def _make_transport(captured: list[httpx.Request]) -> httpx.MockTransport:
             200,
             json={
                 "id": "resp_test",
-                "created_at": datetime.now(tz=timezone.utc).timestamp(),
+                "created_at": datetime.now(tz=UTC).timestamp(),
                 "model": "openai/gpt-5.4",
                 "object": "response",
                 "output": [],

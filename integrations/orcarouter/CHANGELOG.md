@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/orcarouter-v1.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+- Fix tests for integrations that inherit from the OpenAIChatGenerator (#3583)
+- Fix tests for openai>=3.0.0 (#3801)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Replace ToolInvoker with Agent in tests, examples and docstrings (#4108)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/orcarouter-v0.0.1] - 2026-06-23
 
 ### 🚀 Features

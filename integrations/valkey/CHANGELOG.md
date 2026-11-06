@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/valkey-v1.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/valkey-v0.5.0] - 2026-10-05
 
 ### 🚀 Features

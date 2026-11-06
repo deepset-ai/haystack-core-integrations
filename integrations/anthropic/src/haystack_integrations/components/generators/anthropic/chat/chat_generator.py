@@ -1,5 +1,5 @@
 import inspect
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -441,7 +441,7 @@ class AnthropicChatGenerator:
             reasoning = _process_reasoning_contents(chunks)
 
             completion.meta.update(
-                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
+                {"received_at": datetime.now(UTC).isoformat(), "model": model},
             )
 
             # `completion.meta["usage"]` is the usage of the last message_delta chunk
@@ -527,7 +527,7 @@ class AnthropicChatGenerator:
             reasoning = _process_reasoning_contents(chunks)
 
             completion.meta.update(
-                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
+                {"received_at": datetime.now(UTC).isoformat(), "model": model},
             )
 
             # `completion.meta["usage"]` is the usage of the last message_delta chunk

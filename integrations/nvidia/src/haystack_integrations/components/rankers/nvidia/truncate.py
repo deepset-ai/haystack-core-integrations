@@ -5,7 +5,7 @@
 from enum import Enum
 
 
-class RankerTruncateMode(str, Enum):
+class RankerTruncateMode(str, Enum):  # noqa: UP042 # StrEnum would change str() of this public enum
     """
     Specifies how inputs to the NVIDIA ranker components are truncated.
 

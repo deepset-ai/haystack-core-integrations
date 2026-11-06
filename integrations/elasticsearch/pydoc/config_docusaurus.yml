@@ -2,6 +2,9 @@ loaders:
   - modules:
       - haystack_integrations.components.retrievers.elasticsearch.bm25_retriever
       - haystack_integrations.components.retrievers.elasticsearch.embedding_retriever
+      - haystack_integrations.components.retrievers.elasticsearch.inference_dense_retriever
+      - haystack_integrations.components.retrievers.elasticsearch.inference_hybrid_retriever
+      - haystack_integrations.components.retrievers.elasticsearch.inference_sparse_retriever
       - haystack_integrations.components.retrievers.elasticsearch.sql_retriever
       - haystack_integrations.document_stores.elasticsearch.document_store
       - haystack_integrations.document_stores.elasticsearch.filters

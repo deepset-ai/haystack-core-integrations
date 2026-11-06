@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/amazon_textract-v2.0.0] - 2026-10-16
+
+### 🚜 Refactor
+
+- [**breaking**] Remove from_dict overrides that only call default_from_dict from 14 components (#4059)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/amazon_textract-v1.1.0] - 2026-09-07
 
 ### 🚀 Features

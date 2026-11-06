@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/llama_cpp-v3.0.2] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- *(llama_cpp)* Drop trailing empty assistant message before sending to llama.cpp (#4116)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/llama_cpp-v3.0.1] - 2026-10-15
 
 ### 🐛 Bug Fixes

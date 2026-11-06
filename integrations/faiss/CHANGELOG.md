@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/faiss-v3.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Use Python 3.11 in tests instead of 3.10 (#4103)
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- Switch remaining document stores to haystack.logging (#4011)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/faiss-v2.1.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

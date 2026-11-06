@@ -1,5 +1,38 @@
 # Changelog
 
+## [integrations/pgvector-v8.1.2] - 2026-10-21
+
+### 🚀 Features
+
+- *(pgvector)* Ensure safe SQL handling for HNSW index creation and embedding queries (#4139)
+
+
+## [integrations/pgvector-v8.1.1] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- *(pgvector)* Pass document ids as a bound parameter in delete_docum… (#4135)
+
+
+## [integrations/pgvector-v8.1.0] - 2026-10-20
+
+### 🚀 Features
+
+- *(pgvector)* Make PgvectorDocumentStore connection overridable for PostgreSQL-backed stores (#4129)
+
+
+## [integrations/pgvector-v8.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/pgvector-v7.0.0] - 2026-09-29
 
 ### 🐛 Bug Fixes

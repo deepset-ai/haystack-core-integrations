@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/transformers-v2.0.1] - 2026-11-06
+
+### 🐛 Bug Fixes
+
+- *(transformers)* Respect zero score_threshold and overlap_threshold overrides in TransformersExtractiveReader (#4159)
+- *(transformers)* Respect zero stride override in TransformersExtractiveReader (#4177)
+
+
+## [integrations/transformers-v2.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/transformers-v1.1.0] - 2026-10-07
 
 ### 🚜 Refactor

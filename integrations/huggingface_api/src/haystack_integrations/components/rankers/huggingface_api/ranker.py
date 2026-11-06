@@ -21,7 +21,7 @@ with LazyImport("Run 'pip install \"huggingface-api-haystack[grpc]\"' for grpc s
     from grpc_requests.aio import AsyncClient
 
 
-class TruncationDirection(str, Enum):
+class TruncationDirection(str, Enum):  # noqa: UP042 # StrEnum would change str() of this public enum
     """
     Defines the direction to truncate text when input length exceeds the model's limit.
 
