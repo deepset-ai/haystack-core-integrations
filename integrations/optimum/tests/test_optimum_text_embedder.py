@@ -242,9 +242,15 @@ class TestComponentLifecycle:
         backend.warm_up.assert_called_once()
         assert embedder._backend is backend
 
-    def test_warm_up_with_session_options(self, mock_check_valid_model):  # noqa: ARG002
-        embedder = OptimumTextEmbedder(
-            pooling_mode="mean", model_kwargs={"session_options": {"intra_op_num_threads": 1}}
+    def test_from_dict_warm_up_with_session_options(self, mock_check_valid_model):  # noqa: ARG002
+        embedder = OptimumTextEmbedder.from_dict(
+            {
+                "type": "haystack_integrations.components.embedders.optimum.optimum_text_embedder.OptimumTextEmbedder",
+                "init_parameters": {
+                    "pooling_mode": "mean",
+                    "model_kwargs": {"session_options": {"intra_op_num_threads": 1}},
+                },
+            }
         )
         backend_module = "haystack_integrations.components.embedders.optimum._backend"
         with (
