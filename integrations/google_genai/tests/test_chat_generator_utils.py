@@ -705,47 +705,43 @@ class TestStreamingChunkConversion:
         assert "thought_signatures" in result.meta
         assert result.meta["thought_signatures"][0]["signature"] == "sig_xyz"
 
-    def test_aggregate_streaming_chunks_accumulates_thought_signatures_across_chunks(self, monkeypatch):
+    def test_aggregate_streaming_chunks_accumulates_thought_signatures_across_chunks(self):
         """Signature deltas from earlier chunks must not be overwritten by later ones."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+        model = "gemini-2.5-flash"
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator(model=model))
+        parts = [
+            types.Part(
+                text="Checking the weather.",
+                thought=True,
+                thought_signature=b"reasoning_signature",
+            ),
+            types.Part(
+                function_call=types.FunctionCall(name="get_weather", args={"city": "Paris"}),
+                thought_signature=b"tool_signature",
+            ),
+        ]
+        chunks = [
+            _convert_google_chunk_to_streaming_chunk(
+                chunk=types.GenerateContentResponse(
+                    candidates=[types.Candidate(content=types.Content(role="model", parts=[part]))]
+                ),
+                index=index,
+                component_info=component_info,
+                model=model,
+            )
+            for index, part in enumerate(parts)
+        ]
 
-        chunk1 = StreamingChunk(
-            content="",
-            component_info=component_info,
-            index=0,
-            meta={
-                "thought_signature_deltas": [
-                    {
-                        "part_index": 0,
-                        "signature": "sig_first",
-                        "has_text": False,
-                        "has_function_call": True,
-                        "is_thought": False,
-                    }
-                ],
-            },
-        )
-        chunk2 = StreamingChunk(
-            content="",
-            component_info=component_info,
-            index=1,
-            meta={
-                "thought_signature_deltas": [
-                    {
-                        "part_index": 1,
-                        "signature": "sig_second",
-                        "has_text": False,
-                        "has_function_call": True,
-                        "is_thought": False,
-                    }
-                ],
-            },
-        )
+        result = _aggregate_streaming_chunks_with_reasoning(chunks)
 
-        result = _aggregate_streaming_chunks_with_reasoning([chunk1, chunk2])
-
-        assert [sig["signature"] for sig in result.meta["thought_signatures"]] == ["sig_first", "sig_second"]
+        assert result.reasoning.reasoning_text == "Checking the weather."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].tool_name == "get_weather"
+        assert result.tool_calls[0].arguments == {"city": "Paris"}
+        assert [base64.b64decode(signature["signature"]) for signature in result.meta["thought_signatures"]] == [
+            b"reasoning_signature",
+            b"tool_signature",
+        ]
 
     def test_convert_google_chunk_to_streaming_chunk_with_cached_tokens(self, monkeypatch):
         """cached_content_token_count from usage_metadata is included in the streaming chunk's usage."""

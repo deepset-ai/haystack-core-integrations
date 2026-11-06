@@ -300,17 +300,14 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
             parts.append(types.Part(**part_dict))
 
         # Append parallel tool calls that had no thought signature of their own.
-        if message.tool_calls:
-            while tool_call_index < len(message.tool_calls):
-                tool_call = message.tool_calls[tool_call_index]
-                parts.append(
-                    types.Part(
-                        function_call=types.FunctionCall(
-                            id=tool_call.id, name=tool_call.tool_name, args=tool_call.arguments
-                        )
+        for tool_call in message.tool_calls[tool_call_index:]:
+            parts.append(
+                types.Part(
+                    function_call=types.FunctionCall(
+                        id=tool_call.id, name=tool_call.tool_name, args=tool_call.arguments
                     )
                 )
-                tool_call_index += 1
+            )
 
         # Append unsigned text that was not covered by a signed text part.
         if message.text and message.text.strip() and not included_non_thought_text:
