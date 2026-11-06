@@ -13,6 +13,7 @@ from haystack.dataclasses import (
     ChatRole,
     FileContent,
     ImageContent,
+    ReasoningContent,
     StreamingChunk,
     TextContent,
     ToolCall,
@@ -1448,6 +1449,32 @@ class TestAmazonBedrockChatGeneratorInference:
         final_message = results["replies"][0]
         assert not final_message.tool_call
         assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    def test_live_run_with_tool_call_from_other_provider_and_thinking(self, tools):
+        component = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+            tools=tools,
+            generation_kwargs={"maxTokens": 8192, "thinking": {"type": "enabled", "budget_tokens": 1024}},
+        )
+        # Tool call and reasoning as produced by OpenAIResponsesChatGenerator: the reasoning has no signature
+        tool_call = ToolCall(id="call_a82vwFAIzku9SmBuQuecQSRq", tool_name="weather", arguments={"city": "Paris"})
+        messages = [
+            ChatMessage.from_user("What's the weather like in Paris?"),
+            ChatMessage.from_assistant(
+                tool_calls=[tool_call],
+                reasoning=ReasoningContent(
+                    reasoning_text="I need to use the weather tool.", extra={"id": "rs_0d13efdd", "type": "reasoning"}
+                ),
+            ),
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+
+        results = component.run(messages)
+
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
         assert "paris" in final_message.text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_THINKING_TOOLS_STREAMING)

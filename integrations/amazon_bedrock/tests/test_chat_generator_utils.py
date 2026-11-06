@@ -570,29 +570,35 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
-        tool_call_message_with_redacted = ChatMessage.from_assistant(
+    @pytest.mark.parametrize(
+        "reasoning_extra",
+        [
+            {},
+            # reasoning produced by OpenAIResponsesChatGenerator
+            {"id": "rs_123", "type": "reasoning", "encrypted_content": "gAAAA...", "status": "completed"},
+        ],
+    )
+    def test_format_messages_drops_reasoning_without_signature(self, reasoning_extra):
+        reasoning = ReasoningContent(reasoning_text="Reasoning from another provider.", extra=reasoning_extra)
+        text_message = ChatMessage.from_assistant("This is a test message.", reasoning=reasoning)
+        tool_call_message = ChatMessage.from_assistant(
             "This is a test message with a tool call.",
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
-            reasoning=ReasoningContent(
-                reasoning_text="[REDACTED]",
-                extra={},
-            ),
+            reasoning=reasoning,
         )
-        formatted_message = _format_messages([tool_call_message_with_redacted])[1][0]
-        assert formatted_message == {
-            "role": "assistant",
-            "content": [
-                {"reasoningContent": {"reasoningText": {"text": "[REDACTED]"}}},
-                {"text": "This is a test message with a tool call."},
-                {
-                    "toolUse": {
-                        "toolUseId": "123",
-                        "name": "test_tool",
-                        "input": {"key": "value"},
-                    }
-                },
-            ],
-        }
+
+        formatted_messages = _format_messages([text_message, tool_call_message])[1]
+
+        assert formatted_messages == [
+            {"role": "assistant", "content": [{"text": "This is a test message."}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"text": "This is a test message with a tool call."},
+                    {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
+                ],
+            },
+        ]
 
     def test_format_user_message(self):
         plain_user_message = ChatMessage.from_user("This is a test message.")
