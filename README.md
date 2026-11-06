@@ -4,16 +4,16 @@
 
 | Name                                                                                                                         |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/backend.py                         |       32 |        2 |        6 |        1 |     92% |   117-118 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/sparse\_backend.py                 |       28 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_doc\_image\_embedder.py       |       77 |        1 |       22 |        2 |     97% |181-\>183, 238 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_document\_embedder.py         |       69 |        2 |       18 |        1 |     97% |  175, 267 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_document\_embedder.py |       61 |        2 |       16 |        1 |     96% |  135, 221 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_text\_embedder.py     |       50 |        2 |       12 |        1 |     95% |  112, 195 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_text\_embedder.py             |       59 |        2 |       14 |        1 |     96% |  160, 250 |
-| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_diversity.py                    |      151 |        9 |       40 |        6 |     91% |204-\>exit, 244, 259, 390-391, 412, 425-428 |
-| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_similarity.py                   |       78 |        2 |       20 |        2 |     96% |146, 152-\>exit, 250 |
-| **TOTAL**                                                                                                                    |  **605** |   **22** |  **152** |   **15** | **95%** |           |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/backend.py                         |       43 |        2 |       10 |        1 |     94% |   144-145 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/sparse\_backend.py                 |       29 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_doc\_image\_embedder.py       |       77 |        1 |       22 |        2 |     97% |184-\>186, 241 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_document\_embedder.py         |       69 |        2 |       18 |        1 |     97% |  178, 270 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_document\_embedder.py |       61 |        2 |       16 |        1 |     96% |  138, 224 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_text\_embedder.py     |       50 |        2 |       12 |        1 |     95% |  115, 198 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_text\_embedder.py             |       59 |        2 |       14 |        1 |     96% |  163, 253 |
+| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_diversity.py                    |      152 |        7 |       40 |        4 |     93% |210-\>exit, 400-401, 422, 435-438 |
+| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_similarity.py                   |       79 |        2 |       20 |        2 |     96% |152, 158-\>exit, 260 |
+| **TOTAL**                                                                                                                    |  **619** |   **20** |  **156** |   **13** | **95%** |           |
 
 
 ## Setup coverage badge
