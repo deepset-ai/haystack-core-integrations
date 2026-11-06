@@ -4,6 +4,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import onnxruntime as ort
 import pytest
 from haystack.utils.auth import Secret
 from huggingface_hub.utils import RepositoryNotFoundError
@@ -200,6 +201,19 @@ class TestInitializationSerialization:
         assert embedder._params.quantizer_settings is None
         assert embedder._backend is None
 
+    def test_from_dict_with_only_some_init_parameters(self):
+        data = {
+            "type": "haystack_integrations.components.embedders.optimum.optimum_text_embedder.OptimumTextEmbedder",
+            "init_parameters": {"model": "sentence-transformers/all-minilm-l6-v2"},
+        }
+
+        embedder = OptimumTextEmbedder.from_dict(data)
+
+        assert embedder._params.model == "sentence-transformers/all-minilm-l6-v2"
+        assert embedder._params.pooling_mode is None
+        assert embedder._params.optimizer_settings is None
+        assert embedder._params.quantizer_settings is None
+
 
 class TestComponentLifecycle:
     def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
@@ -227,6 +241,24 @@ class TestComponentLifecycle:
         backend_class.assert_called_once()
         backend.warm_up.assert_called_once()
         assert embedder._backend is backend
+
+    def test_warm_up_with_session_options(self, mock_check_valid_model):  # noqa: ARG002
+        embedder = OptimumTextEmbedder(
+            pooling_mode="mean", model_kwargs={"session_options": {"intra_op_num_threads": 1}}
+        )
+        backend_module = "haystack_integrations.components.embedders.optimum._backend"
+        with (
+            patch(f"{backend_module}.ORTModelForFeatureExtraction") as mock_model_class,
+            patch(f"{backend_module}.AutoTokenizer"),
+            patch(f"{backend_module}.SentenceTransformerPoolingLayer"),
+            patch(f"{backend_module}._EmbedderBackend._tokenize_and_generate_outputs", return_value=(None, MagicMock())),
+        ):
+            embedder.warm_up()
+
+        session_options = mock_model_class.from_pretrained.call_args.kwargs["session_options"]
+        assert isinstance(session_options, ort.SessionOptions)
+        assert session_options.intra_op_num_threads == 1
+        assert embedder.to_dict()["init_parameters"]["model_kwargs"]["session_options"] == {"intra_op_num_threads": 1}
 
     def test_warm_up_with_invalid_model(self, mock_check_valid_model):
         mock_check_valid_model.side_effect = RepositoryNotFoundError("Invalid model id")
