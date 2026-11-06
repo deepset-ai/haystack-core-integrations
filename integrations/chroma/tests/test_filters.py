@@ -51,3 +51,28 @@ def test_parse_logical_condition_errors(condition, match):
 def test_parse_comparison_condition_errors(condition, match):
     with pytest.raises(ChromaDocumentStoreFilterError, match=match):
         _parse_comparison_condition(condition)
+
+
+@pytest.mark.parametrize("content_first", [True, False])
+def test_and_filter_mixing_content_and_metadata(content_first):
+    content = {"field": "content", "operator": "contains", "value": "x"}
+    meta = {"field": "meta.a", "operator": "==", "value": 1}
+    conditions = [content, meta] if content_first else [meta, content]
+    result = _convert_filters({"operator": "AND", "conditions": conditions})
+    assert result.ids == []
+    assert result.where == {"a": {"$eq": 1}}
+    assert result.where_document == {"$contains": "x"}
+
+
+def test_and_filter_mixing_content_and_several_metadata_conditions():
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.a", "operator": "==", "value": 1},
+            {"field": "content", "operator": "contains", "value": "x"},
+            {"field": "meta.b", "operator": ">", "value": 2},
+        ],
+    }
+    result = _convert_filters(filters)
+    assert result.where == {"$and": [{"a": {"$eq": 1}}, {"b": {"$gt": 2}}]}
+    assert result.where_document == {"$contains": "x"}
