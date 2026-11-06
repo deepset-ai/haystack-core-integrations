@@ -2,16 +2,18 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-google_genai/htmlcov/index.html)
 
-| Name                                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|------------------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/common/google\_genai/utils.py                                        |       38 |        0 |       20 |        2 |     97% |16-\>exit, 29-\>exit |
-| src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py             |      118 |        6 |       38 |        5 |     93% |251, 261, 284, 294, 352-356 |
-| src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      176 |        8 |       64 |        7 |     94% |392-393, 415, 436-\>409, 459, 469-470, 473-478, 480-\>453 |
-| src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       64 |        8 |       12 |        1 |     88% |207, 232-233, 251-256 |
-| src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py          |      188 |        2 |       46 |        3 |     98% |427-\>429, 632, 636 |
-| src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                    |      312 |       24 |      182 |       22 |     89% |234-235, 276-278, 285-\>294, 299-\>304, 343-345, 414-\>304, 477, 487-489, 527-\>561, 530-\>561, 535, 545-\>547, 548-553, 557-558, 574, 587, 598, 603-604, 692-\>663, 765-\>771, 771-\>757, 781, 787 |
-| src/haystack\_integrations/token\_counters/google\_genai/token\_counter.py                      |       58 |        3 |       18 |        3 |     92% |92, 146-147, 156-\>exit |
-| **TOTAL**                                                                                       |  **954** |   **51** |  **380** |   **43** | **93%** |           |
+| Name                                                                                                 |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|----------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/common/google\_genai/utils.py                                             |       38 |        0 |       20 |        2 |     97% |16-\>exit, 29-\>exit |
+| src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py                  |      118 |        6 |       38 |        5 |     93% |251, 261, 284, 294, 352-356 |
+| src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py      |      176 |        8 |       64 |        7 |     94% |392-393, 415, 436-\>409, 459, 469-470, 473-478, 480-\>453 |
+| src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                      |       64 |        8 |       12 |        1 |     88% |207, 232-233, 251-256 |
+| src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py               |      188 |        2 |       46 |        3 |     98% |430-\>432, 635, 639 |
+| src/haystack\_integrations/components/generators/google\_genai/chat/interactions\_chat\_generator.py |      124 |        0 |       28 |        3 |     98% |219-\>exit, 225-\>exit, 407-\>400 |
+| src/haystack\_integrations/components/generators/google\_genai/chat/interactions\_utils.py           |      255 |        6 |      134 |        7 |     97% |217-221, 230-231, 236-\>234, 246-247, 554-\>557, 566-\>568, 568-\>570 |
+| src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                         |      312 |       24 |      182 |       22 |     89% |234-235, 276-278, 285-\>294, 299-\>304, 343-345, 414-\>304, 477, 487-489, 527-\>561, 530-\>561, 535, 545-\>547, 548-553, 557-558, 574, 587, 598, 603-604, 692-\>663, 765-\>771, 771-\>757, 781, 787 |
+| src/haystack\_integrations/token\_counters/google\_genai/token\_counter.py                           |       58 |        3 |       18 |        3 |     92% |92, 146-147, 156-\>exit |
+| **TOTAL**                                                                                            | **1333** |   **57** |  **542** |   **53** | **94%** |           |
 
 
 ## Setup coverage badge
