@@ -226,10 +226,7 @@ class AmazonBedrockChatGenerator:
             - `cache_control` (optional): A dictionary of cache control options.
                 See [Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
                 for more details on cache control options.
-                For example to enable automatic prompt caching:
-                    "cache_control": {
-                        "type": "ephemeral"
-                    }
+                To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
             - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
                 - `schema` (required): a JSON Schema dict describing the expected output structure.
                 - `name` (optional): a name for the schema, defaults to ``"response_schema"``.

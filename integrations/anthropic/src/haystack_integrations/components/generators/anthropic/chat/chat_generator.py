@@ -177,10 +177,7 @@ class AnthropicChatGenerator:
             - `cache_control`: A dictionary of cache control options to be passed to the model.
                 See [Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
                 for more details on cache control options.
-                For example to enable automatic prompt caching:
-                    "cache_control": {
-                        "type": "ephemeral"
-                    }
+                To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
 
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
