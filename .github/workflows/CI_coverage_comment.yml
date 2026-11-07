@@ -61,6 +61,7 @@ on:
       - "Test / mcp"
       - "Test / mem0"
       - "Test / microsoft_sharepoint"
+      - "Test / minicpm_ocr"
       - "Test / mirage"
       - "Test / mistral"
       - "Test / mongodb_atlas"
