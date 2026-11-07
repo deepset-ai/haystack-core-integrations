@@ -25,6 +25,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_tool_result_message,
     _format_tools,
     _format_user_message,
+    _make_schema_strict,
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
@@ -111,8 +112,28 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         specs = [entry["toolSpec"] for entry in formatted["tools"] if "toolSpec" in entry]
         assert [spec["strict"] for spec in specs] == [True, True]
-        assert specs[0]["inputSchema"] == {"json": tools[0].parameters}
+        assert specs[0]["inputSchema"]["json"]["additionalProperties"] is False
         assert formatted["tools"][-1] == {"cachePoint": {"type": "default"}}
+
+    def test_make_schema_strict_closes_nested_objects_and_drops_unsupported_formats(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "raw": {"type": "object", "properties": {"data": {"type": "string", "format": "binary"}}},
+                "when": {"type": "string", "format": "date-time"},
+                "docs": {"type": "array", "items": {"$ref": "#/$defs/Doc"}},
+            },
+            "$defs": {"Doc": {"type": "object", "properties": {"content": {"type": "string"}}}},
+        }
+
+        strict = _make_schema_strict(schema)
+
+        assert strict["additionalProperties"] is False
+        assert strict["properties"]["raw"]["additionalProperties"] is False
+        assert "format" not in strict["properties"]["raw"]["properties"]["data"]
+        assert strict["properties"]["when"]["format"] == "date-time"
+        assert strict["$defs"]["Doc"]["additionalProperties"] is False
+        assert "additionalProperties" not in schema  # the input is not mutated
 
     def test_format_tools_is_not_strict_by_default(self, tools):
         formatted = _format_tools(tools)
