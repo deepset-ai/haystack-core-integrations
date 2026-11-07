@@ -175,7 +175,8 @@ class AnthropicChatGenerator:
                 For more details and supported models, see: [Anthropic Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)
             - `output_config`: A dictionary of output configuration options to be passed to the model.
             - `cache_control`: A dictionary of cache control options to be passed to the model.
-                See [Anthropic Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) for more details on cache control options.
+                See [Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+                for more details on cache control options.
                 For example to enable automatic prompt caching:
                     "cache_control": {
                         "type": "ephemeral"
