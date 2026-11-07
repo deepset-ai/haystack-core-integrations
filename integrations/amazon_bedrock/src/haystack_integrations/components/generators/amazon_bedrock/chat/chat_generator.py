@@ -224,7 +224,8 @@ class AmazonBedrockChatGenerator:
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
             - `cache_control` (optional): A dictionary of cache control options.
-                See [Amazon Bedrock Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html) for more details on cache control options.
+                See [Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
+                for more details on cache control options.
                 For example to enable automatic prompt caching:
                     "cache_control": {
                         "type": "ephemeral"
