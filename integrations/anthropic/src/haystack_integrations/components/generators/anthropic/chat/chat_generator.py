@@ -115,6 +115,7 @@ class AnthropicChatGenerator:
         "extra_headers",
         "thinking",
         "output_config",
+        "cache_control",
     ]
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
@@ -171,9 +172,12 @@ class AnthropicChatGenerator:
             - `top_k`: The top_k value to use for top-k sampling.
             - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
             - `thinking`: A dictionary of thinking parameters to be passed to the model.
-                The `budget_tokens` passed for thinking should be less than `max_tokens`.
-                For more details and supported models, see: [Anthropic Extended Thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+                For more details and supported models, see: [Anthropic Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)
             - `output_config`: A dictionary of output configuration options to be passed to the model.
+            - `cache_control`: A dictionary of cache control options to be passed to the model.
+                See [Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+                for more details on cache control options.
+                To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
 
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
@@ -384,6 +388,12 @@ class AnthropicChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        cache_control_ttl = generation_kwargs.pop("cache_control_ttl", None)
+        if cache_control_ttl is not None:
+            cache_control = generation_kwargs.setdefault("cache_control", {})
+            cache_control["ttl"] = cache_control_ttl
+            cache_control.setdefault("type", "ephemeral")  # only supported value
 
         for nested_name in ("tool_choice", "thinking", "output_config"):
             prefix = f"{nested_name}_"

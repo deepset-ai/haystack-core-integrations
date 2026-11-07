@@ -223,6 +223,10 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `cache_control` (optional): A dictionary of cache control options.
+                See [Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
+                for more details on cache control options.
+                To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
             - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
                 - `schema` (required): a JSON Schema dict describing the expected output structure.
                 - `name` (optional): a name for the schema, defaults to ``"response_schema"``.
@@ -565,6 +569,12 @@ class AmazonBedrockChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        cache_control_ttl = generation_kwargs.pop("cache_control_ttl", None)
+        if cache_control_ttl is not None:
+            cache_control = generation_kwargs.setdefault("cache_control", {})
+            cache_control["ttl"] = cache_control_ttl
+            cache_control.setdefault("type", "ephemeral")  # only supported value
 
         for nested_name in ("tool_choice", "thinking", "output_config"):
             prefix = f"{nested_name}_"
