@@ -74,14 +74,54 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 }
 
 
+# string formats accepted by strict tool use; other formats (e.g. `binary` from `ByteStream`) are rejected
+_STRICT_SUPPORTED_STRING_FORMATS = {
+    "date-time",
+    "time",
+    "date",
+    "duration",
+    "email",
+    "hostname",
+    "uri",
+    "ipv4",
+    "ipv6",
+    "uuid",
+}
+
+
+def _make_schema_strict(schema: Any) -> Any:
+    """
+    Return a copy of a JSON schema adapted to strict tool use.
+
+    Strict tool use requires `additionalProperties: false` on every object and rejects unsupported string formats.
+    """
+    if isinstance(schema, list):
+        return [_make_schema_strict(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+
+    strict_schema = {key: _make_schema_strict(value) for key, value in schema.items()}
+    if strict_schema.get("type") == "object" or "properties" in strict_schema:
+        strict_schema["additionalProperties"] = False
+    if strict_schema.get("type") == "string" and strict_schema.get("format") not in _STRICT_SUPPORTED_STRING_FORMATS:
+        strict_schema.pop("format", None)
+    return strict_schema
+
+
 # Haystack to Bedrock util methods
 def _format_tools(
-    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, dict[str, str]] | None = None
+    tools: list[Tool] | None = None,
+    tools_cachepoint_config: dict[str, dict[str, str]] | None = None,
+    *,
+    strict: bool = False,
 ) -> dict[str, Any] | None:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
     :param tools: List of Tool objects to format
+    :param tools_cachepoint_config: Cache point appended after the tool specs, if any.
+    :param strict: Whether to mark each tool spec `strict`, enforcing its input schema on the model's tool calls.
+        The input schema is rewritten to the subset strict tool use accepts.
     :returns:
         Dictionary in Bedrock toolConfig format or None if no tools are provided
     """
@@ -90,9 +130,14 @@ def _format_tools(
 
     tool_specs: list[dict[str, Any]] = []
     for tool in tools:
-        tool_specs.append(
-            {"toolSpec": {"name": tool.name, "description": tool.description, "inputSchema": {"json": tool.parameters}}}
-        )
+        tool_spec: dict[str, Any] = {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": {"json": _make_schema_strict(tool.parameters) if strict else tool.parameters},
+        }
+        if strict:
+            tool_spec["strict"] = True
+        tool_specs.append({"toolSpec": tool_spec})
 
     if tools_cachepoint_config:
         tool_specs.append(tools_cachepoint_config)

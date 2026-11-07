@@ -18,7 +18,7 @@ from haystack.dataclasses import (
     TextContent,
     ToolCall,
 )
-from haystack.tools import Tool, Toolset, create_tool_from_function
+from haystack.tools import Tool, Toolset, create_tool_from_function, tool
 from haystack.utils import Secret
 
 from haystack_integrations.common.amazon_bedrock.errors import (
@@ -244,6 +244,7 @@ class TestAmazonBedrockChatGenerator:
                 },
                 "tools_cachepoint_config": None,
                 "system_cachepoint_config": None,
+                "tools_strict": False,
             },
         }
 
@@ -416,6 +417,7 @@ class TestAmazonBedrockChatGenerator:
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
                         "system_cachepoint_config": None,
+                        "tools_strict": False,
                     },
                 }
             },
@@ -608,6 +610,31 @@ class TestAmazonBedrockChatGenerator:
                 },
             ]
         }
+
+    def test_prepare_request_params_tools_strict(self):
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=lambda city: city,
+        )
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", tools=[weather_tool], tools_strict=True
+        )
+
+        request_params, _ = generator._prepare_request_params(messages=[ChatMessage.from_user("Weather in Paris?")])
+
+        assert request_params["toolConfig"]["tools"][0]["toolSpec"]["strict"] is True
+
+    def test_tools_strict_leaves_a_tool_config_in_generation_kwargs_as_given(self):
+        tool_config = {"tools": [{"toolSpec": {"name": "weather", "inputSchema": {"json": {"type": "object"}}}}]}
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", generation_kwargs={"toolConfig": tool_config}, tools_strict=True
+        )
+
+        request_params, _ = generator._prepare_request_params(messages=[ChatMessage.from_user("Weather in Paris?")])
+
+        assert request_params["toolConfig"] == tool_config
 
     @pytest.mark.parametrize(
         "generation_kwargs,additional_model_request_fields",
@@ -1260,6 +1287,30 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
+
+    def test_live_run_with_tools_strict_and_decorated_tool(self):
+        """
+        Strict tool use rejects schemas without `additionalProperties: false`, which `@tool` does not set.
+        """
+
+        @tool
+        def get_weather(city: str, days: int = 1) -> str:
+            """Get the weather forecast for a city.
+
+            :param city: The city to look up.
+            :param days: Number of forecast days.
+            """
+            return f"sunny in {city} for {days} days"
+
+        component = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", tools=[get_weather], tools_strict=True
+        )
+        results = component.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
+
+        message = results["replies"][0]
+        assert message.tool_call is not None
+        assert message.tool_call.tool_name == "get_weather"
+        assert message.tool_call.arguments["city"] == "Paris"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     def test_live_run_with_multi_tool_calls(self, model_name, tools):
