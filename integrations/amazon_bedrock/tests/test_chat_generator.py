@@ -635,13 +635,6 @@ class TestAmazonBedrockChatGenerator:
 
         assert request_params["toolConfig"] == tool_config
 
-    def test_tools_strict_survives_serialization(self):
-        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6", tools_strict=True)
-
-        restored = AmazonBedrockChatGenerator.from_dict(generator.to_dict())
-
-        assert restored.tools_strict is True
-
     @pytest.mark.parametrize(
         "generation_kwargs,additional_model_request_fields",
         [

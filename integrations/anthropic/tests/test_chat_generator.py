@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import anthropic
 import pytest
+from anthropic import transform_schema
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
@@ -20,7 +21,7 @@ from haystack.dataclasses import (
     TextContent,
     ToolCall,
 )
-from haystack.tools import Tool, Toolset, create_tool_from_function
+from haystack.tools import Tool, Toolset, create_tool_from_function, tool
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.anthropic.chat.chat_generator import (
@@ -140,7 +141,8 @@ class TestToolsStrict:
         *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
 
         assert [tool["strict"] for tool in anthropic_tools] == [True] * len(tools)
-        assert anthropic_tools[0]["input_schema"] == tools[0].parameters
+        assert anthropic_tools[0]["input_schema"] == transform_schema(tools[0].parameters)
+        assert anthropic_tools[0]["input_schema"]["additionalProperties"] is False
 
     def test_tools_strict_leaves_server_tools_as_given(self, monkeypatch, tools):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
@@ -150,14 +152,6 @@ class TestToolsStrict:
         *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
 
         assert anthropic_tools[-1] == server_tool
-
-    def test_tools_strict_survives_serialization(self, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        component = AnthropicChatGenerator(tools_strict=True)
-
-        restored = AnthropicChatGenerator.from_dict(component.to_dict())
-
-        assert restored.tools_strict is True
 
 
 class TestSerialization:
@@ -200,6 +194,7 @@ class TestSerialization:
             anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search"}],
             timeout=10.0,
             max_retries=1,
+            tools_strict=True,
         )
         data = component.to_dict()
 
@@ -219,15 +214,16 @@ class TestSerialization:
                 "anthropic_server_tools": [{"type": "web_search_20250305", "name": "web_search"}],
                 "timeout": 10.0,
                 "max_retries": 1,
-                "tools_strict": False,
+                "tools_strict": True,
             },
         }
 
         assert data == expected_dict
 
-        # deserializing the serialized component must reproduce the original tool
+        # deserializing the serialized component must reproduce the original tool and tools_strict
         loaded = AnthropicChatGenerator.from_dict(component.to_dict())
         assert loaded.tools == [tool]
+        assert loaded.tools_strict is True
 
     def test_from_dict(self, monkeypatch):
         """
@@ -256,9 +252,11 @@ class TestSerialization:
                         },
                     },
                 ],
+                "tools_strict": True,
             },
         }
         component = AnthropicChatGenerator.from_dict(data)
+        assert component.tools_strict is True
 
         assert isinstance(component, AnthropicChatGenerator)
         assert component.model == "claude-sonnet-4-5"
@@ -995,6 +993,28 @@ class TestIntegration:
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
+
+    def test_live_run_with_tools_strict_and_decorated_tool(self):
+        """
+        Strict tool use rejects schemas without `additionalProperties: false`, which `@tool` does not set.
+        """
+
+        @tool
+        def get_weather(city: str, days: int = 1) -> str:
+            """Get the weather forecast for a city.
+
+            :param city: The city to look up.
+            :param days: Number of forecast days.
+            """
+            return f"sunny in {city} for {days} days"
+
+        component = AnthropicChatGenerator(tools=[get_weather], tools_strict=True)
+        results = component.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
+
+        message = results["replies"][0]
+        assert message.tool_call is not None
+        assert message.tool_call.tool_name == "get_weather"
+        assert message.tool_call.arguments["city"] == "Paris"
 
     def test_live_run_with_parallel_tools(self, tools):
         """

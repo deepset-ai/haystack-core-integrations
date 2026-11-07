@@ -22,7 +22,7 @@ from haystack.tools import (
 from haystack.utils.auth import Secret
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
-from anthropic import Anthropic, AsyncAnthropic
+from anthropic import Anthropic, AsyncAnthropic, transform_schema
 from anthropic.resources.messages.messages import Message, RawMessageStreamEvent, Stream
 from anthropic.types import (
     MessageParam,
@@ -339,7 +339,10 @@ class AnthropicChatGenerator:
         anthropic_tools: list[Any] = []
         if flattened_tools:
             for tool in flattened_tools:
-                tool_param = ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
+                # strict tool use requires `additionalProperties: false` on every object and rejects some
+                # JSON schema keywords, so the SDK rewrites the schema into the supported subset
+                input_schema = transform_schema(tool.parameters) if self.tools_strict else tool.parameters
+                tool_param = ToolParam(name=tool.name, description=tool.description, input_schema=input_schema)
                 if self.tools_strict:
                     tool_param["strict"] = True
                 anthropic_tools.append(tool_param)
