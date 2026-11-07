@@ -727,6 +727,21 @@ class TestAmazonBedrockChatGenerator:
                     "output_config": {"effort": "high"},
                 },
             ),
+            (
+                # cache_control is forwarded unchanged
+                {"cache_control": {"type": "ephemeral"}},
+                {"cache_control": {"type": "ephemeral"}},
+            ),
+            (
+                # cache_control_ttl is merged into cache_control, defaulting the type to ephemeral
+                {"cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
+            (
+                # cache_control_ttl overrides the ttl of an existing cache_control
+                {"cache_control": {"type": "ephemeral", "ttl": "5m"}, "cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
         ],
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(

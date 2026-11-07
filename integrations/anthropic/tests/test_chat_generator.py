@@ -562,6 +562,21 @@ class TestRun:
                     "output_config": {"effort": "high"},
                 },
             ),
+            (
+                # cache_control is forwarded unchanged
+                {"cache_control": {"type": "ephemeral"}},
+                {"cache_control": {"type": "ephemeral"}},
+            ),
+            (
+                # cache_control_ttl is merged into cache_control, defaulting the type to ephemeral
+                {"cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
+            (
+                # cache_control_ttl overrides the ttl of an existing cache_control
+                {"cache_control": {"type": "ephemeral", "ttl": "5m"}, "cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
         ],
     )
     def test_run_with_flattened_generation_kwargs(
@@ -582,6 +597,8 @@ class TestRun:
         assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
         assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
         assert actual_kwargs.get("service_tier") == expected_kwargs.get("service_tier")
+        assert actual_kwargs.get("cache_control") == expected_kwargs.get("cache_control")
+        assert "cache_control_ttl" not in actual_kwargs
 
     def test_run_with_flattened_generation_kwargs_does_not_leak_across_runs(self, chat_messages, mock_chat_completion):
         init_generation_kwargs = {
