@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from haystack_integrations.components.generators.hetzner.chat.chat_generator import HetznerChatGenerator
 
 DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B-FP8"
-DEFAULT_API_BASE_URL = "https://inference.hetzner.com/api/v1"
+DEFAULT_API_BASE_URL = "https://inference.hetzner.com/v1"
 COMPONENT_TYPE = "haystack_integrations.components.generators.hetzner.chat.chat_generator.HetznerChatGenerator"
 
 requires_api_key = pytest.mark.skipif(

@@ -185,24 +185,27 @@ class ArcadeDBDocumentStore:
             raise RuntimeError(msg)
         return resp.json()
 
+    def _database_exists(self) -> bool:
+        """Check whether the database exists on the server."""
+        url = f"{self._url}/api/v1/exists/{self._database}"
+        resp = self._ensure_session().get(url, auth=self._auth())
+        if resp.status_code >= HTTPStatus.BAD_REQUEST:
+            msg = f"ArcadeDB exists check failed ({resp.status_code}): {resp.text}"
+            raise RuntimeError(msg)
+        return resp.json().get("result") is True
+
     def _ensure_initialized(self) -> None:
         if self._initialized:
             return
 
         # 1. Optionally create the database
-        if self._create_database:
-            try:
-                self._server_command(f"CREATE DATABASE {self._database}")
-                logger.info("Created database '{database}'", database=self._database)
-            except RuntimeError:
-                logger.debug("Database '{database}' already exists or cannot be created", database=self._database)
+        if self._create_database and not self._database_exists():
+            self._server_command(f"CREATE DATABASE {self._database}")
+            logger.info("Created database '{database}'", database=self._database)
 
-        # 2. Optionally drop existing type
+        # 2. Optionally drop existing type. `IF EXISTS` already covers a missing type, so any error here is a real one.
         if self._recreate_type:
-            try:
-                self._command(f"DROP TYPE `{self._type_name}` IF EXISTS UNSAFE")
-            except RuntimeError:
-                pass
+            self._command(f"DROP TYPE `{self._type_name}` IF EXISTS UNSAFE")
 
         # 3. Create vertex type + properties
         self._command(f"CREATE VERTEX TYPE `{self._type_name}` IF NOT EXISTS")
@@ -212,20 +215,16 @@ class ArcadeDBDocumentStore:
         self._command(f"CREATE PROPERTY `{self._type_name}`.meta IF NOT EXISTS MAP")
 
         # 4. Unique index on id
-        try:
-            self._command(f"CREATE INDEX ON `{self._type_name}` (id) UNIQUE")
-        except RuntimeError:
-            logger.debug("Unique index on id already exists")
+        self._command(f"CREATE INDEX IF NOT EXISTS ON `{self._type_name}` (id) UNIQUE")
 
         # 5. LSM_VECTOR index on embedding (HNSW-based, ACID-compliant)
         metric = self._SIMILARITY_MAP.get(self._similarity_function, "COSINE")
-        try:
-            self._command(
-                f"CREATE INDEX IF NOT EXISTS ON `{self._type_name}` (embedding) LSM_VECTOR "
-                f"METADATA {{ dimensions: {self._embedding_dimension}, similarity: '{metric}' }}"
-            )
-        except RuntimeError:
-            logger.debug("Vector index on embedding already exists")
+        # Since ArcadeDB 26.10.1, this also raises if the index exists with a different dimension or similarity.
+        # We don't catch it, so a store that doesn't match the existing index fails early.
+        self._command(
+            f"CREATE INDEX IF NOT EXISTS ON `{self._type_name}` (embedding) LSM_VECTOR "
+            f"METADATA {{ dimensions: {self._embedding_dimension}, similarity: '{metric}' }}"
+        )
 
         self._initialized = True
         logger.info(
@@ -309,6 +308,7 @@ class ArcadeDBDocumentStore:
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
         """
         Private helper to fetch sample documents for schema inference.
+
         Note: Does not `_ensure_initialized()`. To avoid redundant
         initialization checks during internal calls, the caller is responsible for
         ensuring the document store is initialized before invoking this method.
@@ -320,6 +320,7 @@ class ArcadeDBDocumentStore:
     def _infer_metadata_field_type(values: list[Any]) -> str:
         """
         Infers the metadata field type from a list of sampled values.
+
         :param values: A list of raw Python values sampled from the field.
         :returns: A type string — one of ``"boolean"``, ``"double"``, ``"long"``, or ``"keyword"``.
             Returns ``"keyword"`` if values are empty or of mixed types.
@@ -524,7 +525,8 @@ class ArcadeDBDocumentStore:
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
-        Counts the number of documents matching the provided filter
+        Counts the number of documents matching the provided filter.
+
         :param filters: The filters to apply to the documents
         :returns: The number of documents that match the filter
         """
@@ -546,6 +548,7 @@ class ArcadeDBDocumentStore:
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Counts unique values for each metadata field in documents matching the provided filters.
+
         :param filters: The filters to apply to the document list.
         :param metadata_fields: Metadata fields for which to count unique values.
         :returns: A dictionary where keys are metadata field names and values are the
@@ -577,6 +580,7 @@ class ArcadeDBDocumentStore:
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
         Returns the metadata fields and their corresponding types based on sampled documents.
+
         :returns: A dictionary mapping field names to dictionaries with a `type` key.
         """
         self._ensure_initialized()
@@ -603,6 +607,7 @@ class ArcadeDBDocumentStore:
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
         For a given metadata field, finds its min and max values.
+
         :param metadata_field: The metadata field to inspect.
         :returns: A dictionary with `min` and `max` keys and their corresponding values.
         """
@@ -627,8 +632,7 @@ class ArcadeDBDocumentStore:
         filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
-        Retrieves unique values for a field matching a search term or all possible values
-        if no search term is given.
+        Retrieves unique values for a field matching a search term, or all values if no search term is given.
 
         **Note**: values of different types are kept distinct even when they compare equal in Python, so
         the int `1`, the float `1.0`, the bool `True` and the str `"1"` are returned as four separate

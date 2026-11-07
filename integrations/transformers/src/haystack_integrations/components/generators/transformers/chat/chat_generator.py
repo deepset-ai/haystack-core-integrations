@@ -511,7 +511,7 @@ class TransformersChatGenerator:
             # Ensure the queue processor is cleaned up properly
             try:
                 await asyncio.wait_for(queue_processor, timeout=0.1)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 queue_processor.cancel()
                 with suppress(asyncio.CancelledError):
                     await queue_processor

@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/weaviate-v8.0.1] - 2026-11-04
+
+### 🐛 Bug Fixes
+
+- *(weaviate)* Drop multivector_embedding when writing documents (#4192)
+
+### 🧹 Chores
+
+- Bump Weaviate test server to 1.39.13 (#4144)
+
+
+## [integrations/weaviate-v8.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Honor explicit zero distance/certainty, raise FilterError for unknown operators, and use Weaviate's native NOT for negating contains operator (#3957)
+
+### 🧪 Testing
+
+- Cover Weaviate filters, retriever components and pipeline serde (#3958)
+- Run Weaviate serde and conversion tests in the unit job (#3955)
+
+### 🧹 Chores
+
+- Alias datetime imports as dt for ruff 0.17 ICN001 (#4088)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/weaviate-v7.9.0] - 2026-09-21
 
 ### 🚀 Features

@@ -7,7 +7,7 @@ name = "azure-form-recognizer-haystack"
 dynamic = ["version"]
 description = "Haystack integration for Azure Document Intelligence using the Form Recognizer SDK"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = [
     "Azure",
@@ -25,7 +25,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -102,6 +101,13 @@ select = [
     "ARG",
     "B",
     "C",
+    "D102",   # Missing docstring in public method
+    "D103",   # Missing docstring in public function
+    "D205",   # 1 blank line required between summary line and description
+    "D209",   # Closing triple quotes go to new line
+    "D213",   # summary lines must be positioned on the second physical line of the docstring
+    "D417",   # Missing argument descriptions in the docstring
+    "D419",   # Docstring is empty
     "DTZ",
     "E",
     "EM",

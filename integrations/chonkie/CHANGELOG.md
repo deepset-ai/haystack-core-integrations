@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/chonkie-v2.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/chonkie-v1.1.0] - 2026-09-04
 
 ### 🐛 Bug Fixes

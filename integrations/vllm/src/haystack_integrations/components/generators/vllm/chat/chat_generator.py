@@ -19,7 +19,7 @@ from haystack.components.generators.utils import (
     _serialize_object,
 )
 from haystack.core.component import component
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ToolCall
 from haystack.dataclasses.chat_message import ReasoningContent
 from haystack.dataclasses.streaming_chunk import (
     ComponentInfo,
@@ -43,6 +43,18 @@ from openai.types.chat.chat_completion import Choice
 from haystack_integrations.common.vllm.utils import _create_async_openai_client, _create_openai_client
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_chat_history_to_vllm_format(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+    """
+    Convert a list of ChatMessages to the OpenAI format expected by the vLLM Chat API.
+
+    A trailing assistant message with no text and no tool calls is left out. Sent as an empty assistant turn, it makes
+    some models, such as Qwen3 with thinking enabled, stop after their reasoning without writing an answer.
+    """
+    if messages and messages[-1].is_from(ChatRole.ASSISTANT) and not messages[-1].texts and not messages[-1].tool_calls:
+        messages = messages[:-1]
+    return [message.to_openai_dict_format() for message in messages]
 
 
 def _convert_chat_completion_to_chat_message(completion: ChatCompletion, choice: Choice) -> ChatMessage:
@@ -340,7 +352,7 @@ class VLLMChatGenerator:
         """Build the kwargs dict for the OpenAI chat completions API call."""
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
-        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
+        openai_formatted_messages = _convert_chat_history_to_vllm_format(messages=messages)
 
         flattened_tools = flatten_tools_or_toolsets(tools if tools is not None else self.tools)
         _check_duplicate_tool_names(flattened_tools)

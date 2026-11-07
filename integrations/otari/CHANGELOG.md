@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/otari-v2.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Otari - drop Python 3.10 and test with Python 3.15 (#4117)
+
+
 ## [integrations/otari-v1.0.0] - 2026-10-15
 
 ### 🚀 Features

@@ -383,12 +383,19 @@ class SnowflakeTableRetriever:
                 cursor.execute(query)
 
                 # Fetch results and convert to Polars DataFrame
-                columns = [desc[0] for desc in cursor.description]
+                description = cursor.description
+                if description is None:
+                    msg = "Query returned no column metadata; cannot build a DataFrame."
+                    raise ValueError(msg)
+                columns = [desc[0] for desc in description]
                 data = cursor.fetchall()
 
                 # Convert to Polars DataFrame
                 if data:
-                    data_dict = {col: [row[i] for row in data] for i, col in enumerate(columns)}
+                    data_dict = {
+                        col: [row[col] if isinstance(row, dict) else row[i] for row in data]
+                        for i, col in enumerate(columns)
+                    }
                     return pl.DataFrame(data_dict)
                 else:
                     return pl.DataFrame()

@@ -285,7 +285,7 @@ class TestCometAPIChatGenerator:
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message = results["replies"][0]
-        assert message.text is None
+        assert not message.text
 
         assert message.tool_calls
         tool_call = message.tool_call
