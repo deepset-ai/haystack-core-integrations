@@ -1,0 +1,38 @@
+{
+  "file name": "report.pdf",
+  "number of pages": 2,
+  "author": null,
+  "title": "Annual Report",
+  "creation date": "2024-01-01",
+  "modification date": "2024-06-01",
+  "kids": [
+    {
+      "type": "heading",
+      "page number": 1,
+      "bounding box": [72, 700, 510, 740],
+      "heading level": 1,
+      "content": "Report",
+      "font": "Helvetica"
+    },
+    {
+      "type": "image",
+      "page number": 1,
+      "bounding box": [72, 400, 200, 500],
+      "data": "base64-image-bytes"
+    },
+    {
+      "type": "text block",
+      "page number": 2,
+      "bounding box": [72, 700, 510, 800],
+      "kids": [
+        {
+          "type": "heading",
+          "page number": 2,
+          "bounding box": [72, 700, 510, 740],
+          "heading level": 2,
+          "content": "Results"
+        }
+      ]
+    }
+  ]
+}

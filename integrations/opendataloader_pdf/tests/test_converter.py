@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import json
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -10,6 +15,9 @@ import haystack_integrations.components.converters.opendataloader_pdf.converter 
 from haystack_integrations.components.converters.opendataloader_pdf import (
     OpenDataLoaderConverter,
 )
+
+_SAMPLE_JSON = json.loads((Path(__file__).parent / "test_files" / "sample.json").read_text(encoding="utf-8"))
+_SAMPLE_MARKDOWN = "# Report\n\nPage one content\f## Results\n\nPage two content"
 
 
 @pytest.fixture
@@ -39,21 +47,27 @@ def _mock_opendataloader(monkeypatch):
             }
         )
         output_dir = Path(output_dir)
-        extension = {
-            "markdown": "md",
-            "text": "txt",
-            "html": "html",
-            "json": "json",
-        }[kwargs["format"]]
+        formats = kwargs["format"]
+        if isinstance(formats, str):
+            formats = [formats]
 
         for pdf in input_path:
             pdf_path = Path(pdf)
-            output_file = output_dir / f"{pdf_path.stem}.{extension}"
-
-            output_file.write_text(
-                "This is extracted PDF content",
-                encoding="utf-8",
-            )
+            for output_format in formats:
+                extension = {
+                    "markdown": "md",
+                    "text": "txt",
+                    "html": "html",
+                    "json": "json",
+                }[output_format]
+                if output_format == "json":
+                    text = json.dumps(_SAMPLE_JSON)
+                elif output_format == "markdown" and "json" in formats:
+                    text = _SAMPLE_MARKDOWN
+                else:
+                    text = "This is extracted PDF content"
+                output_file = output_dir / f"{pdf_path.stem}.{extension}"
+                output_file.write_text(text, encoding="utf-8")
 
             if kwargs["image_output"] == "external":
                 image_dir = Path(kwargs["image_dir"])
@@ -436,15 +450,81 @@ def test_converter_serialization(tmp_path):
         convert_kwargs={"hybrid": "docling-fast"},
         extract_images=True,
         image_output_dir=image_output_dir,
+        raw_json=True,
     )
     data = converter.to_dict()
     restored = OpenDataLoaderConverter.from_dict(data)
 
     assert data["init_parameters"]["image_output_dir"] == str(image_output_dir)
+    assert data["init_parameters"]["raw_json"] is True
     assert restored.output_format == "text"
     assert restored.convert_kwargs["hybrid"] == "docling-fast"
     assert restored.extract_images is True
     assert restored.image_output_dir == image_output_dir
+    assert restored.raw_json is True
+
+    data["init_parameters"].pop("raw_json")
+    assert OpenDataLoaderConverter.from_dict(data).raw_json is False
+
+
+def test_converter_json_puts_markdown_in_content(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json")
+
+    result = converter.run(sources=[pdf_file], meta={"title": "User Title"})
+    call = _mock_opendataloader[0]
+    document = result["documents"][0]
+
+    assert call["format"] == ["json", "markdown"]
+    assert call["markdown_page_separator"] == "\f"
+    assert document.content == _SAMPLE_MARKDOWN
+    assert document.meta["output_format"] == "json"
+    assert document.meta["title"] == "User Title"
+    assert document.meta["creation_date"] == "2024-01-01"
+    assert document.meta["modification_date"] == "2024-06-01"
+    assert document.meta["page_count"] == 2
+    assert "author" not in document.meta
+    assert "file name" not in document.meta
+    assert document.meta["layout"] == [
+        {
+            "type": "heading",
+            "page_number": 1,
+            "bounding_box": [72, 700, 510, 740],
+            "heading_level": 1,
+        },
+        {
+            "type": "image",
+            "page_number": 1,
+            "bounding_box": [72, 400, 200, 500],
+        },
+        {
+            "type": "text block",
+            "page_number": 2,
+            "bounding_box": [72, 700, 510, 800],
+        },
+        {
+            "type": "heading",
+            "page_number": 2,
+            "bounding_box": [72, 700, 510, 740],
+            "heading_level": 2,
+        },
+    ]
+
+
+def test_converter_raw_json(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json", raw_json=True)
+
+    result = converter.run(sources=[pdf_file])
+    call = _mock_opendataloader[0]
+    document = result["documents"][0]
+
+    assert call["format"] == "json"
+    assert "markdown_page_separator" not in call
+    assert json.loads(document.content) == _SAMPLE_JSON
+    assert document.meta == {"file_path": "document.pdf", "output_format": "json"}
 
 
 @pytest.mark.integration
@@ -461,6 +541,20 @@ def test_real_pdf_conversion():
     assert document.content
     assert document.meta["file_path"] == "hello_world.pdf"
     assert document.meta["output_format"] == "markdown"
+
+
+@pytest.mark.integration
+def test_real_pdf_json_conversion():
+    pdf_file = Path(__file__).parent / "test_files" / "hello_world.pdf"
+    converter = OpenDataLoaderConverter(output_format="json")
+    result = converter.run(sources=[pdf_file])
+
+    assert len(result["documents"]) == 1
+    document = result["documents"][0]
+    assert document.content
+    assert not document.content.lstrip().startswith("{")
+    assert document.meta["file_path"] == "hello_world.pdf"
+    assert document.meta["output_format"] == "json"
 
 
 @pytest.mark.integration

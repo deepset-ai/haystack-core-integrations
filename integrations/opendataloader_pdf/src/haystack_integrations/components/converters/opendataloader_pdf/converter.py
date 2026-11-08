@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -54,6 +55,7 @@ class OpenDataLoaderConverter:
         convert_kwargs: dict[str, Any] | None = None,
         extract_images: bool = False,
         image_output_dir: str | Path | None = None,
+        raw_json: bool = False,
     ) -> None:
         """
         Initialize the OpenDataLoader converter.
@@ -65,6 +67,7 @@ class OpenDataLoaderConverter:
         :param extract_images: Whether to extract images and return them through the `image_documents` output.
         :param image_output_dir: Persistent root directory for extracted image files. Each `run()` stores its images
             in a unique subdirectory of this directory. Required when `extract_images` is `True`.
+        :param raw_json: If `True` with `output_format="json"`, store the JSON string in `Document.content`.
         :raises ValueError: If image extraction is enabled without an output directory.
         """
         conversion_options = convert_kwargs.copy() if convert_kwargs else {}
@@ -83,6 +86,7 @@ class OpenDataLoaderConverter:
         self.convert_kwargs = conversion_options
         self.extract_images = extract_images
         self.image_output_dir = Path(image_output_dir) if image_output_dir is not None else None
+        self.raw_json = raw_json
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -97,6 +101,7 @@ class OpenDataLoaderConverter:
             convert_kwargs=self.convert_kwargs,
             extract_images=self.extract_images,
             image_output_dir=str(self.image_output_dir) if self.image_output_dir is not None else None,
+            raw_json=self.raw_json,
         )
 
     @classmethod
@@ -188,6 +193,44 @@ class OpenDataLoaderConverter:
             raise RuntimeError(message)
         return output_file.read_text(encoding="utf-8")
 
+    @staticmethod
+    def _meta_from_json(data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Map OpenDataLoader JSON fields and compact layout into Haystack Document metadata.
+
+        :param data: Parsed OpenDataLoader JSON document.
+        :returns:
+            Root PDF fields and a compact layout list. Null root fields are omitted.
+        """
+        meta: dict[str, Any] = {}
+        for source, dest in (
+            ("title", "title"),
+            ("author", "author"),
+            ("creation date", "creation_date"),
+            ("modification date", "modification_date"),
+            ("number of pages", "page_count"),
+        ):
+            value = data.get(source)
+            if value is not None:
+                meta[dest] = value
+
+        layout: list[dict[str, Any]] = []
+        nodes = list(data.get("kids") or [])
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            page = node.get("page number")
+            bbox = node.get("bounding box")
+            if page is not None and bbox is not None:
+                item: dict[str, Any] = {"type": node.get("type"), "page_number": page, "bounding_box": bbox}
+                if "heading level" in node:
+                    item["heading_level"] = node["heading level"]
+                layout.append(item)
+            nodes.extend(kid for kid in (node.get("kids") or []) if isinstance(kid, dict))
+        if layout:
+            meta["layout"] = layout
+        return meta
+
     @component.output_types(documents=list[Document], image_documents=list[Document])
     def run(
         self,
@@ -230,15 +273,32 @@ class OpenDataLoaderConverter:
             if image_dir is not None:
                 conversion_kwargs.update(image_output="external", image_dir=str(image_dir))
 
+            parsed_json = self.output_format == "json" and not self.raw_json
+            if parsed_json:
+                convert_format: str | list[str] = ["json", "markdown"]
+                conversion_kwargs.setdefault("markdown_page_separator", "\f")
+            else:
+                convert_format = self.output_format
+
             opendataloader_pdf.convert(
                 input_path=[str(pdf_path) for pdf_path, _ in prepared_sources],
                 output_dir=str(output_dir),
-                format=self.output_format,
+                format=convert_format,
                 **conversion_kwargs,
             )
             for pdf_path, document_meta in prepared_sources:
                 content = self._read_output(output_dir=output_dir, pdf_path=pdf_path)
-                documents.append(Document(content=content, meta={**document_meta, "output_format": self.output_format}))
+                extra_meta: dict[str, Any] = {}
+                if parsed_json:
+                    extra_meta = self._meta_from_json(json.loads(content))
+                    markdown_file = output_dir / f"{pdf_path.stem}.md"
+                    if not markdown_file.exists():
+                        message = f"OpenDataLoader did not create expected file: {markdown_file}"
+                        raise RuntimeError(message)
+                    content = markdown_file.read_text(encoding="utf-8")
+                documents.append(
+                    Document(content=content, meta={**extra_meta, **document_meta, "output_format": self.output_format})
+                )
 
         if image_dir is not None:
             image_documents = [
