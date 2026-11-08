@@ -375,6 +375,11 @@ integration:otari:
       - any-glob-to-any-file: "integrations/otari/**/*"
       - any-glob-to-any-file: ".github/workflows/otari.yml"
 
+integration:outcrawl:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/outcrawl/**/*"
+      - any-glob-to-any-file: ".github/workflows/outcrawl.yml"
+
 integration:paddleocr:
   - changed-files:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
