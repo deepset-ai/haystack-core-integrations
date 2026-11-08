@@ -119,7 +119,12 @@ def _build_field_expr(field: str, value: Any) -> str:
             if isinstance(first, float):
                 return f"CAST({base} AS DECIMAL(65,30))"
         return base
-    # Top-level document field (id, content, etc.) — backtick-quoted
+    # Top-level document field (id, content, etc.). Backtick quoting alone is not
+    # safe: a field name containing a backtick escapes the quoting, so the name
+    # must be validated first, the same way meta field names already are.
+    if not _SAFE_FIELD_RE.match(field):
+        msg = f"Invalid document field name: '{field}'"
+        raise FilterError(msg)
     return f"`{field}`"
 
 

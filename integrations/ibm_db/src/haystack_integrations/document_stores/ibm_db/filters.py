@@ -2,12 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from datetime import datetime
 from typing import Any, ClassVar
 
 from haystack.errors import FilterError
 
 _RANGE_OPS = {">", ">=", "<", "<="}
+
+# Same allowlist the Oracle integration uses for its JSON path field names, plus
+# hyphens, which this integration already documents as supported in field names.
+_SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.\-]+$")
+
+
+def _validate_field_path(field_path: str) -> None:
+    if not _SAFE_FIELD_PATH.match(field_path):
+        msg = f"Invalid metadata field name: {field_path!r}"
+        raise FilterError(msg)
 
 
 class FilterTranslator:
@@ -151,6 +162,9 @@ class FilterTranslator:
             field_path = field[5:]
         else:
             field_path = field
+        # The field path is interpolated into a JSON path string inside the SQL
+        # statement, so it must be validated rather than passed through raw.
+        _validate_field_path(field_path)
 
         # Use the `RETURNING VARCHAR(1000)` clause *inside* JSON_VALUE (as the rest of the
         # document store does) rather than CAST(JSON_VALUE(...) AS VARCHAR). With the CAST form,

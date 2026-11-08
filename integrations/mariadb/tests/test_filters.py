@@ -172,3 +172,32 @@ class TestFilterConversion:
     def test_invalid_filters_raise(self, filters, match):
         with pytest.raises(FilterError, match=match):
             _convert_filters_to_where_clause_and_params(filters)
+
+
+class TestTopLevelFieldValidation:
+    """Top-level (non-meta) field names must be validated before backtick quoting."""
+
+    @pytest.mark.parametrize(
+        ("field", "operator", "value"),
+        [
+            ("id", "==", "doc-1"),
+            ("content", "like", "%python%"),
+        ],
+    )
+    def test_valid_top_level_fields_pass(self, field, operator, value):
+        clause, params = _convert_filters_to_where_clause_and_params(
+            {"field": field, "operator": operator, "value": value}
+        )
+        assert f"`{field}`" in clause
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "id` OR 1=1 --",
+            "content`; DROP TABLE documents; --",
+            "id` UNION SELECT * FROM information_schema.tables --",
+        ],
+    )
+    def test_backtick_injection_in_top_level_field_rejected(self, field):
+        with pytest.raises(FilterError, match="Invalid document field name"):
+            _convert_filters_to_where_clause_and_params({"field": field, "operator": "==", "value": 1})
