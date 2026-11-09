@@ -431,7 +431,7 @@ class TestQdrantDocumentStoreUnit:
 
     def test_get_metadata_fields_info_includes_unindexed_fields_when_some_are_indexed(self):
         document_store = QdrantDocumentStore(location=":memory:")
-        schema = {"meta.category": rest.PayloadIndexInfo(data_type=rest.PayloadSchemaType.KEYWORD, points=1)}
+        schema = {"meta.category": rest.PayloadIndexInfo(data_type=rest.PayloadSchemaType.TEXT, points=1)}
         client = MagicMock()
         client.get_collection.return_value = SimpleNamespace(payload_schema=schema)
         client.scroll.return_value = (
@@ -442,8 +442,8 @@ class TestQdrantDocumentStoreUnit:
 
         fields = document_store.get_metadata_fields_info()
 
-        # The indexed type wins over the inferred one; the unindexed field comes from scrolling.
-        assert fields == {"category": {"type": "keyword"}, "priority": {"type": "long"}}
+        # "news" would be inferred as "keyword", so "text" proves the indexed type wins.
+        assert fields == {"category": {"type": "text"}, "priority": {"type": "long"}}
         client.scroll.assert_called_once()
 
     def test_close(self):
