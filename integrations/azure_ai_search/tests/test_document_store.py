@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import io
-import json
 import logging
 import os
 import random
@@ -11,12 +9,8 @@ from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 import pytest
-import requests
-import urllib3
-from azure.core.credentials import AzureKeyCredential, TokenCredential
-from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
-from azure.core.pipeline.transport import RequestsTransport
-from azure.search.documents import SearchClient
+from azure.core.credentials import TokenCredential
+from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents.indexes.models import (
     CustomAnalyzer,
     SearchableField,
@@ -539,71 +533,30 @@ def test_get_raw_documents_by_id_skips_not_found(caplog):
     assert "missing" in caplog.text
 
 
-class _FakeSearchService(requests.adapters.BaseAdapter):
-    """
-    Answers the real SearchClient's HTTP requests in place of Azure AI Search.
-
-    A batch with failed documents gets 207 Multi-Status and one result per document, as the service sends it.
-    """
-
-    def __init__(self, status_code=200, failures=None, search_ids=()):
-        super().__init__()
-        self.status_code = status_code
-        self.failures = failures or {}  # document key -> (status code, error message)
-        self.search_ids = list(search_ids)
-        self.batches = []
-
-    def send(self, request, **kwargs):  # noqa: ARG002
-        response = requests.Response()
-        response.request = request
-        response.url = request.url
-        response.headers["Content-Type"] = "application/json"
-        if "/docs/search.post.search" in request.url:
-            response.status_code = 200
-            body = {"value": [{"@search.score": 1.0, "id": doc_id} for doc_id in self.search_ids]}
-        else:
-            actions = json.loads(request.body)["value"]
-            self.batches.append(actions)
-            response.status_code = self.status_code
-            if self.status_code >= 400:
-                body = {"error": {"code": "ServiceUnavailable", "message": "The service is too busy."}}
-            else:
-                results = []
-                for action in actions:
-                    code, message = self.failures.get(action["id"], (200, None))
-                    results.append(
-                        {"key": action["id"], "status": code < 300, "statusCode": code, "errorMessage": message}
-                    )
-                body = {"value": results}
-        response.raw = urllib3.HTTPResponse(
-            body=io.BytesIO(json.dumps(body).encode()), status=response.status_code, preload_content=False
-        )
-        return response
-
-    def close(self):
-        pass
-
-
-def _build_document_store_with_fake_service(service):
-    fields = [
+def _build_mock_document_store_for_indexing():
+    index_fields = [
         SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
         SearchableField(name="content", type=SearchFieldDataType.String),
         SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
         SearchField(name="embedding", type=SearchFieldDataType.Collection(SearchFieldDataType.Single)),
     ]
-    store, _, index_client = _build_mock_document_store_with_schema(fields)
-    session = requests.Session()
-    session.mount("https://", service)
-    # retry_total=0 so the request-level 503 below fails at once instead of after the SDK's backoff
-    index_client.get_search_client.return_value = SearchClient(
-        "https://fake.search.windows.net",
-        "test-index",
-        AzureKeyCredential("fake-api-key"),
-        transport=RequestsTransport(session=session, session_owner=False),
-        retry_total=0,
-    )
-    _ = store.client  # loads the index fields, as any earlier call on the store would
-    return store
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    _ = document_store.client  # loads the index fields, as any earlier call on the store would
+    return document_store, search_client
+
+
+def _indexing_results(keys, failures=None):
+    """
+    Build the per-document results that `upload_documents` and `merge_documents` return.
+
+    :param failures: Maps a document key to the (status code, error message) Azure AI Search reports for it.
+    """
+    failures = failures or {}
+    results = []
+    for key in keys:
+        status_code, error_message = failures.get(key, (200, None))
+        results.append(Mock(key=key, succeeded=status_code < 300, status_code=status_code, error_message=error_message))
+    return results
 
 
 _DOCS = [Document(id=doc_id, content=doc_id, meta={"category": "news"}) for doc_id in ("doc-a", "doc-b", "doc-c")]
@@ -618,11 +571,11 @@ _DOCS = [Document(id=doc_id, content=doc_id, meta={"category": "news"}) for doc_
     ids=["some_documents_rejected", "all_documents_rejected"],
 )
 def test_write_documents_raises_when_documents_are_rejected(failures):
-    service = _FakeSearchService(status_code=207, failures=failures)
-    store = _build_document_store_with_fake_service(service)
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.upload_documents.return_value = _indexing_results([doc.id for doc in _DOCS], failures=failures)
 
     with pytest.raises(DocumentStoreError) as error:
-        store.write_documents(_DOCS)
+        document_store.write_documents(_DOCS)
 
     for doc_id, (code, message) in failures.items():
         assert f"Document '{doc_id}': {code} {message}" in str(error.value)
@@ -631,11 +584,13 @@ def test_write_documents_raises_when_documents_are_rejected(failures):
 
 def test_write_documents_error_lists_at_most_ten_rejected_documents():
     docs = [Document(id=f"doc-{i}", content=str(i)) for i in range(50)]
-    service = _FakeSearchService(status_code=207, failures={doc.id: (503, "busy") for doc in docs})
-    store = _build_document_store_with_fake_service(service)
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.upload_documents.return_value = _indexing_results(
+        [doc.id for doc in docs], failures={doc.id: (503, "busy") for doc in docs}
+    )
 
     with pytest.raises(DocumentStoreError) as error:
-        store.write_documents(docs)
+        document_store.write_documents(docs)
 
     assert "50 of 50 documents were not written" in str(error.value)
     assert str(error.value).count("Document 'doc-") == 10
@@ -643,28 +598,23 @@ def test_write_documents_error_lists_at_most_ten_rejected_documents():
 
 
 def test_write_documents_returns_count_when_all_documents_are_indexed():
-    service = _FakeSearchService(status_code=200)
-    store = _build_document_store_with_fake_service(service)
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.upload_documents.return_value = _indexing_results([doc.id for doc in _DOCS])
 
-    assert store.write_documents(_DOCS) == 3
-    assert [action["id"] for action in service.batches[0]] == ["doc-a", "doc-b", "doc-c"]
-
-
-def test_write_documents_raises_when_the_whole_request_fails():
-    store = _build_document_store_with_fake_service(_FakeSearchService(status_code=503))
-
-    with pytest.raises(HttpResponseError):
-        store.write_documents(_DOCS)
+    assert document_store.write_documents(_DOCS) == 3
+    uploaded = search_client.upload_documents.call_args.args[0]
+    assert [doc["id"] for doc in uploaded] == ["doc-a", "doc-b", "doc-c"]
 
 
 def test_update_by_filter_raises_when_documents_are_rejected():
-    service = _FakeSearchService(
-        status_code=207, failures={"doc-b": (409, "Version conflict.")}, search_ids=["doc-a", "doc-b", "doc-c"]
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.search.return_value = [{"id": "doc-a"}, {"id": "doc-b"}, {"id": "doc-c"}]
+    search_client.merge_documents.return_value = _indexing_results(
+        ["doc-a", "doc-b", "doc-c"], failures={"doc-b": (409, "Version conflict.")}
     )
-    store = _build_document_store_with_fake_service(service)
 
     with pytest.raises(DocumentStoreError) as error:
-        store.update_by_filter(
+        document_store.update_by_filter(
             filters={"field": "meta.category", "operator": "==", "value": "news"}, meta={"category": "sport"}
         )
 
@@ -673,20 +623,18 @@ def test_update_by_filter_raises_when_documents_are_rejected():
 
 
 def test_update_by_filter_returns_count_when_all_documents_are_updated():
-    service = _FakeSearchService(status_code=200, search_ids=["doc-a", "doc-b"])
-    store = _build_document_store_with_fake_service(service)
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.search.return_value = [{"id": "doc-a"}, {"id": "doc-b"}]
+    search_client.merge_documents.return_value = _indexing_results(["doc-a", "doc-b"])
 
-    updated = store.update_by_filter(
+    updated = document_store.update_by_filter(
         filters={"field": "meta.category", "operator": "==", "value": "news"}, meta={"category": "sport"}
     )
 
     assert updated == 2
-    assert service.batches == [
-        [
-            {"@search.action": "merge", "id": "doc-a", "category": "sport"},
-            {"@search.action": "merge", "id": "doc-b", "category": "sport"},
-        ]
-    ]
+    search_client.merge_documents.assert_called_once_with(
+        documents=[{"id": "doc-a", "category": "sport"}, {"id": "doc-b", "category": "sport"}]
+    )
 
 
 def _assert_documents_are_equal(received: list[Document], expected: list[Document]):
