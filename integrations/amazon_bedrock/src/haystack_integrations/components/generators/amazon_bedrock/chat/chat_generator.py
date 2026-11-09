@@ -223,7 +223,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-            - `cache_control` (optional): A dictionary of cache control options.
+            - `cache_control`: A dictionary of cache control options.
                 See [Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
                 for more details on cache control options.
                 To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
