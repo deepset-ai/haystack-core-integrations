@@ -207,6 +207,38 @@ class TestQdrantDocumentStoreAsyncUnit:
 
         assert document_store._async_client is None
 
+    @pytest.mark.parametrize(
+        "method_name, query_kwargs",
+        [
+            ("_query_by_embedding_async", {"query_embedding": [0.1] * 768}),
+            ("_query_by_sparse_async", {"query_sparse_embedding": SparseEmbedding(indices=[0], values=[0.1])}),
+        ],
+    )
+    @pytest.mark.parametrize("scale_score, expected_score", [(True, 0.75), (False, 0.5)])
+    async def test_query_with_group_by_scale_score_async(self, method_name, query_kwargs, scale_score, expected_score):
+        document_store = QdrantDocumentStore(location=":memory:", similarity="cosine", use_sparse_embeddings=True)
+        mock_client = AsyncMock()
+        point = rest.ScoredPoint(id=1, version=0, score=0.5, payload={"id": "1", "content": "doc"})
+        mock_client.query_points_groups.return_value = rest.GroupsResult(groups=[rest.PointGroup(id="a", hits=[point])])
+        document_store._async_client = mock_client
+
+        result = await getattr(document_store, method_name)(
+            **query_kwargs, group_by="meta.group", scale_score=scale_score
+        )
+
+        assert [doc.score for doc in result] == [expected_score]
+
+    async def test_write_documents_async_progress_bar_counts_documents(self):
+        document_store = QdrantDocumentStore(location=":memory:", write_batch_size=2)
+        document_store._async_client = AsyncMock()
+        with patch("haystack_integrations.document_stores.qdrant.document_store.tqdm") as mock_tqdm:
+            await document_store.write_documents_async(
+                [Document(content=str(i)) for i in range(3)], policy=DuplicatePolicy.OVERWRITE
+            )
+
+        progress_bar = mock_tqdm.return_value.__enter__.return_value
+        assert [c.args[0] for c in progress_bar.update.call_args_list] == [2, 1]
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio

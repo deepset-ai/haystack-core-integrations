@@ -89,7 +89,7 @@ check_untyped_defs = true
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
-module = "optimum.*"
+module = ["optimum.*", "onnxruntime"]
 ignore_missing_imports = true
 
 

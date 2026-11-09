@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/github-v3.0.1] - 2026-11-02
+
+### 🚀 Features
+
+- *(github)* Add utilities for URL encoding and validation, enhance error handling in operations and tests (#4142)
+
+
 ## [integrations/github-v3.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
