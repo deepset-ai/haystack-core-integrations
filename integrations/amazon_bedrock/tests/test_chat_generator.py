@@ -204,6 +204,7 @@ class TestAmazonBedrockChatGenerator:
                 "guardrailIdentifier": "test",
                 "guardrailVersion": "test",
             },
+            tools_strict=True,
         )
         expected_dict = {
             "type": CLASS_TYPE,
@@ -244,7 +245,7 @@ class TestAmazonBedrockChatGenerator:
                 },
                 "tools_cachepoint_config": None,
                 "system_cachepoint_config": None,
-                "tools_strict": False,
+                "tools_strict": True,
             },
         }
 
@@ -291,12 +292,14 @@ class TestAmazonBedrockChatGenerator:
                     "tools": None,
                     "stop_words": ["stop"],  # this parameter will be ignored
                     "guardrail_config": None,
+                    "tools_strict": True,
                 },
             }
         )
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
+        assert generator.tools_strict is True
 
     def test_from_dict_aws_region_name(self):
         """

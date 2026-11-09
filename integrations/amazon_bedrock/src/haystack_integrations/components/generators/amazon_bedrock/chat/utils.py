@@ -94,13 +94,24 @@ def _make_schema_strict(schema: Any) -> Any:
     Return a copy of a JSON schema adapted to strict tool use.
 
     Strict tool use requires `additionalProperties: false` on every object and rejects unsupported string formats.
+    Only schema positions are rewritten (`properties` values, `items`, `$defs`, `anyOf`/`oneOf`/`allOf`), so a
+    parameter that happens to be named `properties` or `type` is left alone.
     """
-    if isinstance(schema, list):
-        return [_make_schema_strict(item) for item in schema]
     if not isinstance(schema, dict):
         return schema
 
-    strict_schema = {key: _make_schema_strict(value) for key, value in schema.items()}
+    strict_schema = dict(schema)
+    for key in ("anyOf", "oneOf", "allOf"):
+        if isinstance(strict_schema.get(key), list):
+            strict_schema[key] = [_make_schema_strict(sub_schema) for sub_schema in strict_schema[key]]
+    for key in ("properties", "$defs"):
+        if isinstance(strict_schema.get(key), dict):
+            strict_schema[key] = {
+                name: _make_schema_strict(sub_schema) for name, sub_schema in strict_schema[key].items()
+            }
+    if "items" in strict_schema:
+        strict_schema["items"] = _make_schema_strict(strict_schema["items"])
+
     if strict_schema.get("type") == "object" or "properties" in strict_schema:
         strict_schema["additionalProperties"] = False
     if strict_schema.get("type") == "string" and strict_schema.get("format") not in _STRICT_SUPPORTED_STRING_FORMATS:

@@ -135,6 +135,24 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert strict["$defs"]["Doc"]["additionalProperties"] is False
         assert "additionalProperties" not in schema  # the input is not mutated
 
+    def test_make_schema_strict_does_not_treat_property_names_as_keywords(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "properties": {"type": "string"},
+                "type": {"type": "string", "format": "binary"},
+                "choice": {"anyOf": [{"type": "object", "properties": {"a": {"type": "string"}}}, {"type": "null"}]},
+            },
+        }
+
+        strict = _make_schema_strict(schema)
+
+        assert set(strict["properties"]) == {"properties", "type", "choice"}
+        assert strict["additionalProperties"] is False
+        assert "additionalProperties" not in strict["properties"]["properties"]
+        assert "format" not in strict["properties"]["type"]
+        assert strict["properties"]["choice"]["anyOf"][0]["additionalProperties"] is False
+
     def test_format_tools_is_not_strict_by_default(self, tools):
         formatted = _format_tools(tools)
 
