@@ -29,6 +29,8 @@ dependencies = [
   # wheels and caps requires-python at <3.14, so on Python 3.14 constrain to the last pure-Python
   # release.
   "litellm<1.83.8; python_version >= '3.14'",
+  # litellm 1.107.0 was compromised on PyPI (its wheels install a credential stealer), so never resolve to it.
+  "litellm!=1.107.0",
 ]
 
 [project.urls]

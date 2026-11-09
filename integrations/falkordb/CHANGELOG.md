@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/falkordb-v2.1.0] - 2026-10-28
+
+### 🚀 Features
+
+- *(falkordb)* Add text-to-Cypher natural language retrieval component (#4157)
+
+
 ## [integrations/falkordb-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

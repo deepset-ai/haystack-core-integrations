@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/supabase-v1.0.3] - 2026-10-21
+
+### 🧹 Chores
+
+- *(alloydb, supabase)* Bump pgvector-haystack to >=8.1.2 (#4143)
+
+
+## [integrations/supabase-v1.0.2] - 2026-10-21
+
+### 🧹 Chores
+
+- *(alloydb, supabase)* Bump pgvector-haystack to >=8.1.1 (#4138)
+
+
+## [integrations/supabase-v1.0.1] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- Paginate SupabaseGroongaDocumentStore reads and batch deletes (#4061)
+
+
 ## [integrations/supabase-v1.0.0] - 2026-10-16
 
 ### 🚜 Refactor

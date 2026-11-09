@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cognee-v1.0.1] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- *(cognee)* Exclude compromised litellm 1.107.0 (#4145)
+
+
 ## [integrations/cognee-v1.0.0] - 2026-10-16
 
 ### 🧹 Chores

@@ -4,7 +4,7 @@
 
 from typing import Any, Literal
 
-from haystack import component, default_from_dict, default_to_dict, logging
+from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
@@ -12,8 +12,6 @@ from haystack_integrations.components.embedders.sentence_transformers.embedding_
     _SentenceTransformersEmbeddingBackend,
     _SentenceTransformersEmbeddingBackendFactory,
 )
-
-logger = logging.getLogger(__name__)
 
 
 @component
@@ -96,6 +94,9 @@ class SentenceTransformersTextEmbedder:
         :param model_kwargs:
             Additional keyword arguments for `AutoModelForSequenceClassification.from_pretrained`
             when loading the model. Refer to specific model documentation for available kwargs.
+            With `backend="onnx"`, a `session_options` dict is turned into an `onnxruntime.SessionOptions` with
+            those attributes set, for example `{"session_options": {"intra_op_num_threads": 1}}` to limit
+            the threads each inference call uses.
         :param tokenizer_kwargs:
             Additional keyword arguments forwarded as `processor_kwargs` to the Sentence Transformers model
             when loading it. Refer to the
@@ -122,9 +123,10 @@ class SentenceTransformersTextEmbedder:
         :param quantization_ranges:
             Calibration ranges to use when `precision` is "int8" or "uint8", with shape `(2, embedding_dim)`:
             minimum values in the first row and maximum values in the second.
-            Scalar quantization calibrates the min/max range from the batch being encoded, which is degenerate
-            for a single text and produces meaningless embeddings. Pass ranges computed from a representative
-            sample of embeddings to get consistent quantized embeddings.
+            Required for "int8" and "uint8" because ranges cannot be inferred from a single text.
+            Compute ranges from a representative sample of embeddings.
+        :raises ValueError:
+            `precision` is "int8" or "uint8" and `quantization_ranges` is not provided.
         """
 
         self.model = model
@@ -148,12 +150,11 @@ class SentenceTransformersTextEmbedder:
         self.backend = backend
         self.quantization_ranges = quantization_ranges
         if precision in ("int8", "uint8") and quantization_ranges is None:
-            logger.warning(
-                "Using precision '{precision}' without `quantization_ranges` produces meaningless embeddings for "
-                "single texts, because the calibration range is computed from the batch itself. "
-                "Pass `quantization_ranges` computed from a representative sample of embeddings.",
-                precision=precision,
+            msg = (
+                f"Precision '{precision}' requires `quantization_ranges` computed from "
+                "a representative sample of embeddings."
             )
+            raise ValueError(msg)
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """

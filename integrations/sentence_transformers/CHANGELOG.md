@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/sentence_transformers-v2.1.0] - 2026-11-06
+
+### 🚀 Features
+
+- Sentence Transformers - allow setting ONNX Runtime session options from YAML (#4211)
+
+
+## [integrations/sentence_transformers-v2.0.0] - 2026-10-23
+
+### 🚜 Refactor
+
+- [**breaking**] SentenceTransformersTextEmbedder - always require quantization_ranges for int8/uint8 precision (#4154)
+
+
 ## [integrations/sentence_transformers-v1.0.0] - 2026-10-16
 
 ### 🧹 Chores

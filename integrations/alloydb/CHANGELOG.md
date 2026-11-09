@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/alloydb-v1.0.2] - 2026-10-21
+
+### 🧹 Chores
+
+- *(alloydb, supabase)* Bump pgvector-haystack to >=8.1.2 (#4143)
+
+
+## [integrations/alloydb-v1.0.1] - 2026-10-21
+
+### 🚜 Refactor
+
+- *(alloydb)* [**breaking**] Make AlloyDBDocumentStore subclass PgvectorDocumentStore (#4133)
+
+### 🧹 Chores
+
+- *(alloydb, supabase)* Bump pgvector-haystack to >=8.1.1 (#4138)
+
+
 ## [integrations/alloydb-v1.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes

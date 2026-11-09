@@ -189,6 +189,27 @@ class TestDocumentStoreAsync(
         """
         await document_store.delete_table_async()  # if throw error, test fails
 
+    async def test_delete_documents_async_with_quotes_in_ids(self, document_store: PgvectorDocumentStore):
+        """
+        The ids are passed as a bound parameter, so quotes in them are not interpreted as SQL.
+        """
+        docs = [
+            Document(id="O'Brien", content="quote in id"),
+            Document(id="x') OR ('1'='1", content="injection-shaped id"),
+            Document(id="1", content="hello"),
+            Document(id="2", content="world"),
+        ]
+        await document_store.write_documents_async(docs)
+
+        await document_store.delete_documents_async(["O'Brien"])
+        remaining = await document_store.filter_documents_async()
+        assert sorted(doc.id for doc in remaining) == ["1", "2", "x') OR ('1'='1"]
+
+        # only matches the document with this exact id, instead of every document
+        await document_store.delete_documents_async(["x') OR ('1'='1"])
+        remaining = await document_store.filter_documents_async()
+        assert sorted(doc.id for doc in remaining) == ["1", "2"]
+
     async def test_close_async_and_reopen(self, document_store: PgvectorDocumentStore):
         assert await document_store.count_documents_async() == 0
         assert document_store._async_connection is not None
@@ -205,9 +226,9 @@ class TestDocumentStoreAsync(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_hnsw_index_recreation():
-    async def get_index_oid(cursor, document_store, schema_name, index_name):
-        sql_get_index_oid = SQL("""
-            SELECT c.oid
+    async def get_index_oid_and_reloptions(cursor, document_store, schema_name, index_name):
+        sql_get_index_oid_and_reloptions = SQL("""
+            SELECT c.oid, c.reloptions
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind = 'i'
@@ -215,15 +236,16 @@ async def test_hnsw_index_recreation():
             AND c.relname = %s;
         """)
         result = await document_store._execute_sql_async(
-            cursor=cursor, sql_query=sql_get_index_oid, params=(schema_name, index_name)
+            cursor=cursor, sql_query=sql_get_index_oid_and_reloptions, params=(schema_name, index_name)
         )
-        return (await result.fetchone())[0]
+        return await result.fetchone()
 
     # create a new schema
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
     schema_name = "test_schema"
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
-        await conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+        await conn.execute(f"CREATE SCHEMA {schema_name}")
 
     # create a first document store and trigger the creation of the hnsw index
     params = {
@@ -235,23 +257,58 @@ async def test_hnsw_index_recreation():
     ds1 = PgvectorDocumentStore(**params)
     await ds1._ensure_db_setup_async()
 
-    # get the hnsw index oid
+    # get the hnsw index oid and options
     hnws_index_name = "haystack_hnsw_index"
-    first_oid = await get_index_oid(
+    first_oid, first_reloptions = await get_index_oid_and_reloptions(
         cursor=ds1._async_cursor, document_store=ds1, schema_name=ds1.schema_name, index_name=hnws_index_name
     )
+    assert first_reloptions is None
 
-    # create second document store with recreation enabled
-    ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
+    # create second document store with recreation enabled and custom index creation kwargs
+    ds2 = PgvectorDocumentStore(
+        **params, hnsw_recreate_index_if_exists=True, hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128}
+    )
     await ds2._ensure_db_setup_async()
 
-    # get the index oid
-    second_oid = await get_index_oid(
+    # get the index oid and options
+    second_oid, second_reloptions = await get_index_oid_and_reloptions(
         cursor=ds2._async_cursor, document_store=ds2, schema_name=ds2.schema_name, index_name=hnws_index_name
     )
 
-    # verify that oids differ
+    # verify that oids differ and the recreated index uses the new kwargs
     assert second_oid != first_oid, "Index was not recreated (OID remained the same)"
+    assert sorted(second_reloptions) == ["ef_construction=128", "m=32"]
+
+    # Clean up: drop the schema after the test
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_hnsw_index_creation_kwargs_values_are_not_interpreted_as_sql():
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema_hnsw_kwargs_injection_async"
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+        await conn.execute(f"CREATE SCHEMA {schema_name}")
+        await conn.execute(f"CREATE TABLE {schema_name}.canary (id int)")
+
+    document_store = PgvectorDocumentStore(
+        connection_string=Secret.from_token(connection_string),
+        schema_name=schema_name,
+        table_name="haystack_test_hnsw_kwargs_injection",
+        search_strategy="hnsw",
+        hnsw_index_creation_kwargs={"m": f"16); DROP TABLE {schema_name}.canary; --"},
+    )
+
+    # the value is passed as a literal, so PostgreSQL rejects it as an invalid value for "m"
+    with pytest.raises(DocumentStoreError, match="Could not create HNSW index"):
+        await document_store._ensure_db_setup_async()
+
+    async with await psycopg.AsyncConnection.connect(connection_string) as conn:
+        canary = await (await conn.execute("SELECT to_regclass(%s)", (f"{schema_name}.canary",))).fetchone()
+    assert canary[0] is not None
 
     # Clean up: drop the schema after the test
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:

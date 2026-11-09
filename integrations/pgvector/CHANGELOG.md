@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/pgvector-v8.1.2] - 2026-10-21
+
+### 🚀 Features
+
+- *(pgvector)* Ensure safe SQL handling for HNSW index creation and embedding queries (#4139)
+
+
+## [integrations/pgvector-v8.1.1] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- *(pgvector)* Pass document ids as a bound parameter in delete_docum… (#4135)
+
+
 ## [integrations/pgvector-v8.1.0] - 2026-10-20
 
 ### 🚀 Features

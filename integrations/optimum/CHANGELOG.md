@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/optimum-v4.1.0] - 2026-11-06
+
+### 🚀 Features
+
+- Optimum - allow setting ONNX Runtime session options from YAML (#4210)
+
+
 ## [integrations/optimum-v4.0.0] - 2026-10-16
 
 ### 🧹 Chores

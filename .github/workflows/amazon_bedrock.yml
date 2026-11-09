@@ -79,7 +79,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -117,7 +117,7 @@ jobs:
       # Do not authenticate on PRs from forks and on PRs created by dependabot
       - name: AWS authentication
         id: aws-auth
-        if: github.event_name == 'schedule' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/'))
+        if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/'))
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
         with:
           aws-region: ${{ env.AWS_REGION }}

@@ -14,3 +14,4 @@ Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/hay
 
 To run integration tests locally, you need a running FalkorDB instance.
 You can start it using the provided `docker-compose.yml` file: `docker compose up -d`.
+Set `OPENAI_API_KEY` to run the live text-to-Cypher retriever tests; they are skipped without it.
