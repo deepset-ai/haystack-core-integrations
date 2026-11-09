@@ -4,12 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      216 |        5 |       92 |        7 |     96% |250, 315, 362-363, 448-\>452, 523-\>498, 534-\>538, 540-\>542, 543 |
-| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       68 |        3 |       20 |        4 |     92% |198, 203, 263-\>265, 266 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      221 |        5 |       94 |        7 |     96% |256, 322, 373-374, 459-\>463, 534-\>509, 545-\>549, 551-\>553, 554 |
+| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       69 |        3 |       20 |        4 |     92% |204, 209, 270-\>272, 273 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      299 |       27 |      186 |       24 |     88% |89-\>79, 96, 98, 101-\>79, 189-\>200, 198-199, 270-274, 287-\>280, 291-295, 296-\>289, 306-307, 311, 319, 339-\>338, 380-\>385, 385-\>388, 447-448, 454-455, 524, 589-597, 602-\>604, 605, 607, 624-625 |
-| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       52 |        0 |       10 |        1 |     98% | 217-\>220 |
+| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       53 |        0 |       10 |        1 |     98% | 224-\>227 |
 | src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       49 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
-| **TOTAL**                                                                                   |  **684** |   **39** |  **324** |   **39** | **91%** |           |
+| **TOTAL**                                                                                   |  **691** |   **39** |  **326** |   **39** | **92%** |           |
 
 
 ## Setup coverage badge
