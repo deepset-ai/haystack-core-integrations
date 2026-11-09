@@ -318,6 +318,102 @@ class TestFalkorDBDocumentStoreAsyncUnit:
             await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE)
 
     @pytest.mark.asyncio
+    async def test_graph_metadata_is_opt_in(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.query.return_value = _result([[1]])
+        document = Document(id="a", meta={"labels": ["Article"], "relationships": ["ordinary metadata"]})
+        assert await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE) == 1
+        assert graph.query.await_count == 1
+        assert graph.query.call_args.args[1]["docs"][0]["labels"] == ["Article"]
+        assert graph.query.call_args.args[1]["docs"][0]["relationships"] == ["ordinary metadata"]
+
+    @pytest.mark.asyncio
+    async def test_write_graph_metadata_across_batches(self, warmed_async_store):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "kinds"
+        store.relationships_metadata_field = "links"
+        store.write_batch_size = 1
+        graph.query.return_value = _result([[1]])
+        meta = {
+            "kinds": ["Article", "Article", "Research paper"],
+            "links": [{"target_id": "b", "type": "RELATED TO", "properties": {"weight": 0.5}}],
+            "year": 2024,
+        }
+        documents = [Document(id="a", content="A", meta=meta), Document(id="b", content="B")]
+        assert await store.write_documents_async(documents, policy=DuplicatePolicy.OVERWRITE) == 2
+        calls = graph.query.call_args_list
+        assert len(calls) == 3
+        assert calls[0].args[1] == {
+            "docs": [{"id": "a", "content": "A", "year": 2024}],
+            "label_ids_0": ["a"],
+            "label_ids_1": ["a"],
+        }
+        assert calls[1].args[1] == {"docs": [{"id": "b", "content": "B"}]}
+        assert "SET d:`Article`" in calls[0].args[0]
+        assert "SET d:`Research paper`" in calls[0].args[0]
+        assert "MERGE (source)-[r:`RELATED TO`]->(target)" in calls[2].args[0]
+        assert calls[2].args[1] == {"rows": [{"source_id": "a", "target_id": "b", "properties": {"weight": 0.5}}]}
+        assert documents[0].meta == meta
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "meta, error",
+        [
+            ({"labels": "Article"}, TypeError),
+            ({"relationships": {}}, TypeError),
+            ({"relationships": ["edge"]}, TypeError),
+            ({"relationships": [{"type": "LINK"}]}, ValueError),
+            ({"relationships": [{"target_id": "b"}]}, ValueError),
+            ({"relationships": [{"type": "LINK", "target_id": "b", "properties": []}]}, TypeError),
+        ],
+    )
+    async def test_invalid_graph_metadata_before_writes(self, warmed_async_store, meta, error):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "labels"
+        store.relationships_metadata_field = "relationships"
+        with pytest.raises(error):
+            await store.write_documents_async([Document(meta=meta)], policy=DuplicatePolicy.OVERWRITE)
+        graph.query.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("missing", [True, False])
+    async def test_relationship_external_target(self, warmed_async_store, missing):
+        store, graph = warmed_async_store
+        store.relationships_metadata_field = "links"
+        graph.query.side_effect = [_result([[1]]), _result([[0 if missing else 1]])]
+        document = Document(id="a", meta={"links": [{"type": "LINK", "target_id": "b"}]})
+        if missing:
+            with pytest.raises(DocumentStoreError, match="target documents are missing"):
+                await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE)
+        else:
+            assert await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE) == 1
+        assert graph.query.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_skip_does_not_change_graph_metadata(self, warmed_async_store):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "labels"
+        store.relationships_metadata_field = "links"
+        graph.query.return_value = _result([["a"]])
+        document = Document(id="a", meta={"labels": ["New"], "links": [{"type": "LINK", "target_id": "missing"}]})
+        assert await store.write_documents_async([document], policy=DuplicatePolicy.SKIP) == 0
+        assert graph.query.await_count == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure_stage", ["labels", "relationships"])
+    async def test_graph_write_backend_failures(self, warmed_async_store, failure_stage):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "labels"
+        store.relationships_metadata_field = "links"
+        error = ValueError("backend error")
+        graph.query.side_effect = [error] if failure_stage == "labels" else [_result([[1]]), error]
+        meta = {"labels": ["Article"], "links": [{"type": "LINK", "target_id": "a"}]}
+        expected_error = DocumentStoreError if failure_stage == "labels" else ValueError
+        with pytest.raises(expected_error, match="backend error") as exc:
+            await store.write_documents_async([Document(id="a", meta=meta)], policy=DuplicatePolicy.OVERWRITE)
+        assert (exc.value.__cause__ if failure_stage == "labels" else exc.value) is error
+
+    @pytest.mark.asyncio
     async def test_delete_documents_async_empty_and_nonempty(self, warmed_async_store) -> None:
         store, graph = warmed_async_store
 
@@ -682,6 +778,68 @@ class TestFalkorDBDocumentStoreAsync(
                 "properties": [{"name": "role", "type": "String"}],
             }
         ]
+
+    @pytest.mark.parametrize("batch_size", [1, 100])
+    async def test_graph_metadata_writes_are_additive(self, document_store, batch_size):
+        document_store.labels_metadata_field = "labels"
+        document_store.relationships_metadata_field = "links"
+        document_store.write_batch_size = batch_size
+        document = Document(
+            id="a",
+            content="Article",
+            meta={
+                "labels": ["Research paper", "Article", "Article"],
+                "links": [
+                    {"type": "ABOUT", "target_id": "b", "properties": {"weight": 0.5, "source": "author"}},
+                    {"type": "ABOUT", "target_id": "b", "properties": {"tags": ["graph", "rag"]}},
+                    {"type": "SELF", "target_id": "a"},
+                ],
+                "year": 2024,
+            },
+        )
+        assert await document_store.write_documents_async([document, Document(id="b", content="Topic")]) == 2
+        assert await document_store.count_documents_async() == 2
+        stored = (await document_store.filter_documents_async({"field": "id", "operator": "==", "value": "a"}))[0]
+        assert stored.meta == {"year": 2024}
+        assert "links" in document.meta
+        labels = await document_store.async_graph.query("MATCH (d:Document {id: 'a'}) RETURN labels(d)")
+        assert set(labels.result_set[0][0]) == {"Document", "Article", "Research paper"}
+        labels = await document_store.async_graph.query("MATCH (d:Document {id: 'b'}) RETURN labels(d)")
+        assert labels.result_set == [[["Document"]]]
+        edges = await document_store.async_graph.query(
+            "MATCH (a:Document {id: 'a'})-[r]->(b) RETURN type(r), b.id ORDER BY type(r)"
+        )
+        assert edges.result_set == [["ABOUT", "b"], ["SELF", "a"]]
+        update = Document(
+            id="a",
+            content="Updated",
+            meta={"labels": ["Updated"], "links": [{"type": "ABOUT", "target_id": "b", "properties": {"weight": 1}}]},
+        )
+        assert await document_store.write_documents_async([update], policy=DuplicatePolicy.SKIP) == 0
+        stored = (await document_store.filter_documents_async({"field": "id", "operator": "==", "value": "a"}))[0]
+        assert stored.content == "Article"
+        for _ in range(2):
+            assert await document_store.write_documents_async([update], policy=DuplicatePolicy.OVERWRITE) == 1
+        labels = await document_store.async_graph.query("MATCH (d:Document {id: 'a'}) RETURN labels(d)")
+        assert set(labels.result_set[0][0]) == {"Document", "Article", "Research paper", "Updated"}
+        edges = await document_store.async_graph.query(
+            "MATCH (a:Document {id: 'a'})-[r]->(b) RETURN type(r), b.id ORDER BY type(r)"
+        )
+        assert edges.result_set == [["ABOUT", "b"], ["SELF", "a"]]
+        properties = await document_store.async_graph.query("MATCH ()-[r:ABOUT]->() RETURN r.weight, r.source, r.tags")
+        assert properties.result_set == [[1, "author", ["graph", "rag"]]]
+        stored = (await document_store.filter_documents_async({"field": "id", "operator": "==", "value": "a"}))[0]
+        assert stored.content == "Updated"
+
+    async def test_graph_metadata_missing_target_leaves_partial_writes(self, document_store):
+        document_store.relationships_metadata_field = "links"
+        document = Document(id="a", meta={"links": [{"type": "LINK", "target_id": "missing"}]})
+        with pytest.raises(DocumentStoreError, match="target documents are missing"):
+            await document_store.write_documents_async([document])
+        assert await document_store.count_documents_async() == 1
+        assert (await document_store.filter_documents_async())[0].id == "a"
+        result = await document_store.async_graph.query("MATCH ()-[r]->() RETURN count(r)")
+        assert result.result_set == [[0]]
 
     async def test_write_documents_async(self, document_store: FalkorDBDocumentStore) -> None:
         """FalkorDB defaults to failing on duplicates; verify a normal default write."""
