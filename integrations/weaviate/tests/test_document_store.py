@@ -27,6 +27,7 @@ from haystack.testing.document_store import (
     create_filterable_docs,
 )
 from haystack.utils.auth import Secret
+from haystack.utils.filters import document_matches_filter
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
@@ -784,6 +785,19 @@ class TestWeaviateDocumentStore(
         result = document_store.filter_documents(nested_not)
 
         self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
+
+    def test_not_operator_over_range_includes_documents_without_the_field(self, document_store, filterable_docs):
+        """NOT(x > v) must also select Documents without x, matching `document_matches_filter`."""
+        document_store.write_documents(filterable_docs)
+        # Not parametrized: the fixture names the collection after the test, and brackets aren't valid there
+        for operator in [">", ">=", "<", "<="]:
+            filters = {"operator": "NOT", "conditions": [{"field": "meta.number", "operator": operator, "value": 0}]}
+
+            result = document_store.filter_documents(filters)
+
+            expected = [d for d in filterable_docs if document_matches_filter(filters, d)]
+            assert any("number" not in d.meta for d in expected)
+            self.assert_documents_are_equal(result, expected)
 
     def test_not_operator_over_contains(self, document_store, filterable_docs):
         """`contains` has no inverted counterpart, so negating it used to raise a bare KeyError."""
