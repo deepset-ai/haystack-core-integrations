@@ -452,17 +452,22 @@ class TestQdrantDocumentStoreUnit:
 
         assert document_store._client is None
 
+    @pytest.mark.parametrize(
+        "method_name, query_kwargs",
+        [
+            ("_query_by_embedding", {"query_embedding": [0.1] * 768}),
+            ("_query_by_sparse", {"query_sparse_embedding": SparseEmbedding(indices=[0], values=[0.1])}),
+        ],
+    )
     @pytest.mark.parametrize("scale_score, expected_score", [(True, 0.75), (False, 0.5)])
-    def test_query_by_embedding_with_group_by_scale_score(self, scale_score, expected_score):
-        document_store = QdrantDocumentStore(location=":memory:", similarity="cosine")
+    def test_query_with_group_by_scale_score(self, method_name, query_kwargs, scale_score, expected_score):
+        document_store = QdrantDocumentStore(location=":memory:", similarity="cosine", use_sparse_embeddings=True)
         mock_client = MagicMock()
         point = rest.ScoredPoint(id=1, version=0, score=0.5, payload={"id": "1", "content": "doc"})
         mock_client.query_points_groups.return_value.groups = [rest.PointGroup(id="a", hits=[point])]
         document_store._client = mock_client
 
-        result = document_store._query_by_embedding(
-            query_embedding=[0.1] * 768, group_by="meta.group", scale_score=scale_score
-        )
+        result = getattr(document_store, method_name)(**query_kwargs, group_by="meta.group", scale_score=scale_score)
 
         assert [doc.score for doc in result] == [expected_score]
 
