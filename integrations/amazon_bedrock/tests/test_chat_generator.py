@@ -757,6 +757,21 @@ class TestAmazonBedrockChatGenerator:
                     "output_config": {"effort": "high"},
                 },
             ),
+            (
+                # cache_control is forwarded unchanged
+                {"cache_control": {"type": "ephemeral"}},
+                {"cache_control": {"type": "ephemeral"}},
+            ),
+            (
+                # cache_control_ttl is merged into cache_control, defaulting the type to ephemeral
+                {"cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
+            (
+                # cache_control_ttl overrides the ttl of an existing cache_control
+                {"cache_control": {"type": "ephemeral", "ttl": "5m"}, "cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
         ],
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(
@@ -811,6 +826,22 @@ class TestAmazonBedrockChatGenerator:
             "thinking": {"type": "adaptive"},
             "output_config": {"effort": "low"},
         }
+
+    def test_cache_control_ttl_does_not_mutate_init_cache_control(self):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            generation_kwargs={"cache_control": {"type": "ephemeral", "ttl": "5m"}},
+        )
+        messages = [ChatMessage.from_user("What's the capital of France?")]
+
+        first_params, _ = generator._prepare_request_params(
+            messages=messages, generation_kwargs={"cache_control_ttl": "1h"}
+        )
+        assert first_params["additionalModelRequestFields"] == {"cache_control": {"type": "ephemeral", "ttl": "1h"}}
+
+        second_params, _ = generator._prepare_request_params(messages=messages)
+        assert second_params["additionalModelRequestFields"] == {"cache_control": {"type": "ephemeral", "ttl": "5m"}}
+        assert generator.generation_kwargs == {"cache_control": {"type": "ephemeral", "ttl": "5m"}}
 
     def test_get_async_session_creates_and_caches(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")

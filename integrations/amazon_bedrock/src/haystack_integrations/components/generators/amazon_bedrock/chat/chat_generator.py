@@ -224,6 +224,13 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `cache_control`: A dictionary of cache control options.
+                See [Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
+                for more details on cache control options.
+                To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
+            - `cache_control_ttl`: Shortcut to set the cache `ttl` (e.g. `"5m"` or `"1h"`) without building the
+                `cache_control` dict yourself. It is merged into `cache_control`, overriding any `ttl` set there,
+                and `type` defaults to `"ephemeral"` if not set.
             - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
                 - `schema` (required): a JSON Schema dict describing the expected output structure.
                 - `name` (optional): a name for the schema, defaults to ``"response_schema"``.
@@ -574,6 +581,14 @@ class AmazonBedrockChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        cache_control_ttl = generation_kwargs.pop("cache_control_ttl", None)
+        if cache_control_ttl is not None:
+            # copy so we don't mutate the nested dict shared with self.generation_kwargs
+            cache_control = dict(generation_kwargs.get("cache_control") or {})
+            cache_control["ttl"] = cache_control_ttl
+            cache_control.setdefault("type", "ephemeral")  # only supported value
+            generation_kwargs["cache_control"] = cache_control
 
         for nested_name in ("tool_choice", "thinking", "output_config"):
             prefix = f"{nested_name}_"
