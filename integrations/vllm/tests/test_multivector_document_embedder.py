@@ -55,7 +55,6 @@ class TestInitializationAndSerialization:
         assert embedder.embedding_separator == "\n"
         assert embedder.timeout is None
         assert embedder.http_client_kwargs is None
-        assert embedder.raise_on_failure is False
         assert embedder.extra_parameters is None
         assert embedder.concurrency_limit == 4
         assert embedder._client is None
@@ -79,7 +78,6 @@ class TestInitializationAndSerialization:
             embedding_separator=" | ",
             timeout=3.5,
             http_client_kwargs={"timeout": 99, "headers": {"X-Custom": "value"}, "verify": False},
-            raise_on_failure=True,
             extra_parameters={"truncate_prompt_tokens": 128, "normalize": True},
             concurrency_limit=2,
         )
@@ -99,7 +97,6 @@ class TestInitializationAndSerialization:
                 "embedding_separator": " | ",
                 "timeout": 3.5,
                 "http_client_kwargs": {"timeout": 99, "headers": {"X-Custom": "value"}, "verify": False},
-                "raise_on_failure": True,
                 "extra_parameters": {"truncate_prompt_tokens": 128, "normalize": True},
                 "concurrency_limit": 2,
             },
@@ -122,7 +119,6 @@ class TestInitializationAndSerialization:
             "headers": {"X-Custom": "value"},
             "verify": False,
         }
-        assert restored.raise_on_failure is True
         assert restored.extra_parameters == {"truncate_prompt_tokens": 128, "normalize": True}
         assert restored.concurrency_limit == 2
 
@@ -266,18 +262,18 @@ class TestRun:
         )
         embedder._client.post.return_value.raise_for_status.assert_called_once_with()
 
-    def test_batches_map_out_of_order_provider_indices(self):
+    def test_batches_preserve_provider_order(self):
         embedder = VLLMMultivectorDocumentEmbedder(model=MODEL, batch_size=2, progress_bar=False)
         embedder._client = MagicMock(spec=httpx.Client)
         embedder._client.post.side_effect = [
-            _response([_item(1, 20.0), _item(0, 10.0)]),
+            _response([_item(0, 10.0), _item(1, 20.0)]),
             _response([_item(0, 30.0)]),
         ]
         documents = [Document(content=f"doc-{index}") for index in range(3)]
 
         result = embedder.run(documents)
 
-        vectors = [document.meta["_multivector_embedding"] for document in result["documents"]]
+        vectors = [document.multivector_embedding for document in result["documents"]]
         assert vectors == [
             [[10.0, 10.5], [11.0, 11.5]],
             [[20.0, 20.5], [21.0, 21.5]],
@@ -297,11 +293,13 @@ class TestRun:
 
         result = embedder.run(documents)
 
-        assert [document.meta["_multivector_embedding"][0][0] for document in result["documents"]] == [1.0, 2.0]
+        assert [document.multivector_embedding[0][0] for document in result["documents"]] == [1.0, 2.0]
 
     def test_returns_copies_without_mutating_originals_and_preserves_dense_embedding(self):
         original_meta = {"source": "test", "nested": {"value": 1}}
-        original = Document(content="body", meta=original_meta, embedding=[0.9, 0.8])
+        original = Document(
+            content="body", meta=original_meta, embedding=[0.9, 0.8], multivector_embedding=[[0.1, 0.2]]
+        )
         embedder = VLLMMultivectorDocumentEmbedder(model=MODEL, progress_bar=False)
         embedder._client = MagicMock(spec=httpx.Client)
         embedder._client.post.return_value = _response([_item(0, 1.0)])
@@ -311,32 +309,20 @@ class TestRun:
         assert copied is not original
         assert copied.id == original.id
         assert copied.embedding == [0.9, 0.8]
-        assert copied.meta["_multivector_embedding"] == [[1.0, 1.5], [2.0, 2.5]]
+        assert copied.multivector_embedding == [[1.0, 1.5], [2.0, 2.5]]
+        assert copied.meta is original.meta
         assert original.meta == {"source": "test", "nested": {"value": 1}}
         assert original_meta == {"source": "test", "nested": {"value": 1}}
-        assert "_multivector_embedding" not in original.meta
+        assert original.multivector_embedding == [[0.1, 0.2]]
 
-    def test_failed_batch_continues_and_successful_batch_is_returned(self):
-        embedder = VLLMMultivectorDocumentEmbedder(
-            model=MODEL, batch_size=1, progress_bar=False, raise_on_failure=False
-        )
-        embedder._client = MagicMock(spec=httpx.Client)
-        embedder._client.post.side_effect = [_response([], status_code=503), _response([_item(0, 2.0)])]
-
-        result = embedder.run([Document(content="failed"), Document(content="successful")])
-
-        assert "_multivector_embedding" not in result["documents"][0].meta
-        assert result["documents"][1].meta["_multivector_embedding"] == [[2.0, 2.5], [3.0, 3.5]]
-        assert set(result) == {"documents"}
-
-    def test_failed_batch_raises_when_configured(self):
-        embedder = VLLMMultivectorDocumentEmbedder(model=MODEL, progress_bar=False, raise_on_failure=True)
+    def test_failed_batch_raises_without_processing_later_batches(self):
+        embedder = VLLMMultivectorDocumentEmbedder(model=MODEL, batch_size=1, progress_bar=False)
         embedder._client = MagicMock(spec=httpx.Client)
         response = _response([], status_code=503)
         embedder._client.post.return_value = response
 
         with pytest.raises(httpx.HTTPStatusError):
-            embedder.run([Document(content="failed")])
+            embedder.run([Document(content="failed"), Document(content="not processed")])
 
         embedder._client.post.assert_called_once_with(
             "http://localhost:8000/pooling",
@@ -349,7 +335,7 @@ class TestRun:
         embedder = VLLMMultivectorDocumentEmbedder(model=MODEL, batch_size=2, progress_bar=False)
         embedder._async_client = MagicMock(spec=httpx.AsyncClient)
         responses = [
-            _response([_item(1, 2.0), _item(0, 1.0)]),
+            _response([_item(0, 1.0), _item(1, 2.0)]),
             _response([_item(0, 3.0)]),
         ]
         embedder._async_client.post = AsyncMock(side_effect=responses)
@@ -357,37 +343,24 @@ class TestRun:
 
         result = await embedder.run_async(originals)
 
-        assert [doc.meta["_multivector_embedding"][0][0] for doc in result["documents"]] == [1.0, 2.0, 3.0]
+        assert [doc.multivector_embedding[0][0] for doc in result["documents"]] == [1.0, 2.0, 3.0]
         assert [doc.embedding for doc in result["documents"]] == [[0.0], [1.0], [2.0]]
         assert all(copied is not original for copied, original in zip(result["documents"], originals, strict=True))
-        assert all("_multivector_embedding" not in original.meta for original in originals)
+        assert all(original.multivector_embedding is None for original in originals)
         assert set(result) == {"documents"}
         assert embedder._async_client.post.await_count == 2
         for response in responses:
             response.raise_for_status.assert_called_once_with()
 
     @pytest.mark.asyncio
-    async def test_async_failed_batch_continue_and_raise(self):
-        continuing = VLLMMultivectorDocumentEmbedder(model=MODEL, batch_size=1, progress_bar=False)
-        continuing._async_client = MagicMock(spec=httpx.AsyncClient)
-        failed_response = _response([], status_code=500)
-        successful_response = _response([_item(0, 2.0)])
-        continuing._async_client.post = AsyncMock(side_effect=[failed_response, successful_response])
-
-        result = await continuing.run_async([Document(content="failed"), Document(content="successful")])
-
-        assert "_multivector_embedding" not in result["documents"][0].meta
-        assert result["documents"][1].meta["_multivector_embedding"] == [[2.0, 2.5], [3.0, 3.5]]
-        failed_response.raise_for_status.assert_called_once_with()
-        successful_response.raise_for_status.assert_called_once_with()
-
-        raising = VLLMMultivectorDocumentEmbedder(model=MODEL, progress_bar=False, raise_on_failure=True)
-        raising._async_client = MagicMock(spec=httpx.AsyncClient)
-        raising_response = _response([], status_code=500)
-        raising._async_client.post = AsyncMock(return_value=raising_response)
+    async def test_async_failed_batch_raises(self):
+        embedder = VLLMMultivectorDocumentEmbedder(model=MODEL, progress_bar=False)
+        embedder._async_client = MagicMock(spec=httpx.AsyncClient)
+        response = _response([], status_code=500)
+        embedder._async_client.post = AsyncMock(return_value=response)
         with pytest.raises(httpx.HTTPStatusError):
-            await raising.run_async([Document(content="failed")])
-        raising_response.raise_for_status.assert_called_once_with()
+            await embedder.run_async([Document(content="failed")])
+        response.raise_for_status.assert_called_once_with()
 
 
 @pytest.mark.integration
@@ -412,15 +385,13 @@ class TestIntegration:
         dimensions = set()
         for copied, original in zip(embedded, originals, strict=True):
             assert copied is not original
-            assert copied.meta is not original.meta
+            assert copied.meta is original.meta
             assert copied.id == original.id
             assert copied.content == original.content
             assert copied.embedding == original.embedding
-            assert {
-                key: value for key, value in copied.meta.items() if key != "_multivector_embedding"
-            } == original.meta
+            assert copied.meta == original.meta
 
-            multivector = copied.meta["_multivector_embedding"]
+            multivector = copied.multivector_embedding
             assert multivector
             dimensions.update(len(vector) for vector in multivector)
             assert all(isinstance(value, float) and math.isfinite(value) for vector in multivector for value in vector)
@@ -435,6 +406,7 @@ class TestIntegration:
         ]
         assert [document.meta for document in originals] == [{"source": "cities"}] * 3
         assert [document.embedding for document in originals] == [[0.1], [0.2], [0.3]]
+        assert all(document.multivector_embedding is None for document in originals)
 
     def test_run(self):
         embedder = VLLMMultivectorDocumentEmbedder(
