@@ -199,6 +199,7 @@ class AmazonBedrockChatGenerator:
         guardrail_config: dict[str, str] | None = None,
         tools_cachepoint_config: dict[str, str] | None = None,
         system_cachepoint_config: dict[str, str] | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters.
@@ -278,6 +279,10 @@ class AmazonBedrockChatGenerator:
             The dictionary must match the
             [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
             Example: `{"type": "default", "ttl": "5m"}`
+        :param tools_strict: Whether to enable strict tool use. If `True`, each tool spec is sent with `strict: true`,
+            so the model's tool calls are enforced against the tool's `parameters` schema. Only Haystack `tools` are
+            affected, not a `toolConfig` passed in `generation_kwargs`. See the
+            [ToolSpecification reference](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolSpecification.html).
 
 
         :raises ValueError: If the model name is empty or None.
@@ -298,6 +303,7 @@ class AmazonBedrockChatGenerator:
 
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.tools = tools
+        self.tools_strict = tools_strict
 
         _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
@@ -403,6 +409,7 @@ class AmazonBedrockChatGenerator:
             guardrail_config=self.guardrail_config,
             tools_cachepoint_config=self.tools_cachepoint_config,
             system_cachepoint_config=self.system_cachepoint_config,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod
@@ -471,7 +478,9 @@ class AmazonBedrockChatGenerator:
         response_format = merged_kwargs.pop("response_format", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
+            tool_config = _format_tools(
+                flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config, strict=self.tools_strict
+            )
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
