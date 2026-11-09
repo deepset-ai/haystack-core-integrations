@@ -104,6 +104,15 @@ class TestConvertFiltersToQdrantUnit:
         qdrant_filter = convert_filters_to_qdrant({"operator": "!=", "field": "meta.x", "value": 4.5})
         assert qdrant_filter.must_not[0].range == models.Range(gte=4.5, lte=4.5)
 
+    def test_not_negates_the_conjunction_of_its_conditions(self):
+        a = {"operator": "==", "field": "meta.a", "value": 1}
+        b = {"operator": "==", "field": "meta.b", "value": 2}
+        qdrant_filter = convert_filters_to_qdrant({"operator": "NOT", "conditions": [a, b]})
+        # `must_not` alone would exclude points matching either condition
+        assert qdrant_filter == models.Filter(
+            must_not=[models.Filter(must=[convert_filters_to_qdrant(a).must[0], convert_filters_to_qdrant(b).must[0]])]
+        )
+
 
 def test_is_datetime_string():
     assert is_datetime_string("2024-01-01T00:00:00") is True
@@ -195,22 +204,6 @@ class TestQdrantFilters(FilterDocumentsTest):
 
         # Check that the sets are equal, meaning the content and IDs match regardless of order
         assert {doc.id for doc in received} == {doc.id for doc in expected}
-
-    def test_not_operator(self, document_store, filterable_docs):
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(
-            filters={
-                "operator": "NOT",
-                "conditions": [
-                    {"field": "meta.number", "operator": "==", "value": 100},
-                    {"field": "meta.name", "operator": "==", "value": "name_0"},
-                ],
-            }
-        )
-        self.assert_documents_are_equal(
-            result,
-            [d for d in filterable_docs if (d.meta.get("number") != 100 and d.meta.get("name") != "name_0")],
-        )
 
     def test_filter_criteria(self, document_store):
         documents = [

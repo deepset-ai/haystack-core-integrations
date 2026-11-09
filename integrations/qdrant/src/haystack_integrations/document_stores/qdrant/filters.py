@@ -79,7 +79,9 @@ def _process_logical_operator(item: dict[str, Any]) -> models.Condition | None:
     elif operator == "OR":
         return models.Filter(should=nested_conditions)
     elif operator == "NOT":
-        return models.Filter(must_not=nested_conditions)
+        # Haystack's NOT negates the conjunction of its conditions. `must_not` on its own excludes points
+        # that match any condition, which would negate the disjunction instead.
+        return models.Filter(must_not=[models.Filter(must=nested_conditions)])
 
     return None
 

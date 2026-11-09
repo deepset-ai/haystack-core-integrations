@@ -25,6 +25,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_tool_result_message,
     _format_tools,
     _format_user_message,
+    _make_schema_strict,
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
@@ -105,6 +106,57 @@ class TestAmazonBedrockChatGeneratorUtils:
                 {"cachePoint": {"type": "default"}},
             ],
         }
+
+    def test_format_tools_strict_marks_every_tool_spec(self, tools):
+        formatted = _format_tools(tools, tools_cachepoint_config={"cachePoint": {"type": "default"}}, strict=True)
+
+        specs = [entry["toolSpec"] for entry in formatted["tools"] if "toolSpec" in entry]
+        assert [spec["strict"] for spec in specs] == [True, True]
+        assert specs[0]["inputSchema"]["json"]["additionalProperties"] is False
+        assert formatted["tools"][-1] == {"cachePoint": {"type": "default"}}
+
+    def test_make_schema_strict_closes_nested_objects_and_drops_unsupported_formats(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "raw": {"type": "object", "properties": {"data": {"type": "string", "format": "binary"}}},
+                "when": {"type": "string", "format": "date-time"},
+                "docs": {"type": "array", "items": {"$ref": "#/$defs/Doc"}},
+            },
+            "$defs": {"Doc": {"type": "object", "properties": {"content": {"type": "string"}}}},
+        }
+
+        strict = _make_schema_strict(schema)
+
+        assert strict["additionalProperties"] is False
+        assert strict["properties"]["raw"]["additionalProperties"] is False
+        assert "format" not in strict["properties"]["raw"]["properties"]["data"]
+        assert strict["properties"]["when"]["format"] == "date-time"
+        assert strict["$defs"]["Doc"]["additionalProperties"] is False
+        assert "additionalProperties" not in schema  # the input is not mutated
+
+    def test_make_schema_strict_does_not_treat_property_names_as_keywords(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "properties": {"type": "string"},
+                "type": {"type": "string", "format": "binary"},
+                "choice": {"anyOf": [{"type": "object", "properties": {"a": {"type": "string"}}}, {"type": "null"}]},
+            },
+        }
+
+        strict = _make_schema_strict(schema)
+
+        assert set(strict["properties"]) == {"properties", "type", "choice"}
+        assert strict["additionalProperties"] is False
+        assert "additionalProperties" not in strict["properties"]["properties"]
+        assert "format" not in strict["properties"]["type"]
+        assert strict["properties"]["choice"]["anyOf"][0]["additionalProperties"] is False
+
+    def test_format_tools_is_not_strict_by_default(self, tools):
+        formatted = _format_tools(tools)
+
+        assert all("strict" not in entry["toolSpec"] for entry in formatted["tools"])
 
     def test_format_tools_does_not_double_wrap_cachepoint(self, tools):
         # Regression test for https://github.com/deepset-ai/haystack-core-integrations/issues/3181
@@ -570,29 +622,35 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
-        tool_call_message_with_redacted = ChatMessage.from_assistant(
+    @pytest.mark.parametrize(
+        "reasoning_extra",
+        [
+            {},
+            # reasoning produced by OpenAIResponsesChatGenerator
+            {"id": "rs_123", "type": "reasoning", "encrypted_content": "gAAAA...", "status": "completed"},
+        ],
+    )
+    def test_format_messages_drops_reasoning_without_signature(self, reasoning_extra):
+        reasoning = ReasoningContent(reasoning_text="Reasoning from another provider.", extra=reasoning_extra)
+        text_message = ChatMessage.from_assistant("This is a test message.", reasoning=reasoning)
+        tool_call_message = ChatMessage.from_assistant(
             "This is a test message with a tool call.",
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
-            reasoning=ReasoningContent(
-                reasoning_text="[REDACTED]",
-                extra={},
-            ),
+            reasoning=reasoning,
         )
-        formatted_message = _format_messages([tool_call_message_with_redacted])[1][0]
-        assert formatted_message == {
-            "role": "assistant",
-            "content": [
-                {"reasoningContent": {"reasoningText": {"text": "[REDACTED]"}}},
-                {"text": "This is a test message with a tool call."},
-                {
-                    "toolUse": {
-                        "toolUseId": "123",
-                        "name": "test_tool",
-                        "input": {"key": "value"},
-                    }
-                },
-            ],
-        }
+
+        formatted_messages = _format_messages([text_message, tool_call_message])[1]
+
+        assert formatted_messages == [
+            {"role": "assistant", "content": [{"text": "This is a test message."}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"text": "This is a test message with a tool call."},
+                    {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
+                ],
+            },
+        ]
 
     def test_format_user_message(self):
         plain_user_message = ChatMessage.from_user("This is a test message.")

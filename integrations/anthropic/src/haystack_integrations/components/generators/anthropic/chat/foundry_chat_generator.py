@@ -107,6 +107,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         azure_ad_token_provider: Callable[[], str] | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Creates an instance of AnthropicFoundryChatGenerator.
@@ -159,6 +160,10 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             Can be used instead of `api_key` for enhanced security.
             See [Azure Identity documentation](https://learn.microsoft.com/en-us/azure/developer/python/sdk/authentication/overview)
             for more details.
+        :param tools_strict:
+            Whether to enable strict tool use. If `True`, each tool is sent with `strict: true`, so the model's tool
+            calls are guaranteed to match the tool's `parameters` schema. The schema must stay within what strict
+            tool use supports. See [Anthropic strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).
         """
         if api_key is None and azure_ad_token_provider is None:
             msg = "Please provide an API key or an azure_ad_token_provider."
@@ -178,6 +183,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         self.timeout = timeout
         self.max_retries = max_retries
         self.azure_ad_token_provider = azure_ad_token_provider
+        self.tools_strict = tools_strict
 
         if not self.resource and not self.endpoint:
             msg = (
@@ -246,6 +252,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             timeout=self.timeout,
             max_retries=self.max_retries,
             azure_ad_token_provider=azure_ad_token_provider_name,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod
