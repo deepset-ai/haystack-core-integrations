@@ -4,12 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      221 |       10 |       94 |       12 |     92% |256, 322, 373-374, 432-\>431, 449, 459-\>463, 465-\>467, 468, 510-\>509, 533-535, 545-\>549, 551-\>553, 554 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      227 |       10 |       96 |       12 |     93% |263, 329, 380-381, 447-\>446, 464, 474-\>478, 480-\>482, 483, 525-\>524, 548-550, 560-\>564, 566-\>568, 569 |
 | src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       69 |        3 |       20 |        4 |     92% |204, 209, 270-\>272, 273 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      299 |       34 |      186 |       22 |     85% |89-\>79, 96, 98, 101-\>79, 189-\>200, 198-199, 270-274, 287-302, 306-307, 311, 319, 339-\>338, 380-\>385, 385-\>388, 447-448, 454-455, 524, 589-597, 602-\>604, 605, 607, 624-625 |
 | src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       53 |        0 |       10 |        1 |     98% | 224-\>227 |
 | src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       49 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
-| **TOTAL**                                                                                   |  **691** |   **51** |  **326** |   **42** | **89%** |           |
+| **TOTAL**                                                                                   |  **697** |   **51** |  **328** |   **42** | **89%** |           |
 
 
 ## Setup coverage badge
