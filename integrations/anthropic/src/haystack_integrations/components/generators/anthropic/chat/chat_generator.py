@@ -178,6 +178,9 @@ class AnthropicChatGenerator:
                 See [Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
                 for more details on cache control options.
                 To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
+            - `cache_control_ttl`: Shortcut to set the cache `ttl` (e.g. `"5m"` or `"1h"`) without building the
+                `cache_control` dict yourself. It is merged into `cache_control`, overriding any `ttl` set there,
+                and `type` defaults to `"ephemeral"` if not set.
 
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
@@ -391,9 +394,11 @@ class AnthropicChatGenerator:
 
         cache_control_ttl = generation_kwargs.pop("cache_control_ttl", None)
         if cache_control_ttl is not None:
-            cache_control = generation_kwargs.setdefault("cache_control", {})
+            # copy so we don't mutate the nested dict shared with self.generation_kwargs
+            cache_control = dict(generation_kwargs.get("cache_control") or {})
             cache_control["ttl"] = cache_control_ttl
             cache_control.setdefault("type", "ephemeral")  # only supported value
+            generation_kwargs["cache_control"] = cache_control
 
         for nested_name in ("tool_choice", "thinking", "output_config"):
             prefix = f"{nested_name}_"

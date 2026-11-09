@@ -635,6 +635,19 @@ class TestRun:
             "output_config": {"effort": "low"},
         }
 
+    def test_cache_control_ttl_does_not_mutate_init_cache_control(self, chat_messages, mock_chat_completion):
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"cache_control": {"type": "ephemeral", "ttl": "5m"}},
+        )
+
+        component.run(chat_messages, generation_kwargs={"cache_control_ttl": "1h"})
+        assert mock_chat_completion.call_args.kwargs["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+
+        component.run(chat_messages)
+        assert mock_chat_completion.call_args.kwargs["cache_control"] == {"type": "ephemeral", "ttl": "5m"}
+        assert component.generation_kwargs == {"cache_control": {"type": "ephemeral", "ttl": "5m"}}
+
 
 class TestAnthropicServerTools:
     def test_init_with_anthropic_server_tools(self, monkeypatch):

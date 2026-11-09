@@ -797,6 +797,22 @@ class TestAmazonBedrockChatGenerator:
             "output_config": {"effort": "low"},
         }
 
+    def test_cache_control_ttl_does_not_mutate_init_cache_control(self):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            generation_kwargs={"cache_control": {"type": "ephemeral", "ttl": "5m"}},
+        )
+        messages = [ChatMessage.from_user("What's the capital of France?")]
+
+        first_params, _ = generator._prepare_request_params(
+            messages=messages, generation_kwargs={"cache_control_ttl": "1h"}
+        )
+        assert first_params["additionalModelRequestFields"] == {"cache_control": {"type": "ephemeral", "ttl": "1h"}}
+
+        second_params, _ = generator._prepare_request_params(messages=messages)
+        assert second_params["additionalModelRequestFields"] == {"cache_control": {"type": "ephemeral", "ttl": "5m"}}
+        assert generator.generation_kwargs == {"cache_control": {"type": "ephemeral", "ttl": "5m"}}
+
     def test_get_async_session_creates_and_caches(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         session1 = generator._get_async_session()
