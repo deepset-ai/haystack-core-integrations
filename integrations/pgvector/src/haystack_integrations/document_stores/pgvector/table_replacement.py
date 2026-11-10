@@ -95,7 +95,10 @@ def _validate_stores(
     if active_store.table_name == staging_store.table_name:
         msg = "Active and staging document stores must use different table names"
         raise ValueError(msg)
-    if isinstance(lock_timeout_ms, bool) or not isinstance(lock_timeout_ms, int) or lock_timeout_ms <= 0:
+    if isinstance(lock_timeout_ms, bool) or not isinstance(lock_timeout_ms, int):
+        msg = f"lock_timeout_ms must be an int, got {type(lock_timeout_ms).__name__}"
+        raise TypeError(msg)
+    if lock_timeout_ms <= 0:
         msg = "lock_timeout_ms must be a positive integer"
         raise ValueError(msg)
 
@@ -315,10 +318,10 @@ def replace_table(
 
                 if _relation_kind(cursor, schema_name, active_name) != "r":
                     msg = f"Active table {schema_name}.{active_name} does not exist as a regular table"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
                 if _relation_kind(cursor, schema_name, staging_name) != "r":
                     msg = f"Staging table {schema_name}.{staging_name} does not exist as a regular table"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
 
                 cursor.execute(
                     SQL("LOCK TABLE {schema}.{active}, {schema}.{staging} IN ACCESS EXCLUSIVE MODE").format(
@@ -330,13 +333,13 @@ def replace_table(
 
                 if _columns(cursor, schema_name, active_name) != _columns(cursor, schema_name, staging_name):
                     msg = "Active and staging tables have incompatible column definitions"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
                 if _constraints(cursor, schema_name, active_name) != _constraints(cursor, schema_name, staging_name):
                     msg = "Active and staging tables have incompatible constraints"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
                 if _relation_exists(cursor, schema_name, backup_table_name):
                     msg = f"Backup relation {schema_name}.{backup_table_name} already exists"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
 
                 # PostgreSQL does not rename a table's primary key with the table, so without this the
                 # promoted table keeps the staging name and names drift on every replacement. Renaming the
@@ -350,13 +353,13 @@ def replace_table(
                 for active_index, staging_index, backup_index in index_renames:
                     if not _has_index(cursor, schema_name, active_name, active_index):
                         msg = f"Expected index {active_index!r} was not found on active table {active_name!r}"
-                        raise ValueError(msg)
+                        raise DocumentStoreError(msg)
                     if not _has_index(cursor, schema_name, staging_name, staging_index):
                         msg = f"Expected index {staging_index!r} was not found on staging table {staging_name!r}"
-                        raise ValueError(msg)
+                        raise DocumentStoreError(msg)
                     if _relation_exists(cursor, schema_name, backup_index):
                         msg = f"Backup index relation {schema_name}.{backup_index} already exists"
-                        raise ValueError(msg)
+                        raise DocumentStoreError(msg)
 
                 for active_index, _, backup_index in index_renames:
                     cursor.execute(
@@ -446,10 +449,10 @@ async def replace_table_async(
 
                 if await _relation_kind_async(cursor, schema_name, active_name) != "r":
                     msg = f"Active table {schema_name}.{active_name} does not exist as a regular table"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
                 if await _relation_kind_async(cursor, schema_name, staging_name) != "r":
                     msg = f"Staging table {schema_name}.{staging_name} does not exist as a regular table"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
 
                 await cursor.execute(
                     SQL("LOCK TABLE {schema}.{active}, {schema}.{staging} IN ACCESS EXCLUSIVE MODE").format(
@@ -463,15 +466,15 @@ async def replace_table_async(
                     cursor, schema_name, staging_name
                 ):
                     msg = "Active and staging tables have incompatible column definitions"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
                 if await _constraints_async(cursor, schema_name, active_name) != await _constraints_async(
                     cursor, schema_name, staging_name
                 ):
                     msg = "Active and staging tables have incompatible constraints"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
                 if await _relation_exists_async(cursor, schema_name, backup_table_name):
                     msg = f"Backup relation {schema_name}.{backup_table_name} already exists"
-                    raise ValueError(msg)
+                    raise DocumentStoreError(msg)
 
                 # See replace_table: keep primary key names aligned with their tables.
                 active_pk = await _primary_key_index_async(cursor, schema_name, active_name)
@@ -483,13 +486,13 @@ async def replace_table_async(
                 for active_index, staging_index, backup_index in index_renames:
                     if not await _has_index_async(cursor, schema_name, active_name, active_index):
                         msg = f"Expected index {active_index!r} was not found on active table {active_name!r}"
-                        raise ValueError(msg)
+                        raise DocumentStoreError(msg)
                     if not await _has_index_async(cursor, schema_name, staging_name, staging_index):
                         msg = f"Expected index {staging_index!r} was not found on staging table {staging_name!r}"
-                        raise ValueError(msg)
+                        raise DocumentStoreError(msg)
                     if await _relation_exists_async(cursor, schema_name, backup_index):
                         msg = f"Backup index relation {schema_name}.{backup_index} already exists"
-                        raise ValueError(msg)
+                        raise DocumentStoreError(msg)
 
                 for active_index, _, backup_index in index_renames:
                     await cursor.execute(

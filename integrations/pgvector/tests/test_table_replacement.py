@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import DocumentStoreError
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -56,7 +57,7 @@ def test_replace_existing_backup(document_store: PgvectorDocumentStore) -> None:
     try:
         staging_store.write_documents([Document(id="new", content="new document")])
 
-        with pytest.raises(ValueError, match="Backup relation"):
+        with pytest.raises(DocumentStoreError, match="Backup relation"):
             document_store.replace_table(staging_store, backup_table_name=document_store.keyword_index_name)
 
         assert [document.id for document in document_store.filter_documents()] == ["old"]
@@ -93,7 +94,7 @@ def test_replace_missing_staging(document_store: PgvectorDocumentStore) -> None:
     document_store.write_documents([Document(id="old", content="old document")])
     staging_store = _make_staging_store(document_store)
     try:
-        with pytest.raises(ValueError, match="Staging table"):
+        with pytest.raises(DocumentStoreError, match="Staging table"):
             document_store.replace_table(staging_store)
 
         assert [document.id for document in document_store.filter_documents()] == ["old"]

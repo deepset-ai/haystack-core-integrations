@@ -141,11 +141,24 @@ def test_validate_stores_rejects_same_table_name() -> None:
         _validate_stores(active, staging, None, 5000)
 
 
-@pytest.mark.parametrize("lock_timeout_ms", [True, False, 0, -1, 1.5, "1000", None])
-def test_validate_stores_rejects_invalid_lock_timeouts(lock_timeout_ms: Any) -> None:
+@pytest.mark.parametrize(
+    ("lock_timeout_ms", "error", "match"),
+    [
+        (True, TypeError, "must be an int"),
+        (False, TypeError, "must be an int"),
+        (1.5, TypeError, "must be an int"),
+        ("1000", TypeError, "must be an int"),
+        (None, TypeError, "must be an int"),
+        (0, ValueError, "positive integer"),
+        (-1, ValueError, "positive integer"),
+    ],
+)
+def test_validate_stores_rejects_invalid_lock_timeouts(
+    lock_timeout_ms: Any, error: type[Exception], match: str
+) -> None:
     active, staging = _make_store_pair()
 
-    with pytest.raises(ValueError, match="positive integer"):
+    with pytest.raises(error, match=match):
         _validate_stores(active, staging, None, lock_timeout_ms)
 
 

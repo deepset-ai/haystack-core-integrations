@@ -705,11 +705,14 @@ class PgvectorDocumentStore:
         :param lock_timeout_ms: How long to wait for the table locks, in milliseconds, before giving up. Reads and
             writes on both tables also wait during this time. Must be a positive integer.
         :returns: The name of the backup table that now holds the former documents.
-        :raises ValueError: If `staging_store` doesn't meet the requirements above, if either table doesn't exist,
-            if the tables have different columns or constraints, if `backup_table_name` or a generated backup index
-            name is already taken, or if `lock_timeout_ms` is not a positive integer. Nothing is changed.
-        :raises DocumentStoreError: If the locks are not acquired within `lock_timeout_ms` or the database reports
-            an error during the swap. The swap is rolled back and nothing is changed.
+        :raises TypeError: If `lock_timeout_ms` is not an `int`.
+        :raises ValueError: If `staging_store` is configured incompatibly with this store as described in the
+            requirements above, connects to a different database, or if `backup_table_name` is invalid or
+            `lock_timeout_ms` is not positive.
+        :raises DocumentStoreError: If either table doesn't exist, the tables have different columns or
+            constraints, an expected index is missing, `backup_table_name` or a generated backup index name is
+            already taken, the locks are not acquired within `lock_timeout_ms`, or the database reports another
+            error. In every case the swap is rolled back and nothing is changed.
         """
         return replace_table(
             self,
@@ -787,11 +790,14 @@ class PgvectorDocumentStore:
         :param lock_timeout_ms: How long to wait for the table locks, in milliseconds, before giving up. Reads and
             writes on both tables also wait during this time. Must be a positive integer.
         :returns: The name of the backup table that now holds the former documents.
-        :raises ValueError: If `staging_store` doesn't meet the requirements above, if either table doesn't exist,
-            if the tables have different columns or constraints, if `backup_table_name` or a generated backup index
-            name is already taken, or if `lock_timeout_ms` is not a positive integer. Nothing is changed.
-        :raises DocumentStoreError: If the locks are not acquired within `lock_timeout_ms` or the database reports
-            an error during the swap. The swap is rolled back and nothing is changed.
+        :raises TypeError: If `lock_timeout_ms` is not an `int`.
+        :raises ValueError: If `staging_store` is configured incompatibly with this store as described in the
+            requirements above, connects to a different database, or if `backup_table_name` is invalid or
+            `lock_timeout_ms` is not positive.
+        :raises DocumentStoreError: If either table doesn't exist, the tables have different columns or
+            constraints, an expected index is missing, `backup_table_name` or a generated backup index name is
+            already taken, the locks are not acquired within `lock_timeout_ms`, or the database reports another
+            error. In every case the swap is rolled back and nothing is changed.
         """
         return await replace_table_async(
             self,
