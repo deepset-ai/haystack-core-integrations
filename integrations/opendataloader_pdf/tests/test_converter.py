@@ -498,17 +498,13 @@ def test_converter_json_puts_markdown_in_content(tmp_path, _mock_opendataloader)
     }
 
 
-def test_converter_json_page_numbers_after_splitting(tmp_path, _mock_opendataloader):
+def test_converter_json_separates_pages_with_form_feed(tmp_path, _mock_opendataloader):
     pdf_file = tmp_path / "document.pdf"
     pdf_file.write_bytes(b"%PDF fake pdf")
     document = OpenDataLoaderConverter(output_format="json").run(sources=[pdf_file])["documents"][0]
 
-    chunks = DocumentSplitter(split_by="page", split_length=1).run([document])["documents"]
-
-    assert [(chunk.meta["page_number"], chunk.content.strip("\f")) for chunk in chunks] == [
-        (1, "# Report\n\nPage one content"),
-        (2, "## Results\n\nPage two content"),
-    ]
+    # one segment per page, with no empty leading one, so page-based splitting starts at page 1
+    assert document.content.split("\f") == ["# Report\n\nPage one content", "## Results\n\nPage two content"]
 
 
 def test_converter_json_keeps_custom_page_separator(tmp_path, _mock_opendataloader):
