@@ -98,6 +98,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Creates an instance of AnthropicVertexChatGenerator.
@@ -141,6 +142,10 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
+        :param tools_strict:
+            Whether to enable strict tool use. If `True`, each tool is sent with `strict: true`, so the model's tool
+            calls are guaranteed to match the tool's `parameters` schema. The schema must stay within what strict
+            tool use supports. See [Anthropic strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.region = region or os.environ.get("REGION")
@@ -153,6 +158,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.anthropic_server_tools = anthropic_server_tools
         self.timeout = timeout
         self.max_retries = max_retries
+        self.tools_strict = tools_strict
 
         # mypy is not happy that the Vertex clients differ from the base Anthropic client types
         self.client = None  # type: ignore[assignment]
@@ -200,6 +206,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod
