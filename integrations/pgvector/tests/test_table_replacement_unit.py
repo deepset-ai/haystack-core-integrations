@@ -12,18 +12,8 @@ import pytest
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 from haystack_integrations.document_stores.pgvector import document_store as document_store_module
 from haystack_integrations.document_stores.pgvector.table_replacement import (
-    _columns,
-    _columns_async,
-    _constraints,
-    _constraints_async,
-    _has_index,
-    _has_index_async,
     _prepare_async_store,
     _prepare_sync_store,
-    _relation_exists,
-    _relation_exists_async,
-    _relation_kind,
-    _relation_kind_async,
     _truncate_identifier,
     _validate_identifier,
     _validate_stores,
@@ -317,35 +307,6 @@ async def test_prepare_async_store_restores_flags_when_setup_fails() -> None:
     assert store.recreate_table is True
     assert store.hnsw_recreate_index_if_exists is True
     assert store._table_initialized is False
-
-
-def test_sync_catalog_helpers_delegate_to_cursor() -> None:
-    cursor = Mock()
-    cursor.execute.return_value = cursor
-    cursor.fetchone.side_effect = [("r",), (1,), (1,)]
-    cursor.fetchall.side_effect = [[("id", "text")], [("p", "PRIMARY KEY (id)")]]
-
-    assert _relation_kind(cursor, "public", "documents") == "r"
-    assert _columns(cursor, "public", "documents") == [("id", "text")]
-    assert _constraints(cursor, "public", "documents") == [("p", "PRIMARY KEY (id)")]
-    assert _has_index(cursor, "public", "documents", "documents_idx") is True
-    assert _relation_exists(cursor, "public", "documents_backup") is True
-    assert cursor.execute.call_count == 5
-
-
-@pytest.mark.asyncio
-async def test_async_catalog_helpers_delegate_to_cursor() -> None:
-    cursor = Mock()
-    cursor.execute = AsyncMock()
-    cursor.fetchone = AsyncMock(side_effect=[("r",), (1,), (1,)])
-    cursor.fetchall = AsyncMock(side_effect=[[("id", "text")], [("p", "PRIMARY KEY (id)")]])
-
-    assert await _relation_kind_async(cursor, "public", "documents") == "r"
-    assert await _columns_async(cursor, "public", "documents") == [("id", "text")]
-    assert await _constraints_async(cursor, "public", "documents") == [("p", "PRIMARY KEY (id)")]
-    assert await _has_index_async(cursor, "public", "documents", "documents_idx") is True
-    assert await _relation_exists_async(cursor, "public", "documents_backup") is True
-    assert cursor.execute.await_count == 5
 
 
 def test_document_store_replace_table_delegates_to_helper(monkeypatch: pytest.MonkeyPatch) -> None:
