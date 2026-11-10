@@ -282,21 +282,15 @@ def replace_table(
     lock_timeout_ms: int = 5000,
 ) -> str:
     """
-    Atomically promote a staging table and retain the old active table as a backup.
+    Replace the table of `active_store` with the table of `staging_store`.
 
-    Writers must be paused for the cutover. The PostgreSQL transaction makes the table-name
-    changes atomic, but it does not synchronize writes already in flight. Both stores must target
-    the same database and schema and have compatible document-store/index configuration. Staging index names
-    must be unique in the schema.
+    See `PgvectorDocumentStore.replace_table` for requirements, locking, and side effects.
 
     :param active_store: The document store that currently serves queries.
-    :param staging_store: A populated, compatible document store to promote.
-    :param backup_table_name: Optional name to retain the former active table under.
-    :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
-    :returns: The name of the backup table that now holds the former active data.
-
-    After a successful swap, `staging_store` points at the backup table and its indexes, so
-    `staging_store.delete_table()` drops the former active data.
+    :param staging_store: A populated document store whose table replaces the active table.
+    :param backup_table_name: Name to keep the former table under, or `None` to generate one.
+    :param lock_timeout_ms: How long to wait for the table locks, in milliseconds.
+    :returns: The name of the backup table that now holds the former documents.
     """
     backup_table_name, index_renames = _validate_stores(active_store, staging_store, backup_table_name, lock_timeout_ms)
     _prepare_sync_store(active_store)
@@ -414,19 +408,15 @@ async def replace_table_async(
     lock_timeout_ms: int = 5000,
 ) -> str:
     """
-    Asynchronously promote a staging table and retain the old active table as a backup.
+    Asynchronously replace the table of `active_store` with the table of `staging_store`.
 
-    Writers must be paused for the cutover. The transaction makes the table-name changes atomic,
-    but it does not synchronize writes already in flight.
+    See `PgvectorDocumentStore.replace_table_async` for requirements, locking, and side effects.
 
     :param active_store: The document store that currently serves queries.
-    :param staging_store: A populated, compatible document store to promote.
-    :param backup_table_name: Optional name to retain the former active table under.
-    :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
-    :returns: The name of the backup table that now holds the former active data.
-
-    After a successful swap, `staging_store` points at the backup table and its indexes, so
-    `staging_store.delete_table()` drops the former active data.
+    :param staging_store: A populated document store whose table replaces the active table.
+    :param backup_table_name: Name to keep the former table under, or `None` to generate one.
+    :param lock_timeout_ms: How long to wait for the table locks, in milliseconds.
+    :returns: The name of the backup table that now holds the former documents.
     """
     backup_table_name, index_renames = _validate_stores(active_store, staging_store, backup_table_name, lock_timeout_ms)
     await _prepare_async_store(active_store)
