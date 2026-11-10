@@ -30,6 +30,7 @@ from psycopg import Connection, Cursor, Error
 from psycopg.sql import SQL, Identifier
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+from haystack_integrations.document_stores.pgvector.table_replacement import _Swap
 
 
 @pytest.mark.integration
@@ -802,7 +803,8 @@ def test_replace_table_hnsw(document_store_w_hnsw_index: PgvectorDocumentStore, 
     staging.write_documents([Document(id="new", content="new", embedding=[0.1] * 768)])
     staging_keyword_index, staging_hnsw_index = staging.keyword_index_name, staging.hnsw_index_name
 
-    backup = live.replace_table(staging)
+    # Short explicit backup name, so that `<backup>_pkey` fits in PostgreSQL's 63-byte identifier limit
+    backup = live.replace_table(staging, backup_table_name=f"backup_{uuid4().hex[:8]}")
 
     assert [document.id for document in live._embedding_retrieval([0.1] * 768, top_k=5)] == ["new"]
     assert _index_names(live, live.table_name) == {
@@ -944,3 +946,35 @@ def test_replace_table_backup_pk_name_taken(document_store: PgvectorDocumentStor
     assert _doc_ids(document_store) == ["old"]
     assert _doc_ids(staging) == ["new"]
     assert _index_names(document_store, document_store.table_name) == live_indexes
+
+
+@pytest.mark.integration
+def test_replace_table_rolls_back_midway(document_store: PgvectorDocumentStore, make_staging_store, monkeypatch):
+    document_store.write_documents([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    staging.write_documents([Document(id="new", content="new")])
+    live_name, staging_name = document_store.table_name, staging.table_name
+    live_indexes = _index_names(document_store, live_name)
+    staging_indexes = _index_names(document_store, staging_name)
+    backup = f"backup_{uuid4().hex[:8]}"
+
+    # PostgreSQL gives no natural way to fail between renames, so inject a failing statement right after the live
+    # table was renamed to the backup name: the point where a non-atomic swap would leave no live table at all
+    plan = _Swap.plan
+
+    def plan_failing_midway(self, results):
+        statements = plan(self, results)
+        return [*statements[:-1], SQL("SELECT 1/0"), statements[-1]]
+
+    monkeypatch.setattr(_Swap, "plan", plan_failing_midway)
+
+    with pytest.raises(DocumentStoreError, match="division by zero"):
+        document_store.replace_table(staging, backup_table_name=backup)
+
+    assert document_store.table_name == live_name
+    assert staging.table_name == staging_name
+    assert _doc_ids(document_store) == ["old"]
+    assert _doc_ids(staging) == ["new"]
+    assert _index_names(document_store, live_name) == live_indexes
+    assert _index_names(document_store, staging_name) == staging_indexes
+    assert _index_names(document_store, backup) == set()
