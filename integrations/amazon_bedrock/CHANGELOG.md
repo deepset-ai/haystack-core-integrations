@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v9.1.0] - 2026-11-09
+
+### 🚀 Features
+
+- Add tools_strict to Anthropic and Amazon Bedrock chat generators (#4113)
+- Add cache_control support to Anthropic and Amazon Bedrock chat generators (#4213)
+
+
+## [integrations/amazon_bedrock-v9.0.1] - 2026-11-06
+
+### 🐛 Bug Fixes
+
+- Drop reasoning without signature when formatting messages for AmazonBedrockChatGenerator (#4183)
+
+### 🧪 Testing
+
+- *(amazon_bedrock)* Use a supported model in the token counter integration test (#4132)
+
+
 ## [integrations/amazon_bedrock-v9.0.0] - 2026-10-16
 
 ### 🧪 Testing

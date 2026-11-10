@@ -58,6 +58,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "onnxruntime",
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -79,6 +80,7 @@ disallow_incomplete_defs = true
 module = [
   # these libraries do not ship type stubs
   "PIL.*",
+  "onnxruntime",
 ]
 ignore_missing_imports = true
 
