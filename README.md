@@ -2,18 +2,21 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-sentence_transformers-combined/htmlcov/index.html)
 
-| Name                                                                                                                         |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|----------------------------------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/backend.py                         |       43 |        2 |       10 |        1 |     94% |   144-145 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/sparse\_backend.py                 |       29 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_doc\_image\_embedder.py       |       77 |        0 |       22 |        1 |     99% | 184-\>186 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_document\_embedder.py         |       69 |        1 |       18 |        1 |     98% |       270 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_document\_embedder.py |       61 |        1 |       16 |        0 |     99% |       138 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_text\_embedder.py     |       50 |        1 |       12 |        0 |     98% |       115 |
-| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_text\_embedder.py             |       59 |        0 |       14 |        0 |    100% |           |
-| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_diversity.py                    |      152 |        3 |       40 |        3 |     97% |210-\>exit, 400-401, 436 |
-| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_similarity.py                   |       79 |        0 |       20 |        0 |    100% |           |
-| **TOTAL**                                                                                                                    |  **619** |    **8** |  **156** |    **6** | **98%** |           |
+| Name                                                                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|---------------------------------------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/backend.py                              |       43 |        2 |       10 |        1 |     94% |   144-145 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/multivector\_backend.py                 |       23 |        0 |        2 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/embedding\_backend/sparse\_backend.py                      |       29 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_doc\_image\_embedder.py            |       77 |        0 |       22 |        1 |     99% | 184-\>186 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_document\_embedder.py              |       69 |        1 |       18 |        1 |     98% |       270 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_multivector\_document\_embedder.py |       65 |        1 |       18 |        0 |     99% |       151 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_multivector\_text\_embedder.py     |       48 |        1 |       10 |        0 |     98% |       126 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_document\_embedder.py      |       61 |        1 |       16 |        0 |     99% |       138 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_sparse\_text\_embedder.py          |       50 |        1 |       12 |        0 |     98% |       115 |
+| src/haystack\_integrations/components/embedders/sentence\_transformers/sentence\_transformers\_text\_embedder.py                  |       59 |        0 |       14 |        0 |    100% |           |
+| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_diversity.py                         |      152 |        3 |       40 |        3 |     97% |210-\>exit, 400-401, 436 |
+| src/haystack\_integrations/components/rankers/sentence\_transformers/sentence\_transformers\_similarity.py                        |       79 |        0 |       20 |        0 |    100% |           |
+| **TOTAL**                                                                                                                         |  **755** |   **10** |  **186** |    **6** | **98%** |           |
 
 
 ## Setup coverage badge
