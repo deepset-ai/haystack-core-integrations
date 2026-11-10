@@ -459,7 +459,7 @@ class TestGoogleGenAIChatGeneratorRun:
         assert results["replies"][0].tool_calls[0].tool_name == "weather"
 
     def test_run_streaming_parallel_tool_calls_in_separate_chunks(self):
-        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview")
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash")
         component._client = MagicMock()
         component._client.models.generate_content_stream = Mock(return_value=iter(_parallel_call_stream_chunks()))
 
@@ -680,7 +680,7 @@ class TestGoogleGenAIChatGeneratorRun:
 
     @pytest.mark.asyncio
     async def test_run_async_streaming_parallel_tool_calls_in_separate_chunks(self):
-        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview")
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash")
         component._async_client = MagicMock()
 
         async def mock_stream():
@@ -928,7 +928,7 @@ class TestGoogleGenAIChatGeneratorInference:
                 "What's the weather like in Paris and Berlin? Produce a separate tool call for each city."
             )
         ]
-        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview", tools=tools)
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", tools=tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) == 1
@@ -972,9 +972,7 @@ class TestGoogleGenAIChatGeneratorInference:
         """
         # We use a model that supports the thinking feature
         chat_messages = [ChatMessage.from_user("Why is the sky blue? Explain in one sentence.")]
-        component = GoogleGenAIChatGenerator(
-            model="gemini-3-flash-preview", generation_kwargs={"thinking_level": "low"}
-        )
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", generation_kwargs={"thinking_level": "medium"})
         results = component.run(chat_messages)
 
         assert len(results["replies"]) == 1
@@ -999,7 +997,7 @@ class TestGoogleGenAIChatGeneratorInference:
         """
         # Use a model that supports thinking with tools
         component = GoogleGenAIChatGenerator(
-            model="gemini-3-flash-preview",
+            model="gemini-3.8-flash",
             tools=tools,
             generation_kwargs={"thinking_level": "low"},  # Dynamic allocation
         )
@@ -1105,7 +1103,7 @@ class TestGoogleGenAIChatGeneratorInference:
         )
 
         agent = Agent(
-            chat_generator=GoogleGenAIChatGenerator(model="gemini-3-flash-preview"),
+            chat_generator=GoogleGenAIChatGenerator(model="gemini-3.8-flash"),
             system_prompt="You are an Agent that can retrieve and analyze images and documents.",
             tools=[multimodal_retriever_tool],
         )
@@ -1188,9 +1186,7 @@ class TestAsyncGoogleGenAIChatGeneratorInference:
         Async integration test for the thinking feature.
         """
         chat_messages = [ChatMessage.from_user("Why is the sky blue? Explain in one sentence.")]
-        component = GoogleGenAIChatGenerator(
-            model="gemini-3-flash-preview", generation_kwargs={"thinking_level": "low"}
-        )
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", generation_kwargs={"thinking_level": "medium"})
         results = await component.run_async(chat_messages)
 
         assert len(results["replies"]) == 1

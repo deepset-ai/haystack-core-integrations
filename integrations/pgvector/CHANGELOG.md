@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v8.2.0] - 2026-11-10
+
+### 🚀 Features
+
+- Pgvector - add replace_table for zero-downtime table swaps (#4162)
+
+
 ## [integrations/pgvector-v8.1.2] - 2026-10-21
 
 ### 🚀 Features
