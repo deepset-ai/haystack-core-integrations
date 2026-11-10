@@ -67,7 +67,9 @@ class SentenceTransformersMultivectorTextEmbedder:
             Token for private Hugging Face models. Defaults to `HF_API_TOKEN` or `HF_TOKEN`, if set.
             With `None`, authentication follows the Hugging Face Hub defaults.
         :param prefix:
-            A string to add at the beginning of each text to be embedded.
+            A string to add at the beginning of each text to embed.
+            Sentence Transformers already adds the model's query prompt (for example, the `[Q]` marker of
+            ColBERT models) before this prefix, so don't repeat it here.
         :param suffix:
             A string to add at the end of each text to embed.
         :param trust_remote_code:
