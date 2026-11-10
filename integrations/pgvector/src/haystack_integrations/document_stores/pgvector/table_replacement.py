@@ -6,12 +6,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from haystack.document_stores.errors import DocumentStoreError
-from psycopg import Error
+from psycopg import AsyncCursor, Cursor, Error
 from psycopg.sql import SQL, Composed, Identifier
 
 if TYPE_CHECKING:
@@ -154,58 +156,49 @@ def _validate_stores(
     if active_store.search_strategy == "hnsw":
         backup_hnsw_index_name = _truncate_identifier(f"{backup_table_name}_hnsw_{token}")
         index_renames.append((active_store.hnsw_index_name, staging_store.hnsw_index_name, backup_hnsw_index_name))
-
-    for _, _, backup_index_name in index_renames:
-        if backup_index_name in {active_store.table_name, staging_store.table_name, backup_table_name}:
-            msg = "Generated backup index name conflicts with a table name"
-            raise ValueError(msg)
     return backup_table_name, index_renames
+
+
+@contextmanager
+def _without_table_setup(store: PgvectorDocumentStore) -> Iterator[None]:
+    """
+    Let `store` connect without its first-connect table setup, then restore its settings.
+
+    Setup creates a missing table and, with `recreate_table=True`, drops an existing one first. A replacement must
+    neither promote a silently created empty table nor drop live data, so setup is skipped while connecting.
+    """
+    settings = (store.recreate_table, store.hnsw_recreate_index_if_exists, store._table_initialized)
+    store.recreate_table = False
+    store.hnsw_recreate_index_if_exists = False
+    store._table_initialized = True
+    try:
+        yield
+    finally:
+        store.recreate_table, store.hnsw_recreate_index_if_exists, store._table_initialized = settings
 
 
 def _prepare_sync_store(store: PgvectorDocumentStore) -> None:
     """Open a connection without initializing or recreating a table."""
-    recreate_table = store.recreate_table
-    recreate_hnsw_index = store.hnsw_recreate_index_if_exists
-    table_initialized = store._table_initialized
-    store.recreate_table = False
-    store.hnsw_recreate_index_if_exists = False
-    # _ensure_db_setup initializes missing tables. A replacement must only promote a
-    # pre-existing staging table, never silently create an empty one.
-    store._table_initialized = True
-    try:
+    with _without_table_setup(store):
         store._ensure_db_setup()
-    finally:
-        store.recreate_table = recreate_table
-        store.hnsw_recreate_index_if_exists = recreate_hnsw_index
-        store._table_initialized = table_initialized
 
 
 async def _prepare_async_store(store: PgvectorDocumentStore) -> None:
     """Open an async connection without initializing or recreating a table."""
-    recreate_table = store.recreate_table
-    recreate_hnsw_index = store.hnsw_recreate_index_if_exists
-    table_initialized = store._table_initialized
-    store.recreate_table = False
-    store.hnsw_recreate_index_if_exists = False
-    store._table_initialized = True
-    try:
+    with _without_table_setup(store):
         await store._ensure_db_setup_async()
-    finally:
-        store.recreate_table = recreate_table
-        store.hnsw_recreate_index_if_exists = recreate_hnsw_index
-        store._table_initialized = table_initialized
 
 
-def _database_identity(cursor: Any) -> tuple[Any, ...]:
-    return tuple(cursor.execute(_DATABASE_IDENTITY_QUERY).fetchone())
+_Row = tuple[Any, ...]
 
 
-async def _database_identity_async(cursor: Any) -> tuple[Any, ...]:
+def _database_identity(cursor: Cursor) -> list[_Row]:
+    return cursor.execute(_DATABASE_IDENTITY_QUERY).fetchall()
+
+
+async def _database_identity_async(cursor: AsyncCursor) -> list[_Row]:
     await cursor.execute(_DATABASE_IDENTITY_QUERY)
-    return tuple(await cursor.fetchone())
-
-
-Row = tuple[Any, ...]
+    return await cursor.fetchall()
 
 
 @dataclass(frozen=True)
@@ -222,7 +215,7 @@ class _Swap:
     staging_table: str
     backup_table: str
     # (active name, staging name, backup name) for the keyword index and, with HNSW, the HNSW index.
-    index_renames: list[tuple[str, str, str]]
+    index_renames: tuple[tuple[str, str, str], ...]
     backup_pk: str
     lock_timeout_ms: int
 
@@ -240,7 +233,7 @@ class _Swap:
             active_table=active_store.table_name,
             staging_table=staging_store.table_name,
             backup_table=backup_table,
-            index_renames=index_renames,
+            index_renames=tuple(index_renames),
             backup_pk=_truncate_identifier(f"{backup_table}_pkey"),
             lock_timeout_ms=lock_timeout_ms,
         )
@@ -251,7 +244,7 @@ class _Swap:
     def table_kinds_query(self) -> tuple[SQL, tuple[str, list[str]]]:
         return _TABLE_KINDS_QUERY, (self.schema, [self.active_table, self.staging_table])
 
-    def check_tables_exist(self, rows: list[Row]) -> None:
+    def check_tables_exist(self, rows: list[_Row]) -> None:
         kinds: dict[str, str] = dict(rows)
         for label, table in (("Active", self.active_table), ("Staging", self.staging_table)):
             if kinds.get(table) != "r":
@@ -277,7 +270,7 @@ class _Swap:
             (_EXISTING_RELATIONS_QUERY, (self.schema, backup_relations)),
         ]
 
-    def plan(self, results: list[list[Row]]) -> list[Composed]:
+    def plan(self, results: list[list[_Row]]) -> list[Composed]:
         """
         Check the catalog results of `catalog_queries` and return the rename statements to execute, in order.
 

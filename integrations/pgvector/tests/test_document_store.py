@@ -1146,7 +1146,7 @@ def _swap() -> _Swap:
         active_table="live",
         staging_table="stage",
         backup_table="backup",
-        index_renames=[("live_kw", "stage_kw", "backup_kw")],
+        index_renames=(("live_kw", "stage_kw", "backup_kw"),),
         backup_pk="backup_pkey",
         lock_timeout_ms=5000,
     )
