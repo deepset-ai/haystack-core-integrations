@@ -408,10 +408,9 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         error = ValueError("backend error")
         graph.query.side_effect = [error] if failure_stage == "labels" else [_result([[1]]), error]
         meta = {"labels": ["Article"], "links": [{"type": "LINK", "target_id": "a"}]}
-        expected_error = DocumentStoreError if failure_stage == "labels" else ValueError
-        with pytest.raises(expected_error, match="backend error") as exc:
+        with pytest.raises(DocumentStoreError, match="backend error") as exc:
             await store.write_documents_async([Document(id="a", meta=meta)], policy=DuplicatePolicy.OVERWRITE)
-        assert (exc.value.__cause__ if failure_stage == "labels" else exc.value) is error
+        assert exc.value.__cause__ is error
 
     @pytest.mark.asyncio
     async def test_delete_documents_async_empty_and_nonempty(self, warmed_async_store) -> None:

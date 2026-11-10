@@ -579,10 +579,9 @@ class TestFalkorDBDocumentStoreUnit:
         error = ValueError("backend error")
         graph.query.side_effect = [error] if failure_stage == "labels" else [_result([[1]]), error]
         meta = {"labels": ["Article"], "links": [{"type": "LINK", "target_id": "a"}]}
-        expected_error = DocumentStoreError if failure_stage == "labels" else ValueError
-        with pytest.raises(expected_error, match="backend error") as exc:
+        with pytest.raises(DocumentStoreError, match="backend error") as exc:
             store.write_documents([Document(id="a", meta=meta)], policy=DuplicatePolicy.OVERWRITE)
-        assert (exc.value.__cause__ if failure_stage == "labels" else exc.value) is error
+        assert exc.value.__cause__ is error
 
     def test_delete_all_documents(self, mock_falkordb):
         _, _, graph = mock_falkordb

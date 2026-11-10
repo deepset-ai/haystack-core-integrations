@@ -506,8 +506,7 @@ class FalkorDBDocumentStore(DocumentStore):
         :raises TypeError: Graph metadata has invalid types or property shapes.
         :raises ValueError: `documents` contains non-Document elements or required relationship keys are missing.
         :raises DuplicateDocumentError: `policy` is FAIL / NONE and a duplicate ID is encountered.
-        :raises DocumentStoreError: A relationship target is missing or a document-node write fails.
-            Backend errors during relationship writes propagate unchanged.
+        :raises DocumentStoreError: A relationship target is missing or a document-node or relationship write fails.
         :returns: Number of documents written or updated, not including relationships.
         """
         self.warm_up()
@@ -533,22 +532,28 @@ class FalkorDBDocumentStore(DocumentStore):
             written += self._write_batch(batch, policy, labels)
 
         for query, params in self._relationship_queries(relationships):
-            result = self.graph.query(query, params)
+            try:
+                result = self.graph.query(query, params)
+            except Exception as exc:
+                msg = f"Failed to write relationships to FalkorDB: {exc}"
+                raise DocumentStoreError(msg) from exc
             _check_relationship_count(result.result_set, len(params["rows"]))
         return written
 
     def _prepare_graph_documents(
         self, documents: list[Document]
     ) -> tuple[list[Document], dict[str, list[str]], dict[str, list[_RelationshipRecord]]]:
-        fields = self.labels_metadata_field, self.relationships_metadata_field
-        if fields == (None, None):
+        if self.labels_metadata_field is None and self.relationships_metadata_field is None:
             return documents, {}, {}
         labels: dict[str, list[str]] = {}
         relationships: dict[str, list[_RelationshipRecord]] = {}
         prepared = []
         for doc in documents:
             meta = dict(doc.meta)
-            doc_labels, doc_relationships = [meta.pop(field, []) if field is not None else [] for field in fields]
+            doc_labels = meta.pop(self.labels_metadata_field, []) if self.labels_metadata_field is not None else []
+            doc_relationships = (
+                meta.pop(self.relationships_metadata_field, []) if self.relationships_metadata_field is not None else []
+            )
             if not isinstance(doc_labels, list) or not isinstance(doc_relationships, list):
                 msg = f"Document '{doc.id}' graph metadata fields must contain lists."
                 raise TypeError(msg)
@@ -974,8 +979,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :raises TypeError: Graph metadata has invalid types or property shapes.
         :raises ValueError: `documents` contains non-Document elements or required relationship keys are missing.
         :raises DuplicateDocumentError: `policy` is FAIL / NONE and a duplicate ID is encountered.
-        :raises DocumentStoreError: A relationship target is missing or a document-node write fails.
-            Backend errors during relationship writes propagate unchanged.
+        :raises DocumentStoreError: A relationship target is missing or a document-node or relationship write fails.
         :returns: Number of documents written or updated, not including relationships.
         """
         await self.warm_up_async()
@@ -1001,7 +1005,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             written += await self._write_batch_async(batch, policy, labels)
 
         for query, params in self._relationship_queries(relationships):
-            result = await self.async_graph.query(query, params)
+            try:
+                result = await self.async_graph.query(query, params)
+            except Exception as exc:
+                msg = f"Failed to write relationships to FalkorDB: {exc}"
+                raise DocumentStoreError(msg) from exc
             _check_relationship_count(result.result_set, len(params["rows"]))
         return written
 
