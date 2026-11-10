@@ -986,8 +986,16 @@ class TestRun:
         assert "get_current_temperature" in tool_names
         assert "population" in tool_names
 
-    def test_run_with_empty_tools_overrides_init_tools(self, temperature_tool):
-        """An explicit empty tools list disables the init tools for that call."""
+    @pytest.mark.parametrize(
+        ("runtime_kwargs", "expected_tool_names"),
+        [
+            pytest.param({}, ["get_current_temperature"], id="omitted"),
+            pytest.param({"tools": None}, ["get_current_temperature"], id="none"),
+            pytest.param({"tools": []}, [], id="empty"),
+        ],
+    )
+    def test_run_runtime_tools(self, temperature_tool, runtime_kwargs, expected_tool_names):
+        """Runtime tools override init tools only when explicitly provided."""
         generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool])
         mock_model = MagicMock()
         mock_model.create_chat_completion.return_value = {
@@ -999,30 +1007,11 @@ class TestRun:
         }
         generator._model = mock_model
 
-        generator.run(messages=[ChatMessage.from_user("Hi")], tools=[])
+        generator.run(messages=[ChatMessage.from_user("Hi")], **runtime_kwargs)
 
-        call_args = mock_model.create_chat_completion.call_args[1]
-        assert call_args["tools"] == []
-        # init tools are left untouched for later calls
+        call_kwargs = mock_model.create_chat_completion.call_args.kwargs
+        assert [tool["function"]["name"] for tool in call_kwargs["tools"]] == expected_tool_names
         assert generator.tools == [temperature_tool]
-
-    def test_run_without_tools_uses_init_tools(self, temperature_tool):
-        """Omitting tools (None) falls back to the tools set at initialization."""
-        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool])
-        mock_model = MagicMock()
-        mock_model.create_chat_completion.return_value = {
-            "choices": [{"message": {"content": "Generated text"}, "index": 0, "finish_reason": "stop"}],
-            "id": "test_id",
-            "model": "test_model",
-            "created": 1234567890,
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-        }
-        generator._model = mock_model
-
-        generator.run(messages=[ChatMessage.from_user("Hi")])
-
-        call_args = mock_model.create_chat_completion.call_args[1]
-        assert [tool["function"]["name"] for tool in call_args["tools"]] == ["get_current_temperature"]
 
     def test_run_with_string_input(self, generator_mock):
         """
@@ -1398,6 +1387,25 @@ class TestRunAsync:
         assert response["replies"][0].text == "Generated text"
         assert response["replies"][0].meta["finish_reason"] == "length"
 
+    async def test_run_async_with_string_input(self, generator_mock):
+        """Test that a string input is converted to a user ChatMessage and returns a list of replies."""
+        generator, mock_model = generator_mock
+        mock_output = {
+            "id": "unique-id-123",
+            "model": "Test Model Path",
+            "created": 1715226164,
+            "choices": [{"index": 0, "message": {"content": "Paris", "role": "assistant"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
+        }
+        mock_model.create_chat_completion.return_value = mock_output
+
+        result = await generator.run_async("What's the capital of France?")
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert call_args["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
     async def test_run_async_with_empty_tools_overrides_init_tools(self, temperature_tool):
         """An explicit empty tools list disables the init tools for that async call."""
         generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool])
@@ -1417,25 +1425,6 @@ class TestRunAsync:
 
         call_kwargs = mock_model.create_chat_completion.call_args[1]
         assert call_kwargs["tools"] == []
-
-    async def test_run_async_with_string_input(self, generator_mock):
-        """Test that a string input is converted to a user ChatMessage and returns a list of replies."""
-        generator, mock_model = generator_mock
-        mock_output = {
-            "id": "unique-id-123",
-            "model": "Test Model Path",
-            "created": 1715226164,
-            "choices": [{"index": 0, "message": {"content": "Paris", "role": "assistant"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
-        }
-        mock_model.create_chat_completion.return_value = mock_output
-
-        result = await generator.run_async("What's the capital of France?")
-        call_args = mock_model.create_chat_completion.call_args[1]
-        assert call_args["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
-        assert isinstance(result["replies"], list)
-        assert len(result["replies"]) == 1
-        assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.fixture
     def generator(self, model_path, capsys):
