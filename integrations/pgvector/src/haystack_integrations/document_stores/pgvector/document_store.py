@@ -654,11 +654,12 @@ class PgvectorDocumentStore:
         :param staging_store: A populated, compatible store to promote.
         :param backup_table_name: Optional name to retain the former active table under.
         :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
-        :returns: The backup table name. The staging store instance is repointed to the backup.
+        :returns: The name of the backup table that now holds the former active data.
 
-        The backup is retained and ``recreate_table`` plus ``hnsw_recreate_index_if_exists`` are disabled on both
-        instances after success.
-        Use ``staging_store.delete_table()`` when the backup is no longer needed.
+        After a successful swap, `staging_store` is repointed to the backup: its `table_name`, `keyword_index_name`
+        and, with the `hnsw` search strategy, `hnsw_index_name` are set to the backup names. Call
+        `staging_store.delete_table()` to drop the former active data once it is no longer needed. Because these
+        attributes change, `staging_store.to_dict()` also reflects the backup names after the swap.
         """
         return replace_table(
             self,
@@ -682,7 +683,12 @@ class PgvectorDocumentStore:
         :param staging_store: A populated, compatible store to promote.
         :param backup_table_name: Optional name to retain the former active table under.
         :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
-        :returns: The backup table name.
+        :returns: The name of the backup table that now holds the former active data.
+
+        After a successful swap, `staging_store` is repointed to the backup: its `table_name`, `keyword_index_name`
+        and, with the `hnsw` search strategy, `hnsw_index_name` are set to the backup names. Call
+        `staging_store.delete_table()` to drop the former active data once it is no longer needed. Because these
+        attributes change, `staging_store.to_dict()` also reflects the backup names after the swap.
         """
         return await replace_table_async(
             self,

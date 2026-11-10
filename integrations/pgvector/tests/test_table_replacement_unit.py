@@ -16,8 +16,6 @@ from haystack_integrations.document_stores.pgvector.table_replacement import (
     _columns_async,
     _constraints,
     _constraints_async,
-    _database_identity,
-    _database_identity_async,
     _has_index,
     _has_index_async,
     _prepare_async_store,
@@ -306,33 +304,6 @@ async def test_prepare_async_store_restores_flags_when_setup_fails() -> None:
     assert store.recreate_table is True
     assert store.hnsw_recreate_index_if_exists is True
     assert store._table_initialized is False
-
-
-def test_database_identity_includes_database_and_connection_endpoint() -> None:
-    connection = Mock()
-    connection.info.host = "localhost"
-    connection.info.port = 5432
-    cursor = Mock()
-    cursor.execute.return_value = cursor
-    cursor.fetchone.return_value = ("test_db", 1234, "127.0.0.1", 5432)
-
-    identity = _database_identity(connection, cursor)
-
-    assert identity == ("test_db", 1234, "127.0.0.1", 5432, "localhost", 5432)
-
-
-@pytest.mark.asyncio
-async def test_database_identity_async_includes_database_and_connection_endpoint() -> None:
-    connection = Mock()
-    connection.info.host = "localhost"
-    connection.info.port = 5432
-    cursor = Mock()
-    cursor.execute = AsyncMock()
-    cursor.fetchone = AsyncMock(return_value=("test_db", 1234, "127.0.0.1", 5432))
-
-    identity = await _database_identity_async(connection, cursor)
-
-    assert identity == ("test_db", 1234, "127.0.0.1", 5432, "localhost", 5432)
 
 
 def test_sync_catalog_helpers_delegate_to_cursor() -> None:

@@ -41,8 +41,9 @@ def test_replace_sync(document_store: PgvectorDocumentStore) -> None:
         assert backup_name == f"{document_store.table_name}_backup"
         assert [document.id for document in document_store.filter_documents()] == ["new"]
         assert [document.id for document in staging_store.filter_documents()] == ["old"]
-        assert document_store.recreate_table is False
-        assert staging_store.recreate_table is False
+        # The fixture uses recreate_table=True: reconnecting must not drop the promoted table
+        document_store.close()
+        assert [document.id for document in document_store.filter_documents()] == ["new"]
     finally:
         staging_store.delete_table()
         staging_store.close()
@@ -79,8 +80,9 @@ async def test_replace_async(document_store: PgvectorDocumentStore) -> None:
         assert backup_name == f"{document_store.table_name}_backup"
         assert [document.id for document in await document_store.filter_documents_async()] == ["new"]
         assert [document.id for document in await staging_store.filter_documents_async()] == ["old"]
-        assert document_store.recreate_table is False
-        assert staging_store.recreate_table is False
+        # The fixture uses recreate_table=True: reconnecting must not drop the promoted table
+        await document_store.close_async()
+        assert [document.id for document in await document_store.filter_documents_async()] == ["new"]
     finally:
         await staging_store.delete_table_async()
         await staging_store.close_async()

@@ -17,9 +17,12 @@ if TYPE_CHECKING:
     from .document_store import PgvectorDocumentStore
 
 _POSTGRES_IDENTIFIER_MAX_BYTES = 63
+# Identifies "same database on the same running server" from the server side only, so it does not depend on
+# how the client spelled the host (localhost vs 127.0.0.1, IPv4 vs IPv6, TCP vs Unix socket).
+# pg_postmaster_start_time() is callable by any role, unlike pg_control_system().
 _DATABASE_IDENTITY_QUERY = SQL(
     "SELECT current_database(), (SELECT oid FROM pg_database WHERE datname = current_database()), "
-    "inet_server_addr()::text, inet_server_port()"
+    "pg_postmaster_start_time()"
 )
 _TABLE_EXISTS_QUERY = SQL(
     "SELECT c.relkind FROM pg_class AS c "
@@ -180,15 +183,13 @@ async def _prepare_async_store(store: PgvectorDocumentStore) -> None:
         store._table_initialized = table_initialized
 
 
-def _database_identity(connection: Any, cursor: Any) -> tuple[Any, ...]:
-    row = cursor.execute(_DATABASE_IDENTITY_QUERY).fetchone()
-    return (*row, connection.info.host, connection.info.port)
+def _database_identity(cursor: Any) -> tuple[Any, ...]:
+    return tuple(cursor.execute(_DATABASE_IDENTITY_QUERY).fetchone())
 
 
-async def _database_identity_async(connection: Any, cursor: Any) -> tuple[Any, ...]:
+async def _database_identity_async(cursor: Any) -> tuple[Any, ...]:
     await cursor.execute(_DATABASE_IDENTITY_QUERY)
-    row = await cursor.fetchone()
-    return (*row, connection.info.host, connection.info.port)
+    return tuple(await cursor.fetchone())
 
 
 def _relation_kind(cursor: Any, schema_name: str, table_name: str) -> str | None:
@@ -238,6 +239,23 @@ async def _relation_exists_async(cursor: Any, schema_name: str, relation_name: s
     return bool(await cursor.fetchone())
 
 
+def _point_stores_after_swap(
+    active_store: PgvectorDocumentStore,
+    staging_store: PgvectorDocumentStore,
+    backup_table_name: str,
+    index_renames: list[tuple[str, str, str]],
+) -> None:
+    """Repoint the staging instance at the backup and mark both tables as initialized."""
+    staging_store.table_name = backup_table_name
+    staging_store.keyword_index_name = index_renames[0][2]
+    if active_store.search_strategy == "hnsw":
+        staging_store.hnsw_index_name = index_renames[1][2]
+    # Both tables already exist. Without this, an instance that had not initialized its table before the swap
+    # would run table initialization on its next reconnect, and `recreate_table=True` would drop the promoted table.
+    active_store._table_initialized = True
+    staging_store._table_initialized = True
+
+
 def replace_table(
     active_store: PgvectorDocumentStore,
     staging_store: PgvectorDocumentStore,
@@ -257,10 +275,10 @@ def replace_table(
     :param staging_store: A populated, compatible document store to promote.
     :param backup_table_name: Optional name to retain the former active table under.
     :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
-    :returns: The backup table name. The staging store instance is repointed to the backup.
+    :returns: The name of the backup table that now holds the former active data.
 
-    The backup is retained and ``recreate_table`` is disabled on both instances after success
-    to prevent a later reconnect from unexpectedly dropping data.
+    After a successful swap, `staging_store` points at the backup table and its indexes, so
+    `staging_store.delete_table()` drops the former active data.
     """
     backup_table_name, index_renames = _validate_stores(active_store, staging_store, backup_table_name, lock_timeout_ms)
     _prepare_sync_store(active_store)
@@ -270,9 +288,7 @@ def replace_table(
 
     try:
         with active_store._connection.cursor() as active_cursor, staging_store._connection.cursor() as staging_cursor:
-            if _database_identity(active_store._connection, active_cursor) != _database_identity(
-                staging_store._connection, staging_cursor
-            ):
+            if _database_identity(active_cursor) != _database_identity(staging_cursor):
                 msg = "Active and staging document stores must connect to the same PostgreSQL database"
                 raise ValueError(msg)
 
@@ -359,16 +375,7 @@ def replace_table(
         )
         raise DocumentStoreError(detailed_error_msg) from error
 
-    active_store.recreate_table = False
-    active_store.hnsw_recreate_index_if_exists = False
-    active_store._table_initialized = True
-    staging_store.table_name = backup_table_name
-    staging_store.keyword_index_name = index_renames[0][2]
-    if active_store.search_strategy == "hnsw":
-        staging_store.hnsw_index_name = index_renames[1][2]
-    staging_store.recreate_table = False
-    staging_store.hnsw_recreate_index_if_exists = False
-    staging_store._table_initialized = True
+    _point_stores_after_swap(active_store, staging_store, backup_table_name, index_renames)
     return backup_table_name
 
 
@@ -389,7 +396,10 @@ async def replace_table_async(
     :param staging_store: A populated, compatible document store to promote.
     :param backup_table_name: Optional name to retain the former active table under.
     :param lock_timeout_ms: Maximum time in milliseconds to wait for table locks.
-    :returns: The backup table name. The staging store instance is repointed to the backup.
+    :returns: The name of the backup table that now holds the former active data.
+
+    After a successful swap, `staging_store` points at the backup table and its indexes, so
+    `staging_store.delete_table()` drops the former active data.
     """
     backup_table_name, index_renames = _validate_stores(active_store, staging_store, backup_table_name, lock_timeout_ms)
     await _prepare_async_store(active_store)
@@ -402,8 +412,8 @@ async def replace_table_async(
             active_store._async_connection.cursor() as active_cursor,
             staging_store._async_connection.cursor() as staging_cursor,
         ):
-            active_identity = await _database_identity_async(active_store._async_connection, active_cursor)
-            staging_identity = await _database_identity_async(staging_store._async_connection, staging_cursor)
+            active_identity = await _database_identity_async(active_cursor)
+            staging_identity = await _database_identity_async(staging_cursor)
             if active_identity != staging_identity:
                 msg = "Active and staging document stores must connect to the same PostgreSQL database"
                 raise ValueError(msg)
@@ -495,14 +505,5 @@ async def replace_table_async(
         )
         raise DocumentStoreError(detailed_error_msg) from error
 
-    active_store.recreate_table = False
-    active_store.hnsw_recreate_index_if_exists = False
-    active_store._table_initialized = True
-    staging_store.table_name = backup_table_name
-    staging_store.keyword_index_name = index_renames[0][2]
-    if active_store.search_strategy == "hnsw":
-        staging_store.hnsw_index_name = index_renames[1][2]
-    staging_store.recreate_table = False
-    staging_store.hnsw_recreate_index_if_exists = False
-    staging_store._table_initialized = True
+    _point_stores_after_swap(active_store, staging_store, backup_table_name, index_renames)
     return backup_table_name
