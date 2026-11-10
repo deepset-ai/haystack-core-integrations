@@ -46,6 +46,13 @@ _CONSTRAINTS_QUERY = SQL(
     "WHERE n.nspname = %s AND c.relname = %s "
     "ORDER BY con.contype, pg_catalog.pg_get_constraintdef(con.oid)"
 )
+_PRIMARY_KEY_INDEX_QUERY = SQL(
+    "SELECT i.relname FROM pg_index AS x "
+    "JOIN pg_class AS t ON t.oid = x.indrelid "
+    "JOIN pg_namespace AS n ON n.oid = t.relnamespace "
+    "JOIN pg_class AS i ON i.oid = x.indexrelid "
+    "WHERE n.nspname = %s AND t.relname = %s AND x.indisprimary"
+)
 _INDEX_EXISTS_QUERY = SQL("SELECT 1 FROM pg_indexes WHERE schemaname = %s AND tablename = %s AND indexname = %s")
 _RELATION_EXISTS_QUERY = SQL(
     "SELECT 1 FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace "
@@ -221,6 +228,17 @@ async def _constraints_async(cursor: Any, schema_name: str, table_name: str) -> 
     return await cursor.fetchall()
 
 
+def _primary_key_index(cursor: Any, schema_name: str, table_name: str) -> str | None:
+    row = cursor.execute(_PRIMARY_KEY_INDEX_QUERY, (schema_name, table_name)).fetchone()
+    return row[0] if row else None
+
+
+async def _primary_key_index_async(cursor: Any, schema_name: str, table_name: str) -> str | None:
+    await cursor.execute(_PRIMARY_KEY_INDEX_QUERY, (schema_name, table_name))
+    row = await cursor.fetchone()
+    return row[0] if row else None
+
+
 def _has_index(cursor: Any, schema_name: str, table_name: str, index_name: str) -> bool:
     return bool(cursor.execute(_INDEX_EXISTS_QUERY, (schema_name, table_name, index_name)).fetchone())
 
@@ -325,6 +343,15 @@ def replace_table(
                 if _relation_exists(cursor, schema_name, backup_table_name):
                     msg = f"Backup relation {schema_name}.{backup_table_name} already exists"
                     raise ValueError(msg)
+
+                # PostgreSQL does not rename a table's primary key with the table, so without this the
+                # promoted table keeps the staging name and names drift on every replacement. Renaming the
+                # index also renames its constraint. Matching constraints guarantee both tables have a PK or neither.
+                active_pk = _primary_key_index(cursor, schema_name, active_name)
+                staging_pk = _primary_key_index(cursor, schema_name, staging_name)
+                if active_pk is not None and staging_pk is not None:
+                    backup_pk = _truncate_identifier(f"{backup_table_name}_pkey")
+                    index_renames = [*index_renames, (active_pk, staging_pk, backup_pk)]
 
                 for active_index, staging_index, backup_index in index_renames:
                     if not _has_index(cursor, schema_name, active_name, active_index):
@@ -455,6 +482,13 @@ async def replace_table_async(
                 if await _relation_exists_async(cursor, schema_name, backup_table_name):
                     msg = f"Backup relation {schema_name}.{backup_table_name} already exists"
                     raise ValueError(msg)
+
+                # See replace_table: keep primary key names aligned with their tables.
+                active_pk = await _primary_key_index_async(cursor, schema_name, active_name)
+                staging_pk = await _primary_key_index_async(cursor, schema_name, staging_name)
+                if active_pk is not None and staging_pk is not None:
+                    backup_pk = _truncate_identifier(f"{backup_table_name}_pkey")
+                    index_renames = [*index_renames, (active_pk, staging_pk, backup_pk)]
 
                 for active_index, staging_index, backup_index in index_renames:
                     if not await _has_index_async(cursor, schema_name, active_name, active_index):
