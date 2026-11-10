@@ -46,6 +46,9 @@ class GoogleGenAIChatGenerator:
     Supports models like gemini-3.8-flash and other Gemini variants. For Gemini 2.5 series models,
     enables thinking features via `generation_kwargs={"thinking_budget": value}`.
 
+    This component uses the `generateContent` API. Some models and quotas, such as the free tier of newer Flash
+    models, are only available through the Interactions API: use `GoogleGenAIInteractionsChatGenerator` for those.
+
     ### Thinking Support (Gemini 2.5 and Gemini 3 Series)
     - **Reasoning transparency**: Models can show their reasoning process
     - **Thought signatures**: Maintains thought context across multi-turn conversations with tools
@@ -363,6 +366,7 @@ class GoogleGenAIChatGenerator:
         try:
             chunks = []
             tool_calls_seen = False
+            tool_call_count = 0
 
             for i, chunk in enumerate(response_stream):
                 streaming_chunk = _convert_google_chunk_to_streaming_chunk(
@@ -371,8 +375,10 @@ class GoogleGenAIChatGenerator:
                     component_info=component_info,
                     model=self._model,
                     tool_calls_seen=tool_calls_seen,
+                    tool_call_index_offset=tool_call_count,
                 )
                 tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
+                tool_call_count += len(streaming_chunk.tool_calls or [])
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
@@ -401,6 +407,7 @@ class GoogleGenAIChatGenerator:
         try:
             chunks = []
             tool_calls_seen = False
+            tool_call_count = 0
 
             i = 0
             chunk = None
@@ -411,8 +418,10 @@ class GoogleGenAIChatGenerator:
                     component_info=component_info,
                     model=self._model,
                     tool_calls_seen=tool_calls_seen,
+                    tool_call_index_offset=tool_call_count,
                 )
                 tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
+                tool_call_count += len(streaming_chunk.tool_calls or [])
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
