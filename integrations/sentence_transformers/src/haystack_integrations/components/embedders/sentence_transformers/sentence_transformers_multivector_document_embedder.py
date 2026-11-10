@@ -75,6 +75,8 @@ class SentenceTransformersMultivectorDocumentEmbedder:
             With `None`, authentication follows the Hugging Face Hub defaults.
         :param prefix:
             A string to add at the beginning of each document text.
+            Sentence Transformers already adds the model's document prompt (for example, the `[D]` marker of
+            ColBERT models) before this prefix, so don't repeat it here.
         :param suffix:
             A string to add at the end of each document text.
         :param batch_size:
