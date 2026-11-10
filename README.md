@@ -7,9 +7,10 @@
 | src/haystack\_integrations/components/retrievers/pgvector/embedding\_retriever.py |       48 |        4 |        6 |        3 |     87% |90-91, 94-95, 135-\>137 |
 | src/haystack\_integrations/components/retrievers/pgvector/keyword\_retriever.py   |       41 |        2 |        4 |        1 |     93% |     69-70 |
 | src/haystack\_integrations/document\_stores/pgvector/converters.py                |       42 |        2 |       18 |        3 |     92% |31-\>41, 34, 67 |
-| src/haystack\_integrations/document\_stores/pgvector/document\_store.py           |      746 |       37 |      190 |       23 |     94% |276-\>exit, 281-\>exit, 325-\>exit, 330-\>exit, 428-429, 433-\>435, 467-\>469, 658-659, 663-664, 702, 716-721, 739, 755-760, 788, 813, 919-\>924, 943-949, 976-\>981, 1000-1006, 1050, 1140-1142, 1188-1190, 1215-\>1220, 1238-1240, 1265-\>1270, 1288-1290, 1425-\>1429, 1520-\>1523, 1546, 1571 |
+| src/haystack\_integrations/document\_stores/pgvector/document\_store.py           |      751 |       37 |      190 |       23 |     94% |277-\>exit, 282-\>exit, 326-\>exit, 331-\>exit, 429-430, 434-\>436, 468-\>470, 829-830, 834-835, 873, 887-892, 910, 926-931, 959, 984, 1090-\>1095, 1114-1120, 1147-\>1152, 1171-1177, 1221, 1311-1313, 1359-1361, 1386-\>1391, 1409-1411, 1436-\>1441, 1459-1461, 1596-\>1600, 1691-\>1694, 1717, 1742 |
 | src/haystack\_integrations/document\_stores/pgvector/filters.py                   |      175 |        0 |       72 |        1 |     99% |   91-\>94 |
-| **TOTAL**                                                                         | **1052** |   **45** |  **290** |   **31** | **94%** |           |
+| src/haystack\_integrations/document\_stores/pgvector/table\_replacement.py        |      219 |        3 |       68 |        3 |     98% |373-374, 420-\>424, 421 |
+| **TOTAL**                                                                         | **1276** |   **48** |  **358** |   **34** | **95%** |           |
 
 
 ## Setup coverage badge
