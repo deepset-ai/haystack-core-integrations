@@ -157,9 +157,10 @@ class FalkorDBDocumentStore(DocumentStore):
         :param verify_connectivity: When `True` a connectivity probe is run
             immediately in `__init__` — raises if the server is unreachable.
         :param labels_metadata_field: `Document.meta` key containing extra node labels; `None` disables extraction.
-            Labels must be strings accepted by FalkorDB. `node_label` is always retained.
+            Labels must be non-empty strings without backticks. `node_label` is always retained.
         :param relationships_metadata_field: `Document.meta` key containing outgoing relationships; `None` disables
             extraction. Each entry requires `target_id` and `type`, with an optional `properties` dictionary.
+            Relationship types must be non-empty strings without backticks.
             Targets must already exist or be included in the same write. Configured graph fields are consumed,
             not stored or returned as metadata. See `write_documents` for write behavior and an example.
         :raises ValueError: `similarity` is unsupported or graph metadata field names are identical.
@@ -503,7 +504,8 @@ class FalkorDBDocumentStore(DocumentStore):
         :param policy: How to handle documents whose `id` already exists.
             Defaults to :attr:`DuplicatePolicy.NONE` (treated as FAIL).
         :raises TypeError: Graph metadata has invalid types or property shapes.
-        :raises ValueError: `documents` contains non-Document elements or required relationship keys are missing.
+        :raises ValueError: `documents` contains non-Document elements, required relationship keys are missing,
+            or a label or relationship type is empty or contains a backtick.
         :raises DuplicateDocumentError: `policy` is FAIL / NONE and a duplicate ID is encountered.
         :raises DocumentStoreError: A relationship target is missing or a document-node or relationship write fails.
         :returns: Number of documents written or updated, not including relationships.
@@ -558,6 +560,7 @@ class FalkorDBDocumentStore(DocumentStore):
                 msg = f"Document '{doc.id}' graph metadata fields must contain lists."
                 raise TypeError(msg)
             for label in doc_labels:
+                _validate_graph_name(label)
                 labels.setdefault(label, []).append(doc.id)
             for relationship in doc_relationships:
                 rel_type, record = _prepare_relationship(doc.id, relationship)
@@ -570,13 +573,12 @@ class FalkorDBDocumentStore(DocumentStore):
     ) -> Iterator[tuple[str, dict[str, Any]]]:
         """Yield batched relationship upsert queries and parameters, grouped by relationship type."""
         for rel_type, rows in relationships.items():
-            quoted_type = rel_type.replace("`", "``")
             for start in range(0, len(rows), self.write_batch_size):
                 yield (
                     (
                         f"UNWIND $rows AS row MATCH (source:{self.node_label} {{id: row.source_id}}), "
                         f"(target:{self.node_label} {{id: row.target_id}}) "
-                        f"MERGE (source)-[r:`{quoted_type}`]->(target) SET r += row.properties RETURN count(r)"
+                        f"MERGE (source)-[r:`{rel_type}`]->(target) SET r += row.properties RETURN count(r)"
                     ),
                     {"rows": rows[start : start + self.write_batch_size]},
                 )
@@ -651,9 +653,7 @@ class FalkorDBDocumentStore(DocumentStore):
         for index, (label, ids) in enumerate(labels.items()):
             if matching_ids := sorted(batch_ids.intersection(ids)):
                 params[f"label_ids_{index}"] = matching_ids
-                query += (
-                    f"FOREACH (_ IN [id IN $label_ids_{index} WHERE id = doc.id] | SET d:`{label.replace('`', '``')}`) "
-                )
+                query += f"FOREACH (_ IN [id IN $label_ids_{index} WHERE id = doc.id] | SET d:`{label}`) "
         return query + "RETURN count(d) AS n", params
 
     def _write_batch(self, documents: list[Document], policy: DuplicatePolicy, labels: dict[str, list[str]]) -> int:
@@ -979,7 +979,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         :param policy: How to handle documents whose `id` already exists.
             Defaults to :attr:`DuplicatePolicy.NONE` (treated as FAIL).
         :raises TypeError: Graph metadata has invalid types or property shapes.
-        :raises ValueError: `documents` contains non-Document elements or required relationship keys are missing.
+        :raises ValueError: `documents` contains non-Document elements, required relationship keys are missing,
+            or a label or relationship type is empty or contains a backtick.
         :raises DuplicateDocumentError: `policy` is FAIL / NONE and a duplicate ID is encountered.
         :raises DocumentStoreError: A relationship target is missing or a document-node or relationship write fails.
         :returns: Number of documents written or updated, not including relationships.
@@ -1571,6 +1572,16 @@ ORDER BY score ASC, d.id ASC
 # ---------------------------------------------------------------------------
 
 
+def _validate_graph_name(name: Any) -> None:
+    """Reject graph names that are not strings, are empty, or contain unsupported backticks."""
+    if not isinstance(name, str):
+        msg = "Labels and relationship types must be strings."
+        raise TypeError(msg)
+    if not name or "`" in name:
+        msg = "Labels and relationship types must be non-empty and contain no backticks."
+        raise ValueError(msg)
+
+
 def _prepare_relationship(source_id: str, relationship: Any) -> tuple[str, _RelationshipRecord]:
     """Validate the relationship structure and return its type and write record."""
     if not isinstance(relationship, dict):
@@ -1579,6 +1590,7 @@ def _prepare_relationship(source_id: str, relationship: Any) -> tuple[str, _Rela
     if not {"target_id", "type"} <= relationship.keys():
         msg = "Relationships require 'target_id' and 'type'."
         raise ValueError(msg)
+    _validate_graph_name(relationship["type"])
     properties = relationship.get("properties", {})
     if not isinstance(properties, dict):
         msg = "Relationship properties must be a dictionary."
@@ -1598,8 +1610,11 @@ def _check_relationship_count(rows: list[list[Any]], expected: int) -> None:
 
 
 def _graph_sample_queries(catalogs: dict[str, list[str]]) -> tuple[list[str], list[str]]:
-    # Labels and relationship types cannot be query parameters. Names come from the server catalogs, and FalkorDB
-    # cannot create names containing a backtick, so backtick quoting is enough to keep them inert.
+    """
+    Build node and relationship sampling queries from server catalogs.
+
+    Identifiers cannot be query parameters; catalog names contain no backticks, so backtick quoting is safe.
+    """
     node_queries = [
         f"MATCH (n:`{label}`) WITH n LIMIT $sample_size {_NODE_SAMPLE_RETURN}" for label in catalogs["labels"]
     ]

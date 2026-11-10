@@ -508,6 +508,14 @@ class TestFalkorDBDocumentStoreUnit:
         "meta, error",
         [
             ({"labels": "Article"}, TypeError),
+            ({"labels": [1]}, TypeError),
+            ({"labels": [None]}, TypeError),
+            ({"labels": [""]}, ValueError),
+            ({"labels": ["bad`name"]}, ValueError),
+            ({"relationships": [{"type": 1, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": None, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": "", "target_id": "b"}]}, ValueError),
+            ({"relationships": [{"type": "bad`name", "target_id": "b"}]}, ValueError),
             ({"relationships": {}}, TypeError),
             ({"relationships": ["edge"]}, TypeError),
             ({"relationships": [{"type": "LINK"}]}, ValueError),
@@ -517,11 +525,15 @@ class TestFalkorDBDocumentStoreUnit:
     )
     def test_invalid_graph_metadata_before_writes(self, mock_falkordb, meta, error):
         _, _, graph = mock_falkordb
-        store = FalkorDBDocumentStore(labels_metadata_field="labels", relationships_metadata_field="relationships")
+        store = FalkorDBDocumentStore(
+            labels_metadata_field="labels", relationships_metadata_field="relationships", write_batch_size=1
+        )
         store.warm_up()
         graph.query.reset_mock()
         with pytest.raises(error):
-            store.write_documents([Document(meta=meta)], policy=DuplicatePolicy.OVERWRITE)
+            store.write_documents(
+                [Document(id="valid"), Document(id="invalid", meta=meta)], policy=DuplicatePolicy.OVERWRITE
+            )
         graph.query.assert_not_called()
 
     @pytest.mark.parametrize("missing", [True, False])

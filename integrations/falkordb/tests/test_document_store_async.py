@@ -360,6 +360,14 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         "meta, error",
         [
             ({"labels": "Article"}, TypeError),
+            ({"labels": [1]}, TypeError),
+            ({"labels": [None]}, TypeError),
+            ({"labels": [""]}, ValueError),
+            ({"labels": ["bad`name"]}, ValueError),
+            ({"relationships": [{"type": 1, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": None, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": "", "target_id": "b"}]}, ValueError),
+            ({"relationships": [{"type": "bad`name", "target_id": "b"}]}, ValueError),
             ({"relationships": {}}, TypeError),
             ({"relationships": ["edge"]}, TypeError),
             ({"relationships": [{"type": "LINK"}]}, ValueError),
@@ -371,8 +379,11 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         store, graph = warmed_async_store
         store.labels_metadata_field = "labels"
         store.relationships_metadata_field = "relationships"
+        store.write_batch_size = 1
         with pytest.raises(error):
-            await store.write_documents_async([Document(meta=meta)], policy=DuplicatePolicy.OVERWRITE)
+            await store.write_documents_async(
+                [Document(id="valid"), Document(id="invalid", meta=meta)], policy=DuplicatePolicy.OVERWRITE
+            )
         graph.query.assert_not_awaited()
 
     @pytest.mark.asyncio
