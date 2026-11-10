@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import Barrier
 
 import pytest
+from haystack.components.preprocessors import DocumentSplitter
 from haystack.dataclasses import ByteStream
 
 import haystack_integrations.components.converters.opendataloader_pdf.converter as converter_module
@@ -17,7 +18,8 @@ from haystack_integrations.components.converters.opendataloader_pdf import (
 )
 
 _SAMPLE_JSON = json.loads((Path(__file__).parent / "test_files" / "sample.json").read_text(encoding="utf-8"))
-_SAMPLE_MARKDOWN = "# Report\n\nPage one content\f## Results\n\nPage two content"
+# OpenDataLoader puts the page separator before every page, including the first
+_SAMPLE_MARKDOWN = "\f# Report\n\nPage one content\f## Results\n\nPage two content"
 
 
 @pytest.fixture
@@ -451,20 +453,27 @@ def test_converter_serialization(tmp_path):
         extract_images=True,
         image_output_dir=image_output_dir,
         raw_json=True,
+        include_layout=True,
     )
     data = converter.to_dict()
     restored = OpenDataLoaderConverter.from_dict(data)
 
     assert data["init_parameters"]["image_output_dir"] == str(image_output_dir)
     assert data["init_parameters"]["raw_json"] is True
+    assert data["init_parameters"]["include_layout"] is True
     assert restored.output_format == "text"
     assert restored.convert_kwargs["hybrid"] == "docling-fast"
     assert restored.extract_images is True
     assert restored.image_output_dir == image_output_dir
     assert restored.raw_json is True
+    assert restored.include_layout is True
 
+    # pipelines serialized before these parameters existed
     data["init_parameters"].pop("raw_json")
-    assert OpenDataLoaderConverter.from_dict(data).raw_json is False
+    data["init_parameters"].pop("include_layout")
+    restored = OpenDataLoaderConverter.from_dict(data)
+    assert restored.raw_json is False
+    assert restored.include_layout is False
 
 
 def test_converter_json_puts_markdown_in_content(tmp_path, _mock_opendataloader):
@@ -478,44 +487,99 @@ def test_converter_json_puts_markdown_in_content(tmp_path, _mock_opendataloader)
 
     assert call["format"] == ["json", "markdown"]
     assert call["markdown_page_separator"] == "\f"
-    assert document.content == _SAMPLE_MARKDOWN
-    assert document.meta["output_format"] == "json"
-    assert document.meta["title"] == "User Title"
-    assert document.meta["creation_date"] == "2024-01-01"
-    assert document.meta["modification_date"] == "2024-06-01"
-    assert document.meta["page_count"] == 2
-    assert "author" not in document.meta
-    assert "file name" not in document.meta
-    assert document.meta["layout"] == [
-        {
-            "type": "heading",
-            "page_number": 1,
-            "bounding_box": [72, 700, 510, 740],
-            "heading_level": 1,
-        },
-        {
-            "type": "image",
-            "page_number": 1,
-            "bounding_box": [72, 400, 200, 500],
-        },
-        {
-            "type": "text block",
-            "page_number": 2,
-            "bounding_box": [72, 700, 510, 800],
-        },
-        {
-            "type": "heading",
-            "page_number": 2,
-            "bounding_box": [72, 700, 510, 740],
-            "heading_level": 2,
-        },
+    assert document.content == _SAMPLE_MARKDOWN.removeprefix("\f")
+    assert document.meta == {
+        "file_path": "document.pdf",
+        "output_format": "json",
+        "title": "User Title",
+        "creation_date": "2024-01-01T09:30:00+00:00",
+        "modification_date": "2024-06-01T12:00:00+02:00",
+        "page_count": 2,
+    }
+
+
+def test_converter_json_page_numbers_after_splitting(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    document = OpenDataLoaderConverter(output_format="json").run(sources=[pdf_file])["documents"][0]
+
+    chunks = DocumentSplitter(split_by="page", split_length=1).run([document])["documents"]
+
+    assert [(chunk.meta["page_number"], chunk.content.strip("\f")) for chunk in chunks] == [
+        (1, "# Report\n\nPage one content"),
+        (2, "## Results\n\nPage two content"),
     ]
+
+
+def test_converter_json_keeps_custom_page_separator(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json", convert_kwargs={"markdown_page_separator": "---"})
+
+    document = converter.run(sources=[pdf_file])["documents"][0]
+
+    assert _mock_opendataloader[0]["markdown_page_separator"] == "---"
+    # content is left as produced; the mock ignores the separator option
+    assert document.content == _SAMPLE_MARKDOWN
+
+
+def test_converter_json_include_layout(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json", include_layout=True)
+
+    document = converter.run(sources=[pdf_file])["documents"][0]
+
+    # reading order, including list items, table cells, and their nested content; rows have no position
+    assert document.meta["layout"] == [
+        {"type": "heading", "page_number": 1, "bounding_box": [72, 700, 510, 740], "heading_level": 1},
+        {"type": "list", "page_number": 1, "bounding_box": [72, 500, 510, 680]},
+        {"type": "list item", "page_number": 1, "bounding_box": [72, 600, 510, 680]},
+        {"type": "paragraph", "page_number": 1, "bounding_box": [90, 600, 510, 640]},
+        {"type": "image", "page_number": 1, "bounding_box": [72, 400, 200, 500]},
+        {"type": "table", "page_number": 2, "bounding_box": [72, 300, 510, 600]},
+        {"type": "table cell", "page_number": 2, "bounding_box": [72, 500, 290, 600]},
+        {"type": "paragraph", "page_number": 2, "bounding_box": [80, 520, 280, 580]},
+        {"type": "heading", "page_number": 2, "bounding_box": [72, 200, 510, 240], "heading_level": 2},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("pdf_date", "expected"),
+    [
+        ("D:20160319061844Z00'00'", "2016-03-19T06:18:44+00:00"),
+        ("D:20160319061844Z", "2016-03-19T06:18:44+00:00"),
+        ("D:20240601120000+02'00'", "2024-06-01T12:00:00+02:00"),
+        ("D:20240601120000-05'30'", "2024-06-01T12:00:00-05:30"),
+        ("D:20240601120000", "2024-06-01T12:00:00"),
+        ("D:2024", "2024-01-01T00:00:00"),
+        ("20240601", "2024-06-01T00:00:00"),
+        ("not a date", "not a date"),
+        ("D:20241399000000", "D:20241399000000"),
+    ],
+)
+def test_parse_pdf_date(pdf_date, expected):
+    assert OpenDataLoaderConverter._parse_pdf_date(pdf_date) == expected
+
+
+def test_converter_json_raises_when_markdown_is_missing(tmp_path, _mock_opendataloader, monkeypatch):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+
+    def fake_convert_json_only(input_path, output_dir, **_kwargs):
+        for pdf in input_path:
+            (Path(output_dir) / f"{Path(pdf).stem}.json").write_text(json.dumps(_SAMPLE_JSON), encoding="utf-8")
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", fake_convert_json_only)
+
+    with pytest.raises(RuntimeError, match=r"did not create expected file: .*\.md"):
+        OpenDataLoaderConverter(output_format="json").run(sources=[pdf_file])
 
 
 def test_converter_raw_json(tmp_path, _mock_opendataloader):
     pdf_file = tmp_path / "document.pdf"
     pdf_file.write_bytes(b"%PDF fake pdf")
-    converter = OpenDataLoaderConverter(output_format="json", raw_json=True)
+    converter = OpenDataLoaderConverter(output_format="json", raw_json=True, include_layout=True)
 
     result = converter.run(sources=[pdf_file])
     call = _mock_opendataloader[0]
@@ -546,15 +610,21 @@ def test_real_pdf_conversion():
 @pytest.mark.integration
 def test_real_pdf_json_conversion():
     pdf_file = Path(__file__).parent / "test_files" / "hello_world.pdf"
-    converter = OpenDataLoaderConverter(output_format="json")
+    converter = OpenDataLoaderConverter(output_format="json", include_layout=True)
     result = converter.run(sources=[pdf_file])
 
     assert len(result["documents"]) == 1
     document = result["documents"][0]
     assert document.content
-    assert not document.content.lstrip().startswith("{")
+    assert not document.content.lstrip().startswith(("{", "\f"))
     assert document.meta["file_path"] == "hello_world.pdf"
     assert document.meta["output_format"] == "json"
+    assert document.meta["page_count"] == 3
+    assert {item["page_number"] for item in document.meta["layout"]} == {1, 2, 3}
+
+    chunks = DocumentSplitter(split_by="page", split_length=1).run([document])["documents"]
+    assert [chunk.meta["page_number"] for chunk in chunks] == [1, 2, 3]
+    assert "# Sample PDF" in chunks[0].content
 
 
 @pytest.mark.integration

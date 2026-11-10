@@ -3,8 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import re
 import shutil
 import subprocess
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Literal
@@ -20,6 +22,26 @@ OutputFormat = Literal["markdown", "text", "json", "html"]
 
 logger = logging.getLogger(__name__)
 
+_EXTENSIONS = {"markdown": "md", "text": "txt", "html": "html", "json": "json"}
+
+# OpenDataLoader root JSON fields mapped to Document.meta keys
+_ROOT_FIELDS = {
+    "title": "title",
+    "author": "author",
+    "creation date": "creation_date",
+    "modification date": "modification_date",
+    "number of pages": "page_count",
+}
+
+# Keys under which OpenDataLoader nests child elements: lists use "list items", tables "rows" -> "cells"
+_CHILD_KEYS = ("kids", "list items", "rows", "cells")
+
+# PDF date string, e.g. "D:20160319061844Z00'00'" or "D:20240101120000+02'00'" (PDF 32000-1, section 7.9.4)
+_PDF_DATE = re.compile(r"^(?:D:)?(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?(?:([Z+-])(?:(\d{2})'?(\d{2})?'?)?)?$")
+
+# OpenDataLoader writes the page separator before every page, including the first one
+_PAGE_SEPARATOR = "\f"
+
 
 @component
 class OpenDataLoaderConverter:
@@ -29,6 +51,10 @@ class OpenDataLoaderConverter:
     The component accepts PDF file paths and Haystack ByteStream objects, runs OpenDataLoader PDF extraction, and
     returns Haystack Document objects. It can also extract images to a persistent directory and return one image
     Document per extracted file.
+
+    With `output_format="json"`, the Document content is Markdown with pages separated by form feeds (`\\f`), so
+    `DocumentSplitter` can compute page numbers, and the PDF metadata from the OpenDataLoader JSON output is added to
+    `Document.meta`. Set `raw_json=True` to get the raw JSON string as content instead.
 
     Java 11 or newer must be installed and available on PATH.
 
@@ -56,18 +82,29 @@ class OpenDataLoaderConverter:
         extract_images: bool = False,
         image_output_dir: str | Path | None = None,
         raw_json: bool = False,
+        include_layout: bool = False,
     ) -> None:
         """
         Initialize the OpenDataLoader converter.
 
-        :param output_format: Format OpenDataLoader should produce.
+        :param output_format: Format OpenDataLoader should produce. With `"json"`, the Document content is Markdown
+            with pages separated by `\\f`, and `Document.meta` gets the PDF's `title`, `author`, `creation_date`,
+            `modification_date` (ISO 8601 when the PDF date can be parsed, otherwise as found in the PDF), and
+            `page_count`. Fields missing from the PDF are omitted. User-provided metadata takes precedence on key
+            conflicts.
         :param convert_kwargs: Additional arguments passed to `opendataloader_pdf.convert`. See the
             [OpenDataLoader PDF Python options](https://opendataloader.org/docs/quick-start-python#convert-options).
             The `image_output` and `image_dir` arguments are managed by this component; supplied values are ignored.
+            With `output_format="json"`, passing `markdown_page_separator` replaces the default `\\f` page separator.
         :param extract_images: Whether to extract images and return them through the `image_documents` output.
         :param image_output_dir: Persistent root directory for extracted image files. Each `run()` stores its images
             in a unique subdirectory of this directory. Required when `extract_images` is `True`.
-        :param raw_json: If `True` with `output_format="json"`, store the JSON string in `Document.content`.
+        :param raw_json: If `True` with `output_format="json"`, store the raw OpenDataLoader JSON string in
+            `Document.content` and add no PDF metadata. Has no effect with other output formats.
+        :param include_layout: If `True` with `output_format="json"`, add a `layout` list to `Document.meta` with one
+            entry per positioned element in reading order: `type`, `page_number`, `bounding_box`, and
+            `heading_level` for headings. The list covers the whole PDF and is copied to every chunk when the Document
+            is split, so it can be large for long PDFs. Has no effect with other output formats or with `raw_json`.
         :raises ValueError: If image extraction is enabled without an output directory.
         """
         conversion_options = convert_kwargs.copy() if convert_kwargs else {}
@@ -87,6 +124,7 @@ class OpenDataLoaderConverter:
         self.extract_images = extract_images
         self.image_output_dir = Path(image_output_dir) if image_output_dir is not None else None
         self.raw_json = raw_json
+        self.include_layout = include_layout
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -102,6 +140,7 @@ class OpenDataLoaderConverter:
             extract_images=self.extract_images,
             image_output_dir=str(self.image_output_dir) if self.image_output_dir is not None else None,
             raw_json=self.raw_json,
+            include_layout=self.include_layout,
         )
 
     @classmethod
@@ -176,47 +215,84 @@ class OpenDataLoaderConverter:
         except (OSError, subprocess.CalledProcessError) as exc:
             raise RuntimeError(message) from exc
 
-    def _read_output(self, output_dir: Path, pdf_path: Path) -> str:
+    @staticmethod
+    def _read_output(output_dir: Path, pdf_path: Path, output_format: OutputFormat) -> str:
         """
-        Read the OpenDataLoader output file.
+        Read an OpenDataLoader output file.
 
         :param output_dir: Directory containing converted files.
         :param pdf_path: Staged PDF path used to determine the output filename.
+        :param output_format: Format of the output file to read.
         :raises RuntimeError: If OpenDataLoader did not create the expected output file.
         :returns:
             Extracted document content.
         """
-        extension_map = {"markdown": "md", "text": "txt", "html": "html", "json": "json"}
-        output_file = output_dir / f"{pdf_path.stem}.{extension_map[self.output_format]}"
+        output_file = output_dir / f"{pdf_path.stem}.{_EXTENSIONS[output_format]}"
         if not output_file.exists():
             message = f"OpenDataLoader did not create expected file: {output_file}"
             raise RuntimeError(message)
         return output_file.read_text(encoding="utf-8")
 
     @staticmethod
-    def _meta_from_json(data: dict[str, Any]) -> dict[str, Any]:
+    def _parse_pdf_date(value: str) -> str:
         """
-        Map OpenDataLoader JSON fields and compact layout into Haystack Document metadata.
+        Convert a PDF date string to ISO 8601.
+
+        :param value: Date as found in the PDF, e.g. `D:20160319061844Z00'00'`.
+        :returns:
+            The ISO 8601 date, or `value` unchanged if it is not a valid PDF date.
+        """
+        match = _PDF_DATE.match(value.strip())
+        if match is None:
+            logger.warning("Could not parse PDF date {value}; keeping it unchanged", value=value)
+            return value
+        year, month, day, hour, minute, second, sign, tz_hour, tz_minute = match.groups()
+        tzinfo = None
+        if sign == "Z":
+            tzinfo = UTC
+        elif sign is not None:
+            offset = timedelta(hours=int(tz_hour or 0), minutes=int(tz_minute or 0))
+            tzinfo = timezone(offset if sign == "+" else -offset)
+        try:
+            parsed = datetime(
+                int(year),
+                int(month or 1),
+                int(day or 1),
+                int(hour or 0),
+                int(minute or 0),
+                int(second or 0),
+                tzinfo=tzinfo,
+            )
+        except ValueError:
+            logger.warning("Could not parse PDF date {value}; keeping it unchanged", value=value)
+            return value
+        return parsed.isoformat()
+
+    def _meta_from_json(self, data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Map OpenDataLoader JSON fields, and optionally the element layout, into Haystack Document metadata.
 
         :param data: Parsed OpenDataLoader JSON document.
         :returns:
-            Root PDF fields and a compact layout list. Null root fields are omitted.
+            Root PDF fields, omitting null ones, plus a `layout` list when `include_layout` is enabled.
         """
         meta: dict[str, Any] = {}
-        for source, dest in (
-            ("title", "title"),
-            ("author", "author"),
-            ("creation date", "creation_date"),
-            ("modification date", "modification_date"),
-            ("number of pages", "page_count"),
-        ):
+        for source, dest in _ROOT_FIELDS.items():
             value = data.get(source)
-            if value is not None:
-                meta[dest] = value
+            if value is None:
+                continue
+            if dest in ("creation_date", "modification_date") and isinstance(value, str):
+                value = self._parse_pdf_date(value)
+            meta[dest] = value
+
+        if not self.include_layout:
+            return meta
 
         layout: list[dict[str, Any]] = []
-        nodes = list(data.get("kids") or [])
-        for node in nodes:
+        # Depth-first so entries follow reading order; children are pushed reversed to pop in document order
+        stack: list[Any] = list(reversed(data.get("kids") or []))
+        while stack:
+            node = stack.pop()
             if not isinstance(node, dict):
                 continue
             page = node.get("page number")
@@ -226,9 +302,9 @@ class OpenDataLoaderConverter:
                 if "heading level" in node:
                     item["heading_level"] = node["heading level"]
                 layout.append(item)
-            nodes.extend(kid for kid in (node.get("kids") or []) if isinstance(kid, dict))
-        if layout:
-            meta["layout"] = layout
+            for key in reversed(_CHILD_KEYS):
+                stack.extend(reversed(node.get(key) or []))
+        meta["layout"] = layout
         return meta
 
     @component.output_types(documents=list[Document], image_documents=list[Document])
@@ -273,12 +349,11 @@ class OpenDataLoaderConverter:
             if image_dir is not None:
                 conversion_kwargs.update(image_output="external", image_dir=str(image_dir))
 
-            parsed_json = self.output_format == "json" and not self.raw_json
-            if parsed_json:
-                convert_format: str | list[str] = ["json", "markdown"]
-                conversion_kwargs.setdefault("markdown_page_separator", "\f")
-            else:
-                convert_format = self.output_format
+            parse_json = self.output_format == "json" and not self.raw_json
+            convert_format: str | list[str] = self.output_format
+            if parse_json:
+                convert_format = ["json", "markdown"]
+                conversion_kwargs.setdefault("markdown_page_separator", _PAGE_SEPARATOR)
 
             opendataloader_pdf.convert(
                 input_path=[str(pdf_path) for pdf_path, _ in prepared_sources],
@@ -287,15 +362,19 @@ class OpenDataLoaderConverter:
                 **conversion_kwargs,
             )
             for pdf_path, document_meta in prepared_sources:
-                content = self._read_output(output_dir=output_dir, pdf_path=pdf_path)
                 extra_meta: dict[str, Any] = {}
-                if parsed_json:
-                    extra_meta = self._meta_from_json(json.loads(content))
-                    markdown_file = output_dir / f"{pdf_path.stem}.md"
-                    if not markdown_file.exists():
-                        message = f"OpenDataLoader did not create expected file: {markdown_file}"
-                        raise RuntimeError(message)
-                    content = markdown_file.read_text(encoding="utf-8")
+                if parse_json:
+                    raw = self._read_output(output_dir=output_dir, pdf_path=pdf_path, output_format="json")
+                    extra_meta = self._meta_from_json(json.loads(raw))
+                    content = self._read_output(output_dir=output_dir, pdf_path=pdf_path, output_format="markdown")
+                    # Drop the separator OpenDataLoader puts before page 1; otherwise DocumentSplitter numbers every
+                    # page one too high
+                    if conversion_kwargs["markdown_page_separator"] == _PAGE_SEPARATOR:
+                        content = content.removeprefix(_PAGE_SEPARATOR)
+                else:
+                    content = self._read_output(
+                        output_dir=output_dir, pdf_path=pdf_path, output_format=self.output_format
+                    )
                 documents.append(
                     Document(content=content, meta={**extra_meta, **document_meta, "output_format": self.output_format})
                 )
