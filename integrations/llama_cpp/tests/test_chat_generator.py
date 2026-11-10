@@ -986,6 +986,44 @@ class TestRun:
         assert "get_current_temperature" in tool_names
         assert "population" in tool_names
 
+    def test_run_with_empty_tools_overrides_init_tools(self, temperature_tool):
+        """An explicit empty tools list disables the init tools for that call."""
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool])
+        mock_model = MagicMock()
+        mock_model.create_chat_completion.return_value = {
+            "choices": [{"message": {"content": "Generated text"}, "index": 0, "finish_reason": "stop"}],
+            "id": "test_id",
+            "model": "test_model",
+            "created": 1234567890,
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        generator._model = mock_model
+
+        generator.run(messages=[ChatMessage.from_user("Hi")], tools=[])
+
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert call_args["tools"] == []
+        # init tools are left untouched for later calls
+        assert generator.tools == [temperature_tool]
+
+    def test_run_without_tools_uses_init_tools(self, temperature_tool):
+        """Omitting tools (None) falls back to the tools set at initialization."""
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool])
+        mock_model = MagicMock()
+        mock_model.create_chat_completion.return_value = {
+            "choices": [{"message": {"content": "Generated text"}, "index": 0, "finish_reason": "stop"}],
+            "id": "test_id",
+            "model": "test_model",
+            "created": 1234567890,
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        generator._model = mock_model
+
+        generator.run(messages=[ChatMessage.from_user("Hi")])
+
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert [tool["function"]["name"] for tool in call_args["tools"]] == ["get_current_temperature"]
+
     def test_run_with_string_input(self, generator_mock):
         """
         Test that a string input is converted to a user ChatMessage and returns a list of replies.
@@ -1359,6 +1397,26 @@ class TestRunAsync:
         assert call_kwargs["temperature"] == 0.9
         assert response["replies"][0].text == "Generated text"
         assert response["replies"][0].meta["finish_reason"] == "length"
+
+    async def test_run_async_with_empty_tools_overrides_init_tools(self, temperature_tool):
+        """An explicit empty tools list disables the init tools for that async call."""
+        generator = LlamaCppChatGenerator(model="test_model.gguf", tools=[temperature_tool])
+        mock_model = MagicMock()
+        mock_model.create_chat_completion.return_value = {
+            "id": "unique-id-123",
+            "model": "Test Model Path",
+            "created": 1715226164,
+            "choices": [
+                {"index": 0, "message": {"content": "Generated text", "role": "assistant"}, "finish_reason": "stop"}
+            ],
+            "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
+        }
+        generator._model = mock_model
+
+        await generator.run_async(messages=[ChatMessage.from_user("Hi")], tools=[])
+
+        call_kwargs = mock_model.create_chat_completion.call_args[1]
+        assert call_kwargs["tools"] == []
 
     async def test_run_async_with_string_input(self, generator_mock):
         """Test that a string input is converted to a user ChatMessage and returns a list of replies."""
