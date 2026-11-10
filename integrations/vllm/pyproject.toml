@@ -22,8 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-# The multivector_embedding Document field is available from this nightly; use 3.5.0 once released.
-dependencies = ["haystack-ai>=3.5.0.dev20261104000145", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0"]
+dependencies = ["haystack-ai>=3.5.0", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/vllm#readme"
