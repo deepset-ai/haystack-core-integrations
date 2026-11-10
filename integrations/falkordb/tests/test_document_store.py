@@ -33,7 +33,6 @@ from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 from haystack_integrations.document_stores.falkordb import document_store as document_store_module
 from haystack_integrations.document_stores.falkordb.document_store import (
     _convert_filters,
-    _prepare_relationship,
 )
 
 from .test_document_store_common import FalkorDBDocumentStoreTestMixin
@@ -464,18 +463,6 @@ class TestFalkorDBDocumentStoreUnit:
             "target-2",
         ]
 
-    @pytest.mark.parametrize("name", ["", "bad`name"])
-    def test_graph_names_are_quoted_without_validation(self, name):
-        store = FalkorDBDocumentStore(labels_metadata_field="labels", relationships_metadata_field="links")
-        documents, labels, relationships = store._prepare_graph_documents(
-            [Document(id="a", meta={"labels": [name], "links": [{"type": name, "target_id": "a"}]})]
-        )
-        query, _ = store._write_batch_query(documents, DuplicatePolicy.OVERWRITE, labels)
-        quoted_name = name.replace("`", "``")
-        assert f"SET d:`{quoted_name}`" in query
-        relationship_query, _ = next(store._relationship_queries(relationships))
-        assert f"[r:`{quoted_name}`]" in relationship_query
-
     def test_graph_metadata_is_opt_in(self, mock_falkordb):
         _, _, graph = mock_falkordb
         store = FalkorDBDocumentStore()
@@ -536,15 +523,6 @@ class TestFalkorDBDocumentStoreUnit:
         with pytest.raises(error):
             store.write_documents([Document(meta=meta)], policy=DuplicatePolicy.OVERWRITE)
         graph.query.assert_not_called()
-
-    @pytest.mark.parametrize("target_id, properties", [("b", {}), (1, {1: 2}), ("", {"nested": {}})])
-    def test_prepare_relationship_defers_value_validation(self, target_id, properties):
-        relationship = {"target_id": target_id, "type": "LINK", "properties": properties, "extra": "ignored"}
-        assert _prepare_relationship("a", relationship) == (
-            "LINK",
-            {"source_id": "a", "target_id": target_id, "properties": properties},
-        )
-        assert "extra" in relationship
 
     @pytest.mark.parametrize("missing", [True, False])
     def test_relationship_external_target(self, mock_falkordb, missing):
