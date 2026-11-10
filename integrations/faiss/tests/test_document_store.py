@@ -55,6 +55,19 @@ class TestFAISSDocumentStoreUnit:
         with pytest.raises(DuplicateDocumentError, match="already exists"):
             ds.write_documents([Document(id="dup", content="second")], policy=DuplicatePolicy.FAIL)
 
+    def test_write_documents_fail_policy_rejects_duplicate_ids_within_batch(self):
+        ds = FAISSDocumentStore(embedding_dim=3)
+        documents = [
+            Document(id="dup", content="first", embedding=[0.1, 0.2, 0.3]),
+            Document(id="dup", content="second", embedding=[0.4, 0.5, 0.6]),
+        ]
+
+        with pytest.raises(DuplicateDocumentError, match="already exists"):
+            ds.write_documents(documents, policy=DuplicatePolicy.FAIL)
+
+        assert ds.count_documents() == 0
+        assert ds.index.ntotal == 0
+
     @pytest.mark.parametrize(
         ("filters", "error_match"),
         [
