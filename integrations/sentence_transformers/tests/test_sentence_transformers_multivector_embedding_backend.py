@@ -86,9 +86,13 @@ def test_embedding_function_with_kwargs(mock_multivector_encoder, is_query):
     encode = embedding_backend.model.encode_query if is_query else embedding_backend.model.encode_document
     encode.return_value = [np.array([[0.1, 0.2], [0.3, 0.4]]), np.array([[0.5, 0.6]])]
 
-    embeddings = embedding_backend.embed(data=data, is_query=is_query, batch_size=2, show_progress_bar=True)
+    embeddings = embedding_backend.embed(
+        data=data, is_query=is_query, batch_size=2, show_progress_bar=True, prompt="custom prompt"
+    )
 
-    encode.assert_called_once_with(data, batch_size=2, show_progress_bar=True, convert_to_numpy=True)
+    encode.assert_called_once_with(
+        data, batch_size=2, show_progress_bar=True, convert_to_numpy=True, prompt="custom prompt"
+    )
     other_encode = embedding_backend.model.encode_document if is_query else embedding_backend.model.encode_query
     other_encode.assert_not_called()
     assert embeddings == [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6]]]

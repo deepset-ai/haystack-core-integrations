@@ -59,6 +59,7 @@ class SentenceTransformersMultivectorDocumentEmbedder:
         model_kwargs: dict[str, Any] | None = None,
         tokenizer_kwargs: dict[str, Any] | None = None,
         config_kwargs: dict[str, Any] | None = None,
+        encode_kwargs: dict[str, Any] | None = None,
         backend: Literal["torch", "onnx", "openvino"] = "torch",
         revision: str | None = None,
     ) -> None:
@@ -105,6 +106,10 @@ class SentenceTransformersMultivectorDocumentEmbedder:
             for available kwargs.
         :param config_kwargs:
             Additional keyword arguments for `AutoConfig.from_pretrained` when loading the model configuration.
+        :param encode_kwargs:
+            Additional keyword arguments for `MultiVectorEncoder.encode_document` when embedding documents.
+            This parameter is provided for fine customization. Be careful not to clash with already set parameters and
+            avoid passing parameters that change the output type.
         :param backend:
             The backend to use for the Sentence Transformers model. Choose from "torch", "onnx", or "openvino".
             Refer to the [Sentence Transformers documentation](https://sbert.net/docs/sentence_transformer/usage/efficiency.html)
@@ -135,6 +140,7 @@ class SentenceTransformersMultivectorDocumentEmbedder:
         self.model_kwargs = model_kwargs
         self.tokenizer_kwargs = tokenizer_kwargs
         self.config_kwargs = config_kwargs
+        self.encode_kwargs = encode_kwargs
         self.embedding_backend: _SentenceTransformersMultivectorEncoderEmbeddingBackend | None = None
         self.backend = backend
 
@@ -168,6 +174,7 @@ class SentenceTransformersMultivectorDocumentEmbedder:
             model_kwargs=self.model_kwargs.copy() if self.model_kwargs is not None else None,
             tokenizer_kwargs=self.tokenizer_kwargs,
             config_kwargs=self.config_kwargs,
+            encode_kwargs=self.encode_kwargs,
             backend=self.backend,
         )
         if serialization_dict["init_parameters"].get("model_kwargs") is not None:
@@ -244,7 +251,11 @@ class SentenceTransformersMultivectorDocumentEmbedder:
 
         # mypy doesn't know this is set in warm_up
         embeddings = self.embedding_backend.embed(  # type: ignore[union-attr]
-            data=texts_to_embed, is_query=False, batch_size=self.batch_size, show_progress_bar=self.progress_bar
+            data=texts_to_embed,
+            is_query=False,
+            batch_size=self.batch_size,
+            show_progress_bar=self.progress_bar,
+            **(self.encode_kwargs if self.encode_kwargs else {}),
         )
 
         documents_with_embeddings = []

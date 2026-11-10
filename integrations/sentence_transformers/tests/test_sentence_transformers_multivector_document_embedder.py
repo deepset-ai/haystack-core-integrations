@@ -29,9 +29,11 @@ class TestSentenceTransformersMultivectorDocumentEmbedder:
             trust_remote_code=True,
             revision="v1.0",
             local_files_only=True,
+            encode_kwargs={"prompt": "custom prompt"},
         )
         assert embedder.model == "model"
         assert embedder.embedding_backend is None
+        assert embedder.encode_kwargs == {"prompt": "custom prompt"}
         assert embedder.device == ComponentDevice.from_str("cuda:0")
         assert embedder.token == Secret.from_token("fake-api-token")
         assert embedder.prefix == "prefix"
@@ -50,12 +52,18 @@ class TestSentenceTransformersMultivectorDocumentEmbedder:
             SentenceTransformersMultivectorDocumentEmbedder(model="model", batch_size=batch_size)
 
     @pytest.mark.parametrize(
-        "model_kwargs, expected_model_kwargs",
-        [(None, None), ({"torch_dtype": torch.float32}, {"torch_dtype": "torch.float32"})],
+        "model_kwargs, expected_model_kwargs, encode_kwargs",
+        [
+            (None, None, None),
+            ({"torch_dtype": torch.float32}, {"torch_dtype": "torch.float32"}, {"prompt": "custom prompt"}),
+        ],
     )
-    def test_to_dict(self, model_kwargs, expected_model_kwargs):
+    def test_to_dict(self, model_kwargs, expected_model_kwargs, encode_kwargs):
         component = SentenceTransformersMultivectorDocumentEmbedder(
-            model="model", device=ComponentDevice.from_str("cpu"), model_kwargs=model_kwargs
+            model="model",
+            device=ComponentDevice.from_str("cpu"),
+            model_kwargs=model_kwargs,
+            encode_kwargs=encode_kwargs,
         )
         data = component.to_dict()
         assert data == {
@@ -76,18 +84,24 @@ class TestSentenceTransformersMultivectorDocumentEmbedder:
                 "model_kwargs": expected_model_kwargs,
                 "tokenizer_kwargs": None,
                 "config_kwargs": None,
+                "encode_kwargs": encode_kwargs,
                 "backend": "torch",
             },
         }
 
     @pytest.mark.parametrize(
-        "device, model_kwargs, expected_model_kwargs",
+        "device, model_kwargs, expected_model_kwargs, encode_kwargs",
         [
-            (None, None, None),
-            (ComponentDevice.from_str("cuda:0"), {"torch_dtype": "torch.float32"}, {"torch_dtype": torch.float32}),
+            (None, None, None, None),
+            (
+                ComponentDevice.from_str("cuda:0"),
+                {"torch_dtype": "torch.float32"},
+                {"torch_dtype": torch.float32},
+                {"prompt": "custom prompt"},
+            ),
         ],
     )
-    def test_from_dict(self, device, model_kwargs, expected_model_kwargs):
+    def test_from_dict(self, device, model_kwargs, expected_model_kwargs, encode_kwargs):
         init_parameters = {
             "model": "model",
             "device": device.to_dict() if device is not None else None,
@@ -102,6 +116,7 @@ class TestSentenceTransformersMultivectorDocumentEmbedder:
             "revision": "v1.0",
             "local_files_only": True,
             "model_kwargs": model_kwargs.copy() if model_kwargs is not None else None,
+            "encode_kwargs": encode_kwargs,
             "tokenizer_kwargs": {"model_max_length": 512},
             "config_kwargs": {"use_memory_efficient_attention": True},
         }
@@ -124,6 +139,7 @@ class TestSentenceTransformersMultivectorDocumentEmbedder:
         assert component.local_files_only
         assert component.meta_fields_to_embed == ["meta_field"]
         assert component.model_kwargs == expected_model_kwargs
+        assert component.encode_kwargs == encode_kwargs
         assert component.tokenizer_kwargs == {"model_max_length": 512}
         assert component.config_kwargs == {"use_memory_efficient_attention": True}
 
@@ -247,6 +263,17 @@ class TestSentenceTransformersMultivectorDocumentEmbedder:
         embedder.run(documents=[Document(content="document", meta=meta)])
         embedder.embedding_backend.embed.assert_called_once_with(
             data=[expected_text], is_query=False, batch_size=32, show_progress_bar=True
+        )
+
+    def test_embed_encode_kwargs(self):
+        embedder = SentenceTransformersMultivectorDocumentEmbedder(
+            model="model", encode_kwargs={"prompt": "custom prompt"}
+        )
+        embedder.embedding_backend = MagicMock()
+        embedder.embedding_backend.embed.return_value = [[[0.1, 0.2]]]
+        embedder.run(documents=[Document(content="document")])
+        embedder.embedding_backend.embed.assert_called_once_with(
+            data=["document"], is_query=False, batch_size=32, show_progress_bar=True, prompt="custom prompt"
         )
 
     def test_prefix_suffix(self):

@@ -111,11 +111,14 @@ class _SentenceTransformersMultivectorEncoderEmbeddingBackend:
         is_query: bool,
         batch_size: int = 32,
         show_progress_bar: bool = False,
+        **kwargs: Any,
     ) -> list[list[list[float]]]:
         """
         Encode texts using the model's query or document settings.
         """
         encode = self.model.encode_query if is_query else self.model.encode_document
-        embeddings = encode(data, batch_size=batch_size, show_progress_bar=show_progress_bar, convert_to_numpy=True)
+        embeddings = encode(
+            data, batch_size=batch_size, show_progress_bar=show_progress_bar, convert_to_numpy=True, **kwargs
+        )
         # List input and convert_to_numpy=True guarantee a list of arrays; the SDK's union also includes dicts.
         return [embedding.tolist() for embedding in embeddings]  # type: ignore[union-attr]
