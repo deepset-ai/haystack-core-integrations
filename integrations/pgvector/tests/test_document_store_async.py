@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import nullcontext
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
@@ -31,7 +32,7 @@ from psycopg.cursor_async import AsyncCursor
 from psycopg.sql import SQL, Identifier
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
-from haystack_integrations.document_stores.pgvector.table_replacement import _Swap
+from haystack_integrations.document_stores.pgvector.table_replacement import _prepare_async_store, _Swap
 
 
 @pytest.mark.integration
@@ -643,3 +644,27 @@ async def test_replace_table_async_rolls_back_midway(
     assert await _index_names_async(document_store, live_name) == live_indexes
     assert await _index_names_async(document_store, staging_name) == staging_indexes
     assert await _index_names_async(document_store, backup) == set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("setup_fails", [False, True])
+async def test_prepare_async_store_never_recreates_or_initializes_tables(monkeypatch, setup_fails):
+    store = PgvectorDocumentStore(recreate_table=True, hnsw_recreate_index_if_exists=True)
+    seen = {}
+
+    async def ensure_db_setup_async():
+        seen.update(recreate=store.recreate_table, recreate_hnsw=store.hnsw_recreate_index_if_exists)
+        seen.update(initialized=store._table_initialized)
+        if setup_fails:
+            msg = "connection failed"
+            raise DocumentStoreError(msg)
+
+    monkeypatch.setattr(store, "_ensure_db_setup_async", ensure_db_setup_async)
+
+    with pytest.raises(DocumentStoreError) if setup_fails else nullcontext():
+        await _prepare_async_store(store)
+
+    # While connecting, setup must neither drop nor create a table
+    assert seen == {"recreate": False, "recreate_hnsw": False, "initialized": True}
+    # Afterwards, and also when connecting fails, the caller's settings are restored
+    assert (store.recreate_table, store.hnsw_recreate_index_if_exists, store._table_initialized) == (True, True, False)
