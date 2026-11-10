@@ -160,7 +160,6 @@ class FalkorDBDocumentStore(DocumentStore):
             Labels must be strings accepted by FalkorDB. `node_label` is always retained.
         :param relationships_metadata_field: `Document.meta` key containing outgoing relationships; `None` disables
             extraction. Each entry requires `target_id` and `type`, with an optional `properties` dictionary.
-            Extra keys are ignored; property values and target matching are handled by FalkorDB.
             Targets must already exist or be included in the same write. Configured graph fields are consumed,
             not stored or returned as metadata. See `write_documents` for write behavior and an example.
         :raises ValueError: `similarity` is unsupported or graph metadata field names are identical.
@@ -543,6 +542,7 @@ class FalkorDBDocumentStore(DocumentStore):
     def _prepare_graph_documents(
         self, documents: list[Document]
     ) -> tuple[list[Document], dict[str, list[str]], dict[str, list[_RelationshipRecord]]]:
+        """Return documents without graph metadata, document IDs by label, and relationship records by type."""
         if self.labels_metadata_field is None and self.relationships_metadata_field is None:
             return documents, {}, {}
         labels: dict[str, list[str]] = {}
@@ -568,6 +568,7 @@ class FalkorDBDocumentStore(DocumentStore):
     def _relationship_queries(
         self, relationships: dict[str, list[_RelationshipRecord]]
     ) -> Iterator[tuple[str, dict[str, Any]]]:
+        """Yield batched relationship upsert queries and parameters, grouped by relationship type."""
         for rel_type, rows in relationships.items():
             quoted_type = rel_type.replace("`", "``")
             for start in range(0, len(rows), self.write_batch_size):
@@ -641,6 +642,7 @@ class FalkorDBDocumentStore(DocumentStore):
     def _write_batch_query(
         self, documents: list[Document], policy: DuplicatePolicy, labels: dict[str, list[str]]
     ) -> tuple[str, dict[str, Any]]:
+        """Build a document-batch upsert query and parameters, including extra label assignments."""
         query = f"UNWIND $docs AS doc MERGE (d:{self.node_label} {{id: doc.id}}) ON CREATE SET d += doc "
         if policy == DuplicatePolicy.OVERWRITE:
             query += "ON MATCH SET d = doc "
@@ -1570,6 +1572,7 @@ ORDER BY score ASC, d.id ASC
 
 
 def _prepare_relationship(source_id: str, relationship: Any) -> tuple[str, _RelationshipRecord]:
+    """Validate the relationship structure and return its type and write record."""
     if not isinstance(relationship, dict):
         msg = "Each relationship must be a dictionary."
         raise TypeError(msg)
@@ -1588,6 +1591,7 @@ def _prepare_relationship(source_id: str, relationship: Any) -> tuple[str, _Rela
 
 
 def _check_relationship_count(rows: list[list[Any]], expected: int) -> None:
+    """Raise DocumentStoreError when the relationship write count differs from the expected count."""
     if not rows or int(rows[0][0]) != expected:
         msg = "Failed to write relationships: source or target documents are missing or were deleted concurrently."
         raise DocumentStoreError(msg)
