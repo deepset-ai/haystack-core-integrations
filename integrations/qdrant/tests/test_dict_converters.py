@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
@@ -44,13 +48,15 @@ def test_to_dict():
             "scroll_size": 10000,
             "payload_fields_to_index": None,
             "client_kwargs": {},
+            "multivector_embedding_dim": None,
         },
     }
 
     assert document_store.to_dict() == expected
 
 
-def test_from_dict():
+def test_from_dict(monkeypatch):
+    monkeypatch.setenv("ENV_VAR", "test-key")
     document_store = QdrantDocumentStore.from_dict(
         {
             "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
@@ -59,6 +65,7 @@ def test_from_dict():
                 "location": ":memory:",
                 "index": "test",
                 "embedding_dim": 768,
+                "multivector_embedding_dim": 2,
                 "on_disk": False,
                 "force_disable_check_same_thread": False,
                 "use_sparse_embeddings": True,
@@ -107,3 +114,5 @@ def test_from_dict():
             document_store.client_kwargs == {"check_compatibility": False},
         ]
     )
+    assert document_store.multivector_embedding_dim == 2
+    assert document_store.api_key.resolve_value() == "test-key"
