@@ -48,6 +48,12 @@ BM25_SCALING_FACTOR = 8
 DEFAULT_SETTINGS = {"index.knn": True}
 DEFAULT_MAX_CHUNK_BYTES = 100 * 1024 * 1024
 
+# filter_documents() reads all matching documents with the scroll API, one page at a time.
+# A page can't be larger than the index's `index.max_result_window` setting (10,000 by default).
+FILTER_PAGE_SIZE = 10_000
+# How long OpenSearch keeps the scroll context alive between two page requests.
+SCROLL_KEEP_ALIVE = "5m"
+
 
 class OpenSearchDocumentStore:
     """
@@ -483,7 +489,7 @@ class OpenSearchDocumentStore:
         return out
 
     def _prepare_filter_search_request(self, filters: dict[str, Any] | None) -> dict[str, Any]:
-        search_kwargs: dict[str, Any] = {"size": 10_000}
+        search_kwargs: dict[str, Any] = {"size": FILTER_PAGE_SIZE}
         if filters:
             search_kwargs["query"] = {
                 "bool": {"filter": normalize_filters(filters, nested_fields=self._resolved_nested_fields)}
@@ -505,6 +511,57 @@ class OpenSearchDocumentStore:
         search_results = await self._async_client.search(index=self._index, body=request_body)
         return OpenSearchDocumentStore._deserialize_search_hits(search_results["hits"]["hits"])
 
+    def _search_all_documents(self, request_body: dict[str, Any]) -> list[Document]:
+        """
+        Returns every document matching `request_body`, reading the results page by page with the scroll API.
+
+        A single search request can't return more than `index.max_result_window` hits (10,000 by default),
+        so results beyond the first page are fetched with scroll requests until a page comes back less than full.
+        """
+        assert self._client is not None
+        page_size = request_body["size"]
+        response = self._client.search(index=self._index, body=request_body, scroll=SCROLL_KEEP_ALIVE)
+        scroll_id = response.get("_scroll_id")
+        try:
+            hits = response["hits"]["hits"]
+            documents = OpenSearchDocumentStore._deserialize_search_hits(hits)
+            # A first page that is not full already holds every match, so no further request is needed.
+            while scroll_id and len(hits) == page_size:
+                response = self._client.scroll(body={"scroll_id": scroll_id, "scroll": SCROLL_KEEP_ALIVE})
+                scroll_id = response.get("_scroll_id")
+                hits = response["hits"]["hits"]
+                documents.extend(OpenSearchDocumentStore._deserialize_search_hits(hits))
+            return documents
+        finally:
+            if scroll_id:
+                # The scroll context expires on its own after SCROLL_KEEP_ALIVE; failing to free it early is harmless.
+                with suppress(Exception):
+                    self._client.clear_scroll(body={"scroll_id": [scroll_id]}, ignore=(404,))
+
+    async def _search_all_documents_async(self, request_body: dict[str, Any]) -> list[Document]:
+        """
+        Asynchronously returns every document matching `request_body`, reading the results page by page.
+
+        See `_search_all_documents` for details.
+        """
+        assert self._async_client is not None
+        page_size = request_body["size"]
+        response = await self._async_client.search(index=self._index, body=request_body, scroll=SCROLL_KEEP_ALIVE)
+        scroll_id = response.get("_scroll_id")
+        try:
+            hits = response["hits"]["hits"]
+            documents = OpenSearchDocumentStore._deserialize_search_hits(hits)
+            while scroll_id and len(hits) == page_size:
+                response = await self._async_client.scroll(body={"scroll_id": scroll_id, "scroll": SCROLL_KEEP_ALIVE})
+                scroll_id = response.get("_scroll_id")
+                hits = response["hits"]["hits"]
+                documents.extend(OpenSearchDocumentStore._deserialize_search_hits(hits))
+            return documents
+        finally:
+            if scroll_id:
+                with suppress(Exception):
+                    await self._async_client.clear_scroll(body={"scroll_id": [scroll_id]}, ignore=(404,))
+
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
@@ -516,7 +573,7 @@ class OpenSearchDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         self._ensure_initialized()
-        return self._search_documents(self._prepare_filter_search_request(filters))
+        return self._search_all_documents(self._prepare_filter_search_request(filters))
 
     async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -530,7 +587,7 @@ class OpenSearchDocumentStore:
         """
         await self._ensure_initialized_async()
 
-        return await self._search_documents_async(self._prepare_filter_search_request(filters))
+        return await self._search_all_documents_async(self._prepare_filter_search_request(filters))
 
     def _prepare_bulk_write_request(
         self,

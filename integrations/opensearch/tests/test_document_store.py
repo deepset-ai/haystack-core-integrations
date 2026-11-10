@@ -657,6 +657,51 @@ def test_close_is_exception_safe():
     assert store._client is None
 
 
+def _search_page(ids: list[str]) -> dict:
+    return {
+        "_scroll_id": "scroll-id",
+        "hits": {"hits": [{"_source": {"id": i, "content": f"doc {i}"}, "_score": 0.0} for i in ids]},
+    }
+
+
+@pytest.mark.parametrize(
+    "pages, expected_scroll_calls",
+    [
+        # partial first page holds every match: no scroll request
+        ([["1"]], 0),
+        # match count is an exact multiple of the page size: stop on the empty page
+        ([["1", "2"], ["3", "4"], []], 2),
+        ([["1", "2"], ["3"]], 1),
+    ],
+)
+def test_search_all_documents_pages_through_scroll(pages, expected_scroll_calls):
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index")
+    mock_client = MagicMock()
+    mock_client.search.return_value = _search_page(pages[0])
+    mock_client.scroll.side_effect = [_search_page(page) for page in pages[1:]]
+    store._client = mock_client
+
+    docs = store._search_all_documents({"size": 2})
+
+    assert [doc.id for doc in docs] == [i for page in pages for i in page]
+    mock_client.search.assert_called_once_with(index="my-index", body={"size": 2}, scroll="5m")
+    assert mock_client.scroll.call_count == expected_scroll_calls
+    mock_client.clear_scroll.assert_called_once_with(body={"scroll_id": ["scroll-id"]}, ignore=(404,))
+
+
+def test_search_all_documents_clears_scroll_on_error():
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index")
+    mock_client = MagicMock()
+    mock_client.search.return_value = _search_page(["1", "2"])
+    mock_client.scroll.side_effect = TransportError(500, "boom")
+    store._client = mock_client
+
+    with pytest.raises(TransportError):
+        store._search_all_documents({"size": 2})
+
+    mock_client.clear_scroll.assert_called_once_with(body={"scroll_id": ["scroll-id"]}, ignore=(404,))
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     OpenSearchDocumentStoreTestMixin,
@@ -1033,6 +1078,20 @@ class TestDocumentStore(
         assert results[0].embedding is None
         assert results[1].embedding is None
         assert results[2].embedding is None
+
+    def test_filter_documents_returns_more_than_page_size(
+        self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
+    ):
+        # A single search returns at most index.max_result_window (10,000) hits, so this needs several pages.
+        store = document_store_embedding_dim_4_no_emb_returned
+        docs = [
+            Document(id=str(i), content=f"doc {i}", meta={"group": "a" if i < 11_000 else "b"}) for i in range(12_000)
+        ]
+        store.write_documents(docs, refresh=True)
+
+        assert {doc.id for doc in store.filter_documents()} == {doc.id for doc in docs}
+        filtered = store.filter_documents(filters={"field": "meta.group", "operator": "==", "value": "a"})
+        assert {doc.id for doc in filtered} == {str(i) for i in range(11_000)}
 
     def test_delete_all_documents_index_recreation(self, document_store: OpenSearchDocumentStore):
         # populate the index with some documents
