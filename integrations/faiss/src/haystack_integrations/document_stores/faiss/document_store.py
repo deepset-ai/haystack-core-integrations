@@ -147,10 +147,12 @@ class FAISSDocumentStore:
 
         # Check for duplicates first if policy is FAIL
         if policy == DuplicatePolicy.FAIL:
+            seen_ids = set(self.documents)
             for doc in documents:
-                if doc.id in self.documents:
+                if doc.id in seen_ids:
                     msg = f"Document with id '{doc.id}' already exists."
                     raise DuplicateDocumentError(msg)
+                seen_ids.add(doc.id)
 
         # Process documents
         ids_to_add_to_index = []
