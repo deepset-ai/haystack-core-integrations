@@ -22,8 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-# The multivector_embedding Document field is available from this nightly; use 3.5.0 once released.
-dependencies = ["haystack-ai>=3.5.0.dev20261104000145", "sentence-transformers>=6.0.1", "pillow>=11.3.0", "pypdfium2>=4.0.0"]
+dependencies = ["haystack-ai>=3.5.0", "sentence-transformers>=6.0.1", "pillow>=11.3.0", "pypdfium2>=4.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/sentence_transformers#readme"
