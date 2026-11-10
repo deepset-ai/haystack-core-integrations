@@ -171,6 +171,7 @@ class TestQdrantDocumentStoreUnit:
         # Mock collection info with named vectors
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
+        mock_collection_info.config.params.sparse_vectors = {SPARSE_VECTORS_NAME: rest.SparseVectorParams()}
 
         with (
             patch.object(document_store._client, "collection_exists", return_value=True),
