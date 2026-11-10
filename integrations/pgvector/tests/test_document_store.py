@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -26,7 +27,7 @@ from haystack.testing.document_store import (
 )
 from haystack.utils import Secret
 from psycopg import Connection, Cursor, Error
-from psycopg.sql import SQL
+from psycopg.sql import SQL, Identifier
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
@@ -778,3 +779,168 @@ def test_get_metadata_field_unique_values_pagination_edge_cases(document_store: 
     assert len(unique_values_single2) == 1
     assert len(unique_values_single3) == 1
     assert len(set(unique_values_single1 + unique_values_single2 + unique_values_single3)) == 3
+
+
+def _index_names(store: PgvectorDocumentStore, table_name: str) -> set[str]:
+    store._ensure_db_setup()
+    assert store._connection is not None
+    rows = store._connection.execute(
+        "SELECT indexname FROM pg_indexes WHERE schemaname = %s AND tablename = %s", (store.schema_name, table_name)
+    ).fetchall()
+    return {name for (name,) in rows}
+
+
+def _doc_ids(store: PgvectorDocumentStore) -> list[str]:
+    return sorted(document.id for document in store.filter_documents())
+
+
+@pytest.mark.integration
+def test_replace_table_hnsw(document_store_w_hnsw_index: PgvectorDocumentStore, make_staging_store):
+    live = document_store_w_hnsw_index
+    live.write_documents([Document(id="old", content="old", embedding=[0.1] * 768)])
+    staging = make_staging_store(live)
+    staging.write_documents([Document(id="new", content="new", embedding=[0.1] * 768)])
+    staging_keyword_index, staging_hnsw_index = staging.keyword_index_name, staging.hnsw_index_name
+
+    backup = live.replace_table(staging)
+
+    assert [document.id for document in live._embedding_retrieval([0.1] * 768, top_k=5)] == ["new"]
+    assert _index_names(live, live.table_name) == {
+        live.keyword_index_name,
+        live.hnsw_index_name,
+        f"{live.table_name}_pkey",
+    }
+    # The staging store now points at the backup and its renamed indexes, none of which keep staging names
+    assert staging.table_name == backup
+    backup_indexes = _index_names(live, backup)
+    assert backup_indexes == {staging.keyword_index_name, staging.hnsw_index_name, f"{backup}_pkey"}
+    assert not backup_indexes & {staging_keyword_index, staging_hnsw_index}
+    assert _doc_ids(staging) == ["old"]
+
+
+@pytest.mark.integration
+def test_replace_table_repeated_cycles(document_store: PgvectorDocumentStore, make_staging_store):
+    document_store.write_documents([Document(id="v0", content="v0")])
+    suffix = uuid4().hex[:8]
+    # The real workflow: rebuild into a staging table with the same names, swap, drop the backup, repeat
+    names = {"table_name": f"stage_{suffix}", "keyword_index_name": f"stage_kw_{suffix}"}
+
+    for cycle in (1, 2, 3):
+        staging = make_staging_store(document_store, **names)
+        staging.write_documents([Document(id=f"v{cycle}", content=f"v{cycle}")])
+        backup = document_store.replace_table(staging)
+
+        assert _doc_ids(document_store) == [f"v{cycle}"]
+        assert _doc_ids(staging) == [f"v{cycle - 1}"]
+        # Primary key and keyword index names stay attached to the live table on every cycle
+        assert _index_names(document_store, document_store.table_name) == {
+            document_store.keyword_index_name,
+            f"{document_store.table_name}_pkey",
+        }
+        staging.delete_table()
+        assert _index_names(document_store, backup) == set()
+
+
+@pytest.mark.integration
+def test_replace_table_seen_by_other_instance(document_store: PgvectorDocumentStore, make_staging_store):
+    document_store.write_documents([Document(id="old", content="shared word")])
+    # Another instance serving queries, e.g. a pipeline in a different process
+    reader = PgvectorDocumentStore(
+        connection_string=document_store.connection_string,
+        table_name=document_store.table_name,
+        embedding_dimension=document_store.embedding_dimension,
+    )
+    # psycopg prepares a statement after five executions, so the reader holds prepared plans for the old table
+    for _ in range(6):
+        assert _doc_ids(reader) == ["old"]
+        assert [document.id for document in reader._keyword_retrieval("shared", top_k=5)] == ["old"]
+
+    staging = make_staging_store(document_store)
+    staging.write_documents([Document(id="new", content="shared word")])
+    document_store.replace_table(staging)
+
+    try:
+        assert _doc_ids(reader) == ["new"]
+        assert [document.id for document in reader._keyword_retrieval("shared", top_k=5)] == ["new"]
+    finally:
+        reader.close()
+
+
+@pytest.mark.integration
+def test_replace_table_lock_timeout(document_store: PgvectorDocumentStore, make_staging_store):
+    document_store.write_documents([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    staging.write_documents([Document(id="new", content="new")])
+    live_indexes = _index_names(document_store, document_store.table_name)
+    staging_indexes = _index_names(document_store, staging.table_name)
+
+    # A long-running reader: an open transaction keeps a lock on the live table
+    with psycopg.connect(document_store.connection_string.resolve_value()) as blocker:
+        blocker.execute(SQL("SELECT count(*) FROM {table}").format(table=Identifier(document_store.table_name)))
+        with pytest.raises(DocumentStoreError, match="lock timeout"):
+            document_store.replace_table(staging, lock_timeout_ms=200)
+        blocker.rollback()
+
+    assert _doc_ids(document_store) == ["old"]
+    assert _doc_ids(staging) == ["new"]
+    assert _index_names(document_store, document_store.table_name) == live_indexes
+    assert _index_names(document_store, staging.table_name) == staging_indexes
+
+
+@pytest.mark.integration
+def test_replace_table_host_spelling(document_store: PgvectorDocumentStore, make_staging_store):
+    document_store.write_documents([Document(id="old", content="old")])
+    # Same database as the fixture, which connects through "localhost"
+    staging = make_staging_store(
+        document_store,
+        connection_string=Secret.from_token("postgresql://postgres:postgres@127.0.0.1:5432/postgres"),
+    )
+    staging.write_documents([Document(id="new", content="new")])
+
+    document_store.replace_table(staging)
+
+    assert _doc_ids(document_store) == ["new"]
+
+
+@pytest.mark.integration
+def test_replace_table_fresh_instance(document_store: PgvectorDocumentStore, make_staging_store):
+    document_store.write_documents([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    staging.write_documents([Document(id="new", content="new")])
+    # An instance that has not touched the database yet, configured to recreate its table on first setup
+    fresh = PgvectorDocumentStore(
+        connection_string=document_store.connection_string,
+        table_name=document_store.table_name,
+        embedding_dimension=document_store.embedding_dimension,
+        vector_function=document_store.vector_function,
+        recreate_table=True,
+    )
+
+    fresh.replace_table(staging)
+    # Reconnecting must not run table setup again, which would drop the promoted table
+    fresh.close()
+
+    try:
+        assert _doc_ids(fresh) == ["new"]
+    finally:
+        fresh.close()
+
+
+@pytest.mark.integration
+def test_replace_table_backup_pk_name_taken(document_store: PgvectorDocumentStore, make_staging_store):
+    document_store.write_documents([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    staging.write_documents([Document(id="new", content="new")])
+    backup = f"backup_{uuid4().hex[:8]}"
+    # A table already holds the name the backup primary key would get
+    blocker = make_staging_store(document_store, table_name=f"{backup}_pkey")
+    blocker.write_documents([Document(id="x", content="x")])
+    live_indexes = _index_names(document_store, document_store.table_name)
+
+    # Checked before any rename, so the error names the conflict instead of surfacing a mid-swap SQL error
+    with pytest.raises(DocumentStoreError, match=f"Backup index relation public.{backup}_pkey already exists"):
+        document_store.replace_table(staging, backup_table_name=backup)
+
+    assert _doc_ids(document_store) == ["old"]
+    assert _doc_ids(staging) == ["new"]
+    assert _index_names(document_store, document_store.table_name) == live_indexes
