@@ -7,6 +7,9 @@ from typing import Any, ClassVar, Literal
 
 from haystack.utils.auth import Secret
 
+from haystack_integrations.components.embedders.sentence_transformers.embedding_backend.backend import (
+    _resolve_onnx_session_options,
+)
 from sentence_transformers import MultiVectorEncoder
 
 
@@ -92,7 +95,9 @@ class _SentenceTransformersMultivectorEncoderEmbeddingBackend:
             trust_remote_code=trust_remote_code,
             revision=revision,
             local_files_only=local_files_only,
-            model_kwargs=model_kwargs,
+            model_kwargs=_resolve_onnx_session_options(model_kwargs=model_kwargs)
+            if backend == "onnx"
+            else model_kwargs,
             # `tokenizer_kwargs` was renamed to `processor_kwargs` in sentence-transformers 5.4.0
             processor_kwargs=tokenizer_kwargs,
             config_kwargs=config_kwargs,

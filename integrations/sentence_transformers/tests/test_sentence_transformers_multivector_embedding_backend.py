@@ -5,6 +5,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import onnxruntime as ort
 import pytest
 from haystack.utils.auth import Secret
 
@@ -59,6 +60,19 @@ def test_model_initialization(mock_multivector_encoder):
         config_kwargs=None,
         backend="torch",
     )
+
+
+@patch(
+    "haystack_integrations.components.embedders.sentence_transformers.embedding_backend.multivector_backend.MultiVectorEncoder"
+)
+def test_model_initialization_onnx_session_options(mock_multivector_encoder):
+    _SentenceTransformersMultivectorEmbeddingBackendFactory.get_embedding_backend(
+        model="onnx_session_model", model_kwargs={"session_options": {"intra_op_num_threads": 2}}, backend="onnx"
+    )
+
+    session_options = mock_multivector_encoder.call_args.kwargs["model_kwargs"]["session_options"]
+    assert isinstance(session_options, ort.SessionOptions)
+    assert session_options.intra_op_num_threads == 2
 
 
 @patch(
