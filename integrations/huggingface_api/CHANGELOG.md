@@ -1,5 +1,41 @@
 # Changelog
 
+## [integrations/huggingface_api-v3.1.0] - 2026-10-20
+
+### 🚀 Features
+
+- *(huggingface_api)* Support streaming tool calls (#4123)
+
+
+## [integrations/huggingface_api-v3.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/huggingface_api-v2.1.0] - 2026-10-06
+
+### 🚜 Refactor
+
+- [**breaking**] HF API - Stop warming up tools in Chat Generator (#4056)
+
+
+## [integrations/huggingface_api-v2.0.0] - 2026-10-01
+
+### 🚀 Features
+
+- [**breaking**] Add grpc support for the huggingface TEI components; rename HuggingFace API Sparse Embedders -> Hugging Face TEI Sparse Embedders (#3870)
+
+### 🧪 Testing
+
+- HF API - use Groq for gpt-oss-20b (#4001)
+
+
 ## [integrations/huggingface_api-v1.0.0] - 2026-09-07
 
 ### 🚀 Features

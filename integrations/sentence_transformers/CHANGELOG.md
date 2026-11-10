@@ -1,5 +1,50 @@
 # Changelog
 
+## [integrations/sentence_transformers-v2.1.0] - 2026-11-06
+
+### 🚀 Features
+
+- Sentence Transformers - allow setting ONNX Runtime session options from YAML (#4211)
+
+
+## [integrations/sentence_transformers-v2.0.0] - 2026-10-23
+
+### 🚜 Refactor
+
+- [**breaking**] SentenceTransformersTextEmbedder - always require quantization_ranges for int8/uint8 precision (#4154)
+
+
+## [integrations/sentence_transformers-v1.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/sentence_transformers-v0.2.0] - 2026-10-01
+
+### 🐛 Bug Fixes
+
+- Sentence Transformers - raise sentence-transformers floor to >=5.6.0 (CVE-2026-68770) (#4036)
+
+### 📚 Documentation
+
+- Clarify tokenizer_kwargs forwarding in Sentence Transformers components (#4012)
+
+
+## [integrations/sentence_transformers-v0.1.2] - 2026-09-23
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Sentence Transformers - fix types for 6.0 (#3822)
+- Respect falsy run() overrides in `SentenceTransformersSimilarityRanker` (#3855)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/sentence_transformers-v0.1.1] - 2026-07-07
 
 ### 🐛 Bug Fixes

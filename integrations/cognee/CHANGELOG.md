@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/cognee-v1.0.1] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- *(cognee)* Exclude compromised litellm 1.107.0 (#4145)
+
+
+## [integrations/cognee-v1.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/cognee-v0.1.2] - 2026-08-25
 
 ### 🐛 Bug Fixes

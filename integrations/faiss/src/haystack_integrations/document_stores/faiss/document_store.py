@@ -3,14 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-import logging
 from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -153,9 +152,9 @@ class FAISSDocumentStore:
                     msg = f"Document with id '{doc.id}' already exists."
                     raise DuplicateDocumentError(msg)
 
-        # Process documents
-        ids_to_add_to_index = []
-        vectors_to_add = []
+        # Process documents. Pending vectors are keyed by document ID so that a later duplicate in the same
+        # batch replaces the earlier one instead of leaving an orphaned vector in the FAISS index.
+        pending_vectors: dict[str, tuple[int, list[float]]] = {}
 
         docs_written = 0
 
@@ -169,6 +168,7 @@ class FAISSDocumentStore:
                 # FAISS doesn't support easy update. We'd have to remove and add.
                 # For MVP, let's implement remove then add for overwrite.
                 self.delete_documents([doc.id])
+                pending_vectors.pop(doc.id, None)
 
             self.documents[doc.id] = doc
 
@@ -180,15 +180,14 @@ class FAISSDocumentStore:
                 self.id_map[int_id] = doc.id
                 self.inverse_id_map[doc.id] = int_id
 
-                ids_to_add_to_index.append(int_id)
-                vectors_to_add.append(doc.embedding)
+                pending_vectors[doc.id] = (int_id, doc.embedding)
 
             docs_written += 1
 
         # Add to FAISS
-        if vectors_to_add:
-            vectors = np.array(vectors_to_add, dtype="float32")
-            ids = np.array(ids_to_add_to_index, dtype="int64")
+        if pending_vectors:
+            vectors = np.array([vector for _, vector in pending_vectors.values()], dtype="float32")
+            ids = np.array([int_id for int_id, _ in pending_vectors.values()], dtype="int64")
             index = self._get_index_or_raise()
             index.add_with_ids(vectors, ids)
 
@@ -599,7 +598,7 @@ class FAISSDocumentStore:
         # Verify sync
         if len(self.documents) != len(self.id_map):
             logger.warning(
-                "Loaded %d documents but %d ID mappings. Index might be out of sync.",
-                len(self.documents),
-                len(self.id_map),
+                "Loaded {documents_count} documents but {mappings_count} ID mappings. Index might be out of sync.",
+                documents_count=len(self.documents),
+                mappings_count=len(self.id_map),
             )

@@ -148,7 +148,7 @@ class TestDDGSWebSearch:
 
     @pytest.mark.integration
     def test_web_search_integration(self):
-        result = DDGSWebSearch(top_k=3).run(query="What is the deepset Haystack framework?")
+        result = DDGSWebSearch(top_k=3).run(query="Python programming language")
         assert len(result["documents"]) > 0
         assert all(isinstance(doc, Document) for doc in result["documents"])
         assert all(doc.meta.get("url") for doc in result["documents"])
@@ -157,6 +157,6 @@ class TestDDGSWebSearch:
     @pytest.mark.asyncio
     @pytest.mark.integration
     async def test_web_search_async_integration(self):
-        result = await DDGSWebSearch(top_k=3).run_async(query="What is the deepset Haystack framework?")
+        result = await DDGSWebSearch(top_k=3).run_async(query="Python programming language")
         assert len(result["documents"]) > 0
         assert result["links"]

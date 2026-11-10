@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/agent_pack-v1.0.0] - 2026-10-16
+
+### 🚀 Features
+
+- Add multihop rag eval to agent pack (#3937)
+- Add harness evaluator for retrieval pipeline (#3947)
+- Add HarnessEvaluator protocol and model pricing to agent pack evaluation (#4038)
+- Add harness optimizer agent and its configuration editing tools (#4037)
+
+### 🚜 Refactor
+
+- Updates to advanced rag agent (#3934)
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/agent_pack-v0.1.0] - 2026-09-02
 
 ### 🚜 Refactor

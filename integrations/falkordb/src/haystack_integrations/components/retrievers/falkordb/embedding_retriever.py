@@ -119,8 +119,42 @@ class FalkorDBEmbeddingRetriever:
 
         return {"documents": docs}
 
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self,
+        query_embedding: list[float],
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+    ) -> dict[str, list[Document]]:
+        """
+        Retrieve documents asynchronously by vector similarity.
+
+        :param query_embedding: Query embedding vector.
+        :param filters: Optional Haystack filters to be combined with the init filters based
+            on the configured filter policy.
+        :param top_k: Maximum number of documents to return. If not provided, the default
+            top_k from initialization is used.
+        :returns: Dictionary containing a `"documents"` key with the retrieved documents.
+        """
+        final_filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        final_top_k = top_k if top_k is not None else self.top_k
+
+        docs = await self.document_store._embedding_retrieval_async(
+            query_embedding=query_embedding,
+            top_k=final_top_k,
+            filters=final_filters,
+        )
+
+        return {"documents": docs}
+
     def close(self) -> None:
         """
         Release the synchronous resources of the underlying Document Store.
         """
         self.document_store.close()
+
+    async def close_async(self) -> None:
+        """
+        Release the asynchronous resources of the underlying Document Store.
+        """
+        await self.document_store.close_async()

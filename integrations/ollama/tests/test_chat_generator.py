@@ -21,6 +21,7 @@ from haystack_integrations.components.generators.ollama.chat.chat_generator impo
     OllamaChatGenerator,
     _build_chunk,
     _convert_chatmessage_to_ollama_format,
+    _convert_chatmessages_to_ollama_format,
     _convert_ollama_response_to_chatmessage,
 )
 
@@ -101,8 +102,40 @@ class TestUtils:
             "images": [base64_image_string, base64_image_string],
         }
 
+    def test_convert_contentless_assistant_message_to_ollama_format(self):
+        # A Chat Generator that discards a malformed tool call returns a reply with no content parts
+        message = ChatMessage.from_assistant(text=None)
+        assert _convert_chatmessage_to_ollama_format(message) == {"role": "assistant", "content": ""}
+
+    def test_convert_reasoning_only_assistant_message_to_ollama_format(self):
+        message = ChatMessage.from_assistant(reasoning="only reasoning")
+        assert _convert_chatmessage_to_ollama_format(message) == {
+            "role": "assistant",
+            "content": "",
+            "thinking": "only reasoning",
+        }
+
+    @pytest.mark.parametrize(
+        "last_message",
+        [ChatMessage.from_assistant(text=None), ChatMessage.from_assistant(reasoning="only reasoning")],
+    )
+    def test_convert_chatmessages_to_ollama_format_drops_trailing_empty_assistant(self, last_message):
+        messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(text=None), last_message]
+        assert _convert_chatmessages_to_ollama_format(messages=messages) == [
+            {"role": "user", "content": "Hi"},
+            {"role": "assistant", "content": ""},
+        ]
+
+    def test_convert_chatmessages_to_ollama_format_keeps_trailing_assistant_with_tool_calls(self):
+        tool_call = ToolCall(tool_name="weather", arguments={"city": "Paris"})
+        messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(tool_calls=[tool_call])]
+        assert _convert_chatmessages_to_ollama_format(messages=messages)[-1] == {
+            "role": "assistant",
+            "tool_calls": [{"type": "function", "function": {"name": "weather", "arguments": {"city": "Paris"}}}],
+        }
+
     def test_convert_chatmessage_to_ollama_invalid(self):
-        message = ChatMessage(_role=ChatRole.ASSISTANT, _content=[])
+        message = ChatMessage(_role=ChatRole.USER, _content=[])
         with pytest.raises(ValueError):
             _convert_chatmessage_to_ollama_format(message)
 
@@ -1388,6 +1421,49 @@ class TestRun:
         assert result["replies"][0].tool_call.arguments == {"city": "Paris"}
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_empty_tools_override(self, mock_client, tools):
+        generator = OllamaChatGenerator(model="qwen3", tools=tools)
+
+        mock_response = ChatResponse(
+            model="qwen3",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        generator.run(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        _, kwargs = mock_client_instance.chat.call_args
+        assert kwargs["tools"] is None
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_with_empty_tools_override(self, mock_async_client, tools):
+        generator = OllamaChatGenerator(model="qwen3", tools=tools)
+
+        mock_response = ChatResponse(
+            model="qwen3",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(return_value=mock_response)
+
+        await generator.run_async(messages=[ChatMessage.from_user("What's the capital of France?")], tools=[])
+
+        _, kwargs = mock_async_client_instance.chat.call_args
+        assert kwargs["tools"] is None
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming_at_runtime(self, mock_client):
         streaming_callback_called = False
 
@@ -1454,8 +1530,10 @@ class TestIntegration:
     def test_live_run_with_chat_history(self, streaming_callback):
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", streaming_callback=streaming_callback)
 
+        # The contentless assistant message mimics a reply whose only tool call was discarded
         chat_messages = [
             ChatMessage.from_user("What is the largest city in the United Kingdom by population?"),
+            ChatMessage.from_assistant(text=None),
             ChatMessage.from_assistant("London is the largest city in the United Kingdom by population"),
             ChatMessage.from_user("And what is the second largest?"),
         ]
@@ -1471,6 +1549,20 @@ class TestIntegration:
 
         if streaming_callback:
             streaming_callback.assert_called()
+
+    @pytest.mark.parametrize("streaming_callback", [None, Mock()])
+    def test_live_run_after_contentless_assistant_message(self, streaming_callback):
+        # After a discarded tool call, the Agent calls the LLM again with the contentless reply as the last message
+        chat_generator = OllamaChatGenerator(model="qwen3:0.6b", streaming_callback=streaming_callback)
+        chat_messages = [
+            ChatMessage.from_user("What is the capital of France? Answer in one short sentence."),
+            ChatMessage.from_assistant(text=None),
+        ]
+
+        reply = chat_generator.run(chat_messages)["replies"][0]
+
+        assert "paris" in reply.text.lower()
+        assert "<think>" not in reply.text
 
     def test_live_run_with_images(self, test_files_path):
         chat_generator = OllamaChatGenerator(model="moondream:1.8b")

@@ -12,6 +12,9 @@ from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kw
 from haystack.utils.misc import _deduplicate_documents
 from torch.nn import Identity, Sigmoid
 
+from haystack_integrations.components.embedders.sentence_transformers.embedding_backend.backend import (
+    _resolve_onnx_session_options,
+)
 from sentence_transformers import CrossEncoder
 
 
@@ -97,9 +100,14 @@ class SentenceTransformersSimilarityRanker:
         :param model_kwargs:
             Additional keyword arguments for `AutoModelForSequenceClassification.from_pretrained`
             when loading the model. Refer to specific model documentation for available kwargs.
+            With `backend="onnx"`, a `session_options` dict is turned into an `onnxruntime.SessionOptions` with
+            those attributes set, for example `{"session_options": {"intra_op_num_threads": 1}}` to limit
+            the threads each inference call uses.
         :param tokenizer_kwargs:
-            Additional keyword arguments for `AutoTokenizer.from_pretrained` when loading the tokenizer.
-            Refer to specific model documentation for available kwargs.
+            Additional keyword arguments forwarded as `processor_kwargs` to the Sentence Transformers model
+            when loading it. Refer to the
+            [Sentence Transformers documentation](https://sbert.net/docs/package_reference/sentence_transformer/model.html)
+            for available kwargs.
         :param config_kwargs:
             Additional keyword arguments for `AutoConfig.from_pretrained` when loading the model configuration.
         :param backend:
@@ -153,7 +161,11 @@ class SentenceTransformersSimilarityRanker:
                 device=self.device.to_torch_str(),
                 token=self.token.resolve_value() if self.token else None,
                 trust_remote_code=self.trust_remote_code,
-                model_kwargs=self.model_kwargs,
+                model_kwargs=(
+                    _resolve_onnx_session_options(model_kwargs=self.model_kwargs)
+                    if self.backend == "onnx"
+                    else self.model_kwargs
+                ),
                 # `tokenizer_kwargs` was renamed to `processor_kwargs` in sentence-transformers 5.4.0
                 processor_kwargs=self.tokenizer_kwargs,
                 config_kwargs=self.config_kwargs,
@@ -250,13 +262,13 @@ class SentenceTransformersSimilarityRanker:
         if not documents:
             return {"documents": []}
 
-        top_k = top_k or self.top_k
-        scale_score = scale_score or self.scale_score
-        score_threshold = score_threshold or self.score_threshold
-
-        if top_k <= 0:
+        if top_k is not None and top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
+
+        top_k = self.top_k if top_k is None else top_k
+        scale_score = self.scale_score if scale_score is None else scale_score
+        score_threshold = self.score_threshold if score_threshold is None else score_threshold
 
         deduplicated_documents = _deduplicate_documents(documents)
         prepared_query = self.query_prefix + query + self.query_suffix

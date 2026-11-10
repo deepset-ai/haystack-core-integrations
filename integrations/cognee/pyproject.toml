@@ -7,7 +7,7 @@ name = "cognee-haystack"
 dynamic = ["version"]
 description = "Haystack integration for Cognee — memory for AI agents"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,7 +15,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 3 - Alpha",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -30,13 +29,8 @@ dependencies = [
   # wheels and caps requires-python at <3.14, so on Python 3.14 constrain to the last pure-Python
   # release.
   "litellm<1.83.8; python_version >= '3.14'",
-  # On Python 3.10, litellm 1.98.0 imports `NotRequired` from `typing` (3.11+ only), so `import
-  # litellm` fails outright even though litellm still declares requires-python >=3.10. 1.97.0
-  # imports, but leaves the `Message` pydantic model with an unresolved forward reference, so every
-  # completion raises (BerriAI/litellm#36384). 1.96.2 is the last release that works on 3.10; both
-  # regressions are fixed for 3.11+ in 1.98.0, so only 3.10 needs the cap. Drop it once a release
-  # imports and completes on 3.10 again.
-  "litellm<1.97.0; python_version < '3.11'",
+  # litellm 1.107.0 was compromised on PyPI (its wheels install a credential stealer), so never resolve to it.
+  "litellm!=1.107.0",
 ]
 
 [project.urls]

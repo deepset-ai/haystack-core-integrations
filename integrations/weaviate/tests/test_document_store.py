@@ -459,76 +459,8 @@ def test_close_is_exception_safe():
     assert document_store._collection is None
 
 
-@pytest.mark.integration
-class TestWeaviateDocumentStore(
-    DocumentStoreBaseExtendedTests,
-    CountDocumentsByFilterTest,
-    CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
-    GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest,
-):
-    @pytest.fixture
-    def document_store(self, request) -> Generator[WeaviateDocumentStore, None, None]:
-        # Use a different index for each test so we can run them in parallel
-        collection_settings = {
-            "class": f"{request.node.name}",
-            "invertedIndexConfig": {"indexNullState": True},
-            "properties": [
-                *DOCUMENT_COLLECTION_PROPERTIES,
-                {"name": "number", "dataType": ["int"]},
-                {"name": "date", "dataType": ["date"]},
-                {"name": "category", "dataType": ["text"]},
-                {"name": "status", "dataType": ["text"]},
-            ],
-        }
-        store = WeaviateDocumentStore(
-            url="http://localhost:8080",
-            collection_settings=collection_settings,
-        )
-        yield store
-        store.client.collections.delete(collection_settings["class"])
-        store.close()
-
-    @pytest.fixture
-    def filterable_docs(self) -> list[Document]:
-        """
-        This fixture has been copied from haystack/testing/document_store.py and modified to
-        use a different date format.
-        Weaviate forces RFC 3339 date strings.
-        The original fixture uses ISO 8601 date strings.
-        """
-        documents = create_filterable_docs()
-        for i in range(len(documents)):
-            if date := documents[i].meta.get("date"):
-                documents[i].meta["date"] = f"{date}Z"
-        return documents
-
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
-        assert len(received) == len(expected)
-        received = sorted(received, key=lambda doc: doc.id)
-        expected = sorted(expected, key=lambda doc: doc.id)
-        for received_doc, expected_doc in zip(received, expected, strict=True):
-            received_doc_dict = received_doc.to_dict(flatten=False)
-            expected_doc_dict = expected_doc.to_dict(flatten=False)
-
-            # Weaviate stores embeddings with lower precision floats so we handle that here.
-            assert np_array_equal(
-                np_array(received_doc_dict.pop("embedding", None), dtype=np_float32),
-                np_array(expected_doc_dict.pop("embedding", None), dtype=np_float32),
-                equal_nan=True,
-            )
-
-            received_meta = received_doc_dict.pop("meta", None)
-            expected_meta = expected_doc_dict.pop("meta", None)
-
-            assert received_doc_dict == expected_doc_dict
-
-            # If a meta field is not set in a saved document, it will be None when retrieved
-            # from Weaviate so we need to handle that.
-            meta_keys = set(received_meta.keys()).union(set(expected_meta.keys()))
-            for key in meta_keys:
-                assert received_meta.get(key) == expected_meta.get(key)
+class TestWeaviateDocumentStoreSerde:
+    """Unit tests that need no running Weaviate: serialization and document conversion."""
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
     def test_connection(self, mock_weaviate_client_class, monkeypatch):
@@ -580,22 +512,6 @@ class TestWeaviateDocumentStore(
         mock_client.collections.create_from_dict.assert_called_once_with(
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
-
-    def test_close_and_reopen(self, document_store: WeaviateDocumentStore) -> None:
-        # Initialise client and collection
-        assert document_store.client is not None
-        assert document_store.collection is not None
-
-        document_store.close()
-
-        assert document_store._client is None
-        assert document_store._collection is None
-
-        # Initialise client and collection, then test it stills works after reopening
-        assert document_store.client is not None
-        assert document_store.collection is not None
-
-        assert document_store.count_documents() == 0
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate, monkeypatch):
@@ -800,6 +716,109 @@ class TestWeaviateDocumentStore(
         assert doc.score is None
         assert doc.meta == {"key": "value"}
 
+    def test_schema_class_name_conversion_preserves_pascal_case(self):
+        collection_settings = {"class": "CaseDocument"}
+        doc_score = WeaviateDocumentStore(
+            url="http://localhost:8080",
+            collection_settings=collection_settings,
+        )
+        assert doc_score._collection_settings["class"] == "CaseDocument"
+
+        collection_settings = {"class": "lower_case_name"}
+        doc_score = WeaviateDocumentStore(
+            url="http://localhost:8080",
+            collection_settings=collection_settings,
+        )
+        assert doc_score._collection_settings["class"] == "Lower_case_name"
+
+
+@pytest.mark.integration
+class TestWeaviateDocumentStore(
+    DocumentStoreBaseExtendedTests,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
+    @pytest.fixture
+    def document_store(self, request) -> Generator[WeaviateDocumentStore, None, None]:
+        # Use a different index for each test so we can run them in parallel
+        collection_settings = {
+            "class": f"{request.node.name}",
+            "invertedIndexConfig": {"indexNullState": True},
+            "properties": [
+                *DOCUMENT_COLLECTION_PROPERTIES,
+                {"name": "number", "dataType": ["int"]},
+                {"name": "date", "dataType": ["date"]},
+                {"name": "category", "dataType": ["text"]},
+                {"name": "status", "dataType": ["text"]},
+            ],
+        }
+        store = WeaviateDocumentStore(
+            url="http://localhost:8080",
+            collection_settings=collection_settings,
+        )
+        yield store
+        store.client.collections.delete(collection_settings["class"])
+        store.close()
+
+    @pytest.fixture
+    def filterable_docs(self) -> list[Document]:
+        """
+        This fixture has been copied from haystack/testing/document_store.py and modified to
+        use a different date format.
+        Weaviate forces RFC 3339 date strings.
+        The original fixture uses ISO 8601 date strings.
+        """
+        documents = create_filterable_docs()
+        for i in range(len(documents)):
+            if date := documents[i].meta.get("date"):
+                documents[i].meta["date"] = f"{date}Z"
+        return documents
+
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+        assert len(received) == len(expected)
+        received = sorted(received, key=lambda doc: doc.id)
+        expected = sorted(expected, key=lambda doc: doc.id)
+        for received_doc, expected_doc in zip(received, expected, strict=True):
+            received_doc_dict = received_doc.to_dict(flatten=False)
+            expected_doc_dict = expected_doc.to_dict(flatten=False)
+
+            # Weaviate stores embeddings with lower precision floats so we handle that here.
+            assert np_array_equal(
+                np_array(received_doc_dict.pop("embedding", None), dtype=np_float32),
+                np_array(expected_doc_dict.pop("embedding", None), dtype=np_float32),
+                equal_nan=True,
+            )
+
+            received_meta = received_doc_dict.pop("meta", None)
+            expected_meta = expected_doc_dict.pop("meta", None)
+
+            assert received_doc_dict == expected_doc_dict
+
+            # If a meta field is not set in a saved document, it will be None when retrieved
+            # from Weaviate so we need to handle that.
+            meta_keys = set(received_meta.keys()).union(set(expected_meta.keys()))
+            for key in meta_keys:
+                assert received_meta.get(key) == expected_meta.get(key)
+
+    def test_close_and_reopen(self, document_store: WeaviateDocumentStore) -> None:
+        # Initialise client and collection
+        assert document_store.client is not None
+        assert document_store.collection is not None
+
+        document_store.close()
+
+        assert document_store._client is None
+        assert document_store._collection is None
+
+        # Initialise client and collection, then test it stills works after reopening
+        assert document_store.client is not None
+        assert document_store.collection is not None
+
+        assert document_store.count_documents() == 0
+
     def test_write_documents(self, document_store):
         """
         Test write_documents() with default policy overwrites existing documents.
@@ -909,6 +928,27 @@ class TestWeaviateDocumentStore(
                 if d.meta.get("date") is not None
                 and parser.isoparse(d.meta["date"]) <= parser.isoparse("1969-07-21T20:17:40Z")
             ],
+        )
+
+    def test_nested_not_operator(self, document_store, filterable_docs):
+        """NOT(NOT(x)) must select the same Documents as x, matching `document_matches_filter`."""
+        document_store.write_documents(filterable_docs)
+        inner = {"field": "meta.number", "operator": "==", "value": 100}
+        nested_not = {"operator": "NOT", "conditions": [{"operator": "NOT", "conditions": [inner]}]}
+
+        result = document_store.filter_documents(nested_not)
+
+        self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
+
+    def test_not_operator_over_contains(self, document_store, filterable_docs):
+        """`contains` has no inverted counterpart, so negating it used to raise a bare KeyError."""
+        document_store.write_documents(filterable_docs)
+        filters = {"operator": "NOT", "conditions": [{"field": "meta.name", "operator": "contains", "value": "name_0"}]}
+
+        result = document_store.filter_documents(filters)
+
+        self.assert_documents_are_equal(
+            result, [d for d in filterable_docs if "name_0" not in (d.meta.get("name") or "")]
         )
 
     def test_split_overlap_preserved(self, document_store):
@@ -1226,21 +1266,6 @@ class TestWeaviateDocumentStore(
         document_store.write_documents(docs)
         with pytest.raises(DocumentStoreError):
             document_store.filter_documents({"field": "content", "operator": "==", "value": "This is some content"})
-
-    def test_schema_class_name_conversion_preserves_pascal_case(self):
-        collection_settings = {"class": "CaseDocument"}
-        doc_score = WeaviateDocumentStore(
-            url="http://localhost:8080",
-            collection_settings=collection_settings,
-        )
-        assert doc_score._collection_settings["class"] == "CaseDocument"
-
-        collection_settings = {"class": "lower_case_name"}
-        doc_score = WeaviateDocumentStore(
-            url="http://localhost:8080",
-            collection_settings=collection_settings,
-        )
-        assert doc_score._collection_settings["class"] == "Lower_case_name"
 
     @pytest.mark.skipif(
         not os.environ.get("WEAVIATE_API_KEY", None) and not os.environ.get("WEAVIATE_CLOUD_CLUSTER_URL", None),

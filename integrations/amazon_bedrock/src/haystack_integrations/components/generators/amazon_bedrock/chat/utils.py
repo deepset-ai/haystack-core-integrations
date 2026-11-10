@@ -4,7 +4,7 @@ import inspect
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from botocore.eventstream import EventStream
@@ -74,14 +74,65 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 }
 
 
+# string formats accepted by strict tool use; other formats (e.g. `binary` from `ByteStream`) are rejected
+_STRICT_SUPPORTED_STRING_FORMATS = {
+    "date-time",
+    "time",
+    "date",
+    "duration",
+    "email",
+    "hostname",
+    "uri",
+    "ipv4",
+    "ipv6",
+    "uuid",
+}
+
+
+def _make_schema_strict(schema: Any) -> Any:
+    """
+    Return a copy of a JSON schema adapted to strict tool use.
+
+    Strict tool use requires `additionalProperties: false` on every object and rejects unsupported string formats.
+    Only schema positions are rewritten (`properties` values, `items`, `$defs`, `anyOf`/`oneOf`/`allOf`), so a
+    parameter that happens to be named `properties` or `type` is left alone.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    strict_schema = dict(schema)
+    for key in ("anyOf", "oneOf", "allOf"):
+        if isinstance(strict_schema.get(key), list):
+            strict_schema[key] = [_make_schema_strict(sub_schema) for sub_schema in strict_schema[key]]
+    for key in ("properties", "$defs"):
+        if isinstance(strict_schema.get(key), dict):
+            strict_schema[key] = {
+                name: _make_schema_strict(sub_schema) for name, sub_schema in strict_schema[key].items()
+            }
+    if "items" in strict_schema:
+        strict_schema["items"] = _make_schema_strict(strict_schema["items"])
+
+    if strict_schema.get("type") == "object" or "properties" in strict_schema:
+        strict_schema["additionalProperties"] = False
+    if strict_schema.get("type") == "string" and strict_schema.get("format") not in _STRICT_SUPPORTED_STRING_FORMATS:
+        strict_schema.pop("format", None)
+    return strict_schema
+
+
 # Haystack to Bedrock util methods
 def _format_tools(
-    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, dict[str, str]] | None = None
+    tools: list[Tool] | None = None,
+    tools_cachepoint_config: dict[str, dict[str, str]] | None = None,
+    *,
+    strict: bool = False,
 ) -> dict[str, Any] | None:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
     :param tools: List of Tool objects to format
+    :param tools_cachepoint_config: Cache point appended after the tool specs, if any.
+    :param strict: Whether to mark each tool spec `strict`, enforcing its input schema on the model's tool calls.
+        The input schema is rewritten to the subset strict tool use accepts.
     :returns:
         Dictionary in Bedrock toolConfig format or None if no tools are provided
     """
@@ -90,9 +141,14 @@ def _format_tools(
 
     tool_specs: list[dict[str, Any]] = []
     for tool in tools:
-        tool_specs.append(
-            {"toolSpec": {"name": tool.name, "description": tool.description, "inputSchema": {"json": tool.parameters}}}
-        )
+        tool_spec: dict[str, Any] = {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": {"json": _make_schema_strict(tool.parameters) if strict else tool.parameters},
+        }
+        if strict:
+            tool_spec["strict"] = True
+        tool_specs.append({"toolSpec": tool_spec})
 
     if tools_cachepoint_config:
         tool_specs.append(tools_cachepoint_config)
@@ -174,8 +230,8 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
     content: list[dict[str, Any]] = []
 
     # tool call messages can contain reasoning content
-    if reasoning_content := tool_call_message.reasoning:
-        content.append(_format_reasoning_content(reasoning_content=reasoning_content))
+    if reasoning_block := _format_reasoning_content(reasoning_content=tool_call_message.reasoning):
+        content.append(reasoning_block)
 
     # Tool call message can contain text
     if tool_call_message.text:
@@ -307,27 +363,35 @@ def _repair_tool_result_messages(bedrock_formatted_messages: list[dict[str, Any]
     return [msg for _, msg in repaired_bedrock_formatted_messages]
 
 
-def _format_reasoning_content(reasoning_content: ReasoningContent) -> dict[str, Any]:
+def _format_reasoning_content(reasoning_content: ReasoningContent | None) -> dict[str, Any] | None:
     """
     Format ReasoningContent to match Bedrock's expected structure.
 
-    :param reasoning_content: ReasoningContent object containing reasoning contents to format.
-    :returns: Dictionary representing the formatted reasoning content for Bedrock.
+    Bedrock rejects reasoning blocks without a valid signature, so reasoning without a `signature` in its `extra`
+    (for example, reasoning produced by another provider) is dropped.
 
+    :param reasoning_content: ReasoningContent object containing reasoning contents to format.
+    :returns: Dictionary representing the formatted reasoning content for Bedrock, or `None` if there is no
+        reasoning or it has no `signature`.
     """
-    formatted_content = {
+    if reasoning_content is None:
+        return None
+
+    if not reasoning_content.extra.get("signature"):
+        logger.debug(
+            "Dropping reasoning content from the request because it has no `signature`, which Bedrock requires. "
+            "This usually means the reasoning was produced by a different provider."
+        )
+        return None
+
+    return {
         "reasoningContent": {
             "reasoningText": {
                 "text": reasoning_content.reasoning_text,
-                **(
-                    {"signature": reasoning_content.extra["signature"]}
-                    if reasoning_content.extra.get("signature")
-                    else {}
-                ),
+                "signature": reasoning_content.extra["signature"],
             }
         }
     }
-    return formatted_content
 
 
 def _format_user_message(message: ChatMessage) -> dict[str, Any]:
@@ -365,8 +429,8 @@ def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
 
     bedrock_content_blocks: list[dict[str, Any]] = []
     # Add reasoning content if available as the first content block
-    if message.reasoning:
-        bedrock_content_blocks.append(_format_reasoning_content(reasoning_content=message.reasoning))
+    if reasoning_block := _format_reasoning_content(reasoning_content=message.reasoning):
+        bedrock_content_blocks.append(reasoning_block)
 
     for part in content_parts:
         if isinstance(part, TextContent):
@@ -478,7 +542,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
                     "cache_read_input_tokens": response_body.get("usage", {}).get("cacheReadInputTokens", 0),
                     "cache_write_input_tokens": response_body.get("usage", {}).get("cacheWriteInputTokens", 0),
-                    "cache_details": response_body.get("usage", {}).get("CacheDetails", {}),
+                    "cache_details": response_body.get("usage", {}).get("cacheDetails", []),
                 },
             }
             # guardrail trace
@@ -553,7 +617,7 @@ def _convert_event_to_streaming_chunk(
 
     # Initialize an empty StreamingChunk to return if no relevant event is found
     # (e.g. for messageStart and contentBlockStop)
-    base_meta = {"model": model, "received_at": datetime.now(timezone.utc).isoformat()}
+    base_meta = {"model": model, "received_at": datetime.now(UTC).isoformat()}
     streaming_chunk = StreamingChunk(content="", meta=base_meta)
 
     if "contentBlockStart" in event:
@@ -615,10 +679,10 @@ def _convert_event_to_streaming_chunk(
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                reasoning=ReasoningContent(
-                    reasoning_text=reasoning_text,
-                    extra=extra,
-                ),
+                # redactedContent-only deltas have no text or signature, skip them like the non-streaming path
+                reasoning=ReasoningContent(reasoning_text=reasoning_text, extra=extra)
+                if reasoning_text or extra
+                else None,
                 meta=base_meta,
             )
 
@@ -642,7 +706,7 @@ def _convert_event_to_streaming_chunk(
                 "total_tokens": usage.get("totalTokens", 0),
                 "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
                 "cache_write_input_tokens": usage.get("cacheWriteInputTokens", 0),
-                "cache_details": usage.get("cacheDetails", {}),
+                "cache_details": usage.get("cacheDetails", []),
             }
         if "trace" in event_meta:
             chunk_meta["trace"] = event_meta["trace"]

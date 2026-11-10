@@ -49,6 +49,7 @@ class TestQdrantDocumentStoreUnit:
             wait_result_from_api=True,
             use_sparse_embeddings=False,
             api_key=Secret.from_env_var("QDRANT_API_KEY"),
+            client_kwargs={"check_compatibility": False},
         )
         expected_dict = {
             "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
@@ -91,6 +92,7 @@ class TestQdrantDocumentStoreUnit:
                 "write_batch_size": 100,
                 "scroll_size": 10000,
                 "payload_fields_to_index": None,
+                "client_kwargs": {"check_compatibility": False},
             },
         }
         assert doc_store.to_dict() == expected_dict
@@ -347,6 +349,30 @@ class TestQdrantDocumentStoreUnit:
         params["metadata"]["added"] = "x"
         assert metadata == {"key": "value"}
 
+    def test_prepare_client_params_does_not_mutate_client_kwargs(self):
+        client_kwargs = {"grpc_options": {"custom_option": "value"}}
+        document_store = QdrantDocumentStore(location=":memory:", client_kwargs=client_kwargs)
+        params = document_store._prepare_client_params()
+        params["grpc_options"]["grpc.primary_user_agent"] = "qdrant-client"
+
+        assert client_kwargs == {"grpc_options": {"custom_option": "value"}}
+        assert document_store.to_dict()["init_parameters"]["client_kwargs"] == client_kwargs
+
+    @pytest.mark.parametrize("port", [6333, 7333])
+    def test_client_kwargs_are_forwarded_with_client_kwargs_taking_precedence(self, port):
+        document_store = QdrantDocumentStore(
+            location=":memory:", port=port, client_kwargs={"check_compatibility": False, "port": 8333}
+        )
+
+        with (
+            patch("haystack_integrations.document_stores.qdrant.document_store.qdrant_client.QdrantClient") as client,
+            patch.object(document_store, "_set_up_collection"),
+        ):
+            document_store._initialize_client()
+
+        assert client.call_args.kwargs["check_compatibility"] is False
+        assert client.call_args.kwargs["port"] == 8333
+
     def test_get_batches_from_generator(self):
         batches = list(get_batches_from_generator([1, 2, 3, 4, 5], 2))
         assert batches == [(1, 2), (3, 4), (5,)]
@@ -377,17 +403,19 @@ class TestQdrantDocumentStoreUnit:
             document_store._query_by_sparse(query_sparse_embedding=sparse_embedding)
 
     @pytest.mark.parametrize(
-        ("method_name", "args", "expected"),
+        ("method_name", "args"),
         [
-            ("count_documents", (), 0),
-            ("count_documents_by_filter", ({},), 0),
-            ("get_metadata_fields_info", (), {}),
-            ("get_metadata_field_min_max", ("score",), {}),
-            ("count_unique_metadata_by_filter", ({}, ["category"]), {"category": 0}),
-            ("get_metadata_field_unique_values", ("category",), ([], 0)),
+            ("count_documents", ()),
+            ("delete_all_documents", (False,)),
+            ("delete_all_documents", (True,)),
+            ("count_documents_by_filter", ({},)),
+            ("get_metadata_fields_info", ()),
+            ("get_metadata_field_min_max", ("score",)),
+            ("count_unique_metadata_by_filter", ({}, ["category"])),
+            ("get_metadata_field_unique_values", ("category",)),
         ],
     )
-    def test_metadata_methods_swallow_client_errors(self, method_name, args, expected):
+    def test_operations_raise_on_client_errors(self, method_name, args):
         document_store = QdrantDocumentStore(location=":memory:")
         document_store._initialize_client()
         err = ValueError("boom")
@@ -395,8 +423,28 @@ class TestQdrantDocumentStoreUnit:
             patch.object(document_store._client, "count", side_effect=err),
             patch.object(document_store._client, "scroll", side_effect=err),
             patch.object(document_store._client, "get_collection", side_effect=err),
+            patch.object(document_store._client, "delete", side_effect=err),
         ):
-            assert getattr(document_store, method_name)(*args) == expected
+            with pytest.raises(QdrantStoreError) as exc_info:
+                getattr(document_store, method_name)(*args)
+            assert exc_info.value.__cause__ is err
+
+    def test_get_metadata_fields_info_includes_unindexed_fields_when_some_are_indexed(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        schema = {"meta.category": rest.PayloadIndexInfo(data_type=rest.PayloadSchemaType.TEXT, points=1)}
+        client = MagicMock()
+        client.get_collection.return_value = SimpleNamespace(payload_schema=schema)
+        client.scroll.return_value = (
+            [SimpleNamespace(payload={"meta": {"category": "news", "priority": 1}})],
+            None,
+        )
+        document_store._client = client
+
+        fields = document_store.get_metadata_fields_info()
+
+        # "news" would be inferred as "keyword", so "text" proves the indexed type wins.
+        assert fields == {"category": {"type": "text"}, "priority": {"type": "long"}}
+        client.scroll.assert_called_once()
 
     def test_close(self):
         document_store = QdrantDocumentStore(location=":memory:")
@@ -420,6 +468,36 @@ class TestQdrantDocumentStoreUnit:
         document_store.close()
 
         assert document_store._client is None
+
+    @pytest.mark.parametrize(
+        "method_name, query_kwargs",
+        [
+            ("_query_by_embedding", {"query_embedding": [0.1] * 768}),
+            ("_query_by_sparse", {"query_sparse_embedding": SparseEmbedding(indices=[0], values=[0.1])}),
+        ],
+    )
+    @pytest.mark.parametrize("scale_score, expected_score", [(True, 0.75), (False, 0.5)])
+    def test_query_with_group_by_scale_score(self, method_name, query_kwargs, scale_score, expected_score):
+        document_store = QdrantDocumentStore(location=":memory:", similarity="cosine", use_sparse_embeddings=True)
+        mock_client = MagicMock()
+        point = rest.ScoredPoint(id=1, version=0, score=0.5, payload={"id": "1", "content": "doc"})
+        mock_client.query_points_groups.return_value.groups = [rest.PointGroup(id="a", hits=[point])]
+        document_store._client = mock_client
+
+        result = getattr(document_store, method_name)(**query_kwargs, group_by="meta.group", scale_score=scale_score)
+
+        assert [doc.score for doc in result] == [expected_score]
+
+    def test_write_documents_progress_bar_counts_documents(self):
+        document_store = QdrantDocumentStore(location=":memory:", write_batch_size=2)
+        document_store._client = MagicMock()
+        with patch("haystack_integrations.document_stores.qdrant.document_store.tqdm") as mock_tqdm:
+            document_store.write_documents(
+                [Document(content=str(i)) for i in range(3)], policy=DuplicatePolicy.OVERWRITE
+            )
+
+        progress_bar = mock_tqdm.return_value.__enter__.return_value
+        assert [c.args[0] for c in progress_bar.update.call_args_list] == [2, 1]
 
 
 @pytest.mark.integration

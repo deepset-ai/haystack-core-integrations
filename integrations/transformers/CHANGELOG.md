@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/transformers-v2.0.1] - 2026-11-06
+
+### 🐛 Bug Fixes
+
+- *(transformers)* Respect zero score_threshold and overlap_threshold overrides in TransformersExtractiveReader (#4159)
+- *(transformers)* Respect zero stride override in TransformersExtractiveReader (#4177)
+
+
+## [integrations/transformers-v2.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/transformers-v1.1.0] - 2026-10-07
+
+### 🚜 Refactor
+
+- [**breaking**] Transformers - Stop warming up tools in Chat Generator (#4057)
+
+
+## [integrations/transformers-v1.0.1] - 2026-09-23
+
+### 🐛 Bug Fixes
+
+- Serialize missing init params in `to_dict` (transformers, amazon_bedrock) (#3873)
+
+
 ## [integrations/transformers-v1.0.0] - 2026-09-10
 
 ### 🐛 Bug Fixes

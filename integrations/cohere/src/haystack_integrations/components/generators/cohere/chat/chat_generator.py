@@ -29,6 +29,7 @@ from httpx import AsyncHTTPTransport, HTTPTransport
 from httpx import Client as HTTPXClient
 
 from cohere import AsyncClientV2, ChatResponse, ClientV2, StreamedChatResponseV2
+from haystack_integrations.utils.cohere import validate_api_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -459,13 +460,11 @@ class CohereChatGenerator:
 
     ### Advanced example
 
-    CohereChatGenerator can be integrated into pipelines and supports Haystack's tooling
-    architecture, enabling tools to be invoked seamlessly across various generators.
+    CohereChatGenerator supports Haystack's tooling architecture, so it can drive tool calls in an `Agent`.
 
     ```python
-    from haystack import Pipeline
+    from haystack.components.agents import Agent
     from haystack.dataclasses import ChatMessage
-    from haystack.components.tools import ToolInvoker
     from haystack.tools import Tool
     from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
@@ -489,20 +488,12 @@ class CohereChatGenerator:
         function=weather,
     )
 
-    # Create and set up the pipeline
-    pipeline = Pipeline()
-    pipeline.add_component("generator", CohereChatGenerator(tools=[weather_tool]))
-    pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
-    pipeline.connect("generator", "tool_invoker")
+    # The Agent calls the tool and feeds the result back to the model
+    agent = Agent(chat_generator=CohereChatGenerator(), tools=[weather_tool])
+    result = agent.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
 
-    # Run the pipeline with a weather query
-    results = pipeline.run(
-        data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
-    )
-
-    # The tool result will be available in the pipeline output
-    print(results["tool_invoker"]["tool_messages"][0].tool_call_result.result)
-    # Output: "The weather in Paris is sunny and 32°C"
+    print(result["last_message"].text)
+    # Output: "The weather in Paris is sunny and 32°C."
     ```
     """
 
@@ -544,7 +535,7 @@ class CohereChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk)
             as an argument.
-        :param api_base_url: The base URL of the Cohere API.
+        :param api_base_url: The base URL of the Cohere API. The Cohere client appends the endpoint path to it.
         :param generation_kwargs: Other parameters to use for the model during generation. For a list of parameters,
             see [Cohere Chat endpoint](https://docs.cohere.com/reference/chat).
             Some of the parameters are:
@@ -564,11 +555,13 @@ class CohereChatGenerator:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Cohere client.
 
+        :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         if not api_base_url:
             api_base_url = "https://api.cohere.com"
+        validate_api_base_url(api_base_url)
 
         self.api_key = api_key
         self.model = model

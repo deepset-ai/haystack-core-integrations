@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/spacy-v1.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/spacy-v0.1.0] - 2026-06-12
 
 ### 🚀 Features

@@ -25,7 +25,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 @component
 class LiteLLMChatGenerator:
-    """Completes chats using any of 100+ LLM providers via LiteLLM.
+    """
+    Completes chats using any of 100+ LLM providers via LiteLLM.
 
     LiteLLM routes to OpenAI, Anthropic, Google, AWS Bedrock, Azure, Cohere,
     Mistral, Groq, and many more through a single unified interface.
@@ -74,7 +75,8 @@ class LiteLLMChatGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
     ) -> None:
-        """Create a LiteLLMChatGenerator instance.
+        """
+        Create a LiteLLMChatGenerator instance.
 
         :param api_key:
             The API key for the provider. Optional: when not set, LiteLLM resolves
@@ -144,7 +146,8 @@ class LiteLLMChatGenerator:
         *,
         tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
-        """Invoke chat completion via LiteLLM.
+        """
+        Invoke chat completion via LiteLLM.
 
         :param messages: Input messages as ChatMessage instances.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
@@ -183,7 +186,8 @@ class LiteLLMChatGenerator:
         *,
         tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
-        """Async version of run(). Invoke chat completion via LiteLLM.
+        """
+        Async version of run(). Invoke chat completion via LiteLLM.
 
         :param messages: Input messages as ChatMessage instances.
             If a string is provided, it is converted to a list containing a ChatMessage with user role.
@@ -250,7 +254,6 @@ class LiteLLMChatGenerator:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LiteLLMChatGenerator":
         """Deserialize a component from a dictionary."""
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         if data["init_parameters"].get("streaming_callback"):
             data["init_parameters"]["streaming_callback"] = deserialize_callable(
@@ -317,7 +320,8 @@ def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
 def _convert_litellm_chunk_to_streaming_chunk(
     chunk: Any, previous_chunks: list[StreamingChunk], component_info: ComponentInfo
 ) -> StreamingChunk:
-    """Convert a single litellm streaming chunk into a Haystack ``StreamingChunk``.
+    """
+    Convert a single litellm streaming chunk into a Haystack ``StreamingChunk``.
 
     The structured fields (``tool_calls``, ``finish_reason``, ``index``) are populated so that
     ``_convert_streaming_chunks_to_chat_message`` can reconstruct tool calls and metadata; it reads

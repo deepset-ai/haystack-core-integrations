@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/optimum-v4.1.0] - 2026-11-06
+
+### 🚀 Features
+
+- Optimum - allow setting ONNX Runtime session options from YAML (#4210)
+
+
+## [integrations/optimum-v4.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/optimum-v3.0.0] - 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🚜 Refactor
+
+- [**breaking**] Optimum - move resources creation to warm_up (#3935)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+
+
 ## [integrations/optimum-v2.1.0] - 2026-07-03
 
 ### 🐛 Bug Fixes

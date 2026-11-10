@@ -204,6 +204,19 @@ def test_or_of_ranges_on_same_field_are_not_merged():
     }
 
 
+def test_equal_with_list_passes_field_as_script_param():
+    # The field name must be bound as a script parameter, never interpolated into the Painless source,
+    # otherwise a quote in the field name breaks out of the string literal and injects code.
+    field = "x'].size()); return 1; //"
+    result = _normalize_filters({"field": f"meta.{field}", "operator": "==", "value": ["a", "b"]})
+
+    script = result["bool"]["must"]["terms_set"][field]["minimum_should_match_script"]
+    assert script == {
+        "source": "Math.max(params.num_terms, doc[params.field].size())",
+        "params": {"field": field},
+    }
+
+
 def test_normalize_filters_invalid_operator():
     with pytest.raises(FilterError):
         _normalize_filters({"operator": "INVALID", "conditions": []})
@@ -239,6 +252,84 @@ def test_normalize_ranges():
     conditions = _normalize_ranges(conditions)
     assert conditions == [
         {"range": {"date": {"lt": "2021-01-01", "gte": "2015-01-01"}}},
+    ]
+
+
+def test_and_of_same_operator_ranges_keeps_both_bounds():
+    # `price > 5 AND price > 1` must stay two separate range clauses under `must`.
+    # Merging them into a single range makes the second `gt` overwrite the first,
+    # silently dropping a bound and matching documents the filter excludes.
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.price", "operator": ">", "value": 5},
+            {"field": "meta.price", "operator": ">", "value": 1},
+        ],
+    }
+    assert _normalize_filters(filters) == {
+        "bool": {
+            "must": [
+                {"range": {"price": {"gt": 5}}},
+                {"range": {"price": {"gt": 1}}},
+            ]
+        }
+    }
+
+
+def test_not_of_same_operator_ranges_keeps_both_bounds():
+    filters = {
+        "operator": "NOT",
+        "conditions": [
+            {"field": "meta.price", "operator": "<=", "value": 5},
+            {"field": "meta.price", "operator": "<=", "value": 1},
+        ],
+    }
+    assert _normalize_filters(filters) == {
+        "bool": {
+            "must_not": [
+                {
+                    "bool": {
+                        "must": [
+                            {"range": {"price": {"lte": 5}}},
+                            {"range": {"price": {"lte": 1}}},
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+
+
+def test_and_of_same_side_bounds_keeps_both_clauses():
+    # `lt` and `lte` constrain the same side, and Elasticsearch keeps only one of them per
+    # clause, so they must not be merged even though the keys differ.
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.price", "operator": "<", "value": 3},
+            {"field": "meta.price", "operator": "<=", "value": 5},
+        ],
+    }
+    assert _normalize_filters(filters) == {
+        "bool": {
+            "must": [
+                {"range": {"price": {"lt": 3}}},
+                {"range": {"price": {"lte": 5}}},
+            ]
+        }
+    }
+
+
+def test_normalize_ranges_starts_a_new_clause_on_a_repeated_bound():
+    conditions = [
+        {"range": {"price": {"gt": 1}}},
+        {"range": {"price": {"gt": 5}}},
+        {"range": {"price": {"lt": 10}}},
+    ]
+    # The `lt` still merges into the first clause; only the repeated `gt` splits.
+    assert _normalize_ranges(conditions) == [
+        {"range": {"price": {"gt": 1, "lt": 10}}},
+        {"range": {"price": {"gt": 5}}},
     ]
 
 

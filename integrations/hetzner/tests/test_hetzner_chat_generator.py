@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from haystack_integrations.components.generators.hetzner.chat.chat_generator import HetznerChatGenerator
 
 DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B-FP8"
-DEFAULT_API_BASE_URL = "https://inference.hetzner.com/api/v1"
+DEFAULT_API_BASE_URL = "https://inference.hetzner.com/v1"
 COMPONENT_TYPE = "haystack_integrations.components.generators.hetzner.chat.chat_generator.HetznerChatGenerator"
 
 requires_api_key = pytest.mark.skipif(
@@ -200,7 +200,8 @@ class TestHetznerChatGenerator:
         assert len(results["replies"]) == 1
         message = results["replies"][0]
         assert "Paris" in message.text
-        assert DEFAULT_MODEL in message.meta["model"]
+        # the API reports the served model without the "-FP8" quantization suffix of the requested model ID
+        assert DEFAULT_MODEL.removesuffix("-FP8") in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @requires_api_key

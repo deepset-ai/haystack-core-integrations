@@ -4,6 +4,7 @@
 
 from unittest.mock import patch
 
+import onnxruntime as ort
 import pytest
 import torch
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -60,6 +61,19 @@ def test_sparse_model_initialization(mock_sparse_encoder):
         config_kwargs=None,
         backend="torch",
     )
+
+
+@patch(
+    "haystack_integrations.components.embedders.sentence_transformers.embedding_backend.sparse_backend.SparseEncoder"
+)
+def test_sparse_model_initialization_onnx_session_options(mock_sparse_encoder):
+    _SentenceTransformersSparseEmbeddingBackendFactory.get_embedding_backend(
+        model="onnx_session_model", model_kwargs={"session_options": {"intra_op_num_threads": 2}}, backend="onnx"
+    )
+
+    session_options = mock_sparse_encoder.call_args.kwargs["model_kwargs"]["session_options"]
+    assert isinstance(session_options, ort.SessionOptions)
+    assert session_options.intra_op_num_threads == 2
 
 
 @patch(

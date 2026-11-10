@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.dynamodb.embedding_retriever
+      - haystack_integrations.document_stores.dynamodb.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Amazon DynamoDB integration for Haystack
+  id: integrations-dynamodb
+  filename: dynamodb.md
+  title: Amazon DynamoDB

@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/cohere-v11.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- Replace ToolInvoker with Agent in tests, examples and docstrings (#4108)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
+## [integrations/cohere-v10.1.0] - 2026-09-28
+
+### 🚀 Features
+
+- *(cohere)* Add utility for API base URL validation (#4015)
+
+
 ## [integrations/cohere-v10.0.1] - 2026-09-10
 
 ### 🐛 Bug Fixes

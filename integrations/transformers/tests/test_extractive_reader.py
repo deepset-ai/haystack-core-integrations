@@ -150,12 +150,22 @@ def test_to_dict(initialized_token: Secret):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {
                 "torch_dtype": "torch.float16",
                 "device_map": ComponentDevice.resolve_device(None).to_hf(),
             },  # torch_dtype is correctly serialized
         },
     }
+
+
+def test_overlap_threshold_survives_a_serialization_round_trip():
+    """overlap_threshold decides which overlapping answers are deduplicated away in run()."""
+    reader = TransformersExtractiveReader("my-model", token=None, overlap_threshold=0.5)
+
+    restored = TransformersExtractiveReader.from_dict(reader.to_dict())
+
+    assert restored.overlap_threshold == 0.5
 
 
 def test_to_dict_no_token():
@@ -178,6 +188,7 @@ def test_to_dict_no_token():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {
                 "torch_dtype": "torch.float16",
                 "device_map": ComponentDevice.resolve_device(None).to_hf(),
@@ -206,6 +217,7 @@ def test_to_dict_empty_model_kwargs(initialized_token: Secret):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"device_map": ComponentDevice.resolve_device(None).to_hf()},
         },
     }
@@ -239,6 +251,7 @@ def test_to_dict_device_map(device_map, expected):
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"device_map": expected},
         },
     }
@@ -261,6 +274,7 @@ def test_from_dict():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"torch_dtype": "torch.float16"},
         },
     }
@@ -325,6 +339,7 @@ def test_from_dict_no_token():
             "answers_per_seq": None,
             "no_answer": True,
             "calibration_factor": 0.1,
+            "overlap_threshold": 0.01,
             "model_kwargs": {"torch_dtype": "torch.float16"},
         },
     }
@@ -352,6 +367,29 @@ def test_output(mock_reader: TransformersExtractiveReader):
         doc_ids.add(doc.id)
     assert len(doc_ids) == 3
     assert answers[-1].score == pytest.approx(no_answer_prob)
+
+
+def test_run_respects_zero_threshold_overrides(mock_reader: TransformersExtractiveReader):
+    mock_reader.score_threshold = 0.9
+    mock_reader.overlap_threshold = 0.5
+
+    with patch.object(mock_reader, "_nest_answers", wraps=mock_reader._nest_answers) as nest_answers:
+        answers = mock_reader.run(
+            example_queries[0], example_documents[0], top_k=3, score_threshold=0.0, overlap_threshold=0.0
+        )["answers"]
+
+    assert nest_answers.call_args.kwargs["score_threshold"] == 0.0
+    assert nest_answers.call_args.kwargs["overlap_threshold"] == 0.0
+    assert len(answers) == 4
+
+
+def test_run_respects_zero_stride_override(mock_reader: TransformersExtractiveReader):
+    mock_reader.stride = 64
+
+    with patch.object(mock_reader, "_preprocess", wraps=mock_reader._preprocess) as preprocess:
+        mock_reader.run(example_queries[0], example_documents[0], top_k=3, stride=0)
+
+    assert preprocess.call_args.kwargs["stride"] == 0
 
 
 def test_flatten_documents(mock_reader: TransformersExtractiveReader):

@@ -36,17 +36,11 @@ from typing import Any
 
 from haystack import Document
 from haystack.components.agents import Agent
-from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage
-from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.document_stores.types import DocumentStore
-from haystack.lazy_imports import LazyImport
 from multihop_rag import CORPUS_KEY, LabelledQuestion, build_eval_cases, prepare_corpus
+from util import build_bm25_retriever, preview
 
 from haystack_integrations.agent_pack.advanced_rag import create_advanced_rag_agent
-
-with LazyImport(message='Run "pip install opensearch-haystack" to use an OpenSearch store.') as opensearch_import:
-    from haystack_integrations.components.retrievers.opensearch import OpenSearchBM25Retriever
 
 RETRIEVAL_TOOLS = ("search_documents", "fetch_documents_by_filter")
 METADATA_TOOLS = ("list_metadata_fields", "get_metadata_field_values", "get_metadata_field_range")
@@ -132,18 +126,6 @@ class ToolRunStats:
         return False
 
 
-def _preview(text: str, limit: int) -> str:
-    """
-    Collapse text to one line and cut it, marking the cut so a reader knows there is more.
-
-    :param text: The text to preview.
-    :param limit: How many characters to keep.
-    :returns: The preview, ending in an ellipsis when anything was cut.
-    """
-    collapsed = " ".join((text or "").split())
-    return collapsed if len(collapsed) <= limit else f"{collapsed[:limit]}..."
-
-
 def extract_tool_run_stats(messages: list[ChatMessage]) -> ToolRunStats:
     """
     Extract tool calls and error results from an agent run.
@@ -174,20 +156,6 @@ def _sum_usage(total: dict[str, int], usage: dict[str, Any]) -> dict[str, int]:
         if isinstance(value, int):
             total[key] = total.get(key, 0) + value
     return total
-
-
-def build_bm25_retriever(store: DocumentStore, top_k: int = 5):  # noqa: ANN201
-    """
-    Build the matching BM25 retriever for a document store.
-
-    :param store: The store to retrieve from.
-    :param top_k: How many documents one retrieval returns.
-    :returns: The retriever.
-    """
-    if isinstance(store, InMemoryDocumentStore):
-        return InMemoryBM25Retriever(document_store=store, top_k=top_k)
-    opensearch_import.check()
-    return OpenSearchBM25Retriever(document_store=store, top_k=top_k)
 
 
 def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> dict[str, Any]:
@@ -263,25 +231,25 @@ def run_eval_case(agent: Agent, case: EvalCase, position: int, total: int) -> di
         print(f"    Title: {title}")
         for document in sorted(documents, key=lambda chunk: chunk.meta.get("split_id", 0)):
             needed_here = "-> " if document.id in case.expected_document_ids else "   "
-            preview = _preview(text=document.content or "", limit=80)
-            print(f"      {needed_here}chunk {document.meta.get('split_id'):>2}  [doc {document.id[:8]}]  {preview}")
+            snippet = preview(text=document.content or "", limit=80)
+            print(f"      {needed_here}chunk {document.meta.get('split_id'):>2}  [doc {document.id[:8]}]  {snippet}")
     # Naming the quote, since the id alone says nothing about what the run failed to find or failed to use.
     print()
     for document_id in sorted(case.expected_document_ids - retrieved_ids):
         print(
             f"  needed but never retrieved: [doc {document_id[:8]}] "
-            f"{_preview(text=case.evidence[document_id], limit=96)}"
+            f"{preview(text=case.evidence[document_id], limit=96)}"
         )
     for document_id in sorted(uncited & retrieved_ids):
         print(
             f"  needed and retrieved but not cited: [doc {document_id[:8]}] "
-            f"{_preview(text=case.evidence[document_id], limit=96)}"
+            f"{preview(text=case.evidence[document_id], limit=96)}"
         )
 
     if usage:
         print(f"  tokens: { {k: v for k, v in usage.items() if isinstance(v, int)} }")
     for tool_name, message in tool_run_stats.errors:
-        print(f"  tool error: {tool_name} -> {_preview(text=message, limit=120)}")
+        print(f"  tool error: {tool_name} -> {preview(text=message, limit=120)}")
     print("  answer:")
     for line in answer.splitlines():
         print(f"    {line}")

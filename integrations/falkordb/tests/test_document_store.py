@@ -7,7 +7,6 @@ import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import falkordb as _falkordb_module
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -24,15 +23,19 @@ from haystack.testing.document_store import (
     GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
 )
+from redis.exceptions import ResponseError
 
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
     FalkorDBEmbeddingRetriever,
 )
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
+from haystack_integrations.document_stores.falkordb import document_store as document_store_module
 from haystack_integrations.document_stores.falkordb.document_store import (
     _convert_filters,
 )
+
+from .test_document_store_common import FalkorDBDocumentStoreTestMixin
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +78,7 @@ def mock_falkordb(monkeypatch):
     constructor.return_value = client
     client.select_graph.return_value = graph
     graph.query.return_value = _result([])
-    monkeypatch.setattr(_falkordb_module, "FalkorDB", constructor)
+    monkeypatch.setattr(document_store_module, "FalkorDB", constructor)
     return constructor, client, graph
 
 
@@ -165,6 +168,74 @@ class TestFalkorDBDocumentStoreUnit:
         with pytest.raises(FilterError, match=match):
             _convert_filters(filter_node)
 
+    def test_warm_up_initializes_client_and_schema(self, mock_falkordb):
+        constructor, client, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+
+        store.warm_up()
+
+        constructor.assert_called_once()
+        assert store.client is client
+        assert store.graph is graph
+        assert store.initialized is True
+        assert graph.query.call_count == 2
+
+    def test_warm_up_is_idempotent(self, mock_falkordb):
+        constructor, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+
+        store.warm_up()
+        store.warm_up()
+
+        constructor.assert_called_once()
+        assert graph.query.call_count == 2
+
+    def test_close_then_warm_up_reopens(self, mock_falkordb):
+        constructor, client, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+
+        store.close()
+        store.warm_up()
+
+        assert constructor.call_count == 2
+        client.close.assert_called_once()
+        assert store.client is client
+        assert store.graph is graph
+        assert store.initialized is True
+        assert graph.query.call_count == 4
+
+    def test_warm_up_suppresses_missing_graph_error(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.delete.side_effect = ResponseError("Invalid graph operation on empty key")
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        store.warm_up()
+
+        assert store._recreate_graph_applied is True
+        assert store.initialized is True
+
+    @pytest.mark.parametrize(
+        "error",
+        [ResponseError("unexpected response"), ConnectionError("connection lost")],
+        ids=["response-error", "connection-error"],
+    )
+    def test_warm_up_retries_graph_deletion_after_error(self, mock_falkordb, error):
+        _, _, graph = mock_falkordb
+        graph.delete.side_effect = [error, None]
+        store = FalkorDBDocumentStore(recreate_graph=True)
+
+        with pytest.raises(type(error), match=str(error)):
+            store.warm_up()
+
+        assert store._recreate_graph_applied is False
+
+        store.warm_up()
+
+        assert graph.delete.call_count == 2
+        assert store._recreate_graph_applied is True
+        assert store.initialized is True
+
     @pytest.mark.parametrize("rows, expected", [([[42]], 42), ([], 0)])
     def test_count_documents(self, mock_falkordb, rows, expected):
         _, _, graph = mock_falkordb
@@ -224,12 +295,78 @@ class TestFalkorDBDocumentStoreUnit:
         assert docs[0].score == pytest.approx(expected_score)
         assert ("WHERE" in graph.query.call_args_list[-1].args[0]) is where_expected
 
+    def test_get_graph_schema(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        article = {
+            "labels": ["Article"],
+            "properties": [{"name": "title", "type": "String"}, {"name": "content", "type": "String"}],
+        }
+        cites = {"type": "CITES", "source_labels": ["Article"], "target_labels": ["Article"], "properties": []}
+        # Answer by query prefix: the number of sample queries depends on the catalogs
+        responses = {
+            "CALL db.labels()": [["Article"], ["Topic"]],
+            "CALL db.relationshipTypes()": [["CITES"]],
+            "CALL db.propertyKeys()": [["content"], ["title"]],
+            "MATCH (n:`Article`)": [[article], [article]],
+            "MATCH (n:`Topic`)": [],
+            "MATCH (source)-[r:`CITES`]->": [[cites], [cites]],
+        }
+        graph.ro_query.side_effect = lambda query, *_: _result(
+            next(rows for prefix, rows in responses.items() if query.startswith(prefix))
+        )
+        assert store._get_graph_schema(sample_size=7) == {
+            "labels": ["Article", "Topic"],
+            "relationship_types": ["CITES"],
+            "property_keys": ["content", "title"],
+            "node_samples": [
+                {
+                    "labels": ["Article"],
+                    "properties": [{"name": "content", "type": "String"}, {"name": "title", "type": "String"}],
+                }
+            ],
+            "relationship_samples": [cites],
+        }
+        # One query per catalog, label and relationship type; only sample queries take the limit
+        calls = [call.args for call in graph.ro_query.call_args_list]
+        assert len(calls) == len(responses)
+        for query, *params in calls:
+            assert params == ([{"sample_size": 7}] if query.startswith("MATCH") else [])
+        graph.query.assert_not_called()
+
+    def test_get_graph_schema_propagates_errors(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        error = ResponseError("metadata unavailable")
+        graph.ro_query.side_effect = error
+        with pytest.raises(ResponseError) as exc:
+            FalkorDBDocumentStore()._get_graph_schema()
+        assert exc.value is error
+
     def test_cypher_retrieval_returns_documents(self, mock_falkordb):
         _, _, graph = mock_falkordb
         node = SimpleNamespace(properties={"id": "n1", "content": "hello"})
         graph.query.side_effect = [_result([]), _result([]), _result([[node]])]
         docs = FalkorDBDocumentStore()._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1})
         assert docs[0].content == "hello"
+
+    def test_read_only_cypher_retrieval(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.ro_query.return_value = _result([[SimpleNamespace(properties={"id": "n1", "content": "hello"})]])
+        docs = store._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1}, read_only=True, timeout=250)
+        assert docs[0].content == "hello"
+        graph.ro_query.assert_called_once_with("MATCH (d) RETURN d", {"k": 1}, timeout=250)
+        graph.query.assert_not_called()
+
+    def test_read_only_cypher_failure(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.ro_query.side_effect = ResponseError("Write commands are not allowed")
+        with pytest.raises(DocumentStoreError, match="Write commands are not allowed"):
+            FalkorDBDocumentStore()._cypher_retrieval("CREATE (:Document)", read_only=True)
 
     @pytest.mark.usefixtures("mock_falkordb")
     def test_write_documents_rejects_non_documents(self):
@@ -441,6 +578,7 @@ class TestFalkorDBDocumentStoreUnit:
 
 @pytest.mark.integration
 class TestDocumentStore(
+    FalkorDBDocumentStoreTestMixin,
     DocumentStoreBaseTests,
     DeleteAllTest,
     DeleteByFilterTest,
@@ -454,22 +592,6 @@ class TestDocumentStore(
     """
     Test FalkorDBDocumentStore against the standard Haystack DocumentStore tests.
     """
-
-    @staticmethod
-    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
-        """
-        FalkorDB stores embeddings as vecf32 (float32), so exact float64 round-trip
-        equality is not possible. Sort both lists by id to compensate for non-deterministic
-        graph traversal order, and compare only id/content/meta plus embedding presence.
-        """
-        assert len(received) == len(expected), f"Expected {len(expected)} documents but got {len(received)}"
-        received_sorted = sorted(received, key=lambda d: d.id)
-        expected_sorted = sorted(expected, key=lambda d: d.id)
-        for recv, exp in zip(received_sorted, expected_sorted, strict=True):
-            assert recv.id == exp.id
-            assert recv.content == exp.content
-            assert recv.meta == exp.meta
-            assert (recv.embedding is None) == (exp.embedding is None)
 
     @pytest.fixture
     def document_store(self, request):
@@ -492,6 +614,80 @@ class TestDocumentStore(
             store.client.select_graph(graph_name).delete()
         except Exception:
             logger.debug("Could not delete graph %s during teardown", graph_name)
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "MATCH (d:Document) RETURN d.content",
+            "MATCH (d:Document) RETURN count(d)",
+            "MATCH (d:Document) RETURN d.missing_property",
+        ],
+    )
+    def test_cypher_retrieval_rejects_non_node_rows(self, document_store, query):
+        # Scalar results must fail instead of yielding empty Documents
+        document_store.write_documents([Document(content="The stars are bright.")])
+        with pytest.raises(DocumentStoreError, match="must be a node or a map"):
+            document_store._cypher_retrieval(query, read_only=True)
+
+    def test_sampled_graph_schema(self, document_store):
+        document_store.warm_up()
+        document_store.graph.query(
+            "CREATE (:Article {content: 'hello', count: 1})-[:REFERENCES {weight: 2}]->(:Topic {name: 'Graphs'}), "
+            "(:Article {title: 'untitled'})"
+        )
+        schema = document_store._get_graph_schema(sample_size=7)
+        assert {"Article", "Topic"} <= set(schema["labels"])
+        assert schema["relationship_types"] == ["REFERENCES"]
+        assert {
+            "labels": ["Article"],
+            "properties": [{"name": "content", "type": "String"}, {"name": "count", "type": "Integer"}],
+        } in schema["node_samples"]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "REFERENCES",
+                "source_labels": ["Article"],
+                "target_labels": ["Topic"],
+                "properties": [{"name": "weight", "type": "Integer"}],
+            }
+        ]
+        bounded = document_store._get_graph_schema(sample_size=1)
+        # The limit applies per label: only one of the two Article shapes is sampled
+        assert [sample["labels"] for sample in bounded["node_samples"]] == [["Article"], ["Topic"]]
+        assert len(bounded["relationship_samples"]) == 1
+
+    def test_graph_schema_samples_every_label_once(self, document_store):
+        # Documents written first fill the first `sample_size` nodes; Person must still be sampled, and
+        # identical shapes must appear once instead of once per sampled entity
+        document_store.write_documents(
+            [Document(content=f"doc {i}", meta={"topic": "astro", "year": 2000 + i}) for i in range(30)]
+        )
+        document_store.graph.query(
+            "MATCH (d:Document) CREATE (:Person {name: 'Ada', born: 1815})-[:WROTE {role: 'author'}]->(d)"
+        )
+        schema = document_store._get_graph_schema(sample_size=10)
+        assert schema["node_samples"] == [
+            {
+                "labels": ["Document"],
+                "properties": [
+                    {"name": "content", "type": "String"},
+                    {"name": "id", "type": "String"},
+                    {"name": "topic", "type": "String"},
+                    {"name": "year", "type": "Integer"},
+                ],
+            },
+            {
+                "labels": ["Person"],
+                "properties": [{"name": "born", "type": "Integer"}, {"name": "name", "type": "String"}],
+            },
+        ]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "WROTE",
+                "source_labels": ["Person"],
+                "target_labels": ["Document"],
+                "properties": [{"name": "role", "type": "String"}],
+            }
+        ]
 
     def test_write_documents(self, document_store):
         """
@@ -537,10 +733,14 @@ class TestDocumentStore(
         assert bool_values == [True] and type(bool_values[0]) is bool
 
     def test_close_and_reopen(self, document_store):
-        assert document_store.count_documents() == 0
+        document = Document(content="hello")
+        document_store.write_documents([document])
+
         document_store.close()
         assert document_store.client is None
-        assert document_store.count_documents() == 0
+        document_store.warm_up()
+        assert document_store.client is not None
+        self.assert_documents_are_equal(document_store.filter_documents(), [document])
 
     @pytest.fixture
     def embedding_store(self):

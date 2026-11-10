@@ -25,6 +25,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_tool_result_message,
     _format_tools,
     _format_user_message,
+    _make_schema_strict,
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
@@ -105,6 +106,57 @@ class TestAmazonBedrockChatGeneratorUtils:
                 {"cachePoint": {"type": "default"}},
             ],
         }
+
+    def test_format_tools_strict_marks_every_tool_spec(self, tools):
+        formatted = _format_tools(tools, tools_cachepoint_config={"cachePoint": {"type": "default"}}, strict=True)
+
+        specs = [entry["toolSpec"] for entry in formatted["tools"] if "toolSpec" in entry]
+        assert [spec["strict"] for spec in specs] == [True, True]
+        assert specs[0]["inputSchema"]["json"]["additionalProperties"] is False
+        assert formatted["tools"][-1] == {"cachePoint": {"type": "default"}}
+
+    def test_make_schema_strict_closes_nested_objects_and_drops_unsupported_formats(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "raw": {"type": "object", "properties": {"data": {"type": "string", "format": "binary"}}},
+                "when": {"type": "string", "format": "date-time"},
+                "docs": {"type": "array", "items": {"$ref": "#/$defs/Doc"}},
+            },
+            "$defs": {"Doc": {"type": "object", "properties": {"content": {"type": "string"}}}},
+        }
+
+        strict = _make_schema_strict(schema)
+
+        assert strict["additionalProperties"] is False
+        assert strict["properties"]["raw"]["additionalProperties"] is False
+        assert "format" not in strict["properties"]["raw"]["properties"]["data"]
+        assert strict["properties"]["when"]["format"] == "date-time"
+        assert strict["$defs"]["Doc"]["additionalProperties"] is False
+        assert "additionalProperties" not in schema  # the input is not mutated
+
+    def test_make_schema_strict_does_not_treat_property_names_as_keywords(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "properties": {"type": "string"},
+                "type": {"type": "string", "format": "binary"},
+                "choice": {"anyOf": [{"type": "object", "properties": {"a": {"type": "string"}}}, {"type": "null"}]},
+            },
+        }
+
+        strict = _make_schema_strict(schema)
+
+        assert set(strict["properties"]) == {"properties", "type", "choice"}
+        assert strict["additionalProperties"] is False
+        assert "additionalProperties" not in strict["properties"]["properties"]
+        assert "format" not in strict["properties"]["type"]
+        assert strict["properties"]["choice"]["anyOf"][0]["additionalProperties"] is False
+
+    def test_format_tools_is_not_strict_by_default(self, tools):
+        formatted = _format_tools(tools)
+
+        assert all("strict" not in entry["toolSpec"] for entry in formatted["tools"])
 
     def test_format_tools_does_not_double_wrap_cachepoint(self, tools):
         # Regression test for https://github.com/deepset-ai/haystack-core-integrations/issues/3181
@@ -570,29 +622,35 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
-        tool_call_message_with_redacted = ChatMessage.from_assistant(
+    @pytest.mark.parametrize(
+        "reasoning_extra",
+        [
+            {},
+            # reasoning produced by OpenAIResponsesChatGenerator
+            {"id": "rs_123", "type": "reasoning", "encrypted_content": "gAAAA...", "status": "completed"},
+        ],
+    )
+    def test_format_messages_drops_reasoning_without_signature(self, reasoning_extra):
+        reasoning = ReasoningContent(reasoning_text="Reasoning from another provider.", extra=reasoning_extra)
+        text_message = ChatMessage.from_assistant("This is a test message.", reasoning=reasoning)
+        tool_call_message = ChatMessage.from_assistant(
             "This is a test message with a tool call.",
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
-            reasoning=ReasoningContent(
-                reasoning_text="[REDACTED]",
-                extra={},
-            ),
+            reasoning=reasoning,
         )
-        formatted_message = _format_messages([tool_call_message_with_redacted])[1][0]
-        assert formatted_message == {
-            "role": "assistant",
-            "content": [
-                {"reasoningContent": {"reasoningText": {"text": "[REDACTED]"}}},
-                {"text": "This is a test message with a tool call."},
-                {
-                    "toolUse": {
-                        "toolUseId": "123",
-                        "name": "test_tool",
-                        "input": {"key": "value"},
-                    }
-                },
-            ],
-        }
+
+        formatted_messages = _format_messages([text_message, tool_call_message])[1]
+
+        assert formatted_messages == [
+            {"role": "assistant", "content": [{"text": "This is a test message."}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"text": "This is a test message with a tool call."},
+                    {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
+                ],
+            },
+        ]
 
     def test_format_user_message(self):
         plain_user_message = ChatMessage.from_user("This is a test message.")
@@ -768,8 +826,8 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "outputTokens": 20,
                 "totalTokens": 30,
                 "cacheReadInputTokens": 1000,
-                "cacheWriteInputTokens": 0,
-                "cacheDetails": {},
+                "cacheWriteInputTokens": 1500,
+                "cacheDetails": [{"ttl": "5m", "inputTokens": 500}, {"ttl": "1h", "inputTokens": 1000}],
             },
         }
 
@@ -785,8 +843,8 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "completion_tokens": 20,
                 "total_tokens": 30,
                 "cache_read_input_tokens": 1000,
-                "cache_write_input_tokens": 0,
-                "cache_details": {},
+                "cache_write_input_tokens": 1500,
+                "cache_details": [{"ttl": "5m", "inputTokens": 500}, {"ttl": "1h", "inputTokens": 1000}],
             },
             "index": 0,
         }
@@ -828,7 +886,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "total_tokens": 40,
                 "cache_read_input_tokens": 0,
                 "cache_write_input_tokens": 0,
-                "cache_details": {},
+                "cache_details": [],
             },
             "index": 0,
         }
@@ -872,7 +930,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "total_tokens": 60,
                 "cache_read_input_tokens": 0,
                 "cache_write_input_tokens": 0,
-                "cache_details": {},
+                "cache_details": [],
             },
             "index": 0,
         }
@@ -951,7 +1009,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "total_tokens": 500,
                     "cache_read_input_tokens": 0,
                     "cache_write_input_tokens": 0,
-                    "cache_details": {},
+                    "cache_details": [],
                 },
             },
         )
@@ -1006,7 +1064,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "totalTokens": 558,
                 "cacheReadInputTokens": 0,
                 "cacheWriteInputTokens": 0,
-                "cacheDetails": {},
+                "cacheDetails": [],
             },
             "metrics": {"latencyMs": 4811},
         }
@@ -1040,7 +1098,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "total_tokens": 558,
                     "cache_read_input_tokens": 0,
                     "cache_write_input_tokens": 0,
-                    "cache_details": {},
+                    "cache_details": [],
                 },
             },
         )
@@ -1121,7 +1179,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "total_tokens": 0,
                 "cache_read_input_tokens": 0,
                 "cache_write_input_tokens": 0,
-                "cache_details": {},
+                "cache_details": [],
             },
             "trace": trace,
         }
@@ -1372,7 +1430,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 435,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
-                        "cache_details": {},
+                        "cache_details": [],
                     },
                 },
             )
@@ -1479,7 +1537,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 435,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
-                        "cache_details": {},
+                        "cache_details": [],
                     },
                 },
                 component_info=c_info,
@@ -1657,7 +1715,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 516,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
-                        "cache_details": {},
+                        "cache_details": [],
                     },
                     "completion_start_time": ANY,
                 },
@@ -1841,7 +1899,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 449,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
-                        "cache_details": {},
+                        "cache_details": [],
                     },
                     "completion_start_time": ANY,
                 },
@@ -1929,7 +1987,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 0,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
-                        "cache_details": {},
+                        "cache_details": [],
                     },
                     "trace": trace,
                 },
@@ -2296,3 +2354,30 @@ class TestAmazonBedrockChatGeneratorUtils:
         chunk = _convert_event_to_streaming_chunk(event_str, model, component_info)
         assert chunk.tool_calls is not None
         assert chunk.tool_calls[0].arguments == '{"city": "Berlin"}'
+
+    def test_parse_streaming_response_redacted_reasoning_is_not_replayed(self):
+        # OpenAI models on Bedrock (e.g. GPT-6) stream reasoning only as redactedContent
+        model = "us.openai.gpt-6-sol"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"redactedContent": b"rsn_abc"}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"contentBlockDelta": {"delta": {"text": "No."}, "contentBlockIndex": 1}},
+            {"contentBlockStop": {"contentBlockIndex": 1}},
+            {"messageStop": {"stopReason": "end_turn"}},
+        ]
+
+        replies = _parse_streaming_response(events, lambda chunk: None, model, ComponentInfo(type=type_))
+
+        assert replies[0].text == "No."
+        assert replies[0].reasoning is None
+        formatted_message = _format_messages([replies[0]])[1][0]
+        assert formatted_message == {"role": "assistant", "content": [{"text": "No."}]}

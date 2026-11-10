@@ -8,7 +8,7 @@ from google.genai import Client, types
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.tools import ToolsType
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 
 from haystack_integrations.common.google_genai.utils import _get_client
 from haystack_integrations.components.generators.google_genai.chat.utils import (
@@ -182,5 +182,4 @@ class GoogleGenAITokenCounter:
         :param data: The dictionary to deserialize from.
         :returns: The deserialized counter.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)

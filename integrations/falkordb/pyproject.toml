@@ -7,7 +7,7 @@ name = "falkordb-haystack"
 dynamic = ["version"]
 description = "FalkorDB graph database integration for Haystack — enables GraphRAG with OpenCypher"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 keywords = ["haystack", "falkordb", "graphrag", "graph", "vector-search", "document-store", "rag", "openCypher", "graph-database"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
@@ -15,17 +15,17 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
   "Topic :: Database",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["haystack-ai>=2.26.1", "falkordb>=1.1,<2"]
+dependencies = ["haystack-ai>=2.28.0", "falkordb>=1.6,<2"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/falkordb#readme"
@@ -66,7 +66,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "falkordb>=1.1,<2",
+    "falkordb>=1.6,<2",
 ]
 
 [tool.hatch.envs.test.scripts]

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 from unittest.mock import patch
 
@@ -163,14 +167,14 @@ class TestJinaReaderConnector:
     @pytest.mark.integration
     def test_run_reader_mode(self):
         reader = JinaReaderConnector(mode="read")
-        result = reader.run(query="https://example.com")
+        result = reader.run(query="https://haystack.deepset.ai/")
 
-        assert len(result) == 1
+        assert len(result["documents"]) == 1
         document = result["documents"][0]
         assert isinstance(document, Document)
-        assert "This domain is for use in documentation examples" in document.content
-        assert document.meta["title"] == "Example Domain"
-        assert document.meta["url"] == "https://example.com/"
+        assert "Haystack" in document.content
+        assert "Haystack" in document.meta["title"]
+        assert document.meta["url"] == "https://haystack.deepset.ai/"
 
     @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
     @pytest.mark.integration
@@ -191,11 +195,11 @@ class TestJinaReaderConnector:
     @pytest.mark.asyncio
     async def test_run_async_reader_mode(self):
         reader = JinaReaderConnector(mode="read")
-        result = await reader.run_async(query="https://example.com")
+        result = await reader.run_async(query="https://haystack.deepset.ai/")
 
-        assert len(result) == 1
+        assert len(result["documents"]) == 1
         document = result["documents"][0]
         assert isinstance(document, Document)
-        assert "This domain is for use in documentation examples" in document.content
-        assert document.meta["title"] == "Example Domain"
-        assert document.meta["url"] == "https://example.com/"
+        assert "Haystack" in document.content
+        assert "Haystack" in document.meta["title"]
+        assert document.meta["url"] == "https://haystack.deepset.ai/"

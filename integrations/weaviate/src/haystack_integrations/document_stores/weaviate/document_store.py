@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
-import datetime
+import datetime as dt
 import importlib.metadata
 import json
 from contextlib import suppress
@@ -908,6 +908,14 @@ class WeaviateDocumentStore:
                     id=data["_original_id"],
                 )
 
+        if data.pop("multivector_embedding", None):
+            logger.warning(
+                "Document {id} has the `multivector_embedding` field set, "
+                "but storing multivector embeddings in Weaviate is not currently supported. "
+                "The `multivector_embedding` field will be ignored.",
+                id=data["_original_id"],
+            )
+
         return data
 
     @staticmethod
@@ -935,7 +943,7 @@ class WeaviateDocumentStore:
         document_data.pop("blob_mime_type", None)
 
         for key, value in document_data.items():
-            if isinstance(value, datetime.datetime):
+            if isinstance(value, dt.datetime):
                 document_data[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         if weaviate_meta := getattr(data, "metadata", None):
@@ -1042,6 +1050,9 @@ class WeaviateDocumentStore:
         matching). For case-insensitive matching, normalize the value before
         building the filter.
 
+        Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
+        native ``NOT``, which requires Weaviate 1.33 or later.
+
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
@@ -1064,6 +1075,9 @@ class WeaviateDocumentStore:
         Note: The ``contains`` filter operator is case-sensitive (substring
         matching). For case-insensitive matching, normalize the value before
         building the filter.
+
+        Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
+        native ``NOT``, which requires Weaviate 1.33 or later.
 
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.

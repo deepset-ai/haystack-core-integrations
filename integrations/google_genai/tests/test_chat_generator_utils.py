@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -611,7 +612,7 @@ class TestStreamingChunkConversion:
         mock_part.text = "Here is my answer"
         mock_part.function_call = None
         mock_part.thought = False
-        mock_part.thought_signature = "sig_abc123"
+        mock_part.thought_signature = b"\x12\x9e\x08\xff"
         mock_content.parts = [mock_part]
         mock_candidate.content = mock_content
 
@@ -624,7 +625,9 @@ class TestStreamingChunkConversion:
         assert chunk.content == "Here is my answer"
         assert "thought_signature_deltas" in chunk.meta
         assert len(chunk.meta["thought_signature_deltas"]) == 1
-        assert chunk.meta["thought_signature_deltas"][0]["signature"] == "sig_abc123"
+        signature = chunk.meta["thought_signature_deltas"][0]["signature"]
+        assert isinstance(signature, str)
+        assert base64.b64decode(signature) == b"\x12\x9e\x08\xff"
         assert chunk.meta["thought_signature_deltas"][0]["has_text"] is True
         assert chunk.meta["thought_signature_deltas"][0]["is_thought"] is False
 
@@ -701,6 +704,44 @@ class TestStreamingChunkConversion:
         assert result.meta["usage"]["thoughts_token_count"] == 42
         assert "thought_signatures" in result.meta
         assert result.meta["thought_signatures"][0]["signature"] == "sig_xyz"
+
+    def test_aggregate_streaming_chunks_accumulates_thought_signatures_across_chunks(self):
+        """Signature deltas from earlier chunks must not be overwritten by later ones."""
+        model = "gemini-2.5-flash"
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator(model=model))
+        parts = [
+            types.Part(
+                text="Checking the weather.",
+                thought=True,
+                thought_signature=b"reasoning_signature",
+            ),
+            types.Part(
+                function_call=types.FunctionCall(name="get_weather", args={"city": "Paris"}),
+                thought_signature=b"tool_signature",
+            ),
+        ]
+        chunks = [
+            _convert_google_chunk_to_streaming_chunk(
+                chunk=types.GenerateContentResponse(
+                    candidates=[types.Candidate(content=types.Content(role="model", parts=[part]))]
+                ),
+                index=index,
+                component_info=component_info,
+                model=model,
+            )
+            for index, part in enumerate(parts)
+        ]
+
+        result = _aggregate_streaming_chunks_with_reasoning(chunks)
+
+        assert result.reasoning.reasoning_text == "Checking the weather."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].tool_name == "get_weather"
+        assert result.tool_calls[0].arguments == {"city": "Paris"}
+        assert [base64.b64decode(signature["signature"]) for signature in result.meta["thought_signatures"]] == [
+            b"reasoning_signature",
+            b"tool_signature",
+        ]
 
     def test_convert_google_chunk_to_streaming_chunk_with_cached_tokens(self, monkeypatch):
         """cached_content_token_count from usage_metadata is included in the streaming chunk's usage."""
@@ -974,6 +1015,73 @@ class TestConvertMessageToGoogleGenAI:
         assert google_content.parts[1].function_call.name == "weather"
         assert google_content.parts[1].function_call.args == {"city": "Paris"}
         assert google_content.parts[1].thought_signature == b"encrypted_mock_thought_signature_2"
+
+    def test_convert_message_keeps_parallel_tool_calls_without_thought_signatures(self):
+        """Gemini signs only the first parallel function call; unsigned siblings must still be replayed."""
+        paris = ToolCall(id="call_paris", tool_name="get_weather", arguments={"city": "Paris"})
+        london = ToolCall(id="call_london", tool_name="get_weather", arguments={"city": "London"})
+        thought_signatures = [
+            {
+                "part_index": 0,
+                "signature": base64.b64encode(b"sig_on_first_only").decode("utf-8"),
+                "has_text": False,
+                "has_function_call": True,
+                "is_thought": False,
+            },
+        ]
+
+        message = ChatMessage.from_assistant(
+            text="Checking both cities",
+            tool_calls=[paris, london],
+            meta={"thought_signatures": thought_signatures},
+        )
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "model"
+        assert len(google_content.parts) == 3
+
+        assert google_content.parts[0].function_call.name == "get_weather"
+        assert google_content.parts[0].function_call.args == {"city": "Paris"}
+        assert google_content.parts[0].thought_signature == b"sig_on_first_only"
+
+        assert google_content.parts[1].function_call.name == "get_weather"
+        assert google_content.parts[1].function_call.args == {"city": "London"}
+        assert not google_content.parts[1].thought_signature
+
+        assert google_content.parts[2].text == "Checking both cities"
+        assert not google_content.parts[2].thought_signature
+
+    def test_thought_signature_bytes_round_trip(self, monkeypatch):
+        """Raw (non UTF-8) thought signature bytes are stored as base64 strings and restored as bytes."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+        raw_signature = b"\x12\x9e\x08\n\x9b\x08\x01i\xff\xfe"
+
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_candidate.finish_reason = "STOP"
+        mock_chunk.candidates = [mock_candidate]
+        mock_part = Mock()
+        mock_part.text = None
+        mock_part.thought = False
+        mock_part.function_call = types.FunctionCall(id="call_1", name="weather", args={"city": "Paris"})
+        mock_part.thought_signature = raw_signature
+        mock_candidate.content = Mock(parts=[mock_part])
+        mock_chunk.usage_metadata = None
+
+        chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=mock_chunk, index=0, component_info=component_info, model="gemini-2.5-flash"
+        )
+        message = _aggregate_streaming_chunks_with_reasoning([chunk])
+
+        # meta must be JSON serializable (no raw bytes)
+        json.dumps(message.meta)
+        restored = ChatMessage.from_dict(json.loads(json.dumps(message.to_dict())))
+
+        google_content = _convert_message_to_google_genai_format(restored)
+        assert google_content.parts[0].function_call.name == "weather"
+        assert google_content.parts[0].thought_signature == raw_signature
 
     def test_convert_message_to_google_genai_format_with_reasoning_content(self):
         """Test that ReasoningContent is properly skipped during conversion."""

@@ -5,6 +5,7 @@
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import onnxruntime as ort
 import pytest
 import torch
 from haystack import Document
@@ -67,6 +68,26 @@ class TestSentenceTransformersSimilarityRanker:
             config_kwargs=None,
             backend="onnx",
         )
+
+    @patch(
+        "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.CrossEncoder"
+    )
+    def test_from_dict_warm_up_onnx_session_options(self, mocked_cross_encoder):
+        ranker = SentenceTransformersSimilarityRanker.from_dict(
+            {
+                "type": "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.SentenceTransformersSimilarityRanker",
+                "init_parameters": {
+                    "backend": "onnx",
+                    "model_kwargs": {"session_options": {"intra_op_num_threads": 1}},
+                },
+            }
+        )
+        ranker.warm_up()
+
+        session_options = mocked_cross_encoder.call_args.kwargs["model_kwargs"]["session_options"]
+        assert isinstance(session_options, ort.SessionOptions)
+        assert session_options.intra_op_num_threads == 1
+        assert ranker.to_dict()["init_parameters"]["model_kwargs"]["session_options"] == {"intra_op_num_threads": 1}
 
     @patch(
         "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.CrossEncoder"
@@ -280,6 +301,35 @@ class TestSentenceTransformersSimilarityRanker:
 
         with pytest.raises(ValueError):
             ranker.run(query="test", documents=[Document(content="document")], top_k=-1)
+
+    def test_run_top_k_zero_raises(self):
+        ranker = SentenceTransformersSimilarityRanker()
+        ranker._cross_encoder = MagicMock()
+
+        with pytest.raises(ValueError, match="top_k must be > 0, but got 0"):
+            ranker.run(query="test", documents=[Document(content="document")], top_k=0)
+
+    def test_run_scale_score_false_overrides_init(self):
+        ranker = SentenceTransformersSimilarityRanker()  # scale_score=True by default
+        mock_cross_encoder = MagicMock()
+        mock_cross_encoder.rank.return_value = [{"corpus_id": 0, "score": 1.0}]
+        ranker._cross_encoder = mock_cross_encoder
+
+        ranker.run(query="test", documents=[Document(content="document")], scale_score=False)
+
+        _, kwargs = mock_cross_encoder.rank.call_args
+        assert isinstance(kwargs["activation_fn"], torch.nn.Identity)
+
+    def test_run_score_threshold_zero_overrides_init(self):
+        ranker = SentenceTransformersSimilarityRanker(score_threshold=0.5)
+        mock_cross_encoder = MagicMock()
+        mock_cross_encoder.rank.return_value = [{"corpus_id": 0, "score": 0.2}, {"corpus_id": 1, "score": -0.4}]
+        ranker._cross_encoder = mock_cross_encoder
+
+        documents = [Document(content="first"), Document(content="second")]
+        result = ranker.run(query="test", documents=documents, score_threshold=0.0)
+
+        assert [doc.score for doc in result["documents"]] == [0.2]
 
     def test_returns_empty_list_if_no_documents_are_provided(self):
         ranker = SentenceTransformersSimilarityRanker()

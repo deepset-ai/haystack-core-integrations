@@ -57,8 +57,9 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.")],
-    >> _name=None, _meta={'model': 'claude-sonnet-4-5@20250929', 'index': 0, 'finish_reason': 'end_turn',
-    >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
+    >> _name=None, _meta={'model': 'claude-sonnet-4-5@20250929', 'index': 0, 'finish_reason': 'stop',
+    >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 64, 'cache_read_input_tokens': 0,
+    >> 'cache_creation_input_tokens': 0, ...}})]}
     ```
 
     For more details on supported models and their capabilities, refer to the Anthropic
@@ -97,6 +98,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Creates an instance of AnthropicVertexChatGenerator.
@@ -112,7 +114,9 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
             Supported generation_kwargs parameters are:
             - `system`: The system message to be passed to the model.
-            - `max_tokens`: The maximum number of tokens to generate.
+            - `max_tokens`: The maximum number of tokens to generate. Defaults to 8192. A response that hits
+                this limit is cut off; if the model was writing a tool call at the time, that call is dropped
+                and the reply carries a `length` finish reason.
             - `metadata`: A dictionary of metadata to be passed to the model.
             - `service_tier`: Whether the request may use priority capacity (`auto`) or standard capacity only
                 (`standard_only`). See [service tiers](https://platform.claude.com/docs/en/api/service-tiers).
@@ -138,6 +142,10 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
+        :param tools_strict:
+            Whether to enable strict tool use. If `True`, each tool is sent with `strict: true`, so the model's tool
+            calls are guaranteed to match the tool's `parameters` schema. The schema must stay within what strict
+            tool use supports. See [Anthropic strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.region = region or os.environ.get("REGION")
@@ -150,6 +158,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.anthropic_server_tools = anthropic_server_tools
         self.timeout = timeout
         self.max_retries = max_retries
+        self.tools_strict = tools_strict
 
         # mypy is not happy that the Vertex clients differ from the base Anthropic client types
         self.client = None  # type: ignore[assignment]
@@ -197,6 +206,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod

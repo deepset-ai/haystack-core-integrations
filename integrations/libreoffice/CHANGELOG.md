@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/libreoffice-v2.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
 ## [integrations/libreoffice-v1.1.1] - 2026-08-25
 
 ### 🐛 Bug Fixes

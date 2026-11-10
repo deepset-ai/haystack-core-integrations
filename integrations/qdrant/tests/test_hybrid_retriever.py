@@ -81,6 +81,7 @@ class TestQdrantHybridRetriever:
                         "write_batch_size": 100,
                         "scroll_size": 10000,
                         "payload_fields_to_index": None,
+                        "client_kwargs": {},
                     },
                 },
                 "filters": None,
@@ -228,6 +229,39 @@ class TestQdrantHybridRetriever:
         call_args = mock_store._query_hybrid.call_args
         assert call_args[1]["rrf_k"] == 100
         assert call_args[1]["rrf_weights"] == [3.0, 1.0]
+
+    def test_run_falsy_runtime_values_override_init(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_hybrid.return_value = []
+
+        retriever = QdrantHybridRetriever(document_store=mock_store, return_embedding=True, score_threshold=0.5)
+        retriever.run(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+            return_embedding=False,
+            score_threshold=0.0,
+        )
+
+        call_args = mock_store._query_hybrid.call_args
+        assert call_args[1]["return_embedding"] is False
+        assert call_args[1]["score_threshold"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_run_async_falsy_runtime_values_override_init(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_hybrid_async = AsyncMock(return_value=[])
+
+        retriever = QdrantHybridRetriever(document_store=mock_store, return_embedding=True, score_threshold=0.5)
+        await retriever.run_async(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+            return_embedding=False,
+            score_threshold=0.0,
+        )
+
+        call_args = mock_store._query_hybrid_async.call_args
+        assert call_args[1]["return_embedding"] is False
+        assert call_args[1]["score_threshold"] == 0.0
 
     def test_run_with_group_by(self):
         mock_store = Mock(spec=QdrantDocumentStore)

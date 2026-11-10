@@ -4,6 +4,7 @@
 
 from enum import Enum
 
+from haystack.dataclasses import SparseEmbedding
 from haystack.utils import Secret
 from huggingface_hub import HfApi
 from huggingface_hub.errors import RepositoryNotFoundError
@@ -143,3 +144,27 @@ def _validate_model_type(model_id: str, model_type: HFModelType, pipeline_tag: s
 
     if not allowed_model:
         raise ValueError(error_msg)
+
+
+def _parse_grpc_sparse_embedding(items: list[dict[str, int | float]]) -> SparseEmbedding:
+    """Convert sparse gRPC values, restoring defaults omitted by protobuf."""
+    return SparseEmbedding(
+        indices=[int(item.get("index", 0)) for item in items],
+        values=[float(item.get("value", 0.0)) for item in items],
+    )
+
+
+def _build_grpc_embedding_request(text: str, truncate: bool | None, normalize: bool | None) -> dict[str, str | bool]:
+    """Build a gRPC embedding request."""
+    request: dict[str, str | bool] = {"inputs": text}
+    if truncate is not None:
+        request["truncate"] = truncate
+    if normalize is not None:
+        request["normalize"] = normalize
+    return request
+
+
+def _grpc_metadata(token: Secret | None) -> tuple[tuple[str, str], ...]:
+    """Build gRPC authorization metadata."""
+    value = token.resolve_value() if token else None
+    return (("authorization", f"Bearer {value}"),) if value else ()

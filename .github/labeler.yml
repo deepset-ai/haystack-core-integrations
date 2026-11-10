@@ -19,6 +19,11 @@ integration:amazon-bedrock:
       - any-glob-to-any-file: "integrations/amazon_bedrock/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_bedrock.yml"
 
+integration:amazon-s3-vectors:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/amazon_s3_vectors/**/*"
+      - any-glob-to-any-file: ".github/workflows/amazon_s3_vectors.yml"
+
 integration:amazon-sagemaker:
   - changed-files:
       - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
@@ -129,6 +134,11 @@ integration:dspy:
       - any-glob-to-any-file: "integrations/dspy/**/*"
       - any-glob-to-any-file: ".github/workflows/dspy.yml"
 
+integration:dynamodb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dynamodb/**/*"
+      - any-glob-to-any-file: ".github/workflows/dynamodb.yml"
+
 integration:e2b:
   - changed-files:
       - any-glob-to-any-file: "integrations/e2b/**/*"
@@ -184,6 +194,11 @@ integration:google-genai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_genai/**/*"
       - any-glob-to-any-file: ".github/workflows/google_genai.yml"
+
+integration:gotenberg:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/gotenberg/**/*"
+      - any-glob-to-any-file: ".github/workflows/gotenberg.yml"
 
 integration:hanlp:
   - changed-files:
@@ -295,6 +310,11 @@ integration:mongodb-atlas:
       - any-glob-to-any-file: "integrations/mongodb_atlas/**/*"
       - any-glob-to-any-file: ".github/workflows/mongodb_atlas.yml"
 
+integration:monty:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/monty/**/*"
+      - any-glob-to-any-file: ".github/workflows/monty.yml"
+
 integration:nvidia:
   - changed-files:
       - any-glob-to-any-file: "integrations/nvidia/**/*"
@@ -349,6 +369,11 @@ integration:orcarouter:
   - changed-files:
       - any-glob-to-any-file: "integrations/orcarouter/**/*"
       - any-glob-to-any-file: ".github/workflows/orcarouter.yml"
+
+integration:otari:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/otari/**/*"
+      - any-glob-to-any-file: ".github/workflows/otari.yml"
 
 integration:paddleocr:
   - changed-files:
@@ -469,6 +494,11 @@ integration:twelvelabs:
   - changed-files:
       - any-glob-to-any-file: "integrations/twelvelabs/**/*"
       - any-glob-to-any-file: ".github/workflows/twelvelabs.yml"
+
+integration:typesafe:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/typesafe/**/*"
+      - any-glob-to-any-file: ".github/workflows/typesafe.yml"
 
 integration:unstructured-fileconverter:
   - changed-files:

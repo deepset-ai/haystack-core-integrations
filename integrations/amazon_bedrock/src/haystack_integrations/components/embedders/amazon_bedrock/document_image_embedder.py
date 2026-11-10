@@ -79,6 +79,9 @@ class AmazonBedrockDocumentImageEmbedder:
         root_path: str | None = None,
         image_size: tuple[int, int] | None = None,
         progress_bar: bool = True,
+        include_content: bool = False,
+        meta_fields_to_embed: list[str] | None = None,
+        embedding_separator: str = "\n",
         boto3_config: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -106,6 +109,10 @@ class AmazonBedrockDocumentImageEmbedder:
             when working with models that have resolution constraints or when transmitting images to remote services.
         :param progress_bar:
             If `True`, shows a progress bar when embedding documents.
+        :param include_content: Whether to embed `Document.content` together with the image. Currently supported only
+            for models whose identifier contains `cohere.embed-v4`.
+        :param meta_fields_to_embed: Metadata fields to include with `Document.content` when `include_content=True`.
+        :param embedding_separator: Separator used to concatenate metadata values and `Document.content`.
         :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
             Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
             and other low-level settings like timeouts and connection management.
@@ -134,6 +141,12 @@ class AmazonBedrockDocumentImageEmbedder:
         self.aws_profile_name = aws_profile_name
         self.image_size = image_size
         self.progress_bar = progress_bar
+        if include_content and "cohere.embed-v4" not in model:
+            msg = "include_content=True is currently supported only for Cohere Embed v4."
+            raise ValueError(msg)
+        self.include_content = include_content
+        self.meta_fields_to_embed = meta_fields_to_embed or []
+        self.embedding_separator = embedding_separator
         self.kwargs = kwargs
         self.embedding_types = None
 
@@ -201,6 +214,9 @@ class AmazonBedrockDocumentImageEmbedder:
             progress_bar=self.progress_bar,
             boto3_config=self.boto3_config,
             image_size=self.image_size,
+            include_content=self.include_content,
+            meta_fields_to_embed=self.meta_fields_to_embed,
+            embedding_separator=self.embedding_separator,
             **self.kwargs,
         )
         return serialization_dict
@@ -272,7 +288,7 @@ class AmazonBedrockDocumentImageEmbedder:
 
         # the pdf_images_by_doc_idx has base64 images but mypy cant detect that
         for doc_idx, base64_image in pdf_images_by_doc_idx.items():  # type: ignore[assignment]
-            pdf_image_uri = f"data:application/pdf;base64,{base64_image}" if "cohere" in self.model else base64_image
+            pdf_image_uri = f"data:image/jpeg;base64,{base64_image}" if "cohere" in self.model else base64_image
             images_to_embed[doc_idx] = pdf_image_uri
 
         none_images_doc_ids = [documents[doc_idx].id for doc_idx, image in enumerate(images_to_embed) if image is None]
@@ -281,7 +297,7 @@ class AmazonBedrockDocumentImageEmbedder:
             raise RuntimeError(msg)
 
         if "cohere" in self.model:
-            embeddings = self._embed_cohere(image_uris=images_to_embed)
+            embeddings = self._embed_cohere(image_uris=images_to_embed, documents=documents)
         elif "titan" in self.model:
             embeddings = self._embed_titan(images=images_to_embed)
         else:
@@ -334,22 +350,43 @@ class AmazonBedrockDocumentImageEmbedder:
 
         return all_embeddings
 
-    def _embed_cohere(self, image_uris: list[str]) -> list[list[float]]:
+    def _embed_cohere(self, image_uris: list[str], documents: list[Document]) -> list[list[float]]:
         """
         Internal method to embed base64 images using Cohere models.
 
         :param image_uris: List of image uris containing the base64 image and the mime type.
+        :param documents: Documents paired with images. Their text is included when `include_content=True`.
         :return: List of embeddings.
         """
 
-        cohere_body = {"input_type": "image"}
+        cohere_body: dict[str, Any] = {"input_type": "search_document" if self.include_content else "image"}
         if self.embedding_types:
             cohere_body["embedding_types"] = self.embedding_types
 
         all_embeddings = []
 
-        for image in tqdm(image_uris, disable=not self.progress_bar, desc="Creating embeddings"):
-            body = {"images": [image], **cohere_body}
+        for image, doc in tqdm(
+            zip(image_uris, documents, strict=True),
+            total=len(image_uris),
+            disable=not self.progress_bar,
+            desc="Creating embeddings",
+        ):
+            if self.include_content:
+                meta_values = [str(doc.meta[key]) for key in self.meta_fields_to_embed if doc.meta.get(key) is not None]
+                text = self.embedding_separator.join([*meta_values, doc.content or ""])
+                body = {
+                    "inputs": [
+                        {
+                            "content": [
+                                {"type": "text", "text": text},
+                                {"type": "image_url", "image_url": {"url": image}},
+                            ]
+                        }
+                    ],
+                    **cohere_body,
+                }
+            else:
+                body = {"images": [image], **cohere_body}
             try:
                 response = self._client.invoke_model(
                     body=json.dumps(body), modelId=self.model, accept="*/*", contentType="application/json"

@@ -54,7 +54,7 @@ class TestElasticsearchHybridRetriever:
                     "type": "haystack.components.embedders.openai_text_embedder.OpenAITextEmbedder",
                     "init_parameters": {
                         "api_key": {"type": "env_var", "env_vars": ["OPENAI_API_KEY"], "strict": True},
-                        "model": "text-embedding-ada-002",
+                        "model": "text-embedding-3-small",
                         "dimensions": None,
                         "api_base_url": None,
                         "organization": None,
@@ -108,7 +108,7 @@ class TestElasticsearchHybridRetriever:
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_to_dict(self, _mock_elasticsearch_client, serialised) -> None:
         doc_store = ElasticsearchDocumentStore()
-        embedder = OpenAITextEmbedder()  # we use actual embedder here for the de/serialization
+        embedder = OpenAITextEmbedder(model="text-embedding-3-small")
         hybrid_retriever = ElasticsearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
 

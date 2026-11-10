@@ -21,7 +21,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack.utils import Secret, deserialize_callable, serialize_callable
 from pydantic import BaseModel
 
 from haystack_integrations.common.google_genai.utils import _get_client
@@ -45,6 +45,9 @@ class GoogleGenAIChatGenerator:
 
     Supports models like gemini-3.8-flash and other Gemini variants. For Gemini 2.5 series models,
     enables thinking features via `generation_kwargs={"thinking_budget": value}`.
+
+    This component uses the `generateContent` API. Some models and quotas, such as the free tier of newer Flash
+    models, are only available through the Interactions API: use `GoogleGenAIInteractionsChatGenerator` for those.
 
     ### Thinking Support (Gemini 2.5 and Gemini 3 Series)
     - **Reasoning transparency**: Models can show their reasoning process
@@ -180,6 +183,7 @@ class GoogleGenAIChatGenerator:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "gemini-4-argon",
         "gemini-3.8-flash",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
@@ -341,7 +345,6 @@ class GoogleGenAIChatGenerator:
         :param data: Dictionary to deserialize from.
         :returns: Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         if "streaming_callback" in init_params and init_params["streaming_callback"] is not None:
@@ -363,6 +366,7 @@ class GoogleGenAIChatGenerator:
         try:
             chunks = []
             tool_calls_seen = False
+            tool_call_count = 0
 
             for i, chunk in enumerate(response_stream):
                 streaming_chunk = _convert_google_chunk_to_streaming_chunk(
@@ -371,8 +375,10 @@ class GoogleGenAIChatGenerator:
                     component_info=component_info,
                     model=self._model,
                     tool_calls_seen=tool_calls_seen,
+                    tool_call_index_offset=tool_call_count,
                 )
                 tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
+                tool_call_count += len(streaming_chunk.tool_calls or [])
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
@@ -401,6 +407,7 @@ class GoogleGenAIChatGenerator:
         try:
             chunks = []
             tool_calls_seen = False
+            tool_call_count = 0
 
             i = 0
             chunk = None
@@ -411,8 +418,10 @@ class GoogleGenAIChatGenerator:
                     component_info=component_info,
                     model=self._model,
                     tool_calls_seen=tool_calls_seen,
+                    tool_call_index_offset=tool_call_count,
                 )
                 tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
+                tool_call_count += len(streaming_chunk.tool_calls or [])
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk

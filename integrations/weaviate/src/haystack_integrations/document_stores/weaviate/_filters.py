@@ -33,6 +33,10 @@ def convert_filters(filters: dict[str, Any]) -> FilterReturn:
     Note: The ``contains`` operator performs substring matching and is
     **case-sensitive**. For case-insensitive matching, normalize the value
     (e.g., lowercase) before building the filter.
+
+    Note: ``NOT`` is applied client-side by inverting its conditions (De Morgan), so it works
+    on any Weaviate version. The only exception is ``NOT`` over ``contains``, which has no
+    invertible counterpart and uses Weaviate's native ``NOT`` operator (Weaviate 1.33 or later).
     """
     if not isinstance(filters, dict):
         msg = "Filters must be a dictionary"
@@ -43,7 +47,13 @@ def convert_filters(filters: dict[str, Any]) -> FilterReturn:
     return _parse_logical_condition(filters)
 
 
-OPERATOR_INVERSE = {
+LOGICAL_OPERATORS = {
+    "AND": Filter.all_of,
+    "OR": Filter.any_of,
+}
+
+
+COMPARISON_INVERSE = {
     "==": "!=",
     "!=": "==",
     ">": "<=",
@@ -52,38 +62,10 @@ OPERATOR_INVERSE = {
     "<=": ">",
     "in": "not in",
     "not in": "in",
-    "AND": "OR",
-    "OR": "AND",
-    "NOT": "OR",
 }
 
 
-def _invert_condition(filters: dict[str, Any]) -> dict[str, Any]:
-    """
-    Invert condition recursively.
-
-    Weaviate doesn't support NOT filters so we need to invert them ourselves.
-    """
-    inverted_condition = filters.copy()
-    if "operator" not in filters:
-        # Let's not handle this stuff in here, we'll fail later on anyway.
-        return inverted_condition
-    inverted_condition["operator"] = OPERATOR_INVERSE[filters["operator"]]
-    if "conditions" in filters:
-        inverted_condition["conditions"] = []
-        for condition in filters["conditions"]:
-            inverted_condition["conditions"].append(_invert_condition(condition))
-
-    return inverted_condition
-
-
-LOGICAL_OPERATORS = {
-    "AND": Filter.all_of,
-    "OR": Filter.any_of,
-}
-
-
-def _parse_logical_condition(condition: dict[str, Any]) -> FilterReturn:
+def _validate_logical_condition(condition: dict[str, Any]) -> None:
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
         raise FilterError(msg)
@@ -91,21 +73,53 @@ def _parse_logical_condition(condition: dict[str, Any]) -> FilterReturn:
         msg = f"'conditions' key missing in {condition}"
         raise FilterError(msg)
 
+
+def _parse_logical_condition(condition: dict[str, Any]) -> FilterReturn:
+    _validate_logical_condition(condition)
+
     operator = condition["operator"]
     if operator in ["AND", "OR"]:
-        operands = []
-        for c in condition["conditions"]:
-            if "field" not in c:
-                operands.append(_parse_logical_condition(c))
-            else:
-                operands.append(_parse_comparison_condition(c))
-        return LOGICAL_OPERATORS[operator](operands)
+        return LOGICAL_OPERATORS[operator](_parse_operands(condition["conditions"]))
     elif operator == "NOT":
-        inverted_conditions = _invert_condition(condition)
-        return _parse_logical_condition(inverted_conditions)
+        # A NOT node negates the conjunction of its conditions: NOT(a AND b) == NOT(a) OR NOT(b).
+        return Filter.any_of([_negate(c) for c in condition["conditions"]])
     else:
         msg = f"Unknown logical operator '{operator}'"
         raise FilterError(msg)
+
+
+def _negate(condition: dict[str, Any]) -> FilterReturn:
+    """
+    Build the negation of a condition by applying De Morgan's laws.
+
+    Negation is done client-side so that it works on Weaviate versions without a native NOT operator.
+    """
+    if "field" in condition:
+        operator = condition.get("operator")
+        if operator in COMPARISON_INVERSE:
+            return _parse_comparison_condition({**condition, "operator": COMPARISON_INVERSE[operator]})
+        # Operators like `contains` have no invertible counterpart, so we fall back to Weaviate's
+        # native NOT, which requires Weaviate 1.33 or later.
+        # Unknown operators raise a FilterError while parsing the condition.
+        return Filter.not_(_parse_comparison_condition(condition))
+
+    _validate_logical_condition(condition)
+    operator = condition["operator"]
+    conditions = condition["conditions"]
+    if operator == "AND":
+        return Filter.any_of([_negate(c) for c in conditions])
+    elif operator == "OR":
+        return Filter.all_of([_negate(c) for c in conditions])
+    elif operator == "NOT":
+        # The two negations cancel out, leaving the conjunction of the conditions.
+        return Filter.all_of(_parse_operands(conditions))
+    else:
+        msg = f"Unknown logical operator '{operator}'"
+        raise FilterError(msg)
+
+
+def _parse_operands(conditions: list[dict[str, Any]]) -> list[FilterReturn]:
+    return [_parse_comparison_condition(c) if "field" in c else _parse_logical_condition(c) for c in conditions]
 
 
 def _handle_date(value: Any) -> str:
@@ -281,6 +295,10 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> FilterReturn:
         raise FilterError(msg)
     operator: str = condition["operator"]
     value: Any = condition["value"]
+
+    if operator not in COMPARISON_OPERATORS:
+        msg = f"Unknown comparison operator '{operator}'. Valid operators are: {list(COMPARISON_OPERATORS.keys())}"
+        raise FilterError(msg)
 
     return COMPARISON_OPERATORS[operator](field, value)
 

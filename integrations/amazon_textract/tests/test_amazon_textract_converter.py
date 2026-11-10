@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
+from haystack.core.serialization import component_from_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 
@@ -116,28 +117,6 @@ class TestAmazonTextractConverterSerialization:
         assert data["init_parameters"]["store_full_path"] is False
         assert data["init_parameters"]["boto3_config"] is None
 
-    def test_from_dict(self):
-        expected_type = "haystack_integrations.components.converters.amazon_textract.converter.AmazonTextractConverter"
-        data = {
-            "type": expected_type,
-            "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                "feature_types": ["TABLES", "FORMS"],
-                "store_full_path": False,
-                "boto3_config": None,
-            },
-        }
-
-        converter = AmazonTextractConverter.from_dict(data)
-
-        assert converter.feature_types == ["TABLES", "FORMS"]
-        assert converter.store_full_path is False
-        assert converter.boto3_config is None
-
     def test_from_dict_roundtrip(self):
         converter = AmazonTextractConverter(
             aws_access_key_id=Secret.from_env_var("AWS_ACCESS_KEY_ID", strict=False),
@@ -147,11 +126,16 @@ class TestAmazonTextractConverterSerialization:
         )
 
         data = converter.to_dict()
-        restored = AmazonTextractConverter.from_dict(data)
+        restored = component_from_dict(AmazonTextractConverter, data, name="restored")
 
         assert restored.feature_types == converter.feature_types
         assert restored.store_full_path == converter.store_full_path
         assert restored.boto3_config == converter.boto3_config
+        assert restored.aws_access_key_id == converter.aws_access_key_id
+        assert restored.aws_secret_access_key == converter.aws_secret_access_key
+        assert restored.aws_session_token == converter.aws_session_token
+        assert restored.aws_region_name == converter.aws_region_name
+        assert restored.aws_profile_name == converter.aws_profile_name
 
 
 class TestComponentLifecycle:
