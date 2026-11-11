@@ -45,4 +45,4 @@ class TestConfigurationId:
                 )
             )
 
-        assert _configuration_id(configured(first)) != _configuration_id(configured(second))
+        assert _configuration_id(text=configured(first)) != _configuration_id(text=configured(second))
