@@ -10,9 +10,9 @@
 | src/haystack\_integrations/document\_stores/solr/client.py                       |       91 |        0 |       24 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/solr/document\_store.py              |      548 |        0 |      150 |        1 |     99% | 359-\>368 |
 | src/haystack\_integrations/document\_stores/solr/errors.py                       |        3 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/solr/filters.py                      |      130 |        0 |       68 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/solr/filters.py                      |      179 |        0 |       96 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/solr/schema.py                       |      108 |        1 |       52 |        1 |     99% |       205 |
-| **TOTAL**                                                                        | **1077** |    **2** |  **328** |    **5** | **99%** |           |
+| **TOTAL**                                                                        | **1126** |    **2** |  **356** |    **5** | **99%** |           |
 
 
 ## Setup coverage badge
