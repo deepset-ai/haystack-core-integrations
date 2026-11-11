@@ -892,6 +892,16 @@ class TestSolrSpecificBehaviour:
             ("<", 1e20),
             (">", -1e20),
             ("in", [1e20, 4]),
+            # Non-finite bounds must be spelled the way Java parses them, or Solr rejects the query.
+            ("<=", float("inf")),
+            (">", float("-inf")),
+            (">=", float("inf")),
+            ("==", float("inf")),
+            ("!=", float("-inf")),
+            (">", float("nan")),
+            ("<", float("nan")),
+            ("==", float("nan")),
+            ("!=", float("nan")),
         ],
     )
     def test_numeric_filters_match_ints_and_floats_alike(self, document_store, operator, value):

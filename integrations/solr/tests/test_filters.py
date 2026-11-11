@@ -119,6 +119,14 @@ class TestComparisons:
     def test_whole_floats_are_compared_on_the_int_field_too(self):
         assert normalize_filters({"field": "meta.n", "operator": "==", "value": 5.0}) == "(meta_d_n:5.0 OR meta_l_n:5)"
 
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [(float("inf"), "meta_d_n:Infinity"), (float("-inf"), "meta_d_n:\\-Infinity"), (float("nan"), "meta_d_n:NaN")],
+    )
+    def test_non_finite_floats_use_java_spelling(self, value, expected):
+        """Solr parses numbers with Java's `Double.parseDouble`, which rejects `inf` and `nan`."""
+        assert normalize_filters({"field": "meta.n", "operator": "==", "value": value}) == expected
+
     @pytest.mark.parametrize("value", [1e20, -1e20, float(2**63), float("inf"), float("nan")])
     def test_numbers_outside_the_long_range_are_compared_on_the_float_field_only(self, value):
         """`plong` rejects a term outside its range with a 400, so such a number never reaches the int field."""
@@ -135,25 +143,18 @@ class TestComparisons:
             ("<", 1e20, "(meta_d_n:[* TO 1e+20} OR meta_l_n:[* TO *])"),
             (">=", -1e20, "(meta_d_n:[\\-1e+20 TO *] OR meta_l_n:[* TO *])"),
             ("<=", -1e20, "meta_d_n:[* TO \\-1e+20]"),
+            ("<", float("inf"), "(meta_d_n:[* TO Infinity} OR meta_l_n:[* TO *])"),
+            (">=", float("inf"), "meta_d_n:[Infinity TO *]"),
+            (">", float("-inf"), "(meta_d_n:{\\-Infinity TO *} OR meta_l_n:[* TO *])"),
         ],
     )
     def test_bounds_outside_the_long_range_admit_every_int_or_none(self, operator, value, expected):
         assert normalize_filters({"field": "meta.n", "operator": operator, "value": value}) == expected
 
-    @pytest.mark.parametrize(
-        ("operator", "value", "matches_every_int"),
-        [
-            ("<", float("inf"), True),
-            (">=", float("inf"), False),
-            (">", float("-inf"), True),
-            (">", float("nan"), False),
-        ],
-    )
-    def test_non_finite_bounds_never_round_on_the_int_field(self, operator, value, matches_every_int):
-        """Rounding a non-finite number raises, so the int side is either every int or nothing."""
-        clause = normalize_filters({"field": "meta.n", "operator": operator, "value": value})
-        assert ("meta_l_n:[* TO *]" in clause) is matches_every_int
-        assert clause.count("meta_l_n") == int(matches_every_int)
+    @pytest.mark.parametrize("operator", [">", ">=", "<", "<="])
+    def test_nan_bounds_match_nothing(self, operator):
+        """No number compares to `nan`, whereas Lucene sorts it above infinity."""
+        assert normalize_filters({"field": "meta.n", "operator": operator, "value": float("nan")}) == "(-*:*)"
 
     def test_long_range_edges_still_use_the_int_field(self):
         clause = normalize_filters({"field": "meta.n", "operator": "==", "value": 2**63 - 1})

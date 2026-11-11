@@ -50,6 +50,12 @@ def _format_value(value: Any) -> str:
     """Render a scalar as a Solr query term."""
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, float) and not math.isfinite(value):
+        # Solr parses numbers with Java's `Double.parseDouble`, which rejects Python's `inf` and `nan`
+        # spellings with a 400 ("Invalid Number").
+        if math.isnan(value):
+            return "NaN"
+        return "\\-Infinity" if value < 0 else "Infinity"
     if isinstance(value, (int, float)):
         # A leading minus opens a prohibited clause in the Lucene parser, which makes `field:-10` an
         # outright syntax error and, worse, silently turns `field:(-10 OR 100)` into "100 but not 10".
@@ -172,9 +178,11 @@ def _range_clause(field: str, operator: str, value: Any) -> str:
         raise FilterError(msg)
 
     if _is_numeric_meta(field, value):
+        if math.isnan(value):
+            # No number compares to `nan`, whereas Lucene sorts it above infinity, so `< nan` would match them all.
+            return _MATCH_NONE
         clauses = [_range_term(solr_field, operator, term) for solr_field, term in _numeric_terms(field, value)]
-        # No number compares to `nan`, so the int field has nothing to add then.
-        if not _fits_long(value) and not math.isnan(value):
+        if not _fits_long(value):
             long_clause = _long_range_clause(field, operator, value)
             if long_clause is not None:
                 clauses.append(long_clause)
