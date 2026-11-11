@@ -176,6 +176,10 @@ class FalkorDBDocumentStore(DocumentStore):
             msg = "Labels and relationships must use distinct metadata fields."
             raise ValueError(msg)
 
+        if not isinstance(write_batch_size, int) or write_batch_size < 1:
+            msg = f"`write_batch_size` must be a positive integer but is {write_batch_size}"
+            raise ValueError(msg)
+
         self.labels_metadata_field = labels_metadata_field
         self.relationships_metadata_field = relationships_metadata_field
         self.host = host
