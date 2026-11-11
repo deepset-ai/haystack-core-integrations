@@ -322,23 +322,6 @@ def test_connection_params_with_grpc_host_rejects_unusable_url(url, error):
         ds._connection_params()
 
 
-@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
-def test_to_dict_and_from_dict_preserves_grpc_host(_mock_weaviate):
-    """`grpc_host` configures the gRPC endpoint and must survive a to_dict/from_dict round-trip;
-    otherwise a reloaded store silently falls back to the host parsed from `url`."""
-    document_store = WeaviateDocumentStore(
-        url="https://weaviate.example.com",
-        grpc_host="weaviate.grpc.example.com",
-        grpc_port=443,
-    )
-
-    serialized = document_store.to_dict()
-    assert serialized["init_parameters"]["grpc_host"] == "weaviate.grpc.example.com"
-
-    restored = WeaviateDocumentStore.from_dict(serialized)
-    assert restored._grpc_host == "weaviate.grpc.example.com"
-
-
 def test_to_data_object_with_sparse_embedding_logs_warning(caplog):
     doc = Document(content="test doc")
     doc_dict = doc.to_dict()
@@ -584,20 +567,23 @@ class TestWeaviateDocumentStoreSerde:
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict_and_from_dict_preserves_grpc_settings(self, _mock_weaviate):
-        """`grpc_port`/`grpc_secure` configure the gRPC connection and must
+        """`grpc_host`/`grpc_port`/`grpc_secure` configure the gRPC connection and must
         survive a to_dict/from_dict round-trip; otherwise a reloaded store
-        silently falls back to the default gRPC port/security."""
+        silently falls back to the default gRPC host/port/security."""
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
+            grpc_host="weaviate.grpc.example.com",
             grpc_port=50052,
             grpc_secure=True,
         )
 
         serialized = document_store.to_dict()
+        assert serialized["init_parameters"]["grpc_host"] == "weaviate.grpc.example.com"
         assert serialized["init_parameters"]["grpc_port"] == 50052
         assert serialized["init_parameters"]["grpc_secure"] is True
 
         restored = WeaviateDocumentStore.from_dict(serialized)
+        assert restored._grpc_host == "weaviate.grpc.example.com"
         assert restored._grpc_port == 50052
         assert restored._grpc_secure is True
 
