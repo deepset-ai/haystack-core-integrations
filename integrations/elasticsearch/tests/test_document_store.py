@@ -1445,6 +1445,26 @@ class TestDocumentStore(
 
         assert [doc.meta["date"] for doc in result] == ["2021-09-01"]
 
+    @pytest.mark.parametrize(
+        ("operator", "value", "expected"),
+        [
+            ("==", "A Foo Document", ["A Foo Document"]),
+            ("!=", "A Foo Document", ["Another Bar Text"]),
+            ("in", ["A Foo Document", "missing text"], ["A Foo Document"]),
+            ("not in", ["A Foo Document"], ["Another Bar Text"]),
+        ],
+        ids=["eq", "ne", "in", "not_in"],
+    )
+    def test_filter_documents_on_multi_word_content(
+        self, document_store: ElasticsearchDocumentStore, operator, value, expected
+    ):
+        # `content` is an analyzed text field, so a term query would never match a value of more than one word
+        document_store.write_documents([Document(content="A Foo Document"), Document(content="Another Bar Text")])
+
+        result = document_store.filter_documents(filters={"field": "content", "operator": operator, "value": value})
+
+        assert sorted(doc.content for doc in result) == expected
+
     def test_filter_documents_equal_with_list_matches_exact_set(self, document_store: ElasticsearchDocumentStore):
         document_store.write_documents(
             [

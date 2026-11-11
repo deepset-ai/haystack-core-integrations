@@ -47,6 +47,12 @@ def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
         raise FilterError(msg)
 
 
+def _match_all_terms(field: str, value: Any) -> dict[str, Any]:
+    # `content` is an analyzed `text` field, so a `term` query never matches a value of more than one word.
+    # Match every term of the value instead.
+    return {"match": {field: {"query": value, "minimum_should_match": "100%"}}}
+
+
 def _equal(field: str, value: Any) -> dict[str, Any]:
     if value is None:
         return {"bool": {"must_not": {"exists": {"field": field}}}}
@@ -63,9 +69,8 @@ def _equal(field: str, value: Any) -> dict[str, Any]:
                 }
             }
         }
-    if field == "text":
-        # We want to fully match the text field.
-        return {"match": {field: {"query": value, "minimum_should_match": "100%"}}}
+    if field == "content":
+        return _match_all_terms(field, value)
     return {"term": {field: value}}
 
 
@@ -75,9 +80,8 @@ def _not_equal(field: str, value: Any) -> dict[str, Any]:
 
     if isinstance(value, list):
         return {"bool": {"must_not": {"terms": {field: value}}}}
-    if field == "text":
-        # We want to fully match the text field.
-        return {"bool": {"must_not": {"match": {field: {"query": value, "minimum_should_match": "100%"}}}}}
+    if field == "content":
+        return {"bool": {"must_not": _match_all_terms(field, value)}}
 
     return {"bool": {"must_not": {"term": {field: value}}}}
 
@@ -174,6 +178,8 @@ def _in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
+    if field == "content":
+        return {"bool": {"should": [_match_all_terms(field, item) for item in value]}}
     return {"terms": {field: value}}
 
 
@@ -181,6 +187,8 @@ def _not_in(field: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' or 'not in' comparators"
         raise FilterError(msg)
+    if field == "content":
+        return {"bool": {"must_not": [_match_all_terms(field, item) for item in value]}}
     return {"bool": {"must_not": {"terms": {field: value}}}}
 
 

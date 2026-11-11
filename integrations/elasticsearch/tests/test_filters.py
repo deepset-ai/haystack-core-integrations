@@ -107,8 +107,8 @@ filters_data = [
         },
     ),
     (
-        {"operator": "AND", "conditions": [{"field": "text", "operator": "==", "value": "A Foo Document 1"}]},
-        {"bool": {"must": [{"match": {"text": {"query": "A Foo Document 1", "minimum_should_match": "100%"}}}]}},
+        {"operator": "AND", "conditions": [{"field": "content", "operator": "==", "value": "A Foo Document 1"}]},
+        {"bool": {"must": [{"match": {"content": {"query": "A Foo Document 1", "minimum_should_match": "100%"}}}]}},
     ),
     (
         {
@@ -354,8 +354,12 @@ def test_not_equal_none_list_text_and_term():
     ne_list = _normalize_filters({"field": "meta.k", "operator": "!=", "value": [1, 2]})
     assert ne_list == {"bool": {"must": {"bool": {"must_not": {"terms": {"k": [1, 2]}}}}}}
 
-    ne_text = _normalize_filters({"field": "text", "operator": "!=", "value": "hello"})
-    assert "must_not" in ne_text["bool"]["must"]["bool"]
+    ne_text = _normalize_filters({"field": "content", "operator": "!=", "value": "hello"})
+    assert ne_text == {
+        "bool": {
+            "must": {"bool": {"must_not": {"match": {"content": {"query": "hello", "minimum_should_match": "100%"}}}}}
+        }
+    }
 
     ne_term = _normalize_filters({"field": "meta.k", "operator": "!=", "value": "v"})
     assert ne_term == {"bool": {"must": {"bool": {"must_not": {"term": {"k": "v"}}}}}}
