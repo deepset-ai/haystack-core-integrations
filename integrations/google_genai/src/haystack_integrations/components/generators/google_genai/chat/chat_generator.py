@@ -462,7 +462,8 @@ class GoogleGenAIChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-        If provided, it will override the tools set during initialization.
+        If provided, it will override the tools set during initialization. Pass an empty list to disable tools for
+        this call.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
 
@@ -477,7 +478,7 @@ class GoogleGenAIChatGenerator:
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
         safety_settings = safety_settings or self._safety_settings
-        tools = tools or self._tools
+        tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)
@@ -580,7 +581,8 @@ class GoogleGenAIChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-        If provided, it will override the tools set during initialization.
+        If provided, it will override the tools set during initialization. Pass an empty list to disable tools for
+        this call.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
 
@@ -595,7 +597,7 @@ class GoogleGenAIChatGenerator:
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
         safety_settings = safety_settings or self._safety_settings
-        tools = tools or self._tools
+        tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)
