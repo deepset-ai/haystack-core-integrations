@@ -313,6 +313,21 @@ def test_connection_params_ignore_grpc_host_when_it_cannot_apply():
 
 
 @pytest.mark.parametrize(
+    ("url", "warns"),
+    [
+        (None, True),
+        ("https://rAnD0mD1g1t5.something.weaviate.cloud", True),
+        ("https://my-cluster.weaviate.network", True),
+        ("https://weaviate.example.com", False),
+    ],
+)
+def test_init_warns_when_grpc_host_is_ignored(caplog, url, warns):
+    with caplog.at_level(logging.WARNING):
+        WeaviateDocumentStore(url=url, grpc_host="weaviate.grpc.example.com")
+    assert ("`grpc_host` is ignored" in caplog.text) is warns
+
+
+@pytest.mark.parametrize(
     ("url", "error"),
     [("weaviate.example.com", "Unsupported scheme"), ("http://", "Could not parse a host")],
 )

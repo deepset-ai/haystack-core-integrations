@@ -193,8 +193,8 @@ class WeaviateDocumentStore:
         :param grpc_host:
             The host serving the gRPC API, when it differs from the one in `url`. If `None`, the gRPC
             connection reuses the host parsed from `url`. Only used for custom, local or Docker
-            deployments: it is ignored when `url` is not set and for Weaviate Cloud URLs, which
-            `weaviate.connect_to_weaviate_cloud` configures on its own.
+            deployments: it is ignored, with a warning, when `url` is not set and for Weaviate Cloud URLs,
+            which `weaviate.connect_to_weaviate_cloud` configures on its own.
             Setting it also changes how `grpc_secure` is interpreted, see below.
         :param grpc_port:
             The port to use for the gRPC connection.
@@ -212,6 +212,11 @@ class WeaviateDocumentStore:
         self._grpc_host = grpc_host
         self._grpc_port = grpc_port
         self._grpc_secure = grpc_secure
+        if grpc_host and (not url or url.endswith((".weaviate.network", ".weaviate.cloud"))):
+            logger.warning(
+                "`grpc_host` is ignored when `url` is not set or points to Weaviate Cloud. Got grpc_host={grpc_host}.",
+                grpc_host=grpc_host,
+            )
         self._client: weaviate.WeaviateClient | None = None
         self._async_client: weaviate.WeaviateAsyncClient | None = None
         self._collection: weaviate.Collection | None = None
