@@ -651,12 +651,18 @@ class FalkorDBDocumentStore(DocumentStore):
         """Build a document-batch upsert query and parameters, including extra label assignments."""
         query = f"UNWIND $docs AS doc MERGE (d:{self.node_label} {{id: doc.id}}) ON CREATE SET d += doc "
         if policy == DuplicatePolicy.OVERWRITE:
+            # ON MATCH SET applies the full map (including updated fields).
             query += "ON MATCH SET d = doc "
+        # For DuplicatePolicy.FAIL already filtered duplicates above; SKIP excluded them.
+        # In both remaining cases we only write truly-new nodes, which is the default below.
         params: dict[str, Any] = {"docs": [_document_to_falkordb_record(doc) for doc in documents]}
         batch_ids = {doc.id for doc in documents}
         for index, (label, ids) in enumerate(labels.items()):
             if matching_ids := sorted(batch_ids.intersection(ids)):
                 params[f"label_ids_{index}"] = matching_ids
+                # Some documents have extra labels, and `labels` says which docs get which label.. The query handles all
+                # documents in one pass, so instead of an "if" per document, FOREACH loops over a list that holds this
+                # doc's id if it needs the label and is empty if not, so only matching documents get the label.
                 query += f"FOREACH (_ IN [id IN $label_ids_{index} WHERE id = doc.id] | SET d:`{label}`) "
         return query + "RETURN count(d) AS n", params
 
