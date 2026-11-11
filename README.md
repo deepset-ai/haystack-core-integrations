@@ -7,7 +7,7 @@
 | src/haystack\_integrations/components/retrievers/chroma/retriever.py  |       63 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/chroma/document\_store.py |      556 |       33 |      186 |       17 |     93% |203-209, 254-255, 405, 627-\>630, 640, 644, 687, 718, 769, 772-\>774, 775, 786-788, 817, 820-\>822, 823, 833-835, 873-875, 899, 915-917, 957-959, 998-1000, 1419-\>1422, 1465-\>1470 |
 | src/haystack\_integrations/document\_stores/chroma/errors.py          |        8 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/chroma/filters.py         |       83 |        1 |       36 |        1 |     98% |        60 |
+| src/haystack\_integrations/document\_stores/chroma/filters.py         |       83 |        1 |       36 |        1 |     98% |        59 |
 | src/haystack\_integrations/document\_stores/chroma/utils.py           |       11 |        0 |        0 |        0 |    100% |           |
 | **TOTAL**                                                             |  **721** |   **34** |  **226** |   **18** | **94%** |           |
 
