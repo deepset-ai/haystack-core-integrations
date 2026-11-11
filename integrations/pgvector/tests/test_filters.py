@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
+from decimal import Decimal
 
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
-from psycopg.adapt import Transformer
+from psycopg.adapt import PyFormat, Transformer
 from psycopg.sql import SQL, Composed
 from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Jsonb
@@ -265,6 +266,23 @@ def test_treat_meta_field():
     assert _treat_meta_field(field="meta.number", value=[1.1, 2.2]) == cast_numeric
     assert _treat_meta_field(field="meta.bool", value=True) == cast_boolean
     assert _treat_meta_field(field="meta.bool", value=[True, False]) == cast_boolean
+
+
+@pytest.mark.parametrize("operator", ["in", "not in"])
+def test_in_mixed_int_float_list_is_sent_as_numeric(operator):
+    # psycopg cannot dump a list that mixes int and float. Send all-numeric lists as
+    # Decimal so they adapt as numeric[] and match the ::numeric meta cast.
+    filters = {"field": "meta.score", "operator": operator, "value": [-2.5, -2]}
+    _, params = _convert_filters_to_where_clause_and_params(filters)
+    assert params == ([[Decimal("-2.5"), Decimal("-2")]],)
+    Transformer().get_dumper(params[0], PyFormat.AUTO).dump(params[0])
+
+
+def test_in_boolean_list_is_not_converted_to_numeric():
+    # bool is a subclass of int, but bool lists must stay as boolean[]
+    filters = {"field": "meta.flag", "operator": "in", "value": [True, False]}
+    _, params = _convert_filters_to_where_clause_and_params(filters)
+    assert params == ([[True, False]],)
 
 
 def test_treat_meta_field_sql_injection_is_safely_escaped():
