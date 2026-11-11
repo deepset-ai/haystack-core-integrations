@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cohere-v11.0.1] - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- Cohere - respect an empty runtime tools list (#4238)
+
+
 ## [integrations/cohere-v11.0.0] - 2026-10-16
 
 ### 🧪 Testing
