@@ -51,3 +51,44 @@ def test_parse_logical_condition_errors(condition, match):
 def test_parse_comparison_condition_errors(condition, match):
     with pytest.raises(ChromaDocumentStoreFilterError, match=match):
         _parse_comparison_condition(condition)
+
+
+@pytest.mark.parametrize(
+    ("operator", "value", "chroma_operator"),
+    [
+        ("==", "target", "$eq"),
+        ("!=", "target", "$ne"),
+        ("in", ["target"], "$in"),
+        ("not in", ["target"], "$nin"),
+        ("==", "", "$eq"),
+    ],
+)
+def test_metadata_id_filters_keep_metadata_comparisons(operator, value, chroma_operator):
+    result = _convert_filters({"field": "meta.id", "operator": operator, "value": value})
+
+    assert result.ids == []
+    assert result.where == {"id": {chroma_operator: value}}
+    assert result.where_document is None
+
+
+def test_document_id_filter_uses_ids():
+    result = _convert_filters({"field": "id", "operator": "==", "value": "target"})
+
+    assert result.ids == ["target"]
+    assert result.where is None
+    assert result.where_document is None
+
+
+@pytest.mark.parametrize(
+    ("condition", "category"),
+    [
+        ({"field": "meta.id", "operator": "in", "value": "target"}, "metadata filter"),
+        ({"field": "content", "operator": "contains", "value": 123}, "document content filter"),
+    ],
+    ids=["invalid_metadata_membership", "invalid_content_value"],
+)
+def test_invalid_filters_wrap_chroma_validation_errors(condition, category):
+    with pytest.raises(ChromaDocumentStoreFilterError, match=f"Invalid '{category}'") as exception_info:
+        _convert_filters(condition)
+
+    assert isinstance(exception_info.value.__cause__, ValueError)

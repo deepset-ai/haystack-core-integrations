@@ -615,6 +615,65 @@ class TestRun:
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.9
 
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
+    def test_run_with_empty_tools_override(self, mock_client_cls):
+        weather_tool = Tool(
+            name="weather",
+            description="Get the weather in a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather,
+        )
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[weather_tool])
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        client = mock_client_cls.return_value
+        client.chat.return_value = mock_response
+
+        generator.run([ChatMessage.from_user("Hello")])
+        _, kwargs = client.chat.call_args
+        assert len(kwargs["tools"]) == 1
+
+        generator.run([ChatMessage.from_user("Hello")], tools=[])
+        _, kwargs = client.chat.call_args
+        assert "tools" not in kwargs
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncClientV2")
+    async def test_run_async_with_empty_tools_override(self, mock_client_cls):
+        weather_tool = Tool(
+            name="weather",
+            description="Get the weather in a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather,
+        )
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[weather_tool])
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        client = mock_client_cls.return_value
+        client.chat = AsyncMock(return_value=mock_response)
+
+        await generator.run_async([ChatMessage.from_user("Hello")])
+        _, kwargs = client.chat.call_args
+        assert len(kwargs["tools"]) == 1
+
+        await generator.run_async([ChatMessage.from_user("Hello")], tools=[])
+        _, kwargs = client.chat.call_args
+        assert "tools" not in kwargs
+
 
 @pytest.mark.skipif(
     not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
