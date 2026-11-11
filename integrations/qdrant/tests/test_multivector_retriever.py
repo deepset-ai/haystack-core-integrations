@@ -96,15 +96,6 @@ class TestQdrantMultivectorEmbeddingRetriever:
         assert retriever._return_embedding is True
         assert retriever._filter_policy == FilterPolicy.MERGE
 
-    def test_serialization_with_native_filters(self):
-        document_store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
-        filters = rest.Filter(must=[rest.FieldCondition(key="meta.kind", match=rest.MatchValue(value="A"))])
-        retriever = QdrantMultivectorEmbeddingRetriever(document_store=document_store, filters=filters)
-        data = retriever.to_dict()
-        assert data["init_parameters"]["filters"] == filters.model_dump(mode="json")
-        restored = QdrantMultivectorEmbeddingRetriever.from_dict(data)
-        assert restored._filters == filters
-
     def test_close(self):
         mock_store = Mock(spec=QdrantDocumentStore, multivector_embedding_dim=2)
         retriever = QdrantMultivectorEmbeddingRetriever(document_store=mock_store)

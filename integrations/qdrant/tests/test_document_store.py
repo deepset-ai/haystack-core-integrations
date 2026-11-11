@@ -52,16 +52,17 @@ class TestQdrantDocumentStoreUnit:
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("QDRANT_API_KEY", "test_api_key")
-        doc_store = QdrantDocumentStore(
-            ":memory:",
+        document_store = QdrantDocumentStore(
+            location=":memory:",
+            index="test",
             recreate_index=True,
             return_embedding=True,
-            wait_result_from_api=True,
-            use_sparse_embeddings=False,
+            multivector_embedding_dim=2,
             api_key=Secret.from_env_var("QDRANT_API_KEY"),
             client_kwargs={"check_compatibility": False},
         )
-        expected_dict = {
+
+        expected = {
             "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
             "init_parameters": {
                 "location": ":memory:",
@@ -70,19 +71,15 @@ class TestQdrantDocumentStoreUnit:
                 "grpc_port": 6334,
                 "prefer_grpc": False,
                 "https": None,
-                "api_key": {
-                    "env_vars": ["QDRANT_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["QDRANT_API_KEY"], "strict": True, "type": "env_var"},
                 "prefix": None,
                 "timeout": None,
                 "host": None,
                 "path": None,
-                "force_disable_check_same_thread": False,
-                "index": "Document",
+                "index": "test",
                 "embedding_dim": 768,
                 "on_disk": False,
+                "force_disable_check_same_thread": False,
                 "use_sparse_embeddings": False,
                 "sparse_idf": False,
                 "similarity": "cosine",
@@ -103,10 +100,69 @@ class TestQdrantDocumentStoreUnit:
                 "scroll_size": 10000,
                 "payload_fields_to_index": None,
                 "client_kwargs": {"check_compatibility": False},
-                "multivector_embedding_dim": None,
+                "multivector_embedding_dim": 2,
             },
         }
-        assert doc_store.to_dict() == expected_dict
+
+        assert document_store.to_dict() == expected
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test-key")
+        document_store = QdrantDocumentStore.from_dict(
+            {
+                "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
+                "init_parameters": {
+                    "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
+                    "location": ":memory:",
+                    "index": "test",
+                    "embedding_dim": 768,
+                    "multivector_embedding_dim": 2,
+                    "on_disk": False,
+                    "force_disable_check_same_thread": False,
+                    "use_sparse_embeddings": True,
+                    "sparse_idf": True,
+                    "similarity": "cosine",
+                    "return_embedding": False,
+                    "progress_bar": True,
+                    "recreate_index": True,
+                    "shard_number": None,
+                    "quantization_config": None,
+                    "wait_result_from_api": True,
+                    "metadata": {},
+                    "write_batch_size": 1000,
+                    "scroll_size": 10000,
+                    "payload_fields_to_index": None,
+                    "client_kwargs": {"check_compatibility": False},
+                },
+            }
+        )
+
+        assert document_store.index == "test"
+        assert document_store.force_disable_check_same_thread is False
+        assert document_store.use_sparse_embeddings is True
+        assert document_store.sparse_idf is True
+        assert document_store.on_disk is False
+        assert document_store.similarity == "cosine"
+        assert document_store.return_embedding is False
+        assert document_store.progress_bar
+        assert document_store.recreate_index is True
+        assert document_store.shard_number is None
+        assert document_store.replication_factor is None
+        assert document_store.write_consistency_factor is None
+        assert document_store.on_disk_payload is None
+        assert document_store.hnsw_config is None
+        assert document_store.optimizers_config is None
+        assert document_store.wal_config is None
+        assert document_store.quantization_config is None
+        assert document_store.wait_result_from_api
+        assert document_store.metadata == {}
+        assert document_store.write_batch_size == 1000
+        assert document_store.scroll_size == 10000
+        assert document_store.api_key == Secret.from_env_var("ENV_VAR", strict=False)
+        assert document_store.payload_fields_to_index is None
+        assert document_store.client_kwargs == {"check_compatibility": False}
+        assert document_store.multivector_embedding_dim == 2
+        assert document_store.api_key.resolve_value() == "test-key"
 
     def test_query_hybrid_search_batch_failure(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)

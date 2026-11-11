@@ -9,7 +9,11 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
 from qdrant_client.http import models
 
-from haystack_integrations.components.retrievers.qdrant.utils import _resolve_filters
+from haystack_integrations.components.retrievers.qdrant.utils import (
+    _deserialize_filters,
+    _resolve_filters,
+    _serialize_filters,
+)
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
@@ -98,7 +102,7 @@ class QdrantEmbeddingRetriever:
         d = default_to_dict(
             self,
             document_store=self._document_store,
-            filters=self._filters,
+            filters=_serialize_filters(self._filters),
             top_k=self._top_k,
             filter_policy=self._filter_policy.value,
             scale_score=self._scale_score,
@@ -127,6 +131,7 @@ class QdrantEmbeddingRetriever:
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+        data["init_parameters"]["filters"] = _deserialize_filters(data["init_parameters"].get("filters"))
         return default_from_dict(cls, data)
 
     def close(self) -> None:
@@ -322,7 +327,7 @@ class QdrantSparseEmbeddingRetriever:
         d = default_to_dict(
             self,
             document_store=self._document_store,
-            filters=self._filters,
+            filters=_serialize_filters(self._filters),
             top_k=self._top_k,
             scale_score=self._scale_score,
             filter_policy=self._filter_policy.value,
@@ -351,6 +356,7 @@ class QdrantSparseEmbeddingRetriever:
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+        data["init_parameters"]["filters"] = _deserialize_filters(data["init_parameters"].get("filters"))
         return default_from_dict(cls, data)
 
     def close(self) -> None:
@@ -571,7 +577,7 @@ class QdrantHybridRetriever:
         return default_to_dict(
             self,
             document_store=self._document_store.to_dict(),
-            filters=self._filters,
+            filters=_serialize_filters(self._filters),
             top_k=self._top_k,
             filter_policy=self._filter_policy.value,
             return_embedding=self._return_embedding,
@@ -598,6 +604,7 @@ class QdrantHybridRetriever:
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+        data["init_parameters"]["filters"] = _deserialize_filters(data["init_parameters"].get("filters"))
         return default_from_dict(cls, data)
 
     def close(self) -> None:

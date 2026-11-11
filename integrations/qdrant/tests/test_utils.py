@@ -2,11 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
+
 import pytest
 from haystack.document_stores.types import FilterPolicy
 from qdrant_client.http import models as rest
 
-from haystack_integrations.components.retrievers.qdrant.utils import _resolve_filters
+from haystack_integrations.components.retrievers.qdrant.utils import (
+    _deserialize_filters,
+    _resolve_filters,
+    _serialize_filters,
+)
+
+
+@pytest.mark.parametrize("filters", [None, {}, {"field": "meta.kind", "operator": "==", "value": "A"}])
+def test_serialization_preserves_haystack_filters(filters):
+    assert _serialize_filters(filters) == filters
+    assert _deserialize_filters(filters) == filters
+
+
+@pytest.mark.parametrize("condition", ["must", "should", "must_not"])
+def test_serialization_round_trip_native_filters(condition):
+    filters = rest.Filter(**{condition: [rest.FieldCondition(key="meta.kind", match=rest.MatchValue(value="A"))]})
+    serialized = json.loads(json.dumps(_serialize_filters(filters)))
+    assert serialized == filters.model_dump(mode="json")
+    assert _deserialize_filters(serialized) == filters
 
 
 @pytest.mark.parametrize(

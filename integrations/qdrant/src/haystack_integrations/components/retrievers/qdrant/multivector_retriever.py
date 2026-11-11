@@ -8,7 +8,11 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
 from qdrant_client import models
 
-from haystack_integrations.components.retrievers.qdrant.utils import _resolve_filters
+from haystack_integrations.components.retrievers.qdrant.utils import (
+    _deserialize_filters,
+    _resolve_filters,
+    _serialize_filters,
+)
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
@@ -88,9 +92,7 @@ class QdrantMultivectorEmbeddingRetriever:
         return default_to_dict(
             self,
             document_store=self._document_store.to_dict(),
-            filters=self._filters.model_dump(mode="json")
-            if isinstance(self._filters, models.Filter)
-            else self._filters,
+            filters=_serialize_filters(self._filters),
             top_k=self._top_k,
             return_embedding=self._return_embedding,
             filter_policy=self._filter_policy.value,
@@ -111,9 +113,7 @@ class QdrantMultivectorEmbeddingRetriever:
         data["init_parameters"]["document_store"] = QdrantDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
-        filters = data["init_parameters"].get("filters")
-        if isinstance(filters, dict) and "operator" not in filters and "must" in filters:
-            data["init_parameters"]["filters"] = models.Filter.model_validate(filters)
+        data["init_parameters"]["filters"] = _deserialize_filters(data["init_parameters"].get("filters"))
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
