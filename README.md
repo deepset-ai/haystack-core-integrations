@@ -7,10 +7,10 @@
 | src/haystack\_integrations/components/retrievers/weaviate/bm25\_retriever.py      |       36 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/weaviate/embedding\_retriever.py |       51 |        0 |        8 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/weaviate/hybrid\_retriever.py    |       51 |        0 |        8 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/weaviate/\_filters.py                 |      156 |       47 |       68 |       11 |     68% |82, 110, 136, 142, 156-168, 178-190, 200-212, 223-230, 232-233, 238-242, 247-248, 282-\>290 |
+| src/haystack\_integrations/document\_stores/weaviate/\_filters.py                 |      166 |       38 |       72 |       14 |     77% |84, 120, 146, 152, 167-174, 176-177, 189-196, 198-199, 211-218, 220-221, 233-240, 242-243, 248-252, 257-258, 292-\>300 |
 | src/haystack\_integrations/document\_stores/weaviate/auth.py                      |       85 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/weaviate/document\_store.py           |      684 |      397 |      224 |       14 |     40% |310, 349, 380, 390-392, 397-402, 474-475, 481-483, 494-497, 508-512, 532-539, 559-567, 578-613, 627-663, 680-702, 718-742, 764-773, 805-828, 860-885, 906-\>916, 917, 952, 958-961, 966-972, 975-982, 1008-1010, 1016-1045, 1064-1071, 1090-1097, 1123-1140, 1149-1169, 1179-1204, 1236, 1238-\>1218, 1271-1274, 1304, 1314-1315, 1323-1325, 1342-1371, 1390-1422, 1440-1446, 1462-1480, 1500, 1521, 1528, 1541-1546, 1548-1549, 1563-1646, 1651-1662, 1667-1680, 1694-1706, 1716-1734, 1745-1759, 1770-1786 |
-| **TOTAL**                                                                         | **1063** |  **444** |  **316** |   **25** | **55%** |           |
+| **TOTAL**                                                                         | **1073** |  **435** |  **320** |   **28** | **57%** |           |
 
 
 ## Setup coverage badge
