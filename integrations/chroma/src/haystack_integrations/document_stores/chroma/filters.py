@@ -43,12 +43,7 @@ class ChromaFilter:
 
 
 def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
-    """
-    Converts Haystack filters into a format compatible with Chroma.
-
-    Separates filters into ids, metadata filters, and content filters to be passed to chroma as ids, where,
-    and where_document clauses respectively.
-    """
+    """Convert Haystack filters into Chroma ID, metadata, and content clauses."""
 
     ids = []
     where: dict[str, Any] = defaultdict(list)
@@ -75,12 +70,6 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
         else:
             where[field] = value
 
-    _validate_chroma_filters(where, where_document)
-
-    return ChromaFilter(ids=ids, where=where or None, where_document=where_document or None)
-
-
-def _validate_chroma_filters(where: dict[str, Any], where_document: dict[str, Any]) -> None:
     try:
         if where_document:
             test_clause = "document content filter"
@@ -91,6 +80,8 @@ def _validate_chroma_filters(where: dict[str, Any], where_document: dict[str, An
     except ValueError as e:
         msg = f"Invalid '{test_clause}' : {e}"
         raise ChromaDocumentStoreFilterError(msg) from e
+
+    return ChromaFilter(ids=ids, where=where or None, where_document=where_document or None)
 
 
 def _convert_filter_clause(filters: dict[str, Any]) -> dict[str, Any]:
