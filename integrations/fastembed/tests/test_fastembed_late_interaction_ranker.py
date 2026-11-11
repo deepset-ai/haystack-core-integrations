@@ -303,6 +303,27 @@ class TestFastembedLateInteractionRanker:
             parallel=None,
         )
 
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            ({"field": 0}, "0\ncontent"),
+            ({"field": 0.0}, "0.0\ncontent"),
+            ({"field": False}, "False\ncontent"),
+            ({"field": ""}, "\ncontent"),
+            ({"field": "value"}, "value\ncontent"),
+            ({"field": None}, "content"),
+            ({}, "content"),
+        ],
+    )
+    def test_prepare_input_docs_keeps_falsy_metadata(self, meta, expected):
+        """
+        Falsy metadata values such as 0 and False are embedded; only missing keys and None are skipped.
+        """
+        ranker = FastembedLateInteractionRanker(meta_fields_to_embed=["field"])
+        document = Document(content="content", meta=meta)
+
+        assert ranker._prepare_fastembed_input_docs([document]) == [expected]
+
     def test_warm_up_called_once(self):
         """
         Test that calling warm_up() twice only initializes the model once.
