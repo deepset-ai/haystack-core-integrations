@@ -2670,6 +2670,12 @@ class QdrantDocumentStore:
         return vectors_config, sparse_vectors_config
 
     def _validate_multivector_embedding(self, embedding: list[list[float]]) -> None:
+        """
+        Validates multivector support and the embedding dimensions before writing or querying.
+
+        :param embedding: Non-empty multivector embedding with each vector matching `multivector_embedding_dim`.
+        :raises ValueError: Multivector support is disabled, the embedding is empty, or a vector has the wrong dimension.
+        """
         if self.multivector_embedding_dim is None:
             msg = "Set multivector_embedding_dim before writing or querying multivector embeddings."
             raise ValueError(msg)
@@ -2758,7 +2764,14 @@ class QdrantDocumentStore:
             if existing_value == expected_value:
                 continue
 
-            msg = f"Collection '{collection_name}' has incompatible multivector configuration."
+            msg = (
+                f"Collection '{collection_name}' has incompatible multivector configuration. "
+                "Set `multivector_embedding_dim` to match the existing collection "
+                "(None if multivectors are not configured), or choose a new collection "
+                "using the `index` parameter. "
+                "To recreate the collection, set `recreate_index=True`; "
+                "this deletes all existing documents."
+            )
             raise QdrantStoreError(msg)
 
         has_named_vectors = isinstance(vectors_config, dict)
