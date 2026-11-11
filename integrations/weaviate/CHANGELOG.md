@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/weaviate-v8.2.0] - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- Weaviate - keep documents without the field when negating range filters (#4224)
+
+
 ## [integrations/weaviate-v8.1.0] - 2026-11-11
 
 ### 🚀 Features
