@@ -887,6 +887,11 @@ class TestSolrSpecificBehaviour:
             ("!=", 4.0),
             ("in", [4, 5]),
             ("not in", [4.5, 5]),
+            # Bounds beyond the `plong` range must not reach the int field, where Solr rejects them.
+            ("==", 1e20),
+            ("<", 1e20),
+            (">", -1e20),
+            ("in", [1e20, 4]),
         ],
     )
     def test_numeric_filters_match_ints_and_floats_alike(self, document_store, operator, value):

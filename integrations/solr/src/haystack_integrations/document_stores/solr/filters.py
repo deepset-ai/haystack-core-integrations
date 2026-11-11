@@ -24,6 +24,10 @@ _MATCH_ALL = "*:*"
 #: Matches nothing. Used where a comparison is satisfiable by no document.
 _MATCH_NONE = f"(-{_MATCH_ALL})"
 
+#: The values a `plong` field holds. Solr rejects a term outside this range with a 400.
+_LONG_MIN = -(2**63)
+_LONG_MAX = 2**63 - 1
+
 _RANGE_TEMPLATES = {
     ">": "{{{value} TO *}}",
     ">=": "[{value} TO *]",
@@ -74,8 +78,17 @@ def _resolve_field(field: str, value: Any) -> str:
 
 
 def _is_numeric_meta(field: str, value: Any) -> bool:
+    """Whether `value` is a number compared against a metadata field, as opposed to a bool or `id`/`content`."""
     is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
     return is_number and _normalize_field_name(field) not in _SPECIAL_FIELDS
+
+
+def _fits_long(value: float) -> bool:
+    """Whether `value` is a whole number within the `plong` range, i.e. a term Solr accepts on an int field."""
+    if isinstance(value, float) and not value.is_integer():
+        # Also covers `nan` and `inf`, neither of which is an integer.
+        return False
+    return _LONG_MIN <= value <= _LONG_MAX
 
 
 def _numeric_terms(field: str, value: float) -> list[tuple[str, float]]:
@@ -83,12 +96,13 @@ def _numeric_terms(field: str, value: float) -> list[tuple[str, float]]:
     Pair a number with every Solr field a number under `field` can be stored in.
 
     An int is written to a `plong` field and a float to a `pdouble` one, so a key whose values mix the two,
-    as metadata parsed from JSON routinely does, has values in both. `plong` rejects a fractional term,
-    so only a whole number is also compared there. The field of the value's own type comes first.
+    as metadata parsed from JSON routinely does, has values in both. `plong` rejects a fractional or
+    out-of-range term, so only a whole number within its range is also compared there. The field of the
+    value's own type comes first.
     """
     normalized = _normalize_field_name(field)
     double_term = (meta_field_name(normalized, "d"), value)
-    if isinstance(value, float) and not value.is_integer():
+    if not _fits_long(value):
         return [double_term]
     long_term = (meta_field_name(normalized, "l"), int(value))
     return [long_term, double_term] if isinstance(value, int) else [double_term, long_term]
@@ -158,18 +172,36 @@ def _range_clause(field: str, operator: str, value: Any) -> str:
         raise FilterError(msg)
 
     if _is_numeric_meta(field, value):
-        ranges = [(solr_field, operator, term) for solr_field, term in _numeric_terms(field, value)]
-        if isinstance(value, float) and not value.is_integer() and math.isfinite(value):
-            # `plong` rejects a fractional bound, so the int field is compared with the nearest whole number the
-            # range still admits, inclusively: `> 4.5` becomes `>= 5` and `< 4.5` becomes `<= 4`.
-            long_field = meta_field_name(_normalize_field_name(field), "l")
-            if operator in (">", ">="):
-                ranges.append((long_field, ">=", math.ceil(value)))
-            else:
-                ranges.append((long_field, "<=", math.floor(value)))
-        return _any_of([_range_term(*solr_range) for solr_range in ranges])
+        clauses = [_range_term(solr_field, operator, term) for solr_field, term in _numeric_terms(field, value)]
+        # No number compares to `nan`, so the int field has nothing to add then.
+        if not _fits_long(value) and not math.isnan(value):
+            long_clause = _long_range_clause(field, operator, value)
+            if long_clause is not None:
+                clauses.append(long_clause)
+        return _any_of(clauses)
 
     return _range_term(_resolve_field(field, value), operator, value)
+
+
+def _long_range_clause(field: str, operator: str, value: float) -> str | None:
+    """
+    Compare the int field against a bound `plong` can't hold as a term: a fractional or out-of-range number.
+
+    A fractional bound is replaced with the nearest whole number the range still admits, inclusively: `> 4.5`
+    becomes `>= 5` and `< 4.5` becomes `<= 4`. A bound beyond the `plong` range, infinity included, admits
+    either every int or none.
+
+    :returns: the clause, or `None` if the range admits no int.
+    """
+    long_field = meta_field_name(_normalize_field_name(field), "l")
+    is_lower_bound = operator in (">", ">=")
+    if value > _LONG_MAX:
+        return None if is_lower_bound else f"{long_field}:[* TO *]"
+    if value < _LONG_MIN:
+        return f"{long_field}:[* TO *]" if is_lower_bound else None
+    if is_lower_bound:
+        return _range_term(long_field, ">=", math.ceil(value))
+    return _range_term(long_field, "<=", math.floor(value))
 
 
 def _range_term(solr_field: str, operator: str, value: Any) -> str:

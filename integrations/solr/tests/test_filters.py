@@ -119,9 +119,45 @@ class TestComparisons:
     def test_whole_floats_are_compared_on_the_int_field_too(self):
         assert normalize_filters({"field": "meta.n", "operator": "==", "value": 5.0}) == "(meta_d_n:5.0 OR meta_l_n:5)"
 
-    def test_infinite_bounds_are_not_rounded(self):
-        """Rounding infinity raises, so a non-finite bound is left to the float field as before."""
-        assert "meta_l_n" not in normalize_filters({"field": "meta.n", "operator": ">=", "value": float("inf")})
+    @pytest.mark.parametrize("value", [1e20, -1e20, float(2**63), float("inf"), float("nan")])
+    def test_numbers_outside_the_long_range_are_compared_on_the_float_field_only(self, value):
+        """`plong` rejects a term outside its range with a 400, so such a number never reaches the int field."""
+        for operator in ("==", "in"):
+            clause = normalize_filters(
+                {"field": "meta.n", "operator": operator, "value": [value] if operator == "in" else value}
+            )
+            assert "meta_l_n" not in clause
+
+    @pytest.mark.parametrize(
+        ("operator", "value", "expected"),
+        [
+            (">", 1e20, "meta_d_n:{1e+20 TO *}"),
+            ("<", 1e20, "(meta_d_n:[* TO 1e+20} OR meta_l_n:[* TO *])"),
+            (">=", -1e20, "(meta_d_n:[\\-1e+20 TO *] OR meta_l_n:[* TO *])"),
+            ("<=", -1e20, "meta_d_n:[* TO \\-1e+20]"),
+        ],
+    )
+    def test_bounds_outside_the_long_range_admit_every_int_or_none(self, operator, value, expected):
+        assert normalize_filters({"field": "meta.n", "operator": operator, "value": value}) == expected
+
+    @pytest.mark.parametrize(
+        ("operator", "value", "matches_every_int"),
+        [
+            ("<", float("inf"), True),
+            (">=", float("inf"), False),
+            (">", float("-inf"), True),
+            (">", float("nan"), False),
+        ],
+    )
+    def test_non_finite_bounds_never_round_on_the_int_field(self, operator, value, matches_every_int):
+        """Rounding a non-finite number raises, so the int side is either every int or nothing."""
+        clause = normalize_filters({"field": "meta.n", "operator": operator, "value": value})
+        assert ("meta_l_n:[* TO *]" in clause) is matches_every_int
+        assert clause.count("meta_l_n") == int(matches_every_int)
+
+    def test_long_range_edges_still_use_the_int_field(self):
+        clause = normalize_filters({"field": "meta.n", "operator": "==", "value": 2**63 - 1})
+        assert clause == f"(meta_l_n:{2**63 - 1} OR meta_d_n:{2**63 - 1})"
 
     def test_in_compares_whole_numbers_on_both_fields(self):
         clause = normalize_filters({"field": "meta.n", "operator": "in", "value": [4, 4.5]})
