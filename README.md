@@ -7,9 +7,9 @@
 | src/haystack\_integrations/components/retrievers/chroma/retriever.py  |       63 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/chroma/document\_store.py |      556 |      343 |      186 |       28 |     37% |87-91, 111-\>exit, 132, 142, 153-159, 170-\>exit, 187-213, 233-244, 251-255, 276, 278, 280, 282, 301-306, 316-329, 344, 348-\>347, 354, 380, 382-\>393, 398-416, 424-426, 436-440, 452-458, 472-478, 497-\>505, 518-528, 540-545, 547, 556-584, 587, 589-\>597, 624-648, 677-702, 710-718, 726-729, 739-742, 752-788, 800-835, 850-875, 892-917, 926-959, 968-1000, 1016-1026, 1044-1054, 1072-1082, 1102-1112, 1122-1131, 1143-1152, 1165-1174, 1191-1200, 1228-1232, 1262-1266, 1282-1288, 1306-1312, 1334-1342, 1366-1374, 1419-\>1422, 1465-\>1470, 1471, 1474 |
 | src/haystack\_integrations/document\_stores/chroma/errors.py          |        8 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/chroma/filters.py         |       83 |       20 |       36 |        9 |     72% |60, 68, 74-89, 101, 114, 119-122, 141 |
+| src/haystack\_integrations/document\_stores/chroma/filters.py         |       83 |        5 |       36 |        4 |     92% |59, 100, 118-121, 140 |
 | src/haystack\_integrations/document\_stores/chroma/utils.py           |       11 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                             |  **721** |  **363** |  **226** |   **37** | **47%** |           |
+| **TOTAL**                                                             |  **721** |  **348** |  **226** |   **32** | **49%** |           |
 
 
 ## Setup coverage badge
