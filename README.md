@@ -2,13 +2,15 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-qdrant/htmlcov/index.html)
 
-| Name                                                                  |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|---------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/qdrant/retriever.py  |      139 |        0 |       24 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/qdrant/converters.py      |       42 |        0 |       16 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/qdrant/document\_store.py |      807 |      230 |      230 |       32 |     69% |360, 378, 399-400, 416-417, 444-445, 448-449, 498-500, 503-504, 535-545, 580-603, 615-638, 724-\>716, 741-\>740, 743-\>740, 762-\>759, 764-\>759, 766, 772-\>759, 816-864, 881-928, 945-956, 996-1007, 1051, 1076, 1117-\>1107, 1161-\>1151, 1198-1202, 1236-1240, 1274-1278, 1316-1320, 1370-1376, 1426-1432, 1477-1502, 1517-1542, 1558-1575, 1589-1606, 1671-1683, 1734-1743, 1796-1800, 1807, 1861-1864, 1931-1944, 1995-2005, 2055-2059, 2066-2091, 2116, 2122-2125, 2155-2160, 2175-2180, 2334, 2377, 2402-2410, 2430-2438, 2590, 2609-2610, 2646-2652, 2655-2656, 2672-\>exit |
-| src/haystack\_integrations/document\_stores/qdrant/filters.py         |      126 |       10 |       60 |       11 |     89% |48-\>40, 52-\>40, 74, 80, 86, 105, 133-134, 179, 191, 203, 215 |
-| **TOTAL**                                                             | **1114** |  **240** |  **330** |   **43** | **76%** |           |
+| Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/retrievers/qdrant/multivector\_retriever.py |       44 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/qdrant/retriever.py              |      129 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/qdrant/utils.py                  |       17 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/qdrant/converters.py                  |       51 |        0 |       22 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/qdrant/document\_store.py             |      869 |      228 |      252 |       31 |     72% |417-418, 434-435, 462-463, 469-470, 520-522, 528-529, 561-571, 606-629, 641-664, 750-\>742, 767-\>766, 769-\>766, 788-\>785, 790-\>785, 792, 798-\>785, 842-890, 907-954, 971-985, 1025-1039, 1083, 1108, 1149-\>1139, 1193-\>1183, 1230-1234, 1268-1272, 1306-1310, 1348-1352, 1402-1408, 1458-1464, 1509-1534, 1549-1574, 1590-1607, 1621-1638, 1703-1715, 1766-1775, 1822, 1875-1879, 1886, 1940-1943, 2010-2023, 2074-2084, 2131, 2181-2185, 2192-2217, 2242, 2248-2251, 2281-2286, 2301-2306, 2460, 2503, 2528-2536, 2556-2564, 2735, 2754-2755, 2814-2815, 2822-2823 |
+| src/haystack\_integrations/document\_stores/qdrant/filters.py                     |      126 |       10 |       60 |       11 |     89% |48-\>40, 52-\>40, 74, 80, 86, 105, 133-134, 179, 191, 203, 215 |
+| **TOTAL**                                                                         | **1236** |  **238** |  **358** |   **42** | **79%** |           |
 
 
 ## Setup coverage badge
