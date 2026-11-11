@@ -2674,7 +2674,8 @@ class QdrantDocumentStore:
         Validates multivector support and the embedding dimensions before writing or querying.
 
         :param embedding: Non-empty multivector embedding with each vector matching `multivector_embedding_dim`.
-        :raises ValueError: Multivector support is disabled, the embedding is empty, or a vector has the wrong dimension.
+        :raises ValueError: Multivector support is disabled, the embedding is empty, or a vector has the wrong
+            dimension.
         """
         if self.multivector_embedding_dim is None:
             msg = "Set multivector_embedding_dim before writing or querying multivector embeddings."
