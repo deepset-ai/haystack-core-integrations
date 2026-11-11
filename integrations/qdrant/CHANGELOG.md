@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/qdrant-v13.2.0] - 2026-11-11
+
+### 🚀 Features
+
+- Qdrant - add multivector support (#4231)
+
+
 ## [integrations/qdrant-v13.1.1] - 2026-11-09
 
 ### 🐛 Bug Fixes

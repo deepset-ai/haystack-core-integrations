@@ -1,0 +1,78 @@
+{
+  "file name": "report.pdf",
+  "number of pages": 2,
+  "author": null,
+  "title": "Annual Report",
+  "creation date": "D:20240101093000Z00'00'",
+  "modification date": "D:20240601120000+02'00'",
+  "kids": [
+    {
+      "type": "heading",
+      "page number": 1,
+      "bounding box": [72, 700, 510, 740],
+      "heading level": 1,
+      "font": "Helvetica",
+      "content": "Report"
+    },
+    {
+      "type": "list",
+      "page number": 1,
+      "bounding box": [72, 500, 510, 680],
+      "list items": [
+        {
+          "type": "list item",
+          "page number": 1,
+          "bounding box": [72, 600, 510, 680],
+          "content": "First item",
+          "kids": [
+            {
+              "type": "paragraph",
+              "page number": 1,
+              "bounding box": [90, 600, 510, 640],
+              "content": "Nested paragraph"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "image",
+      "page number": 1,
+      "bounding box": [72, 400, 200, 500],
+      "data": "base64-image-bytes"
+    },
+    {
+      "type": "table",
+      "page number": 2,
+      "bounding box": [72, 300, 510, 600],
+      "rows": [
+        {
+          "type": "table row",
+          "row number": 1,
+          "cells": [
+            {
+              "type": "table cell",
+              "page number": 2,
+              "bounding box": [72, 500, 290, 600],
+              "kids": [
+                {
+                  "type": "paragraph",
+                  "page number": 2,
+                  "bounding box": [80, 520, 280, 580],
+                  "content": "Revenue"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "page number": 2,
+      "bounding box": [72, 200, 510, 240],
+      "heading level": 2,
+      "content": "Results"
+    }
+  ]
+}

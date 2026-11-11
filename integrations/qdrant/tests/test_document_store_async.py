@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -65,6 +69,15 @@ class TestQdrantDocumentStoreAsyncUnit:
                     query_sparse_embedding=sparse_embedding, query_embedding=embedding
                 )
 
+    async def test_multivector_query_wraps_backend_error(self):
+        store = QdrantDocumentStore(multivector_embedding_dim=2)
+        store._async_client = AsyncMock()
+        error = RuntimeError("backend failed")
+        store._async_client.query_points.side_effect = error
+        with pytest.raises(QdrantStoreError, match="Error querying multivector") as exc:
+            await store._query_by_multivector_embedding_async([[1.0, 0.0]])
+        assert exc.value.__cause__ is error
+
     async def test_set_up_collection_with_dimension_mismatch_async(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
         await document_store._initialize_async_client()
@@ -118,6 +131,7 @@ class TestQdrantDocumentStoreAsyncUnit:
         # Mock collection info with named vectors
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
+        mock_collection_info.config.params.sparse_vectors = {SPARSE_VECTORS_NAME: rest.SparseVectorParams()}
 
         with (
             patch.object(document_store._async_client, "collection_exists", return_value=True),
@@ -149,6 +163,25 @@ class TestQdrantDocumentStoreAsyncUnit:
         with pytest.raises(QdrantStoreError, match="use_sparse_embeddings=False"):
             await document_store._query_by_sparse_async(query_sparse_embedding=sparse_embedding)
 
+    async def test_query_rejects_invalid_multivector_embedding(self):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
+        with pytest.raises(ValueError, match="multivector_embedding_dim"):
+            await store._query_by_multivector_embedding_async([[1.0]])
+        assert store._async_client is None
+
+    @pytest.mark.parametrize("top_k", [0, -1])
+    async def test_multivector_query_rejects_invalid_top_k(self, top_k):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
+        with pytest.raises(ValueError, match="top_k must be greater than zero"):
+            await store._query_by_multivector_embedding_async([[1.0, 0.0]], top_k=top_k)
+        assert store._async_client is None
+
+    async def test_multivector_query_rejects_invalid_filters(self):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
+        with pytest.raises(ValueError, match="Invalid filter syntax"):
+            await store._query_by_multivector_embedding_async([[1.0, 0.0]], filters={"field": "x"})
+        assert store._async_client is None
+
     async def test_delete_documents_async_invokes_client_and_handles_key_error(self):
         document_store = QdrantDocumentStore(location=":memory:")
         await document_store._initialize_async_client()
@@ -157,6 +190,13 @@ class TestQdrantDocumentStoreAsyncUnit:
             mock_delete.assert_awaited_once()
         with patch.object(document_store._async_client, "delete", side_effect=KeyError("missing")):
             await document_store.delete_documents_async(["doc-1"])
+
+    @pytest.mark.parametrize(("dimension", "embedding"), [(None, [[1.0, 0.0]]), (2, []), (2, [[1.0]])])
+    async def test_write_rejects_invalid_multivector_embedding(self, dimension, embedding):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=dimension)
+        with pytest.raises(ValueError, match="multivector_embedding_dim"):
+            await store.write_documents_async([Document(multivector_embedding=embedding)])
+        assert await store.count_documents_async() == 0
 
     @pytest.mark.parametrize(
         ("method_name", "args"),
@@ -390,10 +430,45 @@ class TestQdrantDocumentStoreAsync(
                 query_embedding=embedding,
             )
 
-    async def test_update_by_filter_async_preserves_vectors(self, document_store: QdrantDocumentStore):
+    @pytest.mark.parametrize(
+        ("sparse", "dimension", "similarity"),
+        [(False, None, "cosine"), (True, None, "dot_product"), (False, 2, "l2"), (True, 2, "cosine")],
+    )
+    async def test_delete_all_documents_index_recreation_async(self, sparse, dimension, similarity):
+        document_store = QdrantDocumentStore(
+            location=":memory:",
+            use_sparse_embeddings=sparse,
+            sparse_idf=sparse,
+            multivector_embedding_dim=dimension,
+            similarity=similarity,
+        )
+        await document_store._initialize_async_client()
+
+        docs = [Document(id="1", multivector_embedding=[[1.0, 0.0]] if dimension else None)]
+        await document_store.write_documents_async(docs)
+
+        config_before = await document_store._async_client.get_collection(document_store.index)
+
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        config_after = await document_store._async_client.get_collection(document_store.index)
+
+        assert config_before.config == config_after.config
+
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 1
+
+    async def test_update_by_filter_async_preserves_vectors(self):
         """Test that update_by_filter_async preserves document embeddings."""
+        document_store = QdrantDocumentStore(location=":memory:", return_embedding=True, multivector_embedding_dim=2)
         docs = [
-            Document(content="Doc 1", meta={"category": "A"}, embedding=[0.1] * 768),
+            Document(
+                content="Doc 1",
+                meta={"category": "A"},
+                embedding=[0.1] * 768,
+                multivector_embedding=[[1.0, 0.0]],
+            ),
             Document(content="Doc 2", meta={"category": "B"}, embedding=[0.2] * 768),
         ]
         await document_store.write_documents_async(docs)
@@ -405,11 +480,11 @@ class TestQdrantDocumentStoreAsync(
         assert updated_count == 1
 
         # Verify embedding is preserved
-        updated_docs = []
-        async for doc in document_store._get_documents_generator_async(
+        updated_docs = await document_store.filter_documents_async(
             filters={"field": "meta.status", "operator": "==", "value": "published"}
-        ):
-            updated_docs.append(doc)
+        )
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
+
+        assert updated_docs[0].multivector_embedding == [[1.0, 0.0]]
