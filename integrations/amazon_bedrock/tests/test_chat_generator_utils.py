@@ -783,7 +783,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "usage": {
                 "prompt_tokens": 2510,  # inputTokens + cacheRead + cacheWrite
                 "completion_tokens": 20,
-                "total_tokens": 30,
+                "total_tokens": 2530,  # prompt_tokens + completion_tokens, not Converse's `totalTokens`
                 "cache_read_input_tokens": 1000,
                 "cache_write_input_tokens": 1500,
                 "cache_details": [{"ttl": "5m", "inputTokens": 500}, {"ttl": "1h", "inputTokens": 1000}],
@@ -2315,8 +2315,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
         chunk = _convert_event_to_streaming_chunk(event, model, component_info)
         # AWS: total input = inputTokens + cacheReadInputTokens + cacheWriteInputTokens
-        assert chunk.meta["usage"]["prompt_tokens"] == 1926
-        assert chunk.meta["usage"]["cache_read_input_tokens"] == 1898
+        assert chunk.meta["usage"] == {
+            "prompt_tokens": 1926,
+            "completion_tokens": 294,
+            "total_tokens": 2220,
+            "cache_read_input_tokens": 1898,
+            "cache_write_input_tokens": 0,
+            "cache_details": [],
+        }
 
     def test_parse_streaming_response_redacted_reasoning_is_not_replayed(self):
         # OpenAI models on Bedrock (e.g. GPT-6) stream reasoning only as redactedContent

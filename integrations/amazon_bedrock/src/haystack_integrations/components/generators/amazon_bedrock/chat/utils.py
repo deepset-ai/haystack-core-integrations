@@ -448,14 +448,31 @@ def _format_messages(
     return system_prompts, repaired_bedrock_formatted_messages
 
 
-def _total_prompt_tokens(usage: dict[str, Any]) -> int:
+def _openai_compatible_usage(usage: dict[str, Any]) -> dict[str, Any]:
     """
-    Total prompt size from a Converse `usage` dict.
+    Convert a Converse `usage` dict to OpenAI's usage format, for cross ChatGenerator compatibility.
 
-    With prompt caching, `inputTokens` counts only the non-cached tokens; the total input is
-    `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`.
+    OpenAI's `prompt_tokens` includes the tokens served from the prompt cache. With prompt caching on, Converse's
+    `inputTokens` counts only the non-cached tokens, and AWS documents the total input as
+    `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`, so they are summed here. `total_tokens` is derived
+    from the result rather than taken from `totalTokens`, which isn't documented to include cached tokens.
+    The Bedrock-specific cache keys are kept as they are.
+
+    :param usage: the `usage` dict of a Converse response or of a ConverseStream `metadata` event.
+    :returns: the usage in OpenAI's format, plus the Bedrock cache fields.
     """
-    return usage.get("inputTokens", 0) + usage.get("cacheReadInputTokens", 0) + usage.get("cacheWriteInputTokens", 0)
+    cache_read = usage.get("cacheReadInputTokens") or 0
+    cache_write = usage.get("cacheWriteInputTokens") or 0
+    prompt_tokens = (usage.get("inputTokens") or 0) + cache_read + cache_write
+    completion_tokens = usage.get("outputTokens") or 0
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+        "cache_read_input_tokens": cache_read,
+        "cache_write_input_tokens": cache_write,
+        "cache_details": usage.get("cacheDetails", []),
+    }
 
 
 def _parse_completion_response(response_body: dict[str, Any], model: str) -> list[ChatMessage]:
@@ -481,15 +498,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                 "model": model,
                 "index": 0,
                 "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason", "")),
-                "usage": {
-                    # OpenAI's format for usage for cross ChatGenerator compatibility
-                    "prompt_tokens": _total_prompt_tokens(response_body.get("usage", {})),
-                    "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
-                    "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
-                    "cache_read_input_tokens": response_body.get("usage", {}).get("cacheReadInputTokens", 0),
-                    "cache_write_input_tokens": response_body.get("usage", {}).get("cacheWriteInputTokens", 0),
-                    "cache_details": response_body.get("usage", {}).get("cacheDetails", []),
-                },
+                "usage": _openai_compatible_usage(response_body.get("usage", {})),
             }
             # guardrail trace
             if "trace" in response_body:
@@ -645,15 +654,7 @@ def _convert_event_to_streaming_chunk(
         chunk_meta: dict[str, Any] = {**base_meta}
 
         if "usage" in event_meta:
-            usage = event_meta["usage"]
-            chunk_meta["usage"] = {
-                "prompt_tokens": _total_prompt_tokens(usage),
-                "completion_tokens": usage.get("outputTokens", 0),
-                "total_tokens": usage.get("totalTokens", 0),
-                "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
-                "cache_write_input_tokens": usage.get("cacheWriteInputTokens", 0),
-                "cache_details": usage.get("cacheDetails", []),
-            }
+            chunk_meta["usage"] = _openai_compatible_usage(event_meta["usage"])
         if "trace" in event_meta:
             chunk_meta["trace"] = event_meta["trace"]
 
