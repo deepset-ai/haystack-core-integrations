@@ -2,13 +2,15 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-qdrant-combined/htmlcov/index.html)
 
-| Name                                                                  |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|---------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/qdrant/retriever.py  |      139 |        0 |       24 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/qdrant/converters.py      |       42 |        0 |       16 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/qdrant/document\_store.py |      807 |       38 |      230 |       27 |     94% |448-449, 503-504, 544-545, 586, 601-603, 621, 636-638, 741-\>740, 743-\>740, 764-\>759, 822, 842-\>828, 862-864, 887, 906-\>892, 910, 926-928, 1117-\>1107, 1161-\>1151, 1199-\>1189, 1237-\>1227, 1275-\>1265, 1317-\>1307, 1371-\>1361, 1427-\>1417, 2159-2160, 2178-2180, 2590, 2609-2610, 2646-2652, 2655-2656, 2672-\>exit |
-| src/haystack\_integrations/document\_stores/qdrant/filters.py         |      126 |        5 |       60 |        6 |     94% |48-\>40, 52-\>40, 74, 86, 105, 133-134 |
-| **TOTAL**                                                             | **1114** |   **43** |  **330** |   **33** | **95%** |           |
+| Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/retrievers/qdrant/multivector\_retriever.py |       44 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/qdrant/retriever.py              |      129 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/qdrant/utils.py                  |       17 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/qdrant/converters.py                  |       51 |        0 |       22 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/qdrant/document\_store.py             |      869 |       34 |      252 |       26 |     95% |469-470, 528-529, 570-571, 612, 627-629, 647, 662-664, 767-\>766, 769-\>766, 790-\>785, 848, 868-\>854, 888-890, 913, 932-\>918, 936, 952-954, 1149-\>1139, 1193-\>1183, 1231-\>1221, 1269-\>1259, 1307-\>1297, 1349-\>1339, 1403-\>1393, 1459-\>1449, 2285-2286, 2304-2306, 2735, 2754-2755, 2814-2815, 2822-2823 |
+| src/haystack\_integrations/document\_stores/qdrant/filters.py                     |      126 |        5 |       60 |        6 |     94% |48-\>40, 52-\>40, 74, 86, 105, 133-134 |
+| **TOTAL**                                                                         | **1236** |   **39** |  **358** |   **32** | **96%** |           |
 
 
 ## Setup coverage badge
