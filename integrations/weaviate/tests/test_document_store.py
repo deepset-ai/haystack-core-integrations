@@ -820,6 +820,21 @@ class TestWeaviateDocumentStore(
 
         assert document_store.count_documents() == 0
 
+    def test_separate_grpc_host(self, request):
+        # `localhost` and `127.0.0.1` are different host strings for the same container, which is enough to
+        # exercise the `grpc_host` path; writes and filters go over gRPC, so they prove the channel works.
+        collection_settings = {"class": request.node.name, "invertedIndexConfig": {"indexNullState": True}}
+        store = WeaviateDocumentStore(
+            url="http://localhost:8080", grpc_host="127.0.0.1", collection_settings=collection_settings
+        )
+        try:
+            assert store._connection_params().grpc.host == "127.0.0.1"
+            assert store.write_documents([Document(content="hello grpc")]) == 1
+            assert [doc.content for doc in store.filter_documents()] == ["hello grpc"]
+        finally:
+            store.client.collections.delete(collection_settings["class"])
+            store.close()
+
     def test_write_documents(self, document_store):
         """
         Test write_documents() with default policy overwrites existing documents.
