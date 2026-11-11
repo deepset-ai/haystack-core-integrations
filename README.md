@@ -6,8 +6,8 @@
 |----------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/cognee/memory\_retriever.py |       23 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/writers/cognee/memory\_writer.py       |       22 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/memory\_stores/cognee/memory\_store.py            |       88 |        5 |       20 |        2 |     92% |55-59, 63-\>65, 78-\>80 |
-| **TOTAL**                                                                    |  **133** |    **5** |   **24** |    **2** | **94%** |           |
+| src/haystack\_integrations/memory\_stores/cognee/memory\_store.py            |       88 |        7 |       20 |        2 |     90% |55-59, 65, 80 |
+| **TOTAL**                                                                    |  **133** |    **7** |   **24** |    **2** | **93%** |           |
 
 
 ## Setup coverage badge
