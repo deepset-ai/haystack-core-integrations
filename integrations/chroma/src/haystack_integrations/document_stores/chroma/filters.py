@@ -43,8 +43,12 @@ class ChromaFilter:
 
 
 def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
-    """Convert Haystack filters into Chroma ID, metadata, and content clauses."""
+    """
+    Converts Haystack filters into a format compatible with Chroma.
 
+    Separates filters into ids, metadata filters, and content filters to be passed to chroma as ids, where,
+    and where_document clauses respectively.
+    """
     ids = []
     where: dict[str, Any] = defaultdict(list)
     where_document: dict[str, Any] = defaultdict(list)
