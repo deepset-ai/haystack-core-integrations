@@ -925,7 +925,7 @@ class TestSyncIntegration:
     def test_live_run_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"max_tokens": 20},
         )
 
@@ -947,13 +947,13 @@ class TestSyncIntegration:
         assert meta["usage"]["prompt_tokens"] > 0
         assert "completion_tokens" in meta["usage"]
         assert meta["usage"]["completion_tokens"] > 0
-        assert meta["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+        assert meta["model"] == "google/gemma-4-26B-A4B-it"
         assert meta["finish_reason"] is not None
 
     def test_live_run_serverless_streaming(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"max_tokens": 20},
             streaming_callback=streaming_callback_handler,
         )
@@ -979,7 +979,7 @@ class TestSyncIntegration:
         assert response_meta["usage"]["prompt_tokens"] >= 0
         assert "completion_tokens" in response_meta["usage"]
         assert response_meta["usage"]["completion_tokens"] >= 0
-        assert response_meta["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+        assert response_meta["model"] == "google/gemma-4-26B-A4B-it"
         assert response_meta["finish_reason"] is not None
 
     @pytest.mark.parametrize("streaming", [False, True])
@@ -991,7 +991,7 @@ class TestSyncIntegration:
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"temperature": 0.5},
             streaming_callback=print_streaming_chunk if streaming else None,
         )
@@ -1300,7 +1300,7 @@ class TestAsyncIntegration:
     async def test_live_run_async_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"max_tokens": 20},
         )
 
@@ -1322,7 +1322,7 @@ class TestAsyncIntegration:
             assert meta["usage"]["prompt_tokens"] > 0
             assert "completion_tokens" in meta["usage"]
             assert meta["usage"]["completion_tokens"] > 0
-            assert meta["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+            assert meta["model"] == "google/gemma-4-26B-A4B-it"
             assert meta["finish_reason"] is not None
         finally:
             await generator.close_async()

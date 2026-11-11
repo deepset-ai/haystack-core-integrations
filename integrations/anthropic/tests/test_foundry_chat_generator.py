@@ -18,6 +18,14 @@ class TestUnit:
         # No old claude-3 models
         assert not any("claude-3" in m for m in AnthropicFoundryChatGenerator.SUPPORTED_MODELS)
 
+    def test_tools_strict_marks_every_tool_strict(self, monkeypatch, tools):
+        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
+        component = AnthropicFoundryChatGenerator(resource="my-resource", tools=tools, tools_strict=True)
+
+        *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
+
+        assert [tool["strict"] for tool in anthropic_tools] == [True] * len(tools)
+
     def test_init_with_api_key_and_resource(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
         component = AnthropicFoundryChatGenerator(resource="my-resource")
@@ -87,6 +95,7 @@ class TestUnit:
                 "timeout": None,
                 "max_retries": None,
                 "azure_ad_token_provider": None,
+                "tools_strict": False,
             },
         }
 
@@ -121,6 +130,7 @@ class TestUnit:
                 "timeout": 10.0,
                 "max_retries": 1,
                 "azure_ad_token_provider": None,
+                "tools_strict": False,
             },
         }
 

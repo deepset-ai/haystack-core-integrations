@@ -1,6 +1,7 @@
 loaders:
   - modules:
       - haystack_integrations.components.retrievers.qdrant.retriever
+      - haystack_integrations.components.retrievers.qdrant.multivector_retriever
       - haystack_integrations.document_stores.qdrant.document_store
       - haystack_integrations.document_stores.qdrant.migrate_to_sparse
     search_path: [../src]

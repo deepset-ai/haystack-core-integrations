@@ -28,8 +28,8 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.29.0",
-  "qdrant-client>=1.17.0"
+  "haystack-ai>=3.5.0",
+  "qdrant-client>=1.19.1"
 ]
 
 [project.urls]

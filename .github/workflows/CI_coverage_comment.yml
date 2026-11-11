@@ -7,6 +7,7 @@ on:
       - "Test / aimlapi"
       - "Test / alloydb"
       - "Test / amazon-bedrock"
+      - "Test / amazon-s3-vectors"
       - "Test / amazon-sagemaker"
       - "Test / amazon-textract"
       - "Test / anthropic"
@@ -125,7 +126,7 @@ jobs:
           # Workflow names follow "Test / <name>" convention; normalize hyphens to underscores to match directory names
           echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //' | tr '-' '_')" >> "$GITHUB_OUTPUT"
 
-      - uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
+      - uses: py-cov-action/python-coverage-comment-action@07249dd712cd2464873eb8a59a24f97fd281e76f # v4.6
         with:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}

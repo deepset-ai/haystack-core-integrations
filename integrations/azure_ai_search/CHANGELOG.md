@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/azure_ai_search-v6.0.0] - 2026-11-09
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Azure_ai_search - raise when Azure AI Search rejects documents in a batch (#4134)
+
+
 ## [integrations/azure_ai_search-v5.0.0] - 2026-10-16
 
 ### 🧪 Testing
