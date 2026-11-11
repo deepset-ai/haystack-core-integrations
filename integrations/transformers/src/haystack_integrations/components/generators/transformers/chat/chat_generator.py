@@ -333,7 +333,8 @@ class TransformersChatGenerator:
             initialization are kept.
         :param streaming_callback: An optional callable for handling streaming responses.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter provided during initialization.
+            If set, it will override the `tools` parameter provided during initialization. Pass an empty list to
+            disable tools for this call.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
@@ -452,7 +453,8 @@ class TransformersChatGenerator:
             initialization are kept.
         :param streaming_callback: An optional callable for handling streaming responses.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter provided during initialization.
+            If set, it will override the `tools` parameter provided during initialization. Pass an empty list to
+            disable tools for this call.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
@@ -535,7 +537,7 @@ class TransformersChatGenerator:
         """
         assert self.pipeline is not None  # noqa: S101
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         if tools and streaming_callback is not None:
             msg = "Using tools and streaming at the same time is not supported. Please choose one."
             raise ValueError(msg)
