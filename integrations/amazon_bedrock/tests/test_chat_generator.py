@@ -640,6 +640,27 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["toolConfig"] == tool_config
 
     @pytest.mark.parametrize(
+        ("runtime_kwargs", "expect_tool_config"),
+        [
+            pytest.param({}, True, id="omitted"),
+            pytest.param({"tools": None}, True, id="none"),
+            pytest.param({"tools": []}, False, id="empty"),
+        ],
+    )
+    def test_prepare_request_params_runtime_tools(self, tools, runtime_kwargs, expect_tool_config):
+        """Runtime tools override init tools only when explicitly provided; tools=[] disables them."""
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6", tools=tools)
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the weather?")],
+            **runtime_kwargs,
+        )
+        if expect_tool_config:
+            assert request_params["toolConfig"]["tools"][0]["toolSpec"]["name"] == "weather"
+        else:
+            assert "toolConfig" not in request_params
+        assert generator.tools == tools
+
+    @pytest.mark.parametrize(
         "generation_kwargs,additional_model_request_fields",
         [
             (

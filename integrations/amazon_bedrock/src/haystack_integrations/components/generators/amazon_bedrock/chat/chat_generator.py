@@ -478,7 +478,7 @@ class AmazonBedrockChatGenerator:
         }
 
         # Handle tools - either toolConfig or Haystack Tool objects but not both
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
@@ -626,7 +626,8 @@ class AmazonBedrockChatGenerator:
             - `topP`: Nucleus sampling parameter.
             - `response_format`: Request structured JSON output validated against a schema.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            Each tool should have a unique name.
+            Each tool should have a unique name. Pass an empty list to disable tools for this call;
+            `None` uses the tools set during component initialization.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
@@ -693,7 +694,8 @@ class AmazonBedrockChatGenerator:
             - `topP`: Nucleus sampling parameter.
             - `response_format`: Request structured JSON output validated against a schema.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            Each tool should have a unique name.
+            Each tool should have a unique name. Pass an empty list to disable tools for this call;
+            `None` uses the tools set during component initialization.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
