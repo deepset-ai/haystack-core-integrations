@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/falkordb-v2.2.0] - 2026-11-12
+
+### 🚀 Features
+
+- *(falkordb)* Add ability to write document labels and relationships from document metadata (#4226)
+
+
 ## [integrations/falkordb-v2.1.0] - 2026-10-28
 
 ### 🚀 Features
