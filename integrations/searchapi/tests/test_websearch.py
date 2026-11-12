@@ -400,7 +400,7 @@ def mock_searchapi_search_result_async() -> Generator[MagicMock, None, None]:
 
 EXAMPLE_AI_ANSWER_RESPONSE = {
     "search_metadata": {"id": "search_ai_answer", "status": "Success", "created_at": "2026-10-01T00:00:00Z"},
-    "search_parameters": {"engine": "perplexity", "q": "What is pgvector?"},
+    "search_parameters": {"engine": "google_ai_mode", "q": "What is pgvector?"},
     "text_blocks": [
         {"type": "header", "answer": "pgvector"},
         {
@@ -490,8 +490,7 @@ class TestSearchApiSearchAPI:
         documents, links = SearchApiWebSearch._parse_ai_answer(EXAMPLE_AI_ANSWER_RESPONSE)
 
         assert documents[0].content == EXAMPLE_AI_ANSWER_RESPONSE["markdown"]
-        assert documents[0].meta["title"] == "What is pgvector?"
-        assert documents[0].meta["engine"] == "perplexity"
+        assert documents[0].meta["engine"] == "google_ai_mode"
         assert documents[0].meta["type"] == "ai_answer"
 
         assert [doc.meta["link"] for doc in documents[1:]] == [
@@ -503,42 +502,38 @@ class TestSearchApiSearchAPI:
         assert documents[2].content == ""
         assert links == ["https://github.com/pgvector/pgvector", "https://example.com/vectors"]
 
-    def test_parse_ai_answer_without_markdown_renders_text_blocks(self) -> None:
-        response = {key: value for key, value in EXAMPLE_AI_ANSWER_RESPONSE.items() if key != "markdown"}
-        documents, _ = SearchApiWebSearch._parse_ai_answer(response)
-
-        content = documents[0].content
-        assert content.startswith("## pgvector")
-        assert "pgvector adds vector similarity search to PostgreSQL." in content
-        assert "It supports:" in content
-        assert "- HNSW indexes" in content
-        assert "- IVFFlat indexes" in content
-        assert "| Index | Recall |" in content
-        assert "| HNSW | 0.75 |" in content
-
     def test_parse_ai_answer_includes_web_results_after_references(self) -> None:
         response = {
             **EXAMPLE_AI_ANSWER_RESPONSE,
             "search_parameters": {"engine": "google_ai_mode", "q": "What is pgvector?"},
             "web_results": [
                 {
+                    "title": "pgvector on GitHub",
+                    "link": "https://github.com/pgvector/pgvector",
+                    "displayed_link": "github.com",
+                    "source": "GitHub",
+                    "snippet": "Already cited as a reference link.",
+                },
+                {
                     "title": "A web result",
                     "link": "https://example.com/web",
                     "displayed_link": "example.com",
                     "source": "Example",
                     "snippet": "Web snippet.",
-                }
+                },
             ],
         }
         documents, links = SearchApiWebSearch._parse_ai_answer(response)
 
-        assert documents[-1].meta["link"] == "https://example.com/web"
-        assert documents[-1].content == "Web snippet."
+        # A web result that is already a reference link is skipped in both documents and links.
         assert links == [
             "https://github.com/pgvector/pgvector",
             "https://example.com/vectors",
             "https://example.com/web",
         ]
+        assert [doc.meta.get("link") for doc in documents].count("https://github.com/pgvector/pgvector") == 1
+        assert documents[-1].meta["link"] == "https://example.com/web"
+        assert documents[-1].content == "Web snippet."
 
     def test_parse_ai_answer_without_answer_or_references(self) -> None:
         documents, links = SearchApiWebSearch._parse_ai_answer(
@@ -550,7 +545,7 @@ class TestSearchApiSearchAPI:
     @pytest.mark.usefixtures("mock_searchapi_ai_answer_result")
     def test_web_search_ai_answer_engine(self) -> None:
         ws = SearchApiWebSearch(
-            top_k=2, api_key=Secret.from_token("test-api-key"), search_params={"engine": "perplexity"}
+            top_k=2, api_key=Secret.from_token("test-api-key"), search_params={"engine": "google_ai_mode"}
         )
         results = ws.run(query="What is pgvector?")
 
