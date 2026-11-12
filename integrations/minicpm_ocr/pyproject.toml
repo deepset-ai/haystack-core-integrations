@@ -23,7 +23,13 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.22.0", "minicpm-ocr[layout,pdf]>=1.0.4", "paddlepaddle>=3.0"]
+dependencies = [
+  "haystack-ai>=2.23.0",
+  "minicpm-ocr[layout,pdf]>=1.0.5",
+  "paddlepaddle>=3.0",
+  # paddlex's layout pipeline needs pypdfium2 even for images, but minicpm-ocr[layout] installs bare paddlex
+  "pypdfium2>=4",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/minicpm_ocr#readme"

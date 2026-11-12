@@ -2,20 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
+import os
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
 
 import minicpmvocr
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret, deserialize_secrets_inplace
-from minicpmvocr import load_config
+from haystack.utils import Secret
+from minicpmvocr import assemble_document_markdown, infer_run, load_config, load_prompt_map, prepare_run
 from minicpmvocr.layouts.download import ensure_layout_model
-from minicpmvocr.pipeline import infer_run, prepare_run
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ _SUPPORTED_SUFFIXES = {
     ".tiff",
     ".webp",
 }
-# Backend names accepted by the MiniCPM-OCR SDK. ``openai`` also covers SGLang
+# Backend names accepted by the MiniCPM-OCR SDK. `openai` also covers SGLang
 # and LMDeploy, which expose the same chat-completions API.
 _SUPPORTED_BACKENDS = {"vllm", "llamacpp", "ollama", "openai"}
 _SUFFIX_BY_MIME = {
@@ -40,6 +39,11 @@ _SUFFIX_BY_MIME = {
     "image/tiff": ".tiff",
     "image/webp": ".webp",
 }
+# Same lookup the SDK's own CLI uses when no config file is given.
+_SDK_CONFIG_PATH = Path(minicpmvocr.__file__).parent / "configs" / "minicpmvocr.yaml"
+_DEFAULT_LAYOUT_MODEL_DIR = Path.home() / ".cache" / "minicpm-ocr" / "layout"
+# Form feed separates pages, so `DocumentSplitter(split_by="page")` can split the output.
+_PAGE_SEPARATOR = "\f"
 
 
 def _resolve_suffix(source: str | Path | ByteStream, mime_type: str | None) -> str | None:
@@ -80,17 +84,16 @@ class MiniCPMOCRDocumentConverter:
     Markdown. The inference server can run on vLLM, SGLang, llama.cpp or
     Ollama; only the layout model runs in this process.
 
-    **Usage Example:**
+    Returns one Document per source, with pages separated by form feed characters (`\\f`),
+    so `DocumentSplitter` can split the content by page.
+
+    ### Usage example
 
     ```python
-    from haystack_integrations.components.converters.minicpm_ocr import (
-        MiniCPMOCRDocumentConverter,
-    )
+    from haystack_integrations.components.converters.minicpm_ocr import MiniCPMOCRDocumentConverter
 
-    converter = MiniCPMOCRDocumentConverter(
-        server_url="http://localhost:8000",
-        model="minicpm-ocr",
-    )
+    converter = MiniCPMOCRDocumentConverter(server_url="http://localhost:8000", model="minicpm-ocr")
+    converter.warm_up()
     result = converter.run(sources=["sample.pdf"])
     documents = result["documents"]
     ```
@@ -108,36 +111,40 @@ class MiniCPMOCRDocumentConverter:
         request_timeout: float = 300.0,
         page_workers: int = 1,
         max_workers: int = 1,
+        store_full_path: bool = False,
     ) -> None:
         """
         Create a MiniCPM-OCR document converter.
 
         :param server_url:
             Base URL of the MiniCPM-OCR inference server, for example
-            ``http://localhost:8000`` for vLLM or ``http://localhost:11434``
-            for Ollama. A trailing ``/v1`` is accepted and removed, because the
-            SDK appends ``/v1/chat/completions`` itself.
+            `http://localhost:8000` for vLLM or `http://localhost:11434`
+            for Ollama. A trailing `/v1` is accepted and removed, because the
+            SDK appends `/v1/chat/completions` itself.
         :param model:
             Model name served by the inference server.
         :param backend:
-            Server dialect: ``vllm``, ``llamacpp``, ``ollama`` or ``openai``
-            (SGLang and LMDeploy use ``openai``).
+            Server dialect: `vllm`, `llamacpp`, `ollama` or `openai`
+            (SGLang and LMDeploy use `openai`).
         :param api_key:
             Optional API key for the inference server.
         :param layout_model_dir:
             Directory holding the PP-DocLayout model. When unset, the SDK uses
-            ``~/.cache/minicpm-ocr/layout`` and downloads the model there on
-            first use.
+            `~/.cache/minicpm-ocr/layout`. The model is downloaded there in
+            `warm_up()` if it is missing.
         :param layout_device:
-            Device for layout detection, for example ``cpu`` or ``cuda:0``.
+            Device for layout detection, for example `cpu` or `cuda:0`.
         :param request_timeout:
             Timeout in seconds for one recognition request.
         :param page_workers:
             Pages rendered and detected concurrently.
         :param max_workers:
             Recognition requests in flight concurrently.
+        :param store_full_path:
+            If True, the full path of the source file is stored in the Document metadata.
+            If False, only the file name is stored.
         :raises ValueError:
-            If ``server_url`` is empty, ``backend`` is unknown, or a worker
+            If `server_url` is empty, `backend` is unknown, or a worker
             count is not positive.
         """
         normalized_url = server_url.strip().rstrip("/") if server_url else ""
@@ -163,46 +170,27 @@ class MiniCPMOCRDocumentConverter:
         self.request_timeout = request_timeout
         self.page_workers = page_workers
         self.max_workers = max_workers
+        self.store_full_path = store_full_path
 
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize the component to a dictionary.
+        self._layout_model_path: Path | None = None
 
-        :returns:
-            Dictionary with serialized data.
+    def warm_up(self) -> None:
         """
-        return default_to_dict(
-            self,
-            server_url=self.server_url,
-            model=self.model,
-            backend=self.backend,
-            api_key=self.api_key.to_dict(),
-            layout_model_dir=self.layout_model_dir,
-            layout_device=self.layout_device,
-            request_timeout=self.request_timeout,
-            page_workers=self.page_workers,
-            max_workers=self.max_workers,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "MiniCPMOCRDocumentConverter":
+        Make sure the PP-DocLayout layout model is available locally, downloading it on first use.
         """
-        Deserialize the component from a dictionary.
-
-        :param data:
-            Dictionary to deserialize from.
-        :returns:
-            Deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
+        if self._layout_model_path is None:
+            layout_model_path = (
+                Path(self.layout_model_dir).expanduser() if self.layout_model_dir else _DEFAULT_LAYOUT_MODEL_DIR
+            )
+            ensure_layout_model(layout_model_path)
+            self._layout_model_path = layout_model_path
 
     @component.output_types(documents=list[Document])
     def run(
         self,
         sources: list[str | Path | ByteStream],
         meta: dict[str, Any] | list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[Document]]:
         """
         Convert PDF or image files to Documents.
 
@@ -213,9 +201,13 @@ class MiniCPMOCRDocumentConverter:
             Optional metadata to attach to the Documents. A single dict is
             applied to all documents; a list must match the number of sources.
         :returns:
-            A dictionary with the ``documents`` key. Each document contains the
-            page Markdown and the metadata ``page_count`` and ``ocr_engine``.
+            A dictionary with the following key:
+            - `documents`: One Document per converted source. The content is Markdown with pages
+              separated by `\\f`, and the metadata includes `page_count` and `ocr_engine`.
         """
+        if self._layout_model_path is None:
+            self.warm_up()
+
         documents: list[Document] = []
         meta_list = normalize_metadata(meta, sources_count=len(sources))
         api_key = self.api_key.resolve_value() if self.api_key else None
@@ -254,13 +246,16 @@ class MiniCPMOCRDocumentConverter:
                     )
                     continue
 
-                if not markdown:
+                if not markdown.strip():
                     logger.warning(
                         "MiniCPM-OCR returned no text for {source}. Returning an empty document.",
                         source=source,
                     )
 
                 merged_metadata = {**bytestream.meta, **metadata}
+                if not self.store_full_path and (source_file_path := bytestream.meta.get("file_path")):
+                    merged_metadata["file_path"] = os.path.basename(source_file_path)
+
                 documents.append(
                     Document(
                         content=markdown,
@@ -285,16 +280,10 @@ class MiniCPMOCRDocumentConverter:
         :param api_key:
             Resolved API key, or None.
         :returns:
-            The page Markdown joined with blank lines and the page count.
+            The page Markdown joined with `\\f` and the page count.
+        :raises RuntimeError:
+            If the SDK produced no pages for the file.
         """
-        layout_model_dir = (
-            Path(self.layout_model_dir).expanduser()
-            if self.layout_model_dir
-            else Path.home() / ".cache" / "minicpm-ocr" / "layout"
-        )
-        ensure_layout_model(layout_model_dir)
-
-        config_path = Path(minicpmvocr.__file__).parent / "configs" / "minicpmvocr.yaml"
         overrides = {
             "run": {
                 "run_tag": f"haystack_{uuid.uuid4().hex}",
@@ -310,7 +299,7 @@ class MiniCPMOCRDocumentConverter:
             },
             "layout": {
                 "enabled": True,
-                "model_dir": str(layout_model_dir),
+                "model_dir": str(self._layout_model_path),
                 "device": self.layout_device,
             },
             "engine": {
@@ -328,21 +317,20 @@ class MiniCPMOCRDocumentConverter:
             },
             "logging": {"progress_log_every": 10**9},
         }
-        config = load_config(str(config_path), overrides=overrides)
+        config = load_config(str(_SDK_CONFIG_PATH), overrides=overrides)
 
         prepare_run(config)
         infer_run(config)
 
-        run_dir = Path(config["_meta"]["run_dir"])
-        tasks_path = run_dir / "runtime" / "page_tasks.jsonl"
-        tasks = [json.loads(line) for line in tasks_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        if not tasks:
-            msg = f"MiniCPM-OCR did not produce page tasks for {file_path}"
+        markdown, page_count, _ = assemble_document_markdown(
+            config["_meta"]["run_dir"],
+            load_prompt_map(config),
+            merge_tables=False,
+            delimiter=_PAGE_SEPARATOR,
+            cfg=config,
+        )
+        if page_count == 0:
+            msg = f"MiniCPM-OCR did not produce any page for {file_path}"
             raise RuntimeError(msg)
 
-        pages = []
-        for task in tasks:
-            page_path = run_dir / "output" / f"{task['image_id']}.md"
-            pages.append(page_path.read_text(encoding="utf-8"))
-
-        return "\n\n".join(pages).strip(), len(tasks)
+        return markdown, page_count
