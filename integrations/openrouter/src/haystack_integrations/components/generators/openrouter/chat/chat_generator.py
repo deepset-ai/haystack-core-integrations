@@ -499,7 +499,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             For details on OpenRouter API parameters, see
             [OpenRouter docs](https://openrouter.ai/docs/quickstart).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter provided during initialization.
+            If set, it will override the `tools` parameter provided during initialization. Pass an empty list to
+            disable tools for this call; `None` uses the tools set during component initialization.
         :param tools_strict:
             Whether to enable strict schema adherence for tool calls.
 
@@ -565,7 +566,9 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             Additional keyword arguments for text generation. These are merged per key with the
             `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
             at initialization are kept.
-        :param tools: A list of Tool and/or Toolset objects, or a single Toolset.
+        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            If set, it will override the `tools` parameter provided during initialization. Pass an empty list to
+            disable tools for this call; `None` uses the tools set during component initialization.
         :param tools_strict:
             Whether to enable strict schema adherence for tool calls.
 

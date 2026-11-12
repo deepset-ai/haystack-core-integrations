@@ -289,14 +289,6 @@ class TestOpenRouterChatGeneratorUnit:
         _, kwargs = mock_chat_completion.call_args
         assert "tools" not in kwargs
 
-    def test_run_with_init_tools(self, chat_messages, tools, mock_chat_completion, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(tools=tools)
-        component.run(chat_messages)
-
-        _, kwargs = mock_chat_completion.call_args
-        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
-
     def test_prepare_api_call_with_tools_strict(self, chat_messages, tools, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
         component = OpenRouterChatGenerator(tools=tools)

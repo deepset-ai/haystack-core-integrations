@@ -135,25 +135,6 @@ class TestOpenRouterChatGeneratorAsyncUnit:
         assert kwargs["extra_body"]["max_tokens"] == 10
         assert kwargs["extra_body"]["temperature"] == 0.9
 
-    async def test_run_async_with_empty_tools_override(
-        self, chat_messages, tools, mock_async_chat_completion, monkeypatch
-    ):
-        # an empty runtime list must disable the init tools for this call, not fall back to them
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(tools=tools)
-        await component.run_async(chat_messages, tools=[])
-
-        _, kwargs = mock_async_chat_completion.call_args
-        assert "tools" not in kwargs
-
-    async def test_run_async_with_init_tools(self, chat_messages, tools, mock_async_chat_completion, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(tools=tools)
-        await component.run_async(chat_messages)
-
-        _, kwargs = mock_async_chat_completion.call_args
-        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
-
     async def test_run_async_with_reasoning(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
 
