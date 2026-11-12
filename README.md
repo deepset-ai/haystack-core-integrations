@@ -7,7 +7,7 @@
 | src/haystack\_integrations/components/embedders/perplexity/document\_embedder.py    |       94 |        0 |       20 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/perplexity/embedding\_encoding.py   |       17 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/perplexity/text\_embedder.py        |       42 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/perplexity/chat/chat\_generator.py |       47 |        1 |        6 |        1 |     96% |       166 |
+| src/haystack\_integrations/components/generators/perplexity/chat/chat\_generator.py |       47 |        1 |        6 |        1 |     96% |       168 |
 | src/haystack\_integrations/components/websearch/perplexity/perplexity\_websearch.py |       78 |        2 |       18 |        1 |     97% |22-23, 203-\>193 |
 | **TOTAL**                                                                           |  **278** |    **3** |   **52** |    **2** | **98%** |           |
 
