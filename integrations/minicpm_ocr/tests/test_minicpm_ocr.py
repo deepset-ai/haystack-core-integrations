@@ -33,17 +33,15 @@ class TestInit:
         with pytest.raises(ValueError, match="server_url"):
             MiniCPMOCRDocumentConverter(server_url="  ")
 
-    def test_rejects_unknown_backend(self):
+    @pytest.mark.parametrize("backend", ["tgi", "OpenAI", " vllm"])
+    def test_rejects_unknown_backend(self, backend):
         with pytest.raises(ValueError, match="Unsupported backend"):
-            make_converter(backend="tgi")
+            make_converter(backend=backend)
 
     @pytest.mark.parametrize("workers", [{"page_workers": 0}, {"max_workers": 0}])
     def test_rejects_non_positive_workers(self, workers):
         with pytest.raises(ValueError, match="at least 1"):
             make_converter(**workers)
-
-    def test_normalizes_backend(self):
-        assert make_converter(backend=" Openai ").backend == "openai"
 
     @pytest.mark.parametrize("url", ["http://localhost:8000/v1/", "http://localhost:8000/"])
     def test_normalizes_server_url(self, url):

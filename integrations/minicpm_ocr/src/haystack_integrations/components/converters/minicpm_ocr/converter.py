@@ -6,7 +6,7 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 
 import minicpmvocr
 from haystack import Document, component, logging
@@ -30,7 +30,7 @@ _SUPPORTED_SUFFIXES = {
 }
 # Backend names accepted by the MiniCPM-OCR SDK. `openai` also covers SGLang
 # and LMDeploy, which expose the same chat-completions API.
-_SUPPORTED_BACKENDS = {"vllm", "llamacpp", "ollama", "openai"}
+Backend = Literal["vllm", "llamacpp", "ollama", "openai"]
 _SUFFIX_BY_MIME = {
     "application/pdf": ".pdf",
     "image/png": ".png",
@@ -104,7 +104,7 @@ class MiniCPMOCRDocumentConverter:
         *,
         server_url: str,
         model: str = "minicpm-ocr",
-        backend: str = "vllm",
+        backend: Backend = "vllm",
         api_key: Secret = Secret.from_env_var("MINICPM_OCR_API_KEY", strict=False),
         layout_model_dir: str | None = None,
         layout_device: str = "cpu",
@@ -153,9 +153,9 @@ class MiniCPMOCRDocumentConverter:
         if not normalized_url:
             msg = "server_url must be a non-empty base URL, for example http://localhost:8000"
             raise ValueError(msg)
-        normalized_backend = backend.strip().lower()
-        if normalized_backend not in _SUPPORTED_BACKENDS:
-            msg = f"Unsupported backend {backend!r}. Choose one of: {', '.join(sorted(_SUPPORTED_BACKENDS))}."
+        # Checked at runtime too: pipelines loaded from YAML bypass the type hint
+        if backend not in get_args(Backend):
+            msg = f"Unsupported backend {backend!r}. Choose one of: {', '.join(get_args(Backend))}."
             raise ValueError(msg)
         if page_workers < 1 or max_workers < 1:
             msg = "page_workers and max_workers must be at least 1"
@@ -163,7 +163,7 @@ class MiniCPMOCRDocumentConverter:
 
         self.server_url = normalized_url
         self.model = model
-        self.backend = normalized_backend
+        self.backend = backend
         self.api_key = api_key
         self.layout_model_dir = layout_model_dir
         self.layout_device = layout_device
