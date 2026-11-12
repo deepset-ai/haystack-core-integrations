@@ -163,7 +163,8 @@ class FalkorDBDocumentStore(DocumentStore):
             Relationship types must be non-empty strings without backticks.
             Targets must already exist or be included in the same write. Configured graph fields are consumed,
             not stored or returned as metadata. See `write_documents` for write behavior and an example.
-        :raises ValueError: `similarity` is unsupported or graph metadata field names are identical.
+        :raises ValueError: `similarity` is unsupported, `write_batch_size` is not a positive integer, or graph metadata
+            field names are identical.
         """
         if similarity not in ("cosine", "euclidean"):
             msg = (
@@ -653,14 +654,13 @@ class FalkorDBDocumentStore(DocumentStore):
         if policy == DuplicatePolicy.OVERWRITE:
             # ON MATCH SET applies the full map (including updated fields).
             query += "ON MATCH SET d = doc "
-        # For DuplicatePolicy.FAIL already filtered duplicates above; SKIP excluded them.
-        # In both remaining cases we only write truly-new nodes, which is the default below.
+        # FAIL already filtered duplicates above and SKIP excluded them, so only new nodes reach this query.
         params: dict[str, Any] = {"docs": [_document_to_falkordb_record(doc) for doc in documents]}
         batch_ids = {doc.id for doc in documents}
         for index, (label, ids) in enumerate(labels.items()):
             if matching_ids := sorted(batch_ids.intersection(ids)):
                 params[f"label_ids_{index}"] = matching_ids
-                # Some documents have extra labels, and `labels` says which docs get which label.. The query handles all
+                # Some documents have extra labels, and `labels` says which docs get which label. The query handles all
                 # documents in one pass, so instead of an "if" per document, FOREACH loops over a list that holds this
                 # doc's id if it needs the label and is empty if not, so only matching documents get the label.
                 query += f"FOREACH (_ IN [id IN $label_ids_{index} WHERE id = doc.id] | SET d:`{label}`) "
