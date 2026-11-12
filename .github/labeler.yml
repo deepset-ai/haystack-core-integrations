@@ -295,6 +295,11 @@ integration:microsoft-sharepoint:
       - any-glob-to-any-file: "integrations/microsoft_sharepoint/**/*"
       - any-glob-to-any-file: ".github/workflows/microsoft_sharepoint.yml"
 
+integration:minicpm-ocr:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/minicpm_ocr/**/*"
+      - any-glob-to-any-file: ".github/workflows/minicpm_ocr.yml"
+
 integration:mirage:
   - changed-files:
       - any-glob-to-any-file: "integrations/mirage/**/*"

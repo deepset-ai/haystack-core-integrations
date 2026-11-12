@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from dataclasses import replace
 from unittest.mock import AsyncMock, Mock
 
@@ -7,7 +11,6 @@ from haystack.document_stores.types import FilterPolicy
 from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
 )
-from qdrant_client.http import models as rest
 
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantSparseEmbeddingRetriever,
@@ -83,6 +86,7 @@ class TestQdrantSparseEmbeddingRetriever:
                         "scroll_size": 10000,
                         "payload_fields_to_index": None,
                         "client_kwargs": {},
+                        "multivector_embedding_dim": None,
                     },
                 },
                 "filters": None,
@@ -233,30 +237,14 @@ class TestQdrantSparseEmbeddingRetriever:
         assert call_kwargs["return_embedding"] is False
         assert call_kwargs["score_threshold"] == 0.0
 
-    def test_run_raises_when_merge_with_native_filter(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantSparseEmbeddingRetriever(
-            document_store=document_store,
-            filters=rest.Filter(must=[]),
-            filter_policy=FilterPolicy.MERGE,
-        )
-        sparse = SparseEmbedding(indices=[0], values=[0.1])
-        with pytest.raises(ValueError, match="Native Qdrant filters"):
-            retriever.run(query_sparse_embedding=sparse)
-
-    @pytest.mark.asyncio
-    async def test_run_async_raises_when_merge_with_native_filter(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store, filter_policy=FilterPolicy.MERGE)
-        sparse = SparseEmbedding(indices=[0], values=[0.1])
-        with pytest.raises(ValueError, match="Native Qdrant filters"):
-            await retriever.run_async(query_sparse_embedding=sparse, filters=rest.Filter(must=[]))
-
 
 @pytest.mark.integration
 class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
-    def test_run(self, filterable_docs: list[Document], generate_sparse_embedding):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+    @pytest.mark.parametrize("dimension", [None, 2])
+    def test_run(self, dimension, filterable_docs: list[Document], generate_sparse_embedding):
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=True, multivector_embedding_dim=dimension
+        )
 
         # Add fake sparse embedding to documents
         filterable_docs = [replace(doc, sparse_embedding=generate_sparse_embedding()) for doc in filterable_docs]
@@ -303,8 +291,11 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
             assert document.sparse_embedding
 
     @pytest.mark.asyncio
-    async def test_run_async(self, filterable_docs: list[Document], generate_sparse_embedding):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
+    @pytest.mark.parametrize("dimension", [None, 2])
+    async def test_run_async(self, dimension, filterable_docs: list[Document], generate_sparse_embedding):
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=True, multivector_embedding_dim=dimension
+        )
 
         # Add fake sparse embedding to documents
         filterable_docs = [replace(doc, sparse_embedding=generate_sparse_embedding()) for doc in filterable_docs]

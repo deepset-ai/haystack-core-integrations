@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/perplexity-v2.0.1] - 2026-11-12
+
+### 🐛 Bug Fixes
+
+- Restrict OrcaRouter and Perplexity serialization to supported init parameters (#4251)
+
+
 ## [integrations/perplexity-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

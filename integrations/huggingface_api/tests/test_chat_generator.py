@@ -749,6 +749,21 @@ class TestRun:
             "usage": {"completion_tokens": 30, "prompt_tokens": 426},
         }
 
+    def test_run_empty_tools_list_overrides_init_tools(
+        self, mock_check_valid_model, mock_chat_completion, chat_messages, tools
+    ):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            tools=tools,
+        )
+
+        generator.run(messages=chat_messages, tools=[])
+
+        # an empty list must disable tools for this call, not fall back to the init tools
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["tools"] is None
+
     @pytest.mark.parametrize("tools_at_init", [True, False], ids=["init_tools", "runtime_tools"])
     def test_run_with_streaming_tool_calls(
         self,
@@ -1228,6 +1243,22 @@ class TestRunAsync:
             "model": "meta-llama/Llama-3.1-70B-Instruct",
             "usage": {"completion_tokens": 30, "prompt_tokens": 426},
         }
+
+    @pytest.mark.asyncio
+    async def test_run_async_empty_tools_list_overrides_init_tools(
+        self, mock_check_valid_model, mock_chat_completion_async, chat_messages, tools
+    ):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            tools=tools,
+        )
+
+        await generator.run_async(messages=chat_messages, tools=[])
+
+        # an empty list must disable tools for this call, not fall back to the init tools
+        _, kwargs = mock_chat_completion_async.call_args
+        assert kwargs["tools"] is None
 
     @pytest.mark.asyncio
     async def test_run_async_with_sync_streaming_callback(

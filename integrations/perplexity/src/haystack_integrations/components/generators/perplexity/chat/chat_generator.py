@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib.metadata
+import inspect
 from typing import Any, ClassVar
 
 from haystack import component, default_from_dict
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
-from haystack.core.serialization import generate_qualified_class_name
 from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import ToolsType, deserialize_tools_or_toolset_inplace
 from haystack.utils import deserialize_callable
@@ -143,10 +143,12 @@ class PerplexityChatGenerator(OpenAIResponsesChatGenerator):
             The serialized component as a dictionary.
         """
         data = super(PerplexityChatGenerator, self).to_dict()  # noqa: UP008
-        data["type"] = generate_qualified_class_name(type(self))
-        data["init_parameters"]["extra_headers"] = self.extra_headers
-        # serialize the user-provided value, not the internal one enriched with attribution headers
-        data["init_parameters"]["http_client_kwargs"] = self._http_client_kwargs
+        # Preserve user-provided headers without injected attribution headers.
+        data["init_parameters"].update(extra_headers=self.extra_headers, http_client_kwargs=self._http_client_kwargs)
+        init_parameters = inspect.signature(type(self).__init__).parameters
+        data["init_parameters"] = {
+            key: value for key, value in data["init_parameters"].items() if key in init_parameters
+        }
         return data
 
     @classmethod

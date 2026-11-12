@@ -280,6 +280,15 @@ class TestOpenRouterChatGeneratorUnit:
         assert kwargs["extra_body"]["max_tokens"] == 10
         assert kwargs["extra_body"]["temperature"] == 0.9
 
+    def test_run_with_empty_tools_override(self, chat_messages, tools, mock_chat_completion, monkeypatch):
+        # an empty runtime list must disable the init tools for this call, not fall back to them
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator(tools=tools)
+        component.run(chat_messages, tools=[])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert "tools" not in kwargs
+
     def test_prepare_api_call_with_tools_strict(self, chat_messages, tools, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
         component = OpenRouterChatGenerator(tools=tools)
