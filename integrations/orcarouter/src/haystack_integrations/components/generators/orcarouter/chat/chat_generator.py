@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 from typing import Any
 
 from haystack import component
@@ -111,3 +112,15 @@ class OrcaRouterChatGenerator(OpenAIChatGenerator):
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
+        """
+        data = super(OrcaRouterChatGenerator, self).to_dict()  # noqa: UP008
+        init_parameters = inspect.signature(type(self).__init__).parameters
+        data["init_parameters"] = {key: value for key, value in data["init_parameters"].items() if key in init_parameters}
+        return data
