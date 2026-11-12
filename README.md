@@ -4,8 +4,8 @@
 
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/generators/orcarouter/chat/chat\_generator.py |       10 |        0 |        0 |        0 |     100% |           |
-| **TOTAL**                                                                           |   **10** |    **0** |    **0** |    **0** | **100%** |           |
+| src/haystack\_integrations/components/generators/orcarouter/chat/chat\_generator.py |       16 |        0 |        0 |        0 |     100% |           |
+| **TOTAL**                                                                           |   **16** |    **0** |    **0** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
