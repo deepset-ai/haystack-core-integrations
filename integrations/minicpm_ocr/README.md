@@ -49,7 +49,7 @@ Supported inputs are PDF, PNG, JPEG, BMP, TIFF and WebP.
 ### Running the inference server
 
 ```console
-vllm serve openbmb/MiniCPM-OCR-1.0 --port 8000
+vllm serve openbmb/MiniCPM-OCR-1.0 --served-model-name minicpm-ocr --port 8000
 ```
 
 Set `backend` to `ollama`, `llamacpp`, `vllm`, or `openai` (SGLang and LMDeploy
