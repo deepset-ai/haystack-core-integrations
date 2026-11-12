@@ -140,6 +140,26 @@ def test_run_init_params():
     assert res["documents"][0].content == "Test doc"
 
 
+def test_run_init_filters_with_merge_policy_are_not_merged_with_themselves():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
+    retriever = AzureAISearchBM25Retriever(
+        document_store=mock_store,
+        filters={
+            "operator": "AND",
+            "conditions": [
+                {"field": "type", "operator": "==", "value": "article"},
+                {"field": "year", "operator": ">=", "value": 2020},
+            ],
+        },
+        filter_policy=FilterPolicy.MERGE,
+    )
+    retriever.run(query="Test query")
+    mock_store._bm25_retrieval.assert_called_once_with(
+        query="Test query", filters="(type eq 'article') and (year ge 2020)", top_k=10
+    )
+
+
 def test_run_time_params():
     mock_store = Mock(spec=AzureAISearchDocumentStore)
     mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]

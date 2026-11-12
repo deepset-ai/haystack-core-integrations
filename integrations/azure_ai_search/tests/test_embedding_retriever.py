@@ -147,6 +147,26 @@ def test_run_init_params():
     assert res["documents"][0].embedding == [0.1, 0.2]
 
 
+def test_run_init_filters_with_merge_policy_are_not_merged_with_themselves():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
+    retriever = AzureAISearchEmbeddingRetriever(
+        document_store=mock_store,
+        filters={
+            "operator": "AND",
+            "conditions": [
+                {"field": "type", "operator": "==", "value": "article"},
+                {"field": "year", "operator": ">=", "value": 2020},
+            ],
+        },
+        filter_policy=FilterPolicy.MERGE,
+    )
+    retriever.run(query_embedding=[0.5, 0.7])
+    mock_store._embedding_retrieval.assert_called_once_with(
+        query_embedding=[0.5, 0.7], filters="(type eq 'article') and (year ge 2020)", top_k=10
+    )
+
+
 def test_run_time_params():
     mock_store = Mock(spec=AzureAISearchDocumentStore)
     mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
