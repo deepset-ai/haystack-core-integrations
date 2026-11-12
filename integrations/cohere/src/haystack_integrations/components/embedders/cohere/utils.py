@@ -10,6 +10,24 @@ from cohere import AsyncClientV2, ClientV2
 from .embedding_types import EmbeddingTypes
 
 
+def _merge_meta(accumulated: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(accumulated)
+    for key, value in new.items():
+        previous = merged.get(key)
+        if isinstance(previous, dict) and isinstance(value, dict):
+            merged[key] = _merge_meta(previous, value)
+        elif (
+            isinstance(previous, (int, float))
+            and isinstance(value, (int, float))
+            and not isinstance(previous, bool)
+            and not isinstance(value, bool)
+        ):
+            merged[key] = previous + value
+        elif value is not None or key not in merged:
+            merged[key] = value
+    return merged
+
+
 async def get_async_response(
     cohere_async_client: AsyncClientV2,
     texts: list[str],
@@ -61,7 +79,7 @@ async def get_async_response(
                 # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
                 all_embeddings.extend(emb_tuple[1])
         if response.meta is not None:
-            metadata = response.meta.model_dump()
+            metadata = _merge_meta(metadata, response.meta.model_dump())
 
     return all_embeddings, metadata
 
@@ -119,6 +137,6 @@ def get_response(
                 # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
                 all_embeddings.extend(emb_tuple[1])
         if response.meta is not None:
-            metadata = response.meta.model_dump()
+            metadata = _merge_meta(metadata, response.meta.model_dump())
 
     return all_embeddings, metadata
