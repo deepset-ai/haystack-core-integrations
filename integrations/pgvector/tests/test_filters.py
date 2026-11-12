@@ -180,6 +180,24 @@ class TestFilters(FilterDocumentsTest):
         result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": 2**31})
         assert {doc.content for doc in result} == {"big"}
 
+    @pytest.mark.parametrize(
+        "operator, expected",
+        [("in", {"float", "int"}), ("not in", {"other", "no number"})],
+    )
+    def test_in_and_not_in_with_mixed_int_float_list(self, document_store, operator, expected):
+        docs = [
+            Document(content="float", meta={"number": 1.5}),
+            Document(content="int", meta={"number": 3}),
+            Document(content="other", meta={"number": 2}),
+            Document(content="no number", meta={"name": "x"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(
+            filters={"field": "meta.number", "operator": operator, "value": [1.5, 3]}
+        )
+        assert {doc.content for doc in result} == expected
+
     def test_array_contains_operator(self, document_store):
         docs = self._docs_with_array_meta()
         document_store.write_documents(docs)
