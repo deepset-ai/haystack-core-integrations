@@ -185,7 +185,7 @@ class TestTopLevelFieldValidation:
         ],
     )
     def test_valid_top_level_fields_pass(self, field, operator, value):
-        clause, params = _convert_filters_to_where_clause_and_params(
+        clause, _params = _convert_filters_to_where_clause_and_params(
             {"field": field, "operator": operator, "value": value}
         )
         assert f"`{field}`" in clause
