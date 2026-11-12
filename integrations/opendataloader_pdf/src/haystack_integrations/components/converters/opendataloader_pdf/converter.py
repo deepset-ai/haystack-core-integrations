@@ -100,8 +100,8 @@ class OpenDataLoaderConverter:
         :param extract_images: Whether to extract images and return them through the `image_documents` output.
         :param image_output_dir: Persistent root directory for extracted image files. Each `run()` stores its images
             in a unique subdirectory of this directory. Required when `extract_images` is `True`.
-        :param skip_failed_pdfs: Bisect failed batches and skip failing PDFs with a warning. Java and source
-            preparation errors still propagate.
+        :param skip_failed_pdfs: Re-run failing batches in halves until bad PDFs are identified and skipped with a
+            warning. Each bad PDF adds extra Java runs.
         :param raw_json: If `True` with `output_format="json"`, store the raw OpenDataLoader JSON string in
             `Document.content` and add no PDF metadata. Has no effect with other output formats.
         :param include_layout: If `True` with `output_format="json"`, add a `layout` list to `Document.meta` with one
@@ -366,7 +366,7 @@ class OpenDataLoaderConverter:
                 documents.append(
                     Document(content=content, meta={**extra_meta, **document_meta, "output_format": self.output_format})
                 )
-        except (subprocess.CalledProcessError, RuntimeError) as exc:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as exc:
             if not self.skip_failed_pdfs:
                 raise
             # Failed attempts may leave seemingly valid text and images. Never reuse their outputs.
@@ -382,6 +382,7 @@ class OpenDataLoaderConverter:
                 )
                 return []
 
+            # Retry each half separately to isolate failing PDFs while retaining successful batches.
             logger.warning(
                 "Batch of {count} PDFs failed; splitting into smaller batches: {error}", count=len(sources), error=exc
             )

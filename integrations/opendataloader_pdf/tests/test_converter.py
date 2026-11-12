@@ -566,31 +566,6 @@ def test_converter_all_failed_batches_leave_no_images(count, tmp_path, _mock_ope
     assert not list(image_output_dir.rglob("*.png"))
 
 
-@pytest.mark.parametrize("skip_failed_pdfs", [False, True])
-def test_converter_missing_output(skip_failed_pdfs, _mock_opendataloader, monkeypatch, caplog):
-    convert = converter_module.opendataloader_pdf.convert
-    calls = []
-
-    def missing_output(input_path, output_dir, **kwargs):
-        calls.append([Path(path).stem for path in input_path])
-        convert(input_path, output_dir, **kwargs)
-        if "document_1" in calls[-1]:
-            (Path(output_dir) / "document_1.md").unlink()
-
-    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", missing_output)
-    sources = [ByteStream(data=b"%PDF fake pdf") for _ in range(2)]
-    converter = OpenDataLoaderConverter(skip_failed_pdfs=skip_failed_pdfs)
-    if skip_failed_pdfs:
-        result = converter.run(sources=sources)
-        assert [document.meta["file_path"] for document in result["documents"]] == ["document_0.pdf"]
-        assert calls == [["document_0", "document_1"], ["document_0"], ["document_1"]]
-        assert "Skipping PDF document_1.pdf" in caplog.text
-    else:
-        with pytest.raises(RuntimeError, match="did not create expected file"):
-            converter.run(sources=sources)
-        assert calls == [["document_0", "document_1"]]
-
-
 @pytest.mark.parametrize("raw_json", [False, True])
 @pytest.mark.parametrize("missing_output", [False, True])
 def test_converter_json_retries_preserve_content_and_metadata(
