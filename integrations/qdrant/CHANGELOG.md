@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/qdrant-v13.2.0] - 2026-11-11
+
+### 🚀 Features
+
+- Qdrant - add multivector support (#4231)
+
+
+## [integrations/qdrant-v13.1.1] - 2026-11-09
+
+### 🐛 Bug Fixes
+
+- Qdrant - apply scale_score to grouped results and fix write progress bar (#4171)
+- Include unindexed fields in Qdrant get_metadata_fields_info (#4178)
+- Qdrant - match numeric filter values with a closed range (#4161)
+
 ## [integrations/qdrant-v13.1.0] - 2026-10-22
 
 ### 🚀 Features

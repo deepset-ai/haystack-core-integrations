@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/solr-v2.0.1] - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- *(solr)* Match ints and floats alike in numeric filters (#4173)
+
+
 ## [integrations/solr-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

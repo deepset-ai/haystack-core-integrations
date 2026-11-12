@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -26,6 +30,7 @@ from qdrant_client.http import models as rest
 
 from haystack_integrations.document_stores.qdrant.document_store import (
     DENSE_VECTORS_NAME,
+    MULTIVECTOR_NAME,
     SPARSE_VECTORS_NAME,
     QdrantDocumentStore,
     QdrantStoreError,
@@ -40,18 +45,24 @@ class TestQdrantDocumentStoreUnit:
             QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
             mocked_qdrant.assert_not_called()
 
+    @pytest.mark.parametrize("dimension", [0, -1])
+    def test_invalid_multivector_dimension(self, dimension):
+        with pytest.raises(ValueError, match="greater than zero"):
+            QdrantDocumentStore(multivector_embedding_dim=dimension)
+
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("QDRANT_API_KEY", "test_api_key")
-        doc_store = QdrantDocumentStore(
-            ":memory:",
+        document_store = QdrantDocumentStore(
+            location=":memory:",
+            index="test",
             recreate_index=True,
             return_embedding=True,
-            wait_result_from_api=True,
-            use_sparse_embeddings=False,
+            multivector_embedding_dim=2,
             api_key=Secret.from_env_var("QDRANT_API_KEY"),
             client_kwargs={"check_compatibility": False},
         )
-        expected_dict = {
+
+        expected = {
             "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
             "init_parameters": {
                 "location": ":memory:",
@@ -60,19 +71,15 @@ class TestQdrantDocumentStoreUnit:
                 "grpc_port": 6334,
                 "prefer_grpc": False,
                 "https": None,
-                "api_key": {
-                    "env_vars": ["QDRANT_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
+                "api_key": {"env_vars": ["QDRANT_API_KEY"], "strict": True, "type": "env_var"},
                 "prefix": None,
                 "timeout": None,
                 "host": None,
                 "path": None,
-                "force_disable_check_same_thread": False,
-                "index": "Document",
+                "index": "test",
                 "embedding_dim": 768,
                 "on_disk": False,
+                "force_disable_check_same_thread": False,
                 "use_sparse_embeddings": False,
                 "sparse_idf": False,
                 "similarity": "cosine",
@@ -93,9 +100,69 @@ class TestQdrantDocumentStoreUnit:
                 "scroll_size": 10000,
                 "payload_fields_to_index": None,
                 "client_kwargs": {"check_compatibility": False},
+                "multivector_embedding_dim": 2,
             },
         }
-        assert doc_store.to_dict() == expected_dict
+
+        assert document_store.to_dict() == expected
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("ENV_VAR", "test-key")
+        document_store = QdrantDocumentStore.from_dict(
+            {
+                "type": "haystack_integrations.document_stores.qdrant.document_store.QdrantDocumentStore",
+                "init_parameters": {
+                    "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
+                    "location": ":memory:",
+                    "index": "test",
+                    "embedding_dim": 768,
+                    "multivector_embedding_dim": 2,
+                    "on_disk": False,
+                    "force_disable_check_same_thread": False,
+                    "use_sparse_embeddings": True,
+                    "sparse_idf": True,
+                    "similarity": "cosine",
+                    "return_embedding": False,
+                    "progress_bar": True,
+                    "recreate_index": True,
+                    "shard_number": None,
+                    "quantization_config": None,
+                    "wait_result_from_api": True,
+                    "metadata": {},
+                    "write_batch_size": 1000,
+                    "scroll_size": 10000,
+                    "payload_fields_to_index": None,
+                    "client_kwargs": {"check_compatibility": False},
+                },
+            }
+        )
+
+        assert document_store.index == "test"
+        assert document_store.force_disable_check_same_thread is False
+        assert document_store.use_sparse_embeddings is True
+        assert document_store.sparse_idf is True
+        assert document_store.on_disk is False
+        assert document_store.similarity == "cosine"
+        assert document_store.return_embedding is False
+        assert document_store.progress_bar
+        assert document_store.recreate_index is True
+        assert document_store.shard_number is None
+        assert document_store.replication_factor is None
+        assert document_store.write_consistency_factor is None
+        assert document_store.on_disk_payload is None
+        assert document_store.hnsw_config is None
+        assert document_store.optimizers_config is None
+        assert document_store.wal_config is None
+        assert document_store.quantization_config is None
+        assert document_store.wait_result_from_api
+        assert document_store.metadata == {}
+        assert document_store.write_batch_size == 1000
+        assert document_store.scroll_size == 10000
+        assert document_store.api_key == Secret.from_env_var("ENV_VAR", strict=False)
+        assert document_store.payload_fields_to_index is None
+        assert document_store.client_kwargs == {"check_compatibility": False}
+        assert document_store.multivector_embedding_dim == 2
+        assert document_store.api_key.resolve_value() == "test-key"
 
     def test_query_hybrid_search_batch_failure(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
@@ -106,6 +173,22 @@ class TestQdrantDocumentStoreUnit:
         with patch.object(document_store._client, "query_points", side_effect=Exception("query_points")):
             with pytest.raises(QdrantStoreError):
                 document_store._query_hybrid(query_sparse_embedding=sparse_embedding, query_embedding=embedding)
+
+    def test_multivector_query_wraps_backend_error(self):
+        store = QdrantDocumentStore(multivector_embedding_dim=2)
+        store._client = MagicMock()
+        error = RuntimeError("backend failed")
+        store._client.query_points.side_effect = error
+        with pytest.raises(QdrantStoreError, match="Error querying multivector") as exc:
+            store._query_by_multivector_embedding([[1.0, 0.0]])
+        assert exc.value.__cause__ is error
+
+    def test_multivector_collection_is_compatible(self):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
+        store._initialize_client()
+        info = store._client.get_collection(store.index)
+
+        store._validate_collection_compatibility(store.index, info, rest.Distance.COSINE, 768)
 
     def test_set_up_collection_with_existing_incompatible_collection(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
@@ -144,6 +227,7 @@ class TestQdrantDocumentStoreUnit:
         # Mock collection info with named vectors
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
+        mock_collection_info.config.params.sparse_vectors = {SPARSE_VECTORS_NAME: rest.SparseVectorParams()}
 
         with (
             patch.object(document_store._client, "collection_exists", return_value=True),
@@ -185,6 +269,29 @@ class TestQdrantDocumentStoreUnit:
             with pytest.raises(ValueError, match="different vector size"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
 
+    @pytest.mark.parametrize(
+        ("existing_dimension", "requested_dimension", "overrides"),
+        [
+            pytest.param(None, 2, {}, id="missing"),
+            pytest.param(2, None, {}, id="unexpected"),
+            pytest.param(3, 2, {}, id="wrong-dimension"),
+            pytest.param(2, 2, {"distance": rest.Distance.COSINE}, id="wrong-distance"),
+            pytest.param(2, 2, {"multivector_config": None}, id="missing-comparator"),
+        ],
+    )
+    def test_collection_rejects_incompatible_multivector_config(
+        self, existing_dimension, requested_dimension, overrides
+    ):
+        existing_store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=existing_dimension)
+        existing_store._initialize_client()
+        info = existing_store._client.get_collection(existing_store.index)
+        for field, value in overrides.items():
+            setattr(info.config.params.vectors[MULTIVECTOR_NAME], field, value)
+        store = QdrantDocumentStore(multivector_embedding_dim=requested_dimension)
+
+        with pytest.raises(QdrantStoreError, match="incompatible multivector"):
+            store._validate_collection_compatibility(store.index, info, rest.Distance.COSINE, 768)
+
     def test_get_distance_known(self):
         document_store = QdrantDocumentStore(location=":memory:")
         assert document_store.get_distance("cosine") == rest.Distance.COSINE
@@ -208,6 +315,12 @@ class TestQdrantDocumentStoreUnit:
     def test_validate_filters_rejects_dict_without_operator(self):
         with pytest.raises(ValueError, match="Invalid filter syntax"):
             QdrantDocumentStore._validate_filters({"field": "meta.x"})
+
+    def test_multivector_query_rejects_invalid_filters(self):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
+        with pytest.raises(ValueError, match="Invalid filter syntax"):
+            store._query_by_multivector_embedding([[1.0, 0.0]], filters={"field": "x"})
+        assert store._client is None
 
     def test_check_stop_scrolling(self):
         assert QdrantDocumentStore._check_stop_scrolling(None) is True
@@ -326,6 +439,13 @@ class TestQdrantDocumentStoreUnit:
         result = document_store._drop_duplicate_documents([doc1, doc2, doc1_dup])
         assert [d.id for d in result] == ["1", "2"]
 
+    @pytest.mark.parametrize(("dimension", "embedding"), [(None, [[1.0, 0.0]]), (2, []), (2, [[1.0]])])
+    def test_write_rejects_invalid_multivector_embedding(self, dimension, embedding):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=dimension)
+        with pytest.raises(ValueError, match="multivector_embedding_dim"):
+            store.write_documents([Document(multivector_embedding=embedding)])
+        assert store.count_documents() == 0
+
     def test_prepare_collection_config_without_sparse(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
         vectors_config, sparse_config = document_store._prepare_collection_config(
@@ -341,6 +461,18 @@ class TestQdrantDocumentStoreUnit:
         )
         assert DENSE_VECTORS_NAME in vectors_config
         assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
+
+    def test_multivector_collection_config(self):
+        store = QdrantDocumentStore(multivector_embedding_dim=2)
+        vectors, _ = store._prepare_collection_config(3, rest.Distance.COSINE, on_disk=True)
+        assert vectors[DENSE_VECTORS_NAME] == rest.VectorParams(size=3, distance=rest.Distance.COSINE, on_disk=True)
+        assert vectors[MULTIVECTOR_NAME] == rest.VectorParams(
+            size=2,
+            distance=rest.Distance.DOT,
+            on_disk=True,
+            multivector_config=rest.MultiVectorConfig(comparator=rest.MultiVectorComparator.MAX_SIM),
+            hnsw_config=rest.HnswConfigDiff(m=0),
+        )
 
     def test_prepare_client_params_does_not_mutate_metadata(self):
         metadata = {"key": "value"}
@@ -402,6 +534,19 @@ class TestQdrantDocumentStoreUnit:
         with pytest.raises(QdrantStoreError, match="use_sparse_embeddings=False"):
             document_store._query_by_sparse(query_sparse_embedding=sparse_embedding)
 
+    def test_query_rejects_invalid_multivector_embedding(self):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
+        with pytest.raises(ValueError, match="multivector_embedding_dim"):
+            store._query_by_multivector_embedding([[1.0]])
+        assert store._client is None
+
+    @pytest.mark.parametrize("top_k", [0, -1])
+    def test_multivector_query_rejects_invalid_top_k(self, top_k):
+        store = QdrantDocumentStore(location=":memory:", multivector_embedding_dim=2)
+        with pytest.raises(ValueError, match="top_k must be greater than zero"):
+            store._query_by_multivector_embedding([[1.0, 0.0]], top_k=top_k)
+        assert store._client is None
+
     @pytest.mark.parametrize(
         ("method_name", "args"),
         [
@@ -429,6 +574,23 @@ class TestQdrantDocumentStoreUnit:
                 getattr(document_store, method_name)(*args)
             assert exc_info.value.__cause__ is err
 
+    def test_get_metadata_fields_info_includes_unindexed_fields_when_some_are_indexed(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        schema = {"meta.category": rest.PayloadIndexInfo(data_type=rest.PayloadSchemaType.TEXT, points=1)}
+        client = MagicMock()
+        client.get_collection.return_value = SimpleNamespace(payload_schema=schema)
+        client.scroll.return_value = (
+            [SimpleNamespace(payload={"meta": {"category": "news", "priority": 1}})],
+            None,
+        )
+        document_store._client = client
+
+        fields = document_store.get_metadata_fields_info()
+
+        # "news" would be inferred as "keyword", so "text" proves the indexed type wins.
+        assert fields == {"category": {"type": "text"}, "priority": {"type": "long"}}
+        client.scroll.assert_called_once()
+
     def test_close(self):
         document_store = QdrantDocumentStore(location=":memory:")
         mock_client = MagicMock()
@@ -451,6 +613,36 @@ class TestQdrantDocumentStoreUnit:
         document_store.close()
 
         assert document_store._client is None
+
+    @pytest.mark.parametrize(
+        "method_name, query_kwargs",
+        [
+            ("_query_by_embedding", {"query_embedding": [0.1] * 768}),
+            ("_query_by_sparse", {"query_sparse_embedding": SparseEmbedding(indices=[0], values=[0.1])}),
+        ],
+    )
+    @pytest.mark.parametrize("scale_score, expected_score", [(True, 0.75), (False, 0.5)])
+    def test_query_with_group_by_scale_score(self, method_name, query_kwargs, scale_score, expected_score):
+        document_store = QdrantDocumentStore(location=":memory:", similarity="cosine", use_sparse_embeddings=True)
+        mock_client = MagicMock()
+        point = rest.ScoredPoint(id=1, version=0, score=0.5, payload={"id": "1", "content": "doc"})
+        mock_client.query_points_groups.return_value.groups = [rest.PointGroup(id="a", hits=[point])]
+        document_store._client = mock_client
+
+        result = getattr(document_store, method_name)(**query_kwargs, group_by="meta.group", scale_score=scale_score)
+
+        assert [doc.score for doc in result] == [expected_score]
+
+    def test_write_documents_progress_bar_counts_documents(self):
+        document_store = QdrantDocumentStore(location=":memory:", write_batch_size=2)
+        document_store._client = MagicMock()
+        with patch("haystack_integrations.document_stores.qdrant.document_store.tqdm") as mock_tqdm:
+            document_store.write_documents(
+                [Document(content=str(i)) for i in range(3)], policy=DuplicatePolicy.OVERWRITE
+            )
+
+        progress_bar = mock_tqdm.return_value.__enter__.return_value
+        assert [c.args[0] for c in progress_bar.update.call_args_list] == [2, 1]
 
 
 @pytest.mark.integration
@@ -500,23 +692,6 @@ class TestQdrantDocumentStore(
         assert document_store._client is None
         assert document_store.count_documents() == 0
         assert document_store._client is not None
-
-    def test_prepare_client_params_no_mutability(self):
-        metadata = {"key": "value"}
-        doc_store = QdrantDocumentStore(
-            ":memory:",
-            recreate_index=True,
-            return_embedding=True,
-            wait_result_from_api=True,
-            use_sparse_embeddings=False,
-            metadata=metadata,
-        )
-        client_params = doc_store._prepare_client_params()
-        # Mutate value of metadata in client_params
-        client_params["metadata"] = client_params["metadata"].update({"new_key": "new_value"})
-
-        # Assert that the original metadata in the document store is unchanged
-        assert metadata == {"key": "value"}
 
     def test_write_documents(self, document_store: QdrantDocumentStore):
         docs = [Document(id="1")]
@@ -609,33 +784,45 @@ class TestQdrantDocumentStore(
                 query_embedding=embedding,
             )
 
-    def test_delete_all_documents_index_recreation(self, document_store):
+    @pytest.mark.parametrize(
+        ("sparse", "dimension", "similarity"),
+        [(False, None, "cosine"), (True, None, "dot_product"), (False, 2, "l2"), (True, 2, "cosine")],
+    )
+    def test_delete_all_documents_index_recreation(self, sparse, dimension, similarity):
+        document_store = QdrantDocumentStore(
+            location=":memory:",
+            use_sparse_embeddings=sparse,
+            sparse_idf=sparse,
+            multivector_embedding_dim=dimension,
+            similarity=similarity,
+        )
         document_store._initialize_client()
 
-        # write some documents
-        docs = [Document(id=str(i)) for i in range(5)]
+        docs = [Document(id="1", multivector_embedding=[[1.0, 0.0]] if dimension else None)]
         document_store.write_documents(docs)
 
-        # get the current document_store config
         config_before = document_store._client.get_collection(document_store.index)
 
-        # delete all documents with recreating the index
         document_store.delete_all_documents(recreate_index=True)
         assert document_store.count_documents() == 0
 
-        # assure that with the same config
         config_after = document_store._client.get_collection(document_store.index)
 
         assert config_before.config == config_after.config
 
-        # ensure the collection still exists by writing documents again
         document_store.write_documents(docs)
-        assert document_store.count_documents() == 5
+        assert document_store.count_documents() == 1
 
-    def test_update_by_filter_preserves_vectors(self, document_store: QdrantDocumentStore):
+    def test_update_by_filter_preserves_vectors(self):
         """Test that update_by_filter preserves document embeddings."""
+        document_store = QdrantDocumentStore(location=":memory:", return_embedding=True, multivector_embedding_dim=2)
         docs = [
-            Document(content="Doc 1", meta={"category": "A"}, embedding=[0.1] * 768),
+            Document(
+                content="Doc 1",
+                meta={"category": "A"},
+                embedding=[0.1] * 768,
+                multivector_embedding=[[1.0, 0.0]],
+            ),
             Document(content="Doc 2", meta={"category": "B"}, embedding=[0.2] * 768),
         ]
         document_store.write_documents(docs)
@@ -653,3 +840,5 @@ class TestQdrantDocumentStore(
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
+
+        assert updated_docs[0].multivector_embedding == [[1.0, 0.0]]

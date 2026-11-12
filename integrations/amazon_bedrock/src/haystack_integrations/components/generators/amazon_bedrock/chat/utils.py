@@ -74,14 +74,65 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 }
 
 
+# string formats accepted by strict tool use; other formats (e.g. `binary` from `ByteStream`) are rejected
+_STRICT_SUPPORTED_STRING_FORMATS = {
+    "date-time",
+    "time",
+    "date",
+    "duration",
+    "email",
+    "hostname",
+    "uri",
+    "ipv4",
+    "ipv6",
+    "uuid",
+}
+
+
+def _make_schema_strict(schema: Any) -> Any:
+    """
+    Return a copy of a JSON schema adapted to strict tool use.
+
+    Strict tool use requires `additionalProperties: false` on every object and rejects unsupported string formats.
+    Only schema positions are rewritten (`properties` values, `items`, `$defs`, `anyOf`/`oneOf`/`allOf`), so a
+    parameter that happens to be named `properties` or `type` is left alone.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    strict_schema = dict(schema)
+    for key in ("anyOf", "oneOf", "allOf"):
+        if isinstance(strict_schema.get(key), list):
+            strict_schema[key] = [_make_schema_strict(sub_schema) for sub_schema in strict_schema[key]]
+    for key in ("properties", "$defs"):
+        if isinstance(strict_schema.get(key), dict):
+            strict_schema[key] = {
+                name: _make_schema_strict(sub_schema) for name, sub_schema in strict_schema[key].items()
+            }
+    if "items" in strict_schema:
+        strict_schema["items"] = _make_schema_strict(strict_schema["items"])
+
+    if strict_schema.get("type") == "object" or "properties" in strict_schema:
+        strict_schema["additionalProperties"] = False
+    if strict_schema.get("type") == "string" and strict_schema.get("format") not in _STRICT_SUPPORTED_STRING_FORMATS:
+        strict_schema.pop("format", None)
+    return strict_schema
+
+
 # Haystack to Bedrock util methods
 def _format_tools(
-    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, dict[str, str]] | None = None
+    tools: list[Tool] | None = None,
+    tools_cachepoint_config: dict[str, dict[str, str]] | None = None,
+    *,
+    strict: bool = False,
 ) -> dict[str, Any] | None:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
 
     :param tools: List of Tool objects to format
+    :param tools_cachepoint_config: Cache point appended after the tool specs, if any.
+    :param strict: Whether to mark each tool spec `strict`, enforcing its input schema on the model's tool calls.
+        The input schema is rewritten to the subset strict tool use accepts.
     :returns:
         Dictionary in Bedrock toolConfig format or None if no tools are provided
     """
@@ -90,9 +141,14 @@ def _format_tools(
 
     tool_specs: list[dict[str, Any]] = []
     for tool in tools:
-        tool_specs.append(
-            {"toolSpec": {"name": tool.name, "description": tool.description, "inputSchema": {"json": tool.parameters}}}
-        )
+        tool_spec: dict[str, Any] = {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": {"json": _make_schema_strict(tool.parameters) if strict else tool.parameters},
+        }
+        if strict:
+            tool_spec["strict"] = True
+        tool_specs.append({"toolSpec": tool_spec})
 
     if tools_cachepoint_config:
         tool_specs.append(tools_cachepoint_config)
@@ -456,6 +512,33 @@ def _format_messages(
     return system_prompts, repaired_bedrock_formatted_messages
 
 
+def _openai_compatible_usage(usage: dict[str, Any]) -> dict[str, Any]:
+    """
+    Convert a Converse `usage` dict to OpenAI's usage format, for cross ChatGenerator compatibility.
+
+    OpenAI's `prompt_tokens` includes the tokens served from the prompt cache. With prompt caching on, Converse's
+    `inputTokens` counts only the non-cached tokens, and AWS documents the total input as
+    `inputTokens + cacheReadInputTokens + cacheWriteInputTokens`, so they are summed here. `total_tokens` is derived
+    from the result rather than taken from `totalTokens`, which isn't documented to include cached tokens.
+    The Bedrock-specific cache keys are kept as they are.
+
+    :param usage: the `usage` dict of a Converse response or of a ConverseStream `metadata` event.
+    :returns: the usage in OpenAI's format, plus the Bedrock cache fields.
+    """
+    cache_read = usage.get("cacheReadInputTokens") or 0
+    cache_write = usage.get("cacheWriteInputTokens") or 0
+    prompt_tokens = (usage.get("inputTokens") or 0) + cache_read + cache_write
+    completion_tokens = usage.get("outputTokens") or 0
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+        "cache_read_input_tokens": cache_read,
+        "cache_write_input_tokens": cache_write,
+        "cache_details": usage.get("cacheDetails", []),
+    }
+
+
 def _parse_completion_response(response_body: dict[str, Any], model: str) -> list[ChatMessage]:
     """
     Parse a Bedrock API response into Haystack ChatMessage objects.
@@ -479,15 +562,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                 "model": model,
                 "index": 0,
                 "finish_reason": FINISH_REASON_MAPPING.get(response_body.get("stopReason", "")),
-                "usage": {
-                    # OpenAI's format for usage for cross ChatGenerator compatibility
-                    "prompt_tokens": response_body.get("usage", {}).get("inputTokens", 0),
-                    "completion_tokens": response_body.get("usage", {}).get("outputTokens", 0),
-                    "total_tokens": response_body.get("usage", {}).get("totalTokens", 0),
-                    "cache_read_input_tokens": response_body.get("usage", {}).get("cacheReadInputTokens", 0),
-                    "cache_write_input_tokens": response_body.get("usage", {}).get("cacheWriteInputTokens", 0),
-                    "cache_details": response_body.get("usage", {}).get("cacheDetails", []),
-                },
+                "usage": _openai_compatible_usage(response_body.get("usage", {})),
             }
             # guardrail trace
             if "trace" in response_body:
@@ -643,15 +718,7 @@ def _convert_event_to_streaming_chunk(
         chunk_meta: dict[str, Any] = {**base_meta}
 
         if "usage" in event_meta:
-            usage = event_meta["usage"]
-            chunk_meta["usage"] = {
-                "prompt_tokens": usage.get("inputTokens", 0),
-                "completion_tokens": usage.get("outputTokens", 0),
-                "total_tokens": usage.get("totalTokens", 0),
-                "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
-                "cache_write_input_tokens": usage.get("cacheWriteInputTokens", 0),
-                "cache_details": usage.get("cacheDetails", []),
-            }
+            chunk_meta["usage"] = _openai_compatible_usage(event_meta["usage"])
         if "trace" in event_meta:
             chunk_meta["trace"] = event_meta["trace"]
 

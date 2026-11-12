@@ -27,11 +27,13 @@ from haystack.testing.document_store import (
     create_filterable_docs,
 )
 from haystack.utils.auth import Secret
+from haystack.utils.filters import document_matches_filter
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
+from weaviate.connect import ConnectionParams, ProtocolParams
 from weaviate.embedded import (
     DEFAULT_BINARY_PATH,
     DEFAULT_GRPC_PORT,
@@ -183,6 +185,157 @@ def test_integration_header_is_not_serialized():
 
     ds = WeaviateDocumentStore(additional_headers={"X-HuggingFace-Api-Key": "k"})
     assert ds.to_dict()["init_parameters"]["additional_headers"] == {"X-HuggingFace-Api-Key": "k"}
+
+
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
+def test_client_grpc_host_defaults_to_url_host(mock_weaviate_client_class):
+    """Without `grpc_host` the connection params must stay exactly the ones `ConnectionParams.from_url`
+    builds, so existing deployments keep pointing gRPC at the host parsed from `url`."""
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_weaviate_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="https://weaviate.example.com", grpc_port=50052, grpc_secure=True)
+    assert ds.client is mock_client
+
+    _args, kwargs = mock_weaviate_client_class.call_args
+    assert kwargs["connection_params"] == ConnectionParams.from_url(
+        url="https://weaviate.example.com", grpc_port=50052, grpc_secure=True
+    )
+
+
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
+def test_client_uses_separate_grpc_host(mock_weaviate_client_class):
+    """A Weaviate deployment can publish REST and gRPC on different hosts, typically behind an ingress
+    that terminates TLS for both on port 443. `ConnectionParams` rejects that shape unless the gRPC host
+    differs from the REST one, so `grpc_host` is the only way to express it."""
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_weaviate_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(
+        url="https://weaviate.example.com",
+        grpc_host="weaviate.grpc.example.com",
+        grpc_port=443,
+        grpc_secure=True,
+    )
+    assert ds.client is mock_client
+
+    _args, kwargs = mock_weaviate_client_class.call_args
+    connection_params = kwargs["connection_params"]
+    assert connection_params.http == ProtocolParams(host="weaviate.example.com", port=443, secure=True)
+    assert connection_params.grpc == ProtocolParams(host="weaviate.grpc.example.com", port=443, secure=True)
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateAsyncClient")
+async def test_async_client_grpc_host_defaults_to_url_host(mock_weaviate_async_client_class):
+    mock_client = MagicMock()
+    mock_client.connect = AsyncMock()
+    mock_client.collections.exists = AsyncMock(return_value=True)
+    mock_weaviate_async_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="https://weaviate.example.com", grpc_port=50052, grpc_secure=True)
+    assert await ds.async_client is mock_client
+
+    _args, kwargs = mock_weaviate_async_client_class.call_args
+    assert kwargs["connection_params"] == ConnectionParams.from_url(
+        url="https://weaviate.example.com", grpc_port=50052, grpc_secure=True
+    )
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateAsyncClient")
+async def test_async_client_uses_separate_grpc_host(mock_weaviate_async_client_class):
+    mock_client = MagicMock()
+    mock_client.connect = AsyncMock()
+    mock_client.collections.exists = AsyncMock(return_value=True)
+    mock_weaviate_async_client_class.return_value = mock_client
+
+    ds = WeaviateDocumentStore(
+        url="https://weaviate.example.com",
+        grpc_host="weaviate.grpc.example.com",
+        grpc_port=443,
+        grpc_secure=True,
+    )
+    assert await ds.async_client is mock_client
+
+    _args, kwargs = mock_weaviate_async_client_class.call_args
+    connection_params = kwargs["connection_params"]
+    assert connection_params.http == ProtocolParams(host="weaviate.example.com", port=443, secure=True)
+    assert connection_params.grpc == ProtocolParams(host="weaviate.grpc.example.com", port=443, secure=True)
+
+
+@pytest.mark.parametrize("grpc_secure", [False, True])
+@pytest.mark.parametrize(
+    "url",
+    ["http://localhost:8080", "http://weaviate.example.com", "https://weaviate.example.com", "https://h.example:9443"],
+)
+def test_connection_params_with_grpc_host_derives_http_params_like_from_url(url, grpc_secure):
+    """`grpc_host` cannot go through `ConnectionParams.from_url`, so the HTTP side is derived by hand.
+    That derivation must keep matching `from_url` and leave the gRPC port alone."""
+    expected = ConnectionParams.from_url(url=url, grpc_port=50051, grpc_secure=grpc_secure)
+
+    connection_params = WeaviateDocumentStore(
+        url=url,
+        grpc_host="weaviate.grpc.example.com",
+        grpc_port=50051,
+        grpc_secure=grpc_secure,
+    )._connection_params()
+
+    assert connection_params.http == expected.http
+    assert connection_params.grpc == ProtocolParams(host="weaviate.grpc.example.com", port=50051, secure=grpc_secure)
+
+
+def test_grpc_secure_is_not_inherited_from_the_url_scheme():
+    """`from_url` upgrades the gRPC channel to TLS for an `https` url because both protocols then share
+    a host. A separate `grpc_host` is a separate endpoint that terminates TLS on its own, so there
+    `grpc_secure` is taken at face value, because otherwise an https REST ingress in front of a
+    plaintext internal gRPC service could not be configured at all."""
+    url = "https://weaviate.example.com"
+
+    inherited = WeaviateDocumentStore(url=url, grpc_secure=False)._connection_params()
+    assert inherited.grpc.secure is True
+
+    independent = WeaviateDocumentStore(url=url, grpc_host="weaviate-grpc.internal", grpc_secure=False)
+    connection_params = independent._connection_params()
+    assert connection_params.http.secure is True
+    assert connection_params.grpc == ProtocolParams(host="weaviate-grpc.internal", port=50051, secure=False)
+
+
+def test_connection_params_ignore_grpc_host_when_it_cannot_apply():
+    """`grpc_host` only means something next to a `url`, and an empty value means unset just as it does
+    for `url` itself. Without a `url` the client falls back to `embedded_options`, so there are no
+    connection params at all."""
+    assert WeaviateDocumentStore(grpc_host="weaviate.grpc.example.com")._connection_params() is None
+
+    expected = ConnectionParams.from_url(url="http://localhost:8080", grpc_port=50051)
+    assert WeaviateDocumentStore(url="http://localhost:8080", grpc_host="")._connection_params() == expected
+
+
+@pytest.mark.parametrize(
+    ("url", "warns"),
+    [
+        (None, True),
+        ("https://rAnD0mD1g1t5.something.weaviate.cloud", True),
+        ("https://my-cluster.weaviate.network", True),
+        ("https://weaviate.example.com", False),
+    ],
+)
+def test_init_warns_when_grpc_host_is_ignored(caplog, url, warns):
+    with caplog.at_level(logging.WARNING):
+        WeaviateDocumentStore(url=url, grpc_host="weaviate.grpc.example.com")
+    assert ("`grpc_host` is ignored" in caplog.text) is warns
+
+
+@pytest.mark.parametrize(
+    ("url", "error"),
+    [("weaviate.example.com", "Unsupported scheme"), ("http://", "Could not parse a host")],
+)
+def test_connection_params_with_grpc_host_rejects_unusable_url(url, error):
+    ds = WeaviateDocumentStore(url=url, grpc_host="weaviate.grpc.example.com")
+    with pytest.raises(ValueError, match=error):
+        ds._connection_params()
 
 
 def test_to_data_object_with_sparse_embedding_logs_warning(caplog):
@@ -383,6 +536,7 @@ class TestWeaviateDocumentStoreSerde:
             "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
             "init_parameters": {
                 "url": "http://localhost:8080",
+                "grpc_host": None,
                 "grpc_port": 50051,
                 "grpc_secure": False,
                 "collection_settings": {
@@ -429,20 +583,23 @@ class TestWeaviateDocumentStoreSerde:
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict_and_from_dict_preserves_grpc_settings(self, _mock_weaviate):
-        """`grpc_port`/`grpc_secure` configure the gRPC connection and must
+        """`grpc_host`/`grpc_port`/`grpc_secure` configure the gRPC connection and must
         survive a to_dict/from_dict round-trip; otherwise a reloaded store
-        silently falls back to the default gRPC port/security."""
+        silently falls back to the default gRPC host/port/security."""
         document_store = WeaviateDocumentStore(
             url="http://localhost:8080",
+            grpc_host="weaviate.grpc.example.com",
             grpc_port=50052,
             grpc_secure=True,
         )
 
         serialized = document_store.to_dict()
+        assert serialized["init_parameters"]["grpc_host"] == "weaviate.grpc.example.com"
         assert serialized["init_parameters"]["grpc_port"] == 50052
         assert serialized["init_parameters"]["grpc_secure"] is True
 
         restored = WeaviateDocumentStore.from_dict(serialized)
+        assert restored._grpc_host == "weaviate.grpc.example.com"
         assert restored._grpc_port == 50052
         assert restored._grpc_secure is True
 
@@ -664,6 +821,21 @@ class TestWeaviateDocumentStore(
 
         assert document_store.count_documents() == 0
 
+    def test_separate_grpc_host(self, request):
+        # `localhost` and `127.0.0.1` are different host strings for the same container, which is enough to
+        # exercise the `grpc_host` path; writes and filters go over gRPC, so they prove the channel works.
+        collection_settings = {"class": request.node.name, "invertedIndexConfig": {"indexNullState": True}}
+        store = WeaviateDocumentStore(
+            url="http://localhost:8080", grpc_host="127.0.0.1", collection_settings=collection_settings
+        )
+        try:
+            assert store._connection_params().grpc.host == "127.0.0.1"
+            assert store.write_documents([Document(content="hello grpc")]) == 1
+            assert [doc.content for doc in store.filter_documents()] == ["hello grpc"]
+        finally:
+            store.client.collections.delete(collection_settings["class"])
+            store.close()
+
     def test_write_documents(self, document_store):
         """
         Test write_documents() with default policy overwrites existing documents.
@@ -784,6 +956,19 @@ class TestWeaviateDocumentStore(
         result = document_store.filter_documents(nested_not)
 
         self.assert_documents_are_equal(result, [d for d in filterable_docs if d.meta.get("number") == 100])
+
+    def test_not_operator_over_range_includes_documents_without_the_field(self, document_store, filterable_docs):
+        """NOT(x > v) must also select Documents without x, matching `document_matches_filter`."""
+        document_store.write_documents(filterable_docs)
+        # Not parametrized: the fixture names the collection after the test, and brackets aren't valid there
+        for operator in [">", ">=", "<", "<="]:
+            filters = {"operator": "NOT", "conditions": [{"field": "meta.number", "operator": operator, "value": 0}]}
+
+            result = document_store.filter_documents(filters)
+
+            expected = [d for d in filterable_docs if document_matches_filter(filters, d)]
+            assert any("number" not in d.meta for d in expected)
+            self.assert_documents_are_equal(result, expected)
 
     def test_not_operator_over_contains(self, document_store, filterable_docs):
         """`contains` has no inverted counterpart, so negating it used to raise a bare KeyError."""
