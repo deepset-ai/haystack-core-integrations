@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import nullcontext
 from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -27,9 +29,10 @@ from haystack.testing.document_store_async import (
 from haystack.utils import Secret
 from psycopg import AsyncConnection, Error
 from psycopg.cursor_async import AsyncCursor
-from psycopg.sql import SQL
+from psycopg.sql import SQL, Identifier
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+from haystack_integrations.document_stores.pgvector.table_replacement import _prepare_async_store, _Swap
 
 
 @pytest.mark.integration
@@ -189,6 +192,27 @@ class TestDocumentStoreAsync(
         """
         await document_store.delete_table_async()  # if throw error, test fails
 
+    async def test_delete_documents_async_with_quotes_in_ids(self, document_store: PgvectorDocumentStore):
+        """
+        The ids are passed as a bound parameter, so quotes in them are not interpreted as SQL.
+        """
+        docs = [
+            Document(id="O'Brien", content="quote in id"),
+            Document(id="x') OR ('1'='1", content="injection-shaped id"),
+            Document(id="1", content="hello"),
+            Document(id="2", content="world"),
+        ]
+        await document_store.write_documents_async(docs)
+
+        await document_store.delete_documents_async(["O'Brien"])
+        remaining = await document_store.filter_documents_async()
+        assert sorted(doc.id for doc in remaining) == ["1", "2", "x') OR ('1'='1"]
+
+        # only matches the document with this exact id, instead of every document
+        await document_store.delete_documents_async(["x') OR ('1'='1"])
+        remaining = await document_store.filter_documents_async()
+        assert sorted(doc.id for doc in remaining) == ["1", "2"]
+
     async def test_close_async_and_reopen(self, document_store: PgvectorDocumentStore):
         assert await document_store.count_documents_async() == 0
         assert document_store._async_connection is not None
@@ -205,9 +229,9 @@ class TestDocumentStoreAsync(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_hnsw_index_recreation():
-    async def get_index_oid(cursor, document_store, schema_name, index_name):
-        sql_get_index_oid = SQL("""
-            SELECT c.oid
+    async def get_index_oid_and_reloptions(cursor, document_store, schema_name, index_name):
+        sql_get_index_oid_and_reloptions = SQL("""
+            SELECT c.oid, c.reloptions
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relkind = 'i'
@@ -215,15 +239,16 @@ async def test_hnsw_index_recreation():
             AND c.relname = %s;
         """)
         result = await document_store._execute_sql_async(
-            cursor=cursor, sql_query=sql_get_index_oid, params=(schema_name, index_name)
+            cursor=cursor, sql_query=sql_get_index_oid_and_reloptions, params=(schema_name, index_name)
         )
-        return (await result.fetchone())[0]
+        return await result.fetchone()
 
     # create a new schema
     connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
     schema_name = "test_schema"
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
-        await conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+        await conn.execute(f"CREATE SCHEMA {schema_name}")
 
     # create a first document store and trigger the creation of the hnsw index
     params = {
@@ -235,23 +260,58 @@ async def test_hnsw_index_recreation():
     ds1 = PgvectorDocumentStore(**params)
     await ds1._ensure_db_setup_async()
 
-    # get the hnsw index oid
+    # get the hnsw index oid and options
     hnws_index_name = "haystack_hnsw_index"
-    first_oid = await get_index_oid(
+    first_oid, first_reloptions = await get_index_oid_and_reloptions(
         cursor=ds1._async_cursor, document_store=ds1, schema_name=ds1.schema_name, index_name=hnws_index_name
     )
+    assert first_reloptions is None
 
-    # create second document store with recreation enabled
-    ds2 = PgvectorDocumentStore(**params, hnsw_recreate_index_if_exists=True)
+    # create second document store with recreation enabled and custom index creation kwargs
+    ds2 = PgvectorDocumentStore(
+        **params, hnsw_recreate_index_if_exists=True, hnsw_index_creation_kwargs={"m": 32, "ef_construction": 128}
+    )
     await ds2._ensure_db_setup_async()
 
-    # get the index oid
-    second_oid = await get_index_oid(
+    # get the index oid and options
+    second_oid, second_reloptions = await get_index_oid_and_reloptions(
         cursor=ds2._async_cursor, document_store=ds2, schema_name=ds2.schema_name, index_name=hnws_index_name
     )
 
-    # verify that oids differ
+    # verify that oids differ and the recreated index uses the new kwargs
     assert second_oid != first_oid, "Index was not recreated (OID remained the same)"
+    assert sorted(second_reloptions) == ["ef_construction=128", "m=32"]
+
+    # Clean up: drop the schema after the test
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_hnsw_index_creation_kwargs_values_are_not_interpreted_as_sql():
+    connection_string = "postgresql://postgres:postgres@localhost:5432/postgres"
+    schema_name = "test_schema_hnsw_kwargs_injection_async"
+    async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+        await conn.execute(f"CREATE SCHEMA {schema_name}")
+        await conn.execute(f"CREATE TABLE {schema_name}.canary (id int)")
+
+    document_store = PgvectorDocumentStore(
+        connection_string=Secret.from_token(connection_string),
+        schema_name=schema_name,
+        table_name="haystack_test_hnsw_kwargs_injection",
+        search_strategy="hnsw",
+        hnsw_index_creation_kwargs={"m": f"16); DROP TABLE {schema_name}.canary; --"},
+    )
+
+    # the value is passed as a literal, so PostgreSQL rejects it as an invalid value for "m"
+    with pytest.raises(DocumentStoreError, match="Could not create HNSW index"):
+        await document_store._ensure_db_setup_async()
+
+    async with await psycopg.AsyncConnection.connect(connection_string) as conn:
+        canary = await (await conn.execute("SELECT to_regclass(%s)", (f"{schema_name}.canary",))).fetchone()
+    assert canary[0] is not None
 
     # Clean up: drop the schema after the test
     async with await psycopg.AsyncConnection.connect(connection_string, autocommit=True) as conn:
@@ -409,3 +469,202 @@ async def test_close_async_is_exception_safe(mock_store):
     await mock_store.close_async()
 
     assert mock_store._async_connection is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_db_setup_async_uses_overridden_create_connection_async(monkeypatch):
+    monkeypatch.setenv("PG_CONN_STR", "some-connection-string")
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.set_autocommit = AsyncMock()
+    mock_connection.execute = AsyncMock()
+
+    class CustomConnectionDocumentStore(PgvectorDocumentStore):
+        async def _create_connection_async(self) -> AsyncConnection:
+            return mock_connection
+
+    store = CustomConnectionDocumentStore()
+    with (
+        patch("haystack_integrations.document_stores.pgvector.document_store.register_vector_async") as mock_register,
+        patch.object(CustomConnectionDocumentStore, "_initialize_table_async") as mock_initialize_table,
+    ):
+        await store._ensure_db_setup_async()
+
+    assert store._async_connection is mock_connection
+    mock_connection.set_autocommit.assert_awaited_once_with(True)
+    mock_connection.execute.assert_awaited_once_with("CREATE EXTENSION IF NOT EXISTS vector")
+    mock_register.assert_awaited_once_with(mock_connection)
+    assert store._async_cursor is not None
+    assert store._async_dict_cursor is not None
+    mock_initialize_table.assert_awaited_once()
+
+
+async def _index_names_async(store: PgvectorDocumentStore, table_name: str) -> set[str]:
+    await store._ensure_db_setup_async()
+    assert store._async_connection is not None
+    cursor = await store._async_connection.execute(
+        "SELECT indexname FROM pg_indexes WHERE schemaname = %s AND tablename = %s", (store.schema_name, table_name)
+    )
+    return {name for (name,) in await cursor.fetchall()}
+
+
+async def _doc_ids_async(store: PgvectorDocumentStore) -> list[str]:
+    return sorted(document.id for document in await store.filter_documents_async())
+
+
+# The checks and SQL of a replacement are shared with the sync path and covered in test_document_store.py.
+# These tests target what only the async driver does: its transaction, statement loop, and error handling.
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_replace_table_async_hnsw(document_store_w_hnsw_index: PgvectorDocumentStore, make_staging_store):
+    live = document_store_w_hnsw_index
+    await live.write_documents_async([Document(id="old", content="old", embedding=[0.1] * 768)])
+    staging = make_staging_store(live)
+    await staging.write_documents_async([Document(id="new", content="new", embedding=[0.1] * 768)])
+
+    # Short explicit backup name, so that `<backup>_pkey` fits in PostgreSQL's 63-byte identifier limit
+    backup = await live.replace_table_async(staging, backup_table_name=f"backup_{uuid4().hex[:8]}")
+
+    retrieved = await live._embedding_retrieval_async([0.1] * 768, top_k=5)
+    assert [document.id for document in retrieved] == ["new"]
+    assert await _index_names_async(live, live.table_name) == {
+        live.keyword_index_name,
+        live.hnsw_index_name,
+        f"{live.table_name}_pkey",
+    }
+    assert staging.table_name == backup
+    assert await _index_names_async(live, backup) == {
+        staging.keyword_index_name,
+        staging.hnsw_index_name,
+        f"{backup}_pkey",
+    }
+    assert await _doc_ids_async(staging) == ["old"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_replace_table_async_rolls_back_on_failed_check(
+    document_store: PgvectorDocumentStore, make_staging_store
+):
+    await document_store.write_documents_async([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    await staging.write_documents_async([Document(id="new", content="new")])
+    backup = f"backup_{uuid4().hex[:8]}"
+    # A table already holds the name the backup primary key would get, so the check fails inside the transaction
+    blocker = make_staging_store(document_store, table_name=f"{backup}_pkey")
+    await blocker.write_documents_async([Document(id="x", content="x")])
+    live_indexes = await _index_names_async(document_store, document_store.table_name)
+    staging_indexes = await _index_names_async(document_store, staging.table_name)
+
+    with pytest.raises(DocumentStoreError, match=f"Backup index relation public.{backup}_pkey already exists"):
+        await document_store.replace_table_async(staging, backup_table_name=backup)
+
+    assert await _doc_ids_async(document_store) == ["old"]
+    assert await _doc_ids_async(staging) == ["new"]
+    assert await _index_names_async(document_store, document_store.table_name) == live_indexes
+    assert await _index_names_async(document_store, staging.table_name) == staging_indexes
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_replace_table_async_lock_timeout(document_store: PgvectorDocumentStore, make_staging_store):
+    await document_store.write_documents_async([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    await staging.write_documents_async([Document(id="new", content="new")])
+    live_indexes = await _index_names_async(document_store, document_store.table_name)
+
+    # A long-running reader: an open transaction keeps a lock on the live table
+    with psycopg.connect(document_store.connection_string.resolve_value()) as blocker:
+        blocker.execute(SQL("SELECT count(*) FROM {table}").format(table=Identifier(document_store.table_name)))
+        with pytest.raises(DocumentStoreError, match="lock timeout"):
+            await document_store.replace_table_async(staging, lock_timeout_ms=200)
+        blocker.rollback()
+
+    assert await _doc_ids_async(document_store) == ["old"]
+    assert await _doc_ids_async(staging) == ["new"]
+    assert await _index_names_async(document_store, document_store.table_name) == live_indexes
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_replace_table_async_fresh_instance(document_store: PgvectorDocumentStore, make_staging_store):
+    await document_store.write_documents_async([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    await staging.write_documents_async([Document(id="new", content="new")])
+    # An instance that has not touched the database yet, configured to recreate its table on first setup
+    fresh = PgvectorDocumentStore(
+        connection_string=document_store.connection_string,
+        table_name=document_store.table_name,
+        embedding_dimension=document_store.embedding_dimension,
+        vector_function=document_store.vector_function,
+        recreate_table=True,
+    )
+
+    await fresh.replace_table_async(staging)
+    # Reconnecting must not run table setup again, which would drop the promoted table
+    await fresh.close_async()
+
+    try:
+        assert await _doc_ids_async(fresh) == ["new"]
+    finally:
+        await fresh.close_async()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_replace_table_async_rolls_back_midway(
+    document_store: PgvectorDocumentStore, make_staging_store, monkeypatch
+):
+    await document_store.write_documents_async([Document(id="old", content="old")])
+    staging = make_staging_store(document_store)
+    await staging.write_documents_async([Document(id="new", content="new")])
+    live_name, staging_name = document_store.table_name, staging.table_name
+    live_indexes = await _index_names_async(document_store, live_name)
+    staging_indexes = await _index_names_async(document_store, staging_name)
+    backup = f"backup_{uuid4().hex[:8]}"
+
+    # PostgreSQL gives no natural way to fail between renames, so inject a failing statement right after the live
+    # table was renamed to the backup name: the point where a non-atomic swap would leave no live table at all
+    plan = _Swap.plan
+
+    def plan_failing_midway(self, results):
+        statements = plan(self, results)
+        return [*statements[:-1], SQL("SELECT 1/0"), statements[-1]]
+
+    monkeypatch.setattr(_Swap, "plan", plan_failing_midway)
+
+    with pytest.raises(DocumentStoreError, match="division by zero"):
+        await document_store.replace_table_async(staging, backup_table_name=backup)
+
+    assert document_store.table_name == live_name
+    assert staging.table_name == staging_name
+    assert await _doc_ids_async(document_store) == ["old"]
+    assert await _doc_ids_async(staging) == ["new"]
+    assert await _index_names_async(document_store, live_name) == live_indexes
+    assert await _index_names_async(document_store, staging_name) == staging_indexes
+    assert await _index_names_async(document_store, backup) == set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("setup_fails", [False, True])
+async def test_prepare_async_store_never_recreates_or_initializes_tables(monkeypatch, setup_fails):
+    store = PgvectorDocumentStore(recreate_table=True, hnsw_recreate_index_if_exists=True)
+    seen = {}
+
+    async def ensure_db_setup_async():
+        seen.update(recreate=store.recreate_table, recreate_hnsw=store.hnsw_recreate_index_if_exists)
+        seen.update(initialized=store._table_initialized)
+        if setup_fails:
+            msg = "connection failed"
+            raise DocumentStoreError(msg)
+
+    monkeypatch.setattr(store, "_ensure_db_setup_async", ensure_db_setup_async)
+
+    with pytest.raises(DocumentStoreError) if setup_fails else nullcontext():
+        await _prepare_async_store(store)
+
+    # While connecting, setup must neither drop nor create a table
+    assert seen == {"recreate": False, "recreate_hnsw": False, "initialized": True}
+    # Afterwards, and also when connecting fails, the caller's settings are restored
+    assert (store.recreate_table, store.hnsw_recreate_index_if_exists, store._table_initialized) == (True, True, False)

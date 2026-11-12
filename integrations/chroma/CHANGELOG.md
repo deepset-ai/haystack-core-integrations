@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/chroma-v5.1.0] - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- *(chroma)* Distinguish metadata ID filters from document IDs (#4124)
+
+
+## [integrations/chroma-v5.0.0] - 2026-10-16
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/chroma-v4.5.0] - 2026-09-01
 
 ### 🐛 Bug Fixes

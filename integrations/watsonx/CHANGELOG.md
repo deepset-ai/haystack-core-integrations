@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/watsonx-v3.0.0] - 2026-10-16
+
+### 🚜 Refactor
+
+- [**breaking**] Remove from_dict overrides that only call default_from_dict from 14 components (#4059)
+
+### 🧹 Chores
+
+- Drop redundant deserialize_secrets_inplace calls in integrations requiring haystack-ai>=2.23 (#4058)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/watsonx-v2.0.0] - 2026-09-11
 
 ### 🐛 Bug Fixes

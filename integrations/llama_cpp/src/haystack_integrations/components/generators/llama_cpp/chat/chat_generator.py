@@ -5,13 +5,14 @@
 import asyncio
 import json
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import (
     ChatMessage,
+    ChatRole,
     ComponentInfo,
     ImageContent,
     StreamingCallbackT,
@@ -67,9 +68,12 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
     tool_call_results = message.tool_call_results
     images = message.images
 
-    if not text_contents and not tool_calls and not tool_call_results and not images:
+    has_content = bool(text_contents or tool_calls or tool_call_results or images)
+    # An assistant message with no content parts is sent with empty content, which the API accepts
+    if not has_content and not message.is_from(ChatRole.ASSISTANT):
         msg = (
-            "A `ChatMessage` must contain at least one `TextContent`, `ImageContent`, `ToolCall`, or `ToolCallResult`."
+            f"A `ChatMessage` from `{message.role.value}` must contain at least one `TextContent`, `ImageContent`, "
+            "`ToolCall`, or `ToolCallResult`. Only assistant messages can be empty."
         )
         raise ValueError(msg)
     elif len(text_contents) + len(tool_call_results) > 1:
@@ -132,6 +136,8 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
 
         if text_contents:
             result["content"] = text_contents[0]
+        elif not has_content:
+            result["content"] = ""
 
         if tool_calls:
             llamacpp_tool_calls: list[ChatCompletionMessageToolCall] = []
@@ -153,6 +159,18 @@ def _convert_message_to_llamacpp_format(message: ChatMessage) -> ChatCompletionR
 
     error_msg = f"Unknown role: {role}"
     raise ValueError(error_msg)
+
+
+def _convert_chat_history_to_llamacpp_format(messages: list[ChatMessage]) -> list[ChatCompletionRequestMessage]:
+    """
+    Convert a list of ChatMessages to the format expected by llama.cpp Chat API.
+
+    A trailing assistant message with no text and no tool calls is left out. Sent as an empty assistant turn, it makes
+    the model stop after its thinking without writing an answer.
+    """
+    if messages and messages[-1].is_from(ChatRole.ASSISTANT) and not messages[-1].texts and not messages[-1].tool_calls:
+        messages = messages[:-1]
+    return [_convert_message_to_llamacpp_format(msg) for msg in messages]
 
 
 @component
@@ -363,7 +381,8 @@ class LlamaCppChatGenerator:
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during
-            component initialization.
+            component initialization. Pass an empty list to disable tools for this call; `None` uses the tools
+            set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             If set, it will override the `streaming_callback` parameter set during component initialization.
         :returns: A dictionary with the following keys:
@@ -377,9 +396,9 @@ class LlamaCppChatGenerator:
             return {"replies": []}
 
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        formatted_messages = [_convert_message_to_llamacpp_format(msg) for msg in messages]
+        formatted_messages = _convert_chat_history_to_llamacpp_format(messages=messages)
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
 
@@ -456,7 +475,8 @@ class LlamaCppChatGenerator:
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during
-            component initialization.
+            component initialization. Pass an empty list to disable tools for this call; `None` uses the tools
+            set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             If set, it will override the `streaming_callback` parameter set during component initialization.
         :returns: A dictionary with the following keys:
@@ -550,7 +570,7 @@ class LlamaCppChatGenerator:
                 finish_reason=mapped_finish_reason,
                 meta={
                     "model": chunk["model"],
-                    "received_at": datetime.fromtimestamp(chunk["created"], tz=timezone.utc).isoformat(),
+                    "received_at": datetime.fromtimestamp(chunk["created"], tz=UTC).isoformat(),
                 },  # llama.cpp does not provide usage metadata during streaming
             )
 

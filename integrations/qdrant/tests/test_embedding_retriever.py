@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from dataclasses import replace
 from unittest.mock import AsyncMock, Mock
 
@@ -8,7 +12,6 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
 )
-from qdrant_client.http import models as rest
 
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantEmbeddingRetriever,
@@ -83,6 +86,8 @@ class TestQdrantRetriever:
                         "write_batch_size": 100,
                         "scroll_size": 10000,
                         "payload_fields_to_index": None,
+                        "client_kwargs": {},
+                        "multivector_embedding_dim": None,
                     },
                 },
                 "filters": None,
@@ -231,38 +236,14 @@ class TestQdrantRetriever:
         assert call_kwargs["return_embedding"] is False
         assert call_kwargs["score_threshold"] == 0.0
 
-    def test_run_raises_when_merge_with_native_init_filter(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantEmbeddingRetriever(
-            document_store=document_store,
-            filters=rest.Filter(must=[]),
-            filter_policy=FilterPolicy.MERGE,
-        )
-        with pytest.raises(ValueError, match="Native Qdrant filters"):
-            retriever.run(query_embedding=[0.1])
-
-    def test_run_raises_when_merge_with_native_runtime_filter(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantEmbeddingRetriever(document_store=document_store, filter_policy=FilterPolicy.MERGE)
-        with pytest.raises(ValueError, match="Native Qdrant filters"):
-            retriever.run(query_embedding=[0.1], filters=rest.Filter(must=[]))
-
-    @pytest.mark.asyncio
-    async def test_run_async_raises_when_merge_with_native_filter(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantEmbeddingRetriever(
-            document_store=document_store,
-            filters=rest.Filter(must=[]),
-            filter_policy=FilterPolicy.MERGE,
-        )
-        with pytest.raises(ValueError, match="Native Qdrant filters"):
-            await retriever.run_async(query_embedding=[0.1])
-
 
 @pytest.mark.integration
 class TestQdrantEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
-    def test_run(self, filterable_docs: list[Document]):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+    @pytest.mark.parametrize("dimension", [None, 2])
+    def test_run(self, dimension, filterable_docs: list[Document]):
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=False, multivector_embedding_dim=dimension
+        )
 
         document_store.write_documents(filterable_docs)
 
@@ -368,8 +349,11 @@ class TestQdrantEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
             assert document.embedding is None
 
     @pytest.mark.asyncio
-    async def test_run_async(self, filterable_docs: list[Document]):
-        document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
+    @pytest.mark.parametrize("dimension", [None, 2])
+    async def test_run_async(self, dimension, filterable_docs: list[Document]):
+        document_store = QdrantDocumentStore(
+            location=":memory:", index="Boi", use_sparse_embeddings=False, multivector_embedding_dim=dimension
+        )
 
         await document_store.write_documents_async(filterable_docs)
 

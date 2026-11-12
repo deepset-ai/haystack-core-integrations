@@ -511,7 +511,7 @@ class TransformersChatGenerator:
             # Ensure the queue processor is cleaned up properly
             try:
                 await asyncio.wait_for(queue_processor, timeout=0.1)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 queue_processor.cancel()
                 with suppress(asyncio.CancelledError):
                     await queue_processor
@@ -535,7 +535,7 @@ class TransformersChatGenerator:
         """
         assert self.pipeline is not None  # noqa: S101
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         if tools and streaming_callback is not None:
             msg = "Using tools and streaming at the same time is not supported. Please choose one."
             raise ValueError(msg)

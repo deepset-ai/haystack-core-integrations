@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/markitdown-v2.0.0] - 2026-10-16
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Re-standardize READMEs (#3768)
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/markitdown-v1.0.0] - 2026-03-26
 
 ### 🌀 Miscellaneous

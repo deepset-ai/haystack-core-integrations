@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Iterator
 from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -26,6 +27,52 @@ from falkordb.asyncio.graph import AsyncGraph  # type: ignore[import-untyped]
 logger = logging.getLogger(__name__)
 
 _CYPHER_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+_GRAPH_CATALOG_QUERIES = {
+    "labels": "CALL db.labels() YIELD label RETURN label ORDER BY label",
+    "relationship_types": (
+        "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType"
+    ),
+    "property_keys": "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey ORDER BY propertyKey",
+}
+
+_NODE_SAMPLE_RETURN = "RETURN {labels: labels(n), properties: [key IN keys(n) | {name: key, type: typeOf(n[key])}]}"
+_RELATIONSHIP_SAMPLE_RETURN = (
+    "RETURN {type: type(r), source_labels: labels(source), target_labels: labels(target), "
+    "properties: [key IN keys(r) | {name: key, type: typeOf(r[key])}]}"
+)
+
+
+class _RelationshipRecord(TypedDict):
+    source_id: str
+    target_id: str
+    properties: dict[str, Any]
+
+
+class _PropertySchema(TypedDict):
+    name: str
+    type: str
+
+
+class _NodeSchema(TypedDict):
+    labels: list[str]
+    properties: list[_PropertySchema]
+
+
+class _RelationshipSchema(TypedDict):
+    type: str
+    source_labels: list[str]
+    target_labels: list[str]
+    properties: list[_PropertySchema]
+
+
+class _GraphSchema(TypedDict):
+    labels: list[str]
+    relationship_types: list[str]
+    property_keys: list[str]
+    node_samples: list[_NodeSchema]
+    relationship_samples: list[_RelationshipSchema]
+
 
 # Haystack filter operators → Cypher comparison operators.
 _COMPARISON_OPS: dict[str, str] = {
@@ -84,6 +131,8 @@ class FalkorDBDocumentStore(DocumentStore):
         write_batch_size: int = 100,
         recreate_graph: bool = False,
         verify_connectivity: bool = False,
+        labels_metadata_field: str | None = None,
+        relationships_metadata_field: str | None = None,
     ) -> None:
         """
         Create a new FalkorDBDocumentStore.
@@ -102,12 +151,20 @@ class FalkorDBDocumentStore(DocumentStore):
             vector.
         :param similarity: Similarity function for the vector index.  Accepted values
             are `"cosine"` and `"euclidean"`.
-        :param write_batch_size: Number of documents written per `UNWIND` batch.
+        :param write_batch_size: Maximum rows per graph-writing batch. Must be positive.
         :param recreate_graph: When `True` the existing graph (and all its data) is
             dropped and recreated on initialisation. Useful for tests.
         :param verify_connectivity: When `True` a connectivity probe is run
             immediately in `__init__` — raises if the server is unreachable.
-        :raises ValueError: If `similarity` is not `"cosine"` or `"euclidean"`.
+        :param labels_metadata_field: `Document.meta` key containing extra node labels; `None` disables extraction.
+            Labels must be non-empty strings without backticks. `node_label` is always retained.
+        :param relationships_metadata_field: `Document.meta` key containing outgoing relationships; `None` disables
+            extraction. Each entry requires `target_id` and `type`, with an optional `properties` dictionary.
+            Relationship types must be non-empty strings without backticks.
+            Targets must already exist or be included in the same write. Configured graph fields are consumed,
+            not stored or returned as metadata. See `write_documents` for write behavior and an example.
+        :raises ValueError: `similarity` is unsupported, `write_batch_size` is not a positive integer, or graph metadata
+            field names are identical.
         """
         if similarity not in ("cosine", "euclidean"):
             msg = (
@@ -116,6 +173,16 @@ class FalkorDBDocumentStore(DocumentStore):
             )
             raise ValueError(msg)
 
+        if labels_metadata_field is not None and labels_metadata_field == relationships_metadata_field:
+            msg = "Labels and relationships must use distinct metadata fields."
+            raise ValueError(msg)
+
+        if not isinstance(write_batch_size, int) or write_batch_size < 1:
+            msg = f"`write_batch_size` must be a positive integer but is {write_batch_size}"
+            raise ValueError(msg)
+
+        self.labels_metadata_field = labels_metadata_field
+        self.relationships_metadata_field = relationships_metadata_field
         self.host = host
         self.port = port
         self.graph_name = graph_name
@@ -162,6 +229,8 @@ class FalkorDBDocumentStore(DocumentStore):
             write_batch_size=self.write_batch_size,
             recreate_graph=self.recreate_graph,
             verify_connectivity=self.verify_connectivity,
+            labels_metadata_field=self.labels_metadata_field,
+            relationships_metadata_field=self.relationships_metadata_field,
         )
 
     @classmethod
@@ -410,17 +479,41 @@ class FalkorDBDocumentStore(DocumentStore):
         Write documents to the FalkorDB graph using `UNWIND` + `MERGE` for batching.
 
         Document `meta` fields are stored **flat** at the same level as `id` and
-        `content` — no prefix is added.  This matches the layout used by the
+        `content` — no prefix is added. This matches the layout used by the
         `neo4j-haystack` reference integration.
+
+        Configured graph metadata fields are consumed rather than stored as properties. Extra labels are added;
+        outgoing relationships are merged by source ID, type, and target ID, updating only supplied properties.
+        Existing labels, edges, and unspecified edge properties are preserved even with `OVERWRITE`.
+        `SKIP` leaves existing documents and their graph structure untouched. Relationships are written after
+        all node batches, so targets can appear later in the input. Malformed graph metadata is rejected before
+        document writes. Writes are not transactional: missing targets, backend failures, or concurrent changes
+        can leave documents and some relationships written.
+
+        ### Usage example
+
+        ```python
+        from haystack import Document
+        from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
+
+        store = FalkorDBDocumentStore(labels_metadata_field="labels", relationships_metadata_field="relationships")
+        article = Document(id="article", content="GraphRAG", meta={
+            "labels": ["Article"],
+            "relationships": [{"target_id": "topic", "type": "ABOUT", "properties": {"weight": 0.9}}],
+        })
+        topic = Document(id="topic", content="Knowledge graphs")
+        print(store.write_documents([article, topic]))  # 2; creates an ABOUT relationship from article to topic.
+        ```
 
         :param documents: List of :class:`haystack.dataclasses.Document` objects.
         :param policy: How to handle documents whose `id` already exists.
             Defaults to :attr:`DuplicatePolicy.NONE` (treated as FAIL).
-        :raises ValueError: If `documents` contains non-Document elements.
-        :raises DuplicateDocumentError: If `policy` is FAIL / NONE and a duplicate
-            ID is encountered.
-        :raises DocumentStoreError: If any other DB error occurs.
-        :returns: Number of documents written or updated.
+        :raises TypeError: Graph metadata has invalid types or property shapes.
+        :raises ValueError: `documents` contains non-Document elements, required relationship keys are missing,
+            or a label or relationship type is empty or contains a backtick.
+        :raises DuplicateDocumentError: `policy` is FAIL / NONE and a duplicate ID is encountered.
+        :raises DocumentStoreError: A relationship target is missing or a document-node or relationship write fails.
+        :returns: Number of documents written or updated, not including relationships.
         """
         self.warm_up()
         assert self.graph is not None  # noqa: S101
@@ -438,13 +531,62 @@ class FalkorDBDocumentStore(DocumentStore):
             policy = DuplicatePolicy.FAIL
 
         document_objects = self._handle_duplicate_documents(documents, policy)
-
+        document_objects, labels, relationships = self._prepare_graph_documents(document_objects)
         written = 0
         for batch_start in range(0, len(document_objects), self.write_batch_size):
             batch = document_objects[batch_start : batch_start + self.write_batch_size]
-            written += self._write_batch(batch, policy)
+            written += self._write_batch(batch, policy, labels)
 
+        for query, params in self._relationship_queries(relationships):
+            try:
+                result = self.graph.query(query, params)
+            except Exception as exc:
+                msg = f"Failed to write relationships to FalkorDB: {exc}"
+                raise DocumentStoreError(msg) from exc
+            _check_relationship_count(result.result_set, len(params["rows"]))
         return written
+
+    def _prepare_graph_documents(
+        self, documents: list[Document]
+    ) -> tuple[list[Document], dict[str, list[str]], dict[str, list[_RelationshipRecord]]]:
+        """Return documents without graph metadata, document IDs by label, and relationship records by type."""
+        if self.labels_metadata_field is None and self.relationships_metadata_field is None:
+            return documents, {}, {}
+        labels: dict[str, list[str]] = {}
+        relationships: dict[str, list[_RelationshipRecord]] = {}
+        prepared = []
+        for doc in documents:
+            meta = dict(doc.meta)
+            doc_labels = meta.pop(self.labels_metadata_field, []) if self.labels_metadata_field is not None else []
+            doc_relationships = (
+                meta.pop(self.relationships_metadata_field, []) if self.relationships_metadata_field is not None else []
+            )
+            if not isinstance(doc_labels, list) or not isinstance(doc_relationships, list):
+                msg = f"Document '{doc.id}' graph metadata fields must contain lists."
+                raise TypeError(msg)
+            for label in doc_labels:
+                _validate_graph_name(label)
+                labels.setdefault(label, []).append(doc.id)
+            for relationship in doc_relationships:
+                rel_type, record = _prepare_relationship(doc.id, relationship)
+                relationships.setdefault(rel_type, []).append(record)
+            prepared.append(replace(doc, meta=meta))
+        return prepared, labels, relationships
+
+    def _relationship_queries(
+        self, relationships: dict[str, list[_RelationshipRecord]]
+    ) -> Iterator[tuple[str, dict[str, Any]]]:
+        """Yield batched relationship upsert queries and parameters, grouped by relationship type."""
+        for rel_type, rows in relationships.items():
+            for start in range(0, len(rows), self.write_batch_size):
+                yield (
+                    (
+                        f"UNWIND $rows AS row MATCH (source:{self.node_label} {{id: row.source_id}}), "
+                        f"(target:{self.node_label} {{id: row.target_id}}) "
+                        f"MERGE (source)-[r:`{rel_type}`]->(target) SET r += row.properties RETURN count(r)"
+                    ),
+                    {"rows": rows[start : start + self.write_batch_size]},
+                )
 
     def _handle_duplicate_documents(
         self,
@@ -504,7 +646,27 @@ class FalkorDBDocumentStore(DocumentStore):
             seen_ids.add(doc.id)
         return unique
 
-    def _write_batch(self, documents: list[Document], policy: DuplicatePolicy) -> int:
+    def _write_batch_query(
+        self, documents: list[Document], policy: DuplicatePolicy, labels: dict[str, list[str]]
+    ) -> tuple[str, dict[str, Any]]:
+        """Build a document-batch upsert query and parameters, including extra label assignments."""
+        query = f"UNWIND $docs AS doc MERGE (d:{self.node_label} {{id: doc.id}}) ON CREATE SET d += doc "
+        if policy == DuplicatePolicy.OVERWRITE:
+            # ON MATCH SET applies the full map (including updated fields).
+            query += "ON MATCH SET d = doc "
+        # FAIL already filtered duplicates above and SKIP excluded them, so only new nodes reach this query.
+        params: dict[str, Any] = {"docs": [_document_to_falkordb_record(doc) for doc in documents]}
+        batch_ids = {doc.id for doc in documents}
+        for index, (label, ids) in enumerate(labels.items()):
+            if matching_ids := sorted(batch_ids.intersection(ids)):
+                params[f"label_ids_{index}"] = matching_ids
+                # Some documents have extra labels, and `labels` says which docs get which label. The query handles all
+                # documents in one pass, so instead of an "if" per document, FOREACH loops over a list that holds this
+                # doc's id if it needs the label and is empty if not, so only matching documents get the label.
+                query += f"FOREACH (_ IN [id IN $label_ids_{index} WHERE id = doc.id] | SET d:`{label}`) "
+        return query + "RETURN count(d) AS n", params
+
+    def _write_batch(self, documents: list[Document], policy: DuplicatePolicy, labels: dict[str, list[str]]) -> int:
         """
         Write a single batch of documents using a single UNWIND query.
 
@@ -513,33 +675,14 @@ class FalkorDBDocumentStore(DocumentStore):
 
         :param documents: Batch of Documents (≤ `write_batch_size`).
         :param policy: Duplicate policy — only OVERWRITE needs a different Cypher template.
+        :param labels: Validated extra labels mapped to document IDs.
         :returns: Number of nodes created or updated.
         """
         assert self.graph is not None  # noqa: S101
 
-        records = [_document_to_falkordb_record(doc) for doc in documents]
-
-        if policy == DuplicatePolicy.OVERWRITE:
-            # ON MATCH SET applies the full map (including updated fields).
-            cypher = f"""
-UNWIND $docs AS doc
-MERGE (d:{self.node_label} {{id: doc.id}})
-ON CREATE SET d += doc
-ON MATCH SET d = doc
-RETURN count(d) AS n
-"""
-        else:
-            # FAIL already filtered duplicates above; SKIP excluded them.
-            # In both remaining cases we only write truly-new nodes.
-            cypher = f"""
-UNWIND $docs AS doc
-MERGE (d:{self.node_label} {{id: doc.id}})
-ON CREATE SET d += doc
-RETURN count(d) AS n
-"""
-
+        cypher, params = self._write_batch_query(documents, policy, labels)
         try:
-            result = self.graph.query(cypher, {"docs": records})
+            result = self.graph.query(cypher, params)
             rows = result.result_set
             written = int(rows[0][0]) if rows else 0
         except Exception as exc:
@@ -839,14 +982,18 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         `content` — no prefix is added. This matches the layout used by the
         `neo4j-haystack` reference integration.
 
+        Graph metadata handling and duplicate policies match `write_documents`; see it for an example.
+        Writes are not transactional: missing targets or backend failures can leave partial writes.
+
         :param documents: List of :class:`haystack.dataclasses.Document` objects.
         :param policy: How to handle documents whose `id` already exists.
             Defaults to :attr:`DuplicatePolicy.NONE` (treated as FAIL).
-        :raises ValueError: If `documents` contains non-Document elements.
-        :raises DuplicateDocumentError: If `policy` is FAIL / NONE and a duplicate
-            ID is encountered.
-        :raises DocumentStoreError: If any other DB error occurs.
-        :returns: Number of documents written or updated.
+        :raises TypeError: Graph metadata has invalid types or property shapes.
+        :raises ValueError: `documents` contains non-Document elements, required relationship keys are missing,
+            or a label or relationship type is empty or contains a backtick.
+        :raises DuplicateDocumentError: `policy` is FAIL / NONE and a duplicate ID is encountered.
+        :raises DocumentStoreError: A relationship target is missing or a document-node or relationship write fails.
+        :returns: Number of documents written or updated, not including relationships.
         """
         await self.warm_up_async()
         assert self.async_graph is not None  # noqa: S101
@@ -864,12 +1011,19 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             policy = DuplicatePolicy.FAIL
 
         document_objects = await self._handle_duplicate_documents_async(documents, policy)
-
+        document_objects, labels, relationships = self._prepare_graph_documents(document_objects)
         written = 0
         for batch_start in range(0, len(document_objects), self.write_batch_size):
             batch = document_objects[batch_start : batch_start + self.write_batch_size]
-            written += await self._write_batch_async(batch, policy)
+            written += await self._write_batch_async(batch, policy, labels)
 
+        for query, params in self._relationship_queries(relationships):
+            try:
+                result = await self.async_graph.query(query, params)
+            except Exception as exc:
+                msg = f"Failed to write relationships to FalkorDB: {exc}"
+                raise DocumentStoreError(msg) from exc
+            _check_relationship_count(result.result_set, len(params["rows"]))
         return written
 
     async def _handle_duplicate_documents_async(
@@ -906,7 +1060,9 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         return documents
 
-    async def _write_batch_async(self, documents: list[Document], policy: DuplicatePolicy) -> int:
+    async def _write_batch_async(
+        self, documents: list[Document], policy: DuplicatePolicy, labels: dict[str, list[str]]
+    ) -> int:
         """
         Write a single batch of documents using a single UNWIND query asynchronously.
 
@@ -915,30 +1071,14 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         :param documents: Batch of Documents (≤ `write_batch_size`).
         :param policy: Duplicate policy — only OVERWRITE needs a different Cypher template.
+        :param labels: Validated extra labels mapped to document IDs.
         :returns: Number of nodes created or updated.
         """
         assert self.async_graph is not None  # noqa: S101
 
-        records = [_document_to_falkordb_record(doc) for doc in documents]
-
-        if policy == DuplicatePolicy.OVERWRITE:
-            cypher = f"""
-UNWIND $docs AS doc
-MERGE (d:{self.node_label} {{id: doc.id}})
-ON CREATE SET d += doc
-ON MATCH SET d = doc
-RETURN count(d) AS n
-"""
-        else:
-            cypher = f"""
-UNWIND $docs AS doc
-MERGE (d:{self.node_label} {{id: doc.id}})
-ON CREATE SET d += doc
-RETURN count(d) AS n
-"""
-
+        cypher, params = self._write_batch_query(documents, policy, labels)
         try:
-            result = await self.async_graph.query(cypher, {"docs": records})
+            result = await self.async_graph.query(cypher, params)
             rows = result.result_set
             written = int(rows[0][0]) if rows else 0
         except Exception as exc:
@@ -1309,10 +1449,60 @@ ORDER BY score ASC, d.id ASC
             documents.append(doc)
         return documents
 
+    def _get_graph_schema(self, *, sample_size: int = 100) -> _GraphSchema:
+        """
+        Fetch graph catalogs and sampled property types and relationship endpoints.
+
+        :param sample_size: Positive number of nodes sampled per label and of relationships sampled per type;
+            property sets that only occur outside the sample may be missed.
+        :returns: Sorted catalogs and the distinct sampled shapes, without property values.
+        """
+        self.warm_up()
+        assert self.graph is not None  # noqa: S101
+        catalogs = {
+            key: [row[0] for row in self.graph.ro_query(query).result_set]
+            for key, query in _GRAPH_CATALOG_QUERIES.items()
+        }
+        node_queries, relationship_queries = _graph_sample_queries(catalogs)
+        params = {"sample_size": sample_size}
+        node_samples = [row[0] for query in node_queries for row in self.graph.ro_query(query, params).result_set]
+        relationship_samples = [
+            row[0] for query in relationship_queries for row in self.graph.ro_query(query, params).result_set
+        ]
+        return _format_graph_schema(catalogs, node_samples, relationship_samples)
+
+    async def _get_graph_schema_async(self, *, sample_size: int = 100) -> _GraphSchema:
+        """
+        Fetch graph catalogs and sampled schema using concurrent async queries.
+
+        :param sample_size: Positive number of nodes sampled per label and of relationships sampled per type;
+            property sets that only occur outside the sample may be missed.
+        :returns: Sorted catalogs and the distinct sampled shapes, without property values.
+        """
+        await self.warm_up_async()
+        assert self.async_graph is not None  # noqa: S101
+        catalog_results = await asyncio.gather(*(self.async_graph.ro_query(q) for q in _GRAPH_CATALOG_QUERIES.values()))
+        catalogs = {
+            key: [row[0] for row in result.result_set]
+            for key, result in zip(_GRAPH_CATALOG_QUERIES, catalog_results, strict=True)
+        }
+        node_queries, relationship_queries = _graph_sample_queries(catalogs)
+        params = {"sample_size": sample_size}
+        sample_results = await asyncio.gather(
+            *(self.async_graph.ro_query(query, params) for query in (*node_queries, *relationship_queries))
+        )
+        samples = [[row[0] for row in result.result_set] for result in sample_results]
+        node_samples = [sample for rows in samples[: len(node_queries)] for sample in rows]
+        relationship_samples = [sample for rows in samples[len(node_queries) :] for sample in rows]
+        return _format_graph_schema(catalogs, node_samples, relationship_samples)
+
     def _cypher_retrieval(
         self,
         cypher_query: str,
         parameters: dict[str, Any] | None = None,
+        *,
+        read_only: bool = False,
+        timeout: int | None = None,
     ) -> list[Document]:
         """
         Execute an arbitrary OpenCypher query and map the results to Documents.
@@ -1322,6 +1512,8 @@ ORDER BY score ASC, d.id ASC
 
         :param cypher_query: A valid OpenCypher query string.
         :param parameters: Optional query parameters (`$param` placeholders).
+        :param read_only: Execute with the server-enforced read-only command. Store warm-up still initializes indexes.
+        :param timeout: Maximum query runtime in milliseconds, enforced by the server; `None` uses the server default.
         :returns: List of :class:`Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
@@ -1331,7 +1523,8 @@ ORDER BY score ASC, d.id ASC
         try:
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
-            result = self.graph.query(cypher_query, parameters or {})
+            query_method = self.graph.ro_query if read_only else self.graph.query
+            result = query_method(cypher_query, parameters or {}, timeout=timeout)
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
@@ -1341,6 +1534,9 @@ ORDER BY score ASC, d.id ASC
         self,
         cypher_query: str,
         parameters: dict[str, Any] | None = None,
+        *,
+        read_only: bool = False,
+        timeout: int | None = None,
     ) -> list[Document]:
         """
         Execute an arbitrary OpenCypher query asynchronously and map the results to Documents.
@@ -1349,6 +1545,8 @@ ORDER BY score ASC, d.id ASC
 
         :param cypher_query: A valid OpenCypher query string.
         :param parameters: Optional query parameters (`$param` placeholders).
+        :param read_only: Execute with the server-enforced read-only command. Store warm-up still initializes indexes.
+        :param timeout: Maximum query runtime in milliseconds, enforced by the server; `None` uses the server default.
         :returns: List of `Document` objects built from the query results.
         :raises DocumentStoreError: If the query fails.
         """
@@ -1356,7 +1554,8 @@ ORDER BY score ASC, d.id ASC
         assert self.async_graph is not None  # noqa: S101
 
         try:
-            result = await self.async_graph.query(cypher_query, parameters or {})
+            query_method = self.async_graph.ro_query if read_only else self.async_graph.query
+            result = await query_method(cypher_query, parameters or {}, timeout=timeout)
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
@@ -1381,6 +1580,81 @@ ORDER BY score ASC, d.id ASC
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
+
+
+def _validate_graph_name(name: Any) -> None:
+    """Reject graph names that are not strings, are empty, or contain unsupported backticks."""
+    if not isinstance(name, str):
+        msg = "Labels and relationship types must be strings."
+        raise TypeError(msg)
+    if not name or "`" in name:
+        msg = "Labels and relationship types must be non-empty and contain no backticks."
+        raise ValueError(msg)
+
+
+def _prepare_relationship(source_id: str, relationship: Any) -> tuple[str, _RelationshipRecord]:
+    """Validate the relationship structure and return its type and write record."""
+    if not isinstance(relationship, dict):
+        msg = "Each relationship must be a dictionary."
+        raise TypeError(msg)
+    if not {"target_id", "type"} <= relationship.keys():
+        msg = "Relationships require 'target_id' and 'type'."
+        raise ValueError(msg)
+    _validate_graph_name(relationship["type"])
+    properties = relationship.get("properties", {})
+    if not isinstance(properties, dict):
+        msg = "Relationship properties must be a dictionary."
+        raise TypeError(msg)
+    return relationship["type"], {
+        "source_id": source_id,
+        "target_id": relationship["target_id"],
+        "properties": properties,
+    }
+
+
+def _check_relationship_count(rows: list[list[Any]], expected: int) -> None:
+    """Raise DocumentStoreError when the relationship write count differs from the expected count."""
+    if not rows or int(rows[0][0]) != expected:
+        msg = "Failed to write relationships: source or target documents are missing or were deleted concurrently."
+        raise DocumentStoreError(msg)
+
+
+def _graph_sample_queries(catalogs: dict[str, list[str]]) -> tuple[list[str], list[str]]:
+    """
+    Build node and relationship sampling queries from server catalogs.
+
+    Identifiers cannot be query parameters; catalog names contain no backticks, so backtick quoting is safe.
+    """
+    node_queries = [
+        f"MATCH (n:`{label}`) WITH n LIMIT $sample_size {_NODE_SAMPLE_RETURN}" for label in catalogs["labels"]
+    ]
+    relationship_queries = [
+        f"MATCH (source)-[r:`{rel_type}`]->(target) WITH source, r, target LIMIT $sample_size "
+        f"{_RELATIONSHIP_SAMPLE_RETURN}"
+        for rel_type in catalogs["relationship_types"]
+    ]
+    return node_queries, relationship_queries
+
+
+def _unique_shapes(samples: list[Any]) -> list[Any]:
+    # Sort properties so equal shapes compare equal regardless of insertion order; keep first-seen order otherwise
+    shapes: dict[str, dict[str, Any]] = {}
+    for sample in samples:
+        shape = {**sample, "properties": sorted((dict(p) for p in sample["properties"]), key=lambda p: p["name"])}
+        shapes.setdefault(repr(sorted(shape.items())), shape)
+    return list(shapes.values())
+
+
+def _format_graph_schema(
+    catalogs: dict[str, list[str]], node_samples: list[Any], relationship_samples: list[Any]
+) -> _GraphSchema:
+    return {
+        "labels": catalogs["labels"],
+        "relationship_types": catalogs["relationship_types"],
+        "property_keys": catalogs["property_keys"],
+        "node_samples": _unique_shapes(node_samples),
+        "relationship_samples": _unique_shapes(relationship_samples),
+    }
 
 
 def _document_to_falkordb_record(doc: Document) -> dict[str, Any]:
@@ -1413,13 +1687,18 @@ def _node_to_document(node: Any) -> Document:
 
     :param node: A FalkorDB `Node` object or a plain `dict`.
     :returns: Reconstructed :class:`haystack.dataclasses.Document`.
+    :raises TypeError: If `node` is neither a node nor a `dict`, e.g. a scalar returned by `RETURN d.content`.
     """
     if hasattr(node, "properties"):
         record: dict[str, Any] = dict(node.properties)
     elif isinstance(node, dict):
         record = node
     else:
-        record = {}
+        msg = (
+            f"Cannot convert a query result of type '{type(node).__name__}' to a Document: "
+            "the first returned column must be a node or a map."
+        )
+        raise TypeError(msg)
 
     # Standard Document fields
     doc_id = record.pop("id", None)

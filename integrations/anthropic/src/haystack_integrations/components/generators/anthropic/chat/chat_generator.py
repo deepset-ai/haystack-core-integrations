@@ -1,5 +1,5 @@
 import inspect
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -22,7 +22,7 @@ from haystack.tools import (
 from haystack.utils.auth import Secret
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
-from anthropic import Anthropic, AsyncAnthropic
+from anthropic import Anthropic, AsyncAnthropic, transform_schema
 from anthropic.resources.messages.messages import Message, RawMessageStreamEvent, Stream
 from anthropic.types import (
     MessageParam,
@@ -37,6 +37,7 @@ from .utils import (
     _convert_messages_to_anthropic_format,
     _extract_citations,
     _has_server_tool_blocks,
+    _merge_streaming_usage,
     _process_reasoning_contents,
 )
 
@@ -114,6 +115,7 @@ class AnthropicChatGenerator:
         "extra_headers",
         "thinking",
         "output_config",
+        "cache_control",
     ]
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
@@ -144,6 +146,7 @@ class AnthropicChatGenerator:
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Creates an instance of AnthropicChatGenerator.
@@ -170,9 +173,15 @@ class AnthropicChatGenerator:
             - `top_k`: The top_k value to use for top-k sampling.
             - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
             - `thinking`: A dictionary of thinking parameters to be passed to the model.
-                The `budget_tokens` passed for thinking should be less than `max_tokens`.
-                For more details and supported models, see: [Anthropic Extended Thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+                For more details and supported models, see: [Anthropic Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)
             - `output_config`: A dictionary of output configuration options to be passed to the model.
+            - `cache_control`: A dictionary of cache control options to be passed to the model.
+                See [Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+                for more details on cache control options.
+                To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
+            - `cache_control_ttl`: Shortcut to set the cache `ttl` (e.g. `"5m"` or `"1h"`) without building the
+                `cache_control` dict yourself. It is merged into `cache_control`, overriding any `ttl` set there,
+                and `type` defaults to `"ephemeral"` if not set.
 
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
@@ -191,6 +200,10 @@ class AnthropicChatGenerator:
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
+        :param tools_strict:
+            Whether to enable strict tool use. If `True`, each tool is sent with `strict: true`, so the model's tool
+            calls are guaranteed to match the tool's `parameters` schema. The schema must stay within what strict
+            tool use supports. See [Anthropic strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).
 
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
@@ -208,6 +221,7 @@ class AnthropicChatGenerator:
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
         self.anthropic_server_tools = anthropic_server_tools
+        self.tools_strict = tools_strict
 
     def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create Anthropic clients."""
@@ -267,6 +281,7 @@ class AnthropicChatGenerator:
             anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod
@@ -331,9 +346,13 @@ class AnthropicChatGenerator:
         anthropic_tools: list[Any] = []
         if flattened_tools:
             for tool in flattened_tools:
-                anthropic_tools.append(
-                    ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
-                )
+                # strict tool use requires `additionalProperties: false` on every object and rejects some
+                # JSON schema keywords, so the SDK rewrites the schema into the supported subset
+                input_schema = transform_schema(tool.parameters) if self.tools_strict else tool.parameters
+                tool_param = ToolParam(name=tool.name, description=tool.description, input_schema=input_schema)
+                if self.tools_strict:
+                    tool_param["strict"] = True
+                anthropic_tools.append(tool_param)
         if self.anthropic_server_tools:
             server_tool_names = {st["name"] for st in self.anthropic_server_tools if "name" in st}
             if duplicates := server_tool_names & {tool.name for tool in flattened_tools}:
@@ -384,6 +403,14 @@ class AnthropicChatGenerator:
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
 
+        cache_control_ttl = generation_kwargs.pop("cache_control_ttl", None)
+        if cache_control_ttl is not None:
+            # copy so we don't mutate the nested dict shared with self.generation_kwargs
+            cache_control = dict(generation_kwargs.get("cache_control") or {})
+            cache_control["ttl"] = cache_control_ttl
+            cache_control.setdefault("type", "ephemeral")  # only supported value
+            generation_kwargs["cache_control"] = cache_control
+
         for nested_name in ("tool_choice", "thinking", "output_config"):
             prefix = f"{nested_name}_"
             for key in [k for k in generation_kwargs if k.startswith(prefix)]:
@@ -414,15 +441,14 @@ class AnthropicChatGenerator:
             model: str | None = None
             tool_call_index = -1
             in_server_tool_block = False
-            input_tokens = None
+            start_usage: dict[str, Any] = {}
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
                 if chunk.type in ["message_start", "content_block_start", "content_block_delta", "message_delta"]:
-                    # Extract model from message_start chunks
+                    # Extract model and full usage from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-                        if chunk.message.usage.input_tokens is not None:
-                            input_tokens = chunk.message.usage.input_tokens
+                        start_usage = chunk.message.usage.model_dump()
 
                     if chunk.type == "content_block_start":
                         if chunk.content_block.type == "tool_use":
@@ -441,13 +467,12 @@ class AnthropicChatGenerator:
             reasoning = _process_reasoning_contents(chunks)
 
             completion.meta.update(
-                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
+                {"received_at": datetime.now(UTC).isoformat(), "model": model},
             )
 
-            if input_tokens is not None:
-                if "usage" not in completion.meta:
-                    completion.meta["usage"] = {}
-                completion.meta["usage"]["input_tokens"] = input_tokens
+            # `completion.meta["usage"]` is the usage of the last message_delta chunk
+            if usage := _merge_streaming_usage(start_usage=start_usage, delta_usage=completion.meta.get("usage")):
+                completion.meta["usage"] = usage
 
             # keep the raw content so server-tool blocks can be replayed on later turns
             if self.anthropic_server_tools:
@@ -494,7 +519,7 @@ class AnthropicChatGenerator:
             model: str | None = None
             tool_call_index = -1
             in_server_tool_block = False
-            input_tokens = None
+            start_usage: dict[str, Any] = {}
             component_info = ComponentInfo.from_component(self)
             async for chunk in response:
                 if chunk.type in [
@@ -503,11 +528,10 @@ class AnthropicChatGenerator:
                     "content_block_delta",
                     "message_delta",
                 ]:
-                    # Extract model from message_start chunks
+                    # Extract model and full usage from message_start chunks
                     if chunk.type == "message_start":
                         model = chunk.message.model
-                        if chunk.message.usage.input_tokens is not None:
-                            input_tokens = chunk.message.usage.input_tokens
+                        start_usage = chunk.message.usage.model_dump()
 
                     if chunk.type == "content_block_start":
                         if chunk.content_block.type == "tool_use":
@@ -529,13 +553,12 @@ class AnthropicChatGenerator:
             reasoning = _process_reasoning_contents(chunks)
 
             completion.meta.update(
-                {"received_at": datetime.now(timezone.utc).isoformat(), "model": model},
+                {"received_at": datetime.now(UTC).isoformat(), "model": model},
             )
 
-            if input_tokens is not None:
-                if "usage" not in completion.meta:
-                    completion.meta["usage"] = {}
-                completion.meta["usage"]["input_tokens"] = input_tokens
+            # `completion.meta["usage"]` is the usage of the last message_delta chunk
+            if usage := _merge_streaming_usage(start_usage=start_usage, delta_usage=completion.meta.get("usage")):
+                completion.meta["usage"] = usage
 
             # keep the raw content so server-tool blocks can be replayed on later turns
             if self.anthropic_server_tools:

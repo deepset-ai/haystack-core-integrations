@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/fastembed-v3.0.1] - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- FastEmbed - preserve falsy metadata in rankers (#4240)
+
+
+## [integrations/fastembed-v3.0.0] - 2026-10-16
+
+### ⚙️ CI
+
+- Improve changelog generation; fix existing changelogs (#3883)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/fastembed-v2.7.0] - 2026-08-24
 
 ### 🚀 Features

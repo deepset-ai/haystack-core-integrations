@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 from azure.ai.formrecognizer import AnalyzeResult
+from haystack.core.serialization import component_from_dict
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.utils import Secret
 
@@ -143,7 +144,7 @@ class TestInitializationAndSerialization:
                 "store_full_path": False,
             },
         }
-        component = AzureOCRDocumentConverter.from_dict(data)
+        component = component_from_dict(AzureOCRDocumentConverter, data, name="component")
         assert component.endpoint == "test_endpoint"
         assert component.model_id == "prebuilt-read"
         assert component.api_key == Secret.from_env_var("AZURE_AI_API_KEY")

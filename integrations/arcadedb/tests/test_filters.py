@@ -4,7 +4,7 @@
 
 """Unit tests for filter conversion (no ArcadeDB instance required)."""
 
-import datetime
+import datetime as dt
 
 import pytest
 
@@ -125,7 +125,7 @@ class TestFilterConversion:
             ({"field": "meta.price", "operator": "==", "value": 1.5}, "meta.price = 1.5"),
             ({"operator": "AND", "conditions": [{"operator": "AND", "conditions": []}]}, ""),
             (
-                {"field": "x", "operator": "==", "value": datetime.date(2024, 1, 2)},
+                {"field": "x", "operator": "==", "value": dt.date(2024, 1, 2)},
                 "x = '2024-01-02'",
             ),
         ],

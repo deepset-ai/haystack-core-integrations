@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/elasticsearch-v7.1.0] - 2026-10-19
+
+### 🚀 Features
+
+- *(elasticsearch)* Add ElasticsearchInferenceDenseRetriever (#3525)
+
+
+## [integrations/elasticsearch-v7.0.0] - 2026-10-16
+
+### 🧪 Testing
+
+- Test compatible integrations with Python 3.15; update pyproject (#4104)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/elasticsearch-v6.4.2] - 2026-10-08
 
 ### 🐛 Bug Fixes

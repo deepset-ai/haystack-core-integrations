@@ -318,6 +318,112 @@ class TestFalkorDBDocumentStoreAsyncUnit:
             await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE)
 
     @pytest.mark.asyncio
+    async def test_graph_metadata_is_opt_in(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.query.return_value = _result([[1]])
+        document = Document(id="a", meta={"labels": ["Article"], "relationships": ["ordinary metadata"]})
+        assert await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE) == 1
+        assert graph.query.await_count == 1
+        assert graph.query.call_args.args[1]["docs"][0]["labels"] == ["Article"]
+        assert graph.query.call_args.args[1]["docs"][0]["relationships"] == ["ordinary metadata"]
+
+    @pytest.mark.asyncio
+    async def test_write_graph_metadata_across_batches(self, warmed_async_store):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "kinds"
+        store.relationships_metadata_field = "links"
+        store.write_batch_size = 1
+        graph.query.return_value = _result([[1]])
+        meta = {
+            "kinds": ["Article", "Article", "Research paper"],
+            "links": [{"target_id": "b", "type": "RELATED TO", "properties": {"weight": 0.5}}],
+            "year": 2024,
+        }
+        documents = [Document(id="a", content="A", meta=meta), Document(id="b", content="B")]
+        assert await store.write_documents_async(documents, policy=DuplicatePolicy.OVERWRITE) == 2
+        calls = graph.query.call_args_list
+        assert len(calls) == 3
+        assert calls[0].args[1] == {
+            "docs": [{"id": "a", "content": "A", "year": 2024}],
+            "label_ids_0": ["a"],
+            "label_ids_1": ["a"],
+        }
+        assert calls[1].args[1] == {"docs": [{"id": "b", "content": "B"}]}
+        assert "SET d:`Article`" in calls[0].args[0]
+        assert "SET d:`Research paper`" in calls[0].args[0]
+        assert "MERGE (source)-[r:`RELATED TO`]->(target)" in calls[2].args[0]
+        assert calls[2].args[1] == {"rows": [{"source_id": "a", "target_id": "b", "properties": {"weight": 0.5}}]}
+        assert documents[0].meta == meta
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "meta, error",
+        [
+            ({"labels": "Article"}, TypeError),
+            ({"labels": [1]}, TypeError),
+            ({"labels": [None]}, TypeError),
+            ({"labels": [""]}, ValueError),
+            ({"labels": ["bad`name"]}, ValueError),
+            ({"relationships": [{"type": 1, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": None, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": "", "target_id": "b"}]}, ValueError),
+            ({"relationships": [{"type": "bad`name", "target_id": "b"}]}, ValueError),
+            ({"relationships": {}}, TypeError),
+            ({"relationships": ["edge"]}, TypeError),
+            ({"relationships": [{"type": "LINK"}]}, ValueError),
+            ({"relationships": [{"target_id": "b"}]}, ValueError),
+            ({"relationships": [{"type": "LINK", "target_id": "b", "properties": []}]}, TypeError),
+        ],
+    )
+    async def test_invalid_graph_metadata_before_writes(self, warmed_async_store, meta, error):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "labels"
+        store.relationships_metadata_field = "relationships"
+        store.write_batch_size = 1
+        with pytest.raises(error):
+            await store.write_documents_async(
+                [Document(id="valid"), Document(id="invalid", meta=meta)], policy=DuplicatePolicy.OVERWRITE
+            )
+        graph.query.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("missing", [True, False])
+    async def test_relationship_external_target(self, warmed_async_store, missing):
+        store, graph = warmed_async_store
+        store.relationships_metadata_field = "links"
+        graph.query.side_effect = [_result([[1]]), _result([[0 if missing else 1]])]
+        document = Document(id="a", meta={"links": [{"type": "LINK", "target_id": "b"}]})
+        if missing:
+            with pytest.raises(DocumentStoreError, match="target documents are missing"):
+                await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE)
+        else:
+            assert await store.write_documents_async([document], policy=DuplicatePolicy.OVERWRITE) == 1
+        assert graph.query.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_skip_does_not_change_graph_metadata(self, warmed_async_store):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "labels"
+        store.relationships_metadata_field = "links"
+        graph.query.return_value = _result([["a"]])
+        document = Document(id="a", meta={"labels": ["New"], "links": [{"type": "LINK", "target_id": "missing"}]})
+        assert await store.write_documents_async([document], policy=DuplicatePolicy.SKIP) == 0
+        assert graph.query.await_count == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failure_stage", ["labels", "relationships"])
+    async def test_graph_write_backend_failures(self, warmed_async_store, failure_stage):
+        store, graph = warmed_async_store
+        store.labels_metadata_field = "labels"
+        store.relationships_metadata_field = "links"
+        error = ValueError("backend error")
+        graph.query.side_effect = [error] if failure_stage == "labels" else [_result([[1]]), error]
+        meta = {"labels": ["Article"], "links": [{"type": "LINK", "target_id": "a"}]}
+        with pytest.raises(DocumentStoreError, match="backend error") as exc:
+            await store.write_documents_async([Document(id="a", meta=meta)], policy=DuplicatePolicy.OVERWRITE)
+        assert exc.value.__cause__ is error
+
+    @pytest.mark.asyncio
     async def test_delete_documents_async_empty_and_nonempty(self, warmed_async_store) -> None:
         store, graph = warmed_async_store
 
@@ -474,6 +580,82 @@ class TestFalkorDBDocumentStoreAsyncUnit:
             assert params["p0"] == 2024
 
     @pytest.mark.asyncio
+    async def test_get_graph_schema_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        article = {
+            "labels": ["Article"],
+            "properties": [{"name": "title", "type": "String"}, {"name": "content", "type": "String"}],
+        }
+        cites = {"type": "CITES", "source_labels": ["Article"], "target_labels": ["Article"], "properties": []}
+        # Answer by query prefix: the number of sample queries depends on the catalogs
+        responses = {
+            "CALL db.labels()": [["Article"], ["Topic"]],
+            "CALL db.relationshipTypes()": [["CITES"]],
+            "CALL db.propertyKeys()": [["content"], ["title"]],
+            "MATCH (n:`Article`)": [[article], [article]],
+            "MATCH (n:`Topic`)": [],
+            "MATCH (source)-[r:`CITES`]->": [[cites], [cites]],
+        }
+        graph.ro_query = AsyncMock(
+            side_effect=lambda query, *_: _result(
+                next(rows for prefix, rows in responses.items() if query.startswith(prefix))
+            )
+        )
+        assert await store._get_graph_schema_async(sample_size=7) == {
+            "labels": ["Article", "Topic"],
+            "relationship_types": ["CITES"],
+            "property_keys": ["content", "title"],
+            "node_samples": [
+                {
+                    "labels": ["Article"],
+                    "properties": [{"name": "content", "type": "String"}, {"name": "title", "type": "String"}],
+                }
+            ],
+            "relationship_samples": [cites],
+        }
+        # One query per catalog, label and relationship type; only sample queries take the limit
+        calls = [call.args for call in graph.ro_query.await_args_list]
+        assert len(calls) == len(responses)
+        for query, *params in calls:
+            assert params == ([{"sample_size": 7}] if query.startswith("MATCH") else [])
+        graph.query.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_graph_schema_async_queries_run_concurrently(self, warmed_async_store):
+        store, graph = warmed_async_store
+        all_started = asyncio.Event()
+        started = 0
+
+        async def query(*_args):
+            nonlocal started
+            started += 1
+            # On an empty graph only the three catalog queries run; they must all be in flight together
+            if started == 3:
+                all_started.set()
+            await all_started.wait()
+            return _result([])
+
+        graph.ro_query = AsyncMock(side_effect=query)
+        schema = await asyncio.wait_for(store._get_graph_schema_async(), timeout=5)
+        assert started == 3
+        assert schema == {
+            "labels": [],
+            "relationship_types": [],
+            "property_keys": [],
+            "node_samples": [],
+            "relationship_samples": [],
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_graph_schema_async_propagates_errors(self, warmed_async_store):
+        store, graph = warmed_async_store
+        error = ResponseError("metadata unavailable")
+        graph.ro_query = AsyncMock(side_effect=error)
+        with pytest.raises(ResponseError) as exc:
+            await store._get_graph_schema_async()
+        assert exc.value is error
+
+    @pytest.mark.asyncio
     async def test_cypher_retrieval_async(self, warmed_async_store) -> None:
         store, graph = warmed_async_store
         node = SimpleNamespace(properties={"id": "doc-1", "content": "hello"})
@@ -482,7 +664,24 @@ class TestFalkorDBDocumentStoreAsyncUnit:
         documents = await store._cypher_retrieval_async("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
 
         assert [document.content for document in documents] == ["hello"]
-        graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"})
+        graph.query.assert_awaited_once_with("MATCH (d) WHERE d.id = $id RETURN d", {"id": "doc-1"}, timeout=None)
+
+    @pytest.mark.asyncio
+    async def test_read_only_cypher_retrieval_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.ro_query = AsyncMock(return_value=_result([[SimpleNamespace(properties={"content": "hello"})]]))
+        documents = await store._cypher_retrieval_async("MATCH (d) RETURN d", {"k": 1}, read_only=True, timeout=250)
+        assert documents[0].content == "hello"
+        graph.ro_query.assert_awaited_once_with("MATCH (d) RETURN d", {"k": 1}, timeout=250)
+        graph.query.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_read_only_cypher_failure_async(self, warmed_async_store):
+        store, graph = warmed_async_store
+        graph.ro_query = AsyncMock(side_effect=ResponseError("Write commands are not allowed"))
+        with pytest.raises(DocumentStoreError, match="Write commands are not allowed"):
+            await store._cypher_retrieval_async("CREATE (:Document)", read_only=True)
+        graph.query.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cypher_retrieval_async_wraps_errors(self, warmed_async_store) -> None:
@@ -529,6 +728,128 @@ class TestFalkorDBDocumentStoreAsync(
             logger.debug("Could not delete graph %s during teardown", graph_name)
         finally:
             await store.close_async()
+
+    async def test_sampled_graph_schema_async(self, document_store):
+        await document_store.warm_up_async()
+        await document_store.async_graph.query(
+            "CREATE (:Article {content: 'hello', count: 1})-[:REFERENCES {weight: 2}]->(:Topic {name: 'Graphs'}), "
+            "(:Article {title: 'untitled'})"
+        )
+        schema = await document_store._get_graph_schema_async(sample_size=7)
+        assert {"Article", "Topic"} <= set(schema["labels"])
+        assert schema["relationship_types"] == ["REFERENCES"]
+        assert {
+            "labels": ["Article"],
+            "properties": [{"name": "content", "type": "String"}, {"name": "count", "type": "Integer"}],
+        } in schema["node_samples"]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "REFERENCES",
+                "source_labels": ["Article"],
+                "target_labels": ["Topic"],
+                "properties": [{"name": "weight", "type": "Integer"}],
+            }
+        ]
+        bounded = await document_store._get_graph_schema_async(sample_size=1)
+        # The limit applies per label: only one of the two Article shapes is sampled
+        assert [sample["labels"] for sample in bounded["node_samples"]] == [["Article"], ["Topic"]]
+        assert len(bounded["relationship_samples"]) == 1
+
+    async def test_graph_schema_samples_every_label_once_async(self, document_store):
+        # Documents written first fill the first `sample_size` nodes; Person must still be sampled, and
+        # identical shapes must appear once instead of once per sampled entity
+        await document_store.write_documents_async(
+            [Document(content=f"doc {i}", meta={"topic": "astro", "year": 2000 + i}) for i in range(30)]
+        )
+        await document_store.async_graph.query(
+            "MATCH (d:Document) CREATE (:Person {name: 'Ada', born: 1815})-[:WROTE {role: 'author'}]->(d)"
+        )
+        schema = await document_store._get_graph_schema_async(sample_size=10)
+        assert schema["node_samples"] == [
+            {
+                "labels": ["Document"],
+                "properties": [
+                    {"name": "content", "type": "String"},
+                    {"name": "id", "type": "String"},
+                    {"name": "topic", "type": "String"},
+                    {"name": "year", "type": "Integer"},
+                ],
+            },
+            {
+                "labels": ["Person"],
+                "properties": [{"name": "born", "type": "Integer"}, {"name": "name", "type": "String"}],
+            },
+        ]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "WROTE",
+                "source_labels": ["Person"],
+                "target_labels": ["Document"],
+                "properties": [{"name": "role", "type": "String"}],
+            }
+        ]
+
+    @pytest.mark.parametrize("batch_size", [1, 100])
+    async def test_graph_metadata_writes_are_additive(self, document_store, batch_size):
+        document_store.labels_metadata_field = "labels"
+        document_store.relationships_metadata_field = "links"
+        document_store.write_batch_size = batch_size
+        document = Document(
+            id="a",
+            content="Article",
+            meta={
+                "labels": ["Research paper", "Article", "Article"],
+                "links": [
+                    {"type": "ABOUT", "target_id": "b", "properties": {"weight": 0.5, "source": "author"}},
+                    {"type": "ABOUT", "target_id": "b", "properties": {"tags": ["graph", "rag"]}},
+                    {"type": "SELF", "target_id": "a"},
+                ],
+                "year": 2024,
+            },
+        )
+        assert await document_store.write_documents_async([document, Document(id="b", content="Topic")]) == 2
+        assert await document_store.count_documents_async() == 2
+        stored = (await document_store.filter_documents_async({"field": "id", "operator": "==", "value": "a"}))[0]
+        assert stored.meta == {"year": 2024}
+        assert "links" in document.meta
+        labels = await document_store.async_graph.query("MATCH (d:Document {id: 'a'}) RETURN labels(d)")
+        assert set(labels.result_set[0][0]) == {"Document", "Article", "Research paper"}
+        labels = await document_store.async_graph.query("MATCH (d:Document {id: 'b'}) RETURN labels(d)")
+        assert labels.result_set == [[["Document"]]]
+        edges = await document_store.async_graph.query(
+            "MATCH (a:Document {id: 'a'})-[r]->(b) RETURN type(r), b.id ORDER BY type(r)"
+        )
+        assert edges.result_set == [["ABOUT", "b"], ["SELF", "a"]]
+        update = Document(
+            id="a",
+            content="Updated",
+            meta={"labels": ["Updated"], "links": [{"type": "ABOUT", "target_id": "b", "properties": {"weight": 1}}]},
+        )
+        assert await document_store.write_documents_async([update], policy=DuplicatePolicy.SKIP) == 0
+        stored = (await document_store.filter_documents_async({"field": "id", "operator": "==", "value": "a"}))[0]
+        assert stored.content == "Article"
+        for _ in range(2):
+            assert await document_store.write_documents_async([update], policy=DuplicatePolicy.OVERWRITE) == 1
+        labels = await document_store.async_graph.query("MATCH (d:Document {id: 'a'}) RETURN labels(d)")
+        assert set(labels.result_set[0][0]) == {"Document", "Article", "Research paper", "Updated"}
+        edges = await document_store.async_graph.query(
+            "MATCH (a:Document {id: 'a'})-[r]->(b) RETURN type(r), b.id ORDER BY type(r)"
+        )
+        assert edges.result_set == [["ABOUT", "b"], ["SELF", "a"]]
+        properties = await document_store.async_graph.query("MATCH ()-[r:ABOUT]->() RETURN r.weight, r.source, r.tags")
+        assert properties.result_set == [[1, "author", ["graph", "rag"]]]
+        stored = (await document_store.filter_documents_async({"field": "id", "operator": "==", "value": "a"}))[0]
+        assert stored.content == "Updated"
+
+    async def test_graph_metadata_missing_target_leaves_partial_writes(self, document_store):
+        document_store.relationships_metadata_field = "links"
+        document = Document(id="a", meta={"links": [{"type": "LINK", "target_id": "missing"}]})
+        with pytest.raises(DocumentStoreError, match="target documents are missing"):
+            await document_store.write_documents_async([document])
+        assert await document_store.count_documents_async() == 1
+        assert (await document_store.filter_documents_async())[0].id == "a"
+        result = await document_store.async_graph.query("MATCH ()-[r]->() RETURN count(r)")
+        assert result.result_set == [[0]]
 
     async def test_write_documents_async(self, document_store: FalkorDBDocumentStore) -> None:
         """FalkorDB defaults to failing on duplicates; verify a normal default write."""

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/nvidia-v3.0.0] - 2026-10-16
+
+### 🚜 Refactor
+
+- [**breaking**] Remove from_dict overrides that only call default_from_dict from 14 components (#4059)
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/nvidia-v2.0.0] - 2026-09-08
 
 ### 🚀 Features

@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/sentence_transformers-v2.2.0] - 2026-11-10
+
+### 🚀 Features
+
+- Add Sentence Transformers multivector embedders (#4208)
+
+
+## [integrations/sentence_transformers-v2.1.0] - 2026-11-06
+
+### 🚀 Features
+
+- Sentence Transformers - allow setting ONNX Runtime session options from YAML (#4211)
+
+
+## [integrations/sentence_transformers-v2.0.0] - 2026-10-23
+
+### 🚜 Refactor
+
+- [**breaking**] SentenceTransformersTextEmbedder - always require quantization_ranges for int8/uint8 precision (#4154)
+
+
+## [integrations/sentence_transformers-v1.0.0] - 2026-10-16
+
+### 🧹 Chores
+
+- [**breaking**] Drop Python 3.10 support (#4105)
+
+
 ## [integrations/sentence_transformers-v0.2.0] - 2026-10-01
 
 ### 🐛 Bug Fixes

@@ -7,7 +7,6 @@ from collections.abc import Callable
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool, Toolset

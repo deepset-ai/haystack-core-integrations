@@ -6,14 +6,13 @@ import asyncio
 import mimetypes
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import httpx2
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
 from httpx2._types import FileTypes, RequestFiles
-from typing_extensions import Self
 
 _Route = Literal["libreoffice", "html", "markdown", "url"]
 # Supported Gotenberg LibreOffice conversion input formats:

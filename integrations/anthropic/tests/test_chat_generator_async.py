@@ -132,8 +132,10 @@ class TestIntegration:
         assert "paris" in message.text.lower()
         assert "claude-sonnet-4-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
-        assert "input_tokens" in message.meta["usage"]
-        assert "output_tokens" in message.meta["usage"]
+        assert "prompt_tokens" in message.meta["usage"]
+        assert "completion_tokens" in message.meta["usage"]
+        # only the message_start event carries `service_tier` when streaming
+        assert message.meta["usage"]["service_tier"] is not None
 
         # Verify streaming behavior
         assert counter > 1  # Should have received multiple chunks

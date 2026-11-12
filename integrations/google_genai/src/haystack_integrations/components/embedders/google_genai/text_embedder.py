@@ -6,8 +6,8 @@ from typing import Any, Literal
 
 from google.genai import Client, types
 from google.genai.client import AsyncClient
-from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import component, default_to_dict, logging
+from haystack.utils import Secret
 
 from haystack_integrations.common.google_genai.utils import _get_client
 
@@ -190,19 +190,6 @@ class GoogleGenAITextEmbedder:
             timeout=self._timeout,
             max_retries=self._max_retries,
         )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GoogleGenAITextEmbedder":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            Dictionary to deserialize from.
-        :returns:
-            Deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        return default_from_dict(cls, data)
 
     def _prepare_input(self, text: str) -> dict[str, Any]:
         if not isinstance(text, str):

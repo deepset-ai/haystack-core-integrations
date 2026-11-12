@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
@@ -75,7 +79,9 @@ def _process_logical_operator(item: dict[str, Any]) -> models.Condition | None:
     elif operator == "OR":
         return models.Filter(should=nested_conditions)
     elif operator == "NOT":
-        return models.Filter(must_not=nested_conditions)
+        # Haystack's NOT negates the conjunction of its conditions. `must_not` on its own excludes points
+        # that match any condition, which would negate the disjunction instead.
+        return models.Filter(must_not=[models.Filter(must=nested_conditions)])
 
     return None
 
@@ -130,9 +136,19 @@ def _build_comparison_condition(operator: str, key: str, value: Any) -> models.C
     return builder(key, value)
 
 
+# Qdrant compares ranges as float64, so ints beyond 2**53 can't be matched exactly with a range.
+_MAX_EXACT_FLOAT_INT = 2**53
+
+
 def _build_eq_condition(key: str, value: models.ValueVariants) -> models.Condition:
-    if isinstance(value, str) and " " in value:
-        return models.FieldCondition(key=key, match=models.MatchText(text=value))
+    # Qdrant ranges are compared as float64, so a huge int can't be matched exactly: keep MatchValue for it.
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and not (isinstance(value, int) and abs(value) > _MAX_EXACT_FLOAT_INT)
+    ):
+        # MatchValue rejects floats and doesn't match float payloads for int values; a closed range does both.
+        return models.FieldCondition(key=key, range=models.Range(gte=value, lte=value))
     return models.FieldCondition(key=key, match=models.MatchValue(value=value))
 
 
@@ -140,44 +156,18 @@ def _build_in_condition(key: str, value: list[models.ValueVariants]) -> models.C
     if not isinstance(value, list):
         msg = f"Value {value} is not a list"
         raise FilterError(msg)
-    return models.Filter(
-        should=[
-            (
-                models.FieldCondition(key=key, match=models.MatchText(text=item))
-                if isinstance(item, str) and " " not in item
-                else models.FieldCondition(key=key, match=models.MatchValue(value=item))
-            )
-            for item in value
-        ]
-    )
+    return models.Filter(should=[_build_eq_condition(key, item) for item in value])
 
 
 def _build_ne_condition(key: str, value: models.ValueVariants) -> models.Condition:
-    return models.Filter(
-        must_not=[
-            (
-                models.FieldCondition(key=key, match=models.MatchText(text=value))
-                if isinstance(value, str) and " " not in value
-                else models.FieldCondition(key=key, match=models.MatchValue(value=value))
-            )
-        ]
-    )
+    return models.Filter(must_not=[_build_eq_condition(key, value)])
 
 
 def _build_nin_condition(key: str, value: list[models.ValueVariants]) -> models.Condition:
     if not isinstance(value, list):
         msg = f"Value {value} is not a list"
         raise FilterError(msg)
-    return models.Filter(
-        must_not=[
-            (
-                models.FieldCondition(key=key, match=models.MatchText(text=item))
-                if isinstance(item, str) and " " in item
-                else models.FieldCondition(key=key, match=models.MatchValue(value=item))
-            )
-            for item in value
-        ]
-    )
+    return models.Filter(must_not=[_build_eq_condition(key, item) for item in value])
 
 
 def _build_lt_condition(key: str, value: str | float | int) -> models.Condition:

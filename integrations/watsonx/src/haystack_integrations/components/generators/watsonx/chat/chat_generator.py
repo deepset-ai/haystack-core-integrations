@@ -5,7 +5,7 @@
 import inspect
 import json
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, ClassVar, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -363,7 +363,7 @@ class WatsonxChatGenerator:
         watsonx_messages = []
         content: str | dict[str, Any] | list[dict[str, Any]] | None
 
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        flattened_tools = flatten_tools_or_toolsets(tools if tools is not None else self.tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_definitions = [{"type": "function", "function": {**tool.tool_spec}} for tool in flattened_tools]
 
@@ -429,7 +429,7 @@ class WatsonxChatGenerator:
             "model_version": chunk.get("model_version"),
             "created": chunk.get("created"),
             "created_at": chunk.get("created_at"),
-            "received_at": datetime.now(timezone.utc).isoformat(),
+            "received_at": datetime.now(UTC).isoformat(),
         }
 
         if choice["delta"] and (choice_delta_tool_calls := choice["delta"].get("tool_calls")):

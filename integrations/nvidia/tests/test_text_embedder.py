@@ -6,6 +6,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.nvidia import EmbeddingTruncateMode, NvidiaTextEmbedder
@@ -97,28 +98,14 @@ class TestSerialization:
                 "timeout": 10.0,
             },
         }
-        component = NvidiaTextEmbedder.from_dict(data)
+        component = component_from_dict(NvidiaTextEmbedder, data, name="component")
         assert component.model == "nvolveqa_40k"
         assert component.api_url == "https://example.com/v1"
         assert component.prefix == "prefix"
         assert component.suffix == "suffix"
         assert component.truncate == EmbeddingTruncateMode.START
         assert component.timeout == 10.0
-
-    def test_from_dict_defaults(self, monkeypatch):
-        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        data = {
-            "type": "haystack_integrations.components.embedders.nvidia.text_embedder.NvidiaTextEmbedder",
-            "init_parameters": {},
-        }
-        component = NvidiaTextEmbedder.from_dict(data)
-        ## updating this as model set to None as the warm_up is not done
-        ## default model will be set post warm_up()
-        assert component.model is None
-        assert component.api_url == DEFAULT_API_URL
-        assert component.prefix == ""
-        assert component.suffix == ""
-        assert component.truncate is None
+        assert component.api_key == Secret.from_env_var("NVIDIA_API_KEY")
 
 
 class TestComponentLifecycle:

@@ -4,12 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from cohere.core import ApiError
 from haystack import Pipeline
+from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-
-try:
-    from haystack.components.tools import ToolInvoker
-except ImportError:  # ToolInvoker was removed in Haystack 3.0
-    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool, Toolset
@@ -619,6 +615,65 @@ class TestRun:
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.9
 
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.ClientV2")
+    def test_run_with_empty_tools_override(self, mock_client_cls):
+        weather_tool = Tool(
+            name="weather",
+            description="Get the weather in a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather,
+        )
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[weather_tool])
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        client = mock_client_cls.return_value
+        client.chat.return_value = mock_response
+
+        generator.run([ChatMessage.from_user("Hello")])
+        _, kwargs = client.chat.call_args
+        assert len(kwargs["tools"]) == 1
+
+        generator.run([ChatMessage.from_user("Hello")], tools=[])
+        _, kwargs = client.chat.call_args
+        assert "tools" not in kwargs
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.cohere.chat.chat_generator.AsyncClientV2")
+    async def test_run_async_with_empty_tools_override(self, mock_client_cls):
+        weather_tool = Tool(
+            name="weather",
+            description="Get the weather in a city",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=weather,
+        )
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"), tools=[weather_tool])
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        client = mock_client_cls.return_value
+        client.chat = AsyncMock(return_value=mock_response)
+
+        await generator.run_async([ChatMessage.from_user("Hello")])
+        _, kwargs = client.chat.call_args
+        assert len(kwargs["tools"]) == 1
+
+        await generator.run_async([ChatMessage.from_user("Hello")], tools=[])
+        _, kwargs = client.chat.call_args
+        assert "tools" not in kwargs
+
 
 @pytest.mark.skipif(
     not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
@@ -810,10 +865,9 @@ class TestCohereChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
-    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
-    def test_pipeline_with_cohere_chat_generator(self):
+    def test_agent_with_cohere_chat_generator(self):
         """
-        Test that the CohereChatGenerator component can be used in a pipeline
+        Test that the CohereChatGenerator component can drive tool calls in an Agent
         """
         weather_tool = Tool(
             name="weather",
@@ -831,20 +885,11 @@ class TestCohereChatGeneratorInference:
             function=weather,
         )
 
-        pipeline = Pipeline()
-        pipeline.add_component("generator", CohereChatGenerator(model="command-r7b-12-2024", tools=[weather_tool]))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
+        agent = Agent(chat_generator=CohereChatGenerator(model="command-r7b-12-2024"), tools=[weather_tool])
+        result = agent.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
 
-        pipeline.connect("generator", "tool_invoker")
-
-        results = pipeline.run(
-            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
-        )
-
-        assert (
-            "The weather in Paris is sunny and 32°C"
-            == results["tool_invoker"]["tool_messages"][0].tool_call_result.result
-        )
+        tool_results = [msg.tool_call_result.result for msg in result["messages"] if msg.tool_call_result]
+        assert "The weather in Paris is sunny and 32°C" in tool_results
 
     def test_live_run_multimodal(self):
         generator = CohereChatGenerator(

@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+from copy import deepcopy
 from types import SimpleNamespace
 
 import numpy as np
@@ -7,6 +12,7 @@ from qdrant_client.http import models as rest
 
 from haystack_integrations.document_stores.qdrant.converters import (
     DENSE_VECTORS_NAME,
+    MULTIVECTOR_NAME,
     SPARSE_VECTORS_NAME,
     convert_haystack_documents_to_qdrant_points,
     convert_id,
@@ -142,3 +148,58 @@ def test_point_to_document_sparse_vector_edge_cases(vector):
     document = convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True)
     assert document.embedding == [0.1, 0.2]
     assert document.sparse_embedding is None
+
+
+@pytest.mark.parametrize(
+    ("sparse_enabled", "dense", "multivector"),
+    [
+        pytest.param(False, None, None, id="no-vectors"),
+        pytest.param(False, [1.0, 0.0], None, id="dense-only"),
+        pytest.param(False, None, [[1.0, 0.0], [0.0, 2.0]], id="multivector-only"),
+        pytest.param(True, [1.0, 0.0], [[1.0, 0.0], [0.0, 2.0]], id="all-embeddings"),
+    ],
+)
+def test_multivector_conversion_round_trip(sparse_enabled, dense, multivector):
+    sparse = SparseEmbedding(indices=[1], values=[0.5]) if sparse_enabled else None
+    doc = Document(
+        id="original",
+        content="hello",
+        meta={"category": "A"},
+        embedding=dense,
+        sparse_embedding=sparse,
+        multivector_embedding=multivector,
+    )
+    original = deepcopy(doc)
+    point = convert_haystack_documents_to_qdrant_points(
+        [doc],
+        use_sparse_embeddings=sparse_enabled,
+        use_multivector_embeddings=True,
+    )[0]
+    expected = {}
+    if dense is not None:
+        expected[DENSE_VECTORS_NAME] = dense
+    if sparse is not None:
+        expected[SPARSE_VECTORS_NAME] = rest.SparseVector(indices=[1], values=[0.5])
+    if multivector is not None:
+        expected[MULTIVECTOR_NAME] = multivector
+    assert point.vector == expected
+    assert {"embedding", "sparse_embedding", "multivector_embedding"}.isdisjoint(point.payload)
+    payload_before = deepcopy(point.payload)
+    restored = convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=sparse_enabled)
+    assert restored == original
+    assert doc == original
+    assert point.payload == payload_before
+
+
+@pytest.mark.parametrize(
+    ("embeddings", "message"),
+    [
+        ({"sparse_embedding": SparseEmbedding(indices=[1], values=[0.5])}, "use_sparse_embeddings=True"),
+        ({"multivector_embedding": [[1.0, 0.0]]}, "multivector_embedding_dim"),
+    ],
+)
+def test_conversion_rejects_disabled_embeddings(embeddings, message):
+    with pytest.raises(ValueError, match=message):
+        convert_haystack_documents_to_qdrant_points(
+            [Document(**embeddings)], use_sparse_embeddings=False, use_multivector_embeddings=False
+        )

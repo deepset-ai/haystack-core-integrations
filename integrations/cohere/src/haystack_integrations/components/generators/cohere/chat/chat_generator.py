@@ -460,13 +460,11 @@ class CohereChatGenerator:
 
     ### Advanced example
 
-    CohereChatGenerator can be integrated into pipelines and supports Haystack's tooling
-    architecture, enabling tools to be invoked seamlessly across various generators.
+    CohereChatGenerator supports Haystack's tooling architecture, so it can drive tool calls in an `Agent`.
 
     ```python
-    from haystack import Pipeline
+    from haystack.components.agents import Agent
     from haystack.dataclasses import ChatMessage
-    from haystack.components.tools import ToolInvoker
     from haystack.tools import Tool
     from haystack_integrations.components.generators.cohere import CohereChatGenerator
 
@@ -490,20 +488,12 @@ class CohereChatGenerator:
         function=weather,
     )
 
-    # Create and set up the pipeline
-    pipeline = Pipeline()
-    pipeline.add_component("generator", CohereChatGenerator(tools=[weather_tool]))
-    pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
-    pipeline.connect("generator", "tool_invoker")
+    # The Agent calls the tool and feeds the result back to the model
+    agent = Agent(chat_generator=CohereChatGenerator(), tools=[weather_tool])
+    result = agent.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
 
-    # Run the pipeline with a weather query
-    results = pipeline.run(
-        data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
-    )
-
-    # The tool result will be available in the pipeline output
-    print(results["tool_invoker"]["tool_messages"][0].tool_call_result.result)
-    # Output: "The weather in Paris is sunny and 32°C"
+    print(result["last_message"].text)
+    # Output: "The weather in Paris is sunny and 32°C."
     ```
     """
 
@@ -674,7 +664,8 @@ class CohereChatGenerator:
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter set during component initialization.
+            If set, it will override the `tools` parameter set during component initialization. Pass an empty
+            list to disable tools for this call.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
 
@@ -689,7 +680,7 @@ class CohereChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         if flattened_tools:
             _check_duplicate_tool_names(flattened_tools)
@@ -745,7 +736,8 @@ class CohereChatGenerator:
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter set during component initialization.
+            If set, it will override the `tools` parameter set during component initialization. Pass an empty
+            list to disable tools for this call.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
@@ -758,7 +750,7 @@ class CohereChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         if flattened_tools:
             _check_duplicate_tool_names(flattened_tools)

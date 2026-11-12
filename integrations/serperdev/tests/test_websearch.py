@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
 from httpx import ConnectTimeout, HTTPStatusError, ReadTimeout, Request, RequestError, Response
 
@@ -189,7 +190,7 @@ class TestSerperDevSearchAPI:
                 "search_params": {"param": "test"},
             },
         }
-        component = SerperDevWebSearch.from_dict(data)
+        component = component_from_dict(SerperDevWebSearch, data, name="component")
         assert component.api_key == Secret.from_env_var("SERPERDEV_API_KEY")
         assert component.top_k == 10
         assert component.allowed_domains == ["test.com"]

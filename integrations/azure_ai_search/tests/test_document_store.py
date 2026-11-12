@@ -5,7 +5,7 @@
 import logging
 import os
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
 import pytest
@@ -20,6 +20,7 @@ from azure.search.documents.indexes.models import (
     SimpleField,
 )
 from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
@@ -532,6 +533,110 @@ def test_get_raw_documents_by_id_skips_not_found(caplog):
     assert "missing" in caplog.text
 
 
+def _build_mock_document_store_for_indexing():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
+        SearchField(name="embedding", type=SearchFieldDataType.Collection(SearchFieldDataType.Single)),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    _ = document_store.client  # loads the index fields, as any earlier call on the store would
+    return document_store, search_client
+
+
+def _indexing_results(keys, failures=None):
+    """
+    Build the per-document results that `upload_documents` and `merge_documents` return.
+
+    :param failures: Maps a document key to the (status code, error message) Azure AI Search reports for it.
+    """
+    failures = failures or {}
+    results = []
+    for key in keys:
+        status_code, error_message = failures.get(key, (200, None))
+        results.append(Mock(key=key, succeeded=status_code < 300, status_code=status_code, error_message=error_message))
+    return results
+
+
+_DOCS = [Document(id=doc_id, content=doc_id, meta={"category": "news"}) for doc_id in ("doc-a", "doc-b", "doc-c")]
+
+
+@pytest.mark.parametrize(
+    "failures",
+    [
+        {"doc-b": (503, "The service is too busy.")},
+        {doc.id: (422, "The index is temporarily unavailable.") for doc in _DOCS},
+    ],
+    ids=["some_documents_rejected", "all_documents_rejected"],
+)
+def test_write_documents_raises_when_documents_are_rejected(failures):
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.upload_documents.return_value = _indexing_results([doc.id for doc in _DOCS], failures=failures)
+
+    with pytest.raises(DocumentStoreError) as error:
+        document_store.write_documents(_DOCS)
+
+    for doc_id, (code, message) in failures.items():
+        assert f"Document '{doc_id}': {code} {message}" in str(error.value)
+    assert f"{len(failures)} of 3 documents were not written to index 'test-index'" in str(error.value)
+
+
+def test_write_documents_error_lists_at_most_ten_rejected_documents():
+    docs = [Document(id=f"doc-{i}", content=str(i)) for i in range(50)]
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.upload_documents.return_value = _indexing_results(
+        [doc.id for doc in docs], failures={doc.id: (503, "busy") for doc in docs}
+    )
+
+    with pytest.raises(DocumentStoreError) as error:
+        document_store.write_documents(docs)
+
+    assert "50 of 50 documents were not written" in str(error.value)
+    assert str(error.value).count("Document 'doc-") == 10
+    assert "... and 40 more" in str(error.value)
+
+
+def test_write_documents_returns_count_when_all_documents_are_indexed():
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.upload_documents.return_value = _indexing_results([doc.id for doc in _DOCS])
+
+    assert document_store.write_documents(_DOCS) == 3
+    uploaded = search_client.upload_documents.call_args.args[0]
+    assert [doc["id"] for doc in uploaded] == ["doc-a", "doc-b", "doc-c"]
+
+
+def test_update_by_filter_raises_when_documents_are_rejected():
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.search.return_value = [{"id": "doc-a"}, {"id": "doc-b"}, {"id": "doc-c"}]
+    search_client.merge_documents.return_value = _indexing_results(
+        ["doc-a", "doc-b", "doc-c"], failures={"doc-b": (409, "Version conflict.")}
+    )
+
+    with pytest.raises(DocumentStoreError) as error:
+        document_store.update_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "news"}, meta={"category": "sport"}
+        )
+
+    assert "Document 'doc-b': 409 Version conflict." in str(error.value)
+    assert "1 of 3 documents were not updated in index 'test-index'" in str(error.value)
+
+
+def test_update_by_filter_returns_count_when_all_documents_are_updated():
+    document_store, search_client = _build_mock_document_store_for_indexing()
+    search_client.search.return_value = [{"id": "doc-a"}, {"id": "doc-b"}]
+    search_client.merge_documents.return_value = _indexing_results(["doc-a", "doc-b"])
+
+    updated = document_store.update_by_filter(
+        filters={"field": "meta.category", "operator": "==", "value": "news"}, meta={"category": "sport"}
+    )
+
+    assert updated == 2
+    search_client.merge_documents.assert_called_once_with(
+        documents=[{"id": "doc-a", "category": "sport"}, {"id": "doc-b", "category": "sport"}]
+    )
+
+
 def _assert_documents_are_equal(received: list[Document], expected: list[Document]):
     """
     Assert that two lists of Documents are equal.
@@ -870,8 +975,8 @@ class TestFilters(FilterDocumentsTest):
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                > datetime.strptime("1972-12-11T19:54:58Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+                > datetime.strptime("1972-12-11T19:54:58Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
             ],
         )
 
@@ -887,8 +992,8 @@ class TestFilters(FilterDocumentsTest):
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                >= datetime.strptime("1969-07-21T20:17:40Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+                >= datetime.strptime("1969-07-21T20:17:40Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
             ],
         )
 
@@ -904,8 +1009,8 @@ class TestFilters(FilterDocumentsTest):
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                < datetime.strptime("1969-07-21T20:17:40Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+                < datetime.strptime("1969-07-21T20:17:40Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
             ],
         )
 
@@ -921,8 +1026,8 @@ class TestFilters(FilterDocumentsTest):
                 d
                 for d in filterable_docs
                 if d.meta.get("date") is not None
-                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                <= datetime.strptime("1969-07-21T20:17:40Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                and datetime.strptime(d.meta["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+                <= datetime.strptime("1969-07-21T20:17:40Z", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
             ],
         )
 
