@@ -318,7 +318,17 @@ class OpenDataLoaderConverter:
         output_dir: Path,
         image_dir: Path | None,
     ) -> list[Document]:
-        """Convert a non-empty batch, bisecting failures into isolated output directories when enabled."""
+        """
+        Convert a non-empty batch, bisecting failures into isolated output directories when enabled.
+
+        :param sources: Non-empty list of staged PDF paths paired with their merged metadata.
+        :param output_dir: Temporary output directory for this batch. Partial outputs are removed before retrying.
+        :param image_dir: Persistent image directory for this batch, or `None` to disable image extraction.
+            Images from failed attempts are removed.
+        :returns:
+            Converted Documents in source order, omitting failed PDFs when `skip_failed_pdfs` is enabled.
+            Returns an empty list when a single PDF fails and is skipped.
+        """
         output_dir.mkdir(parents=True, exist_ok=True)
         conversion_kwargs = {"image_output": "off", **self.convert_kwargs}
         if image_dir is not None:
