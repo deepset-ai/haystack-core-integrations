@@ -575,35 +575,22 @@ class TestValidationAndTools:
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
 
-    def test_run_with_empty_tools_override(self, tools):
+    def test_run_with_empty_tools_override(self, mock_pipeline_with_tokenizer, tools):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf", tools=tools)
-
         generated_text = '{"name": "weather", "arguments": {"city": "Paris"}}'
-        mock_pipeline = Mock(return_value=[{"generated_text": generated_text}])
-        mock_tokenizer = Mock(spec=PreTrainedTokenizer)
-        mock_tokenizer.encode.return_value = ["some", "tokens"]
-        mock_tokenizer.pad_token_id = 100
-        mock_tokenizer.apply_chat_template.return_value = "test prompt"
-        mock_pipeline.tokenizer = mock_tokenizer
-        generator.pipeline = mock_pipeline
+        mock_pipeline_with_tokenizer.return_value = [{"generated_text": generated_text}]
+        generator.pipeline = mock_pipeline_with_tokenizer
 
         results = generator.run(messages=[ChatMessage.from_user("What's the weather in Paris?")], tools=[])
 
-        assert mock_tokenizer.apply_chat_template.call_args.kwargs["tools"] is None
+        assert mock_pipeline_with_tokenizer.tokenizer.apply_chat_template.call_args.kwargs["tools"] is None
         message = results["replies"][0]
         assert not message.tool_calls
         assert message.text == generated_text
 
-    def test_run_with_empty_tools_override_and_streaming(self, tools):
+    def test_run_with_empty_tools_override_and_streaming(self, mock_pipeline_with_tokenizer, tools):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf", tools=tools)
-
-        mock_pipeline = Mock(return_value=[{"generated_text": "Berlin is cool"}])
-        mock_tokenizer = Mock(spec=PreTrainedTokenizer)
-        mock_tokenizer.encode.return_value = ["some", "tokens"]
-        mock_tokenizer.pad_token_id = 100
-        mock_tokenizer.apply_chat_template.return_value = "test prompt"
-        mock_pipeline.tokenizer = mock_tokenizer
-        generator.pipeline = mock_pipeline
+        generator.pipeline = mock_pipeline_with_tokenizer
 
         results = generator.run(
             messages=[ChatMessage.from_user("Tell me about Berlin")], tools=[], streaming_callback=lambda _: None
