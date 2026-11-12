@@ -401,6 +401,18 @@ class TestRun:
             assert len(call_kwargs.kwargs["tools"]) == 1
             assert call_kwargs.kwargs["tools"][0]["function"]["name"] == "weather"
 
+    def test_empty_tools_overrides_init_tools(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o", tools=[_weather_tool()])
+        # an empty list must disable tools for this call, not fall back to the init tools
+        kwargs = gen._build_litellm_kwargs(
+            messages=[ChatMessage.from_user("weather in Paris?")],
+            streaming_callback=None,
+            generation_kwargs=None,
+            tools=[],
+        )
+
+        assert kwargs["tools"] is None
+
 
 class TestSerializationRoundTrip:
     def test_round_trip_basic(self):
