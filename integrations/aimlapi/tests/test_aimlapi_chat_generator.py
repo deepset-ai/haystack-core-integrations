@@ -524,6 +524,14 @@ class TestAIMLAPIChatGenerator:
         assert function_spec["strict"] is True
         assert function_spec["parameters"]["additionalProperties"] is False
 
+    def test_prepare_api_call_empty_tools_overrides_init_tools(self, tools, monkeypatch):
+        monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
+        component = AIMLAPIChatGenerator(tools=tools)
+        # an empty list must disable tools for this call, not fall back to the init tools
+        args = component._prepare_api_call(messages=[ChatMessage.from_user("hi")], tools=[])
+
+        assert "tools" not in args
+
     def test_prepare_api_call_streaming_multiple_responses_raises(self, monkeypatch):
         monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
         component = AIMLAPIChatGenerator()
