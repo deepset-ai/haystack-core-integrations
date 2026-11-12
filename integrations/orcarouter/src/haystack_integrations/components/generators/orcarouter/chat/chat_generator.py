@@ -122,5 +122,7 @@ class OrcaRouterChatGenerator(OpenAIChatGenerator):
         """
         data = super(OrcaRouterChatGenerator, self).to_dict()  # noqa: UP008
         init_parameters = inspect.signature(type(self).__init__).parameters
-        data["init_parameters"] = {key: value for key, value in data["init_parameters"].items() if key in init_parameters}
+        data["init_parameters"] = {
+            key: value for key, value in data["init_parameters"].items() if key in init_parameters
+        }
         return data
