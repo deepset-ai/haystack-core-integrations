@@ -30,7 +30,8 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
-  TEST_MATRIX_PYTHON: '["3.11", "3.12"]'
+  # paddlepaddle publishes wheels up to Python 3.13
+  TEST_MATRIX_PYTHON: '["3.11", "3.13"]'
   LLAMA_CPP_VERSION: "b12110"
   GGUF_REVISION: "0133ad8db635210441a55dcf421e25bfb9915142"
   LAYOUT_REVISION: "241f8bdfc77a7c7bee915a5057aaee58c235a8d3"
