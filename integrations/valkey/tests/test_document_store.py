@@ -536,6 +536,24 @@ class TestValkeyDocumentStore(
         assert len(results) == 2
         assert {doc.id for doc in results} == {"nf1", "nf2"}
 
+    def test_filter_documents_returns_every_document_past_the_knn_limit(self, document_store):
+        # Documents without an embedding all share the same dummy vector, so a KNN-based listing
+        # returned only part of them, and raised once the store held more than 10000 documents.
+        total = 10_001
+        for start in range(0, total, 500):
+            document_store.write_documents(
+                [
+                    Document(id=str(i), content=f"doc {i}", meta={"category": "even" if i % 2 == 0 else "odd"})
+                    for i in range(start, min(start + 500, total))
+                ]
+            )
+
+        assert len(document_store.filter_documents()) == total
+
+        even = document_store.filter_documents({"field": "meta.category", "operator": "==", "value": "even"})
+        assert len(even) == 5001
+        assert all(doc.score is None for doc in even)
+
     def test_filter_documents_complex_nested(self, document_store):
         docs = [
             Document(id="c1", content="doc 1", meta={"category": "news", "priority": 1, "status": "active"}),
@@ -761,6 +779,25 @@ class TestValkeyDocumentStoreStaticMethods:
         """Test _parse_metric static method with invalid metric."""
         with pytest.raises(ValueError, match="Unsupported metric: invalid"):
             ValkeyDocumentStore._parse_metric("invalid")
+
+    def test_build_filter_query_and_options_without_filters(self):
+        query, options = ValkeyDocumentStore._build_filter_query_and_options(None, 42, supported_fields={})
+
+        assert "KNN" not in query
+        assert query == ValkeyDocumentStore._MATCH_ALL_QUERY
+        assert options.limit.count == 42
+        assert not options.params
+
+    def test_build_filter_query_and_options_with_filters(self):
+        query, options = ValkeyDocumentStore._build_filter_query_and_options(
+            {"field": "meta.category", "operator": "==", "value": "news"},
+            7,
+            supported_fields={"meta_category": "tag"},
+        )
+
+        assert "KNN" not in query
+        assert "@meta_category:{news}" in query
+        assert options.limit.count == 7
 
     def test_to_float32_bytes(self):
         """Test _to_float32_bytes static method."""
