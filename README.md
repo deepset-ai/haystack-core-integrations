@@ -8,9 +8,9 @@
 | src/haystack\_integrations/components/retrievers/qdrant/retriever.py              |      129 |        0 |       12 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/qdrant/utils.py                  |       17 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/qdrant/converters.py                  |       51 |        0 |       22 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/qdrant/document\_store.py             |      869 |       34 |      252 |       26 |     95% |469-470, 528-529, 570-571, 612, 627-629, 647, 662-664, 767-\>766, 769-\>766, 790-\>785, 848, 868-\>854, 888-890, 913, 932-\>918, 936, 952-954, 1149-\>1139, 1193-\>1183, 1231-\>1221, 1269-\>1259, 1307-\>1297, 1349-\>1339, 1403-\>1393, 1459-\>1449, 2285-2286, 2304-2306, 2735, 2754-2755, 2814-2815, 2822-2823 |
+| src/haystack\_integrations/document\_stores/qdrant/document\_store.py             |      871 |       34 |      252 |       25 |     95% |469-470, 528-529, 570-571, 612, 627-629, 647, 662-664, 769-\>766, 790-\>785, 848, 868-\>854, 888-890, 913, 932-\>918, 936, 952-954, 1149-\>1139, 1193-\>1183, 1231-\>1221, 1269-\>1259, 1309-\>1299, 1353-\>1343, 1407-\>1397, 1463-\>1453, 2289-2290, 2308-2310, 2739, 2758-2759, 2818-2819, 2826-2827 |
 | src/haystack\_integrations/document\_stores/qdrant/filters.py                     |      126 |        5 |       60 |        6 |     94% |48-\>40, 52-\>40, 74, 86, 105, 133-134 |
-| **TOTAL**                                                                         | **1236** |   **39** |  **358** |   **32** | **96%** |           |
+| **TOTAL**                                                                         | **1238** |   **39** |  **358** |   **31** | **96%** |           |
 
 
 ## Setup coverage badge
