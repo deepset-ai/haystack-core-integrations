@@ -127,18 +127,26 @@ def test_run():
     assert res["documents"][0].embedding == [0.1, 0.2]
 
 
-def test_run_init_params():
+@pytest.mark.parametrize("filter_policy", [FilterPolicy.REPLACE, FilterPolicy.MERGE])
+def test_run_init_params(filter_policy):
     mock_store = Mock(spec=AzureAISearchDocumentStore)
     mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
     retriever = AzureAISearchEmbeddingRetriever(
         document_store=mock_store,
-        filters={"field": "type", "operator": "==", "value": "article"},
+        filters={
+            "operator": "AND",
+            "conditions": [
+                {"field": "type", "operator": "==", "value": "article"},
+                {"field": "year", "operator": ">=", "value": 2020},
+            ],
+        },
         top_k=11,
+        filter_policy=filter_policy,
     )
     res = retriever.run(query_embedding=[0.5, 0.7])
     mock_store._embedding_retrieval.assert_called_once_with(
         query_embedding=[0.5, 0.7],
-        filters="type eq 'article'",
+        filters="(type eq 'article') and (year ge 2020)",
         top_k=11,
     )
     assert len(res) == 1
