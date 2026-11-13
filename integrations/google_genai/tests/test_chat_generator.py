@@ -505,6 +505,19 @@ class TestGoogleGenAIChatGeneratorRun:
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.tools is not None
 
+    def test_run_with_empty_tools_override(self, mock_response, tools):
+        # an empty runtime list must disable the init tools for this call, not fall back to them;
+        # generation_kwargs keeps a config object in the request so its tools can be inspected
+        component = GoogleGenAIChatGenerator(tools=tools, generation_kwargs={"temperature": 0.5})
+        component._client = MagicMock()
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        component.run([ChatMessage.from_user("Weather in Paris?")])
+        assert component._client.models.generate_content.call_args.kwargs["config"].tools is not None
+
+        component.run([ChatMessage.from_user("Weather in Paris?")], tools=[])
+        assert component._client.models.generate_content.call_args.kwargs["config"].tools is None
+
     def test_run_with_safety_settings(self, mock_response):
         safety = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}]
         component = GoogleGenAIChatGenerator()
@@ -627,6 +640,18 @@ class TestGoogleGenAIChatGeneratorRun:
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.temperature == 0.9
         assert config.max_output_tokens == 100
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_empty_tools_override(self, mock_response, tools):
+        component = GoogleGenAIChatGenerator(tools=tools, generation_kwargs={"temperature": 0.5})
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
+
+        await component.run_async([ChatMessage.from_user("Weather in Paris?")])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].tools is not None
+
+        await component.run_async([ChatMessage.from_user("Weather in Paris?")], tools=[])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].tools is None
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_streaming_chunk):
