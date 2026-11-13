@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/searchapi-v2.1.0] - 2026-11-13
+
+### 🚀 Features
+
+- Parse SearchApi AI answer engines in SearchApiWebSearch (#4041)
+
+
 ## [integrations/searchapi-v2.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
