@@ -610,13 +610,15 @@ class ChromaDocumentStore:
             How to handle documents whose `id` already exists in the store:
             - `NONE` (default): treated as `FAIL`.
             - `OVERWRITE`: replace the existing document.
-            - `SKIP`: keep the existing document and skip the new one.
+            - `SKIP`: keep the existing document and skip the new one. An `id` repeated within
+              `documents` is written once.
             - `FAIL`: raise `DuplicateDocumentError`.
 
         :raises ValueError:
             When input is not valid.
         :raises DuplicateDocumentError:
-            When `policy` is `FAIL` (or `NONE`) and any document `id` already exists.
+            When `policy` is `FAIL` (or `NONE`) and any document `id` already exists or is repeated
+            within `documents`.
 
         :returns:
             The number of documents written.
@@ -634,7 +636,7 @@ class ChromaDocumentStore:
             return 0
 
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
-            existing_ids = set(self._collection.get(ids=[p["ids"][0] for p in chroma_payloads])["ids"])
+            existing_ids = set(self._collection.get(ids=self._unique_ids(chroma_payloads))["ids"])
             payloads_to_write = self._apply_duplicate_policy(chroma_payloads, existing_ids, policy)
         else:
             payloads_to_write = chroma_payloads
@@ -663,13 +665,15 @@ class ChromaDocumentStore:
             How to handle documents whose `id` already exists in the store:
             - `NONE` (default): treated as `FAIL`.
             - `OVERWRITE`: replace the existing document.
-            - `SKIP`: keep the existing document and skip the new one.
+            - `SKIP`: keep the existing document and skip the new one. An `id` repeated within
+              `documents` is written once.
             - `FAIL`: raise `DuplicateDocumentError`.
 
         :raises ValueError:
             When input is not valid.
         :raises DuplicateDocumentError:
-            When `policy` is `FAIL` (or `NONE`) and any document `id` already exists.
+            When `policy` is `FAIL` (or `NONE`) and any document `id` already exists or is repeated
+            within `documents`.
 
         :returns:
             The number of documents written.
@@ -687,7 +691,7 @@ class ChromaDocumentStore:
             return 0
 
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
-            existing = await self._async_collection.get(ids=[p["ids"][0] for p in chroma_payloads])
+            existing = await self._async_collection.get(ids=self._unique_ids(chroma_payloads))
             existing_ids = set(existing["ids"])
             payloads_to_write = self._apply_duplicate_policy(chroma_payloads, existing_ids, policy)
         else:
@@ -702,19 +706,37 @@ class ChromaDocumentStore:
         return len(payloads_to_write)
 
     @staticmethod
+    def _unique_ids(payloads: list[dict[str, Any]]) -> list[str]:
+        # Chroma rejects a `get` whose ids repeat, so look up each id once
+        return list(dict.fromkeys(p["ids"][0] for p in payloads))
+
+    @staticmethod
     def _apply_duplicate_policy(
         payloads: list[dict[str, Any]],
         existing_ids: set[str],
         policy: DuplicatePolicy,
     ) -> list[dict[str, Any]]:
+        # an id repeated within the batch counts as a duplicate of its first occurrence
+        seen = set(existing_ids)
         if policy == DuplicatePolicy.FAIL:
-            duplicates = [p["ids"][0] for p in payloads if p["ids"][0] in existing_ids]
+            duplicates = []
+            for p in payloads:
+                doc_id = p["ids"][0]
+                if doc_id in seen:
+                    duplicates.append(doc_id)
+                seen.add(doc_id)
             if duplicates:
                 msg = f"Documents with ids {duplicates} already exist in the document store."
                 raise DuplicateDocumentError(msg)
             return payloads
         if policy == DuplicatePolicy.SKIP:
-            return [p for p in payloads if p["ids"][0] not in existing_ids]
+            to_write = []
+            for p in payloads:
+                doc_id = p["ids"][0]
+                if doc_id not in seen:
+                    to_write.append(p)
+                    seen.add(doc_id)
+            return to_write
         return payloads
 
     def delete_documents(self, document_ids: list[str]) -> None:

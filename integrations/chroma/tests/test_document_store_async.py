@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import TEST_EMBEDDING_1
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
@@ -43,6 +44,18 @@ class TestDocumentStoreAsyncUnit:
             store = ChromaDocumentStore(host="localhost", port=8000, client_settings={"foo": "bar"})
             with pytest.raises(ValueError, match="Invalid client_settings"):
                 await store._ensure_initialized_async()
+
+    async def test_write_documents_async_skip_looks_up_each_id_once(self):
+        store = ChromaDocumentStore(host="localhost", port=8000)
+        collection = mock.AsyncMock()
+        collection.get.return_value = {"ids": []}
+        store._async_collection = collection
+        store._ensure_initialized_async = mock.AsyncMock()  # type: ignore[method-assign]
+        docs = [Document(content="refund policy"), Document(content="shipping"), Document(content="refund policy")]
+
+        assert await store.write_documents_async(docs, policy=DuplicatePolicy.SKIP) == 2
+        collection.get.assert_awaited_once_with(ids=[docs[0].id, docs[1].id])
+        assert collection.add.await_count == 2
 
 
 @pytest.mark.skipif(
