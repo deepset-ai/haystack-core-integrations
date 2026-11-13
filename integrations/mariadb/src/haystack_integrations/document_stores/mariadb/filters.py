@@ -102,7 +102,7 @@ def _build_field_expr(field: str, value: Any) -> str:
     """Return a safe SQL expression for a document field or meta JSON path."""
     if field.startswith("meta."):
         field_name = field.split(".", 1)[1]
-        if not _SAFE_FIELD_RE.match(field_name):
+        if not _SAFE_FIELD_RE.fullmatch(field_name):
             msg = f"Invalid meta field name: '{field_name}'"
             raise FilterError(msg)
         # JSON_UNQUOTE(JSON_EXTRACT(meta, '$.field')) returns the value as a string.
@@ -119,10 +119,8 @@ def _build_field_expr(field: str, value: Any) -> str:
             if isinstance(first, float):
                 return f"CAST({base} AS DECIMAL(65,30))"
         return base
-    # Top-level document field (id, content, etc.). Backtick quoting alone is not
-    # safe: a field name containing a backtick escapes the quoting, so the name
-    # must be validated first, the same way meta field names already are.
-    if not _SAFE_FIELD_RE.match(field):
+    # Backtick quoting alone does not protect against embedded backticks.
+    if not _SAFE_FIELD_RE.fullmatch(field):
         msg = f"Invalid document field name: '{field}'"
         raise FilterError(msg)
     return f"`{field}`"
