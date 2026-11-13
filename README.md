@@ -8,12 +8,12 @@
 | src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py                  |      118 |        6 |       38 |        5 |     93% |251, 261, 284, 294, 352-356 |
 | src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py      |      176 |        8 |       64 |        7 |     94% |392-393, 415, 436-\>409, 459, 469-470, 473-478, 480-\>453 |
 | src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                      |       64 |        8 |       12 |        1 |     88% |207, 232-233, 251-256 |
-| src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py               |      188 |        2 |       46 |        3 |     98% |430-\>432, 635, 639 |
+| src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py               |      188 |        1 |       46 |        2 |     99% |430-\>432, 637 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/interactions\_chat\_generator.py |      124 |        0 |       28 |        3 |     98% |219-\>exit, 225-\>exit, 407-\>400 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/interactions\_utils.py           |      255 |        6 |      134 |        7 |     97% |217-221, 230-231, 236-\>234, 246-247, 554-\>557, 566-\>568, 568-\>570 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                         |      318 |       24 |      186 |       22 |     90% |234-235, 279-281, 289-\>298, 317-\>322, 361-363, 432-\>322, 495, 505-507, 545-\>579, 548-\>579, 553, 563-\>565, 566-571, 575-576, 592, 605, 616, 621-622, 710-\>681, 783-\>789, 789-\>775, 799, 805 |
 | src/haystack\_integrations/token\_counters/google\_genai/token\_counter.py                           |       58 |        3 |       18 |        3 |     92% |92, 146-147, 156-\>exit |
-| **TOTAL**                                                                                            | **1339** |   **57** |  **546** |   **53** | **94%** |           |
+| **TOTAL**                                                                                            | **1339** |   **56** |  **546** |   **52** | **94%** |           |
 
 
 ## Setup coverage badge
