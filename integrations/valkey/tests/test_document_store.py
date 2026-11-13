@@ -4,6 +4,7 @@
 
 # ruff: noqa: S110
 
+import json
 import struct
 from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1424,6 +1425,75 @@ class TestValkeyDocumentStoreErrorPaths:
             }
             with pytest.raises(FilterError):
                 unit_store._embedding_retrieval([0.1, 0.2, 0.3], filters=bad_filters, limit=5)
+
+    @staticmethod
+    def _ft_search_result(*docs):
+        return [
+            len(docs),
+            {
+                f"unit_test:{doc['id']}".encode(): {
+                    b"payload": json.dumps(doc).encode(),
+                    b"vector": json.dumps([-10.0, -10.0, -10.0]).encode(),
+                }
+                for doc in docs
+            },
+        ]
+
+    def test_filter_documents_runs_a_filter_only_search(self, unit_store):
+        unit_store._client = MagicMock()
+        filters = {"field": "meta.category", "operator": "==", "value": "news"}
+        with (
+            patch.object(unit_store, "count_documents", return_value=2),
+            patch.object(ds_module, "sync_ft") as mock_ft,
+        ):
+            mock_ft.search.return_value = self._ft_search_result(
+                {"id": "a", "content": "doc a", "meta": {"category": "news"}, "score": 0.5},
+            )
+            documents = unit_store.filter_documents(filters)
+
+        _, index_name, query, options = mock_ft.search.call_args.args
+        assert index_name == "unit_test"
+        assert "KNN" not in query
+        assert "@meta_category:{news}" in query
+        assert options.limit.count == 2
+        assert [(doc.id, doc.score, doc.embedding) for doc in documents] == [("a", None, None)]
+
+    def test_filter_documents_skips_the_search_when_the_store_is_empty(self, unit_store):
+        unit_store._client = MagicMock()
+        with (
+            patch.object(unit_store, "count_documents", return_value=0),
+            patch.object(ds_module, "sync_ft") as mock_ft,
+        ):
+            assert unit_store.filter_documents() == []
+        mock_ft.search.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_runs_a_filter_only_search(self, unit_store):
+        search = AsyncMock(
+            return_value=self._ft_search_result({"id": "a", "content": "doc a", "meta": {}, "score": 0.5})
+        )
+        with (
+            patch.object(unit_store, "count_documents_async", AsyncMock(return_value=3)),
+            patch.object(unit_store, "_get_connection_async", AsyncMock(return_value=MagicMock())),
+            patch.object(ds_module.ft, "search", search),
+        ):
+            documents = await unit_store.filter_documents_async()
+
+        _, index_name, query, options = search.call_args.args
+        assert index_name == "unit_test"
+        assert query == ValkeyDocumentStore._MATCH_ALL_QUERY
+        assert options.limit.count == 3
+        assert [(doc.id, doc.score) for doc in documents] == [("a", None)]
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_skips_the_search_when_the_store_is_empty(self, unit_store):
+        search = AsyncMock()
+        with (
+            patch.object(unit_store, "count_documents_async", AsyncMock(return_value=0)),
+            patch.object(ds_module.ft, "search", search),
+        ):
+            assert await unit_store.filter_documents_async() == []
+        search.assert_not_called()
 
     def test_write_documents_empty_list_returns_zero(self, unit_store, caplog):
         assert unit_store.write_documents([]) == 0
