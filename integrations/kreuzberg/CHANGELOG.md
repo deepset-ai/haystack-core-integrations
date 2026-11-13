@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/kreuzberg-v2.1.0] - 2026-11-13
+
+### 🚀 Features
+
+- *(kreuzberg)* Add include_page_structure to drop the page map from Document meta (#4256)
+
+
 ## [integrations/kreuzberg-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing
