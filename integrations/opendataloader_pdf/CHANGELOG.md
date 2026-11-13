@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/opendataloader_pdf-v1.1.0] - 2026-11-13
+
+### 🚀 Features
+
+- [**breaking**] Put OpenDataLoader Json data on Document.meta (#4218)
+- *(opendataloader_pdf)* Add optional batch bisection to skip bad PDFs (#4147)
+
+### 🧹 Chores
+
+-   chore: opendataloader_pdf - set haystack-ai minimum version to 2.1.0 (#4230)
+
+
 ## [integrations/opendataloader_pdf-v1.0.0] - 2026-10-16
 
 ### 🧪 Testing
