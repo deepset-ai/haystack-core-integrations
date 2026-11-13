@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.keirolabs.keirolabs_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Keirolabs integration for Haystack
+  id: integrations-keirolabs
+  filename: keirolabs.md
+  title: Keirolabs

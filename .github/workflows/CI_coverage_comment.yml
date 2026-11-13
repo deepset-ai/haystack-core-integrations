@@ -48,6 +48,7 @@ on:
       - "Test / huggingface_api"
       - "Test / ibm_db"
       - "Test / jina"
+      - "Test / keirolabs"
       - "Test / kreuzberg"
       - "Test / langdetect"
       - "Test / langfuse"
