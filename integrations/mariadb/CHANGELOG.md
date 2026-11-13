@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mariadb-v1.0.1] - 2026-11-13
+
+### 🐛 Bug Fixes
+
+- Validate filter field names in MariaDB and IBM Db2 document stores (#4217)
+
+
 ## [integrations/mariadb-v1.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
