@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime
+from decimal import Decimal
 from itertools import chain
 from typing import Any, Literal
 
@@ -13,10 +14,11 @@ from psycopg.types.json import Jsonb
 
 # we need this mapping to cast meta values to the correct type,
 # since they are stored in the JSONB field as strings.
+# int and float both map to numeric, so int and float filter values match either kind of stored number.
 # this dict can be extended if needed
 PYTHON_TYPES_TO_PG_TYPES = {
-    int: "integer",
-    float: "real",
+    int: "numeric",
+    float: "numeric",
     bool: "boolean",
 }
 
@@ -145,7 +147,7 @@ def _treat_meta_field(field: str, value: Any) -> Composed:
 
     Examples:
     >>> _treat_meta_field(field="meta.number", value=9)
-    Composed([SQL('(meta->>'), Literal('number'), SQL(')::integer')])
+    Composed([SQL('(meta->>'), Literal('number'), SQL(')::numeric')])
 
     >>> _treat_meta_field(field="meta.name", value="my_name")
     Composed([SQL('meta->>'), Literal('name')])
@@ -263,11 +265,18 @@ def _less_than_equal(field: Composable, value: Any) -> tuple[Composed, Any]:
     return SQL("{} <= %s").format(field), value
 
 
+def _list_param(value: list) -> list:
+    # psycopg can't adapt a list that mixes int and float, so send all-numeric lists as numeric[]
+    if value and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value):
+        return [Decimal(str(v)) for v in value]
+    return value
+
+
 def _not_in(field: Composable, value: Any) -> tuple[Composed, list]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'not in' comparator in PgVector"
         raise FilterError(msg)
-    return SQL("({} IS NULL OR {} != ALL(%s))").format(field, field), [value]
+    return SQL("({} IS NULL OR {} != ALL(%s))").format(field, field), [_list_param(value)]
 
 
 def _in(field: Composable, value: Any) -> tuple[Composed, list]:
@@ -276,7 +285,7 @@ def _in(field: Composable, value: Any) -> tuple[Composed, list]:
         raise FilterError(msg)
 
     # see https://www.psycopg.org/psycopg3/docs/basic/adapt.html#lists-adaptation
-    return SQL("{} = ANY(%s)").format(field), [value]
+    return SQL("{} = ANY(%s)").format(field), [_list_param(value)]
 
 
 def _like(field: Composable, value: Any) -> tuple[Composed, Any]:

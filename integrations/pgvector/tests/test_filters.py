@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
+from decimal import Decimal
 
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
-from psycopg.adapt import Transformer
+from psycopg.adapt import PyFormat, Transformer
 from psycopg.sql import SQL, Composed
 from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Jsonb
@@ -151,6 +152,52 @@ class TestFilters(FilterDocumentsTest):
             Document(content="doc with tag4", meta={"tags": ["tag4"]}),
         ]
 
+    def test_comparison_with_int_value_on_float_meta(self, document_store):
+        docs = [
+            Document(content="float", meta={"number": 1.5}),
+            Document(content="int", meta={"number": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(filters={"field": "meta.number", "operator": ">=", "value": 1})
+        assert {doc.content for doc in result} == {"float", "int"}
+
+    def test_comparison_with_float_value_keeps_double_precision(self, document_store):
+        docs = [
+            Document(content="tenth", meta={"number": 0.1}),
+            Document(content="large", meta={"number": 16777217.0}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": 0.1})
+        assert {doc.content for doc in result} == {"tenth"}
+        result = document_store.filter_documents(filters={"field": "meta.number", "operator": ">", "value": 16777216.0})
+        assert {doc.content for doc in result} == {"large"}
+
+    def test_comparison_with_int_value_beyond_32_bit(self, document_store):
+        document_store.write_documents([Document(content="big", meta={"number": 2**31})])
+
+        result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": 2**31})
+        assert {doc.content for doc in result} == {"big"}
+
+    @pytest.mark.parametrize(
+        "operator, expected",
+        [("in", {"float", "int"}), ("not in", {"other", "no number"})],
+    )
+    def test_in_and_not_in_with_mixed_int_float_list(self, document_store, operator, expected):
+        docs = [
+            Document(content="float", meta={"number": 1.5}),
+            Document(content="int", meta={"number": 3}),
+            Document(content="other", meta={"number": 2}),
+            Document(content="no number", meta={"name": "x"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(
+            filters={"field": "meta.number", "operator": operator, "value": [1.5, 3]}
+        )
+        assert {doc.content for doc in result} == expected
+
     def test_array_contains_operator(self, document_store):
         docs = self._docs_with_array_meta()
         document_store.write_documents(docs)
@@ -225,19 +272,35 @@ class TestFilters(FilterDocumentsTest):
 
 
 def test_treat_meta_field():
-    cast_integer = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
+    cast_numeric = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::numeric")
     no_cast_name = SQL("meta->>") + SQLLiteral("name")
-    cast_real = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::real")
     cast_boolean = SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(")::boolean")
 
-    assert _treat_meta_field(field="meta.number", value=9) == cast_integer
-    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == cast_integer
+    assert _treat_meta_field(field="meta.number", value=9) == cast_numeric
+    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == cast_numeric
     assert _treat_meta_field(field="meta.name", value="my_name") == no_cast_name
     assert _treat_meta_field(field="meta.name", value=["my_name"]) == no_cast_name
-    assert _treat_meta_field(field="meta.number", value=1.1) == cast_real
-    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2]) == cast_real
+    assert _treat_meta_field(field="meta.number", value=1.1) == cast_numeric
+    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2]) == cast_numeric
     assert _treat_meta_field(field="meta.bool", value=True) == cast_boolean
     assert _treat_meta_field(field="meta.bool", value=[True, False]) == cast_boolean
+
+
+@pytest.mark.parametrize("operator", ["in", "not in"])
+def test_in_mixed_int_float_list_is_sent_as_numeric(operator):
+    # psycopg cannot dump a list that mixes int and float. Send all-numeric lists as
+    # Decimal so they adapt as numeric[] and match the ::numeric meta cast.
+    filters = {"field": "meta.score", "operator": operator, "value": [-2.5, -2]}
+    _, params = _convert_filters_to_where_clause_and_params(filters)
+    assert params == ([[Decimal("-2.5"), Decimal("-2")]],)
+    Transformer().get_dumper(params[0], PyFormat.AUTO).dump(params[0])
+
+
+def test_in_boolean_list_is_not_converted_to_numeric():
+    # bool is a subclass of int, but bool lists must stay as boolean[]
+    filters = {"field": "meta.flag", "operator": "in", "value": [True, False]}
+    _, params = _convert_filters_to_where_clause_and_params(filters)
+    assert params == ([[True, False]],)
 
 
 def test_treat_meta_field_sql_injection_is_safely_escaped():
@@ -404,7 +467,7 @@ def test_logical_condition_nested():
         "("
         "(meta->>'domain' IS DISTINCT FROM %s OR meta->>'chapter' = ANY(%s))"
         " AND "
-        "((meta->>'number')::integer >= %s OR (meta->>'author' IS NULL OR meta->>'author' != ALL(%s)))"
+        "((meta->>'number')::numeric >= %s OR (meta->>'author' IS NULL OR meta->>'author' != ALL(%s)))"
         ")"
     )
     assert _render(query) == expected_sql
@@ -425,7 +488,7 @@ def test_logical_condition_not_in_is_parenthesized_when_and_combined():
     query, values = _parse_logical_condition(condition)
     assert isinstance(query, Composed)
 
-    expected_sql = "((meta->>'number')::integer = %s AND (meta->>'author' IS NULL OR meta->>'author' != ALL(%s)))"
+    expected_sql = "((meta->>'number')::numeric = %s AND (meta->>'author' IS NULL OR meta->>'author' != ALL(%s)))"
     assert _render(query) == expected_sql
     assert values == [5, [["John", "Jane"]]]
 
@@ -440,7 +503,7 @@ def test_convert_filters_to_where_clause_and_params():
     }
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-    expected_sql = " WHERE ((meta->>'number')::integer = %s AND meta->>'chapter' = %s)"
+    expected_sql = " WHERE ((meta->>'number')::numeric = %s AND meta->>'chapter' = %s)"
     assert _render(where_clause) == expected_sql
     assert params == (100, "intro")
 
