@@ -34,6 +34,7 @@ def test_init_default() -> None:
     assert converter.store_full_path is False
     assert converter.batch is True
     assert converter.easyocr_kwargs is None
+    assert converter.include_page_structure is True
 
 
 def test_init_with_all_params() -> None:
@@ -43,12 +44,14 @@ def test_init_with_all_params() -> None:
         store_full_path=True,
         batch=False,
         easyocr_kwargs={"gpu": False},
+        include_page_structure=False,
     )
     assert converter.config is config
     assert converter.config_path is None
     assert converter.store_full_path is True
     assert converter.batch is False
     assert converter.easyocr_kwargs == {"gpu": False}
+    assert converter.include_page_structure is False
 
 
 def test_serialization_roundtrip_defaults() -> None:
@@ -62,6 +65,7 @@ def test_serialization_roundtrip_defaults() -> None:
             "store_full_path": False,
             "batch": True,
             "easyocr_kwargs": None,
+            "include_page_structure": True,
         },
     }
     restored = KreuzbergConverter.from_dict(d)
@@ -70,6 +74,7 @@ def test_serialization_roundtrip_defaults() -> None:
     assert restored.store_full_path is False
     assert restored.batch is True
     assert restored.easyocr_kwargs is None
+    assert restored.include_page_structure is True
 
 
 def test_serialization_roundtrip_all_params() -> None:
@@ -81,6 +86,7 @@ def test_serialization_roundtrip_all_params() -> None:
         store_full_path=True,
         batch=False,
         easyocr_kwargs={"gpu": True, "beam_width": 3},
+        include_page_structure=False,
     )
     # to_dict serializes config as a dict (native YAML mapping, no JSON string)
     d = converter.to_dict()
@@ -90,6 +96,7 @@ def test_serialization_roundtrip_all_params() -> None:
     assert params["store_full_path"] is True
     assert params["batch"] is False
     assert params["easyocr_kwargs"] == {"gpu": True, "beam_width": 3}
+    assert params["include_page_structure"] is False
 
     # Capture config dict before from_dict mutates d in place
     original_config_dict = params["config"]
@@ -103,6 +110,7 @@ def test_serialization_roundtrip_all_params() -> None:
     assert restored.store_full_path is True
     assert restored.batch is False
     assert restored.easyocr_kwargs == {"gpu": True, "beam_width": 3}
+    assert restored.include_page_structure is False
 
     # Double roundtrip produces identical to_dict output
     d2 = restored.to_dict()
@@ -349,6 +357,35 @@ def test_metadata_file_extensions_mock(converter: KreuzbergConverter, make_mock_
 
     assert meta["mime_type"] == "application/pdf"
     assert meta["file_extensions"] == ["pdf"]
+
+
+@pytest.mark.parametrize("include_page_structure", [True, False])
+def test_metadata_include_page_structure(make_mock_result, include_page_structure) -> None:
+    converter = KreuzbergConverter(include_page_structure=include_page_structure)
+    page_structure = {
+        "total_count": 2,
+        "unit_type": "page",
+        "boundaries": [
+            {"byte_start": 0, "byte_end": 10, "page_number": 1},
+            {"byte_start": 12, "byte_end": 20, "page_number": 2},
+        ],
+        "pages": [{"number": 1, "is_blank": False}, {"number": 2, "is_blank": False}],
+    }
+    chunk1 = MagicMock(content="chunk one", embedding=None)
+    chunk2 = MagicMock(content="chunk two", embedding=None)
+    result = make_mock_result(metadata={"page_count": 2, "pages": page_structure}, chunks=[chunk1, chunk2])
+    bytestream = MagicMock()
+    bytestream.meta = {"file_path": "test.pdf"}
+
+    docs = converter._create_documents(result, bytestream, {})
+
+    assert len(docs) == 2
+    for doc in docs:
+        assert doc.meta["page_count"] == 2
+        if include_page_structure:
+            assert doc.meta["pages"] == page_structure
+        else:
+            assert "pages" not in doc.meta
 
 
 def test_chunked_creates_one_document_per_chunk(converter: KreuzbergConverter) -> None:
