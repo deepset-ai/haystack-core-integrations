@@ -1,14 +1,21 @@
 import copy
 import os
 from dataclasses import dataclass
+from typing import ClassVar
 
 import pytest
 from deepeval.evaluate.types import EvaluationResult, TestResult
-from deepeval.metrics import BaseMetric
+from deepeval.metrics import BaseMetric, FaithfulnessMetric
+from deepeval.test_case import LLMTestCase
+from deepeval.test_run import MetricData
 from haystack import DeserializationError
 
 from haystack_integrations.components.evaluators.deepeval import DeepEvalEvaluator
-from haystack_integrations.components.evaluators.deepeval.metrics import DeepEvalMetric, InputConverters
+from haystack_integrations.components.evaluators.deepeval.metrics import (
+    DeepEvalMetric,
+    InputConverters,
+    SingleTurnParams,
+)
 
 DEFAULT_QUESTIONS = [
     "Which is the most popular global sport?",
@@ -84,6 +91,91 @@ class MockBackend:
             )
             out.append(r)
         return EvaluationResult(test_results=out, confident_link=None, test_run_id=None)
+
+
+# A custom metric that doesn't need an LLM, so that it can be measured locally.
+# The subclasses below only differ in the test case parameters they require.
+class LengthMetric(BaseMetric):
+    def __init__(self, max_words: int = 10) -> None:
+        self.max_words = max_words
+        self.threshold = 0.0
+
+    def measure(self, test_case: LLMTestCase) -> float:
+        words = len((test_case.actual_output or "").split())
+        self.score = min(1.0, words / self.max_words)
+        self.reason = f"The response to '{test_case.input}' contains {words} words"
+        return self.score
+
+    async def a_measure(self, test_case: LLMTestCase) -> float:
+        return self.measure(test_case)
+
+
+class ResponseLengthMetric(LengthMetric):
+    _required_params: ClassVar = [SingleTurnParams.INPUT, SingleTurnParams.ACTUAL_OUTPUT]
+
+    @property
+    def __name__(self) -> str:
+        return "Response Length"
+
+
+class GroundTruthMetric(LengthMetric):
+    _required_params: ClassVar = [
+        SingleTurnParams.INPUT,
+        SingleTurnParams.ACTUAL_OUTPUT,
+        SingleTurnParams.RETRIEVAL_CONTEXT,
+        SingleTurnParams.EXPECTED_OUTPUT,
+    ]
+
+
+class UndeclaredParamsMetric(LengthMetric):
+    """Doesn't declare `_required_params`, so the built-in RAG inputs are expected."""
+
+
+class TupleParamsMetric(LengthMetric):
+    """Declares `_required_params` as a tuple; DeepEval promises no concrete container."""
+
+    _required_params: ClassVar = (SingleTurnParams.INPUT, SingleTurnParams.ACTUAL_OUTPUT)
+
+
+class BadParamsMetric(LengthMetric):
+    """Declares `_required_params` as something we cannot read as params."""
+
+    _required_params: ClassVar = 42
+
+
+class UnsupportedParamsMetric(LengthMetric):
+    _required_params: ClassVar = [SingleTurnParams.INPUT, SingleTurnParams.TOOLS_CALLED]
+
+
+# Measures the metric locally, mimicking the results returned by `deepeval.evaluate`.
+def measure_locally(test_cases, metric) -> EvaluationResult:
+    out = []
+    for test_case in test_cases:
+        score = metric.measure(test_case)
+        threshold = getattr(metric, "threshold", 0.0)
+        r = TestResult(
+            name=test_case.name or "",
+            success=False,
+            # `threshold` and `success` are required by deepeval < 4 and optional after,
+            # so pass them explicitly to keep this double valid across the version floor.
+            metrics_data=[
+                MetricData(
+                    name=metric.__name__,
+                    score=score,
+                    reason=metric.reason,
+                    threshold=threshold,
+                    success=score >= threshold,
+                )
+            ],
+            conversational=False,
+            input=test_case.input,
+            actual_output=test_case.actual_output,
+            expected_output=test_case.expected_output,
+            context=test_case.context,
+            retrieval_context=test_case.retrieval_context,
+        )
+        out.append(r)
+    return EvaluationResult(test_results=out, confident_link=None, test_run_id=None)
 
 
 def test_evaluator_metric_init_params(monkeypatch):
@@ -282,6 +374,132 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
         expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
         got = {(x["name"], x["score"], x["explanation"]) for x in r}
         assert got == expected
+
+
+def test_evaluator_custom_metric_backend():
+    metric = ResponseLengthMetric(max_words=5)
+    evaluator = DeepEvalEvaluator(metric)
+
+    assert evaluator.metric is metric
+    assert evaluator.metric_params is None
+    # The user-provided instance is used as-is, including its threshold.
+    assert evaluator._backend_metric is metric
+    assert evaluator._backend_metric.threshold == 0.0
+    assert evaluator._backend_metric.max_words == 5
+    assert evaluator.descriptor.backend is ResponseLengthMetric
+
+
+def test_evaluator_custom_metric_params_not_allowed():
+    with pytest.raises(ValueError, match="'metric_params' must not be provided"):
+        DeepEvalEvaluator(ResponseLengthMetric(), metric_params={"model": "gpt-4o"})
+
+
+@pytest.mark.parametrize(
+    "metric, expected_inputs",
+    [
+        (ResponseLengthMetric(), ["questions", "responses"]),
+        (UndeclaredParamsMetric(), ["questions", "responses", "contexts"]),
+        (TupleParamsMetric(), ["questions", "responses"]),
+        (GroundTruthMetric(), ["questions", "responses", "contexts", "ground_truths"]),
+    ],
+)
+def test_evaluator_custom_metric_expected_inputs(metric, expected_inputs):
+    evaluator = DeepEvalEvaluator(metric)
+
+    assert list(evaluator.descriptor.input_parameters) == expected_inputs
+    assert list(evaluator.__haystack_input__._sockets_dict) == expected_inputs
+
+
+def test_evaluator_custom_metric_unsupported_params():
+    with pytest.raises(ValueError, match="cannot provide: \\['tools_called'\\]"):
+        DeepEvalEvaluator(UnsupportedParamsMetric())
+
+
+def test_evaluator_custom_metric_uninterpretable_params():
+    # An unreadable declaration is treated the same as not declaring it at all: fall back
+    # to the built-in RAG inputs rather than crashing on a private-attribute quirk.
+    evaluator = DeepEvalEvaluator(BadParamsMetric())
+
+    assert list(evaluator.descriptor.input_parameters) == ["questions", "responses", "contexts"]
+
+
+def test_evaluator_custom_metric_missing_inputs():
+    evaluator = DeepEvalEvaluator(ResponseLengthMetric())
+
+    with pytest.raises(ValueError, match="expected input parameter 'responses' for metric 'ResponseLengthMetric'"):
+        evaluator.run(questions=DEFAULT_QUESTIONS)
+
+
+def test_evaluator_custom_metric_invalid_inputs():
+    evaluator = DeepEvalEvaluator(ResponseLengthMetric())
+
+    with pytest.raises(ValueError, match="to be a collection of type 'list'"):
+        evaluator.run(questions={}, responses=DEFAULT_RESPONSES)
+
+    with pytest.raises(ValueError, match="Mismatching counts "):
+        evaluator.run(questions=DEFAULT_QUESTIONS, responses=DEFAULT_RESPONSES[:1])
+
+
+def test_evaluator_custom_metric_outputs():
+    evaluator = DeepEvalEvaluator(ResponseLengthMetric(max_words=10))
+    evaluator._backend_callable = measure_locally
+
+    results = evaluator.run(questions=DEFAULT_QUESTIONS, responses=DEFAULT_RESPONSES)["results"]
+
+    assert results == [
+        [
+            {
+                "name": "Response Length",
+                "score": 1.0,
+                "explanation": "The response to 'Which is the most popular global sport?' contains 12 words",
+            }
+        ],
+        [
+            {
+                "name": "Response Length",
+                "score": 0.8,
+                "explanation": "The response to 'Who created the Python language?' contains 8 words",
+            }
+        ],
+    ]
+
+
+def test_evaluator_custom_metric_test_case_conversion():
+    metric = GroundTruthMetric()
+    evaluator = DeepEvalEvaluator(metric)
+    test_cases = list(
+        evaluator.descriptor.input_converter(
+            questions=DEFAULT_QUESTIONS,
+            contexts=DEFAULT_CONTEXTS,
+            responses=DEFAULT_RESPONSES,
+            ground_truths=DEFAULT_GROUND_TRUTHS,
+        )
+    )
+
+    assert len(test_cases) == len(DEFAULT_QUESTIONS)
+    for i, test_case in enumerate(test_cases):
+        assert test_case.input == DEFAULT_QUESTIONS[i]
+        assert test_case.actual_output == DEFAULT_RESPONSES[i]
+        assert test_case.retrieval_context == DEFAULT_CONTEXTS[i]
+        assert test_case.expected_output == DEFAULT_GROUND_TRUTHS[i]
+
+
+def test_evaluator_custom_metric_not_serializable():
+    evaluator = DeepEvalEvaluator(ResponseLengthMetric())
+
+    with pytest.raises(DeserializationError, match=r"cannot serialize the metric instance 'ResponseLengthMetric'"):
+        evaluator.to_dict()
+
+
+def test_evaluator_builtin_metric_instance(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+
+    metric = FaithfulnessMetric(model="gpt-4o", threshold=0.75)
+    evaluator = DeepEvalEvaluator(metric)
+
+    assert list(evaluator.descriptor.input_parameters) == ["questions", "responses", "contexts"]
+    assert evaluator._backend_metric is metric
+    assert evaluator._backend_metric.threshold == 0.75
 
 
 # This integration test validates the evaluator by running it against the
