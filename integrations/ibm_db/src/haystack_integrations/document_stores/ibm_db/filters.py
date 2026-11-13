@@ -2,12 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from datetime import datetime
 from typing import Any, ClassVar
 
 from haystack.errors import FilterError
 
 _RANGE_OPS = {">", ">=", "<", "<="}
+
+# Preserve support for hyphenated metadata keys.
+_SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.\-]+$")
 
 
 class FilterTranslator:
@@ -151,6 +155,10 @@ class FilterTranslator:
             field_path = field[5:]
         else:
             field_path = field
+
+        if not _SAFE_FIELD_PATH.fullmatch(field_path):
+            msg = f"Invalid metadata field name: {field_path!r}"
+            raise FilterError(msg)
 
         # Use the `RETURNING VARCHAR(1000)` clause *inside* JSON_VALUE (as the rest of the
         # document store does) rather than CAST(JSON_VALUE(...) AS VARCHAR). With the CAST form,
