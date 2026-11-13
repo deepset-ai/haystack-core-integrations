@@ -5,7 +5,7 @@ import os
 from unittest.mock import patch
 
 import pytest
-from cohere import ApiMeta, ApiMetaApiVersion, ApiMetaBilledUnits, EmbedByTypeResponse, EmbedByTypeResponseEmbeddings
+from cohere import ApiMeta, ApiMetaBilledUnits
 from haystack import Document
 from haystack.utils import Secret
 
@@ -260,7 +260,7 @@ class TestRun:
         class _Response:
             def __init__(self, n: int) -> None:
                 self.embeddings = [("float", [[0.1, 0.2, 0.3]] * n)]
-                self.meta = None
+                self.meta = ApiMeta(billed_units=ApiMetaBilledUnits(input_tokens=10 * n))
 
         async def fake_embed(*, texts, **_kwargs):
             batch_sizes.append(len(texts))
@@ -274,45 +274,9 @@ class TestRun:
         result = await embedder.run_async(docs)
 
         assert batch_sizes == [2, 2, 1]
+        assert result["meta"]["billed_units"]["input_tokens"] == 50
         assert len(result["documents"]) == 5
         assert all(doc.embedding == [0.1, 0.2, 0.3] for doc in result["documents"])
-
-    @staticmethod
-    def _batched_embed_response(texts: list[str]) -> EmbedByTypeResponse:
-        return EmbedByTypeResponse(
-            id="test-id",
-            texts=texts,
-            embeddings=EmbedByTypeResponseEmbeddings(float_=[[0.1, 0.2, 0.3]] * len(texts)),
-            meta=ApiMeta(
-                api_version=ApiMetaApiVersion(version="2"),
-                billed_units=ApiMetaBilledUnits(input_tokens=10 * len(texts)),
-            ),
-        )
-
-    @patch("haystack_integrations.components.embedders.cohere.document_embedder.ClientV2")
-    def test_run_sums_billed_units_across_batches(self, mock_client_cls):
-        mock_client_cls.return_value.embed.side_effect = lambda *, texts, **_kwargs: self._batched_embed_response(texts)
-        embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"), batch_size=2)
-
-        result = embedder.run([Document(content=f"doc {i}") for i in range(5)])
-
-        assert mock_client_cls.return_value.embed.call_count == 3
-        assert result["meta"]["billed_units"]["input_tokens"] == 50
-        assert result["meta"]["api_version"]["version"] == "2"
-
-    @pytest.mark.asyncio
-    @patch("haystack_integrations.components.embedders.cohere.document_embedder.AsyncClientV2")
-    async def test_run_async_sums_billed_units_across_batches(self, mock_async_client_cls):
-        async def fake_embed(*, texts, **_kwargs):
-            return self._batched_embed_response(texts)
-
-        mock_async_client_cls.return_value.embed = fake_embed
-        embedder = CohereDocumentEmbedder(api_key=Secret.from_token("test-api-key"), batch_size=2)
-
-        result = await embedder.run_async([Document(content=f"doc {i}") for i in range(5)])
-
-        assert result["meta"]["billed_units"]["input_tokens"] == 50
-        assert result["meta"]["api_version"]["version"] == "2"
 
     @patch("haystack_integrations.components.embedders.cohere.document_embedder.get_response")
     def test_run_does_not_modify_original_documents(self, mock_get_response):

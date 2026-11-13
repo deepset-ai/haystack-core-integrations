@@ -11,20 +11,20 @@ from .embedding_types import EmbeddingTypes
 
 
 def _merge_meta(accumulated: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
-    merged = dict(accumulated)
-    for key, value in new.items():
-        previous = merged.get(key)
-        if isinstance(previous, dict) and isinstance(value, dict):
-            merged[key] = _merge_meta(previous, value)
-        elif (
-            isinstance(previous, (int, float))
-            and isinstance(value, (int, float))
-            and not isinstance(previous, bool)
-            and not isinstance(value, bool)
-        ):
-            merged[key] = previous + value
-        elif value is not None or key not in merged:
-            merged[key] = value
+    merged = {**accumulated, **new}
+
+    for section in ("billed_units", "tokens"):
+        totals = dict(accumulated.get(section) or {})
+
+        for name, value in (new.get(section) or {}).items():
+            if value is None:
+                totals.setdefault(name, None)
+            else:
+                totals[name] = (totals.get(name) or 0) + value
+
+        if totals:
+            merged[section] = totals
+
     return merged
 
 
