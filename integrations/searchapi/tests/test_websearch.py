@@ -486,6 +486,57 @@ class TestSearchApiSearchAPI:
         assert documents[0].content == "Satya Nadella"
         assert links == []
 
+    def test_parse_response_includes_google_ai_overview(self) -> None:
+        response = Mock(
+            json=lambda: {
+                "search_parameters": {"engine": "google", "q": "What causes the northern lights?"},
+                "ai_overview": {
+                    "text_blocks": [{"type": "paragraph", "answer": "Charged solar particles hit the atmosphere."}],
+                    "markdown": "Charged solar particles hit the atmosphere.[1]",
+                    "reference_links": [{"index": 0, "title": "Aurora", "link": "https://example.com/aurora"}],
+                },
+                "organic_results": [
+                    {
+                        "title": "Aurora",
+                        "snippet": "An aurora is a natural light display.",
+                        "link": "https://example.com",
+                    }
+                ],
+            }
+        )
+        documents, links = SearchApiWebSearch._parse_response(response)
+
+        assert documents[0].content == "Charged solar particles hit the atmosphere.[1]"
+        assert documents[0].meta == {"engine": "google", "type": "ai_answer"}
+        assert documents[1].meta["link"] == "https://example.com"
+        # links stay the organic result links
+        assert links == ["https://example.com"]
+
+    def test_parse_response_skips_deferred_ai_overview_and_unanswered_related_questions(self) -> None:
+        # Shapes as returned by SearchApi when Google loads the AI overview and the related-question
+        # answers asynchronously: only an error message and a page token, no answer.
+        response = Mock(
+            json=lambda: {
+                "search_parameters": {"engine": "google", "q": "best way to learn python"},
+                "ai_overview": {"error": "An AI Overview is not available for this search", "page_token": "token"},
+                "organic_results": [{"title": "Python", "snippet": "Learn Python.", "link": "https://example.com"}],
+                "related_questions": [
+                    {
+                        "is_ai_overview": True,
+                        "question": "How do you write a Python function?",
+                        "error": "Google AI Overview loads this answer asynchronously; it was not included in this "
+                        "response.",
+                        "page_token": "token",
+                    },
+                    {"question": "Is Python hard?", "answer_highlight": "No"},
+                ],
+            }
+        )
+        documents, links = SearchApiWebSearch._parse_response(response)
+
+        assert [doc.content for doc in documents] == ["Learn Python.", "No"]
+        assert links == ["https://example.com"]
+
     def test_parse_ai_answer_response(self) -> None:
         documents, links = SearchApiWebSearch._parse_ai_answer(EXAMPLE_AI_ANSWER_RESPONSE)
 
