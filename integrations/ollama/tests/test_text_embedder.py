@@ -193,6 +193,38 @@ class TestRun:
         call_kwargs = mock_client_cls.return_value.embed.call_args.kwargs
         assert call_kwargs["dimensions"] == 128
 
+    @pytest.mark.parametrize(
+        "runtime_kwargs, expected_options",
+        [
+            (None, {"num_ctx": 4096, "temperature": 0.1}),
+            ({"temperature": 0.5}, {"num_ctx": 4096, "temperature": 0.5}),
+        ],
+    )
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.Client")
+    def test_generation_kwargs_merged_into_options(self, mock_client_cls, runtime_kwargs, expected_options):
+        embedder = OllamaTextEmbedder(generation_kwargs={"num_ctx": 4096, "temperature": 0.1})
+        mock_client_cls.return_value.embed.return_value = {"embeddings": [[0.1, 0.2, 0.3]]}
+
+        embedder.run(text="hello", generation_kwargs=runtime_kwargs)
+
+        assert mock_client_cls.return_value.embed.call_args.kwargs["options"] == expected_options
+
+    @pytest.mark.parametrize(
+        "runtime_kwargs, expected_options",
+        [
+            (None, {"num_ctx": 4096, "temperature": 0.1}),
+            ({"temperature": 0.5}, {"num_ctx": 4096, "temperature": 0.5}),
+        ],
+    )
+    @patch("haystack_integrations.components.embedders.ollama.text_embedder.AsyncClient")
+    def test_generation_kwargs_merged_into_async_options(self, mock_client_cls, runtime_kwargs, expected_options):
+        embedder = OllamaTextEmbedder(generation_kwargs={"num_ctx": 4096, "temperature": 0.1})
+        mock_client_cls.return_value.embed = AsyncMock(return_value={"embeddings": [[0.1, 0.2, 0.3]]})
+
+        asyncio.run(embedder.run_async(text="hello", generation_kwargs=runtime_kwargs))
+
+        assert mock_client_cls.return_value.embed.call_args.kwargs["options"] == expected_options
+
 
 @pytest.mark.integration
 class TestIntegration:
