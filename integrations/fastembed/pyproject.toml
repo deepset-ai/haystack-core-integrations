@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "fastembed-haystack"
 dynamic = ["version"]
-description = "Haystack 2.x component to embed strings and Documents using fastembed embedding model"
+description = "Haystack components to embed strings and Documents using fastembed embedding models"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.1", "fastembed>=0.8.0"]
+dependencies = ["haystack-ai>=3.5.0", "fastembed>=0.8.0"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
