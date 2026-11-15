@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.components.agents import Agent
+from haystack.components.agents.state import replace_values
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.core.pipeline import Pipeline
 from haystack.dataclasses import ChatMessage
@@ -330,6 +331,26 @@ class TestMCPTool:
         assert new_tool._outputs_to_string == {"source": "result"}
         assert new_tool._inputs_from_state == {"state_a": "a"}
         assert new_tool._outputs_to_state == {"result": {"source": "output"}}
+
+    def test_mcp_tool_serde_with_output_handlers(self, mcp_tool_cleanup):
+        tool = mcp_tool_cleanup(
+            MCPTool(
+                name="add",
+                server_info=StdioServerInfo(command="python", args=["server.py"]),
+                outputs_to_state={"sum": {"source": "result", "handler": replace_values}},
+                outputs_to_string={"source": "result", "handler": str},
+            )
+        )
+
+        serialized = json.loads(json.dumps(tool.to_dict()))
+        restored = mcp_tool_cleanup(MCPTool.from_dict(serialized))
+
+        assert restored.outputs_to_state == tool.outputs_to_state
+        assert restored.outputs_to_string == tool.outputs_to_string
+        assert restored.outputs_to_state["sum"]["handler"](None, 42) == 42
+        assert restored.outputs_to_string["handler"](42) == "42"
+        assert tool.outputs_to_state["sum"]["handler"] is replace_values
+        assert tool.outputs_to_string["handler"] is str
 
     def test_mcp_tool_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
         """Test that lazy MCPTool defers invalid inputs_from_state validation until warm_up()."""
