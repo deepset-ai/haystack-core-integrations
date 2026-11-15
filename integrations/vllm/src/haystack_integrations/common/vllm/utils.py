@@ -63,3 +63,34 @@ def _create_async_openai_client(
     # openai>=3 annotates http_client as httpx2, but legacy httpx clients are supported at runtime.
     # https://github.com/openai/openai-python/blob/main/httpx2.md
     return AsyncOpenAI(http_client=async_http_client, **client_kwargs)  # type: ignore[arg-type]
+
+
+def _prepare_image_embedding_body(
+    *,
+    model: str,
+    image_url: str,
+    instruction: str | None,
+    dimensions: int | None,
+    extra_parameters: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """
+    Build the request body to embed one image with the vLLM `/embeddings` endpoint.
+
+    vLLM accepts chat-style `messages` instead of `input` for multimodal embedding models. The whole conversation is
+    treated as a single prompt, so each request embeds exactly one image.
+    See the [vLLM docs](https://docs.vllm.ai/en/stable/models/pooling_models/embed/).
+    """
+    content: list[dict[str, Any]] = [{"type": "image_url", "image_url": {"url": image_url}}]
+    if instruction:
+        content.append({"type": "text", "text": instruction})
+
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": content}],
+        "encoding_format": "float",
+    }
+    if dimensions is not None:
+        body["dimensions"] = dimensions
+    if extra_parameters:
+        body.update(extra_parameters)
+    return body
