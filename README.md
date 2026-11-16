@@ -12,9 +12,9 @@
 | src/haystack\_integrations/components/retrievers/elasticsearch/inference\_sparse\_retriever.py     |       42 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/sparse\_embedding\_retriever.py     |       39 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/sql\_retriever.py                   |       57 |        0 |       14 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      692 |       58 |      230 |       31 |     90% |176-177, 353, 355, 392-394, 429-431, 445-\>437, 460-461, 478-479, 498, 560, 636-637, 640-641, 687-\>692, 780-\>785, 834, 841-842, 978-980, 1006-1008, 1034-1036, 1069-1071, 1104-1106, 1129-1130, 1151, 1156, 1188-1189, 1244-1245, 1247-\>1250, 1623-1630, 1651-1659, 1703-\>1702, 1740-\>1739, 1742-\>1739, 1776, 1812-1813, 1818, 1985, 2036, 2057 |
-| src/haystack\_integrations/document\_stores/elasticsearch/filters.py                               |      141 |        0 |       74 |        0 |    100% |           |
-| **TOTAL**                                                                                          | **1217** |   **58** |  **362** |   **34** | **94%** |           |
+| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      692 |       58 |      230 |       31 |     90% |176-177, 353, 355, 392-394, 429-431, 445-\>437, 463-464, 484-485, 504, 566, 642-643, 646-647, 693-\>698, 786-\>791, 840, 847-848, 984-986, 1014-1016, 1044-1046, 1081-1083, 1118-1120, 1143-1144, 1165, 1170, 1202-1203, 1258-1259, 1261-\>1264, 1637-1644, 1665-1673, 1717-\>1716, 1754-\>1753, 1756-\>1753, 1790, 1826-1827, 1832, 1999, 2050, 2071 |
+| src/haystack\_integrations/document\_stores/elasticsearch/filters.py                               |      147 |        0 |       78 |        0 |    100% |           |
+| **TOTAL**                                                                                          | **1223** |   **58** |  **366** |   **34** | **94%** |           |
 
 
 ## Setup coverage badge
