@@ -51,6 +51,8 @@ from .filters import _normalize_filters
 
 USER_AGENT = "haystack-integrations/azure-ai-search"
 BIG_TOP_K = 100000
+# Azure AI Search rejects $skip values above this, so paging cannot reach results beyond it.
+MAX_SKIP = 100000
 
 type_mapping = {
     str: "Edm.String",
@@ -819,15 +821,23 @@ class AzureAISearchDocumentStore:
         Filters should be given as a dictionary supporting filtering by metadata. For details on
         filters, see the [metadata filtering documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
+        Azure AI Search pages through results with `$skip`, which is capped at 100,000. If that many documents
+        match, a warning is logged and the result may be incomplete; use a narrower filter to retrieve the rest.
+
         :param filters: the filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        if filters:
-            normalized_filters = _normalize_filters(filters)
-            result = self.client.search(filter=normalized_filters)
-            return self._convert_search_result_to_documents(list(result))
-        else:
-            return self.search_documents()
+        normalized_filters = _normalize_filters(filters) if filters else None
+        # No `top`: the SDK pager follows the service's continuation tokens until all matches are returned.
+        results = list(self.client.search(search_text="*", filter=normalized_filters))
+        if len(results) >= MAX_SKIP:
+            logger.warning(
+                "filter_documents returned {count} documents, which reaches the Azure AI Search $skip limit of "
+                "{limit}. The result may be incomplete; use a narrower filter to retrieve the remaining documents.",
+                count=len(results),
+                limit=MAX_SKIP,
+            )
+        return self._convert_search_result_to_documents(results)
 
     def _convert_search_result_to_documents(self, azure_docs: Sequence[Mapping[str, Any]]) -> list[Document]:
         """
