@@ -22,6 +22,12 @@ from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool
 from haystack.tools.errors import ToolInvocationError
+from haystack.tools.tool import (
+    _deserialize_outputs_to_state,
+    _deserialize_outputs_to_string,
+    _serialize_outputs_to_state,
+    _serialize_outputs_to_string,
+)
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.auth import SecretType
 from haystack.utils.url_validation import is_valid_http_url
@@ -1280,9 +1286,13 @@ class MCPTool(Tool):
             "connection_timeout": self._connection_timeout,
             "invocation_timeout": self._invocation_timeout,
             "eager_connect": self._eager_connect,
-            "outputs_to_string": self._outputs_to_string,
+            "outputs_to_string": (
+                _serialize_outputs_to_string(self._outputs_to_string) if self._outputs_to_string is not None else None
+            ),
             "inputs_from_state": self._inputs_from_state,
-            "outputs_to_state": self._outputs_to_state,
+            "outputs_to_state": (
+                _serialize_outputs_to_state(self._outputs_to_state) if self._outputs_to_state is not None else None
+            ),
         }
         return {
             "type": generate_qualified_class_name(type(self)),
@@ -1321,6 +1331,10 @@ class MCPTool(Tool):
         outputs_to_string = inner_data.get("outputs_to_string")
         inputs_from_state = inner_data.get("inputs_from_state")
         outputs_to_state = inner_data.get("outputs_to_state")
+        if outputs_to_string is not None:
+            outputs_to_string = _deserialize_outputs_to_string(outputs_to_string)
+        if outputs_to_state is not None:
+            outputs_to_state = _deserialize_outputs_to_state(outputs_to_state)
 
         # Create a new MCPTool instance with the deserialized parameters
         # This will establish a new connection to the MCP server
