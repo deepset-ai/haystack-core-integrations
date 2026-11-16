@@ -4,13 +4,16 @@
 
 import inspect
 import json
+import socket
 import time
+import webbrowser
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 import anyio
 import pytest
 from haystack.utils import Secret
-from mcp.client.auth import OAuthFlowError, OAuthTokenError
+from mcp.client.auth import OAuthClientProvider, OAuthFlowError, OAuthTokenError
 from mcp.client.auth.extensions.client_credentials import ClientCredentialsOAuthProvider
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
@@ -22,9 +25,18 @@ from haystack_integrations.tools.mcp import (
     StreamableHttpServerInfo,
 )
 from haystack_integrations.tools.mcp.compatibility_layer import http_lib
-from haystack_integrations.tools.mcp.oauth import _FailFastAuth
+from haystack_integrations.tools.mcp.oauth import (
+    _FailFastAuth,
+    _LoopbackAuthorizationFlow,
+    _PreRegisteredClientStorage,
+    _resolve_redirect_uri,
+)
 
 SDK_SUPPORTS_ISSUER = "issuer" in inspect.signature(ClientCredentialsOAuthProvider.__init__).parameters
+
+
+async def show_url(authorization_url: str) -> None:
+    """Module-level `on_authorization_url` handler, so it can be serialized."""
 
 
 @pytest.fixture
@@ -94,7 +106,21 @@ class TestOAuthConfig:
 
     def test_unsupported_grant_type(self, client_secret):
         with pytest.raises(ValueError, match="Unsupported grant_type"):
-            OAuthConfig(client_id="my-client", client_secret=client_secret, grant_type="authorization_code")
+            OAuthConfig(client_id="my-client", client_secret=client_secret, grant_type="password")
+
+    @pytest.mark.parametrize("missing", ["client_id", "client_secret"])
+    def test_client_credentials_needs_client_id_and_secret(self, client_secret, missing):
+        kwargs = {"client_id": "my-client", "client_secret": client_secret, missing: None}
+
+        with pytest.raises(ValueError, match="needs both `client_id` and `client_secret`"):
+            OAuthConfig(**kwargs)
+
+    @pytest.mark.parametrize(
+        "option", [{"redirect_uri": "http://127.0.0.1:8765/callback"}, {"on_authorization_url": show_url}]
+    )
+    def test_client_credentials_rejects_authorization_code_options(self, client_secret, option):
+        with pytest.raises(ValueError, match="only used by the 'authorization_code' grant"):
+            OAuthConfig(client_id="my-client", client_secret=client_secret, **option)
 
     def test_unsupported_token_endpoint_auth_method(self, client_secret):
         with pytest.raises(ValueError, match="Unsupported token_endpoint_auth_method"):
@@ -116,7 +142,23 @@ class TestOAuthConfig:
             "scopes": ["mcp:read"],
             "token_endpoint_auth_method": "client_secret_post",
             "grant_type": "client_credentials",
+            "redirect_uri": None,
+            "callback_timeout": 300.0,
+            "on_authorization_url": None,
         }
+
+    def test_from_dict_without_authorization_code_fields(self, oauth_config):
+        # Configurations serialized before the Authorization Code grant was added
+        data = {
+            "client_id": "my-client",
+            "client_secret": {"type": "env_var", "env_vars": ["TEST_MCP_CLIENT_SECRET"], "strict": True},
+            "issuer": None,
+            "scopes": ["mcp:read", "mcp:write"],
+            "token_endpoint_auth_method": "client_secret_basic",
+            "grant_type": "client_credentials",
+        }
+
+        assert OAuthConfig.from_dict(data) == oauth_config
 
     def test_to_dict_refuses_token_secret(self):
         config = OAuthConfig(client_id="my-client", client_secret=Secret.from_token("super-secret"))
@@ -170,6 +212,359 @@ class TestOAuthConfig:
         ):
             with pytest.raises(ValueError, match=r"OAuthConfig\.issuer needs"):
                 config.create_auth(server_url="https://mcp.example.com/mcp")
+
+
+class TestOAuthConfigAuthorizationCode:
+    def test_defaults(self):
+        config = OAuthConfig(grant_type="authorization_code")
+
+        assert config.client_id is None
+        assert config.client_secret is None
+        assert config.redirect_uri is None
+        assert config.callback_timeout == 300.0
+        assert config.on_authorization_url is None
+
+    @pytest.mark.parametrize(
+        ("kwargs", "error"),
+        [
+            ({"issuer": "https://auth.example.com"}, "`issuer` is only supported"),
+            ({"scopes": ["mcp:read"]}, "`scopes` is only supported"),
+            ({"client_secret": Secret.from_token("secret")}, "`client_secret` needs the `client_id`"),
+            ({"callback_timeout": 0}, "`callback_timeout` must be positive"),
+            ({"redirect_uri": "https://127.0.0.1:8765/callback"}, "must be an http URL on a loopback host"),
+            ({"redirect_uri": "http://app.example.com/callback"}, "must be an http URL on a loopback host"),
+            ({"redirect_uri": "http://127.0.0.1:99999/callback"}, "Invalid port"),
+        ],
+    )
+    def test_invalid_configuration(self, kwargs, error):
+        with pytest.raises(ValueError, match=error):
+            OAuthConfig(grant_type="authorization_code", **kwargs)
+
+    @pytest.mark.parametrize(
+        "redirect_uri", ["http://localhost:8765/callback", "http://127.0.0.1/cb", "http://[::1]:0/callback"]
+    )
+    def test_loopback_redirect_uris_are_accepted(self, redirect_uri):
+        assert OAuthConfig(grant_type="authorization_code", redirect_uri=redirect_uri).redirect_uri == redirect_uri
+
+    def test_to_dict_from_dict(self, client_secret):
+        config = OAuthConfig(
+            grant_type="authorization_code",
+            client_id="my-client",
+            client_secret=client_secret,
+            token_endpoint_auth_method="client_secret_post",
+            redirect_uri="http://localhost:8765/callback",
+            callback_timeout=60.0,
+            on_authorization_url=show_url,
+        )
+
+        data = config.to_dict()
+        assert data == {
+            "client_id": "my-client",
+            "client_secret": {"type": "env_var", "env_vars": ["TEST_MCP_CLIENT_SECRET"], "strict": True},
+            "issuer": None,
+            "scopes": None,
+            "token_endpoint_auth_method": "client_secret_post",
+            "grant_type": "authorization_code",
+            "redirect_uri": "http://localhost:8765/callback",
+            "callback_timeout": 60.0,
+            "on_authorization_url": "tests.test_oauth.show_url",
+        }
+
+        restored = OAuthConfig.from_dict(json.loads(json.dumps(data)))
+        assert restored == config
+        assert restored.on_authorization_url is show_url
+        assert restored.client_secret.resolve_value() == "super-secret"
+
+    def test_create_auth_registers_a_public_client_dynamically(self):
+        config = OAuthConfig(grant_type="authorization_code")
+
+        provider = config.create_auth(server_url="https://mcp.example.com/mcp")
+
+        assert isinstance(provider, OAuthClientProvider)
+        assert provider.context.server_url == "https://mcp.example.com/mcp"
+        assert provider.context.storage is config.token_storage
+        metadata = provider.context.client_metadata
+        assert metadata.token_endpoint_auth_method == "none"
+        assert metadata.grant_types == ["authorization_code", "refresh_token"]
+        (redirect_uri,) = metadata.redirect_uris
+        assert redirect_uri.host == "127.0.0.1"
+        assert redirect_uri.port not in (None, 0)
+        assert redirect_uri.path == "/callback"
+
+    def test_free_port_is_picked_once_per_config(self):
+        config = OAuthConfig(grant_type="authorization_code", redirect_uri="http://localhost:0/oauth")
+
+        first = config.create_auth(server_url="https://mcp.example.com/mcp")
+        second = config.create_auth(server_url="https://mcp.example.com/mcp")
+
+        assert first.context.client_metadata.redirect_uris == second.context.client_metadata.redirect_uris
+        assert str(first.context.client_metadata.redirect_uris[0]).startswith("http://localhost:")
+
+    @pytest.mark.asyncio
+    async def test_create_auth_uses_a_pre_registered_client(self, client_secret):
+        config = OAuthConfig(
+            grant_type="authorization_code",
+            client_id="my-client",
+            client_secret=client_secret,
+            redirect_uri="http://localhost:8765/callback",
+        )
+
+        provider = config.create_auth(server_url="https://mcp.example.com/mcp")
+
+        client_info = await provider.context.storage.get_client_info()
+        assert client_info.client_id == "my-client"
+        assert client_info.client_secret == "super-secret"
+        assert client_info.token_endpoint_auth_method == "client_secret_basic"
+        assert [str(uri) for uri in client_info.redirect_uris] == ["http://localhost:8765/callback"]
+        # Nothing is written to the configured storage until the SDK stores something
+        assert await config.token_storage.get_client_info() is None
+
+    @pytest.mark.asyncio
+    async def test_pre_registered_public_client(self):
+        config = OAuthConfig(
+            grant_type="authorization_code", client_id="my-client", redirect_uri="http://localhost:8765/callback"
+        )
+
+        provider = config.create_auth(server_url="https://mcp.example.com/mcp")
+
+        client_info = await provider.context.storage.get_client_info()
+        assert client_info.client_secret is None
+        assert client_info.token_endpoint_auth_method == "none"
+
+
+class TestPreRegisteredClientStorage:
+    @pytest.mark.asyncio
+    async def test_stored_client_info_takes_precedence(self):
+        storage = InMemoryTokenStorage()
+        pre_registered = OAuthClientInformationFull(client_id="pre-registered", redirect_uris=None)
+        wrapped = _PreRegisteredClientStorage(storage=storage, client_info=pre_registered)
+
+        assert await wrapped.get_client_info() == pre_registered
+
+        stored = OAuthClientInformationFull(client_id="stored", redirect_uris=None)
+        await wrapped.set_client_info(stored)
+        assert await wrapped.get_client_info() == stored
+        assert await storage.get_client_info() == stored
+
+    @pytest.mark.asyncio
+    async def test_tokens_are_delegated(self):
+        storage = InMemoryTokenStorage()
+        wrapped = _PreRegisteredClientStorage(
+            storage=storage, client_info=OAuthClientInformationFull(client_id="pre-registered", redirect_uris=None)
+        )
+        tokens = OAuthToken(access_token="access-token", token_type="Bearer")
+
+        await wrapped.set_tokens(tokens)
+
+        assert await storage.get_tokens() == tokens
+        assert await wrapped.get_tokens() == tokens
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _code_and_state(result) -> tuple[str, str | None]:
+    # mcp v2 returns an AuthorizationCodeResult, v1 a (code, state) tuple
+    return (result.code, result.state) if hasattr(result, "code") else result
+
+
+async def _get(url: str):
+    async with http_lib.AsyncClient() as client:
+        return await client.get(url)
+
+
+AUTHORIZATION_URL = "https://auth.example.com/authorize?client_id=my-client&state=expected-state"
+
+
+class TestLoopbackAuthorizationFlow:
+    @pytest.fixture
+    def redirect_uri(self):
+        return f"http://127.0.0.1:{_free_port()}/callback"
+
+    @staticmethod
+    def _flow(redirect_uri: str, **kwargs) -> _LoopbackAuthorizationFlow:
+        kwargs = {"callback_timeout": 5.0, "on_authorization_url": show_url, **kwargs}
+        return _LoopbackAuthorizationFlow(redirect_uri=redirect_uri, **kwargs)
+
+    @staticmethod
+    async def _callback_while(flow: _LoopbackAuthorizationFlow, send_requests) -> tuple:
+        """Run `flow.callback()` while `send_requests` talks to the callback server."""
+        results = {}
+
+        async def callback() -> None:
+            try:
+                results["callback"] = await flow.callback()
+            except OAuthFlowError as e:
+                # Re-raised below, outside the task group, which would wrap it in an ExceptionGroup
+                results["error"] = e
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(callback)
+            results["responses"] = await send_requests()
+        if "error" in results:
+            raise results["error"]
+        return results["callback"], results["responses"]
+
+    @pytest.mark.asyncio
+    async def test_captures_the_redirect_and_ignores_other_requests(self, redirect_uri):
+        flow = self._flow(redirect_uri)
+        await flow.redirect(AUTHORIZATION_URL)
+        base = redirect_uri.removesuffix("/callback")
+
+        async def send_requests():
+            return [
+                await _get(f"{base}/favicon.ico"),
+                await _get(f"{redirect_uri}?code=injected&state=other-state"),
+                await _get(f"{redirect_uri}?code=the-code&state=expected-state&iss=https://auth.example.com"),
+            ]
+
+        result, (wrong_path, wrong_state, redirect) = await self._callback_while(flow, send_requests)
+
+        assert _code_and_state(result) == ("the-code", "expected-state")
+        if hasattr(result, "iss"):
+            assert result.iss == "https://auth.example.com"
+        assert wrong_path.status_code == 404
+        assert wrong_state.status_code == 400
+        assert redirect.status_code == 200
+        assert "Authorization complete" in redirect.text
+
+    @pytest.mark.asyncio
+    async def test_error_redirect_raises(self, redirect_uri):
+        flow = self._flow(redirect_uri)
+        await flow.redirect(AUTHORIZATION_URL)
+
+        async def send_requests():
+            return await _get(f"{redirect_uri}?error=access_denied&error_description=User+said+no&state=expected-state")
+
+        with pytest.raises(OAuthFlowError, match=r"access_denied \(User said no\)"):
+            await self._callback_while(flow, send_requests)
+
+    @pytest.mark.asyncio
+    async def test_redirect_without_code_raises(self, redirect_uri):
+        flow = self._flow(redirect_uri)
+        await flow.redirect(AUTHORIZATION_URL)
+
+        async def send_requests():
+            return await _get(f"{redirect_uri}?state=expected-state")
+
+        with pytest.raises(OAuthFlowError, match="carries no authorization code"):
+            await self._callback_while(flow, send_requests)
+
+    @pytest.mark.asyncio
+    async def test_timeout_without_terminal_raises(self, redirect_uri):
+        flow = self._flow(redirect_uri, callback_timeout=0.2)
+        await flow.redirect(AUTHORIZATION_URL)
+
+        with patch("haystack_integrations.tools.mcp.oauth._is_interactive", return_value=False):
+            with pytest.raises(OAuthFlowError, match="no interactive terminal"):
+                await flow.callback()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("pasted", ["{redirect_uri}?code=pasted-code&state=expected-state", "code=pasted-code"])
+    async def test_timeout_falls_back_to_the_pasted_url(self, redirect_uri, pasted):
+        flow = self._flow(redirect_uri, callback_timeout=0.2)
+        await flow.redirect(AUTHORIZATION_URL)
+
+        with (
+            patch("haystack_integrations.tools.mcp.oauth._is_interactive", return_value=True),
+            patch("builtins.input", return_value=f"  {pasted.format(redirect_uri=redirect_uri)}\n") as mock_input,
+        ):
+            result = await flow.callback()
+
+        assert _code_and_state(result)[0] == "pasted-code"
+        assert AUTHORIZATION_URL in mock_input.call_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_port_in_use_falls_back_to_the_pasted_url(self, redirect_uri, caplog):
+        port = int(redirect_uri.rsplit(":", 1)[1].split("/")[0])
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as taken:
+            taken.bind(("127.0.0.1", port))
+            taken.listen()
+            # A long timeout: the fallback must not wait for it when nothing can be received
+            flow = self._flow(redirect_uri, callback_timeout=60)
+            await flow.redirect(AUTHORIZATION_URL)
+
+            with (
+                patch("haystack_integrations.tools.mcp.oauth._is_interactive", return_value=True),
+                patch("builtins.input", return_value=f"{redirect_uri}?code=pasted-code&state=expected-state"),
+            ):
+                with anyio.fail_after(5):
+                    result = await flow.callback()
+
+        assert _code_and_state(result) == ("pasted-code", "expected-state")
+        assert "Can't listen for the OAuth redirect" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_failing_handler_closes_the_callback_server(self, redirect_uri):
+        async def failing_handler(_authorization_url: str) -> None:
+            message = "UI unavailable"
+            raise RuntimeError(message)
+
+        flow = self._flow(redirect_uri, on_authorization_url=failing_handler)
+
+        with pytest.raises(RuntimeError, match="UI unavailable"):
+            await flow.redirect(AUTHORIZATION_URL)
+
+        # The port is free again
+        port = urlsplit(redirect_uri).port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", port))
+
+    @pytest.mark.asyncio
+    async def test_opens_the_browser(self, redirect_uri):
+        flow = self._flow(redirect_uri, on_authorization_url=None)
+
+        with patch("haystack_integrations.tools.mcp.oauth.webbrowser.open", return_value=True) as mock_open:
+            await flow.redirect(AUTHORIZATION_URL)
+
+        mock_open.assert_called_once_with(AUTHORIZATION_URL)
+
+        async def send_requests():
+            return await _get(f"{redirect_uri}?code=the-code&state=expected-state")
+
+        result, _ = await self._callback_while(flow, send_requests)
+        assert _code_and_state(result) == ("the-code", "expected-state")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("browser", [{"return_value": False}, {"side_effect": webbrowser.Error("no browser")}])
+    async def test_logs_the_url_when_no_browser_can_be_opened(self, redirect_uri, caplog, browser):
+        flow = self._flow(redirect_uri, on_authorization_url=None)
+
+        with patch("haystack_integrations.tools.mcp.oauth.webbrowser.open", **browser):
+            await flow.redirect(AUTHORIZATION_URL)
+
+        assert "Couldn't open a browser" in caplog.text
+        assert AUTHORIZATION_URL in caplog.text
+
+        async def send_requests():
+            return await _get(f"{redirect_uri}?code=the-code&state=expected-state")
+
+        result, _ = await self._callback_while(flow, send_requests)
+        assert _code_and_state(result) == ("the-code", "expected-state")
+
+
+class TestResolveRedirectUri:
+    def test_default(self):
+        resolved = urlsplit(_resolve_redirect_uri(None))
+
+        assert resolved.scheme == "http"
+        assert resolved.hostname == "127.0.0.1"
+        assert resolved.port
+        assert resolved.path == "/callback"
+
+    def test_fixed_port_is_kept(self):
+        assert _resolve_redirect_uri("http://localhost:8765/oauth") == "http://localhost:8765/oauth"
+
+    @pytest.mark.parametrize("redirect_uri", ["http://localhost:0/oauth", "http://localhost/oauth"])
+    def test_free_port_is_filled_in(self, redirect_uri):
+        resolved = urlsplit(_resolve_redirect_uri(redirect_uri))
+
+        assert resolved.hostname == "localhost"
+        assert resolved.port
+        assert resolved.path == "/oauth"
 
 
 class TestFailFastAuth:

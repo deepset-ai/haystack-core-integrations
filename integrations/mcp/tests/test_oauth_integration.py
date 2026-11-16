@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 
@@ -29,16 +30,23 @@ pytestmark = pytest.mark.integration
 
 CLIENT_ID = "haystack-client"
 CLIENT_SECRET = "haystack-secret"
+DENIED_CLIENT_ID = "denied-client"
 
 # `issuer` is only accepted by mcp>=1.30.0 (v1) and mcp>=2.2.0 (v2)
 SDK_SUPPORTS_ISSUER = "issuer" in inspect.signature(ClientCredentialsOAuthProvider.__init__).parameters
 
 # An MCP server protected with OAuth, and the authorization server issuing its tokens, in a single process.
-# The authorization server only knows the Client Credentials grant with HTTP Basic client authentication, and
-# exposes `/stats` so tests can inspect the token requests it received.
+# The authorization server knows:
+# - the Client Credentials grant, for CLIENT_ID with HTTP Basic client authentication;
+# - the Authorization Code grant with PKCE (S256) and refresh tokens, for CLIENT_ID and for public clients registered
+#   dynamically at `/register`. `/authorize` approves at once by redirecting back with a code, except for the client
+#   DENIED_CLIENT_ID, which gets an `access_denied` error.
+# It exposes `/stats` so tests can inspect the requests it received.
 _OAUTH_SERVER_TEMPLATE = """
 import base64
+import hashlib
 import json
+import secrets
 import threading
 import time
 import urllib.parse
@@ -51,9 +59,15 @@ MCP_PORT, AS_PORT, TRANSPORT, EXPIRES_IN = {mcp_port}, {as_port}, "{transport}",
 CLIENT_ID, CLIENT_SECRET = "{client_id}", "{client_secret}"
 ISSUER = f"http://127.0.0.1:{{AS_PORT}}"
 RESOURCE = f"http://127.0.0.1:{{MCP_PORT}}/{{'sse' if TRANSPORT == 'sse' else 'mcp'}}"
+DENIED_CLIENT_ID = "{denied_client_id}"
+BASIC_AUTH = "Basic " + base64.b64encode(f"{{CLIENT_ID}}:{{CLIENT_SECRET}}".encode()).decode()
 
 issued_tokens = {{}}
+refresh_tokens = set()
+authorization_codes = {{}}
+registered_clients = {{}}
 token_requests = []
+authorize_requests = []
 
 
 class AuthServerHandler(BaseHTTPRequestHandler):
@@ -68,40 +82,109 @@ class AuthServerHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _redirect(self, redirect_uri, params):
+        self.send_response(302)
+        self.send_header("Location", redirect_uri + "?" + urllib.parse.urlencode(params))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _issue_token(self, with_refresh_token):
+        token = f"access-token-{{len(token_requests)}}"
+        issued_tokens[token] = time.time() + EXPIRES_IN
+        body = {{"access_token": token, "token_type": "Bearer", "expires_in": EXPIRES_IN}}
+        if with_refresh_token:
+            body["refresh_token"] = f"refresh-token-{{len(token_requests)}}"
+            refresh_tokens.add(body["refresh_token"])
+        self._send_json(200, body)
+
     def do_GET(self):
-        if self.path.startswith("/.well-known/oauth-authorization-server"):
+        url = urllib.parse.urlsplit(self.path)
+        if url.path.startswith("/.well-known/oauth-authorization-server"):
             self._send_json(
                 200,
                 {{
                     "issuer": ISSUER,
                     "authorization_endpoint": f"{{ISSUER}}/authorize",
                     "token_endpoint": f"{{ISSUER}}/token",
-                    "grant_types_supported": ["client_credentials"],
-                    "token_endpoint_auth_methods_supported": ["client_secret_basic"],
+                    "registration_endpoint": f"{{ISSUER}}/register",
+                    "response_types_supported": ["code"],
+                    "grant_types_supported": ["client_credentials", "authorization_code", "refresh_token"],
+                    "code_challenge_methods_supported": ["S256"],
+                    "token_endpoint_auth_methods_supported": ["client_secret_basic", "none"],
                 }},
             )
-        elif self.path == "/stats":
-            self._send_json(200, {{"token_requests": token_requests}})
+        elif url.path == "/authorize":
+            query = {{k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()}}
+            authorize_requests.append(query)
+            client = registered_clients.get(query.get("client_id"))
+            if query.get("client_id") in (CLIENT_ID, DENIED_CLIENT_ID):
+                client = {{"redirect_uris": [query.get("redirect_uri")]}}
+            if client is None or query.get("redirect_uri") not in client["redirect_uris"]:
+                self._send_json(400, {{"error": "invalid_request"}})
+                return
+            if query.get("client_id") == DENIED_CLIENT_ID:
+                self._redirect(query["redirect_uri"], {{"error": "access_denied", "state": query.get("state", "")}})
+                return
+            code = secrets.token_urlsafe(16)
+            authorization_codes[code] = query
+            self._redirect(query["redirect_uri"], {{"code": code, "state": query.get("state", ""), "iss": ISSUER}})
+        elif url.path == "/stats":
+            self._send_json(
+                200,
+                {{
+                    "token_requests": token_requests,
+                    "authorize_requests": authorize_requests,
+                    "registered_clients": registered_clients,
+                }},
+            )
         else:
             self._send_json(404, {{"error": "not_found"}})
 
     def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode()
+        if self.path == "/register":
+            metadata = json.loads(body)
+            client_id = f"registered-client-{{len(registered_clients) + 1}}"
+            registered_clients[client_id] = metadata
+            self._send_json(201, {{**metadata, "client_id": client_id, "token_endpoint_auth_method": "none"}})
+            return
         if self.path != "/token":
             self._send_json(404, {{"error": "not_found"}})
             return
-        length = int(self.headers.get("Content-Length", 0))
-        form = {{k: v[0] for k, v in urllib.parse.parse_qs(self.rfile.read(length).decode()).items()}}
+
+        form = {{k: v[0] for k, v in urllib.parse.parse_qs(body).items()}}
         authorization = self.headers.get("Authorization", "")
         token_requests.append({{"form": form, "basic_auth": authorization.startswith("Basic ")}})
+        grant_type = form.get("grant_type")
 
-        expected = "Basic " + base64.b64encode(f"{{CLIENT_ID}}:{{CLIENT_SECRET}}".encode()).decode()
-        if authorization != expected or form.get("grant_type") != "client_credentials":
-            self._send_json(401, {{"error": "invalid_client", "error_description": "Client authentication failed"}})
-            return
-
-        token = f"access-token-{{len(token_requests)}}"
-        issued_tokens[token] = time.time() + EXPIRES_IN
-        self._send_json(200, {{"access_token": token, "token_type": "Bearer", "expires_in": EXPIRES_IN}})
+        if grant_type == "client_credentials":
+            if authorization != BASIC_AUTH:
+                self._send_json(401, {{"error": "invalid_client", "error_description": "Client authentication failed"}})
+                return
+            self._issue_token(with_refresh_token=False)
+        elif grant_type == "authorization_code":
+            request = authorization_codes.pop(form.get("code"), None)
+            client_id = CLIENT_ID if authorization == BASIC_AUTH else form.get("client_id")
+            verifier = form.get("code_verifier", "")
+            challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+            if (
+                request is None
+                or request["client_id"] != client_id
+                or request["redirect_uri"] != form.get("redirect_uri")
+                or request.get("code_challenge") != challenge
+            ):
+                self._send_json(400, {{"error": "invalid_grant"}})
+                return
+            self._issue_token(with_refresh_token=True)
+        elif grant_type == "refresh_token":
+            if form.get("refresh_token") not in refresh_tokens:
+                self._send_json(400, {{"error": "invalid_grant"}})
+                return
+            refresh_tokens.discard(form["refresh_token"])
+            self._issue_token(with_refresh_token=True)
+        else:
+            self._send_json(400, {{"error": "unsupported_grant_type"}})
 
 
 class TokenVerifier:
@@ -168,9 +251,12 @@ class OAuthServer:
         self.url = url
         self.issuer = issuer
 
-    def token_requests(self) -> list[dict]:
+    def stats(self) -> dict:
         with urllib.request.urlopen(f"{self.issuer}/stats", timeout=5) as response:  # noqa: S310
-            return json.loads(response.read())["token_requests"]
+            return json.loads(response.read())
+
+    def token_requests(self) -> list[dict]:
+        return self.stats()["token_requests"]
 
 
 @pytest.fixture
@@ -192,6 +278,7 @@ def oauth_mcp_server():
             expires_in=expires_in,
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
+            denied_client_id=DENIED_CLIENT_ID,
         )
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as temp_file:
             temp_file.write(script)
@@ -309,3 +396,102 @@ class TestOAuthClientCredentials:
 
         restored = MCPToolset.from_dict(json.loads(serialized))
         assert restored.server_info == server_info
+
+
+async def _sign_in(authorization_url: str) -> None:
+    """
+    Stand-in for a user signing in through a browser: visit the authorization URL and follow its redirect.
+
+    Runs in a background thread, like a browser would: the redirect can only be answered once the OAuth flow starts
+    serving the callback server, after this handler returns.
+    """
+
+    def visit() -> None:
+        with urllib.request.urlopen(authorization_url, timeout=10) as response:  # noqa: S310
+            response.read()
+
+    threading.Thread(target=visit, daemon=True).start()
+
+
+class TestOAuthAuthorizationCode:
+    @pytest.mark.parametrize("transport", ["streamable-http", "sse"])
+    def test_tool_call_with_dynamic_client_registration(self, oauth_mcp_server, mcp_tool_cleanup, transport):
+        server = oauth_mcp_server(transport)
+        server_info_class = SSEServerInfo if transport == "sse" else StreamableHttpServerInfo
+        oauth_config = OAuthConfig(grant_type="authorization_code", on_authorization_url=_sign_in)
+        server_info = server_info_class(url=server.url, oauth_config=oauth_config)
+
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info))
+
+        assert _add(tool, 2, 3) == "5"
+        stats = server.stats()
+        assert list(stats["registered_clients"]) == ["registered-client-1"]
+        registered = stats["registered_clients"]["registered-client-1"]
+        assert registered["grant_types"] == ["authorization_code", "refresh_token"]
+        assert registered["token_endpoint_auth_method"] == "none"
+
+        (authorize_request,) = stats["authorize_requests"]
+        assert authorize_request["client_id"] == "registered-client-1"
+        assert authorize_request["code_challenge_method"] == "S256"
+        assert authorize_request["redirect_uri"] == registered["redirect_uris"][0]
+
+        (token_request,) = stats["token_requests"]
+        assert token_request["form"]["grant_type"] == "authorization_code"
+        assert token_request["form"]["resource"] == server.url
+        assert not token_request["basic_auth"]
+
+    def test_expired_token_is_refreshed_without_signing_in_again(self, oauth_mcp_server, mcp_tool_cleanup):
+        server = oauth_mcp_server("streamable-http", expires_in=2)
+        oauth_config = OAuthConfig(grant_type="authorization_code", on_authorization_url=_sign_in)
+        server_info = StreamableHttpServerInfo(url=server.url, oauth_config=oauth_config)
+
+        toolset = mcp_tool_cleanup(MCPToolset(server_info=server_info))
+        toolset.warm_up()
+        add_tool = next(tool for tool in toolset if tool.name == "add")
+        assert _add(add_tool, 1, 1) == "2"
+
+        time.sleep(3)
+
+        assert _add(add_tool, 2, 2) == "4"
+        stats = server.stats()
+        assert len(stats["authorize_requests"]) == 1
+        assert [r["form"]["grant_type"] for r in stats["token_requests"]] == ["authorization_code", "refresh_token"]
+
+    def test_pre_registered_confidential_client(self, oauth_mcp_server, client_secret, mcp_tool_cleanup):
+        server = oauth_mcp_server("streamable-http")
+        oauth_config = OAuthConfig(
+            grant_type="authorization_code",
+            client_id=CLIENT_ID,
+            client_secret=client_secret,
+            redirect_uri=f"http://localhost:{_free_port()}/oauth/callback",
+            on_authorization_url=_sign_in,
+        )
+        server_info = StreamableHttpServerInfo(url=server.url, oauth_config=oauth_config)
+
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info))
+
+        assert _add(tool, 4, 5) == "9"
+        stats = server.stats()
+        assert stats["registered_clients"] == {}
+        assert stats["authorize_requests"][0]["redirect_uri"] == oauth_config.redirect_uri
+        (token_request,) = stats["token_requests"]
+        assert token_request["form"]["grant_type"] == "authorization_code"
+        assert token_request["basic_auth"]
+
+    def test_denied_authorization_fails_fast(self, oauth_mcp_server, mcp_tool_cleanup):
+        server = oauth_mcp_server("streamable-http")
+        oauth_config = OAuthConfig(
+            grant_type="authorization_code",
+            client_id=DENIED_CLIENT_ID,
+            redirect_uri=f"http://127.0.0.1:{_free_port()}/callback",
+            on_authorization_url=_sign_in,
+        )
+        server_info = StreamableHttpServerInfo(url=server.url, oauth_config=oauth_config)
+
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info, connection_timeout=30))
+        start = time.monotonic()
+        with pytest.raises(MCPConnectionError, match="access_denied"):
+            tool.warm_up()
+
+        assert time.monotonic() - start < 15
+        assert server.token_requests() == []

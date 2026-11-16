@@ -5,6 +5,7 @@
 """Compatibility helpers for the mcp SDK v1 and v2"""
 
 import inspect
+from collections.abc import Awaitable, Callable
 from importlib.metadata import version
 from typing import Any, Literal
 
@@ -12,6 +13,7 @@ import anyio
 from pydantic import BaseModel
 
 from mcp import types
+from mcp.client.auth import OAuthClientProvider
 from mcp.client.auth.extensions.client_credentials import ClientCredentialsOAuthProvider
 
 MCP_V2 = int(version("mcp").split(".")[0]) >= 2  # noqa: PLR2004
@@ -29,6 +31,7 @@ _TRANSPORT_ERRORS: tuple[type[BaseException], ...] = (
 )
 
 if MCP_V2:
+    from mcp.shared.auth import AuthorizationCodeResult  # type: ignore[attr-defined,unused-ignore]
     from mcp.shared.exceptions import MCPError as _SDKError  # type: ignore[attr-defined,no-redef]
 else:
     from mcp.shared.exceptions import McpError as _SDKError  # type: ignore[attr-defined,no-redef]
@@ -114,3 +117,51 @@ def create_client_credentials_provider(
     return ClientCredentialsOAuthProvider(
         server_url, storage, client_id, client_secret, token_endpoint_auth_method, scope, **kwargs
     )
+
+
+def create_authorization_code_provider(
+    *,
+    server_url: str,
+    client_metadata: Any,
+    storage: Any,
+    redirect_handler: Callable[[str], Awaitable[None]],
+    callback_handler: Callable[[], Awaitable[Any]],
+) -> Any:
+    """
+    Create the SDK's OAuth provider for the Authorization Code grant.
+
+    The provider discovers the authorization server, registers the client dynamically when no client information is
+    stored, and runs the Authorization Code flow with PKCE when the MCP server asks for a token.
+
+    :param server_url: URL of the MCP server.
+    :param client_metadata: `OAuthClientMetadata` used for dynamic client registration.
+    :param storage: Implementation of the `mcp.client.auth.TokenStorage` protocol.
+    :param redirect_handler: Coroutine function called with the authorization URL the user has to visit.
+    :param callback_handler: Coroutine function returning the authorization redirect parameters, as built by
+        `authorization_code_result`.
+    :returns: An `OAuthClientProvider`, usable as `auth` of the SDK's HTTP client.
+    """
+    return OAuthClientProvider(
+        server_url=server_url,
+        client_metadata=client_metadata,
+        storage=storage,
+        redirect_handler=redirect_handler,
+        callback_handler=callback_handler,
+    )
+
+
+def authorization_code_result(*, code: str, state: str | None, iss: str | None) -> Any:
+    """
+    Build the value an `OAuthClientProvider` callback handler returns, irrespective of the installed SDK.
+
+    v1 expects a `(code, state)` tuple. v2 expects an `AuthorizationCodeResult`, which also carries the RFC 9207
+    `iss` parameter so the SDK can check which authorization server sent the redirect.
+
+    :param code: The authorization code.
+    :param state: The `state` parameter of the redirect.
+    :param iss: The `iss` parameter of the redirect, if the authorization server sent one.
+    :returns: The callback handler result for the installed SDK.
+    """
+    if MCP_V2:
+        return AuthorizationCodeResult(code=code, state=state, iss=iss)
+    return (code, state)
