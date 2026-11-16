@@ -13,27 +13,39 @@ from haystack.utils.http_client import init_http_client
 @component
 class VLLMMultivectorTextEmbedder:
     """
-    Embed text into a token-level multivector using a model served with vLLM.
+    A component for computing text multivector embeddings using models served with [vLLM](https://docs.vllm.ai/).
 
-    The component calls vLLM's native `/pooling` API with the `token_embed` task. Start a server with a model that
-    supports token embeddings, for example:
+    It uses the `/pooling` endpoint of a running vLLM server with the `token_embed` task.
+
+    ### Starting the vLLM server
+
+    Before using this component, start a vLLM server with a model that supports token embeddings:
 
     ```bash
     vllm serve answerdotai/answerai-colbert-small-v1 --runner pooling --pooler-config '{"task":"token_embed"}'
     ```
 
-    The `/pooling` endpoint is not below the OpenAI-compatible `/v1` path, so the default `api_base_url` is
-    `http://localhost:8000`. For details, see the
-    [vLLM Pooling API documentation](https://docs.vllm.ai/en/stable/serving/openai_compatible_server/#pooling-api).
+    For details on server options, see the [vLLM CLI docs](https://docs.vllm.ai/en/stable/cli/serve/).
 
     ### Usage example
 
     ```python
     from haystack_integrations.components.embedders.vllm import VLLMMultivectorTextEmbedder
 
-    embedder = VLLMMultivectorTextEmbedder(model="answerdotai/answerai-colbert-small-v1")
-    result = embedder.run("A document about Rome")
-    print(result["multivector_embedding"])
+    text_embedder = VLLMMultivectorTextEmbedder(model="answerdotai/answerai-colbert-small-v1")
+    print(text_embedder.run("I love pizza!"))
+    ```
+
+    ### Usage example with vLLM-specific parameters
+
+    Pass vLLM-specific parameters via the `extra_parameters` dictionary. They are merged into the
+    request body sent to the `/pooling` endpoint.
+
+    ```python
+    text_embedder = VLLMMultivectorTextEmbedder(
+        model="answerdotai/answerai-colbert-small-v1",
+        extra_parameters={"truncate_prompt_tokens": 256},
+    )
     ```
     """
 
@@ -50,19 +62,26 @@ class VLLMMultivectorTextEmbedder:
         extra_parameters: dict[str, Any] | None = None,
     ) -> None:
         """
-        Create a VLLMMultivectorTextEmbedder.
+        Creates an instance of VLLMMultivectorTextEmbedder.
 
-        :param model: Name of the token-embedding model served by vLLM.
-        :param api_key: vLLM API key. Defaults to the `VLLM_API_KEY` environment variable and is only required when
-            the server was started with `--api-key`.
+        :param model: The name of the token-embedding model served by vLLM. See the
+            [vLLM token embedding docs](https://docs.vllm.ai/en/stable/models/pooling_models/token_embed/)
+            for information on supported models.
+        :param api_key: The vLLM API key. Defaults to the `VLLM_API_KEY` environment variable.
+            Only required if the server was started with `--api-key`.
         :param api_base_url: Base URL of the vLLM server. Do not append `/v1`; the native `/pooling` endpoint is used.
         :param prefix: String added before the text.
         :param suffix: String added after the text.
-        :param timeout: Request timeout in seconds. When set, this takes precedence over
-            `http_client_kwargs["timeout"]`.
-        :param http_client_kwargs: Keyword arguments passed to `httpx.Client` and `httpx.AsyncClient`.
-        :param extra_parameters: Additional `/pooling` request fields. `model`, `input`, and `task` cannot be
-            overridden.
+        :param timeout: Timeout in seconds for vLLM client calls. When set, this takes precedence over
+            `http_client_kwargs["timeout"]`. If `None`, the timeout from `http_client_kwargs` is used;
+            if neither is set, the HTTPX default applies.
+        :param http_client_kwargs: A dictionary of keyword arguments to configure a custom `httpx.Client` or
+            `httpx.AsyncClient`. For more information, see the
+            [HTTPX documentation](https://www.python-httpx.org/api/#client).
+        :param extra_parameters: Additional parameters merged into the request body sent to the vLLM
+            `/pooling` endpoint, such as `truncate_prompt_tokens`. `model`, `input`, and `task` cannot be
+            overridden. See the
+            [vLLM Pooling API docs](https://docs.vllm.ai/en/stable/models/pooling_models/#pooling-api).
         """
         self.model = model
         self.api_key = api_key
@@ -131,9 +150,11 @@ class VLLMMultivectorTextEmbedder:
         Embed a string into a token-level multivector.
 
         :param text: Text to embed.
-        :returns: A dictionary containing the `multivector_embedding`.
-        :raises TypeError: If `text` is not a string.
-        :raises httpx.HTTPError: If the request fails.
+        :returns: A dictionary with:
+            - `multivector_embedding`: The token embeddings as a list of lists of floats, with shape
+              `[number_of_tokens, embedding_dimension]`.
+        :raises TypeError: `text` is not a string.
+        :raises httpx.HTTPError: A request fails.
         """
         kwargs = self._prepare_input(text)
         self.warm_up()
@@ -148,9 +169,11 @@ class VLLMMultivectorTextEmbedder:
         Asynchronously embed a string into a token-level multivector.
 
         :param text: Text to embed.
-        :returns: A dictionary containing the `multivector_embedding`.
-        :raises TypeError: If `text` is not a string.
-        :raises httpx.HTTPError: If the request fails.
+        :returns: A dictionary with:
+            - `multivector_embedding`: The token embeddings as a list of lists of floats, with shape
+              `[number_of_tokens, embedding_dimension]`.
+        :raises TypeError: `text` is not a string.
+        :raises httpx.HTTPError: A request fails.
         """
         kwargs = self._prepare_input(text)
         await self.warm_up_async()

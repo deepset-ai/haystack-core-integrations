@@ -20,19 +20,20 @@ logger = logging.getLogger(__name__)
 @component
 class VLLMMultivectorDocumentEmbedder:
     """
-    Embed Documents into token-level multivectors using a model served with vLLM.
+    A component for computing Document multivector embeddings using models served with [vLLM](https://docs.vllm.ai/).
 
-    Each multivector is stored in a copy of the Document in its `multivector_embedding` field; the original Document
-    and its `embedding` field are not modified. The component calls vLLM's native `/pooling` API with the
-    `token_embed` task. Start a server with a compatible model, for example:
+    The multivector embedding of each Document is stored in its `multivector_embedding` field.
+    It uses the `/pooling` endpoint of a running vLLM server with the `token_embed` task.
+
+    ### Starting the vLLM server
+
+    Before using this component, start a vLLM server with a model that supports token embeddings:
 
     ```bash
     vllm serve answerdotai/answerai-colbert-small-v1 --runner pooling --pooler-config '{"task":"token_embed"}'
     ```
 
-    The `/pooling` endpoint is not below the OpenAI-compatible `/v1` path, so the default `api_base_url` is
-    `http://localhost:8000`. For details, see the
-    [vLLM Pooling API documentation](https://docs.vllm.ai/en/stable/serving/openai_compatible_server/#pooling-api).
+    For details on server options, see the [vLLM CLI docs](https://docs.vllm.ai/en/stable/cli/serve/).
 
     ### Usage example
 
@@ -40,9 +41,23 @@ class VLLMMultivectorDocumentEmbedder:
     from haystack import Document
     from haystack_integrations.components.embedders.vllm import VLLMMultivectorDocumentEmbedder
 
-    embedder = VLLMMultivectorDocumentEmbedder(model="answerdotai/answerai-colbert-small-v1")
-    result = embedder.run([Document(content="A document about Rome")])
+    doc = Document(content="I love pizza!")
+    document_embedder = VLLMMultivectorDocumentEmbedder(model="answerdotai/answerai-colbert-small-v1")
+
+    result = document_embedder.run([doc])
     print(result["documents"][0].multivector_embedding)
+    ```
+
+    ### Usage example with vLLM-specific parameters
+
+    Pass vLLM-specific parameters via the `extra_parameters` dictionary. They are merged into the
+    request body sent to the `/pooling` endpoint.
+
+    ```python
+    document_embedder = VLLMMultivectorDocumentEmbedder(
+        model="answerdotai/answerai-colbert-small-v1",
+        extra_parameters={"truncate_prompt_tokens": 256},
+    )
     ```
     """
 
@@ -64,11 +79,13 @@ class VLLMMultivectorDocumentEmbedder:
         concurrency_limit: int = 4,
     ) -> None:
         """
-        Create a VLLMMultivectorDocumentEmbedder.
+        Creates an instance of VLLMMultivectorDocumentEmbedder.
 
-        :param model: Name of the token-embedding model served by vLLM.
-        :param api_key: vLLM API key. Defaults to the `VLLM_API_KEY` environment variable and is only required when
-            the server was started with `--api-key`.
+        :param model: The name of the token-embedding model served by vLLM. See the
+            [vLLM token embedding docs](https://docs.vllm.ai/en/stable/models/pooling_models/token_embed/)
+            for information on supported models.
+        :param api_key: The vLLM API key. Defaults to the `VLLM_API_KEY` environment variable.
+            Only required if the server was started with `--api-key`.
         :param api_base_url: Base URL of the vLLM server. Do not append `/v1`; the native `/pooling` endpoint is used.
         :param prefix: String added before every Document text.
         :param suffix: String added after every Document text.
@@ -76,14 +93,19 @@ class VLLMMultivectorDocumentEmbedder:
         :param progress_bar: Whether to display embedding progress.
         :param meta_fields_to_embed: Metadata fields prepended to the Document content.
         :param embedding_separator: Separator joining metadata values and Document content.
-        :param timeout: Request timeout in seconds. When set, this takes precedence over
-            `http_client_kwargs["timeout"]`.
-        :param http_client_kwargs: Keyword arguments passed to `httpx.Client` and `httpx.AsyncClient`.
-        :param extra_parameters: Additional `/pooling` request fields. `model`, `input`, and `task` cannot be
-            overridden.
+        :param timeout: Timeout in seconds for vLLM client calls. When set, this takes precedence over
+            `http_client_kwargs["timeout"]`. If `None`, the timeout from `http_client_kwargs` is used;
+            if neither is set, the HTTPX default applies.
+        :param http_client_kwargs: A dictionary of keyword arguments to configure a custom `httpx.Client` or
+            `httpx.AsyncClient`. For more information, see the
+            [HTTPX documentation](https://www.python-httpx.org/api/#client).
+        :param extra_parameters: Additional parameters merged into the request body sent to the vLLM
+            `/pooling` endpoint, such as `truncate_prompt_tokens`. `model`, `input`, and `task` cannot be
+            overridden. See the
+            [vLLM Pooling API docs](https://docs.vllm.ai/en/stable/models/pooling_models/#pooling-api).
         :param concurrency_limit: Maximum number of asynchronous batch requests in flight at once. Values below
             one use sequential execution. Synchronous embedding is unaffected.
-        :raises ValueError: If `batch_size` is not positive.
+        :raises ValueError: `batch_size` is not positive.
         """
         if batch_size <= 0:
             msg = "batch_size must be greater than 0"
@@ -220,8 +242,9 @@ class VLLMMultivectorDocumentEmbedder:
         Embed Documents into token-level multivectors.
 
         :param documents: Documents to embed.
-        :returns: A dictionary containing copied `documents` with multivector embeddings.
-        :raises TypeError: If `documents` is not a list containing only Documents.
+        :returns: A dictionary with:
+            - `documents`: Documents with their `multivector_embedding` field populated.
+        :raises TypeError: `documents` is not a list containing only Documents.
         :raises httpx.HTTPError: A request fails.
         """
         self._validate_documents(documents)
@@ -244,8 +267,9 @@ class VLLMMultivectorDocumentEmbedder:
         Asynchronously embed Documents into token-level multivectors.
 
         :param documents: Documents to embed.
-        :returns: A dictionary containing copied `documents` with multivector embeddings.
-        :raises TypeError: If `documents` is not a list containing only Documents.
+        :returns: A dictionary with:
+            - `documents`: Documents with their `multivector_embedding` field populated.
+        :raises TypeError: `documents` is not a list containing only Documents.
         :raises httpx.HTTPError: A request fails.
         """
         self._validate_documents(documents)
