@@ -98,6 +98,65 @@ def _convert_chat_completion_to_chat_message(completion: ChatCompletion, choice:
     return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning)
 
 
+def _convert_vllm_chunk_to_streaming_chunks(
+    chunk: ChatCompletionChunk, previous_chunks: list[StreamingChunk], component_info: ComponentInfo
+) -> list[StreamingChunk]:
+    """
+    Convert a vLLM streaming chunk to StreamingChunks, including reasoning content.
+
+    A `StreamingChunk` holds either reasoning or content/tool calls, so a delta carrying both is split into a
+    reasoning chunk followed by the content or tool call chunk.
+    """
+    streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
+        chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
+    )
+    reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None) if chunk.choices else None
+    has_payload = bool(streaming_chunk.content or streaming_chunk.tool_calls)
+    # the last chunk with reasoning, content, or tool calls tells which block the stream is currently in
+    last_block = next((c for c in reversed(previous_chunks) if c.reasoning or c.content or c.tool_calls), None)
+
+    streaming_chunks: list[StreamingChunk] = []
+    if reasoning_text:
+        reasoning_chunk = StreamingChunk(
+            content="",
+            reasoning=ReasoningContent(reasoning_text=reasoning_text),
+            index=0,
+            start=last_block is None or last_block.reasoning is None,
+            # a reasoning-only delta replaces the parent's empty chunk, so it carries its finish reason
+            finish_reason=None if has_payload else streaming_chunk.finish_reason,
+            component_info=component_info,
+            meta={**streaming_chunk.meta, "finish_reason": None} if has_payload else streaming_chunk.meta,
+        )
+        if not has_payload:
+            return [reasoning_chunk]
+        streaming_chunks.append(reasoning_chunk)
+        last_block = reasoning_chunk
+
+    if streaming_chunk.content:
+        # the parent converter marks the second chunk of a stream as start, assuming the first one only carries `role`,
+        # and gives text chunks index None when `role` is set. Derive start and index from the previous block instead
+        # when starting, transitioning from reasoning, or continuing content.
+        if last_block is None:
+            streaming_chunk = dataclasses.replace(streaming_chunk, start=True, index=0)
+        elif last_block.reasoning is not None:
+            streaming_chunk = dataclasses.replace(streaming_chunk, start=True, index=(last_block.index or 0) + 1)
+        elif last_block.content:
+            streaming_chunk = dataclasses.replace(streaming_chunk, start=False, index=last_block.index)
+    elif streaming_chunk.tool_calls and last_block is not None:
+        # the parent converter uses the provider's tool call index as chunk index, which collides with the reasoning
+        # or text block before the tool calls, so shift the chunk index past that block. Later tool calls keep the
+        # shift of the first one, even if text is streamed between them. `ToolCallDelta.index` keeps the provider's
+        # index, which the tool calls are assembled by.
+        previous_tool_chunk = next((c for c in reversed(previous_chunks) if c.tool_calls), None)
+        if previous_tool_chunk is not None and previous_tool_chunk.tool_calls:
+            offset = (previous_tool_chunk.index or 0) - previous_tool_chunk.tool_calls[0].index
+        else:
+            offset = (last_block.index or 0) + 1
+        streaming_chunk = dataclasses.replace(streaming_chunk, index=streaming_chunk.tool_calls[0].index + offset)
+    streaming_chunks.append(streaming_chunk)
+    return streaming_chunks
+
+
 @component
 class VLLMChatGenerator:
     """
@@ -376,44 +435,13 @@ class VLLMChatGenerator:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
 
-        # track reasoning and content blocks. We use these flags to detect the transition and mark start=True
-        # on the first chunk of each block
-        reasoning_started = False
-        content_started = False
-
         for chunk in chat_completion:
             assert len(chunk.choices) <= 1  # noqa: S101
-
-            reasoning_text = None
-            if chunk.choices:
-                reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None)
-
-            if reasoning_text:
-                streaming_chunk = StreamingChunk(
-                    content="",
-                    reasoning=ReasoningContent(reasoning_text=reasoning_text),
-                    index=0,
-                    start=not reasoning_started,
-                    component_info=component_info,
-                    meta={
-                        "model": chunk.model,
-                        "index": chunk.choices[0].index,
-                        "finish_reason": chunk.choices[0].finish_reason,
-                    },
-                )
-                reasoning_started = True
-            else:
-                streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
-                    chunk=chunk, previous_chunks=chunks, component_info=component_info
-                )
-                # _convert_chat_completion_chunk_to_streaming_chunk doesn't know about reasoning chunks
-                # We set start=True on the first content chunk after reasoning.
-                if reasoning_started and not content_started:
-                    streaming_chunk = dataclasses.replace(streaming_chunk, start=True)
-                    content_started = True
-
-            chunks.append(streaming_chunk)
-            callback(streaming_chunk)
+            for streaming_chunk in _convert_vllm_chunk_to_streaming_chunks(
+                chunk=chunk, previous_chunks=chunks, component_info=component_info
+            ):
+                chunks.append(streaming_chunk)
+                callback(streaming_chunk)
 
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
@@ -423,43 +451,17 @@ class VLLMChatGenerator:
         """Handle an asynchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
-        reasoning_started = False
-        content_started = False
         try:
             async for chunk in chat_completion:
                 assert len(chunk.choices) <= 1  # noqa: S101
-
-                reasoning_text = None
-                if chunk.choices:
-                    reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None)
-
-                if reasoning_text:
-                    streaming_chunk = StreamingChunk(
-                        content="",
-                        reasoning=ReasoningContent(reasoning_text=reasoning_text),
-                        index=0,
-                        start=not reasoning_started,
-                        component_info=component_info,
-                        meta={
-                            "model": chunk.model,
-                            "index": chunk.choices[0].index,
-                            "finish_reason": chunk.choices[0].finish_reason,
-                        },
-                    )
-                    reasoning_started = True
-                else:
-                    streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
-                        chunk=chunk, previous_chunks=chunks, component_info=component_info
-                    )
-                    if reasoning_started and not content_started:
-                        streaming_chunk = dataclasses.replace(streaming_chunk, start=True)
-                        content_started = True
-
-                chunks.append(streaming_chunk)
-                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
-                callback_result = callback(streaming_chunk)
-                if inspect.isawaitable(callback_result):
-                    await callback_result
+                for streaming_chunk in _convert_vllm_chunk_to_streaming_chunks(
+                    chunk=chunk, previous_chunks=chunks, component_info=component_info
+                ):
+                    chunks.append(streaming_chunk)
+                    # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                    callback_result = callback(streaming_chunk)
+                    if inspect.isawaitable(callback_result):
+                        await callback_result
         except asyncio.CancelledError:
             await asyncio.shield(chat_completion.close())
             raise

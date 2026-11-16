@@ -53,17 +53,17 @@ class AsyncMockStream(AsyncStream[ChatCompletionChunk]):
         raise StopAsyncIteration
 
 
-def _make_reasoning_chunk(text):
+def _make_reasoning_chunk(text, content=None, tool_calls=None, role=None, finish_reason=None):
     chunk = ChatCompletionChunk(
         id="test-id",
         model=MODEL,
         object="chat.completion.chunk",
         choices=[
             chat_completion_chunk.Choice(
-                finish_reason=None,
+                finish_reason=finish_reason,
                 logprobs=None,
                 index=0,
-                delta=chat_completion_chunk.ChoiceDelta(content=None, role=None),
+                delta=chat_completion_chunk.ChoiceDelta(content=content, role=role, tool_calls=tool_calls),
             )
         ],
         created=int(datetime.now(tz=UTC).timestamp()),
@@ -549,6 +549,93 @@ class TestRun:
         # chunks 5-6: subsequent content chunks -> start=False
         assert streaming_chunks[5].start is False
         assert streaming_chunks[6].start is False
+        assert streaming_chunks[6].meta["finish_reason"] == "stop"
+        assert result["replies"][0].meta["finish_reason"] == "stop"
+
+    def test_run_streaming_splits_reasoning_and_content(self):
+        openai_chunks = [
+            _make_reasoning_chunk("Let me think", content="", role="assistant"),
+            _make_reasoning_chunk(" ok.", content="Paris is"),
+            _make_content_chunk(" the capital.", finish_reason="stop"),
+        ]
+
+        streaming_chunks = []
+        component = VLLMChatGenerator(model=MODEL, streaming_callback=streaming_chunks.append)
+        component.warm_up()
+
+        with patch("openai.resources.chat.completions.Completions.create") as mock:
+            mock.return_value = MockStream(openai_chunks, cast_to=None, response=None, client=None)
+            result = component.run([ChatMessage.from_user("What is the capital of France?")])
+
+        reply = result["replies"][0]
+        assert reply.text == "Paris is the capital."
+        assert reply.reasoning is not None
+        assert reply.reasoning.reasoning_text == "Let me think ok."
+        assert reply.meta["finish_reason"] == "stop"
+
+        assert len(streaming_chunks) == 4
+        assert [c.reasoning.reasoning_text for c in streaming_chunks[:2]] == ["Let me think", " ok."]
+        assert [c.start for c in streaming_chunks[:2]] == [True, False]
+        assert [c.index for c in streaming_chunks[:2]] == [0, 0]
+        assert all(c.content == "" for c in streaming_chunks[:2])
+        assert all(c.meta["finish_reason"] is None for c in streaming_chunks[:3])
+
+        assert streaming_chunks[2].reasoning is None
+        assert streaming_chunks[2].content == "Paris is"
+        assert streaming_chunks[2].start is True
+        assert streaming_chunks[2].index == 1
+
+        assert streaming_chunks[3].content == " the capital."
+        assert streaming_chunks[3].start is False
+        assert streaming_chunks[3].index == 1
+        assert streaming_chunks[3].finish_reason == "stop"
+        assert streaming_chunks[3].meta["finish_reason"] == "stop"
+
+    def test_run_streaming_splits_reasoning_and_tool_calls(self):
+        tool_call = chat_completion_chunk.ChoiceDeltaToolCall(
+            index=0,
+            id="call_1",
+            type="function",
+            function=chat_completion_chunk.ChoiceDeltaToolCallFunction(name="weather", arguments='{"city": "Paris"}'),
+        )
+        openai_chunks = [
+            _make_reasoning_chunk("I need the weather.", role="assistant"),
+            _make_reasoning_chunk(" Calling the tool.", tool_calls=[tool_call], finish_reason="tool_calls"),
+        ]
+
+        streaming_chunks = []
+        component = VLLMChatGenerator(model=MODEL, streaming_callback=streaming_chunks.append)
+        component.warm_up()
+
+        with patch("openai.resources.chat.completions.Completions.create") as mock:
+            mock.return_value = MockStream(openai_chunks, cast_to=None, response=None, client=None)
+            result = component.run([ChatMessage.from_user("What is the weather in Paris?")])
+
+        reply = result["replies"][0]
+        assert reply.text is None
+        assert reply.reasoning is not None
+        assert reply.reasoning.reasoning_text == "I need the weather. Calling the tool."
+        assert reply.tool_calls == [ToolCall(id="call_1", tool_name="weather", arguments={"city": "Paris"})]
+        assert reply.meta["finish_reason"] == "tool_calls"
+
+        assert len(streaming_chunks) == 3
+        assert [c.reasoning.reasoning_text for c in streaming_chunks[:2]] == [
+            "I need the weather.",
+            " Calling the tool.",
+        ]
+        assert [c.start for c in streaming_chunks[:2]] == [True, False]
+        assert [c.index for c in streaming_chunks[:2]] == [0, 0]
+        assert all(c.finish_reason is None and c.meta["finish_reason"] is None for c in streaming_chunks[:2])
+
+        assert streaming_chunks[2].reasoning is None
+        assert streaming_chunks[2].tool_calls is not None
+        assert streaming_chunks[2].tool_calls[0].tool_name == "weather"
+        assert streaming_chunks[2].tool_calls[0].arguments == '{"city": "Paris"}'
+        assert streaming_chunks[2].tool_calls[0].index == 0
+        assert streaming_chunks[2].start is True
+        assert streaming_chunks[2].index == 1
+        assert streaming_chunks[2].finish_reason == "tool_calls"
+        assert streaming_chunks[2].meta["finish_reason"] == "tool_calls"
 
 
 @pytest.mark.asyncio
@@ -664,6 +751,99 @@ class TestRunAsync:
         assert streaming_chunks[4].start is True
         assert streaming_chunks[5].start is False
         assert streaming_chunks[6].start is False
+        assert streaming_chunks[6].meta["finish_reason"] == "stop"
+        assert result["replies"][0].meta["finish_reason"] == "stop"
+
+    async def test_run_async_streaming_splits_reasoning_and_content(self):
+        openai_chunks = [
+            _make_reasoning_chunk("Let me think", content="", role="assistant"),
+            _make_reasoning_chunk(" ok.", content="Paris is"),
+            _make_content_chunk(" the capital.", finish_reason="stop"),
+        ]
+
+        streaming_chunks = []
+
+        async def callback(chunk):
+            streaming_chunks.append(chunk)
+
+        component = VLLMChatGenerator(model=MODEL, streaming_callback=callback)
+
+        with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
+            mock.return_value = AsyncMockStream(openai_chunks)
+            result = await component.run_async([ChatMessage.from_user("What is the capital of France?")])
+
+        reply = result["replies"][0]
+        assert reply.text == "Paris is the capital."
+        assert reply.reasoning is not None
+        assert reply.reasoning.reasoning_text == "Let me think ok."
+        assert reply.meta["finish_reason"] == "stop"
+
+        assert len(streaming_chunks) == 4
+        assert [c.reasoning.reasoning_text for c in streaming_chunks[:2]] == ["Let me think", " ok."]
+        assert [c.start for c in streaming_chunks[:2]] == [True, False]
+        assert [c.index for c in streaming_chunks[:2]] == [0, 0]
+        assert all(c.content == "" for c in streaming_chunks[:2])
+        assert all(c.meta["finish_reason"] is None for c in streaming_chunks[:3])
+
+        assert streaming_chunks[2].reasoning is None
+        assert streaming_chunks[2].content == "Paris is"
+        assert streaming_chunks[2].start is True
+        assert streaming_chunks[2].index == 1
+
+        assert streaming_chunks[3].content == " the capital."
+        assert streaming_chunks[3].start is False
+        assert streaming_chunks[3].index == 1
+        assert streaming_chunks[3].finish_reason == "stop"
+        assert streaming_chunks[3].meta["finish_reason"] == "stop"
+
+    async def test_run_async_streaming_splits_reasoning_and_tool_calls(self):
+        tool_call = chat_completion_chunk.ChoiceDeltaToolCall(
+            index=0,
+            id="call_1",
+            type="function",
+            function=chat_completion_chunk.ChoiceDeltaToolCallFunction(name="weather", arguments='{"city": "Paris"}'),
+        )
+        openai_chunks = [
+            _make_reasoning_chunk("I need the weather.", role="assistant"),
+            _make_reasoning_chunk(" Calling the tool.", tool_calls=[tool_call], finish_reason="tool_calls"),
+        ]
+
+        streaming_chunks = []
+
+        async def callback(chunk):
+            streaming_chunks.append(chunk)
+
+        component = VLLMChatGenerator(model=MODEL, streaming_callback=callback)
+
+        with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
+            mock.return_value = AsyncMockStream(openai_chunks)
+            result = await component.run_async([ChatMessage.from_user("What is the weather in Paris?")])
+
+        reply = result["replies"][0]
+        assert reply.text is None
+        assert reply.reasoning is not None
+        assert reply.reasoning.reasoning_text == "I need the weather. Calling the tool."
+        assert reply.tool_calls == [ToolCall(id="call_1", tool_name="weather", arguments={"city": "Paris"})]
+        assert reply.meta["finish_reason"] == "tool_calls"
+
+        assert len(streaming_chunks) == 3
+        assert [c.reasoning.reasoning_text for c in streaming_chunks[:2]] == [
+            "I need the weather.",
+            " Calling the tool.",
+        ]
+        assert [c.start for c in streaming_chunks[:2]] == [True, False]
+        assert [c.index for c in streaming_chunks[:2]] == [0, 0]
+        assert all(c.finish_reason is None and c.meta["finish_reason"] is None for c in streaming_chunks[:2])
+
+        assert streaming_chunks[2].reasoning is None
+        assert streaming_chunks[2].tool_calls is not None
+        assert streaming_chunks[2].tool_calls[0].tool_name == "weather"
+        assert streaming_chunks[2].tool_calls[0].arguments == '{"city": "Paris"}'
+        assert streaming_chunks[2].tool_calls[0].index == 0
+        assert streaming_chunks[2].start is True
+        assert streaming_chunks[2].index == 1
+        assert streaming_chunks[2].finish_reason == "tool_calls"
+        assert streaming_chunks[2].meta["finish_reason"] == "tool_calls"
 
 
 NO_THINKING_KWARGS = {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
