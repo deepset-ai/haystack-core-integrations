@@ -300,7 +300,7 @@ class TestMCPTool:
         assert "b" in tool.parameters["required"]
 
     def test_mcp_tool_serde_with_state_mapping(self, mcp_tool_cleanup):
-        """Test serialization and deserialization of MCPTool with state-mapping parameters."""
+        """Test serialization and deserialization of MCPTool with state-mapping parameters and output handlers."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
         # Create tool with state-mapping parameters
@@ -309,48 +309,34 @@ class TestMCPTool:
             name="add",
             server_info=server_info,
             eager_connect=False,
-            outputs_to_string={"source": "result"},
+            outputs_to_string={"source": "result", "handler": str},
             inputs_from_state={"state_a": "a"},
-            outputs_to_state={"result": {"source": "output"}},
+            outputs_to_state={"result": {"source": "output", "handler": replace_values}},
         )
         mcp_tool_cleanup(tool)
 
-        # Test serialization (to_dict)
+        # Test serialization (to_dict); handlers are serialized by their qualified name
         tool_dict = tool.to_dict()
 
         # Verify state-mapping parameters are serialized
-        assert tool_dict["data"]["outputs_to_string"] == {"source": "result"}
+        assert tool_dict["data"]["outputs_to_string"] == {"source": "result", "handler": "builtins.str"}
         assert tool_dict["data"]["inputs_from_state"] == {"state_a": "a"}
-        assert tool_dict["data"]["outputs_to_state"] == {"result": {"source": "output"}}
+        assert tool_dict["data"]["outputs_to_state"] == {
+            "result": {"source": "output", "handler": "haystack.components.agents.state.state_utils.replace_values"}
+        }
 
         # Test deserialization (from_dict)
         new_tool = MCPTool.from_dict(tool_dict)
         mcp_tool_cleanup(new_tool)
 
         # Verify state-mapping parameters are restored
-        assert new_tool._outputs_to_string == {"source": "result"}
+        assert new_tool._outputs_to_string == {"source": "result", "handler": str}
         assert new_tool._inputs_from_state == {"state_a": "a"}
-        assert new_tool._outputs_to_state == {"result": {"source": "output"}}
+        assert new_tool._outputs_to_state == {"result": {"source": "output", "handler": replace_values}}
 
-    def test_mcp_tool_serde_with_output_handlers(self, mcp_tool_cleanup):
-        tool = mcp_tool_cleanup(
-            MCPTool(
-                name="add",
-                server_info=StdioServerInfo(command="python", args=["server.py"]),
-                outputs_to_state={"sum": {"source": "result", "handler": replace_values}},
-                outputs_to_string={"source": "result", "handler": str},
-            )
-        )
-
-        serialized = json.loads(json.dumps(tool.to_dict()))
-        restored = mcp_tool_cleanup(MCPTool.from_dict(serialized))
-
-        assert restored.outputs_to_state == tool.outputs_to_state
-        assert restored.outputs_to_string == tool.outputs_to_string
-        assert restored.outputs_to_state["sum"]["handler"](None, 42) == 42
-        assert restored.outputs_to_string["handler"](42) == "42"
-        assert tool.outputs_to_state["sum"]["handler"] is replace_values
-        assert tool.outputs_to_string["handler"] is str
+        # Serialization does not replace the handlers of the original tool
+        assert tool._outputs_to_string["handler"] is str
+        assert tool._outputs_to_state["result"]["handler"] is replace_values
 
     def test_mcp_tool_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
         """Test that lazy MCPTool defers invalid inputs_from_state validation until warm_up()."""
