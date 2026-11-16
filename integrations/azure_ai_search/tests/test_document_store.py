@@ -345,6 +345,47 @@ def _build_mock_document_store_with_schema(index_fields):
     return store, search_client, index_client
 
 
+def _filter_documents_test_fields():
+    return [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
+    ]
+
+
+def test_filter_documents_without_filters_returns_all_documents():
+    document_store, search_client, _ = _build_mock_document_store_with_schema(_filter_documents_test_fields())
+    search_client.search.return_value = iter([{"id": str(i), "content": f"doc {i}"} for i in range(25)])
+
+    result = document_store.filter_documents()
+
+    assert len(result) == 25
+    search_client.search.assert_called_once_with(search_text="*", filter=None)
+
+
+def test_filter_documents_with_filters_does_not_limit_results():
+    document_store, search_client, _ = _build_mock_document_store_with_schema(_filter_documents_test_fields())
+    search_client.search.return_value = iter([{"id": str(i), "content": f"doc {i}"} for i in range(25)])
+
+    result = document_store.filter_documents({"field": "meta.category", "operator": "==", "value": "news"})
+
+    assert len(result) == 25
+    _, kwargs = search_client.search.call_args
+    assert "top" not in kwargs
+    assert kwargs["filter"] == "category eq 'news'"
+
+
+def test_filter_documents_warns_at_skip_limit(caplog):
+    document_store, search_client, _ = _build_mock_document_store_with_schema(_filter_documents_test_fields())
+    search_client.search.return_value = iter([{"id": str(i), "content": ""} for i in range(100_000)])
+
+    with caplog.at_level(logging.WARNING):
+        result = document_store.filter_documents()
+
+    assert len(result) == 100_000
+    assert "$skip limit" in caplog.text
+
+
 def test_get_metadata_field_unique_values():
     index_fields = [
         SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
