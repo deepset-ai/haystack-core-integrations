@@ -12,10 +12,21 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL, Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.sql.elements import TextClause
 
 logger = logging.getLogger(__name__)
 
 MAX_SYS_ROWS = 10_000
+
+
+def _raw_sql(statement: str) -> TextClause:
+    """
+    Wrap a SQL string so that it runs as written.
+
+    ``text()`` treats ``:name`` as a bind parameter, even inside string literals. This component never
+    passes parameters, so colons are escaped to keep them literal.
+    """
+    return text(statement.replace(":", r"\:"))
 
 
 @component
@@ -104,7 +115,7 @@ class SQLAlchemyTableRetriever:
                 for stmt in self.init_script:
                     stripped = stmt.strip()
                     if stripped:
-                        conn.execute(text(stripped))
+                        conn.execute(_raw_sql(stripped))
                 conn.commit()
 
         self._warmed_up = True
@@ -174,7 +185,7 @@ class SQLAlchemyTableRetriever:
 
         try:
             with self._engine.connect() as conn:
-                result = conn.execute(text(query))
+                result = conn.execute(_raw_sql(query))
                 rows = result.fetchmany(MAX_SYS_ROWS)
                 columns = list(result.keys())
             df = DataFrame(rows, columns=columns)
