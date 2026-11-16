@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v8.2.1] - 2026-11-13
+
+### 🐛 Bug Fixes
+
+- *(pgvector)* Cast numeric meta filters to numeric instead of integer/real (#4149)
+
+
 ## [integrations/pgvector-v8.2.0] - 2026-11-10
 
 ### 🚀 Features

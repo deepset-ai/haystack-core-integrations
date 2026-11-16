@@ -10,6 +10,24 @@ from cohere import AsyncClientV2, ClientV2
 from .embedding_types import EmbeddingTypes
 
 
+def _merge_meta(accumulated: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
+    merged = {**accumulated, **new}
+
+    for section in ("billed_units", "tokens"):
+        totals = dict(accumulated.get(section) or {})
+
+        for name, value in (new.get(section) or {}).items():
+            if value is None:
+                totals.setdefault(name, None)
+            else:
+                totals[name] = (totals.get(name) or 0) + value
+
+        if totals:
+            merged[section] = totals
+
+    return merged
+
+
 async def get_async_response(
     cohere_async_client: AsyncClientV2,
     texts: list[str],
@@ -61,7 +79,7 @@ async def get_async_response(
                 # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
                 all_embeddings.extend(emb_tuple[1])
         if response.meta is not None:
-            metadata = response.meta.model_dump()
+            metadata = _merge_meta(metadata, response.meta.model_dump())
 
     return all_embeddings, metadata
 
@@ -119,6 +137,6 @@ def get_response(
                 # ok we have embeddings for this type, let's take all the embeddings (a list of embeddings)
                 all_embeddings.extend(emb_tuple[1])
         if response.meta is not None:
-            metadata = response.meta.model_dump()
+            metadata = _merge_meta(metadata, response.meta.model_dump())
 
     return all_embeddings, metadata

@@ -446,6 +446,16 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["toolConfig"] == top_song_tool_config
 
+    def test_prepare_request_params_empty_tools_overrides_init_tools(self, tools):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6", tools=tools)
+        # an empty list must disable tools for this call, not fall back to the init tools
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+            tools=[],
+        )
+
+        assert "toolConfig" not in request_params
+
     def test_prepare_request_params_guardrail_config(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",

@@ -81,6 +81,7 @@ class OpenDataLoaderConverter:
         convert_kwargs: dict[str, Any] | None = None,
         extract_images: bool = False,
         image_output_dir: str | Path | None = None,
+        skip_failed_pdfs: bool = False,
         raw_json: bool = False,
         include_layout: bool = False,
     ) -> None:
@@ -99,6 +100,8 @@ class OpenDataLoaderConverter:
         :param extract_images: Whether to extract images and return them through the `image_documents` output.
         :param image_output_dir: Persistent root directory for extracted image files. Each `run()` stores its images
             in a unique subdirectory of this directory. Required when `extract_images` is `True`.
+        :param skip_failed_pdfs: Re-run failing batches in halves until bad PDFs are identified and skipped with a
+            warning. Each bad PDF adds extra Java runs.
         :param raw_json: If `True` with `output_format="json"`, store the raw OpenDataLoader JSON string in
             `Document.content` and add no PDF metadata. Has no effect with other output formats.
         :param include_layout: If `True` with `output_format="json"`, add a `layout` list to `Document.meta` with one
@@ -123,6 +126,7 @@ class OpenDataLoaderConverter:
         self.convert_kwargs = conversion_options
         self.extract_images = extract_images
         self.image_output_dir = Path(image_output_dir) if image_output_dir is not None else None
+        self.skip_failed_pdfs = skip_failed_pdfs
         self.raw_json = raw_json
         self.include_layout = include_layout
 
@@ -139,6 +143,7 @@ class OpenDataLoaderConverter:
             convert_kwargs=self.convert_kwargs,
             extract_images=self.extract_images,
             image_output_dir=str(self.image_output_dir) if self.image_output_dir is not None else None,
+            skip_failed_pdfs=self.skip_failed_pdfs,
             raw_json=self.raw_json,
             include_layout=self.include_layout,
         )
@@ -307,6 +312,92 @@ class OpenDataLoaderConverter:
         meta["layout"] = layout
         return meta
 
+    def _convert_batch(
+        self,
+        sources: list[tuple[Path, dict[str, Any]]],
+        output_dir: Path,
+        image_dir: Path | None,
+    ) -> list[Document]:
+        """
+        Convert a non-empty batch, bisecting failures into isolated output directories when enabled.
+
+        :param sources: Non-empty list of staged PDF paths paired with their merged metadata.
+        :param output_dir: Temporary output directory for this batch. Partial outputs are removed before retrying.
+        :param image_dir: Persistent image directory for this batch, or `None` to disable image extraction.
+            Images from failed attempts are removed.
+        :returns:
+            Converted Documents in source order, omitting failed PDFs when `skip_failed_pdfs` is enabled.
+            Returns an empty list when a single PDF fails and is skipped.
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+        conversion_kwargs = {"image_output": "off", **self.convert_kwargs}
+        if image_dir is not None:
+            image_dir.mkdir(parents=True, exist_ok=True)
+            conversion_kwargs.update(image_output="external", image_dir=str(image_dir))
+
+        parse_json = self.output_format == "json" and not self.raw_json
+        convert_format: str | list[str] = self.output_format
+        if parse_json:
+            convert_format = ["json", "markdown"]
+            conversion_kwargs.setdefault("markdown_page_separator", _PAGE_SEPARATOR)
+
+        documents: list[Document] = []
+        try:
+            opendataloader_pdf.convert(
+                input_path=[str(pdf_path) for pdf_path, _ in sources],
+                output_dir=str(output_dir),
+                format=convert_format,
+                **conversion_kwargs,
+            )
+            for pdf_path, document_meta in sources:
+                extra_meta: dict[str, Any] = {}
+                if parse_json:
+                    raw = self._read_output(output_dir=output_dir, pdf_path=pdf_path, output_format="json")
+                    extra_meta = self._meta_from_json(json.loads(raw))
+                    content = self._read_output(output_dir=output_dir, pdf_path=pdf_path, output_format="markdown")
+                    # Drop the separator OpenDataLoader puts before page 1; otherwise DocumentSplitter numbers every
+                    # page one too high
+                    if conversion_kwargs["markdown_page_separator"] == _PAGE_SEPARATOR:
+                        content = content.removeprefix(_PAGE_SEPARATOR)
+                else:
+                    content = self._read_output(
+                        output_dir=output_dir, pdf_path=pdf_path, output_format=self.output_format
+                    )
+                documents.append(
+                    Document(content=content, meta={**extra_meta, **document_meta, "output_format": self.output_format})
+                )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError) as exc:
+            if not self.skip_failed_pdfs:
+                raise
+            # Failed attempts may leave seemingly valid text and images. Never reuse their outputs.
+            shutil.rmtree(output_dir)
+            if image_dir is not None:
+                shutil.rmtree(image_dir)
+            if len(sources) == 1:
+                pdf_path, document_meta = sources[0]
+                logger.warning(
+                    "Skipping PDF {file_path} after conversion failure: {error}",
+                    file_path=document_meta.get("file_path", str(pdf_path)),
+                    error=exc,
+                )
+                return []
+
+            # Retry each half separately to isolate failing PDFs while retaining successful batches.
+            logger.warning(
+                "Batch of {count} PDFs failed; splitting into smaller batches: {error}", count=len(sources), error=exc
+            )
+            midpoint = len(sources) // 2
+            documents = []
+            for name, batch in (("left", sources[:midpoint]), ("right", sources[midpoint:])):
+                documents.extend(
+                    self._convert_batch(
+                        sources=batch,
+                        output_dir=output_dir / name,
+                        image_dir=image_dir / name if image_dir is not None else None,
+                    )
+                )
+        return documents
+
     @component.output_types(documents=list[Document], image_documents=list[Document])
     def run(
         self,
@@ -321,7 +412,8 @@ class OpenDataLoaderConverter:
             source. A list must contain one dictionary per source. ByteStream metadata is also preserved.
         :returns:
             Dictionary containing the converted text Documents and image Documents. Each image Document has the
-            persistent extracted image path in its `file_path` metadata field.
+            persistent extracted image path in its `file_path` metadata field. With `skip_failed_pdfs=True`, PDFs
+            that fail individual conversion are omitted from both outputs.
         """
         if not sources:
             return {"documents": [], "image_documents": []}
@@ -345,39 +437,7 @@ class OpenDataLoaderConverter:
             output_dir.mkdir()
             prepared_sources = self._prepare_sources(sources=sources, metadata=metadata, input_dir=input_dir)
 
-            conversion_kwargs = {"image_output": "off", **self.convert_kwargs}
-            if image_dir is not None:
-                conversion_kwargs.update(image_output="external", image_dir=str(image_dir))
-
-            parse_json = self.output_format == "json" and not self.raw_json
-            convert_format: str | list[str] = self.output_format
-            if parse_json:
-                convert_format = ["json", "markdown"]
-                conversion_kwargs.setdefault("markdown_page_separator", _PAGE_SEPARATOR)
-
-            opendataloader_pdf.convert(
-                input_path=[str(pdf_path) for pdf_path, _ in prepared_sources],
-                output_dir=str(output_dir),
-                format=convert_format,
-                **conversion_kwargs,
-            )
-            for pdf_path, document_meta in prepared_sources:
-                extra_meta: dict[str, Any] = {}
-                if parse_json:
-                    raw = self._read_output(output_dir=output_dir, pdf_path=pdf_path, output_format="json")
-                    extra_meta = self._meta_from_json(json.loads(raw))
-                    content = self._read_output(output_dir=output_dir, pdf_path=pdf_path, output_format="markdown")
-                    # Drop the separator OpenDataLoader puts before page 1; otherwise DocumentSplitter numbers every
-                    # page one too high
-                    if conversion_kwargs["markdown_page_separator"] == _PAGE_SEPARATOR:
-                        content = content.removeprefix(_PAGE_SEPARATOR)
-                else:
-                    content = self._read_output(
-                        output_dir=output_dir, pdf_path=pdf_path, output_format=self.output_format
-                    )
-                documents.append(
-                    Document(content=content, meta={**extra_meta, **document_meta, "output_format": self.output_format})
-                )
+            documents = self._convert_batch(sources=prepared_sources, output_dir=output_dir, image_dir=image_dir)
 
         if image_dir is not None:
             image_documents = [

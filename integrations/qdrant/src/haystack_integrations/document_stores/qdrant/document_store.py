@@ -1281,6 +1281,7 @@ class QdrantDocumentStore:
         :param filters: The filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param metadata_fields: List of metadata field keys (inside ``meta``) to count unique values for.
+            Field names can include or omit the "meta." prefix.
 
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
@@ -1290,6 +1291,7 @@ class QdrantDocumentStore:
         assert self._client is not None
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+        metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         unique_values_by_field: dict[str, set[tuple[type, Any]]] = {field: set() for field in metadata_fields}
 
         try:
@@ -1323,6 +1325,7 @@ class QdrantDocumentStore:
         :param filters: The filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param metadata_fields: List of metadata field keys (inside ``meta``) to count unique values for.
+            Field names can include or omit the "meta." prefix.
 
         :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
                   documents.
@@ -1332,6 +1335,7 @@ class QdrantDocumentStore:
         assert self._async_client is not None
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+        metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         unique_values_by_field: dict[str, set[tuple[type, Any]]] = {field: set() for field in metadata_fields}
 
         try:

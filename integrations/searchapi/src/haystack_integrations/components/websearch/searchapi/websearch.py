@@ -34,6 +34,11 @@ class SearchApiWebSearch:
     assert results["documents"]
     assert results["links"]
     ```
+
+    SearchApi's AI answer engines are supported through `search_params`. With `{"engine": "google_ai_mode"}`,
+    `{"engine": "chatgpt"}`, `{"engine": "gemini"}` or `{"engine": "bing_copilot"}`, the first document holds the
+    synthesized answer as Markdown. The following documents and `links` hold the reference links it cites and,
+    for `google_ai_mode` and `chatgpt`, the web results the engine retrieved.
     """
 
     def __init__(
@@ -169,6 +174,11 @@ class SearchApiWebSearch:
     def _parse_response(response: httpx.Response) -> tuple[list[Document], list[str]]:
         json_result = response.json()
 
+        # AI answer engines (google_ai_mode, chatgpt, gemini, bing_copilot) return a
+        # synthesized answer instead of organic results
+        if any(key in json_result for key in ("text_blocks", "markdown", "reference_links")):
+            return SearchApiWebSearch._parse_ai_answer(json_result)
+
         # organic results are the main results from the search engine
         organic_results = []
         if "organic_results" in json_result:
@@ -217,4 +227,56 @@ class SearchApiWebSearch:
         documents = answer_box + knowledge_graph + organic_results + related_questions
 
         links = [result["link"] for result in json_result.get("organic_results", [])]
+        return documents, links
+
+    @staticmethod
+    def _parse_ai_answer(json_result: dict[str, Any]) -> tuple[list[Document], list[str]]:
+        """
+        Parse the shared AI answer shape returned by SearchApi's answer engines.
+
+        Engines such as `google_ai_mode`, `chatgpt`, `gemini` and `bing_copilot` return the answer as `markdown`
+        and the sources it cites as `reference_links`. `google_ai_mode` and `chatgpt` also return the `web_results`
+        they retrieved. The answer becomes the first document, each reference link a document after it, followed by
+        any web results. Links are the reference links, then the web result links.
+        """
+        parameters = json_result.get("search_parameters", {})
+        documents: list[Document] = []
+
+        answer = json_result.get("markdown")
+        if answer:
+            documents.append(
+                Document.from_dict({"content": answer, "engine": parameters.get("engine", ""), "type": "ai_answer"})
+            )
+
+        links: list[str] = []
+        for result in json_result.get("reference_links", []) or []:
+            documents.append(
+                Document.from_dict(
+                    {
+                        "title": result.get("title", ""),
+                        "content": result.get("snippet", ""),
+                        "link": result.get("link", ""),
+                        "source": result.get("source", ""),
+                    }
+                )
+            )
+            if result.get("link"):
+                links.append(result["link"])
+
+        for result in json_result.get("web_results", []) or []:
+            link = result.get("link")
+            if link in links:
+                continue
+            documents.append(
+                Document.from_dict(
+                    {
+                        "title": result.get("title", ""),
+                        "content": result.get("snippet", ""),
+                        "link": link or "",
+                    }
+                )
+            )
+            if link:
+                links.append(link)
+
         return documents, links

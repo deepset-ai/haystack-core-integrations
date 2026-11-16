@@ -842,3 +842,16 @@ class TestQdrantDocumentStore(
         assert len(updated_docs[0].embedding) == 768
 
         assert updated_docs[0].multivector_embedding == [[1.0, 0.0]]
+
+    def test_count_unique_metadata_by_filter_with_meta_prefix(self, document_store: QdrantDocumentStore):
+        document_store.write_documents(
+            [
+                Document(content="1", meta={"category": "A", "status": "draft"}),
+                Document(content="2", meta={"category": "B", "status": "draft"}),
+                Document(content="3", meta={"category": "A"}),
+            ]
+        )
+
+        result = document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["meta.category", "status"])
+
+        assert result == {"category": 2, "status": 1}

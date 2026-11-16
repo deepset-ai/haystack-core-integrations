@@ -123,16 +123,26 @@ def test_run():
     assert res["documents"][0].content == "Test doc"
 
 
-def test_run_init_params():
+@pytest.mark.parametrize("filter_policy", [FilterPolicy.REPLACE, FilterPolicy.MERGE])
+def test_run_init_params(filter_policy):
     mock_store = Mock(spec=AzureAISearchDocumentStore)
     mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
     retriever = AzureAISearchBM25Retriever(
-        document_store=mock_store, filters={"field": "type", "operator": "==", "value": "article"}, top_k=11
+        document_store=mock_store,
+        filters={
+            "operator": "AND",
+            "conditions": [
+                {"field": "type", "operator": "==", "value": "article"},
+                {"field": "year", "operator": ">=", "value": 2020},
+            ],
+        },
+        top_k=11,
+        filter_policy=filter_policy,
     )
     res = retriever.run(query="Test query")
     mock_store._bm25_retrieval.assert_called_once_with(
         query="Test query",
-        filters="type eq 'article'",
+        filters="(type eq 'article') and (year ge 2020)",
         top_k=11,
     )
     assert len(res) == 1
