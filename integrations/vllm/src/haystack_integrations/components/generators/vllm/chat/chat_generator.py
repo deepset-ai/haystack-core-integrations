@@ -183,8 +183,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         """
 
         super(VLLMChatGenerator, self).__init__(  # noqa: UP008
-            # vLLM accepts None; our _client_kwargs handles it without the parent's Secret resolver.
-            api_key=api_key,  # type: ignore[arg-type]
+            api_key=api_key,  # type: ignore[arg-type] # vLLM accepts None, differently from OpenAIChatGenerator
             model=model,
             streaming_callback=streaming_callback,
             api_base_url=api_base_url,
@@ -197,6 +196,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         self.api_base_url: str = api_base_url
 
     def _client_kwargs(self) -> dict[str, Any]:
+        """Build vLLM client options with optional authentication and SDK defaults."""
         return _openai_client_kwargs(
             api_key=self.api_key,
             api_base_url=self.api_base_url,
@@ -227,6 +227,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         tools: ToolsType | None = None,
         tools_strict: bool | None = None,
     ) -> dict[str, Any]:
+        """Prepare the request, omitting a trailing assistant message without text or tool calls."""
         # An empty final assistant turn can make reasoning models stop without writing an answer.
         if (
             messages
@@ -246,6 +247,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
     def _convert_chat_completion_to_chat_message(
         self, completion: ChatCompletion | ParsedChatCompletion, choice: Choice
     ) -> ChatMessage:
+        """Convert a completion while preserving vLLM reasoning content."""
         message = super(VLLMChatGenerator, self)._convert_chat_completion_to_chat_message(  # noqa: UP008
             completion=completion, choice=choice
         )
@@ -262,6 +264,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         previous_chunks: list[StreamingChunk],
         component_info: ComponentInfo | None = None,
     ) -> StreamingChunk:
+        """Convert a chunk while preserving vLLM reasoning and marking the start of reasoning and text."""
         reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None) if chunk.choices else None
         if reasoning_text:
             return StreamingChunk(
