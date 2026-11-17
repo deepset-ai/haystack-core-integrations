@@ -2,10 +2,10 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-aimlapi-combined/htmlcov/index.html)
 
-| Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/aimlapi/chat/chat\_generator.py |       49 |        0 |       14 |        1 |     98% | 184-\>186 |
-| **TOTAL**                                                                        |   **49** |    **0** |   **14** |    **1** | **98%** |           |
+| Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
+|--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
+| src/haystack\_integrations/components/generators/aimlapi/chat/chat\_generator.py |       18 |        0 |        0 |        0 |     100% |           |
+| **TOTAL**                                                                        |   **18** |    **0** |    **0** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
