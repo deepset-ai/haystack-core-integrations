@@ -126,6 +126,7 @@ class AnthropicChatGenerator:
         "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-opus-4-5-20251101",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
@@ -137,7 +138,7 @@ class AnthropicChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-sonnet-4-5",
+        model: str = "claude-sonnet-5-5",
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,

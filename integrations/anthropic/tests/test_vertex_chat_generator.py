@@ -29,7 +29,7 @@ class TestUnit:
         component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
         assert component.region == "us-central1"
         assert component.project_id == "test-project-id"
-        assert component.model == "claude-sonnet-4-5@20250929"
+        assert component.model == "claude-sonnet-5-5"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.ignore_tools_thinking_messages
@@ -63,7 +63,7 @@ class TestUnit:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-sonnet-4-5@20250929",
+                "model": "claude-sonnet-5-5",
                 "streaming_callback": None,
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
@@ -95,7 +95,7 @@ class TestUnit:
             "init_parameters": {
                 "region": "us-central1",
                 "project_id": "test-project-id",
-                "model": "claude-sonnet-4-5@20250929",
+                "model": "claude-sonnet-5-5",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": False,
@@ -231,7 +231,7 @@ class TestIntegration:
 
     def test_default_inference_params(self, chat_messages):
         client = AnthropicVertexChatGenerator(
-            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-sonnet-4-5@20250929"
+            region=os.environ.get("REGION"), project_id=os.environ.get("PROJECT_ID"), model="claude-sonnet-5-5"
         )
         response = client.run(chat_messages)
 
@@ -254,11 +254,11 @@ class TestIntegration:
         component = AnthropicVertexChatGenerator(
             region=os.environ.get("REGION"),
             project_id=os.environ.get("PROJECT_ID"),
-            model="claude-sonnet-4-5@20250929",
+            model="claude-sonnet-5-5",
         )
         results = await component.run_async(messages=[ChatMessage.from_user("What's the capital of France?")])
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-sonnet-4-5" in message.meta["model"]
+        assert "claude-sonnet-5-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"

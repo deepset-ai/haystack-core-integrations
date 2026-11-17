@@ -100,7 +100,7 @@ class TestIntegration:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "claude-sonnet-4-5" in message.meta["model"]
+        assert "claude-sonnet-5-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
         assert "completion_tokens" in message.meta["usage"]
 
@@ -130,7 +130,7 @@ class TestIntegration:
         assert len(results["replies"]) == 1
         message = results["replies"][0]
         assert "paris" in message.text.lower()
-        assert "claude-sonnet-4-5" in message.meta["model"]
+        assert "claude-sonnet-5-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]

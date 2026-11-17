@@ -81,7 +81,7 @@ class TestInit:
         component = AnthropicChatGenerator()
         assert component.client is None
         assert component.async_client is None
-        assert component.model == "claude-sonnet-4-5"
+        assert component.model == "claude-sonnet-5-5"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.tools is None
@@ -166,7 +166,7 @@ class TestSerialization:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
-                "model": "claude-sonnet-4-5",
+                "model": "claude-sonnet-5-5",
                 "streaming_callback": None,
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {},
@@ -966,7 +966,7 @@ class TestIntegration:
         message: ChatMessage = results["replies"][0]
         assert message.is_from(ChatRole.ASSISTANT)
         assert "Paris" in message.text
-        assert "claude-sonnet-4-5" in message.meta["model"]
+        assert "claude-sonnet-5-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]
