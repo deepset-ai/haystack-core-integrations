@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">188 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">187<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">1<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">188<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">0<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">2<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">1<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_d323a9c4ddc9fb26_text_embedder_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_47f18b88da462c47_interactions_chat_generator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.3">coverage.py v7.17.3</a>,
-            created at 2026-11-13 11:01 +0000
+            created at 2026-11-17 15:52 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -542,7 +542,7 @@
     <p class="pln"><span class="n"><a id="t458" href="#t458">458</a></span><span class="t"><span class="str">        keys set only at initialization are kept. Supports `thinking_budget` for Gemini 2.5 series</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t459" href="#t459">459</a></span><span class="t"><span class="str">        thinking configuration.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t460" href="#t460">460</a></span><span class="t"><span class="str">        :param safety_settings: Safety settings for content filtering. If provided, it will override the</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t461" href="#t461">461</a></span><span class="t"><span class="str">        default settings.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t461" href="#t461">461</a></span><span class="t"><span class="str">        default settings. Pass an empty list to send no safety settings for this call.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t462" href="#t462">462</a></span><span class="t"><span class="str">        :param streaming_callback: A callback function that is called when a new token is</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t463" href="#t463">463</a></span><span class="t"><span class="str">        received from the stream.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t464" href="#t464">464</a></span><span class="t"><span class="str">        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.</span>&nbsp;</span><span class="r"></span></p>
@@ -561,7 +561,7 @@
     <p class="run"><span class="n"><a id="t477" href="#t477">477</a></span><span class="t">        <span class="nam">messages</span> <span class="op">=</span> <span class="nam">_normalize_messages</span><span class="op">(</span><span class="nam">messages</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t478" href="#t478">478</a></span><span class="t">        <span class="com"># Merge generation_kwargs with instance defaults; other configs fall back to instance defaults</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t479" href="#t479">479</a></span><span class="t">        <span class="nam">generation_kwargs</span> <span class="op">=</span> <span class="op">{</span><span class="op">**</span><span class="nam">self</span><span class="op">.</span><span class="nam">_generation_kwargs</span><span class="op">,</span> <span class="op">**</span><span class="op">(</span><span class="nam">generation_kwargs</span> <span class="key">or</span> <span class="op">{</span><span class="op">}</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t480" href="#t480">480</a></span><span class="t">        <span class="nam">safety_settings</span> <span class="op">=</span> <span class="nam">safety_settings</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_safety_settings</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t480" href="#t480">480</a></span><span class="t">        <span class="nam">safety_settings</span> <span class="op">=</span> <span class="nam">safety_settings</span> <span class="key">if</span> <span class="nam">safety_settings</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_safety_settings</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t481" href="#t481">481</a></span><span class="t">        <span class="nam">tools</span> <span class="op">=</span> <span class="nam">tools</span> <span class="key">if</span> <span class="nam">tools</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_tools</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t482" href="#t482">482</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t483" href="#t483">483</a></span><span class="t">        <span class="com"># Process thinking configuration and response format</span>&nbsp;</span><span class="r"></span></p>
@@ -661,7 +661,7 @@
     <p class="pln"><span class="n"><a id="t577" href="#t577">577</a></span><span class="t"><span class="str">        thinking configuration.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t578" href="#t578">578</a></span><span class="t"><span class="str">        See https://ai.google.dev/gemini-api/docs/thinking for possible values.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t579" href="#t579">579</a></span><span class="t"><span class="str">        :param safety_settings: Safety settings for content filtering. If provided, it will override the</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t580" href="#t580">580</a></span><span class="t"><span class="str">        default settings.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t580" href="#t580">580</a></span><span class="t"><span class="str">        default settings. Pass an empty list to send no safety settings for this call.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t581" href="#t581">581</a></span><span class="t"><span class="str">        :param streaming_callback: A callback function that is called when a new token is</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t582" href="#t582">582</a></span><span class="t"><span class="str">        received from the stream.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t583" href="#t583">583</a></span><span class="t"><span class="str">        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.</span>&nbsp;</span><span class="r"></span></p>
@@ -680,7 +680,7 @@
     <p class="run"><span class="n"><a id="t596" href="#t596">596</a></span><span class="t">        <span class="nam">messages</span> <span class="op">=</span> <span class="nam">_normalize_messages</span><span class="op">(</span><span class="nam">messages</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t597" href="#t597">597</a></span><span class="t">        <span class="com"># Merge generation_kwargs with instance defaults; other configs fall back to instance defaults</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t598" href="#t598">598</a></span><span class="t">        <span class="nam">generation_kwargs</span> <span class="op">=</span> <span class="op">{</span><span class="op">**</span><span class="nam">self</span><span class="op">.</span><span class="nam">_generation_kwargs</span><span class="op">,</span> <span class="op">**</span><span class="op">(</span><span class="nam">generation_kwargs</span> <span class="key">or</span> <span class="op">{</span><span class="op">}</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t599" href="#t599">599</a></span><span class="t">        <span class="nam">safety_settings</span> <span class="op">=</span> <span class="nam">safety_settings</span> <span class="key">or</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_safety_settings</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t599" href="#t599">599</a></span><span class="t">        <span class="nam">safety_settings</span> <span class="op">=</span> <span class="nam">safety_settings</span> <span class="key">if</span> <span class="nam">safety_settings</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_safety_settings</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t600" href="#t600">600</a></span><span class="t">        <span class="nam">tools</span> <span class="op">=</span> <span class="nam">tools</span> <span class="key">if</span> <span class="nam">tools</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">else</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_tools</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t601" href="#t601">601</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t602" href="#t602">602</a></span><span class="t">        <span class="com"># Process thinking configuration and response format</span>&nbsp;</span><span class="r"></span></p>
@@ -717,8 +717,8 @@
     <p class="run"><span class="n"><a id="t633" href="#t633">633</a></span><span class="t">                <span class="nam">config_params</span><span class="op">[</span><span class="str">&quot;system_instruction&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">system_instruction</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t634" href="#t634">634</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t635" href="#t635">635</a></span><span class="t">            <span class="com"># Add safety settings if provided</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t636" href="#t636">636</a></span><span class="t">            <span class="key">if</span> <span class="nam">safety_settings</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">636&#x202F;&#x219B;&#x202F;637</span><span class="annotate long">line 636 didn't jump to line 637 because the condition on line 636 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t637" href="#t637">637</a></span><span class="t">                <span class="nam">config_params</span><span class="op">[</span><span class="str">&quot;safety_settings&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">safety_settings</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t636" href="#t636">636</a></span><span class="t">            <span class="key">if</span> <span class="nam">safety_settings</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t637" href="#t637">637</a></span><span class="t">                <span class="nam">config_params</span><span class="op">[</span><span class="str">&quot;safety_settings&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="nam">safety_settings</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t638" href="#t638">638</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t639" href="#t639">639</a></span><span class="t">            <span class="com"># Add tools if provided</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t640" href="#t640">640</a></span><span class="t">            <span class="key">if</span> <span class="nam">tools</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -767,7 +767,7 @@
             <a class="nav" href="z_47f18b88da462c47_interactions_chat_generator_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.3">coverage.py v7.17.3</a>,
-            created at 2026-11-13 11:01 +0000
+            created at 2026-11-17 15:52 +0000
         </p>
     </div>
 </footer>
