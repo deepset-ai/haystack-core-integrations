@@ -458,7 +458,7 @@ class GoogleGenAIChatGenerator:
         keys set only at initialization are kept. Supports `thinking_budget` for Gemini 2.5 series
         thinking configuration.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
-        default settings.
+        default settings. Pass an empty list to send no safety settings for this call.
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
@@ -477,7 +477,7 @@ class GoogleGenAIChatGenerator:
         messages = _normalize_messages(messages)
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
-        safety_settings = safety_settings or self._safety_settings
+        safety_settings = safety_settings if safety_settings is not None else self._safety_settings
         tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format
@@ -577,7 +577,7 @@ class GoogleGenAIChatGenerator:
         thinking configuration.
         See https://ai.google.dev/gemini-api/docs/thinking for possible values.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
-        default settings.
+        default settings. Pass an empty list to send no safety settings for this call.
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
@@ -596,7 +596,7 @@ class GoogleGenAIChatGenerator:
         messages = _normalize_messages(messages)
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
-        safety_settings = safety_settings or self._safety_settings
+        safety_settings = safety_settings if safety_settings is not None else self._safety_settings
         tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format

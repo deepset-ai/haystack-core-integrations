@@ -653,6 +653,33 @@ class TestGoogleGenAIChatGeneratorRun:
         await component.run_async([ChatMessage.from_user("Weather in Paris?")], tools=[])
         assert component._async_client.models.generate_content.call_args.kwargs["config"].tools is None
 
+    def test_run_with_empty_safety_settings_override(self, mock_response):
+        # an empty runtime list must send no safety settings for this call, not fall back to the init ones;
+        # generation_kwargs keeps a config object in the request so its safety settings can be inspected
+        safety_settings = [{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_LOW_AND_ABOVE"}]
+        component = GoogleGenAIChatGenerator(safety_settings=safety_settings, generation_kwargs={"temperature": 0.5})
+        component._client = MagicMock()
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        component.run([ChatMessage.from_user("Hello")])
+        assert component._client.models.generate_content.call_args.kwargs["config"].safety_settings is not None
+
+        component.run([ChatMessage.from_user("Hello")], safety_settings=[])
+        assert component._client.models.generate_content.call_args.kwargs["config"].safety_settings is None
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_empty_safety_settings_override(self, mock_response):
+        safety_settings = [{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_LOW_AND_ABOVE"}]
+        component = GoogleGenAIChatGenerator(safety_settings=safety_settings, generation_kwargs={"temperature": 0.5})
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
+
+        await component.run_async([ChatMessage.from_user("Hello")])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].safety_settings is not None
+
+        await component.run_async([ChatMessage.from_user("Hello")], safety_settings=[])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].safety_settings is None
+
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_streaming_chunk):
         component = GoogleGenAIChatGenerator()
