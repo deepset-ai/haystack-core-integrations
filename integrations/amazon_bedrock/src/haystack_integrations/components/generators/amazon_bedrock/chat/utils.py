@@ -439,18 +439,17 @@ def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
     return {"role": message.role.value, "content": bedrock_content_blocks}
 
 
-def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict[str, dict[str, str]] | None:
+def _validate_cache_point(cache_point: dict[str, str] | None) -> None:
     """
-    Validate and format a cache point dictionary.
+    Validate a cache point dictionary.
 
     Schema available at https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html
 
-    :param cache_point: Cache point dictionary to validate and format.
-    :returns: Dictionary in Bedrock cachePoint format or None if no cache point is provided.
+    :param cache_point: Cache point dictionary to validate. An empty or missing cache point is valid.
     :raises ValueError: If cache point is not valid.
     """
     if not cache_point:
-        return None
+        return
 
     if "type" not in cache_point or cache_point["type"] != "default":
         err_msg = "Cache point must have a 'type' key with value 'default'."
@@ -462,7 +461,15 @@ def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict
         err_msg = "Cache point 'ttl' must be one of '5m', '1h'."
         raise ValueError(err_msg)
 
-    return {"cachePoint": cache_point}
+
+def _format_cache_point(cache_point: dict[str, str] | None) -> dict[str, dict[str, str]] | None:
+    """
+    Format a cache point dictionary as a Bedrock cachePoint block.
+
+    :param cache_point: Validated cache point dictionary.
+    :returns: Dictionary in Bedrock cachePoint format or None if no cache point is provided.
+    """
+    return {"cachePoint": cache_point} if cache_point else None
 
 
 def _format_messages(
@@ -484,7 +491,8 @@ def _format_messages(
     system_prompts: list[dict[str, Any]] = []
     bedrock_formatted_messages = []
     for msg in messages:
-        cache_point = _validate_and_format_cache_point(msg.meta.get("cachePoint"))
+        _validate_cache_point(msg.meta.get("cachePoint"))
+        cache_point = _format_cache_point(msg.meta.get("cachePoint"))
         if msg.is_from(ChatRole.SYSTEM):
             # Assuming system messages can only contain text
             # Don't need to track idx since system_messages are handled separately
