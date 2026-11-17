@@ -32,12 +32,13 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+    _format_cache_point,
     _format_messages,
     _format_tools,
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
-    _validate_and_format_cache_point,
+    _validate_cache_point,
     _validate_guardrail_config,
 )
 
@@ -315,12 +316,11 @@ class AmazonBedrockChatGenerator:
         _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
 
-        self.tools_cachepoint_config = (
-            _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
-        )
-        self.system_cachepoint_config = (
-            _validate_and_format_cache_point(system_cachepoint_config) if system_cachepoint_config else None
-        )
+        # store the configs as given; they are wrapped in {"cachePoint": ...} only when building the request
+        _validate_cache_point(tools_cachepoint_config)
+        _validate_cache_point(system_cachepoint_config)
+        self.tools_cachepoint_config = tools_cachepoint_config or None
+        self.system_cachepoint_config = system_cachepoint_config or None
 
         self.client: Any = None
         self.generation_kwargs = generation_kwargs or {}
@@ -486,7 +486,9 @@ class AmazonBedrockChatGenerator:
         if flattened_tools:
             # Format Haystack tools to Bedrock format
             tool_config = _format_tools(
-                flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config, strict=self.tools_strict
+                flattened_tools,
+                tools_cachepoint_config=_format_cache_point(self.tools_cachepoint_config),
+                strict=self.tools_strict,
             )
 
         # Any remaining kwargs go to additionalModelRequestFields
@@ -514,7 +516,7 @@ class AmazonBedrockChatGenerator:
 
         # Format messages to Bedrock format
         system_prompts, messages_list = _format_messages(
-            messages, system_cachepoint_config=self.system_cachepoint_config
+            messages, system_cachepoint_config=_format_cache_point(self.system_cachepoint_config)
         )
 
         # Build API parameters
