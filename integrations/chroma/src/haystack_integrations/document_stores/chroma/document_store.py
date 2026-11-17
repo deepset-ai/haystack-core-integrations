@@ -636,7 +636,8 @@ class ChromaDocumentStore:
             return 0
 
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
-            existing_ids = set(self._collection.get(ids=self._unique_ids(chroma_payloads))["ids"])
+            existing = self._collection.get(ids=list(dict.fromkeys(p["ids"][0] for p in chroma_payloads)))
+            existing_ids = set(existing["ids"])
             payloads_to_write = self._apply_duplicate_policy(chroma_payloads, existing_ids, policy)
         else:
             payloads_to_write = chroma_payloads
@@ -691,7 +692,7 @@ class ChromaDocumentStore:
             return 0
 
         if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
-            existing = await self._async_collection.get(ids=self._unique_ids(chroma_payloads))
+            existing = await self._async_collection.get(ids=list(dict.fromkeys(p["ids"][0] for p in chroma_payloads)))
             existing_ids = set(existing["ids"])
             payloads_to_write = self._apply_duplicate_policy(chroma_payloads, existing_ids, policy)
         else:
@@ -704,11 +705,6 @@ class ChromaDocumentStore:
                 await self._async_collection.add(**payload)
 
         return len(payloads_to_write)
-
-    @staticmethod
-    def _unique_ids(payloads: list[dict[str, Any]]) -> list[str]:
-        # Chroma rejects a `get` whose ids repeat, so look up each id once
-        return list(dict.fromkeys(p["ids"][0] for p in payloads))
 
     @staticmethod
     def _apply_duplicate_policy(
@@ -726,7 +722,9 @@ class ChromaDocumentStore:
                     duplicates.append(doc_id)
                 seen.add(doc_id)
             if duplicates:
-                msg = f"Documents with ids {duplicates} already exist in the document store."
+                msg = (
+                    f"Documents with ids {duplicates} already exist in the document store or are repeated in the batch."
+                )
                 raise DuplicateDocumentError(msg)
             return payloads
         if policy == DuplicatePolicy.SKIP:

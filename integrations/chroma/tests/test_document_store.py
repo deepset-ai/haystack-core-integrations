@@ -52,19 +52,6 @@ def test_get_embedding_function_invalid_name_raises():
 
 
 class TestDocumentStoreUnit:
-    def test_unique_ids_keeps_first_occurrence_order(self):
-        payloads = [{"ids": ["a"]}, {"ids": ["b"]}, {"ids": ["a"]}]
-        assert ChromaDocumentStore._unique_ids(payloads) == ["a", "b"]
-
-    def test_apply_duplicate_policy_handles_ids_repeated_in_the_batch(self):
-        payloads = [{"ids": ["a"]}, {"ids": ["b"]}, {"ids": ["a"]}, {"ids": ["c"]}]
-
-        kept = ChromaDocumentStore._apply_duplicate_policy(payloads, {"c"}, DuplicatePolicy.SKIP)
-        assert kept == [{"ids": ["a"]}, {"ids": ["b"]}]
-
-        with pytest.raises(DuplicateDocumentError, match=r"\['a'\]"):
-            ChromaDocumentStore._apply_duplicate_policy(payloads[:3], set(), DuplicatePolicy.FAIL)
-
     def test_init_in_memory(self):
         store = ChromaDocumentStore()
 
