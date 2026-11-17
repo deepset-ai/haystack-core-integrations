@@ -72,7 +72,6 @@ class AnthropicChatGenerator:
     generator = AnthropicChatGenerator(
         generation_kwargs={
             "max_tokens": 1000,
-            "temperature": 0.7,
         },
     )
 

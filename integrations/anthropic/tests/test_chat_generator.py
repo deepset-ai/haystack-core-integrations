@@ -1230,8 +1230,12 @@ class TestIntegration:
     @pytest.mark.parametrize("streaming_callback", [None, Mock()])
     def test_live_run_with_reasoning(self, streaming_callback):
         chat_generator = AnthropicChatGenerator(
-            model="claude-sonnet-4-5",
-            generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 10000}, "max_tokens": 11000},
+            model="claude-sonnet-5-5",
+            generation_kwargs={
+                "thinking": {"type": "adaptive", "display": "summarized"},
+                "output_config": {"effort": "high"},
+                "max_tokens": 11000,
+            },
             streaming_callback=streaming_callback,
         )
 
@@ -1263,7 +1267,8 @@ class TestIntegration:
             tools=tools,
             streaming_callback=print_streaming_chunk,
             generation_kwargs={
-                "thinking": {"type": "enabled", "budget_tokens": 10000},
+                "thinking": {"type": "adaptive", "display": "summarized"},
+                "output_config": {"effort": "high"},
                 "max_tokens": 11000,
             },
         )
