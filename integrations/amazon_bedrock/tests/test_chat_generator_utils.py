@@ -20,6 +20,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _convert_event_to_streaming_chunk,
     _convert_file_content_to_bedrock_format,
     _convert_streaming_chunks_to_chat_message,
+    _format_cache_point,
     _format_messages,
     _format_textual_assistant_message,
     _format_tool_result_message,
@@ -29,7 +30,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
-    _validate_and_format_cache_point,
+    _validate_cache_point,
     _validate_guardrail_config,
 )
 
@@ -160,10 +161,10 @@ class TestAmazonBedrockChatGeneratorUtils:
 
     def test_format_tools_does_not_double_wrap_cachepoint(self, tools):
         # Regression test for https://github.com/deepset-ai/haystack-core-integrations/issues/3181
-        # __init__ pre-formats tools_cachepoint_config via _validate_and_format_cache_point,
+        # the generator formats tools_cachepoint_config via _format_cache_point before calling _format_tools,
         # so _format_tools must append it as-is without an extra cachePoint wrapper.
 
-        formatted_config = _validate_and_format_cache_point({"type": "default"})
+        formatted_config = _format_cache_point({"type": "default"})
         assert formatted_config == {"cachePoint": {"type": "default"}}
 
         result = _format_tools(tools, tools_cachepoint_config=formatted_config)
@@ -428,7 +429,7 @@ class TestAmazonBedrockChatGeneratorUtils:
 
     def test_format_messages_system_cachepoint_config_does_not_double_append_when_per_message_cache_point_set(self):
         system_cachepoint_config = {"cachePoint": {"type": "default"}}
-        # per-message cache point (raw, before _validate_and_format_cache_point wrapping)
+        # per-message cache point (raw, before _format_cache_point wrapping)
         messages = [
             ChatMessage.from_system("You are a helpful assistant.", meta={"cachePoint": {"type": "default"}}),
             ChatMessage.from_user("Hello"),
@@ -2288,33 +2289,31 @@ class TestAmazonBedrockChatGeneratorUtils:
                 streaming=False,
             )
 
-    def test_validate_and_format_cache_point(self):
-        cache_point = _validate_and_format_cache_point(None)
-        assert cache_point is None
+    def test_format_cache_point(self):
+        assert _format_cache_point(None) is None
+        assert _format_cache_point({}) is None
+        assert _format_cache_point({"type": "default"}) == {"cachePoint": {"type": "default"}}
+        assert _format_cache_point({"type": "default", "ttl": "5m"}) == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
-        cache_point = _validate_and_format_cache_point({})
-        assert cache_point is None
-
-        cache_point = _validate_and_format_cache_point({"type": "default"})
-        assert cache_point == {"cachePoint": {"type": "default"}}
-
-        cache_point = _validate_and_format_cache_point({"type": "default", "ttl": "5m"})
-        assert cache_point == {"cachePoint": {"type": "default", "ttl": "5m"}}
+    def test_validate_cache_point(self):
+        _validate_cache_point(None)
+        _validate_cache_point({})
+        _validate_cache_point({"type": "default", "ttl": "5m"})
 
         with pytest.raises(
             ValueError,
             match=r"Cache point must have a 'type' key with value 'default'.",
         ):
-            _validate_and_format_cache_point({"invalid": "config"})
+            _validate_cache_point({"invalid": "config"})
 
         with pytest.raises(
             ValueError,
             match=r"Cache point must have a 'type' key with value 'default'.",
         ):
-            _validate_and_format_cache_point({"type": "invalid"})
+            _validate_cache_point({"type": "invalid"})
 
         with pytest.raises(ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."):
-            _validate_and_format_cache_point({"type": "default", "invalid": "config"})
+            _validate_cache_point({"type": "default", "invalid": "config"})
 
     def test_convert_event_to_streaming_chunk_tool_use_input_int(self):
         model = "global.anthropic.claude-sonnet-4-6"
