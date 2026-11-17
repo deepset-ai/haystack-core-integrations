@@ -513,6 +513,10 @@ class OpenSearchDocumentStore:
         refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
+            `content` is an analyzed text field, so filters on it with `==`, `!=`, `in` and `not in` don't test exact
+            equality: they match documents whose content contains the value as a phrase, that is, the same words in the
+            same order and next to each other, ignoring case and punctuation. For example, `==` with the value
+            `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
         :returns: A list of Documents that match the given filters.
         """
         self._ensure_initialized()
@@ -526,6 +530,10 @@ class OpenSearchDocumentStore:
         refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :param filters: The filters to apply to the document list.
+            `content` is an analyzed text field, so filters on it with `==`, `!=`, `in` and `not in` don't test exact
+            equality: they match documents whose content contains the value as a phrase, that is, the same words in the
+            same order and next to each other, ignoring case and punctuation. For example, `==` with the value
+            `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
         :returns: A list of Documents that match the given filters.
         """
         await self._ensure_initialized_async()
@@ -894,7 +902,9 @@ class OpenSearchDocumentStore:
         Deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
             completes so that subsequent reads (e.g. count_documents) see the update. If False, no refresh is
             performed (better for bulk deletes). For more details, see the
@@ -925,7 +935,9 @@ class OpenSearchDocumentStore:
         Asynchronously deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
             completes so that subsequent reads see the update. If False, no refresh is performed. For more details,
             see the [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
@@ -954,7 +966,9 @@ class OpenSearchDocumentStore:
         Updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param meta: The metadata fields to update.
         :param refresh: If True, OpenSearch refreshes all shards involved in the update by query after the request
             completes. If False, no refresh is performed. For more details, see the
@@ -988,7 +1002,9 @@ class OpenSearchDocumentStore:
         Asynchronously updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param meta: The metadata fields to update.
         :param refresh: If True, OpenSearch refreshes all shards involved in the update by query after the request
             completes. If False, no refresh is performed. For more details, see the
