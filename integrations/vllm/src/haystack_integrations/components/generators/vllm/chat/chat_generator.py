@@ -104,56 +104,139 @@ def _convert_vllm_chunk_to_streaming_chunks(
     """
     Convert a vLLM streaming chunk to StreamingChunks, including reasoning content.
 
-    A `StreamingChunk` holds either reasoning or content/tool calls, so a delta carrying both is split into a
-    reasoning chunk followed by the content or tool call chunk.
+    A `StreamingChunk` holds at most one of `reasoning`, `content`, or `tool_calls`, so a delta carrying multiple
+    payloads is split into separate chunks in `reasoning` -> `content` -> `tool_calls` order.
     """
-    streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
-        chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
-    )
-    reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None) if chunk.choices else None
-    has_payload = bool(streaming_chunk.content or streaming_chunk.tool_calls)
+    if not chunk.choices:
+        return [
+            _convert_chat_completion_chunk_to_streaming_chunk(
+                chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
+            )
+        ]
+
+    choice = chunk.choices[0]
+    delta = choice.delta
+    reasoning_text = getattr(delta, "reasoning", None)
+    has_content = bool(delta.content)
+    has_tool_calls = bool(delta.tool_calls)
+    has_payload = has_content or has_tool_calls
+    if not reasoning_text and not has_payload:
+        return [
+            _convert_chat_completion_chunk_to_streaming_chunk(
+                chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
+            )
+        ]
+
     # the last chunk with reasoning, content, or tool calls tells which block the stream is currently in
     last_block = next((c for c in reversed(previous_chunks) if c.reasoning or c.content or c.tool_calls), None)
-
     streaming_chunks: list[StreamingChunk] = []
+
     if reasoning_text:
+        meta_source_chunk = (
+            chunk.model_copy(
+                update={
+                    "choices": [
+                        choice.model_copy(
+                            update={
+                                "finish_reason": None,
+                                "logprobs": None,
+                                "delta": delta.model_copy(
+                                    update={"content": None, "tool_calls": None, "refusal": None}
+                                ),
+                            }
+                        )
+                    ]
+                }
+            )
+            if has_payload
+            else chunk
+        )
+        base_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
+            chunk=meta_source_chunk, previous_chunks=previous_chunks, component_info=component_info
+        )
+        reasoning_index = 0 if last_block is None or last_block.reasoning is not None else (last_block.index or 0) + 1
         reasoning_chunk = StreamingChunk(
             content="",
             reasoning=ReasoningContent(reasoning_text=reasoning_text),
-            index=0,
+            index=reasoning_index,
             start=last_block is None or last_block.reasoning is None,
-            # a reasoning-only delta replaces the parent's empty chunk, so it carries its finish reason
-            finish_reason=None if has_payload else streaming_chunk.finish_reason,
+            finish_reason=base_chunk.finish_reason,
             component_info=component_info,
-            meta={**streaming_chunk.meta, "finish_reason": None} if has_payload else streaming_chunk.meta,
+            meta=base_chunk.meta,
         )
         if not has_payload:
             return [reasoning_chunk]
         streaming_chunks.append(reasoning_chunk)
         last_block = reasoning_chunk
 
-    if streaming_chunk.content:
+    if has_content:
+        content_source_chunk = (
+            chunk.model_copy(
+                update={
+                    "choices": [
+                        choice.model_copy(
+                            update={
+                                "finish_reason": None,
+                                "delta": delta.model_copy(update={"tool_calls": None}),
+                            }
+                        )
+                    ]
+                }
+            )
+            if has_tool_calls
+            else chunk
+        )
+        content_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
+            chunk=content_source_chunk,
+            previous_chunks=[*previous_chunks, *streaming_chunks],
+            component_info=component_info,
+        )
         # the parent converter marks the second chunk of a stream as start, assuming the first one only carries `role`,
         # and gives text chunks index None when `role` is set. Derive start and index from the previous block instead
-        # when starting, transitioning from reasoning, or continuing content.
+        # when starting, transitioning from another block, or continuing content.
         if last_block is None:
-            streaming_chunk = dataclasses.replace(streaming_chunk, start=True, index=0)
-        elif last_block.reasoning is not None:
-            streaming_chunk = dataclasses.replace(streaming_chunk, start=True, index=(last_block.index or 0) + 1)
+            content_chunk = dataclasses.replace(content_chunk, start=True, index=0)
         elif last_block.content:
-            streaming_chunk = dataclasses.replace(streaming_chunk, start=False, index=last_block.index)
-    elif streaming_chunk.tool_calls and last_block is not None:
-        # the parent converter uses the provider's tool call index as chunk index, which collides with the reasoning
-        # or text block before the tool calls, so shift the chunk index past that block. Later tool calls keep the
-        # shift of the first one, even if text is streamed between them. `ToolCallDelta.index` keeps the provider's
-        # index, which the tool calls are assembled by.
-        previous_tool_chunk = next((c for c in reversed(previous_chunks) if c.tool_calls), None)
-        if previous_tool_chunk is not None and previous_tool_chunk.tool_calls:
-            offset = (previous_tool_chunk.index or 0) - previous_tool_chunk.tool_calls[0].index
+            content_chunk = dataclasses.replace(content_chunk, start=False, index=last_block.index)
         else:
-            offset = (last_block.index or 0) + 1
-        streaming_chunk = dataclasses.replace(streaming_chunk, index=streaming_chunk.tool_calls[0].index + offset)
-    streaming_chunks.append(streaming_chunk)
+            content_chunk = dataclasses.replace(content_chunk, start=True, index=(last_block.index or 0) + 1)
+        streaming_chunks.append(content_chunk)
+        last_block = content_chunk
+
+    if has_tool_calls:
+        tool_source_chunk = (
+            chunk.model_copy(
+                update={
+                    "choices": [
+                        choice.model_copy(
+                            update={
+                                "delta": delta.model_copy(update={"content": None}),
+                            }
+                        )
+                    ]
+                }
+            )
+            if has_content
+            else chunk
+        )
+        tool_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
+            chunk=tool_source_chunk,
+            previous_chunks=[*previous_chunks, *streaming_chunks],
+            component_info=component_info,
+        )
+        if last_block is not None and tool_chunk.tool_calls:
+            # the parent converter uses the provider's tool call index as chunk index, which collides with the
+            # reasoning or text block before the tool calls, so shift the chunk index past that block. Later tool
+            # calls keep the shift of the first one, even if text is streamed between them. `ToolCallDelta.index` keeps
+            # the provider's index, which the tool calls are assembled by.
+            previous_tool_chunk = next((c for c in reversed(previous_chunks) if c.tool_calls), None)
+            if previous_tool_chunk is not None and previous_tool_chunk.tool_calls:
+                offset = (previous_tool_chunk.index or 0) - previous_tool_chunk.tool_calls[0].index
+            else:
+                offset = (last_block.index or 0) + 1
+            tool_chunk = dataclasses.replace(tool_chunk, index=tool_chunk.tool_calls[0].index + offset)
+        streaming_chunks.append(tool_chunk)
+
     return streaming_chunks
 
 
