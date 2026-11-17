@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/vllm-v3.2.0] - 2026-11-17
+
+### 🚜 Refactor
+
+- Simplify VLLMChatGenerator (#4283)
+
+
 ## [integrations/vllm-v3.1.0] - 2026-11-16
 
 ### 🚀 Features

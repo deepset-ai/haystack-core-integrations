@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/aimlapi-v3.1.0] - 2026-11-17
+
+### 🐛 Bug Fixes
+
+- Respect an empty tools override in AIMLAPI, Bedrock, LiteLLM, Transformers and watsonx chat generators (#4252)
+
+### 🚜 Refactor
+
+- Simplify AIMLAPIChatGenerator (#4281)
+
+
 ## [integrations/aimlapi-v3.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
