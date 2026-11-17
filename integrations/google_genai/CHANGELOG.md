@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/google_genai-v7.2.2] - 2026-11-17
+
+### 🐛 Bug Fixes
+
+- Google GenAI - respect an empty runtime tools list (#4246)
+- Google GenAI - respect an empty runtime safety_settings list (#4274)
+
+### 🧪 Testing
+
+- Google GenAI - use gemini-3.8-flash instead of gemini-3-flash-preview in tests (#4229)
+
+
 ## [integrations/google_genai-v7.2.1] - 2026-11-06
 
 ### 🐛 Bug Fixes
