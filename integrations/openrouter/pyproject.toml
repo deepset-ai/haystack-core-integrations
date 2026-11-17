@@ -56,8 +56,7 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip",
-    "pytz"
+    "pip"
 ]
 
 [tool.hatch.envs.test.scripts]

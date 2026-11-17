@@ -3,33 +3,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytz
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     StreamingChunk,
 )
 from haystack.tools import Tool, Toolset
-from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
+from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
 )
-
-
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_system("You are a helpful assistant"),
-        ChatMessage.from_user("What's the capital of France"),
-    ]
 
 
 def weather(city: str):
@@ -54,50 +43,8 @@ def tools():
     return [tool]
 
 
-@pytest.fixture
-def mock_async_chat_completion():
-    """
-    Mock the Async OpenAI API completion response and reuse it for async tests
-    """
-    with patch(
-        "openai.resources.chat.completions.AsyncCompletions.create",
-        new_callable=AsyncMock,
-    ) as mock_chat_completion_create:
-        completion = ChatCompletion(
-            id="foo",
-            model="openai/gpt-5-mini",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={
-                "prompt_tokens": 57,
-                "completion_tokens": 40,
-                "total_tokens": 97,
-            },
-        )
-        # For async mocks, the return value should be awaitable
-        mock_chat_completion_create.return_value = completion
-        yield mock_chat_completion_create
-
-
 @pytest.mark.asyncio
 class TestOpenRouterChatGeneratorAsyncUnit:
-    async def test_run_async_with_generation_kwargs(self, chat_messages, mock_async_chat_completion, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
-        await component.run_async(chat_messages, generation_kwargs={"temperature": 0.9})
-
-        _, kwargs = mock_async_chat_completion.call_args
-        assert kwargs["extra_body"]["max_tokens"] == 10
-        assert kwargs["extra_body"]["temperature"] == 0.9
-
     async def test_run_async_streaming_with_reasoning(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
 

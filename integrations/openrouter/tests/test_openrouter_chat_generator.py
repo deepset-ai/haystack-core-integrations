@@ -4,12 +4,10 @@
 
 import json
 import os
-from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
-import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, ReasoningContent, StreamingChunk, ToolCall
@@ -44,11 +42,6 @@ class CalendarEvent(BaseModel):
     event_name: str
     event_date: str
     event_location: str
-
-
-@pytest.fixture
-def calendar_event_model():
-    return CalendarEvent
 
 
 class CollectorCallback:
@@ -87,32 +80,6 @@ def tools():
     )
 
     return [tool]
-
-
-@pytest.fixture
-def mock_chat_completion():
-    """
-    Mock the OpenAI API completion response and reuse it for tests
-    """
-    with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
-        completion = ChatCompletion(
-            id="foo",
-            model="openai/gpt-5-mini",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
-        )
-
-        mock_chat_completion_create.return_value = completion
-        yield mock_chat_completion_create
 
 
 class TestOpenRouterChatGeneratorUnit:
@@ -232,14 +199,15 @@ class TestOpenRouterChatGeneratorUnit:
         assert component.timeout == 10
         assert component.max_retries == 10
 
-    def test_run_with_generation_kwargs(self, chat_messages, mock_chat_completion, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
-        component.run(chat_messages, generation_kwargs={"temperature": 0.9})
+    def test_prepare_api_call_with_generation_kwargs(self, chat_messages):
+        component = OpenRouterChatGenerator(
+            generation_kwargs={"max_tokens": 10, "temperature": 0.5},
+            extra_headers={"HTTP-Referer": "https://example.com", "X-Title": "Test application"},
+        )
+        kwargs = component._prepare_api_call(messages=chat_messages, generation_kwargs={"temperature": 0.9})
 
-        _, kwargs = mock_chat_completion.call_args
-        assert kwargs["extra_body"]["max_tokens"] == 10
-        assert kwargs["extra_body"]["temperature"] == 0.9
+        assert kwargs["extra_body"] == {"max_tokens": 10, "temperature": 0.9}
+        assert kwargs["extra_headers"] == {"HTTP-Referer": "https://example.com", "X-Title": "Test application"}
 
     def test_serde_in_pipeline(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
@@ -465,7 +433,7 @@ class TestOpenRouterChatGeneratorIntegration:
         assert "france" in msg["country"].lower(), f"Expected 'France' in country field, got: {msg['country']}"
         assert message.meta["finish_reason"] == "stop"
 
-    def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+    def test_live_run_with_response_format_pydantic_model(self):
         # Use a more explicit prompt that emphasizes JSON structure requirement
         chat_messages = [
             ChatMessage.from_user(
@@ -475,7 +443,7 @@ class TestOpenRouterChatGeneratorIntegration:
             )
         ]
         component = OpenRouterChatGenerator(
-            model="openai/gpt-5-mini", generation_kwargs={"response_format": calendar_event_model, "max_tokens": 1000}
+            model="openai/gpt-5-mini", generation_kwargs={"response_format": CalendarEvent, "max_tokens": 1000}
         )
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
@@ -977,7 +945,7 @@ class TestReasoningSupport:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            created=1750162525,
             usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
         )
 
@@ -1008,7 +976,7 @@ class TestReasoningSupport:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            created=1750162525,
             usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
         )
 
@@ -1035,7 +1003,7 @@ class TestReasoningSupport:
                     message=ChatCompletionMessage(content="Hello!", role="assistant"),
                 )
             ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            created=1750162525,
             usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
 
