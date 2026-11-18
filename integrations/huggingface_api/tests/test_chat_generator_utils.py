@@ -110,10 +110,25 @@ class TestConvertHfapiToolCalls:
             ToolCall(id="paris", tool_name="weather", arguments={"city": "Paris"}),
         ]
 
+    @pytest.mark.parametrize("arguments", [{}, "{}", ""], ids=["empty_dict", "empty_json", "empty_string"])
+    def test_empty_tool_call_arguments_are_preserved(self, arguments):
+        raw = [
+            ChatCompletionOutputToolCall(
+                id="clock",
+                type="function",
+                function=ChatCompletionOutputFunctionDefinition(arguments=arguments, name="get_time", description=None),
+            )
+        ]
+        assert _convert_hfapi_tool_calls(raw) == [
+            ToolCall(id="clock", tool_name="get_time", arguments={}),
+        ]
+
     @pytest.mark.parametrize(
         "arguments, warning",
         [
             pytest.param("invalid JSON", "malformed JSON", id="invalid_json"),
+            pytest.param("null", "did not decode to a JSON object", id="json_null"),
+            pytest.param("[1]", "did not decode to a JSON object", id="json_list"),
             pytest.param(["invalid", "shape"], "Valid types are dict and str", id="unsupported_type"),
         ],
     )
