@@ -208,6 +208,7 @@ class OpenSearchDocumentStore:
         return default_mappings
 
     def _validate_multivector_mapping(self, mappings: dict[str, Any]) -> None:
+        """Validate the multivector field mapping and check that `_source` is enabled."""
         if self._multivector_embedding_dim is None:
             return
         field = mappings.get("properties", {}).get("multivector_embedding", {})
@@ -571,6 +572,7 @@ class OpenSearchDocumentStore:
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
     def _validate_multivector_embedding(self, embedding: list[list[float]]) -> None:
+        """Check that the embedding is non-empty and each vector matches the configured dimension."""
         if self._multivector_embedding_dim is None:
             msg = "Set multivector_embedding_dim before writing or querying multivector embeddings."
             raise ValueError(msg)
@@ -1649,6 +1651,7 @@ class OpenSearchDocumentStore:
         filters: dict[str, Any] | None,
         top_k: int,
     ) -> dict[str, Any]:
+        """Build the OpenSearch script_score query for MaxSim retrieval with optional filters."""
         self._validate_multivector_embedding(query_multivector_embedding)
         if top_k <= 0:
             msg = "top_k must be greater than zero."
@@ -1673,6 +1676,7 @@ class OpenSearchDocumentStore:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
+        """Retrieve documents with multivector embeddings ranked by their MaxSim score."""
         self._ensure_initialized()
         body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
         documents = self._search_documents(body)
@@ -1687,6 +1691,7 @@ class OpenSearchDocumentStore:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
+        """Asynchronously retrieve documents with multivector embeddings ranked by their MaxSim score."""
         await self._ensure_initialized_async()
         body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
         documents = await self._search_documents_async(body)
