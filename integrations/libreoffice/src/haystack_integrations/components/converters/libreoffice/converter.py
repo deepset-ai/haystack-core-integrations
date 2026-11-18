@@ -6,8 +6,10 @@ import mimetypes
 import os
 import shutil
 import subprocess
-from asyncio import create_subprocess_exec
+from asyncio import CancelledError, create_subprocess_exec, create_task, shield
+from asyncio.subprocess import Process
 from collections.abc import Iterable
+from contextlib import suppress
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, ClassVar, Literal, Self, TypedDict, get_args
@@ -38,6 +40,45 @@ OUTPUT_FILE_TYPE = Literal[
 
 class LibreOfficeFileConverterOutput(TypedDict):
     output: list[ByteStream]
+
+
+async def _reap_conversion_process(process: Process) -> None:
+    """
+    Kill and reap a conversion child so cancellation cannot leave it running.
+
+    Further cancellation is absorbed until the wait finishes. Callers remove the
+    temporary workspace only after this returns, while the child may still hold
+    files in that directory.
+    """
+    if process.returncode is None:
+        with suppress(ProcessLookupError):
+            process.kill()
+    if process.returncode is not None:
+        return
+
+    waiter = create_task(process.wait())
+    while not waiter.done():
+        try:
+            await shield(waiter)
+        except CancelledError:
+            # The shielded wait keeps running; a second cancel must not delete
+            # the workspace before the child has been reaped.
+            continue
+    waiter.result()
+
+
+async def _run_soffice(args: list[str]) -> None:
+    """
+    Run one soffice conversion, reaping the child if this task is cancelled.
+    """
+    process = await create_subprocess_exec(*args)
+    try:
+        returncode = await process.wait()
+    except CancelledError:
+        await _reap_conversion_process(process)
+        raise
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, args)
 
 
 @component
@@ -327,6 +368,8 @@ class LibreOfficeFileConverter:
         Asynchronously convert office files to the specified output format using LibreOffice.
 
         This is the asynchronous version of the `run` method with the same parameters and return values.
+        Cancelling it kills the in-flight conversion process and waits for that process to exit before
+        the temporary workspace is removed.
 
         :param sources:
             List of sources to convert. Each source can be a file path (`str` or
@@ -364,10 +407,8 @@ class LibreOfficeFileConverter:
                     self._validate_args(resolved_output_file_type)
                     output_path, args = self._get_conversion_args(tmp_path, tmpdir, resolved_output_file_type)
 
-                    process = await create_subprocess_exec(*args)
-                    # Wait for process to complete as only one instance of soffice can occur at once
-                    if returncode := await process.wait():
-                        raise subprocess.CalledProcessError(returncode, args)
+                    # Wait for this conversion before the next: only one soffice instance can run at once.
+                    await _run_soffice(args)
                     outputs.append(
                         ByteStream(
                             data=output_path.read_bytes(),
@@ -379,10 +420,8 @@ class LibreOfficeFileConverter:
                 self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
                 output_path, args = self._get_conversion_args(source, tmpdir, resolved_output_file_type)
 
-                process = await create_subprocess_exec(*args)
-                # Wait for process to complete as only one instance of soffice can occur at once
-                if returncode := await process.wait():
-                    raise subprocess.CalledProcessError(returncode, args)
+                # Wait for this conversion before the next: only one soffice instance can run at once.
+                await _run_soffice(args)
 
                 outputs.append(
                     ByteStream(
