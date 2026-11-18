@@ -245,9 +245,6 @@ class OpenSearchDocumentStore:
         :param settings: The settings of the index to be created. Please see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#index-settings)
             for more information. If None, the settings from the constructor are used.
         """
-        self._ensure_initialized()
-        assert self._client is not None
-
         if not index:
             index = self._index
         if not mappings:
@@ -256,6 +253,8 @@ class OpenSearchDocumentStore:
         if not settings:
             settings = self._settings
 
+        self._ensure_initialized()
+        assert self._client is not None
         if not self._client.indices.exists(index=index):
             self._client.indices.create(index=index, body={"mappings": mappings, "settings": settings})
 
@@ -1674,13 +1673,9 @@ class OpenSearchDocumentStore:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
-        try:
-            self._ensure_initialized()
-            body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
-            documents = self._search_documents(body)
-        except TransportError as error:
-            msg = f"Failed to retrieve multivector documents from OpenSearch: {error}"
-            raise DocumentStoreError(msg) from error
+        self._ensure_initialized()
+        body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
+        documents = self._search_documents(body)
         # Our MULTIVECTOR_SEARCH_SCRIPT assigns zero to documents without multivectors
         # We exclude them from results, similarly to how dense embedding retrieval works on OpenSearch.
         return [doc for doc in documents if doc.score is not None and doc.score > 0]
@@ -1692,15 +1687,11 @@ class OpenSearchDocumentStore:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
-        try:
-            await self._ensure_initialized_async()
-            body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
-            documents = await self._search_documents_async(body)
-        except TransportError as error:
-            msg = f"Failed to retrieve multivector documents from OpenSearch: {error}"
-            raise DocumentStoreError(msg) from error
-            # Our MULTIVECTOR_SEARCH_SCRIPT assigns zero to documents without multivectors
-            # We exclude them from results, similarly to how dense embedding retrieval works on OpenSearch.
+        await self._ensure_initialized_async()
+        body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
+        documents = await self._search_documents_async(body)
+        # Our MULTIVECTOR_SEARCH_SCRIPT assigns zero to documents without multivectors
+        # We exclude them from results, similarly to how dense embedding retrieval works on OpenSearch.
         return [doc for doc in documents if doc.score is not None and doc.score > 0]
 
     def _prepare_embedding_search_request(

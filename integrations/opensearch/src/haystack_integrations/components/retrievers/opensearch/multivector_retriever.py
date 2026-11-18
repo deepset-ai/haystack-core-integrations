@@ -150,7 +150,6 @@ class OpenSearchMultivectorEmbeddingRetriever:
 
         :raises ValueError: Multivector support is disabled, the embedding is empty or has an incompatible dimension,
             `top_k` is not positive, or the runtime document store is invalid.
-        :raises DocumentStoreError: The OpenSearch search request fails.
         """
         store = _resolve_document_store(document_store, self._document_store)
         documents = store._multivector_retrieval(
@@ -186,7 +185,6 @@ class OpenSearchMultivectorEmbeddingRetriever:
 
         :raises ValueError: Multivector support is disabled, the embedding is empty or has an incompatible dimension,
             `top_k` is not positive, or the runtime document store is invalid.
-        :raises DocumentStoreError: The OpenSearch search request fails.
         """
         store = _resolve_document_store(document_store, self._document_store)
         documents = await store._multivector_retrieval_async(
