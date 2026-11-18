@@ -21,7 +21,10 @@ from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
 from haystack_integrations.document_stores.opensearch.filters import normalize_filters
-from haystack_integrations.document_stores.opensearch.opensearch_scripts import METADATA_SEARCH_JACCARD_SCRIPT
+from haystack_integrations.document_stores.opensearch.opensearch_scripts import (
+    METADATA_SEARCH_JACCARD_SCRIPT,
+    MULTIVECTOR_SEARCH_SCRIPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ UPDATE_SCRIPT = """
             }
             """
 
-SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "blob"}
+SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "multivector_embedding", "blob"}
 
 Hosts = str | list[str | Mapping[str, str | int]]
 
@@ -100,6 +103,7 @@ class OpenSearchDocumentStore:
         verify_certs: bool | None = None,
         timeout: int | None = None,
         nested_fields: list[str] | Literal["*"] | None = None,
+        multivector_embedding_dim: int | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -143,9 +147,16 @@ class OpenSearchDocumentStore:
             the first `write_documents` batch.
             When the index already exists, nested fields are discovered from the live mapping.
             Defaults to None (no nested support).
+        :param multivector_embedding_dim: Dimension of each vector in a multivector embedding. Set to enable
+            multivector support.
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
+        :raises ValueError: `multivector_embedding_dim` is not positive or the multivector mapping is incompatible.
         """
+        if multivector_embedding_dim is not None and multivector_embedding_dim <= 0:
+            msg = "multivector_embedding_dim must be greater than zero."
+            raise ValueError(msg)
+        self._multivector_embedding_dim = multivector_embedding_dim
         self._hosts = hosts
         self._index = index
         self._max_chunk_bytes = max_chunk_bytes
@@ -154,6 +165,7 @@ class OpenSearchDocumentStore:
         self._method = method
         self._nested_fields = nested_fields
         self._mappings = mappings or self._get_default_mappings()
+        self._validate_multivector_mapping(self._mappings)
         self._settings = settings
         self._create_index = create_index
         self._http_auth = http_auth
@@ -186,12 +198,35 @@ class OpenSearchDocumentStore:
                 }
             ],
         }
+        if self._multivector_embedding_dim is not None:
+            default_mappings["properties"]["multivector_embedding"] = {"type": "object", "enabled": False}
         if self._method:
             default_mappings["properties"]["embedding"]["method"] = self._method
         if self._nested_fields and self._nested_fields != "*":
             for field in self._nested_fields:
                 default_mappings["properties"][field] = {"type": "nested"}
         return default_mappings
+
+    def _validate_multivector_mapping(self, mappings: dict[str, Any]) -> None:
+        if self._multivector_embedding_dim is None:
+            return
+        field = mappings.get("properties", {}).get("multivector_embedding", {})
+        if field.get("type") != "object" or field.get("enabled") is not False:
+            msg = (
+                "The index is not configured for multivector embeddings. "
+                "Use a new index name with multivector_embedding_dim set so Haystack "
+                "can create the required mapping. "
+                'If you provide custom mappings, set "multivector_embedding" to '
+                '{"type": "object", "enabled": false} under "properties".'
+            )
+            raise ValueError(msg)
+        if mappings.get("_source", {}).get("enabled") is False:
+            msg = (
+                "Multivector retrieval requires the original document data in _source. "
+                "Use a new index with the default mappings and write your documents again. "
+                'If you provide custom mappings, remove "_source": {"enabled": false}.'
+            )
+            raise ValueError(msg)
 
     def create_index(
         self,
@@ -217,6 +252,7 @@ class OpenSearchDocumentStore:
             index = self._index
         if not mappings:
             mappings = self._mappings
+        self._validate_multivector_mapping(mappings)
         if not settings:
             settings = self._settings
 
@@ -248,6 +284,7 @@ class OpenSearchDocumentStore:
             index=self._index,
             max_chunk_bytes=self._max_chunk_bytes,
             embedding_dim=self._embedding_dim,
+            multivector_embedding_dim=self._multivector_embedding_dim,
             method=self._method,
             mappings=self._mappings,
             settings=self._settings,
@@ -426,6 +463,7 @@ class OpenSearchDocumentStore:
             # the key differs from the alias, so we use next(iter(...)) to handle both cases.
             actual_index = next(iter(mapping))
             properties = mapping[actual_index]["mappings"].get("properties", {})
+            self._validate_multivector_mapping(mapping[actual_index]["mappings"])
             self._populate_nested_fields_from_mapping(properties)
         elif self._create_index:
             # Create the index if it doesn't exist
@@ -446,6 +484,7 @@ class OpenSearchDocumentStore:
             # the key differs from the alias, so we use next(iter(...)) to handle both cases.
             actual_index = next(iter(mapping))
             properties = mapping[actual_index]["mappings"].get("properties", {})
+            self._validate_multivector_mapping(mapping[actual_index]["mappings"])
             self._populate_nested_fields_from_mapping(properties)
         elif self._create_index:
             # Create the index if it doesn't exist
@@ -492,7 +531,7 @@ class OpenSearchDocumentStore:
         # For some applications not returning the embedding can save a lot of bandwidth
         # if you don't need this data not retrieving it can be a good idea
         if not self._return_embedding:
-            search_kwargs["_source"] = {"excludes": ["embedding"]}
+            search_kwargs["_source"] = {"excludes": ["embedding", "multivector_embedding"]}
         return search_kwargs
 
     def _search_documents(self, request_body: dict[str, Any]) -> list[Document]:
@@ -532,6 +571,14 @@ class OpenSearchDocumentStore:
 
         return await self._search_documents_async(self._prepare_filter_search_request(filters))
 
+    def _validate_multivector_embedding(self, embedding: list[list[float]]) -> None:
+        if self._multivector_embedding_dim is None:
+            msg = "Set multivector_embedding_dim before writing or querying multivector embeddings."
+            raise ValueError(msg)
+        if not embedding or any(len(vector) != self._multivector_embedding_dim for vector in embedding):
+            msg = "A multivector embedding must be non-empty and match multivector_embedding_dim."
+            raise ValueError(msg)
+
     def _prepare_bulk_write_request(
         self,
         *,
@@ -550,6 +597,8 @@ class OpenSearchDocumentStore:
         action = "index" if policy == DuplicatePolicy.OVERWRITE else "create"
         opensearch_actions = []
         for doc in documents:
+            if doc.multivector_embedding is not None:
+                self._validate_multivector_embedding(doc.multivector_embedding)
             doc_dict = doc.to_dict()
 
             # Extract routing from document metadata
@@ -1070,7 +1119,7 @@ class OpenSearchDocumentStore:
         # For some applications not returning the embedding can save a lot of bandwidth
         # if you don't need this data not retrieving it can be a good idea
         if not self._return_embedding:
-            body["_source"] = {"excludes": ["embedding"]}
+            body["_source"] = {"excludes": ["embedding", "multivector_embedding"]}
 
         return body
 
@@ -1594,6 +1643,66 @@ class OpenSearchDocumentStore:
         # Process and return results
         return self._process_metadata_search_results(hit_list, fields, top_k)
 
+    def _prepare_multivector_search_request(
+        self,
+        query_multivector_embedding: list[list[float]],
+        *,
+        filters: dict[str, Any] | None,
+        top_k: int,
+    ) -> dict[str, Any]:
+        self._validate_multivector_embedding(query_multivector_embedding)
+        if top_k <= 0:
+            msg = "top_k must be greater than zero."
+            raise ValueError(msg)
+        body = self._prepare_filter_search_request(filters)
+        body["size"] = top_k
+        body["query"] = {
+            "script_score": {
+                "query": body.get("query", {"match_all": {}}),
+                "script": {
+                    "source": MULTIVECTOR_SEARCH_SCRIPT,
+                    "params": {"query_vectors": query_multivector_embedding},
+                },
+            }
+        }
+        return body
+
+    def _multivector_retrieval(
+        self,
+        query_multivector_embedding: list[list[float]],
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        try:
+            self._ensure_initialized()
+            body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
+            documents = self._search_documents(body)
+        except TransportError as error:
+            msg = f"Failed to retrieve multivector documents from OpenSearch: {error}"
+            raise DocumentStoreError(msg) from error
+        # Our MULTIVECTOR_SEARCH_SCRIPT assigns zero to documents without multivectors
+        # We exclude them from results, similarly to how dense embedding retrieval works on OpenSearch.
+        return [doc for doc in documents if doc.score is not None and doc.score > 0]
+
+    async def _multivector_retrieval_async(
+        self,
+        query_multivector_embedding: list[list[float]],
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        try:
+            await self._ensure_initialized_async()
+            body = self._prepare_multivector_search_request(query_multivector_embedding, filters=filters, top_k=top_k)
+            documents = await self._search_documents_async(body)
+        except TransportError as error:
+            msg = f"Failed to retrieve multivector documents from OpenSearch: {error}"
+            raise DocumentStoreError(msg) from error
+            # Our MULTIVECTOR_SEARCH_SCRIPT assigns zero to documents without multivectors
+            # We exclude them from results, similarly to how dense embedding retrieval works on OpenSearch.
+        return [doc for doc in documents if doc.score is not None and doc.score > 0]
+
     def _prepare_embedding_search_request(
         self,
         *,
@@ -1654,7 +1763,7 @@ class OpenSearchDocumentStore:
         # For some applications not returning the embedding can save a lot of bandwidth
         # if you don't need this data not retrieving it can be a good idea
         if not self._return_embedding:
-            body["_source"] = {"excludes": ["embedding"]}
+            body["_source"] = {"excludes": ["embedding", "multivector_embedding"]}
 
         return body
 

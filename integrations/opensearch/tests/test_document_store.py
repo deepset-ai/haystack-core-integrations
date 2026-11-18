@@ -54,6 +54,7 @@ def test_to_dict(_mock_opensearch_client):
             "verify_certs": None,
             "timeout": None,
             "nested_fields": None,
+            "multivector_embedding_dim": None,
         },
     }
 
@@ -856,6 +857,19 @@ class TestDocumentStore(
         assert len(results) == 2
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
+
+    def test_multivector_retrieval(self, opensearch_store):
+        store = opensearch_store(multivector_embedding_dim=2, return_embedding=True)
+        documents = [
+            Document(id="a", multivector_embedding=[[1.0, 0.0], [0.0, 1.0]]),
+            Document(id="b", multivector_embedding=[[0.5, 0.0]]),
+            Document(id="missing"),
+        ]
+        store.write_documents(documents)
+        result = store._multivector_retrieval([[1.0, 0.0], [0.0, 1.0]])
+        assert [doc.id for doc in result] == ["a", "b"]
+        assert [doc.score for doc in result] == pytest.approx([4.0, 2.5])
+        assert result[0].multivector_embedding == documents[0].multivector_embedding
 
     def test_embedding_retrieval_with_filters(
         self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
