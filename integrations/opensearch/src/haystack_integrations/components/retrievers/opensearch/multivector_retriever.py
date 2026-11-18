@@ -20,7 +20,7 @@ class OpenSearchMultivectorEmbeddingRetriever:
     Retrieves documents from the OpenSearchDocumentStore using multivector embeddings.
 
     Documents are ranked using OpenSearch's `lateInteractionScore` with `innerproduct` similarity.
-    Documents without multivector embeddings are excluded. Requires OpenSearch 3.5 or later.
+    Documents without multivector embeddings are excluded. Requires OpenSearch 3.3 or later.
     Direct retrieval scans the filtered documents and can be computationally expensive on large collections.
     To limit MaxSim scoring to a smaller set of candidates, use `OpenSearchEmbeddingRetriever` with
     `return_embedding=True` on the Document Store, followed by `MaxSimRanker`.
