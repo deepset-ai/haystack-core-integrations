@@ -16,6 +16,7 @@ import pytest
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.libreoffice import LibreOfficeFileConverter
+from haystack_integrations.components.converters.libreoffice.converter import _reap_conversion_process
 
 TYPE = "haystack_integrations.components.converters.libreoffice.converter.LibreOfficeFileConverter"
 CONVERTER_MODULE = "haystack_integrations.components.converters.libreoffice.converter"
@@ -269,6 +270,22 @@ class TestAsyncCancellation:
                     with suppress(ProcessLookupError):
                         children[0].kill()
                     await children[0].wait()
+
+    @pytest.mark.asyncio
+    async def test_reap_leaves_a_child_that_has_already_exited(self) -> None:
+        # Cancellation can arrive after the child has already been reaped. That path
+        # must return without waiting again.
+        child = await asyncio.create_subprocess_exec(sys.executable, "-c", "import sys; sys.exit(0)")
+        await child.wait()
+        assert child.returncode == 0
+
+        async def wait() -> int:
+            msg = "already exited"
+            raise AssertionError(msg)
+
+        child.wait = wait  # type: ignore[method-assign]
+        await _reap_conversion_process(child)
+        assert child.returncode == 0
 
 
 class TestResolveMimeType:
