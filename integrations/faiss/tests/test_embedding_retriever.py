@@ -36,6 +36,15 @@ def test_invalid_document_store_type():
         FAISSEmbeddingRetriever(document_store="not_a_store")  # type: ignore[arg-type]
 
 
+def test_run_with_top_k_zero_returns_no_documents(populated_store):
+    """``top_k=0`` asks for no documents; it must not fall back to the init default."""
+    retriever = FAISSEmbeddingRetriever(document_store=populated_store, top_k=10)
+
+    result = retriever.run(query_embedding=[1.0, 0.0, 0.0], top_k=0)
+
+    assert result == {"documents": []}
+
+
 @pytest.mark.integration
 class TestFAISSEmbeddingRetriever:
     def test_run_with_query_embedding_only(self, populated_store):
