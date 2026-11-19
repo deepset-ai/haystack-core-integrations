@@ -4,11 +4,11 @@
 
 | Name                                                               |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/oauth/resolver.py |       38 |        0 |       10 |        0 |    100% |           |
+| src/haystack\_integrations/components/connectors/oauth/resolver.py |       51 |        0 |       14 |        0 |    100% |           |
 | src/haystack\_integrations/utils/oauth/errors.py                   |        6 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/utils/oauth/protocols.py                |       17 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/utils/oauth/sources.py                  |      234 |       15 |       66 |       11 |     91% |106-107, 109-110, 159-\>161, 239, 308-309, 311-312, 314-315, 317-318, 350-351, 371-\>375, 373-\>375 |
-| **TOTAL**                                                          |  **295** |   **15** |   **76** |   **11** | **93%** |           |
+| **TOTAL**                                                          |  **308** |   **15** |   **80** |   **11** | **93%** |           |
 
 
 ## Setup coverage badge
