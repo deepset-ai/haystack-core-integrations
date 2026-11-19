@@ -1232,14 +1232,17 @@ class TestIntegration:
         chat_generator = AnthropicChatGenerator(
             model="claude-sonnet-5-5",
             generation_kwargs={
-                "thinking": {"type": "adaptive", "display": "summarized"},
-                "output_config": {"effort": "high"},
+                "adaptive_thinking_effort": "high",
+                "thinking_display": "summarized",
                 "max_tokens": 11000,
             },
             streaming_callback=streaming_callback,
         )
 
-        message = ChatMessage.from_user("2+3?")
+        message = ChatMessage.from_user(
+            "A train leaves at 3:47 pm, travels for 2 h 38 min, waits 19 min at a station, "
+            "then travels another 1 h 55 min. At what time does it arrive?"
+        )
         response = chat_generator.run([message])["replies"][0]
 
         assert isinstance(response, ChatMessage)
@@ -1247,7 +1250,9 @@ class TestIntegration:
         assert response.reasoning is not None
         assert len(response.reasoning.reasoning_text) > 0
 
-        new_message = ChatMessage.from_user("Now multiply the result by 10.")
+        new_message = ChatMessage.from_user(
+            "If it then runs 47 minutes late, how many minutes after midnight does it arrive?"
+        )
         new_response = chat_generator.run([message, response, new_message])["replies"][0]
         assert isinstance(new_response, ChatMessage)
         assert new_response.text and len(new_response.text) > 0
@@ -1262,13 +1267,18 @@ class TestIntegration:
         """
         Integration test that the AnthropicChatGenerator component can run with tools and streaming.
         """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        initial_messages = [
+            ChatMessage.from_user(
+                "Find the capital that hosted the Summer Olympics in both 1900 and 2024, "
+                "and check the weather there."
+            )
+        ]
         component = AnthropicChatGenerator(
             tools=tools,
             streaming_callback=print_streaming_chunk,
             generation_kwargs={
-                "thinking": {"type": "adaptive", "display": "summarized"},
-                "output_config": {"effort": "high"},
+                "adaptive_thinking_effort": "high",
+                "thinking_display": "summarized",
                 "max_tokens": 11000,
             },
         )
