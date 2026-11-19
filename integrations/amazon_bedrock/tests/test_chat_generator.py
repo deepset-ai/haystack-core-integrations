@@ -456,6 +456,19 @@ class TestAmazonBedrockChatGenerator:
 
         assert "toolConfig" not in request_params
 
+    def test_prepare_request_params_wraps_cachepoint_configs(self, tools):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            tools=tools,
+            tools_cachepoint_config={"type": "default", "ttl": "5m"},
+            system_cachepoint_config={"type": "default", "ttl": "1h"},
+        )
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_system("Be brief."), ChatMessage.from_user("Hi")],
+        )
+        assert request_params["toolConfig"]["tools"][-1] == {"cachePoint": {"type": "default", "ttl": "5m"}}
+        assert request_params["system"][-1] == {"cachePoint": {"type": "default", "ttl": "1h"}}
+
     def test_prepare_request_params_guardrail_config(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
@@ -478,7 +491,7 @@ class TestAmazonBedrockChatGenerator:
             model="global.anthropic.claude-sonnet-4-6",
             system_cachepoint_config={"type": "default"},
         )
-        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default"}}
+        assert generator.system_cachepoint_config == {"type": "default"}
 
     def test_to_dict_with_system_cachepoint_config(self):
         generator = AmazonBedrockChatGenerator(
@@ -486,7 +499,17 @@ class TestAmazonBedrockChatGenerator:
             system_cachepoint_config={"type": "default"},
         )
         serialized = generator.to_dict()
-        assert serialized["init_parameters"]["system_cachepoint_config"] == {"cachePoint": {"type": "default"}}
+        assert serialized["init_parameters"]["system_cachepoint_config"] == {"type": "default"}
+
+    def test_cachepoint_config_round_trip(self):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            tools_cachepoint_config={"type": "default", "ttl": "5m"},
+            system_cachepoint_config={"type": "default", "ttl": "1h"},
+        )
+        restored = AmazonBedrockChatGenerator.from_dict(generator.to_dict())
+        assert restored.tools_cachepoint_config == {"type": "default", "ttl": "5m"}
+        assert restored.system_cachepoint_config == {"type": "default", "ttl": "1h"}
 
     def test_prepare_request_params_response_format(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -907,7 +930,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+        assert generator.tools_cachepoint_config == {"type": "default", "ttl": "1h"}
 
     def test_from_dict_resolves_tools_cachepoint_config_ttl_preserves_existing_type(self):
         generator = AmazonBedrockChatGenerator.from_dict(
@@ -920,7 +943,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
+        assert generator.tools_cachepoint_config == {"type": "default", "ttl": "5m"}
 
     def test_from_dict_resolves_system_cachepoint_config_ttl(self):
         generator = AmazonBedrockChatGenerator.from_dict(
@@ -932,7 +955,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+        assert generator.system_cachepoint_config == {"type": "default", "ttl": "1h"}
 
     def test_from_dict_resolves_system_cachepoint_config_ttl_preserves_existing_type(self):
         generator = AmazonBedrockChatGenerator.from_dict(
@@ -945,7 +968,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
+        assert generator.system_cachepoint_config == {"type": "default", "ttl": "5m"}
 
     def test_run_completion(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")

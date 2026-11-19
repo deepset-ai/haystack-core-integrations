@@ -75,7 +75,7 @@ class NvidiaRanker:
             A string to add at the beginning of each document before ranking. You can use it to prepend the document
             with an instruction, as required by embedding models like `bge`.
         :param meta_fields_to_embed:
-            List of metadata fields to embed with the document.
+            List of metadata fields to embed with the document. Missing fields and `None` values are skipped.
         :param embedding_separator:
             Separator to concatenate metadata fields to the document.
         :param timeout:
@@ -178,9 +178,7 @@ class NvidiaRanker:
         document_texts = []
         for doc in documents:
             meta_values_to_embed = [
-                str(doc.meta[key])
-                for key in self.meta_fields_to_embed
-                if key in doc.meta and doc.meta[key]  # noqa: RUF019
+                str(doc.meta[key]) for key in self.meta_fields_to_embed if key in doc.meta and doc.meta[key] is not None
             ]
             text_to_embed = self.embedding_separator.join([*meta_values_to_embed, doc.content or ""])
             document_texts.append(self.document_prefix + text_to_embed)

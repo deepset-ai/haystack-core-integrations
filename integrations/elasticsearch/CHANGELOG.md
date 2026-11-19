@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/elasticsearch-v8.0.0] - 2026-11-16
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Elasticsearch - use match_phrase for content filters and make empty `in` match nothing (#4248)
+
+
 ## [integrations/elasticsearch-v7.1.0] - 2026-10-19
 
 ### 🚀 Features

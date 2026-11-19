@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v9.1.2] - 2026-11-17
+
+### 🐛 Bug Fixes
+
+- Respect an empty tools override in AIMLAPI, Bedrock, LiteLLM, Transformers and watsonx chat generators (#4252)
+- Amazon Bedrock - make cache point configs round-trip through to_dict/from_dict (#4284)
+
+
 ## [integrations/amazon_bedrock-v9.1.1] - 2026-11-11
 
 ### 🐛 Bug Fixes

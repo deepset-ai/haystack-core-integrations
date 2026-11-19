@@ -331,6 +331,7 @@ class TestDocumentStoreWithAuth:
                 "verify_certs": None,
                 "timeout": None,
                 "nested_fields": None,
+                "multivector_embedding_dim": None,
             },
         }
 
@@ -378,6 +379,7 @@ class TestDocumentStoreWithAuth:
                 "verify_certs": None,
                 "timeout": None,
                 "nested_fields": None,
+                "multivector_embedding_dim": None,
             },
         }
 

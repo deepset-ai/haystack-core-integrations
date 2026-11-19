@@ -1,5 +1,8 @@
 # Changelog
 
+## [integrations/nvidia-v3.0.1] - 2026-11-17
+
+
 ## [integrations/nvidia-v3.0.0] - 2026-10-16
 
 ### 🚜 Refactor
