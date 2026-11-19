@@ -9,6 +9,9 @@ from typing import Any
 
 from haystack import component
 from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.components.generators.chat.openai import (
+    _convert_chat_completion_chunk_to_streaming_chunk,
+)
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -25,6 +28,109 @@ from openai.types.chat import ChatCompletion, ChatCompletionChunk, ParsedChatCom
 from openai.types.chat.chat_completion import Choice
 
 from haystack_integrations.common.vllm.utils import _openai_client_kwargs
+
+
+def _convert_vllm_chunk_to_streaming_chunks(
+    chunk: ChatCompletionChunk, previous_chunks: list[StreamingChunk], component_info: ComponentInfo
+) -> list[StreamingChunk]:
+    """
+    Convert a vLLM streaming chunk to StreamingChunks, including reasoning content.
+
+    A `StreamingChunk` holds only one of reasoning, text, or tool calls. vLLM can send several of them in one delta,
+    for example when `</think>` falls inside a multi-token delta (`--stream-interval` > 1), so such a delta is split
+    into a reasoning chunk, then a text chunk, then a tool call chunk.
+    """
+    choice = chunk.choices[0] if chunk.choices else None
+    if choice is not None and choice.delta.content and choice.delta.tool_calls:
+        # the parent converter would put both into one StreamingChunk, which rejects that, so convert them separately
+        sources = [
+            chunk.model_copy(
+                update={
+                    "choices": [
+                        choice.model_copy(
+                            update={
+                                "finish_reason": None,
+                                "delta": choice.delta.model_copy(update={"tool_calls": None}),
+                            }
+                        )
+                    ]
+                }
+            ),
+            chunk.model_copy(
+                update={
+                    "choices": [choice.model_copy(update={"delta": choice.delta.model_copy(update={"content": None})})]
+                }
+            ),
+        ]
+    else:
+        sources = [chunk]
+    payload_chunks = [
+        _convert_chat_completion_chunk_to_streaming_chunk(
+            chunk=source, previous_chunks=previous_chunks, component_info=component_info
+        )
+        for source in sources
+    ]
+    # the parent converter ignores the `reasoning` field vLLM adds to the delta
+    reasoning_text = getattr(choice.delta, "reasoning", None) if choice is not None else None
+    has_payload = any(c.content or c.tool_calls for c in payload_chunks)
+    # the last chunk with reasoning, content, or tool calls tells which block the stream is currently in
+    last_block = next((c for c in reversed(previous_chunks) if c.reasoning or c.content or c.tool_calls), None)
+
+    streaming_chunks: list[StreamingChunk] = []
+    if reasoning_text:
+        # reasoning that follows text or a tool call starts a new block instead of reusing index 0
+        if last_block is None:
+            index, start = 0, True
+        elif last_block.reasoning is not None:
+            index, start = last_block.index or 0, False
+        else:
+            index, start = (last_block.index or 0) + 1, True
+        reasoning_chunk = StreamingChunk(
+            content="",
+            reasoning=ReasoningContent(reasoning_text=reasoning_text),
+            index=index,
+            start=start,
+            # a reasoning-only delta replaces the parent's empty chunk, so it carries its finish reason
+            finish_reason=None if has_payload else payload_chunks[0].finish_reason,
+            component_info=component_info,
+            # the text or tool calls that follow carry the finish reason and tool calls of the delta
+            meta=payload_chunks[0].meta
+            if not has_payload
+            else {**payload_chunks[0].meta, "finish_reason": None, "tool_calls": None},
+        )
+        if not has_payload:
+            return [reasoning_chunk]
+        streaming_chunks.append(reasoning_chunk)
+        last_block = reasoning_chunk
+
+    for payload_chunk in payload_chunks:
+        streaming_chunk = payload_chunk
+        if streaming_chunk.content:
+            # the parent converter marks the second chunk of a stream as start, assuming the first one only carries
+            # `role`, so derive start and index from the previous block instead. Text after tool calls keeps the
+            # parent's start and index.
+            if last_block is None:
+                streaming_chunk = replace(streaming_chunk, start=True, index=0)
+            elif last_block.reasoning is not None:
+                streaming_chunk = replace(streaming_chunk, start=True, index=(last_block.index or 0) + 1)
+            elif last_block.content:
+                streaming_chunk = replace(streaming_chunk, start=False, index=last_block.index)
+        elif streaming_chunk.tool_calls and last_block is not None:
+            # the parent converter uses the provider's tool call index as chunk index, which collides with the
+            # reasoning or text block before the tool calls, so shift the chunk index past that block. Later tool
+            # calls keep the shift of the first one. `ToolCallDelta.index` keeps the provider's index, which the tool
+            # calls are assembled by.
+            seen = [*previous_chunks, *streaming_chunks]
+            previous_tool_chunk = next((c for c in reversed(seen) if c.tool_calls), None)
+            if previous_tool_chunk is not None and previous_tool_chunk.tool_calls:
+                offset = (previous_tool_chunk.index or 0) - previous_tool_chunk.tool_calls[0].index
+            else:
+                offset = (last_block.index or 0) + 1
+            streaming_chunk = replace(streaming_chunk, index=streaming_chunk.tool_calls[0].index + offset)
+        streaming_chunks.append(streaming_chunk)
+        if streaming_chunk.content or streaming_chunk.tool_calls:
+            last_block = streaming_chunk
+    return streaming_chunks
 
 
 @component
@@ -261,186 +367,15 @@ class VLLMChatGenerator(OpenAIChatGenerator):
             text=message.text, tool_calls=message.tool_calls, meta=message.meta, reasoning=reasoning
         )
 
-    def _convert_chat_completion_chunk_to_streaming_chunk(
-        self,
-        chunk: ChatCompletionChunk,
-        previous_chunks: list[StreamingChunk],
-        component_info: ComponentInfo | None = None,
-    ) -> StreamingChunk:
-        """
-        Convert a chunk while preserving vLLM reasoning and the start of reasoning and text.
-
-        A combined delta is split before this runs. This method still returns reasoning alone when `reasoning` is
-        set, because one StreamingChunk cannot hold reasoning together with content or tool calls.
-        """
-        reasoning_text = getattr(chunk.choices[0].delta, "reasoning", None) if chunk.choices else None
-        if reasoning_text:
-            streaming_chunk = StreamingChunk(
-                content="",
-                reasoning=ReasoningContent(reasoning_text=reasoning_text),
-                index=0,
-                start=not any(c.reasoning for c in previous_chunks),
-                component_info=component_info,
-                meta={
-                    "model": chunk.model,
-                    "index": chunk.choices[0].index,
-                    "finish_reason": chunk.choices[0].finish_reason,
-                },
-            )
-            # reasoning that follows text or a tool call continues the block index instead of restarting at 0
-            last_block = next((c for c in reversed(previous_chunks) if c.reasoning or c.content or c.tool_calls), None)
-            if last_block is not None and last_block.reasoning is None:
-                return replace(streaming_chunk, start=True, index=(last_block.index or 0) + 1)
-            if last_block is not None and last_block.reasoning is not None:
-                return replace(streaming_chunk, start=False, index=last_block.index)
-            return streaming_chunk
-        converted = super(VLLMChatGenerator, self)._convert_chat_completion_chunk_to_streaming_chunk(  # noqa: UP008
-            chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
-        )
-        if converted.tool_calls:
-            return self._with_tool_block_index(converted, previous_chunks)
-        if converted.content:
-            return self._with_content_block_index(converted, previous_chunks)
-        return converted
-
-    def _with_content_block_index(
-        self, converted: StreamingChunk, previous_chunks: list[StreamingChunk]
-    ) -> StreamingChunk:
-        """Keep streamed text in one block, including the first text after reasoning."""
-        last_content = next((chunk for chunk in reversed(previous_chunks) if chunk.content), None)
-        if last_content is not None:
-            return replace(converted, start=False, index=last_content.index)
-        if any(chunk.reasoning for chunk in previous_chunks):
-            last_reasoning = next(chunk for chunk in reversed(previous_chunks) if chunk.reasoning)
-            return replace(converted, start=True, index=(last_reasoning.index or 0) + 1)
-        return converted
-
-    def _with_tool_block_index(
-        self, converted: StreamingChunk, previous_chunks: list[StreamingChunk]
-    ) -> StreamingChunk:
-        """
-        Shift the chunk index past an earlier reasoning or text block.
-
-        The parent converter uses the provider's tool call index as the chunk index, which collides with the block
-        before the tool calls. `ToolCallDelta.index` keeps the provider index the tool calls are assembled by.
-        """
-        if not converted.tool_calls:
-            return converted
-        previous_tool = next((chunk for chunk in reversed(previous_chunks) if chunk.tool_calls), None)
-        if previous_tool is not None and previous_tool.tool_calls:
-            offset = (previous_tool.index or 0) - previous_tool.tool_calls[0].index
-        else:
-            last_block = next((chunk for chunk in reversed(previous_chunks) if chunk.reasoning or chunk.content), None)
-            if last_block is None:
-                return converted
-            offset = (last_block.index or 0) + 1
-        if offset == 0:
-            return converted
-        return replace(converted, index=converted.tool_calls[0].index + offset)
-
-    def _convert_chat_completion_chunk_to_streaming_chunks(
-        self,
-        chunk: ChatCompletionChunk,
-        previous_chunks: list[StreamingChunk],
-        component_info: ComponentInfo | None = None,
-    ) -> list[StreamingChunk]:
-        """
-        Convert one vLLM chunk, splitting a delta that mixes reasoning, content, and tool calls.
-
-        A `StreamingChunk` holds at most one of those, so a combined delta is emitted as reasoning, then content,
-        then tool calls. vLLM sends such deltas when `</think>` falls inside one multi-token chunk.
-        """
-        if not chunk.choices:
-            return [
-                self._convert_chat_completion_chunk_to_streaming_chunk(
-                    chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
-                )
-            ]
-
-        choice = chunk.choices[0]
-        delta = choice.delta
-        reasoning_text = getattr(delta, "reasoning", None)
-        has_content = bool(delta.content)
-        has_tool_calls = bool(delta.tool_calls)
-        if not ((reasoning_text and (has_content or has_tool_calls)) or (has_content and has_tool_calls)):
-            return [
-                self._convert_chat_completion_chunk_to_streaming_chunk(
-                    chunk=chunk, previous_chunks=previous_chunks, component_info=component_info
-                )
-            ]
-
-        last_block = next((c for c in reversed(previous_chunks) if c.reasoning or c.content or c.tool_calls), None)
-        streaming_chunks: list[StreamingChunk] = []
-
-        if reasoning_text:
-            reasoning_source = chunk.model_copy(
-                update={
-                    "choices": [
-                        choice.model_copy(
-                            update={
-                                "finish_reason": None,
-                                "logprobs": None,
-                                "delta": delta.model_copy(
-                                    update={"content": None, "tool_calls": None, "refusal": None}
-                                ),
-                            }
-                        )
-                    ]
-                }
-            )
-            reasoning_chunk = self._convert_chat_completion_chunk_to_streaming_chunk(
-                chunk=reasoning_source, previous_chunks=previous_chunks, component_info=component_info
-            )
-            streaming_chunks.append(reasoning_chunk)
-            last_block = reasoning_chunk
-
-        if has_content:
-            content_update: dict[str, Any] = {"tool_calls": None}
-            if reasoning_text:
-                # an extra field, not a declared ChoiceDelta attribute; leaving it set makes the hook drop content
-                content_update["reasoning"] = None
-            content_choice_update: dict[str, Any] = {"delta": delta.model_copy(update=content_update)}
-            if has_tool_calls:
-                content_choice_update["finish_reason"] = None
-            content_source = chunk.model_copy(update={"choices": [choice.model_copy(update=content_choice_update)]})
-            content_chunk = self._convert_chat_completion_chunk_to_streaming_chunk(
-                chunk=content_source,
-                previous_chunks=[*previous_chunks, *streaming_chunks],
-                component_info=component_info,
-            )
-            # the parent marks the second chunk as start, assuming the first only carries role, and gives text index
-            # None when role is set. The first text of a combined delta is the start of that block.
-            if last_block is None:
-                content_chunk = replace(content_chunk, start=True, index=0)
-            elif last_block.content:
-                content_chunk = replace(content_chunk, start=False, index=last_block.index)
-            else:
-                content_chunk = replace(content_chunk, start=True, index=(last_block.index or 0) + 1)
-            streaming_chunks.append(content_chunk)
-
-        if has_tool_calls:
-            tool_update: dict[str, Any] = {"content": None}
-            if reasoning_text:
-                tool_update["reasoning"] = None
-            tool_source = chunk.model_copy(
-                update={"choices": [choice.model_copy(update={"delta": delta.model_copy(update=tool_update)})]}
-            )
-            tool_chunk = self._convert_chat_completion_chunk_to_streaming_chunk(
-                chunk=tool_source,
-                previous_chunks=[*previous_chunks, *streaming_chunks],
-                component_info=component_info,
-            )
-            streaming_chunks.append(tool_chunk)
-
-        return streaming_chunks
-
-    def _handle_stream_response(self, chat_completion: Stream, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
-        """Emit every reasoning, content, and tool call payload carried by one streamed response."""
+    def _handle_stream_response(
+        self, chat_completion: Stream[ChatCompletionChunk], callback: SyncStreamingCallbackT
+    ) -> list[ChatMessage]:
+        """Handle vLLM streams that can emit multiple chunks per API delta."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         for chunk in chat_completion:
             assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."  # noqa: S101
-            for streaming_chunk in self._convert_chat_completion_chunk_to_streaming_chunks(
+            for streaming_chunk in _convert_vllm_chunk_to_streaming_chunks(
                 chunk=chunk, previous_chunks=chunks, component_info=component_info
             ):
                 chunks.append(streaming_chunk)
@@ -448,22 +383,24 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         return [self._convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     async def _handle_async_stream_response(
-        self, chat_completion: AsyncStream, callback: StreamingCallbackT
+        self, chat_completion: AsyncStream[ChatCompletionChunk], callback: StreamingCallbackT
     ) -> list[ChatMessage]:
-        """Emit every reasoning, content, and tool call payload carried by one streamed response."""
+        """Handle async vLLM streams that can emit multiple chunks per API delta."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         try:
             async for chunk in chat_completion:
                 assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."  # noqa: S101
-                for streaming_chunk in self._convert_chat_completion_chunk_to_streaming_chunks(
+                for streaming_chunk in _convert_vllm_chunk_to_streaming_chunks(
                     chunk=chunk, previous_chunks=chunks, component_info=component_info
                 ):
                     chunks.append(streaming_chunk)
+                    # haystack-ai >= 3.0 also accepts sync callbacks in async runs, so only await async ones
                     callback_result = callback(streaming_chunk)
                     if inspect.isawaitable(callback_result):
                         await callback_result
         except asyncio.CancelledError:
+            # shield the close so the stream is released even though the task is being cancelled
             await asyncio.shield(chat_completion.close())
             raise
         return [self._convert_streaming_chunks_to_chat_message(chunks=chunks)]
