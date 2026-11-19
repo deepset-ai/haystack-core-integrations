@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v10.0.0] - 2026-11-19
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Opensearch - use match_phrase for content filters (#4286)
+
+
 ## [integrations/opensearch-v9.1.0] - 2026-11-19
 
 ### 🚀 Features
