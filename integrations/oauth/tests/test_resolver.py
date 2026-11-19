@@ -6,8 +6,9 @@ import os
 from typing import Any, Literal
 
 import pytest
-from haystack import Pipeline
+from haystack import Pipeline, component
 from haystack.core.errors import DeserializationError
+from haystack.tracing.utils import coerce_tag_value
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.oauth import OAuthTokenResolver
@@ -15,6 +16,7 @@ from haystack_integrations.utils.oauth import (
     OAuthConfigError,
     OAuthRefreshTokenSource,
     OAuthTokenExchangeSource,
+    TokenRefreshError,
 )
 
 TOKEN_URL = "https://idp.example.com/oauth2/token"
@@ -70,6 +72,15 @@ class _FakeExchangeSource:
         return cls()
 
 
+@component
+class _FakeTokenConsumer:
+    """Types `access_token` the way the SharePoint and Google Drive components do, to check socket compatibility."""
+
+    @component.output_types(token=str)
+    def run(self, access_token: str | Secret) -> dict[str, str]:
+        return {"token": access_token.resolve_value() if isinstance(access_token, Secret) else access_token}
+
+
 class TestOAuthTokenResolverInit:
     def test_rejects_non_token_source(self):
         with pytest.raises(OAuthConfigError):
@@ -88,7 +99,7 @@ class TestOAuthTokenResolverRun:
     def test_config_source_delegates_with_no_input(self):
         source = _FakeConfigSource(token="resolved")
         resolver = OAuthTokenResolver(token_source=source)
-        assert resolver.run() == {"access_token": "resolved"}
+        assert resolver.run()["access_token"].resolve_value() == "resolved"
         assert source.calls == 1
 
     def test_exchange_source_forwards_subject_token(self):
@@ -122,7 +133,7 @@ class TestOAuthTokenResolverRun:
     async def test_config_source_run_async(self):
         source = _FakeConfigSource(token="resolved-async")
         resolver = OAuthTokenResolver(token_source=source)
-        assert await resolver.run_async() == {"access_token": "resolved-async"}
+        assert (await resolver.run_async())["access_token"].resolve_value() == "resolved-async"
 
     @pytest.mark.asyncio
     async def test_exchange_source_run_async_forwards_subject_token(self):
@@ -131,13 +142,67 @@ class TestOAuthTokenResolverRun:
         await resolver.run_async(subject_token="user-jwt")
         assert source.subject_tokens == ["user-jwt"]
 
+    def test_exchange_source_accepts_secret_subject_token(self):
+        # A controller may inject the per-request credential as a Secret; the source protocol still takes a str.
+        source = _FakeExchangeSource(token="resolved")
+        resolver = OAuthTokenResolver(token_source=source)
+        resolver.run(subject_token=Secret.from_token("user-jwt"))
+        assert source.subject_tokens == ["user-jwt"]
+
+    @pytest.mark.asyncio
+    async def test_exchange_source_accepts_secret_subject_token_async(self):
+        source = _FakeExchangeSource(token="resolved")
+        resolver = OAuthTokenResolver(token_source=source)
+        await resolver.run_async(subject_token=Secret.from_token("user-jwt"))
+        assert source.subject_tokens == ["user-jwt"]
+
+    def test_unresolvable_secret_subject_token_raises(self, monkeypatch):
+        monkeypatch.delenv("SUBJECT_TOKEN", raising=False)
+        source = _FakeExchangeSource()
+        resolver = OAuthTokenResolver(token_source=source)
+        with pytest.raises(OAuthConfigError):
+            resolver.run(subject_token=Secret.from_env_var("SUBJECT_TOKEN"))
+        assert source.subject_tokens == []
+
+    def test_empty_token_from_source_raises(self):
+        # Reject it here rather than letting `Secret.from_token` raise a bare ValueError about an empty token.
+        resolver = OAuthTokenResolver(token_source=_FakeConfigSource(token=""))
+        with pytest.raises(TokenRefreshError):
+            resolver.run()
+
+    @pytest.mark.asyncio
+    async def test_empty_token_from_source_raises_async(self):
+        resolver = OAuthTokenResolver(token_source=_FakeConfigSource(token=""))
+        with pytest.raises(TokenRefreshError):
+            await resolver.run_async()
+
+
+class TestOAuthTokenResolverSecretOutput:
+    def test_emits_a_secret(self):
+        resolver = OAuthTokenResolver(token_source=_FakeConfigSource(token="eyJsecret"))
+        access_token = resolver.run()["access_token"]
+        assert isinstance(access_token, Secret)
+        assert access_token.resolve_value() == "eyJsecret"
+
+    @pytest.mark.parametrize("render", [repr, str])
+    def test_token_is_not_rendered_in_text(self, render):
+        # Guards the haystack-ai floor: TokenSecret only masks its repr from 2.31.0 on, and that mask is what
+        # keeps the token out of tracing spans, logs and tracebacks.
+        resolver = OAuthTokenResolver(token_source=_FakeConfigSource(token="eyJsecret"))
+        assert "eyJsecret" not in render(resolver.run()["access_token"])
+
+    def test_token_is_redacted_in_tracing_tags(self):
+        # The resolver output and the consumer input are both recorded verbatim as content-tracing tags.
+        resolver = OAuthTokenResolver(token_source=_FakeConfigSource(token="eyJsecret"))
+        assert "eyJsecret" not in str(coerce_tag_value(resolver.run()))
+
 
 class TestOAuthTokenResolverInPipeline:
     def test_config_resolver_is_source_node(self):
         pipe = Pipeline()
         pipe.add_component("oauth", OAuthTokenResolver(token_source=_FakeConfigSource(token="t")))
         out = pipe.run({})  # no inputs needed — config-only resolver is a source node
-        assert out["oauth"]["access_token"] == "t"
+        assert out["oauth"]["access_token"].resolve_value() == "t"
 
     def test_exchange_resolver_requires_subject_token_at_wire_time(self):
         pipe = Pipeline()
@@ -145,7 +210,14 @@ class TestOAuthTokenResolverInPipeline:
         with pytest.raises(ValueError):  # missing mandatory input, caught before any component runs
             pipe.run({})
         out = pipe.run({"oauth": {"subject_token": "user-jwt"}})
-        assert out["oauth"]["access_token"] == "t"
+        assert out["oauth"]["access_token"].resolve_value() == "t"
+
+    def test_connects_to_a_consumer_that_accepts_str_or_secret(self):
+        pipe = Pipeline()
+        pipe.add_component("oauth", OAuthTokenResolver(token_source=_FakeConfigSource(token="t")))
+        pipe.add_component("consumer", _FakeTokenConsumer())
+        pipe.connect("oauth.access_token", "consumer.access_token")
+        assert pipe.run({})["consumer"]["token"] == "t"
 
 
 class TestOAuthTokenResolverSerialization:
@@ -208,4 +280,4 @@ def test_run_against_real_idp():
             scopes=os.environ["OAUTH_SCOPES"].split() if os.environ.get("OAUTH_SCOPES") else None,
         ),
     )
-    assert resolver.run()["access_token"]
+    assert resolver.run()["access_token"].resolve_value()
