@@ -1269,8 +1269,7 @@ class TestIntegration:
         """
         initial_messages = [
             ChatMessage.from_user(
-                "Find the capital that hosted the Summer Olympics in both 1900 and 2024, "
-                "and check the weather there."
+                "Find the capital that hosted the Summer Olympics in both 1900 and 2024, and check the weather there."
             )
         ]
         component = AnthropicChatGenerator(
