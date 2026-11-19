@@ -137,8 +137,8 @@ class MSSharePointFetcher:
         """
         Fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
 
-        :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched,
-            typically wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
+        :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched, typically
+            wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
         :param targets: The items to fetch, as either `Document`s emitted by `MSSharePointRetriever` or raw
             SharePoint/OneDrive `web_url` strings (the two may also be mixed in one list). For a `Document`, the
             `web_url` in its meta is fetched and `file_name`, `mime_type`, `entity_type`, and the SharePoint IDs
@@ -170,8 +170,8 @@ class MSSharePointFetcher:
         """
         Asynchronously fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
 
-        :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched,
-            typically wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
+        :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched, typically
+            wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
         :param targets: The items to fetch, as either `Document`s emitted by `MSSharePointRetriever` or raw
             SharePoint/OneDrive `web_url` strings (the two may also be mixed in one list). For a `Document`, the
             `web_url` in its meta is fetched and `file_name`, `mime_type`, `entity_type`, and the SharePoint IDs
