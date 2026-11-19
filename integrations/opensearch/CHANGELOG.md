@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v9.1.0] - 2026-11-19
+
+### 🚀 Features
+
+- OpenSearch - add multivector support (#4291)
+
+
 ## [integrations/opensearch-v9.0.0] - 2026-10-16
 
 ### 🧪 Testing
