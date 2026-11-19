@@ -26,7 +26,7 @@ from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_to_dict(_mock_opensearch_client):
-    document_store = OpenSearchDocumentStore(hosts="some hosts")
+    document_store = OpenSearchDocumentStore(hosts="some hosts", multivector_embedding_dim=2)
     res = document_store.to_dict()
     assert res == {
         "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
@@ -38,6 +38,7 @@ def test_to_dict(_mock_opensearch_client):
                 "dynamic_templates": [{"strings": {"mapping": {"type": "keyword"}, "match_mapping_type": "string"}}],
                 "properties": {
                     "content": {"type": "text"},
+                    "multivector_embedding": {"type": "object", "enabled": False},
                     "embedding": {"dimension": 768, "index": True, "type": "knn_vector"},
                 },
             },
@@ -54,6 +55,7 @@ def test_to_dict(_mock_opensearch_client):
             "verify_certs": None,
             "timeout": None,
             "nested_fields": None,
+            "multivector_embedding_dim": 2,
         },
     }
 
@@ -77,6 +79,7 @@ def test_from_dict(_mock_opensearch_client):
             "index": "default",
             "max_chunk_bytes": 1000,
             "embedding_dim": 1536,
+            "multivector_embedding_dim": 2,
             "create_index": False,
             "return_embedding": True,
             "aws_service": "es",
@@ -91,10 +94,12 @@ def test_from_dict(_mock_opensearch_client):
     assert document_store._index == "default"
     assert document_store._max_chunk_bytes == 1000
     assert document_store._embedding_dim == 1536
+    assert document_store._multivector_embedding_dim == 2
     assert document_store._method is None
     assert document_store._mappings == {
         "properties": {
             "embedding": {"type": "knn_vector", "index": True, "dimension": 1536},
+            "multivector_embedding": {"type": "object", "enabled": False},
             "content": {"type": "text"},
         },
         "dynamic_templates": [
@@ -169,15 +174,52 @@ def test_init_is_lazy(_mock_opensearch_client):
     _mock_opensearch_client.assert_not_called()
 
 
+def test_init_invalid_multivector_embedding_dim():
+    with pytest.raises(ValueError, match="multivector_embedding_dim must be greater than zero"):
+        OpenSearchDocumentStore(multivector_embedding_dim=0)
+
+
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_get_default_mappings(_mock_opensearch_client):
     store = OpenSearchDocumentStore(hosts="testhost", embedding_dim=1536, method={"name": "hnsw"})
+    assert "multivector_embedding" not in store._mappings["properties"]
     assert store._mappings["properties"]["embedding"] == {
         "type": "knn_vector",
         "index": True,
         "dimension": 1536,
         "method": {"name": "hnsw"},
     }
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_create_index_with_multivector_embedding_dim(mock_client):
+    store = OpenSearchDocumentStore(multivector_embedding_dim=2, create_index=False)
+    indices = mock_client.return_value.indices
+    indices.exists.return_value = False
+
+    store.create_index(index="documents")
+
+    request = indices.create.call_args.kwargs
+    assert request["index"] == "documents"
+    assert request["body"]["mappings"]["properties"]["multivector_embedding"] == {"type": "object", "enabled": False}
+
+
+def test_create_index_rejects_disabled_source_for_multivectors():
+    store = OpenSearchDocumentStore(multivector_embedding_dim=2)
+    mappings = {**store._mappings, "_source": {"enabled": False}}
+
+    with pytest.raises(ValueError, match="requires the original document data"):
+        store.create_index(mappings=mappings)
+
+
+@pytest.mark.parametrize("multivector_embedding_dim", [None, 3])
+def test_write_documents_requires_matching_multivector_embedding_dim(multivector_embedding_dim):
+    store = OpenSearchDocumentStore(multivector_embedding_dim=multivector_embedding_dim)
+    store._client = MagicMock()
+    document = Document(multivector_embedding=[[1.0, 0.0]])
+
+    with pytest.raises(ValueError, match="multivector_embedding_dim"):
+        store.write_documents([document])
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -296,6 +338,30 @@ def test_bm25_retrieval_reraises_other_transport_errors(_mock_opensearch_client)
         store._bm25_retrieval("some query", fuzziness="AUTO")
 
     assert store._client.search.call_count == 1
+
+
+def test_embedding_retrieval_excludes_embeddings_from_source_by_default():
+    store = OpenSearchDocumentStore(multivector_embedding_dim=2)
+    store._client = MagicMock()
+    store._client.search.return_value = {"hits": {"hits": []}}
+
+    store._embedding_retrieval(query_embedding=[1.0, 0.0])
+
+    body = store._client.search.call_args.kwargs["body"]
+    assert body["_source"]["excludes"] == ["embedding", "multivector_embedding"]
+
+
+@pytest.mark.parametrize("query_embedding", [[], [[1.0, 0.0], [1.0]]])
+def test_prepare_multivector_search_request_invalid_embedding(query_embedding):
+    store = OpenSearchDocumentStore(multivector_embedding_dim=2)
+    with pytest.raises(ValueError, match="non-empty and match multivector_embedding_dim"):
+        store._prepare_multivector_search_request(query_embedding, filters=None, top_k=1)
+
+
+def test_prepare_multivector_search_request_invalid_top_k():
+    store = OpenSearchDocumentStore(multivector_embedding_dim=2)
+    with pytest.raises(ValueError, match="top_k"):
+        store._prepare_multivector_search_request([[1.0, 0.0]], filters=None, top_k=0)
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -552,6 +618,15 @@ def test_ensure_index_exists_direct_index(_mock_opensearch_client):
     mock_client.indices.exists.assert_called_once_with(index="my-index")
     mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
     mock_client.indices.create.assert_not_called()
+
+
+def test_ensure_index_exists_rejects_missing_multivector_mapping():
+    store = OpenSearchDocumentStore(index="existing", multivector_embedding_dim=2)
+    store._client = MagicMock()
+    store._client.indices.get_mapping.return_value = {"existing": {"mappings": {"properties": {}}}}
+
+    with pytest.raises(ValueError, match="not configured for multivector embeddings"):
+        store._ensure_index_exists()
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -857,6 +932,19 @@ class TestDocumentStore(
         assert results[0].content == "Most similar document"
         assert results[1].content == "2nd best document"
 
+    def test_multivector_retrieval(self, opensearch_store):
+        store = opensearch_store(multivector_embedding_dim=2, return_embedding=True)
+        documents = [
+            Document(id="a", multivector_embedding=[[1.0, 0.0], [0.0, 1.0]]),
+            Document(id="b", multivector_embedding=[[0.5, 0.0]]),
+            Document(id="missing"),
+        ]
+        store.write_documents(documents)
+        result = store._multivector_retrieval([[1.0, 0.0], [0.0, 1.0]])
+        assert [doc.id for doc in result] == ["a", "b"]
+        assert [doc.score for doc in result] == pytest.approx([4.0, 2.5])
+        assert result[0].multivector_embedding == documents[0].multivector_embedding
+
     def test_embedding_retrieval_with_filters(
         self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
     ):
@@ -990,20 +1078,17 @@ class TestDocumentStore(
 
         assert mock_bulk.call_args.kwargs["max_chunk_bytes"] == DEFAULT_MAX_CHUNK_BYTES
 
-    def test_embedding_retrieval_but_dont_return_embeddings_for_embedding_retrieval(
-        self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
-    ):
-        docs = [
-            Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
-            Document(content="2nd best document", embedding=[0.8, 0.8, 0.8, 1.0]),
-            Document(content="Not very similar document", embedding=[0.0, 0.8, 0.3, 0.9]),
-        ]
-        document_store_embedding_dim_4_no_emb_returned.write_documents(docs)
-        results = document_store_embedding_dim_4_no_emb_returned._embedding_retrieval(
-            query_embedding=[0.1, 0.1, 0.1, 0.1], top_k=2, filters={}
-        )
-        assert len(results) == 2
-        assert results[0].embedding is None
+    @pytest.mark.parametrize("return_embedding", [False, True])
+    def test_embedding_retrieval_respects_return_embedding(self, opensearch_store, return_embedding):
+        store = opensearch_store(embedding_dim=2, multivector_embedding_dim=2, return_embedding=return_embedding)
+        document = Document(embedding=[1.0, 0.0], multivector_embedding=[[1.0, 0.0], [0.0, 1.0]])
+        store.write_documents([document])
+
+        (result,) = store._embedding_retrieval(query_embedding=[1.0, 0.0])
+
+        assert result.id == document.id
+        assert result.embedding == (document.embedding if return_embedding else None)
+        assert result.multivector_embedding == (document.multivector_embedding if return_embedding else None)
 
     def test_embedding_retrieval_but_dont_return_embeddings_for_bm25_retrieval(
         self, document_store_embedding_dim_4_no_emb_returned: OpenSearchDocumentStore
@@ -1686,8 +1771,9 @@ class TestDocumentStore(
         finally:
             client.indices.delete_alias(index=document_store._index, name=alias_name)
 
-    def test_get_metadata_fields_info_with_alias(self, document_store: OpenSearchDocumentStore):
+    def test_get_metadata_fields_info_with_alias(self, opensearch_store):
         """get_metadata_fields_info reads the mapping via alias without KeyError."""
+        document_store = opensearch_store(multivector_embedding_dim=2)
         alias_name = f"alias_mfi_{document_store._index}"
         client = document_store._client
         client.indices.put_alias(index=document_store._index, name=alias_name)
@@ -1703,6 +1789,7 @@ class TestDocumentStore(
             alias_store.write_documents([Document(content="doc", meta={"category": "A", "count": 1})])
 
             fields_info = alias_store.get_metadata_fields_info()
+            assert "multivector_embedding" not in fields_info
             assert "category" in fields_info
             assert fields_info["category"]["type"] == "keyword"
             assert "count" in fields_info
