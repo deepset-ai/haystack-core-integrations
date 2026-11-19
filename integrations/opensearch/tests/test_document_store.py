@@ -1843,6 +1843,47 @@ class TestDocumentStore(
 
         assert sorted(doc.meta["price"] for doc in result) == expected_prices
 
+    @pytest.mark.parametrize(
+        ("operator", "value", "expected"),
+        [
+            ("==", "A Foo Document", ["A Foo Document"]),
+            ("!=", "A Foo Document", ["Another Bar Text", "Document about Foo, a guide"]),
+            ("in", ["A Foo Document", "missing text"], ["A Foo Document"]),
+            ("not in", ["A Foo Document"], ["Another Bar Text", "Document about Foo, a guide"]),
+            ("in", [], []),
+            ("not in", [], ["A Foo Document", "Another Bar Text", "Document about Foo, a guide"]),
+            # Documented limitation: a phrase inside a longer content also matches
+            ("==", "Foo Document", ["A Foo Document"]),
+        ],
+        ids=["eq", "ne", "in", "not_in", "in_empty", "not_in_empty", "eq_partial_phrase"],
+    )
+    def test_filter_documents_on_multi_word_content(
+        self, document_store: OpenSearchDocumentStore, operator, value, expected
+    ):
+        # `content` is an analyzed text field, so a term query would never match a value of more than one word.
+        # The last document has the same words as "A Foo Document" in another order, so it must not match it.
+        document_store.write_documents(
+            [
+                Document(content="A Foo Document"),
+                Document(content="Another Bar Text"),
+                Document(content="Document about Foo, a guide"),
+            ]
+        )
+
+        result = document_store.filter_documents(filters={"field": "content", "operator": operator, "value": value})
+
+        assert sorted(doc.content for doc in result) == expected
+
+    def test_delete_by_filter_content_in_empty_list_deletes_nothing(self, document_store: OpenSearchDocumentStore):
+        document_store.write_documents([Document(content="A Foo Document"), Document(content="Another Bar Text")])
+
+        deleted = document_store.delete_by_filter(
+            filters={"field": "content", "operator": "in", "value": []}, refresh=True
+        )
+
+        assert deleted == 0
+        assert document_store.count_documents() == 2
+
     def test_filter_documents_same_field_date_ranges_keep_every_bound(self, document_store: OpenSearchDocumentStore):
         # the shape FilterPolicy.MERGE produces from init filters and runtime filters on the same field
         document_store.write_documents(
