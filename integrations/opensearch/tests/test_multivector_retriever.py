@@ -30,13 +30,21 @@ def test_init_invalid_top_k():
 
 def test_to_dict():
     store = OpenSearchDocumentStore(multivector_embedding_dim=2, return_embedding=True)
-    retriever = OpenSearchMultivectorEmbeddingRetriever(document_store=store, top_k=3, filter_policy="merge")
+    retriever = OpenSearchMultivectorEmbeddingRetriever(
+        document_store=store, top_k=3, filter_policy="merge", raise_on_failure=False
+    )
     assert retriever.to_dict() == {
         "type": (
             "haystack_integrations.components.retrievers.opensearch.multivector_retriever."
             "OpenSearchMultivectorEmbeddingRetriever"
         ),
-        "init_parameters": {"document_store": store.to_dict(), "filters": {}, "top_k": 3, "filter_policy": "merge"},
+        "init_parameters": {
+            "document_store": store.to_dict(),
+            "filters": {},
+            "top_k": 3,
+            "filter_policy": "merge",
+            "raise_on_failure": False,
+        },
     }
 
 
@@ -54,9 +62,11 @@ def test_from_dict():
             "filters": {},
             "top_k": 3,
             "filter_policy": "merge",
+            "raise_on_failure": False,
         },
     }
     restored = OpenSearchMultivectorEmbeddingRetriever.from_dict(data)
+    assert restored._raise_on_failure is False
     assert restored._top_k == 3
     assert restored._filter_policy.value == "merge"
     assert restored._document_store._multivector_embedding_dim == 2
@@ -105,6 +115,21 @@ def test_run():
     assert {"term": {"page": 2}} in conditions
 
 
+@pytest.mark.parametrize("raise_on_failure", [True, False])
+def test_run_raise_on_failure(raise_on_failure, caplog):
+    store = Mock(spec=OpenSearchDocumentStore, _multivector_embedding_dim=2)
+    store._multivector_retrieval.side_effect = RuntimeError("Search failed")
+    retriever = OpenSearchMultivectorEmbeddingRetriever(document_store=store, raise_on_failure=raise_on_failure)
+
+    if raise_on_failure:
+        with pytest.raises(RuntimeError, match="Search failed"):
+            retriever.run(query_multivector_embedding=[[1.0, 0.0]])
+    else:
+        result = retriever.run(query_multivector_embedding=[[1.0, 0.0]])
+        assert result["documents"] == []
+        assert "Search failed" in caplog.text
+
+
 def test_run_with_runtime_document_store():
     initial_store = Mock(spec=OpenSearchDocumentStore, _multivector_embedding_dim=2)
     runtime_store = Mock(spec=OpenSearchDocumentStore, _multivector_embedding_dim=2)
@@ -125,3 +150,19 @@ async def test_run_async():
     retriever = OpenSearchMultivectorEmbeddingRetriever(document_store=store)
     result = await retriever.run_async(query_multivector_embedding=[[1.0, 0.0]])
     assert result["documents"] == [Document(id="match", score=2.0)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raise_on_failure", [True, False])
+async def test_run_async_raise_on_failure(raise_on_failure, caplog):
+    store = Mock(spec=OpenSearchDocumentStore, _multivector_embedding_dim=2)
+    store._multivector_retrieval_async.side_effect = RuntimeError("Search failed")
+    retriever = OpenSearchMultivectorEmbeddingRetriever(document_store=store, raise_on_failure=raise_on_failure)
+
+    if raise_on_failure:
+        with pytest.raises(RuntimeError, match="Search failed"):
+            await retriever.run_async(query_multivector_embedding=[[1.0, 0.0]])
+    else:
+        result = await retriever.run_async(query_multivector_embedding=[[1.0, 0.0]])
+        assert result["documents"] == []
+        assert "Search failed" in caplog.text

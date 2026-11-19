@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
@@ -12,6 +12,8 @@ from haystack.document_stores.types.filter_policy import apply_filter_policy
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 from .utils import _resolve_document_store
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -51,6 +53,7 @@ class OpenSearchMultivectorEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
+        raise_on_failure: bool = True,
     ) -> None:
         """
         Create the OpenSearchMultivectorEmbeddingRetriever component.
@@ -63,6 +66,7 @@ class OpenSearchMultivectorEmbeddingRetriever:
         :param filter_policy: Policy to determine how filters are applied. Possible options:
         - `merge`: Runtime filters are merged with initialization filters.
         - `replace`: Runtime filters replace initialization filters. Use this policy to change the filtering scope.
+        :param raise_on_failure: Whether to raise retrieval errors. If False, logs a warning and returns an empty list.
 
         :raises TypeError: `document_store` is not an instance of `OpenSearchDocumentStore`.
         :raises ValueError: Multivector support is disabled, `top_k` is not positive, or the filter policy is invalid.
@@ -78,6 +82,7 @@ class OpenSearchMultivectorEmbeddingRetriever:
             raise ValueError(msg)
         self._document_store = document_store
         self._filters = filters or {}
+        self._raise_on_failure = raise_on_failure
         self._top_k = top_k
         self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
@@ -94,6 +99,7 @@ class OpenSearchMultivectorEmbeddingRetriever:
             filters=self._filters,
             top_k=self._top_k,
             filter_policy=self._filter_policy.value,
+            raise_on_failure=self._raise_on_failure,
         )
 
     @classmethod
@@ -148,15 +154,27 @@ class OpenSearchMultivectorEmbeddingRetriever:
             Dictionary with key "documents" containing the retrieved Documents.
             - documents: List of Documents sorted by descending native OpenSearch score.
 
-        :raises ValueError: Multivector support is disabled, the embedding is empty or has an incompatible dimension,
-            `top_k` is not positive, or the runtime document store is invalid.
+        :raises ValueError: The runtime document store is invalid, or `raise_on_failure` is True and the embedding,
+            multivector configuration, or `top_k` is invalid.
         """
         store = _resolve_document_store(document_store, self._document_store)
-        documents = store._multivector_retrieval(
-            query_multivector_embedding=query_multivector_embedding,
-            filters=apply_filter_policy(self._filter_policy, self._filters, filters),
-            top_k=self._top_k if top_k is None else top_k,
-        )
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        try:
+            documents = store._multivector_retrieval(
+                query_multivector_embedding=query_multivector_embedding,
+                filters=filters,
+                top_k=self._top_k if top_k is None else top_k,
+            )
+        except Exception as error:
+            if self._raise_on_failure:
+                raise
+            logger.warning(
+                "An error during multivector retrieval occurred and will be ignored by returning empty results: "
+                "{error}",
+                error=str(error),
+                exc_info=True,
+            )
+            documents = []
         return {"documents": documents}
 
     @component.output_types(documents=list[Document])
@@ -183,13 +201,25 @@ class OpenSearchMultivectorEmbeddingRetriever:
             Dictionary with key "documents" containing the retrieved Documents.
             - documents: List of Documents sorted by descending native OpenSearch score.
 
-        :raises ValueError: Multivector support is disabled, the embedding is empty or has an incompatible dimension,
-            `top_k` is not positive, or the runtime document store is invalid.
+        :raises ValueError: The runtime document store is invalid, or `raise_on_failure` is True and the embedding,
+            multivector configuration, or `top_k` is invalid.
         """
         store = _resolve_document_store(document_store, self._document_store)
-        documents = await store._multivector_retrieval_async(
-            query_multivector_embedding=query_multivector_embedding,
-            filters=apply_filter_policy(self._filter_policy, self._filters, filters),
-            top_k=self._top_k if top_k is None else top_k,
-        )
+        filters = apply_filter_policy(self._filter_policy, self._filters, filters)
+        try:
+            documents = await store._multivector_retrieval_async(
+                query_multivector_embedding=query_multivector_embedding,
+                filters=filters,
+                top_k=self._top_k if top_k is None else top_k,
+            )
+        except Exception as error:
+            if self._raise_on_failure:
+                raise
+            logger.warning(
+                "An error during multivector retrieval occurred and will be ignored by returning empty results: "
+                "{error}",
+                error=str(error),
+                exc_info=True,
+            )
+            documents = []
         return {"documents": documents}

@@ -119,8 +119,8 @@ class OpenSearchDocumentStore:
         :param max_chunk_bytes: Maximum size of the requests in bytes. Defaults to 100MB
         :param embedding_dim: Dimension of the embeddings. Defaults to 768
         :param return_embedding:
-            Whether to return the embedding of the retrieved Documents. This parameter also applies to the
-            `filter_documents` and `filter_documents_async` methods.
+            Whether to return `embedding` and `multivector_embedding` on retrieved Documents. This also applies to
+            `filter_documents` and `filter_documents_async`.
         :param method: The method definition of the underlying configuration of the approximate k-NN algorithm. Please
             see the [official OpenSearch docs](https://opensearch.org/docs/latest/search-plugins/knn/knn-index/#method-definitions)
             for more information. Defaults to None
