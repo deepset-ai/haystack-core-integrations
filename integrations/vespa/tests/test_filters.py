@@ -58,6 +58,18 @@ class TestNormalizeFilters:
             ),
             ({"field": "meta.page", "operator": "in", "value": ["1", "2"]}, "content", 'page in ("1", "2")'),
             ({"field": "meta.page", "operator": "not in", "value": ["1"]}, "content", '!( page in ("1") )'),
+            # the content field is indexed as text, so each value is matched as a phrase with `contains`
+            (
+                {"field": "content", "operator": "in", "value": ["a b", "c"]},
+                "body",
+                '( body contains "a b" or body contains "c" )',
+            ),
+            ({"field": "content", "operator": "not in", "value": ["a b"]}, "body", '!( body contains "a b" )'),
+            ({"field": "content", "operator": "in", "value": []}, "content", "false"),
+            ({"field": "content", "operator": "not in", "value": []}, "content", "true"),
+            # YQL rejects an empty `in ()`, so empty lists become literals for every field
+            ({"field": "meta.page", "operator": "in", "value": []}, "content", "false"),
+            ({"field": "meta.page", "operator": "not in", "value": []}, "content", "true"),
             ({"field": "meta.name", "operator": "contains", "value": "foo"}, "content", 'name contains "foo"'),
             (
                 {"field": "meta.name", "operator": "not contains", "value": "foo"},
