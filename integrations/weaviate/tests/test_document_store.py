@@ -31,6 +31,7 @@ from haystack.utils.filters import document_matches_filter
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
+from weaviate.classes.query import TargetVectors
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig, ConnectionConfig, Proxies, Timeout
 from weaviate.connect import ConnectionParams, ProtocolParams
@@ -48,6 +49,72 @@ from haystack_integrations.document_stores.weaviate.document_store import (
     WeaviateDocumentStore,
     _integration_header_value,
 )
+
+
+@pytest.mark.parametrize("embedding", [None, [1.0, 0.0]])
+@pytest.mark.parametrize("multivector", [None, [[1.0, 0.0], [0.0, 1.0]]])
+def test_document_vector_mapping(embedding, multivector):
+    store = WeaviateDocumentStore()
+    doc = Document(id="1", content="test", embedding=embedding, multivector_embedding=multivector)
+    original = doc.to_dict()
+    vectors = store._document_vectors(doc)
+    expected = {}
+    if embedding is not None:
+        expected["default"] = embedding
+    if multivector is not None:
+        expected["multi_vector"] = multivector
+    assert vectors == (expected or None)
+    properties = store._to_data_object(doc)
+    assert "embedding" not in properties
+    assert "multivector_embedding" not in properties
+    assert store._to_document(DataObject(properties=properties, vector=vectors)) == doc
+    assert doc.to_dict() == original
+
+
+@pytest.mark.parametrize("hybrid", [False, True])
+def test_multivector_query_error_propagates(hybrid):
+    store = WeaviateDocumentStore()
+    store._collection = MagicMock()
+    query = store._collection.query
+    method = query.hybrid if hybrid else query.near_vector
+    method.side_effect = weaviate.exceptions.WeaviateQueryError("failure", "gRPC")
+    with pytest.raises(weaviate.exceptions.WeaviateQueryError, match="failure"):
+        if hybrid:
+            store._hybrid_retrieval("text", query_multivector_embedding=[[1.0]])
+        else:
+            store._multivector_embedding_retrieval([[1.0]])
+
+
+@pytest.mark.parametrize("weights", [None, {"default": 0.2, "multi_vector": 0.8}])
+def test_combined_hybrid_vectors(weights):
+    vector, target = WeaviateDocumentStore._prepare_hybrid_vectors([1.0], [[0.0]], weights)
+    assert vector == {"default": [1.0], "multi_vector": [[0.0]]}
+    assert target == TargetVectors.relative_score(weights or {"default": 0.5, "multi_vector": 0.5})
+
+
+@pytest.mark.parametrize("weights", [{}, {"wrong": 1.0}])
+def test_invalid_combined_hybrid_weights(weights):
+    with pytest.raises(ValueError, match="vector_weights"):
+        WeaviateDocumentStore._prepare_hybrid_vectors([1.0], [[0.0]], weights)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("policy", [DuplicatePolicy.OVERWRITE, DuplicatePolicy.FAIL])
+def test_multivector_write_roundtrip(multivector_document_store, policy):
+    store = multivector_document_store
+    docs = [
+        Document(
+            id="both", content="both vectors", embedding=[1.0, 0.0], multivector_embedding=[[1.0, 0.0], [0.0, 1.0]]
+        ),
+        Document(id="multi", content="token vectors", multivector_embedding=[[0.0, 1.0]]),
+        Document(id="dense", content="dense vector", embedding=[1.0, 0.0]),
+    ]
+    assert store.write_documents(docs, policy=policy) == 3
+    assert sorted(store.filter_documents(), key=lambda doc: doc.id) == sorted(docs, key=lambda doc: doc.id)
+    if policy == DuplicatePolicy.OVERWRITE:
+        changed = replace(docs[0], multivector_embedding=[[0.0, 1.0]])
+        store.write_documents([changed], policy=policy)
+        assert store.filter_documents({"field": "content", "operator": "==", "value": "both vectors"}) == [changed]
 
 
 @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
@@ -364,10 +431,10 @@ def test_handle_failed_objects_raises_document_store_error():
 
 def test_to_document_handles_vector_variants():
     data_no_vec = DataObject(properties={"_original_id": "1", "content": "x", "score": None}, vector=None)
-    assert WeaviateDocumentStore._to_document(data_no_vec).embedding is None
+    assert WeaviateDocumentStore()._to_document(data_no_vec).embedding is None
 
     data_list_vec = DataObject(properties={"_original_id": "2", "content": "y", "score": None}, vector=[0.1, 0.2])
-    assert WeaviateDocumentStore._to_document(data_list_vec).embedding == [0.1, 0.2]
+    assert WeaviateDocumentStore()._to_document(data_list_vec).embedding == [0.1, 0.2]
 
 
 def test_delete_by_filter_wraps_errors():
@@ -710,7 +777,7 @@ class TestWeaviateDocumentStoreSerde:
             vector={"default": [1, 2, 3]},
         )
 
-        doc = WeaviateDocumentStore._to_document(data)
+        doc = WeaviateDocumentStore()._to_document(data)
         assert doc.id == "123"
         assert doc.content == "some content"
         assert doc.blob == image

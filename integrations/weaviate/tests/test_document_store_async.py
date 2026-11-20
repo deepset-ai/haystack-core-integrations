@@ -10,9 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
+import weaviate
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import create_filterable_docs
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
@@ -34,6 +36,45 @@ from numpy import float32 as np_float32
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
+
+
+@pytest.mark.parametrize("hybrid", [False, True])
+async def test_multivector_query_error_propagates_async(hybrid):
+    store = WeaviateDocumentStore()
+    store._async_collection = AsyncMock()
+    query = store._async_collection.query
+    method = query.hybrid if hybrid else query.near_vector
+    method.side_effect = weaviate.exceptions.WeaviateQueryError("failure", "gRPC")
+    with pytest.raises(weaviate.exceptions.WeaviateQueryError, match="failure"):
+        if hybrid:
+            await store._hybrid_retrieval_async("text", query_multivector_embedding=[[1.0]])
+        else:
+            await store._multivector_embedding_retrieval_async([[1.0]])
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("policy", [DuplicatePolicy.OVERWRITE, DuplicatePolicy.FAIL])
+async def test_multivector_write_roundtrip_async(multivector_document_store, policy):
+    store = multivector_document_store
+    docs = [
+        Document(
+            id="both", content="both vectors", embedding=[1.0, 0.0], multivector_embedding=[[1.0, 0.0], [0.0, 1.0]]
+        ),
+        Document(id="multi", content="token vectors", multivector_embedding=[[0.0, 1.0]]),
+        Document(id="dense", content="dense vector", embedding=[1.0, 0.0]),
+    ]
+    try:
+        assert await store.write_documents_async(docs, policy=policy) == 3
+        assert sorted(await store.filter_documents_async(), key=lambda doc: doc.id) == sorted(
+            docs, key=lambda doc: doc.id
+        )
+        if policy == DuplicatePolicy.OVERWRITE:
+            changed = dataclasses.replace(docs[0], multivector_embedding=[[0.0, 1.0]])
+            await store.write_documents_async([changed], policy=policy)
+            filters = {"field": "content", "operator": "==", "value": "both vectors"}
+            assert await store.filter_documents_async(filters) == [changed]
+    finally:
+        await store.close_async()
 
 
 @pytest.mark.asyncio
