@@ -1785,10 +1785,12 @@ class QdrantDocumentStore:
         filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         return_embedding: bool = False,
+        prefetch: list[rest.Prefetch] | None = None,
     ) -> list[Document]:
         """
         Queries Qdrant using a multivector embedding and returns the most relevant documents.
 
+        :param prefetch: Optional candidate queries to restrict MaxSim scoring. Include filters in each prefetch.
         :param query_multivector_embedding: Multivector embedding of the query.
         :param filters: Filters applied to the retrieved documents.
         :param top_k: Maximum number of documents to return.
@@ -1815,6 +1817,7 @@ class QdrantDocumentStore:
                 collection_name=self.index,
                 query=query_multivector_embedding,
                 using=MULTIVECTOR_NAME,
+                prefetch=prefetch,
                 query_filter=qdrant_filters,
                 limit=top_k,
                 with_payload=True,
@@ -2094,10 +2097,12 @@ class QdrantDocumentStore:
         filters: dict[str, Any] | rest.Filter | None = None,
         top_k: int = 10,
         return_embedding: bool = False,
+        prefetch: list[rest.Prefetch] | None = None,
     ) -> list[Document]:
         """
         Asynchronously queries Qdrant using a multivector embedding and returns the most relevant documents.
 
+        :param prefetch: Optional candidate queries to restrict MaxSim scoring. Include filters in each prefetch.
         :param query_multivector_embedding: Multivector embedding of the query.
         :param filters: Filters applied to the retrieved documents.
         :param top_k: Maximum number of documents to return.
@@ -2124,6 +2129,7 @@ class QdrantDocumentStore:
                 collection_name=self.index,
                 query=query_multivector_embedding,
                 using=MULTIVECTOR_NAME,
+                prefetch=prefetch,
                 query_filter=qdrant_filters,
                 limit=top_k,
                 with_payload=True,
