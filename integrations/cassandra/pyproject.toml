@@ -1,0 +1,98 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cassandra-haystack"
+version = "0.1.0"
+description = "Cassandra Document Store integration for Haystack"
+readme = "README.md"
+license = {file = "LICENSE.txt"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Your Name", email = "you@example.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "haystack-ai>=2.28.0",
+    "cassandra-driver>=3.25.0,<4",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["haystack_integrations/"]
+
+[tool.hatch.envs.default]
+dependencies = [
+    "pytest",
+    "pytest-mock",
+]
+
+[tool.hatch.envs.unit]
+dependencies = [
+    "pytest",
+    "pytest-mock",
+]
+scripts = {test = "pytest tests/unit -v"}
+
+[tool.hatch.envs.integration]
+dependencies = [
+    "pytest",
+    "pytest-mock",
+]
+scripts = {test = "pytest tests/integration -v"}
+
+[tool.hatch.envs.all]
+dependencies = [
+    "pytest",
+    "pytest-mock",
+]
+scripts = {test = "pytest tests/ -v"}
+
+[tool.hatch.envs.types]
+dependencies = ["mypy"]
+scripts = {check = "mypy src/"}
+
+[tool.hatch.envs.fmt]
+dependencies = ["ruff"]
+scripts = {check = "ruff format --check src/ tests/", fix = "ruff format src/ tests/"}
+
+[tool.hatch.envs.docs]
+dependencies = ["mkdocs", "mkdocs-material", "mkdocstrings[python]"]
+scripts = {serve = "mkdocs serve", build = "mkdocs build"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+lint.select = [
+    "E", "F", "I", "W", "UP", "B", "C4", "PTH", "T20", "ARG", "ERA", "PD", "PGH", "PL", "TRY", "SIM", "NPY", "RSE", "RET", "ASYNC", "TCH", "INT", "DTZ", "EXE", "FURB", "LOG", "PIE", "PT", "TID", "FLY", "NPY", "PTH", "RUF"
+]
+lint.ignore = []
+format.quote-style = "single"
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = false

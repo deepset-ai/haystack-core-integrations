@@ -1,0 +1,1 @@
+# Haystack integrations package
