@@ -83,8 +83,8 @@ class SolrDocumentStore:
     Two things Solr cannot do:
 
     - `Document.sparse_embedding` is ignored, with a warning, because Solr has no sparse vector field.
-    - Comparing `content` with `==` is a phrase match against an analysed field rather than exact
-      string equality. Filter on a metadata field when exact matching matters.
+    - Filters on `content` with `==`, `!=`, `in` and `not in` are a phrase match against an analysed field
+      rather than exact string equality. Filter on a metadata field when exact matching matters.
     """
 
     def __init__(
@@ -490,7 +490,11 @@ class SolrDocumentStore:
           nobody meant.
         - Because the value's Python type selects the Solr field, `{"field": "meta.page", "value": 100}`
           and `{"field": "meta.page", "value": "100"}` match different documents.
-        - `==` on `content` is a phrase match against an analysed field, not exact equality.
+        - `==`, `!=`, `in` and `not in` on `content` don't test exact equality: they match documents whose
+          content contains the value as a phrase, that is, the same words in the same order and next to each
+          other, ignoring case and punctuation. For example, `==` with the value `"Foo Document"` matches a
+          document with the content `"A foo document."`, and `!=` excludes it. Filters are meant for metadata
+          fields; to search document text, use a retriever.
 
         :param filters: the filters to apply to the document list.
         :returns: a list of Documents that match the given filters.
@@ -751,6 +755,8 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
+            whose content only contains the value. See `filter_documents` for details.
         :returns: the number of documents deleted. The count is taken with a separate query before
             the delete is issued, so a concurrent write landing in between can make it differ from
             the number of documents the delete actually removes.
@@ -772,6 +778,8 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
+            whose content only contains the value. See `filter_documents` for details.
         :returns: the number of documents deleted. The count is taken with a separate query before
             the delete is issued, so a concurrent write landing in between can make it differ from
             the number of documents the delete actually removes.
@@ -804,6 +812,8 @@ class SolrDocumentStore:
         field whenever a metadata value changes Python type, since the type is part of the field name.
 
         :param filters: the filters selecting the documents to update.
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
+            whose content only contains the value. See `filter_documents` for details.
         :param meta: the metadata to merge into each matching document.
         :returns: the number of documents updated.
         """
@@ -822,6 +832,8 @@ class SolrDocumentStore:
         Merges `meta` into the metadata of every document matching `filters`.
 
         :param filters: the filters selecting the documents to update.
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
+            whose content only contains the value. See `filter_documents` for details.
         :param meta: the metadata to merge into each matching document.
         :returns: the number of documents updated.
         """
