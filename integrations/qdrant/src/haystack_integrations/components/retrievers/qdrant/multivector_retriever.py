@@ -23,8 +23,9 @@ class QdrantMultivectorEmbeddingRetriever:
 
     Documents are ranked by dot-product MaxSim. Documents without multivector embeddings are excluded.
     Direct retrieval scans the filtered documents and can be computationally expensive on large collections.
-    To limit MaxSim scoring to a smaller set of candidates, use `QdrantEmbeddingRetriever(return_embedding=True)`
-    followed by `MaxSimRanker`.
+    To limit server-side MaxSim scoring to dense and optional sparse candidates in a single query,
+    use `QdrantLateInteractionRetriever`. For client-side scoring, use
+    `QdrantEmbeddingRetriever(return_embedding=True)` followed by `MaxSimRanker`.
 
     ### Usage example
 
