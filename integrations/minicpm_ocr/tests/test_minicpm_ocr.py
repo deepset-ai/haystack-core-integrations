@@ -5,10 +5,12 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pypdfium2 as pdfium
 import pytest
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
+from PIL import Image
 
 from haystack_integrations.components.converters.minicpm_ocr import MiniCPMOCRDocumentConverter
 from haystack_integrations.components.converters.minicpm_ocr import converter as converter_module
@@ -20,6 +22,13 @@ def mock_ensure_layout_model(monkeypatch):
     mock = MagicMock()
     monkeypatch.setattr(converter_module, "ensure_layout_model", mock)
     return mock
+
+
+def make_pdf(path: Path, sizes: list[tuple[int, int]]) -> Path:
+    # PIL writes PDFs on its own, so the tests need no PDF library besides pypdfium2
+    pages = [Image.new("RGB", size, "white") for size in sizes]
+    pages[0].save(path, save_all=True, append_images=pages[1:], resolution=72)
+    return path
 
 
 def make_converter(**kwargs) -> MiniCPMOCRDocumentConverter:
@@ -260,11 +269,12 @@ class TestParse:
         converter = make_converter(backend="ollama", api_key=Secret.from_token("secret"), layout_device="cuda:0")
         converter.warm_up()
 
-        markdown, page_count = converter._parse(tmp_path / "input.pdf", tmp_path, "secret")
+        markdown, page_count = converter._parse(tmp_path / "input.png", tmp_path, "secret")
 
         assert (markdown, page_count) == ("page 1\fpage 2", 2)
         overrides = sdk["load_config"].call_args.kwargs["overrides"]
-        assert overrides["input"]["file_path"] == str(tmp_path / "input.pdf")
+        assert overrides["input"]["file_path"] == str(tmp_path / "input.png")
+        assert overrides["input"]["image_dir"] == ""
         assert overrides["run"]["run_root"] == str(tmp_path)
         assert overrides["layout"]["model_dir"] == str(Path.home() / ".cache" / "minicpm-ocr" / "layout")
         assert overrides["layout"]["device"] == "cuda:0"
@@ -282,10 +292,44 @@ class TestParse:
             "run_dir", {"prompts": {}}, merge_tables=False, delimiter="\f", cfg=config
         )
 
+    def test_parse_passes_pdf_pages_as_images(self, sdk, tmp_path):
+        converter = make_converter()
+        converter.warm_up()
+        pdf = make_pdf(tmp_path / "input.pdf", [(100, 200), (300, 150)])
+
+        converter._parse(pdf, tmp_path, None)
+
+        overrides = sdk["load_config"].call_args.kwargs["overrides"]
+        assert overrides["input"]["file_path"] == ""
+        pages_dir = Path(overrides["input"]["image_dir"])
+        assert pages_dir.parent == tmp_path
+        assert sorted(p.name for p in pages_dir.iterdir()) == ["page_00001.png", "page_00002.png"]
+
+    def test_parse_raises_on_invalid_pdf(self, sdk, tmp_path):
+        converter = make_converter()
+        converter.warm_up()
+        pdf = tmp_path / "input.pdf"
+        pdf.write_bytes(b"not a pdf")
+
+        with pytest.raises(pdfium.PdfiumError):
+            converter._parse(pdf, tmp_path, None)
+        sdk["infer_run"].assert_not_called()
+
     def test_parse_raises_when_no_pages(self, sdk, tmp_path):
         sdk["assemble_document_markdown"].return_value = ("", 0, 0)
         converter = make_converter()
         converter.warm_up()
 
         with pytest.raises(RuntimeError, match="did not produce any page"):
-            converter._parse(tmp_path / "input.pdf", tmp_path, None)
+            converter._parse(tmp_path / "input.png", tmp_path, None)
+
+
+def test_render_pdf_pages(tmp_path):
+    pdf = make_pdf(tmp_path / "input.pdf", [(100, 200), (300, 150)])
+
+    converter_module._render_pdf_pages(pdf, tmp_path / "pages")
+
+    rendered = sorted((tmp_path / "pages").iterdir())
+    assert [p.name for p in rendered] == ["page_00001.png", "page_00002.png"]
+    # pages are rendered at the SDK's 2x zoom, in page order
+    assert [Image.open(p).size for p in rendered] == [(200, 400), (600, 300)]
