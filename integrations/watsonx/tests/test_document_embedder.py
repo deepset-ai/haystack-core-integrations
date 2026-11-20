@@ -162,6 +162,45 @@ class TestRun:
         )
         assert prepared_text == ["prefix test\nThe food was delicious suffix"]
 
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            ({"field": 0}, "0\ncontent"),
+            ({"field": 0.0}, "0.0\ncontent"),
+            ({"field": False}, "False\ncontent"),
+            ({"field": ""}, "\ncontent"),
+            ({"field": "value"}, "value\ncontent"),
+            ({"field": None}, "content"),
+            ({}, "content"),
+        ],
+    )
+    def test_prepare_texts_to_embed_keeps_falsy_metadata(self, meta, expected):
+        """
+        Falsy metadata values such as 0 and False are embedded; only missing keys and None are skipped.
+        """
+        embedder = WatsonxDocumentEmbedder(
+            project_id=Secret.from_token("fake-project-id"),
+            meta_fields_to_embed=["field"],
+        )
+        document = Document(content="content", meta=meta)
+
+        assert embedder._prepare_texts_to_embed([document]) == [expected]
+
+    def test_run_embeds_falsy_metadata(self, mock_embeddings):
+        """
+        Falsy metadata values reach the model through run().
+        """
+        embedder = WatsonxDocumentEmbedder(
+            api_key=Secret.from_token("fake-api-key"),
+            project_id=Secret.from_token("fake-project-id"),
+            meta_fields_to_embed=["stock", "available"],
+        )
+        mock_embeddings.embed_documents.return_value = [[0.1, 0.2]]
+
+        embedder.run(documents=[Document(content="product", meta={"stock": 0, "available": False})])
+
+        mock_embeddings.embed_documents.assert_called_once_with(["0\nFalse\nproduct"])
+
     def test_run_wrong_input_format(self):
         embedder = WatsonxDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))
         with pytest.raises(TypeError, match=r"WatsonxDocumentEmbedder expects a list of Documents as input\."):
