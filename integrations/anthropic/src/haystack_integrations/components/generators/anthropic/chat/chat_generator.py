@@ -72,7 +72,6 @@ class AnthropicChatGenerator:
     generator = AnthropicChatGenerator(
         generation_kwargs={
             "max_tokens": 1000,
-            "temperature": 0.7,
         },
     )
 
@@ -126,6 +125,7 @@ class AnthropicChatGenerator:
         "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-opus-4-5-20251101",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
@@ -137,7 +137,7 @@ class AnthropicChatGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-sonnet-4-5",
+        model: str = "claude-sonnet-5-5",
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
@@ -174,6 +174,10 @@ class AnthropicChatGenerator:
             - `extra_headers`: A dictionary of extra headers to be passed to the model (i.e. for beta features).
             - `thinking`: A dictionary of thinking parameters to be passed to the model.
                 For more details and supported models, see: [Anthropic Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)
+            - `adaptive_thinking_effort`: Shortcut to enable adaptive thinking at the given effort level
+                (e.g. `"high"`). Pass `"disabled"` to turn thinking off. Supported effort levels and thinking types
+                vary by model, see
+                [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) and [Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking).
             - `output_config`: A dictionary of output configuration options to be passed to the model.
             - `cache_control`: A dictionary of cache control options to be passed to the model.
                 See [Prompt Caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
