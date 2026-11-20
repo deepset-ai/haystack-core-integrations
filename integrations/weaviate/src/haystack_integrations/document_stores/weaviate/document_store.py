@@ -19,6 +19,7 @@ from haystack.document_stores.types.policy import DuplicatePolicy
 from haystack.utils.misc import _normalize_metadata_field_name
 
 import weaviate
+from weaviate.classes.query import TargetVectors
 from weaviate.collections.classes.aggregate import (
     GroupByAggregate,
     Metrics,
@@ -27,6 +28,7 @@ from weaviate.collections.classes.aggregate import (
     _MetricsNumber,
 )
 from weaviate.collections.classes.batch import ErrorObject
+from weaviate.collections.classes.grpc import TargetVectorJoinType
 from weaviate.collections.classes.internal import Object
 from weaviate.collections.collection import Collection, CollectionAsync
 from weaviate.collections.iterator import _ObjectAIterator, _ObjectIterator
@@ -39,6 +41,9 @@ from ._filters import convert_filters, validate_filters
 from .auth import AuthCredentials
 
 logger = logging.getLogger(__name__)
+
+_DENSE_VECTOR = "default"
+_MULTIVECTOR = "multi_vector"
 
 # Weaviate tracks which framework integrations talk to it through this header, so that adoption of
 # weaviate-haystack shows up in Weaviate's own telemetry. See https://github.com/weaviate/weaviate/pull/10535.
@@ -170,6 +175,8 @@ class WeaviateDocumentStore:
             production use.
             See the official [Weaviate documentation](https://weaviate.io/developers/weaviate/manage-data/collections)
             for more information on collections and their properties.
+            Named-vector collections use `default` for dense embeddings and `multi_vector` for multivectors, with a
+            [multivector HNSW index](https://docs.weaviate.io/weaviate/tutorials/multi-vector-embeddings).
         :param auth_client_secret:
             Authentication credentials. Can be one of the following types depending on the authentication mode:
             - `AuthBearerToken` to use existing access and (optionally, but recommended) refresh tokens
@@ -913,13 +920,7 @@ class WeaviateDocumentStore:
                     id=data["_original_id"],
                 )
 
-        if data.pop("multivector_embedding", None):
-            logger.warning(
-                "Document {id} has the `multivector_embedding` field set, "
-                "but storing multivector embeddings in Weaviate is not currently supported. "
-                "The `multivector_embedding` field will be ignored.",
-                id=data["_original_id"],
-            )
+        del data["multivector_embedding"]
 
         return data
 
@@ -933,7 +934,8 @@ class WeaviateDocumentStore:
         if isinstance(data.vector, list):
             document_data["embedding"] = data.vector
         elif isinstance(data.vector, dict):
-            document_data["embedding"] = data.vector.get("default")
+            document_data["embedding"] = data.vector.get(_DENSE_VECTOR)
+            document_data["multivector_embedding"] = data.vector.get(_MULTIVECTOR)
         else:
             document_data["embedding"] = None
 
@@ -959,6 +961,9 @@ class WeaviateDocumentStore:
                 document_data["score"] = weaviate_meta.score
             elif weaviate_meta.certainty is not None:
                 document_data["score"] = weaviate_meta.certainty
+            elif weaviate_meta.distance is not None:
+                # MaxSim does not expose cosine certainty. Negate distance so higher scores are better.
+                document_data["score"] = -weaviate_meta.distance
 
         return Document.from_dict(document_data)
 
@@ -1112,6 +1117,15 @@ class WeaviateDocumentStore:
         )
         raise DocumentStoreError(msg)
 
+    @staticmethod
+    def _document_vectors(document: Document) -> VECTORS | None:
+        vectors: dict[str, list[float] | list[list[float]]] = {}
+        if document.embedding is not None:
+            vectors[_DENSE_VECTOR] = document.embedding
+        if document.multivector_embedding is not None:
+            vectors[_MULTIVECTOR] = document.multivector_embedding
+        return vectors or None
+
     def _batch_write(self, documents: list[Document]) -> int:
         """
         Writes document to Weaviate in batches.
@@ -1130,7 +1144,7 @@ class WeaviateDocumentStore:
                     properties=WeaviateDocumentStore._to_data_object(doc),
                     collection=self.collection.name,
                     uuid=generate_uuid5(doc.id),
-                    vector=doc.embedding,
+                    vector=self._document_vectors(doc),
                 )
         if failed_objects := self.client.batch.failed_objects:
             self._handle_failed_objects(failed_objects)
@@ -1158,7 +1172,7 @@ class WeaviateDocumentStore:
                     properties=WeaviateDocumentStore._to_data_object(doc),
                     collection=(await self.async_collection).name,
                     uuid=generate_uuid5(doc.id),
-                    vector=doc.embedding,
+                    vector=self._document_vectors(doc),
                 )
 
         if failed_objects := client.batch.failed_objects:
@@ -1191,7 +1205,7 @@ class WeaviateDocumentStore:
                 self.collection.data.insert(
                     uuid=generate_uuid5(doc.id),
                     properties=WeaviateDocumentStore._to_data_object(doc),
-                    vector=doc.embedding,
+                    vector=self._document_vectors(doc),
                 )
 
                 written += 1
@@ -1230,7 +1244,7 @@ class WeaviateDocumentStore:
                 await collection.data.insert(
                     uuid=generate_uuid5(doc.id),
                     properties=WeaviateDocumentStore._to_data_object(doc),
-                    vector=doc.embedding,
+                    vector=self._document_vectors(doc),
                 )
 
                 written += 1
@@ -1733,19 +1747,90 @@ class WeaviateDocumentStore:
 
         return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
 
+    def _multivector_embedding_retrieval(
+        self,
+        query_multivector_embedding: list[list[float]],
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        distance: float | None = None,
+    ) -> list[Document]:
+        result = self.collection.query.near_vector(
+            near_vector=query_multivector_embedding,
+            target_vector=_MULTIVECTOR,
+            distance=distance,
+            include_vector=True,
+            filters=convert_filters(filters) if filters else None,
+            limit=top_k,
+            return_properties=[p.name for p in self.collection.config.get().properties],
+            return_metadata=["distance"],
+        )
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
+
+    async def _multivector_embedding_retrieval_async(
+        self,
+        query_multivector_embedding: list[list[float]],
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+        distance: float | None = None,
+    ) -> list[Document]:
+        collection = await self.async_collection
+        result = await collection.query.near_vector(
+            near_vector=query_multivector_embedding,
+            target_vector=_MULTIVECTOR,
+            distance=distance,
+            include_vector=True,
+            filters=convert_filters(filters) if filters else None,
+            limit=top_k,
+            return_properties=[p.name for p in (await collection.config.get()).properties],
+            return_metadata=["distance"],
+        )
+        return [WeaviateDocumentStore._to_document(doc) for doc in result.objects]
+
+    @staticmethod
+    def _prepare_hybrid_vectors(
+        query_embedding: list[float] | None,
+        query_multivector_embedding: list[list[float]] | None,
+        vector_weights: dict[str, float] | None,
+    ) -> tuple[
+        list[float] | list[list[float]] | dict[str, list[float] | list[list[float]]],
+        TargetVectorJoinType | None,
+    ]:
+        if query_embedding is not None and query_multivector_embedding is not None:
+            vectors: dict[str, list[float] | list[list[float]]] = {
+                _DENSE_VECTOR: query_embedding,
+                _MULTIVECTOR: query_multivector_embedding,
+            }
+            weights = vector_weights if vector_weights is not None else {_DENSE_VECTOR: 0.5, _MULTIVECTOR: 0.5}
+            if set(weights) != set(vectors):
+                msg = "vector_weights must contain exactly 'default' and 'multi_vector'."
+                raise ValueError(msg)
+            return vectors, TargetVectors.relative_score(dict(weights))
+        if query_multivector_embedding is not None:
+            return query_multivector_embedding, _MULTIVECTOR
+        if query_embedding is None:
+            msg = "Provide query_embedding or query_multivector_embedding."
+            raise ValueError(msg)
+        return query_embedding, None
+
     def _hybrid_retrieval(
         self,
         query: str,
-        query_embedding: list[float],
+        query_embedding: list[float] | None = None,
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
         alpha: float = 0.7,
         max_vector_distance: float | None = None,
+        *,
+        query_multivector_embedding: list[list[float]] | None = None,
+        vector_weights: dict[str, float] | None = None,
     ) -> list[Document]:
-        properties = [p.name for p in self.collection.config.get().properties]
+        vector, target = self._prepare_hybrid_vectors(query_embedding, query_multivector_embedding, vector_weights)
+        config = self.collection.config.get()
+        properties = [p.name for p in config.properties]
         result = self.collection.query.hybrid(
             query=query,
-            vector=query_embedding,
+            vector=vector,
+            target_vector=target or (_DENSE_VECTOR if config.vector_config else None),
             alpha=alpha,
             filters=convert_filters(filters) if filters else None,
             limit=top_k,
@@ -1761,18 +1846,23 @@ class WeaviateDocumentStore:
     async def _hybrid_retrieval_async(
         self,
         query: str,
-        query_embedding: list[float],
+        query_embedding: list[float] | None = None,
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
         alpha: float = 0.7,
         max_vector_distance: float | None = None,
+        *,
+        query_multivector_embedding: list[list[float]] | None = None,
+        vector_weights: dict[str, float] | None = None,
     ) -> list[Document]:
+        vector, target = self._prepare_hybrid_vectors(query_embedding, query_multivector_embedding, vector_weights)
         collection = await self.async_collection
         config = await collection.config.get()
         properties = [p.name for p in config.properties]
         result = await collection.query.hybrid(
             query=query,
-            vector=query_embedding,
+            vector=vector,
+            target_vector=target or (_DENSE_VECTOR if config.vector_config else None),
             alpha=alpha,
             filters=convert_filters(filters) if filters else None,
             limit=top_k,
