@@ -31,6 +31,7 @@ from ollama import AsyncClient, ChatResponse, Client, ResponseError
 
 FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "stop": "stop",
+    "length": "length",
     "tool_calls": "tool_calls",
     # we skip load and unload reasons
 }
