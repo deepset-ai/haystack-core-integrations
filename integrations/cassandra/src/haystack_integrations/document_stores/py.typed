@@ -1,0 +1,2 @@
+# This file indicates that the package supports PEP 561 (typing standards)
+# and provides inline type hints.
