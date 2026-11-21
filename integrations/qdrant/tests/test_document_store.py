@@ -633,6 +633,24 @@ class TestQdrantDocumentStoreUnit:
 
         assert [doc.score for doc in result] == [expected_score]
 
+    @pytest.mark.parametrize("group_by", [None, "meta.group"])
+    def test_query_hybrid_sets_prefetch_limit(self, group_by):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        mock_client = MagicMock()
+        mock_client.query_points.return_value.points = []
+        mock_client.query_points_groups.return_value.groups = []
+        document_store._client = mock_client
+
+        document_store._query_hybrid(
+            query_embedding=[0.1] * 768,
+            query_sparse_embedding=SparseEmbedding(indices=[0], values=[0.1]),
+            group_by=group_by,
+            prefetch_limit=50,
+        )
+
+        client_method = mock_client.query_points_groups if group_by else mock_client.query_points
+        assert [prefetch.limit for prefetch in client_method.call_args.kwargs["prefetch"]] == [50, 50]
+
     def test_write_documents_progress_bar_counts_documents(self):
         document_store = QdrantDocumentStore(location=":memory:", write_batch_size=2)
         document_store._client = MagicMock()
@@ -773,6 +791,35 @@ class TestQdrantDocumentStore(
         for document in results:
             assert document.sparse_embedding
             assert document.embedding
+
+    def test_query_hybrid_prefetch_limit(self):
+        # The sparse and dense rankings are reversed, so their top 10 candidates don't overlap.
+        # In-memory mode applies the same default of 10 per prefetch as the server (non-grouped queries only).
+        document_store = QdrantDocumentStore(
+            location=":memory:", embedding_dim=2, use_sparse_embeddings=True, progress_bar=False
+        )
+        docs = [
+            Document(
+                content=f"doc {i}",
+                sparse_embedding=SparseEmbedding(indices=[0], values=[float(40 - i)]),
+                embedding=[float(i + 1), 1.0],
+            )
+            for i in range(40)
+        ]
+        document_store.write_documents(docs)
+
+        query_sparse_embedding = SparseEmbedding(indices=[0], values=[1.0])
+        query_embedding = [1.0, 0.0]
+
+        results = document_store._query_hybrid(
+            query_sparse_embedding=query_sparse_embedding, query_embedding=query_embedding, top_k=30
+        )
+        assert len(results) == 20
+
+        results = document_store._query_hybrid(
+            query_sparse_embedding=query_sparse_embedding, query_embedding=query_embedding, top_k=30, prefetch_limit=30
+        )
+        assert len(results) == 30
 
     def test_query_hybrid_fail_without_sparse_embedding(self, document_store):
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
