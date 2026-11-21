@@ -262,8 +262,11 @@ def _not_in(field: str, value: Any, field_type: str) -> str:
 
 def _escape_value(value: str) -> str:
     """Escape special characters in tag values for Redis Search."""
-    # Escape special Redis Search characters
+    # Escape special Redis Search characters. The backslash goes first so the escapes added below aren't doubled,
+    # and `|` is the tag union operator, so a raw one turns an exact match into a match on either side of it.
     special_chars = [
+        "\\",
+        "|",
         ",",
         ".",
         "<",

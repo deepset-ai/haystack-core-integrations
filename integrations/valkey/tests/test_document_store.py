@@ -383,6 +383,24 @@ class TestValkeyDocumentStore(
         # Results should be ordered by similarity
         assert results[0].id == "ne1"  # Closest to query
 
+    @pytest.mark.parametrize("value", ["sports|news", "back\\slash"], ids=["pipe", "backslash"])
+    def test_filter_documents_matches_tag_values_with_pipe_or_backslash(self, document_store, value):
+        docs = [
+            Document(id="t1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": value}),
+            Document(id="t2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "sports"}),
+            Document(id="t3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "news"}),
+        ]
+        document_store.write_documents(docs)
+
+        def ids(operator, filter_value):
+            filters = {"field": "meta.category", "operator": operator, "value": filter_value}
+            return sorted(doc.id for doc in document_store.filter_documents(filters))
+
+        assert ids("==", value) == ["t1"]
+        assert ids("!=", value) == ["t2", "t3"]
+        assert ids("in", [value]) == ["t1"]
+        assert ids("not in", [value]) == ["t2", "t3"]
+
     def test_search_by_embedding_with_range_filter(self, document_store):
         docs = [
             Document(id="r1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"timestamp": 100, "priority": 1}),
