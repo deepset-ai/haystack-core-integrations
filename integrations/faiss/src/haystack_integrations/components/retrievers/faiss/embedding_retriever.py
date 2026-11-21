@@ -128,7 +128,14 @@ class FAISSEmbeddingRetriever:
             - `documents`: List of `Document`s that are similar to `query_embedding`.
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
-        top_k = top_k or self.top_k
+        if top_k is None:
+            top_k = self.top_k
+        if top_k == 0:
+            # ``0`` is a meaningful override: it asks for no documents at all.
+            # It cannot be forwarded to the document store, which requires
+            # ``top_k > 0``, so return early instead of falling back to the
+            # value set at initialization.
+            return {"documents": []}
         docs = self.document_store.search(query_embedding=query_embedding, top_k=top_k, filters=filters)
         return {"documents": docs}
 
