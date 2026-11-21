@@ -37,6 +37,38 @@ def tools():
     return [weather]
 
 
+@pytest.fixture
+def tool_call_without_arguments_chunks():
+    # stream of qwen3:0.6b calling a tool that takes no parameters
+    return [
+        ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2026-11-21T20:33:23.135014Z",
+            done=False,
+            message=Message(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    Message.ToolCall(function=Message.ToolCall.Function(name="get_current_time", arguments={}))
+                ],
+            ),
+        ),
+        ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2026-11-21T20:33:23.143292Z",
+            done=True,
+            done_reason="stop",
+            total_duration=112582000,
+            load_duration=2502958,
+            prompt_eval_count=143,
+            prompt_eval_duration=18386000,
+            eval_count=17,
+            eval_duration=67910000,
+            message=Message(role="assistant", content=""),
+        ),
+    ]
+
+
 class TestUtils:
     def test_convert_chatmessage_to_ollama_format(self):
         message = ChatMessage.from_system("You are good assistant")
@@ -593,6 +625,49 @@ class TestUtils:
         assert result["replies"][0].tool_calls[1].tool_name == "weather"
         assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
         assert result["replies"][0].tool_calls[1].id is None
+
+    def test_handle_streaming_response_tool_call_without_arguments(self, tool_call_without_arguments_chunks):
+        streaming_chunks = []
+
+        generator = OllamaChatGenerator()
+        result = generator._handle_streaming_response(tool_call_without_arguments_chunks, streaming_chunks.append)
+
+        assert len(streaming_chunks) == 2
+        assert streaming_chunks[0].tool_calls[0].to_dict() == {
+            "index": 1,
+            "tool_name": "get_current_time",
+            "arguments": "{}",
+            "id": None,
+            "extra": None,
+        }
+        assert len(streaming_chunks[1].tool_calls) == 0
+        assert streaming_chunks[1].finish_reason == "stop"
+
+        assert result["replies"][0].text is None
+        assert result["replies"][0].tool_calls == [ToolCall(tool_name="get_current_time", arguments={})]
+        assert result["replies"][0].meta["finish_reason"] == "stop"
+        assert result["replies"][0].meta["usage"] == {
+            "completion_tokens": 17,
+            "prompt_tokens": 143,
+            "total_tokens": 160,
+        }
+
+    @pytest.mark.asyncio
+    async def test_handle_streaming_response_async_tool_call_without_arguments(
+        self, tool_call_without_arguments_chunks
+    ):
+        async def async_chunks():
+            for chunk in tool_call_without_arguments_chunks:
+                yield chunk
+
+        streaming_chunks = []
+
+        generator = OllamaChatGenerator()
+        result = await generator._handle_streaming_response_async(async_chunks(), streaming_chunks.append)
+
+        assert len(streaming_chunks) == 2
+        assert streaming_chunks[0].tool_calls[0].arguments == "{}"
+        assert result["replies"][0].tool_calls == [ToolCall(tool_name="get_current_time", arguments={})]
 
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
