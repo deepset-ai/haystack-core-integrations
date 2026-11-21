@@ -2,8 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import subprocess
+import sys
+from contextlib import suppress
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -12,8 +16,10 @@ import pytest
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.libreoffice import LibreOfficeFileConverter
+from haystack_integrations.components.converters.libreoffice.converter import _reap_conversion_process
 
 TYPE = "haystack_integrations.components.converters.libreoffice.converter.LibreOfficeFileConverter"
+CONVERTER_MODULE = "haystack_integrations.components.converters.libreoffice.converter"
 
 
 def _converted_to(args: list[str]) -> str:
@@ -186,6 +192,100 @@ class TestConvert:
 
         with pytest.raises(subprocess.CalledProcessError):
             await _convert(mock_converter, is_async, [source], output_file_type="pdf")
+
+
+class TestAsyncCancellation:
+    """Cancelling `run_async` must reap the soffice child before its workspace disappears."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("as_bytestream", [False, True], ids=["path", "bytestream"])
+    @pytest.mark.parametrize("cancel_again", [False, True], ids=["once", "again"])
+    async def test_cancelling_reaps_the_child_before_removing_its_workspace(
+        self,
+        mock_converter: LibreOfficeFileConverter,
+        tmp_path: Path,
+        as_bytestream: bool,
+        cancel_again: bool,
+    ) -> None:
+        # A real interpreter process stands in for soffice and blocks until it is killed.
+        # No LibreOffice binary is involved.
+        started = asyncio.Event()
+        children: list[asyncio.subprocess.Process] = []
+        tasks: list[asyncio.Task[Any]] = []
+        reaped_before_cleanup: list[bool] = []
+        workspaces: list[str] = []
+
+        async def launch(*_args: str) -> asyncio.subprocess.Process:
+            child = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                "import time; time.sleep(3600)",
+            )
+            if cancel_again:
+                original_kill = child.kill
+
+                def kill() -> None:
+                    original_kill()
+                    # Second cancellation arrives while the coroutine is reaping the child,
+                    # which is the case that drops an unshielded `process.wait()`.
+                    tasks[0].cancel()
+
+                child.kill = kill  # type: ignore[method-assign]
+            children.append(child)
+            started.set()
+            return child
+
+        class _Workspace(TemporaryDirectory):
+            def __enter__(self) -> str:
+                path = super().__enter__()
+                workspaces.append(path)
+                return path
+
+            def __exit__(self, *args: object) -> bool | None:
+                # Cleanup is the moment the workspace goes away; the child must already be gone.
+                reaped_before_cleanup.append(bool(children) and children[0].returncode is not None)
+                return super().__exit__(*args)
+
+        path = tmp_path / "sample.doc"
+        path.write_bytes(b"doc")
+        source: Path | ByteStream = ByteStream(data=b"raw doc bytes") if as_bytestream else path
+
+        with (
+            patch(f"{CONVERTER_MODULE}.create_subprocess_exec", side_effect=launch),
+            patch(f"{CONVERTER_MODULE}.TemporaryDirectory", _Workspace),
+        ):
+            task = asyncio.create_task(mock_converter.run_async([source], output_file_type="pdf"))
+            tasks.append(task)
+            await started.wait()
+            task.cancel()
+            try:
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+                assert reaped_before_cleanup == [True]
+                assert children[0].returncode is not None
+                assert workspaces and not Path(workspaces[0]).exists()
+            finally:
+                # If the converter leaked the child, don't leave the sleeper behind.
+                if children and children[0].returncode is None:
+                    with suppress(ProcessLookupError):
+                        children[0].kill()
+                    await children[0].wait()
+
+    @pytest.mark.asyncio
+    async def test_reap_leaves_a_child_that_has_already_exited(self) -> None:
+        # Cancellation can arrive after the child has already been reaped. That path
+        # must return without waiting again.
+        child = await asyncio.create_subprocess_exec(sys.executable, "-c", "import sys; sys.exit(0)")
+        await child.wait()
+        assert child.returncode == 0
+
+        async def wait() -> int:
+            msg = "already exited"
+            raise AssertionError(msg)
+
+        child.wait = wait  # type: ignore[method-assign]
+        await _reap_conversion_process(child)
+        assert child.returncode == 0
 
 
 class TestResolveMimeType:
