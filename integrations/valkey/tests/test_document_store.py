@@ -4,6 +4,7 @@
 
 # ruff: noqa: S110
 
+import json
 import struct
 from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -536,6 +537,24 @@ class TestValkeyDocumentStore(
         assert len(results) == 2
         assert {doc.id for doc in results} == {"nf1", "nf2"}
 
+    def test_filter_documents_returns_every_document_past_the_knn_limit(self, document_store):
+        # Documents without an embedding all share the same dummy vector, so a KNN-based listing
+        # returned only part of them, and raised once the store held more than 10000 documents.
+        total = 10_001
+        for start in range(0, total, 500):
+            document_store.write_documents(
+                [
+                    Document(id=str(i), content=f"doc {i}", meta={"category": "even" if i % 2 == 0 else "odd"})
+                    for i in range(start, min(start + 500, total))
+                ]
+            )
+
+        assert len(document_store.filter_documents()) == total
+
+        even = document_store.filter_documents({"field": "meta.category", "operator": "==", "value": "even"})
+        assert len(even) == 5001
+        assert all(doc.score is None for doc in even)
+
     def test_filter_documents_complex_nested(self, document_store):
         docs = [
             Document(id="c1", content="doc 1", meta={"category": "news", "priority": 1, "status": "active"}),
@@ -761,6 +780,25 @@ class TestValkeyDocumentStoreStaticMethods:
         """Test _parse_metric static method with invalid metric."""
         with pytest.raises(ValueError, match="Unsupported metric: invalid"):
             ValkeyDocumentStore._parse_metric("invalid")
+
+    def test_build_filter_query_and_options_without_filters(self):
+        query, options = ValkeyDocumentStore._build_filter_query_and_options(None, 42, supported_fields={})
+
+        assert "KNN" not in query
+        assert query == ValkeyDocumentStore._MATCH_ALL_QUERY
+        assert options.limit.count == 42
+        assert not options.params
+
+    def test_build_filter_query_and_options_with_filters(self):
+        query, options = ValkeyDocumentStore._build_filter_query_and_options(
+            {"field": "meta.category", "operator": "==", "value": "news"},
+            7,
+            supported_fields={"meta_category": "tag"},
+        )
+
+        assert "KNN" not in query
+        assert "@meta_category:{news}" in query
+        assert options.limit.count == 7
 
     def test_to_float32_bytes(self):
         """Test _to_float32_bytes static method."""
@@ -1387,6 +1425,75 @@ class TestValkeyDocumentStoreErrorPaths:
             }
             with pytest.raises(FilterError):
                 unit_store._embedding_retrieval([0.1, 0.2, 0.3], filters=bad_filters, limit=5)
+
+    @staticmethod
+    def _ft_search_result(*docs):
+        return [
+            len(docs),
+            {
+                f"unit_test:{doc['id']}".encode(): {
+                    b"payload": json.dumps(doc).encode(),
+                    b"vector": json.dumps([-10.0, -10.0, -10.0]).encode(),
+                }
+                for doc in docs
+            },
+        ]
+
+    def test_filter_documents_runs_a_filter_only_search(self, unit_store):
+        unit_store._client = MagicMock()
+        filters = {"field": "meta.category", "operator": "==", "value": "news"}
+        with (
+            patch.object(unit_store, "count_documents", return_value=2),
+            patch.object(ds_module, "sync_ft") as mock_ft,
+        ):
+            mock_ft.search.return_value = self._ft_search_result(
+                {"id": "a", "content": "doc a", "meta": {"category": "news"}, "score": 0.5},
+            )
+            documents = unit_store.filter_documents(filters)
+
+        _, index_name, query, options = mock_ft.search.call_args.args
+        assert index_name == "unit_test"
+        assert "KNN" not in query
+        assert "@meta_category:{news}" in query
+        assert options.limit.count == 2
+        assert [(doc.id, doc.score, doc.embedding) for doc in documents] == [("a", None, None)]
+
+    def test_filter_documents_skips_the_search_when_the_store_is_empty(self, unit_store):
+        unit_store._client = MagicMock()
+        with (
+            patch.object(unit_store, "count_documents", return_value=0),
+            patch.object(ds_module, "sync_ft") as mock_ft,
+        ):
+            assert unit_store.filter_documents() == []
+        mock_ft.search.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_runs_a_filter_only_search(self, unit_store):
+        search = AsyncMock(
+            return_value=self._ft_search_result({"id": "a", "content": "doc a", "meta": {}, "score": 0.5})
+        )
+        with (
+            patch.object(unit_store, "count_documents_async", AsyncMock(return_value=3)),
+            patch.object(unit_store, "_get_connection_async", AsyncMock(return_value=MagicMock())),
+            patch.object(ds_module.ft, "search", search),
+        ):
+            documents = await unit_store.filter_documents_async()
+
+        _, index_name, query, options = search.call_args.args
+        assert index_name == "unit_test"
+        assert query == ValkeyDocumentStore._MATCH_ALL_QUERY
+        assert options.limit.count == 3
+        assert [(doc.id, doc.score) for doc in documents] == [("a", None)]
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_skips_the_search_when_the_store_is_empty(self, unit_store):
+        search = AsyncMock()
+        with (
+            patch.object(unit_store, "count_documents_async", AsyncMock(return_value=0)),
+            patch.object(ds_module.ft, "search", search),
+        ):
+            assert await unit_store.filter_documents_async() == []
+        search.assert_not_called()
 
     def test_write_documents_empty_list_returns_zero(self, unit_store, caplog):
         assert unit_store.write_documents([]) == 0

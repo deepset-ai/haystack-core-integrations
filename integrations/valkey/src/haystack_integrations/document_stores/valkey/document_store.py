@@ -137,6 +137,7 @@ class ValkeyDocumentStore(DocumentStore):
         "ip": DistanceMetricType.IP,
     }
     _DUMMY_VALUE = -10.0
+    _MATCH_ALL_QUERY = "-@id:{__haystack_no_document_has_this_id__}"
 
     def __init__(
         self,
@@ -496,8 +497,7 @@ class ValkeyDocumentStore(DocumentStore):
         Filter documents by metadata without vector search.
 
         This method retrieves documents based on metadata filters without performing vector similarity search.
-        Since Valkey Search requires vector queries, this method uses a dummy vector internally and removes
-        the similarity scores from results.
+        It runs a filter-only search, so every matching document is returned.
 
         :param filters: Optional metadata filters in Haystack format. Supports filtering on:
             - meta.category (string equality)
@@ -524,13 +524,16 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
 
         try:
-            # Valkey only performs vector similarity search
-            # here we are querying with a dummy vector and the current number of documents as limit
             limit = self.count_documents()
-            documents = self._embedding_retrieval(self._dummy_vector, filters, limit)
+            if limit == 0:
+                return []
+            query, query_options = self._build_filter_query_and_options(
+                filters, limit, supported_fields=self._metadata_fields
+            )
+            results = sync_ft.search(self._get_connection(), self._index_name, query, query_options)
+            documents = self._parse_documents_from_ft(results, with_embedding=True)
 
             # when simply filtering, we don't want to return any scores
-            # furthermore, we are querying with a dummy vector, so the scores are meaningless
             docs_no_score = []
             for doc in documents:
                 docs_no_score.append(replace(doc, score=None))
@@ -548,8 +551,8 @@ class ValkeyDocumentStore(DocumentStore):
         Asynchronously filter documents by metadata without vector search.
 
         This is the async version of filter_documents(). It retrieves documents based on metadata filters
-        without performing vector similarity search. Since Valkey Search requires vector queries, this method
-        uses a dummy vector internally and removes the similarity scores from results.
+        without performing vector similarity search. It runs a filter-only search, so every matching document
+        is returned.
 
         :param filters: Optional metadata filters in Haystack format. Supports filtering on:
             - meta.category (string equality)
@@ -576,13 +579,17 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
 
         try:
-            # Valkey only performs vector similarity search
-            # here we are querying with a dummy vector and the max compatible limit
             limit = await self.count_documents_async()
-            documents = await self._embedding_retrieval_async(self._dummy_vector, filters, limit)
+            if limit == 0:
+                return []
+            query, query_options = self._build_filter_query_and_options(
+                filters, limit, supported_fields=self._metadata_fields
+            )
+            client = await self._get_connection_async()
+            results = await ft.search(client, self._index_name, query, query_options)
+            documents = self._parse_documents_from_ft(results, with_embedding=True)
 
             # when simply filtering, we don't want to return any scores
-            # furthermore, we are querying with a dummy vector, so the scores are meaningless
             docs_no_score = []
             for doc in documents:
                 docs_no_score.append(replace(doc, score=None))
@@ -1389,6 +1396,37 @@ class ValkeyDocumentStore(DocumentStore):
             documents.append(doc)
 
         return documents
+
+    @staticmethod
+    def _build_filter_query_and_options(
+        filters: dict[str, Any] | None,
+        limit: int,
+        *,
+        supported_fields: dict[str, str],
+    ) -> tuple[str, FtSearchOptions]:
+        """
+        Build a filter-only FT.SEARCH query that returns every matching document.
+
+        Listing documents with a KNN query is approximate (HNSW) and capped at `search.max-vector-knn`
+        (10000 by default), so documents can be silently dropped. A filter-only query has neither problem.
+        """
+        if filters:
+            _validate_filters(filters)
+            query = _normalize_filters(filters, supported_fields)
+        else:
+            # Valkey Search rejects "*" without a KNN clause; excluding an id that no document has matches them all.
+            query = ValkeyDocumentStore._MATCH_ALL_QUERY
+
+        return_fields = [
+            ReturnField("$.id", alias="id"),
+            ReturnField("$.payload", alias="payload"),
+            ReturnField("$.vector", alias="vector"),
+        ]
+        query_options = FtSearchOptions(
+            return_fields=return_fields,
+            limit=FtSearchLimit(offset=0, count=limit),
+        )
+        return query, query_options
 
     @staticmethod
     def _build_search_query_and_options(
