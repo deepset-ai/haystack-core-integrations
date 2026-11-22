@@ -666,8 +666,24 @@ class TestUtils:
         result = await generator._handle_streaming_response_async(async_chunks(), streaming_chunks.append)
 
         assert len(streaming_chunks) == 2
-        assert streaming_chunks[0].tool_calls[0].arguments == "{}"
+        assert streaming_chunks[0].tool_calls[0].to_dict() == {
+            "index": 1,
+            "tool_name": "get_current_time",
+            "arguments": "{}",
+            "id": None,
+            "extra": None,
+        }
+        assert len(streaming_chunks[1].tool_calls) == 0
+        assert streaming_chunks[1].finish_reason == "stop"
+
+        assert result["replies"][0].text is None
         assert result["replies"][0].tool_calls == [ToolCall(tool_name="get_current_time", arguments={})]
+        assert result["replies"][0].meta["finish_reason"] == "stop"
+        assert result["replies"][0].meta["usage"] == {
+            "completion_tokens": 17,
+            "prompt_tokens": 143,
+            "total_tokens": 160,
+        }
 
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
