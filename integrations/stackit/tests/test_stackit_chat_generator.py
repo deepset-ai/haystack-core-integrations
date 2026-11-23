@@ -25,16 +25,16 @@ class TestSTACKITChatGenerator:
 
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
+        component = STACKITChatGenerator(model="google/gemma-4-31B-it")
         assert component.api_key.resolve_value() == "test-api-key"
-        assert component.model == "google/gemma-3-27b-it"
+        assert component.model == "google/gemma-4-31B-it"
         assert component.api_base_url == "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
 
     def test_warm_up(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
+        component = STACKITChatGenerator(model="google/gemma-4-31B-it")
         with patch.object(OpenAI, "__init__", return_value=None) as init_client:
             component.warm_up()
         init_client.assert_called_once()
@@ -43,25 +43,25 @@ class TestSTACKITChatGenerator:
     def test_warm_up_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            component = STACKITChatGenerator(model="google/gemma-3-27b-it")
+            component = STACKITChatGenerator(model="google/gemma-4-31B-it")
             component.warm_up()
 
     def test_init_with_parameters(self):
         component = STACKITChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="google/gemma-3-27b-it",
+            model="google/gemma-4-31B-it",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.api_key.resolve_value() == "test-api-key"
-        assert component.model == "google/gemma-3-27b-it"
+        assert component.model == "google/gemma-4-31B-it"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
+        component = STACKITChatGenerator(model="google/gemma-4-31B-it")
         data = component.to_dict()
 
         assert (
@@ -71,7 +71,7 @@ class TestSTACKITChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "google/gemma-3-27b-it",
+            "model": "google/gemma-4-31B-it",
             "streaming_callback": None,
             "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
             "generation_kwargs": {},
@@ -94,7 +94,7 @@ class TestSTACKITChatGenerator:
             "type": "haystack_integrations.components.generators.stackit.chat.chat_generator.STACKITChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "google/gemma-3-27b-it",
+                "model": "google/gemma-4-31B-it",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -103,7 +103,7 @@ class TestSTACKITChatGenerator:
         if tools_strict is not None:
             data["init_parameters"]["tools_strict"] = tools_strict
         component = STACKITChatGenerator.from_dict(data)
-        assert component.model == "google/gemma-3-27b-it"
+        assert component.model == "google/gemma-4-31B-it"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -116,12 +116,12 @@ class TestSTACKITChatGenerator:
     @pytest.mark.integration
     def test_live_run(self) -> None:
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
+        component = STACKITChatGenerator(model="google/gemma-4-31B-it")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "paris" in message.text.lower()
-        assert "google/gemma-3-27b-it" in message.meta["model"]
+        assert "google/gemma-4-31B-it" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -154,14 +154,14 @@ class TestSTACKITChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = STACKITChatGenerator(model="google/gemma-3-27b-it", streaming_callback=callback)
+        component = STACKITChatGenerator(model="google/gemma-4-31B-it", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "paris" in message.text.lower()
 
-        assert "google/gemma-3-27b-it" in message.meta["model"]
+        assert "google/gemma-4-31B-it" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -193,7 +193,7 @@ class TestSTACKITChatGenerator:
 
         chat_messages = [ChatMessage.from_user("What's the capital of France?")]
         comp = STACKITChatGenerator(
-            model="google/gemma-3-27b-it", generation_kwargs={"response_format": response_schema}
+            model="google/gemma-4-31B-it", generation_kwargs={"response_format": response_schema}
         )
         results = comp.run(chat_messages)
         assert len(results["replies"]) == 1
