@@ -147,7 +147,6 @@ class TestQdrantHybridRetriever:
         assert retriever._score_threshold is None
         assert retriever._group_by is None
         assert retriever._group_size is None
-        # pipelines serialized before prefetch_limit existed don't have the key
         assert retriever._prefetch_limit is None
 
     def test_from_dict_no_filter_policy(self):

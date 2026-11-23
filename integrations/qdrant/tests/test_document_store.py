@@ -633,8 +633,11 @@ class TestQdrantDocumentStoreUnit:
 
         assert [doc.score for doc in result] == [expected_score]
 
-    @pytest.mark.parametrize("group_by", [None, "meta.group"])
-    def test_query_hybrid_sets_prefetch_limit(self, group_by):
+    @pytest.mark.parametrize(
+        ("group_by", "prefetch_limit", "expected_limit"),
+        [(None, 50, 50), ("meta.group", 50, 50), (None, None, 30), ("meta.group", None, None)],
+    )
+    def test_query_hybrid_sets_prefetch_limit(self, group_by, prefetch_limit, expected_limit):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
         mock_client = MagicMock()
         mock_client.query_points.return_value.points = []
@@ -644,12 +647,14 @@ class TestQdrantDocumentStoreUnit:
         document_store._query_hybrid(
             query_embedding=[0.1] * 768,
             query_sparse_embedding=SparseEmbedding(indices=[0], values=[0.1]),
+            top_k=15,
             group_by=group_by,
-            prefetch_limit=50,
+            prefetch_limit=prefetch_limit,
         )
 
         client_method = mock_client.query_points_groups if group_by else mock_client.query_points
-        assert [prefetch.limit for prefetch in client_method.call_args.kwargs["prefetch"]] == [50, 50]
+        prefetch_limits = [prefetch.limit for prefetch in client_method.call_args.kwargs["prefetch"]]
+        assert prefetch_limits == [expected_limit, expected_limit]
 
     def test_write_documents_progress_bar_counts_documents(self):
         document_store = QdrantDocumentStore(location=":memory:", write_batch_size=2)
@@ -793,8 +798,8 @@ class TestQdrantDocumentStore(
             assert document.embedding
 
     def test_query_hybrid_prefetch_limit(self):
-        # The sparse and dense rankings are reversed, so their top 10 candidates don't overlap.
-        # In-memory mode applies the same default of 10 per prefetch as the server (non-grouped queries only).
+        # The sparse and dense rankings are reversed, so their top 10 candidates don't overlap
+        # and a prefetch limit of 10 caps the fused results at 20.
         document_store = QdrantDocumentStore(
             location=":memory:", embedding_dim=2, use_sparse_embeddings=True, progress_bar=False
         )
@@ -814,12 +819,12 @@ class TestQdrantDocumentStore(
         results = document_store._query_hybrid(
             query_sparse_embedding=query_sparse_embedding, query_embedding=query_embedding, top_k=30
         )
-        assert len(results) == 20
+        assert len(results) == 30
 
         results = document_store._query_hybrid(
-            query_sparse_embedding=query_sparse_embedding, query_embedding=query_embedding, top_k=30, prefetch_limit=30
+            query_sparse_embedding=query_sparse_embedding, query_embedding=query_embedding, top_k=30, prefetch_limit=10
         )
-        assert len(results) == 30
+        assert len(results) == 20
 
     def test_query_hybrid_fail_without_sparse_embedding(self, document_store):
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])

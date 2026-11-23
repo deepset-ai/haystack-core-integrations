@@ -548,8 +548,7 @@ class QdrantHybridRetriever:
             See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
         :param prefetch_limit: Maximum number of candidates that each prefetch (sparse and dense) passes to RRF fusion.
-            If `None`, Qdrant uses its default of 10 per prefetch, which caps hybrid results at 20 documents
-            whatever `top_k` is.
+            If `None`, defaults to `2 * top_k`.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
