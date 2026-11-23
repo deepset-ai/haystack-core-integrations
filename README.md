@@ -6,7 +6,7 @@
 |------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/vespa/embedding\_retriever.py |       20 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/vespa/keyword\_retriever.py   |       18 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/vespa/document\_store.py           |      237 |       12 |       80 |       13 |     92% |38, 130-131, 245, 315, 451-\>453, 464, 495-\>497, 506, 524, 531-532, 539-\>542, 558, 561 |
+| src/haystack\_integrations/document\_stores/vespa/document\_store.py           |      237 |       12 |       80 |       13 |     92% |38, 130-131, 246, 318, 457-\>459, 470, 501-\>503, 512, 530, 537-538, 545-\>548, 564, 567 |
 | src/haystack\_integrations/document\_stores/vespa/errors.py                    |        5 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/vespa/filters.py                   |      121 |        0 |       72 |        0 |    100% |           |
 | **TOTAL**                                                                      |  **401** |   **12** |  **156** |   **13** | **96%** |           |
