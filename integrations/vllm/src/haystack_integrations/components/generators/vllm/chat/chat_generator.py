@@ -44,6 +44,7 @@ def _convert_vllm_chunk_to_streaming_chunks(
     if choice is not None and choice.delta.content and choice.delta.tool_calls:
         # the parent converter would put both into one StreamingChunk, which rejects that, so convert them separately
         sources = [
+            # text half: drop tool_calls and finish_reason (the trailing tool-call chunk carries finish_reason)
             chunk.model_copy(
                 update={
                     "choices": [
@@ -56,6 +57,7 @@ def _convert_vllm_chunk_to_streaming_chunks(
                     ]
                 }
             ),
+            # tool-call half: drop content
             chunk.model_copy(
                 update={
                     "choices": [choice.model_copy(update={"delta": choice.delta.model_copy(update={"content": None})})]
