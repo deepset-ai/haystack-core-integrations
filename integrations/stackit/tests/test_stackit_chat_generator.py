@@ -4,12 +4,13 @@
 
 import json
 import os
+from unittest.mock import patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.utils.auth import Secret
-from openai import OpenAIError
+from openai import OpenAI, OpenAIError
 
 from haystack_integrations.components.generators.stackit.chat.chat_generator import STACKITChatGenerator
 
@@ -34,8 +35,10 @@ class TestSTACKITChatGenerator:
     def test_warm_up(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
         component = STACKITChatGenerator(model="google/gemma-3-27b-it")
-        component.warm_up()
-        assert component._client.api_key == "test-api-key"
+        with patch.object(OpenAI, "__init__", return_value=None) as init_client:
+            component.warm_up()
+        init_client.assert_called_once()
+        assert init_client.call_args.kwargs["api_key"] == "test-api-key"
 
     def test_warm_up_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)
