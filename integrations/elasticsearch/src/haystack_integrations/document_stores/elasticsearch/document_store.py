@@ -457,7 +457,8 @@ class ElasticsearchDocumentStore:
             equality: they match documents whose content contains the value as a phrase, that is, the same words in the
             same order and next to each other, ignoring case and punctuation. For example, `==` with the value
             `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
-            Filters are meant for metadata fields; to search document text, use a retriever.
+            Filters on `content` are useful to select documents containing a phrase; for relevance-ranked text search,
+            use a retriever.
         :returns: List of `Document`s that match the filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:
@@ -479,7 +480,8 @@ class ElasticsearchDocumentStore:
             equality: they match documents whose content contains the value as a phrase, that is, the same words in the
             same order and next to each other, ignoring case and punctuation. For example, `==` with the value
             `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
-            Filters are meant for metadata fields; to search document text, use a retriever.
+            Filters on `content` are useful to select documents containing a phrase; for relevance-ranked text search,
+            use a retriever.
         :returns: List of `Document`s that match the filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:

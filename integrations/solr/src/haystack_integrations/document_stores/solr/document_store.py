@@ -493,8 +493,8 @@ class SolrDocumentStore:
         - `==`, `!=`, `in` and `not in` on `content` don't test exact equality: they match documents whose
           content contains the value as a phrase, that is, the same words in the same order and next to each
           other, ignoring case and punctuation. For example, `==` with the value `"Foo Document"` matches a
-          document with the content `"A foo document."`, and `!=` excludes it. Filters are meant for metadata
-          fields; to search document text, use a retriever.
+          document with the content `"A foo document."`, and `!=` excludes it. Filters on `content` are useful to
+          select documents containing a phrase; for relevance-ranked text search, use a retriever.
 
         :param filters: the filters to apply to the document list.
         :returns: a list of Documents that match the given filters.
@@ -755,8 +755,8 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
-            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
-            whose content only contains the value. See `filter_documents` for details.
+            Filters on `content` match the value as a phrase, not exact equality, so they also select documents
+            whose content contains the value within longer text. See `filter_documents` for details.
         :returns: the number of documents deleted. The count is taken with a separate query before
             the delete is issued, so a concurrent write landing in between can make it differ from
             the number of documents the delete actually removes.
@@ -778,8 +778,8 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
-            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
-            whose content only contains the value. See `filter_documents` for details.
+            Filters on `content` match the value as a phrase, not exact equality, so they also select documents
+            whose content contains the value within longer text. See `filter_documents` for details.
         :returns: the number of documents deleted. The count is taken with a separate query before
             the delete is issued, so a concurrent write landing in between can make it differ from
             the number of documents the delete actually removes.
@@ -812,8 +812,8 @@ class SolrDocumentStore:
         field whenever a metadata value changes Python type, since the type is part of the field name.
 
         :param filters: the filters selecting the documents to update.
-            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
-            whose content only contains the value. See `filter_documents` for details.
+            Filters on `content` match the value as a phrase, not exact equality, so they also select documents
+            whose content contains the value within longer text. See `filter_documents` for details.
         :param meta: the metadata to merge into each matching document.
         :returns: the number of documents updated.
         """
@@ -832,8 +832,8 @@ class SolrDocumentStore:
         Merges `meta` into the metadata of every document matching `filters`.
 
         :param filters: the filters selecting the documents to update.
-            Filters on `content` match the value as a phrase, not exact equality, so they can select documents
-            whose content only contains the value. See `filter_documents` for details.
+            Filters on `content` match the value as a phrase, not exact equality, so they also select documents
+            whose content contains the value within longer text. See `filter_documents` for details.
         :param meta: the metadata to merge into each matching document.
         :returns: the number of documents updated.
         """
