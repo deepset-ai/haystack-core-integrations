@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from cohere import ApiMeta, ApiMetaBilledUnits
@@ -83,6 +83,7 @@ class TestInitializationAndSerialization:
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
                 "embedding_type": "float",
+                "embedding_dimension": None,
             },
         }
 
@@ -100,6 +101,7 @@ class TestInitializationAndSerialization:
             meta_fields_to_embed=["text_field"],
             embedding_separator="-",
             embedding_type=EmbeddingTypes.INT8,
+            embedding_dimension=1024,
         )
         component_dict = embedder_component.to_dict()
         assert component_dict == {
@@ -116,6 +118,7 @@ class TestInitializationAndSerialization:
                 "meta_fields_to_embed": ["text_field"],
                 "embedding_separator": "-",
                 "embedding_type": "int8",
+                "embedding_dimension": 1024,
             },
         }
 
@@ -149,6 +152,7 @@ class TestInitializationAndSerialization:
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
+        assert embedder.embedding_dimension is None
         assert embedder.embedding_type == EmbeddingTypes.FLOAT
         assert not hasattr(embedder, "use_async_client")
 
@@ -160,6 +164,22 @@ class TestComponentLifecycle:
 
         with pytest.raises(ValueError, match="MISSING_COHERE_API_KEY"):
             component.warm_up()
+
+    @patch("haystack_integrations.components.embedders.cohere.document_embedder.ClientV2")
+    def test_run_passes_embedding_dimension(self, mock_client_cls):
+        response = MagicMock()
+        response.embeddings = [("float", [[0.1, 0.2]])]
+        response.meta = None
+        mock_client_cls.return_value.embed.return_value = response
+        component = CohereDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"), model="embed-v5.0-pro", embedding_dimension=512
+        )
+
+        component.run(documents=[Document(content="hello")])
+
+        kwargs = mock_client_cls.return_value.embed.call_args.kwargs
+        assert kwargs["model"] == "embed-v5.0-pro"
+        assert kwargs["output_dimension"] == 512
 
     @patch("haystack_integrations.components.embedders.cohere.document_embedder.ClientV2")
     def test_warm_up_is_idempotent(self, mock_client_cls):

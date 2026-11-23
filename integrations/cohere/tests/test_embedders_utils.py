@@ -2,9 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
-from haystack_integrations.components.embedders.cohere.utils import _merge_meta
+from haystack_integrations.components.embedders.cohere.utils import _merge_meta, get_async_response, get_response
+
+
+def _mock_response():
+    response = MagicMock()
+    response.embeddings = [("float", [[0.1, 0.2]])]
+    response.meta = None
+    return response
 
 
 def test_merge_meta_first_batch_unchanged():
@@ -45,3 +54,46 @@ def test_merge_meta_preserves_usage_when_not_reported(new):
     accumulated = {"billed_units": {"input_tokens": 7}, "tokens": {"input_tokens": 9}}
 
     assert _merge_meta(accumulated, new) == accumulated
+
+
+@pytest.mark.parametrize("embedding_dimension", [None, 512])
+def test_get_response_sends_output_dimension_only_when_set(embedding_dimension):
+    client = MagicMock()
+    client.embed.return_value = _mock_response()
+
+    get_response(
+        client,
+        ["hello"],
+        "embed-v5.0-pro",
+        "search_query",
+        "END",
+        embedding_dimension=embedding_dimension,
+    )
+
+    kwargs = client.embed.call_args.kwargs
+    if embedding_dimension is None:
+        assert "output_dimension" not in kwargs
+    else:
+        assert kwargs["output_dimension"] == embedding_dimension
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("embedding_dimension", [None, 512])
+async def test_get_async_response_sends_output_dimension_only_when_set(embedding_dimension):
+    client = MagicMock()
+    client.embed = AsyncMock(return_value=_mock_response())
+
+    await get_async_response(
+        cohere_async_client=client,
+        texts=["hello"],
+        model_name="embed-v5.0-pro",
+        input_type="search_query",
+        truncate="END",
+        embedding_dimension=embedding_dimension,
+    )
+
+    kwargs = client.embed.call_args.kwargs
+    if embedding_dimension is None:
+        assert "output_dimension" not in kwargs
+    else:
+        assert kwargs["output_dimension"] == embedding_dimension
