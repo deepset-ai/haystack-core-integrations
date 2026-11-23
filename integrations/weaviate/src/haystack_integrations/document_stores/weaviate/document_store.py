@@ -1061,9 +1061,9 @@ class WeaviateDocumentStore:
         Note: With the default `word` tokenization, filters on `content` with `==`, `!=`, `in` and
         `not in` don't test exact equality or match a phrase: `==` matches documents whose content contains
         all the words of the value, in any order, ignoring case and punctuation, so `"New York"` also matches
-        `"York and New Jersey"`. `!=` and `not in` exclude documents whose content contains any of the
-        words. Filters on `content` are useful to select documents containing words; for relevance-ranked text
-        search, use a retriever.
+        `"York and New Jersey"`. `in` matches each of its values the same way. `!=` and `not in` exclude
+        documents whose content contains any of the words. Filters on `content` are useful to select documents
+        containing words; for relevance-ranked text search, use a retriever.
 
         :param filters: The filters to apply to the document list.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
@@ -1095,9 +1095,9 @@ class WeaviateDocumentStore:
         Note: With the default `word` tokenization, filters on `content` with `==`, `!=`, `in` and
         `not in` don't test exact equality or match a phrase: `==` matches documents whose content contains
         all the words of the value, in any order, ignoring case and punctuation, so `"New York"` also matches
-        `"York and New Jersey"`. `!=` and `not in` exclude documents whose content contains any of the
-        words. Filters on `content` are useful to select documents containing words; for relevance-ranked text
-        search, use a retriever.
+        `"York and New Jersey"`. `in` matches each of its values the same way. `!=` and `not in` exclude
+        documents whose content contains any of the words. Filters on `content` are useful to select documents
+        containing words; for relevance-ranked text search, use a retriever.
 
         :param filters: The filters to apply to the document list.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
