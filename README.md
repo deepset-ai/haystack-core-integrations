@@ -9,7 +9,7 @@
 | src/haystack\_integrations/components/retrievers/weaviate/hybrid\_retriever.py    |       51 |        0 |        8 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/weaviate/\_filters.py                 |      166 |        1 |       72 |        1 |     99% |       120 |
 | src/haystack\_integrations/document\_stores/weaviate/auth.py                      |       85 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/weaviate/document\_store.py           |      684 |       41 |      224 |       16 |     94% |603, 653, 681-\>685, 906-\>916, 917, 969-971, 979-981, 1136, 1165, 1183-1184, 1199-\>1181, 1238-\>1218, 1362, 1411-1417, 1475-1480, 1548-1549, 1566-1567, 1594, 1614-\>1617, 1623-1627, 1630-1633, 1641-1646 |
+| src/haystack\_integrations/document\_stores/weaviate/document\_store.py           |      684 |       41 |      224 |       16 |     94% |603, 653, 681-\>685, 906-\>916, 917, 969-971, 979-981, 1152, 1181, 1199-1200, 1215-\>1197, 1254-\>1234, 1378, 1427-1433, 1495-1500, 1570-1571, 1590-1591, 1618, 1638-\>1641, 1647-1651, 1654-1657, 1665-1670 |
 | **TOTAL**                                                                         | **1073** |   **42** |  **320** |   **17** | **96%** |           |
 
 
