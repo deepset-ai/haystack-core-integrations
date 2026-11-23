@@ -57,8 +57,8 @@ class TestGitHubPRCheckoutTool:
                 "include_related_docs": True,
                 "raise_on_failure": True,
                 "outputs_to_string": {"source": "text"},
-                "inputs_from_state": {},
-                "outputs_to_state": {},
+                "inputs_from_state": None,
+                "outputs_to_state": None,
             },
         }
         assert GitHubPRCheckoutTool.from_dict(copy.deepcopy(data)).to_dict() == data

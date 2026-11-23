@@ -57,7 +57,7 @@ class GitHubPRCheckoutTool(ComponentTool):
             is returned to the Agent.
         :param outputs_to_string:
             Optional dictionary defining how a tool outputs should be converted into a string.
-            By default, the `text` output is returned.
+            Defaults to `{"source": "text"}`, so the Agent receives the `text` output.
         :param inputs_from_state:
             Optional dictionary mapping state keys to tool parameter names.
             By default, the tool does not use any inputs from state.
@@ -74,8 +74,8 @@ class GitHubPRCheckoutTool(ComponentTool):
         self.raise_on_failure = raise_on_failure
 
         self.outputs_to_string = outputs_to_string or {"source": "text"}
-        self.inputs_from_state = inputs_from_state or {}
-        self.outputs_to_state = outputs_to_state or {}
+        self.inputs_from_state = inputs_from_state
+        self.outputs_to_state = outputs_to_state
 
         pr_checkout = GitHubPRCheckout(
             github_token=github_token,
