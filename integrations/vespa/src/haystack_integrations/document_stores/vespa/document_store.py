@@ -181,8 +181,8 @@ class VespaDocumentStore:
         Return the number of documents matching the provided filters.
 
         :param filters: Haystack metadata filters.
-            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
-            content only contains the value. See `filter_documents` for details.
+            Filters on `content` match the value as a phrase, not exact equality, so they also select documents whose
+            content contains the value within longer text. See `filter_documents` for details.
         :returns: Count of matching documents.
         """
         where = _normalize_filters(filters, content_field=self.content_field)
@@ -261,8 +261,8 @@ class VespaDocumentStore:
         Delete all documents matching the provided filters.
 
         :param filters: Haystack metadata filters.
-            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
-            content only contains the value. See `filter_documents` for details.
+            Filters on `content` match the value as a phrase, not exact equality, so they also select documents whose
+            content contains the value within longer text. See `filter_documents` for details.
         :returns: Number of deleted documents.
         """
         documents = self._collect_matching_documents(filters=filters)
@@ -274,8 +274,8 @@ class VespaDocumentStore:
         Update metadata fields for documents matching the provided filters.
 
         :param filters: Haystack metadata filters.
-            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
-            content only contains the value. See `filter_documents` for details.
+            Filters on `content` match the value as a phrase, not exact equality, so they also select documents whose
+            content contains the value within longer text. See `filter_documents` for details.
         :param meta: Metadata values to merge into the matched documents.
         :returns: Number of updated documents.
         """
@@ -329,6 +329,9 @@ class VespaDocumentStore:
             that is, the same words in the same order and next to each other, ignoring case and punctuation. For
             example, `==` with the value `"Foo Document"` matches a document with the content `"A foo document."`, and
             `!=` excludes it.
+            Filters that compare a field with `None`, or use `>`, `>=`, `<` or `<=` with an ISO-formatted date, are
+            evaluated in Python instead of in Vespa. Then `content` filters test exact equality, while
+            `count_documents_by_filter`, `delete_by_filter` and `update_by_filter` still match them as a phrase.
         :returns: Matching documents.
         """
         if filters and _filters_need_python_fallback(filters):
