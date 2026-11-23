@@ -4,10 +4,10 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      227 |        5 |       96 |        7 |     96% |263, 329, 380-381, 474-\>478, 549-\>524, 560-\>564, 566-\>568, 569 |
-| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       69 |        3 |       20 |        4 |     92% |204, 209, 270-\>272, 273 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      227 |        5 |       96 |        7 |     96% |268, 334, 385-386, 479-\>483, 554-\>529, 565-\>569, 571-\>573, 574 |
+| src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       69 |        3 |       20 |        4 |     92% |205, 210, 271-\>273, 274 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      308 |       27 |      188 |       24 |     88% |91-\>81, 98, 100, 103-\>81, 206-\>217, 215-216, 287-291, 304-\>297, 308-312, 313-\>306, 323-324, 328, 336, 356-\>355, 397-\>402, 402-\>405, 464-465, 471-472, 541, 606-614, 619-\>621, 622, 624, 641-642 |
-| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       53 |        0 |       10 |        1 |     98% | 224-\>227 |
+| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       53 |        0 |       10 |        1 |     98% | 225-\>228 |
 | src/haystack\_integrations/token\_counters/anthropic/token\_counter.py                      |       49 |        4 |       16 |        3 |     89% |69, 71, 93-94 |
 | **TOTAL**                                                                                   |  **706** |   **39** |  **330** |   **39** | **92%** |           |
 
