@@ -1058,7 +1058,15 @@ class WeaviateDocumentStore:
         Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
         native ``NOT``, which requires Weaviate 1.33 or later.
 
+        Note: With the default `word` tokenization, filters on `content` with `==`, `!=`, `in` and
+        `not in` don't test exact equality or match a phrase: `==` matches documents whose content contains
+        all the words of the value, in any order, ignoring case and punctuation, so `"New York"` also matches
+        `"York and New Jersey"`. `in` matches each of its values the same way. `!=` and `not in` exclude
+        documents whose content contains any of the words. Filters on `content` are useful to select documents
+        containing words; for relevance-ranked text search, use a retriever.
+
         :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: A list of Documents that match the given filters.
         """
         validate_filters(filters)
@@ -1084,7 +1092,15 @@ class WeaviateDocumentStore:
         Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
         native ``NOT``, which requires Weaviate 1.33 or later.
 
+        Note: With the default `word` tokenization, filters on `content` with `==`, `!=`, `in` and
+        `not in` don't test exact equality or match a phrase: `==` matches documents whose content contains
+        all the words of the value, in any order, ignoring case and punctuation, so `"New York"` also matches
+        `"York and New Jersey"`. `in` matches each of its values the same way. `!=` and `not in` exclude
+        documents whose content contains any of the words. Filters on `content` are useful to select documents
+        containing words; for relevance-ranked text search, use a retriever.
+
         :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: A list of Documents that match the given filters.
         """
         validate_filters(filters)
@@ -1429,7 +1445,9 @@ class WeaviateDocumentStore:
         Deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :returns: The number of documents deleted.
         """
         validate_filters(filters)
@@ -1456,7 +1474,9 @@ class WeaviateDocumentStore:
         Asynchronously deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :returns: The number of documents deleted.
         """
         validate_filters(filters)
@@ -1484,7 +1504,9 @@ class WeaviateDocumentStore:
         Updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :param meta: The metadata fields to update. These will be merged with existing metadata.
         :returns: The number of documents updated.
         """
@@ -1556,7 +1578,9 @@ class WeaviateDocumentStore:
         Asynchronously updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :param meta: The metadata fields to update. These will be merged with existing metadata.
         :returns: The number of documents updated.
         """
