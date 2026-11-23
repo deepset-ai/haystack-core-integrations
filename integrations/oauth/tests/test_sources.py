@@ -79,6 +79,48 @@ INVALID_CLIENT_AUTH = [
 ]
 
 
+def _source_with_unset_secret(source_cls: type, secret_param: str) -> Any:
+    """Build a source whose `secret_param` is a strict env var secret pointing at the unset `MISSING_SECRET`."""
+    params: dict[str, Any] = {"token_url": TOKEN_URL, "client_id": "client-1"}
+    if source_cls is OAuthRefreshTokenSource:
+        params["refresh_token"] = Secret.from_token("rt-1")
+    params[secret_param] = Secret.from_env_var("MISSING_SECRET")
+    return source_cls(**params)
+
+
+# A strict `EnvVarSecret` raises ValueError when its env var is unset; every source must surface it as
+# TokenRefreshError, before any request is sent.
+UNSET_STRICT_SECRETS = [
+    pytest.param(OAuthRefreshTokenSource, "refresh_token", None, id="refresh-refresh_token"),
+    pytest.param(OAuthRefreshTokenSource, "client_secret", None, id="refresh-client_secret"),
+    pytest.param(OAuthClientCredentialsSource, "client_secret", None, id="client-credentials-client_secret"),
+    pytest.param(OAuthTokenExchangeSource, "client_secret", "user-jwt", id="exchange-client_secret"),
+]
+
+
+@pytest.mark.parametrize(("source_cls", "secret_param", "subject_token"), UNSET_STRICT_SECRETS)
+def test_unset_strict_secret_raises_token_refresh_error(monkeypatch, source_cls, secret_param, subject_token):
+    monkeypatch.delenv("MISSING_SECRET", raising=False)
+    source = _source_with_unset_secret(source_cls, secret_param)
+    args = [subject_token] if subject_token else []
+    with patch("httpx.post") as mock_post, pytest.raises(TokenRefreshError, match=secret_param):
+        source.resolve(*args)
+    mock_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("source_cls", "secret_param", "subject_token"), UNSET_STRICT_SECRETS)
+async def test_unset_strict_secret_raises_token_refresh_error_async(
+    monkeypatch, source_cls, secret_param, subject_token
+):
+    monkeypatch.delenv("MISSING_SECRET", raising=False)
+    source = _source_with_unset_secret(source_cls, secret_param)
+    args = [subject_token] if subject_token else []
+    with patch("httpx.AsyncClient.post") as mock_post, pytest.raises(TokenRefreshError, match=secret_param):
+        await source.resolve_async(*args)
+    mock_post.assert_not_called()
+
+
 class TestOAuthRefreshTokenSource:
     def _source(self, **kwargs):
         params = {
@@ -741,6 +783,12 @@ class TestOAuthPrivateKeyJWTSource:
             private_key=Secret.from_env_var("OAUTH_PRIVATE_KEY", strict=strict),
         )
         with pytest.raises(TokenRefreshError):
+            source.resolve()
+
+    def test_unset_strict_certificate_env_var_raises_token_refresh_error(self, signing_material, monkeypatch):
+        monkeypatch.delenv("MISSING_CERTIFICATE", raising=False)
+        source = self._source(signing_material, certificate=Secret.from_env_var("MISSING_CERTIFICATE"))
+        with pytest.raises(TokenRefreshError, match="certificate"):
             source.resolve()
 
     @pytest.mark.parametrize(

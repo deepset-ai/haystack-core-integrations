@@ -64,6 +64,15 @@ def _parse_token_response(response: httpx.Response) -> tuple[str, float, dict[st
     return access_token, expires_in, payload
 
 
+def _resolve_secret(secret: Secret, *, owner: str, name: str) -> str | None:
+    """Resolve a `Secret`, raising `TokenRefreshError` instead of the `ValueError` of an unset strict env var."""
+    try:
+        return secret.resolve_value()
+    except ValueError as error:
+        msg = f"{owner} could not resolve its {name}."
+        raise TokenRefreshError(msg) from error
+
+
 def _validate_client_auth(client_secret: Secret | None, client_assertion_source: TokenSource | None) -> None:
     """Reject client-authentication settings that cannot work."""
     if client_assertion_source is None:
@@ -212,14 +221,16 @@ class OAuthRefreshTokenSource:
         return None
 
     def _build_request_data(self) -> dict[str, str]:
-        refresh_token = self._current_refresh_token or self.refresh_token.resolve_value()
+        refresh_token = self._current_refresh_token or _resolve_secret(
+            self.refresh_token, owner="OAuthRefreshTokenSource", name="refresh_token"
+        )
         request_data: dict[str, str] = {
             "grant_type": "refresh_token",
             "client_id": self.client_id,
             "refresh_token": refresh_token or "",
         }
         if self.client_secret is not None:
-            client_secret = self.client_secret.resolve_value()
+            client_secret = _resolve_secret(self.client_secret, owner="OAuthRefreshTokenSource", name="client_secret")
             if client_secret:
                 request_data["client_secret"] = client_secret
         if self.scopes:
@@ -243,6 +254,8 @@ class OAuthRefreshTokenSource:
         Return a cached access token, or run the refresh-token grant to obtain a fresh one.
 
         :returns: A valid bearer access token.
+        :raises TokenRefreshError: If the `refresh_token` or `client_secret` cannot be resolved, or if the token
+            endpoint rejects the request or returns no access token.
         """
         # Refreshes for this single-identity source are serialized, so a burst of concurrent callers
         # collapses into one network efresh and the shared cache + on_rotate aren't updated concurrently
@@ -403,7 +416,9 @@ class OAuthClientCredentialsSource:
     def _build_request_data(self, client_assertion: str | None) -> dict[str, str]:
         request_data: dict[str, str] = {"grant_type": "client_credentials", "client_id": self.client_id}
         if self.client_secret is not None:
-            client_secret = self.client_secret.resolve_value()
+            client_secret = _resolve_secret(
+                self.client_secret, owner="OAuthClientCredentialsSource", name="client_secret"
+            )
             if client_secret:
                 request_data["client_secret"] = client_secret
         if client_assertion:
@@ -427,8 +442,8 @@ class OAuthClientCredentialsSource:
         Return a cached access token, or run the client-credentials grant to obtain a fresh one.
 
         :returns: A valid bearer access token.
-        :raises TokenRefreshError: If the token endpoint rejects the request or returns no access token, or if the
-            `client_assertion_source` fails or returns an empty assertion.
+        :raises TokenRefreshError: If the `client_secret` cannot be resolved, if the `client_assertion_source` fails
+            or returns an empty assertion, or if the token endpoint rejects the request or returns no access token.
         """
         # Requests for this single-identity source are serialized, so a burst of concurrent callers collapses into
         # one network request.
@@ -631,7 +646,7 @@ class OAuthTokenExchangeSource:
         if self.requested_token_type:
             request_data["requested_token_type"] = self.requested_token_type
         if self.client_secret is not None:
-            client_secret = self.client_secret.resolve_value()
+            client_secret = _resolve_secret(self.client_secret, owner="OAuthTokenExchangeSource", name="client_secret")
             if client_secret:
                 request_data["client_secret"] = client_secret
         if client_assertion:
@@ -651,8 +666,8 @@ class OAuthTokenExchangeSource:
             assertion) to exchange for a downstream access token.
         :returns: A valid bearer access token for the given `subject_token`.
         :raises OAuthConfigError: If `subject_token` is empty.
-        :raises TokenRefreshError: If the token endpoint rejects the exchange or returns no access token, or if the
-            `client_assertion_source` fails or returns an empty assertion.
+        :raises TokenRefreshError: If the `client_secret` cannot be resolved, if the `client_assertion_source` fails
+            or returns an empty assertion, or if the token endpoint rejects the exchange or returns no access token.
         """
         if not subject_token:
             msg = "OAuthTokenExchangeSource requires a non-empty subject_token."
@@ -748,13 +763,9 @@ class OAuthStaticTokenSource:
         Return the configured token.
 
         :returns: The configured long-lived access token.
+        :raises TokenRefreshError: If the token cannot be resolved or is empty.
         """
-        try:
-            value = self.token.resolve_value()
-        except ValueError as error:
-            # A strict `EnvVarSecret` raises ValueError when its env var is unset; surface it as our error type.
-            msg = "OAuthStaticTokenSource could not resolve its token."
-            raise TokenRefreshError(msg) from error
+        value = _resolve_secret(self.token, owner="OAuthStaticTokenSource", name="token")
         if not value:
             msg = "OAuthStaticTokenSource has no token value."
             raise TokenRefreshError(msg)
@@ -884,13 +895,11 @@ class OAuthPrivateKeyJWTSource:
         :raises TokenRefreshError: If the private key or certificate cannot be resolved or parsed, or if the key
             cannot sign with the configured algorithm.
         """
-        try:
-            private_key = self.private_key.resolve_value()
-            certificate = self.certificate.resolve_value() if self.certificate is not None else None
-        except ValueError as error:
-            # A strict `EnvVarSecret` raises ValueError when its env var is unset; surface it as our error type.
-            msg = "OAuthPrivateKeyJWTSource could not resolve its private key or certificate."
-            raise TokenRefreshError(msg) from error
+        owner = "OAuthPrivateKeyJWTSource"
+        private_key = _resolve_secret(self.private_key, owner=owner, name="private_key")
+        certificate = (
+            _resolve_secret(self.certificate, owner=owner, name="certificate") if self.certificate is not None else None
+        )
         if not private_key:
             msg = "OAuthPrivateKeyJWTSource has no private key value."
             raise TokenRefreshError(msg)

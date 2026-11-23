@@ -66,7 +66,6 @@ dependencies = [
     "mypy",
     "pip",
     "PyJWT[crypto]>=2.8.0",
-    "cryptography",  # generates the key pair and certificate used in tests
 ]
 
 [tool.hatch.envs.test.scripts]

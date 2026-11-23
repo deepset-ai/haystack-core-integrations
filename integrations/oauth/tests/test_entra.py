@@ -135,6 +135,13 @@ class TestEntraAgentOBOTokenSource:
         assert raised.value.status_code == 401
         assert mock_post.call_count == 1  # the exchange is not attempted without a blueprint token
 
+    def test_unset_blueprint_secret_env_var_raises_token_refresh_error(self, monkeypatch):
+        monkeypatch.delenv("BLUEPRINT_SECRET", raising=False)
+        source = EntraAgentOBOTokenSource(**IDENTIFIERS, client_secret=Secret.from_env_var("BLUEPRINT_SECRET"))
+        with patch("httpx.post") as mock_post, pytest.raises(TokenRefreshError, match="client_secret"):
+            source.resolve("user-token")
+        mock_post.assert_not_called()
+
     def test_empty_subject_token_raises(self):
         source = EntraAgentOBOTokenSource(**IDENTIFIERS, client_secret=Secret.from_token("secret-1"))
         with pytest.raises(OAuthConfigError):
