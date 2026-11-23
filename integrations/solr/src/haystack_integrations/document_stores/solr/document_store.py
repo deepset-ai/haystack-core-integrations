@@ -454,6 +454,7 @@ class SolrDocumentStore:
         Returns how many documents match the given filters.
 
         :param filters: the filters to apply.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: the number of matching documents.
         """
         self._ensure_initialized()
@@ -466,6 +467,7 @@ class SolrDocumentStore:
         Returns how many documents match the given filters.
 
         :param filters: the filters to apply.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: the number of matching documents.
         """
         await self._ensure_initialized_async()
@@ -523,6 +525,7 @@ class SolrDocumentStore:
         See `filter_documents` for the supported operators and their caveats.
 
         :param filters: the filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: a list of Documents that match the given filters.
         :raises FilterError: if the filters are malformed, or compare a value Solr cannot order.
         """
@@ -755,6 +758,7 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             Filters on `content` match the value as a phrase, not exact equality, so they also select documents
             whose content contains the value within longer text. See `filter_documents` for details.
         :returns: the number of documents deleted. The count is taken with a separate query before
@@ -778,6 +782,7 @@ class SolrDocumentStore:
         Deletes all documents matching the given filters.
 
         :param filters: the filters selecting the documents to delete.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             Filters on `content` match the value as a phrase, not exact equality, so they also select documents
             whose content contains the value within longer text. See `filter_documents` for details.
         :returns: the number of documents deleted. The count is taken with a separate query before
@@ -812,6 +817,7 @@ class SolrDocumentStore:
         field whenever a metadata value changes Python type, since the type is part of the field name.
 
         :param filters: the filters selecting the documents to update.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             Filters on `content` match the value as a phrase, not exact equality, so they also select documents
             whose content contains the value within longer text. See `filter_documents` for details.
         :param meta: the metadata to merge into each matching document.
@@ -832,6 +838,7 @@ class SolrDocumentStore:
         Merges `meta` into the metadata of every document matching `filters`.
 
         :param filters: the filters selecting the documents to update.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             Filters on `content` match the value as a phrase, not exact equality, so they also select documents
             whose content contains the value within longer text. See `filter_documents` for details.
         :param meta: the metadata to merge into each matching document.
@@ -993,6 +1000,7 @@ class SolrDocumentStore:
         Counts the distinct values of each given metadata field among documents matching `filters`.
 
         :param filters: the filters restricting which documents are considered.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :param metadata_fields: the metadata fields to count distinct values for.
         :returns: a mapping of metadata field name to its number of distinct values.
         """
@@ -1013,6 +1021,7 @@ class SolrDocumentStore:
         Counts the distinct values of each given metadata field among documents matching `filters`.
 
         :param filters: the filters restricting which documents are considered.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :param metadata_fields: the metadata fields to count distinct values for.
         :returns: a mapping of metadata field name to its number of distinct values.
         """

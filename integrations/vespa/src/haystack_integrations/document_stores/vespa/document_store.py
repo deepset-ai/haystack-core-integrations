@@ -181,6 +181,7 @@ class VespaDocumentStore:
         Return the number of documents matching the provided filters.
 
         :param filters: Haystack metadata filters.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             Filters on `content` match the value as a phrase, not exact equality, so they also select documents whose
             content contains the value within longer text. See `filter_documents` for details.
         :returns: Count of matching documents.
@@ -261,6 +262,7 @@ class VespaDocumentStore:
         Delete all documents matching the provided filters.
 
         :param filters: Haystack metadata filters.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             Filters on `content` match the value as a phrase, not exact equality, so they also select documents whose
             content contains the value within longer text. See `filter_documents` for details.
         :returns: Number of deleted documents.
@@ -274,6 +276,7 @@ class VespaDocumentStore:
         Update metadata fields for documents matching the provided filters.
 
         :param filters: Haystack metadata filters.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             Filters on `content` match the value as a phrase, not exact equality, so they also select documents whose
             content contains the value within longer text. See `filter_documents` for details.
         :param meta: Metadata values to merge into the matched documents.
@@ -324,6 +327,7 @@ class VespaDocumentStore:
         Retrieve documents matching the provided filters.
 
         :param filters: Haystack metadata filters.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
             When the content field is indexed as text (`indexing: index`), filters on `content` with `==`, `!=`, `in`
             and `not in` don't test exact equality: they match documents whose content contains the value as a phrase,
             that is, the same words in the same order and next to each other, ignoring case and punctuation. For

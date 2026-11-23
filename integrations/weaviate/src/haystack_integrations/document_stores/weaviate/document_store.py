@@ -1066,6 +1066,7 @@ class WeaviateDocumentStore:
         search, use a retriever.
 
         :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: A list of Documents that match the given filters.
         """
         validate_filters(filters)
@@ -1099,6 +1100,7 @@ class WeaviateDocumentStore:
         search, use a retriever.
 
         :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: A list of Documents that match the given filters.
         """
         validate_filters(filters)
