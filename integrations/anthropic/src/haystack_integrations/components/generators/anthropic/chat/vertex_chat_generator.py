@@ -46,7 +46,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client = AnthropicVertexChatGenerator(
-                model="claude-sonnet-4-5@20250929",
+                model="claude-sonnet-5-5",
                 project_id="your-project-id", region="your-region"
             )
     response = client.run(messages)
@@ -57,7 +57,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.")],
-    >> _name=None, _meta={'model': 'claude-sonnet-4-5@20250929', 'index': 0, 'finish_reason': 'stop',
+    >> _name=None, _meta={'model': 'claude-sonnet-5-5', 'index': 0, 'finish_reason': 'stop',
     >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 64, 'cache_read_input_tokens': 0,
     >> 'cache_creation_input_tokens': 0, ...}})]}
     ```
@@ -77,6 +77,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-opus-4-5@20251101",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5@20250929",
@@ -89,7 +90,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self,
         region: str,
         project_id: str,
-        model: str = "claude-sonnet-4-5@20250929",
+        model: str = "claude-sonnet-5-5",
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,

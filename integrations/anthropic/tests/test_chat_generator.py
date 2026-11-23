@@ -81,7 +81,7 @@ class TestInit:
         component = AnthropicChatGenerator()
         assert component.client is None
         assert component.async_client is None
-        assert component.model == "claude-sonnet-4-5"
+        assert component.model == "claude-sonnet-5-5"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.tools is None
@@ -166,7 +166,7 @@ class TestSerialization:
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
-                "model": "claude-sonnet-4-5",
+                "model": "claude-sonnet-5-5",
                 "streaming_callback": None,
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {},
@@ -966,7 +966,7 @@ class TestIntegration:
         message: ChatMessage = results["replies"][0]
         assert message.is_from(ChatRole.ASSISTANT)
         assert "Paris" in message.text
-        assert "claude-sonnet-4-5" in message.meta["model"]
+        assert "claude-sonnet-5-5" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
         assert "prompt_tokens" in message.meta["usage"]
         assert "completion_tokens" in message.meta["usage"]
@@ -1016,7 +1016,7 @@ class TestIntegration:
             ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
         ]
         # the model tends to make tool calls if provided with tools, so we don't pass them here
-        results = component.run(new_messages, generation_kwargs={"max_tokens": 50})
+        results = component.run(new_messages, generation_kwargs={"max_tokens": 1000})
 
         assert len(results["replies"]) == 1
         final_message = results["replies"][0]
@@ -1230,12 +1230,16 @@ class TestIntegration:
     @pytest.mark.parametrize("streaming_callback", [None, Mock()])
     def test_live_run_with_reasoning(self, streaming_callback):
         chat_generator = AnthropicChatGenerator(
-            model="claude-sonnet-4-5",
-            generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 10000}, "max_tokens": 11000},
+            model="claude-sonnet-5-5",
+            generation_kwargs={
+                "adaptive_thinking_effort": "high",
+                "thinking_display": "summarized",
+                "max_tokens": 11000,
+            },
             streaming_callback=streaming_callback,
         )
 
-        message = ChatMessage.from_user("2+3?")
+        message = ChatMessage.from_user("Factor 8633.")
         response = chat_generator.run([message])["replies"][0]
 
         assert isinstance(response, ChatMessage)
@@ -1243,7 +1247,7 @@ class TestIntegration:
         assert response.reasoning is not None
         assert len(response.reasoning.reasoning_text) > 0
 
-        new_message = ChatMessage.from_user("Now multiply the result by 10.")
+        new_message = ChatMessage.from_user("Now factor 8051.")
         new_response = chat_generator.run([message, response, new_message])["replies"][0]
         assert isinstance(new_response, ChatMessage)
         assert new_response.text and len(new_response.text) > 0
@@ -1258,12 +1262,13 @@ class TestIntegration:
         """
         Integration test that the AnthropicChatGenerator component can run with tools and streaming.
         """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        initial_messages = [ChatMessage.from_user("Factor 8633, then check the weather in Paris.")]
         component = AnthropicChatGenerator(
             tools=tools,
             streaming_callback=print_streaming_chunk,
             generation_kwargs={
-                "thinking": {"type": "enabled", "budget_tokens": 10000},
+                "adaptive_thinking_effort": "high",
+                "thinking_display": "summarized",
                 "max_tokens": 11000,
             },
         )

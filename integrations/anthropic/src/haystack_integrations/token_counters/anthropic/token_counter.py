@@ -26,7 +26,7 @@ class AnthropicTokenCounter:
     from haystack.dataclasses import ChatMessage
     from haystack_integrations.token_counters.anthropic import AnthropicTokenCounter
 
-    counter = AnthropicTokenCounter(model="claude-sonnet-4-5")
+    counter = AnthropicTokenCounter(model="claude-sonnet-5-5")
     messages = [
         ChatMessage.from_system("You are a helpful assistant."),
         ChatMessage.from_user("How many tokens is this?"),
