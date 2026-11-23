@@ -1016,7 +1016,7 @@ class TestIntegration:
             ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
         ]
         # the model tends to make tool calls if provided with tools, so we don't pass them here
-        results = component.run(new_messages, generation_kwargs={"max_tokens": 50})
+        results = component.run(new_messages, generation_kwargs={"max_tokens": 1000})
 
         assert len(results["replies"]) == 1
         final_message = results["replies"][0]

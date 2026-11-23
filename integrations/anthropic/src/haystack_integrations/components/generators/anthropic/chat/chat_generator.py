@@ -175,8 +175,9 @@ class AnthropicChatGenerator:
             - `thinking`: A dictionary of thinking parameters to be passed to the model.
                 For more details and supported models, see: [Anthropic Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking)
             - `adaptive_thinking_effort`: Shortcut to enable adaptive thinking at the given effort level
-                (e.g. `"high"`). Pass `"disabled"` to turn thinking off. Supported effort levels and thinking types
-                vary by model, see
+                (e.g. `"high"`). Pass `"disabled"` to turn thinking off. Models that reject this, such as
+                `claude-sonnet-5-5`, turn thinking off with `"thinking": {"type": "between_tools"}` instead.
+                Supported effort levels and thinking types vary by model, see
                 [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) and [Thinking](https://platform.claude.com/docs/en/build-with-claude/thinking).
             - `output_config`: A dictionary of output configuration options to be passed to the model.
             - `cache_control`: A dictionary of cache control options to be passed to the model.
