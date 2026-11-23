@@ -5,7 +5,10 @@ import base64
 import os
 import re
 import shutil
+import stat
 import subprocess
+import sys
+from collections.abc import Callable
 from fnmatch import fnmatch
 from typing import Any
 
@@ -43,6 +46,28 @@ _TEST_RE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|[._-](tes
 _CLASS_RE = re.compile(r"^(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:class|interface)\s+([A-Z]\w+)", re.MULTILINE)
 _CHANGELOG_RE = re.compile(r"(^|/)CHANGELOG", re.IGNORECASE)
 _DOCS_COPY_RE = re.compile(r"(^|/)(versioned_docs|reference_versioned_docs|reference|i18n|node_modules)/")
+
+
+def _make_writable_and_retry(func: Callable[[str], Any], path: str, _error: Any) -> None:
+    """
+    Make `path` writable and call `func` on it again.
+
+    Used as the `shutil.rmtree` error handler: on Windows, git's object files are read-only and can't be deleted
+    otherwise.
+    """
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
+def _remove_dir(path: str) -> None:
+    """
+    Delete the directory `path` with everything in it, including read-only files.
+    """
+    # Python 3.12 renamed the error handler parameter from `onerror` to `onexc`
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_make_writable_and_retry)
+    else:
+        shutil.rmtree(path, onerror=_make_writable_and_retry)
 
 
 def _annotate(patch: str) -> str:
@@ -243,7 +268,7 @@ class GitHubPRCheckout:
             current = self._git("-C", self.checkout_dir, "rev-parse", "HEAD").stdout.strip()
             if current == sha:
                 return f"The head commit {sha} is already checked out in ./{self.checkout_dir}."
-            shutil.rmtree(self.checkout_dir)
+            _remove_dir(self.checkout_dir)
 
         commands = [
             ("init", "-q", self.checkout_dir),
