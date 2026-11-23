@@ -136,9 +136,9 @@ class GitHubPRCheckout:
         self.include_related_docs = include_related_docs
         self.raise_on_failure = raise_on_failure
 
-        self._headers: dict[str, str] = {}
+        # Built by `warm_up`: the GitHub API request headers, and the environment additions for git
+        self._headers: dict[str, str] | None = None
         self._git_env: dict[str, str] = {}
-        self._is_warmed_up = False
 
     def warm_up(self) -> None:
         """
@@ -146,7 +146,7 @@ class GitHubPRCheckout:
 
         :raises RuntimeError: If the `git` command line tool is not on the `PATH`.
         """
-        if self._is_warmed_up:
+        if self._headers is not None:
             return
         if shutil.which("git") is None:
             msg = (
@@ -156,11 +156,11 @@ class GitHubPRCheckout:
             raise RuntimeError(msg)
 
         token = self.github_token.resolve_value() if self.github_token is not None else None
-        self._headers = {"Accept": "application/vnd.github+json", "User-Agent": "Haystack/GitHubPRCheckout"}
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "Haystack/GitHubPRCheckout"}
         # Never prompt for credentials: a fetch without access fails instead of waiting for input
         self._git_env = {"GIT_TERMINAL_PROMPT": "0"}
         if token:
-            self._headers["Authorization"] = f"Bearer {token}"
+            headers["Authorization"] = f"Bearer {token}"
             # git over HTTPS accepts every GitHub token type as Basic auth with the x-access-token user. The header is
             # passed in git's environment, which only processes of the same user can read, not on its command line.
             credentials = base64.b64encode(f"x-access-token:{token}".encode()).decode()
@@ -171,7 +171,7 @@ class GitHubPRCheckout:
                     "GIT_CONFIG_VALUE_0": f"Authorization: Basic {credentials}",
                 }
             )
-        self._is_warmed_up = True
+        self._headers = headers
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -392,8 +392,7 @@ class GitHubPRCheckout:
             - `head_sha`: the head commit, or an empty string if a GitHub API error is returned as `text`.
         :raises requests.HTTPError: If a GitHub API request fails and `raise_on_failure` is True.
         """
-        if not self._is_warmed_up:
-            self.warm_up()
+        self.warm_up()
 
         try:
             parts = repo.split("/")
