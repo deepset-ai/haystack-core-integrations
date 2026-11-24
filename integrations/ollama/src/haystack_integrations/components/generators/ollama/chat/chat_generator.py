@@ -273,7 +273,7 @@ class OllamaChatGenerator:
         model: str = "qwen3:0.6b",
         url: str = "http://localhost:11434",
         generation_kwargs: dict[str, Any] | None = None,
-        timeout: float = 120.0,
+        timeout: float = 120,
         max_retries: int = 0,
         keep_alive: float | str | None = None,
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
