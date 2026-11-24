@@ -549,8 +549,8 @@ class CohereChatGenerator:
         :param timeout:
             Timeout for Cohere client calls. If not set, it defaults to the default set by the Cohere client.
         :param max_retries:
-            Maximum number of retries for non-streaming requests that receive a retryable HTTP response.
-            If omitted, the Cohere SDK uses its default.
+            Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
+            the Cohere client.
 
         :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
