@@ -340,6 +340,17 @@ def test_bm25_retrieval_reraises_other_transport_errors(_mock_opensearch_client)
     assert store._client.search.call_count == 1
 
 
+@pytest.mark.parametrize("scale_score, expected_score", [(False, 8.0), (True, pytest.approx(0.7310585786300049))])
+def test_bm25_retrieval_scale_score(scale_score, expected_score):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._client = MagicMock()
+    store._client.search.return_value = {"hits": {"hits": [{"_source": {"id": "1", "content": "doc"}, "_score": 8.0}]}}
+
+    results = store._bm25_retrieval("doc", scale_score=scale_score)
+
+    assert results[0].score == expected_score
+
+
 def test_embedding_retrieval_excludes_embeddings_from_source_by_default():
     store = OpenSearchDocumentStore(multivector_embedding_dim=2)
     store._client = MagicMock()

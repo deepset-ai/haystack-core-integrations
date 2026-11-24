@@ -1145,11 +1145,11 @@ class OpenSearchDocumentStore:
         return body
 
     @staticmethod
-    def _postprocess_bm25_search_results(*, results: list[Document], scale_score: bool) -> None:
+    def _postprocess_bm25_search_results(*, results: list[Document], scale_score: bool) -> list[Document]:
         if not scale_score:
-            return
+            return results
 
-        results = [
+        return [
             replace(doc, score=float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR))))))
             if doc.score is not None
             else doc
@@ -1211,8 +1211,7 @@ class OpenSearchDocumentStore:
                 documents = self._search_documents(search_params)
             else:
                 raise
-        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
-        return documents
+        return OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
 
     async def _bm25_retrieval_async(
         self,
@@ -1271,8 +1270,7 @@ class OpenSearchDocumentStore:
                 documents = await self._search_documents_async(search_params)
             else:
                 raise
-        OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
-        return documents
+        return OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
 
     @staticmethod
     def _build_metadata_search_query(
