@@ -21,9 +21,10 @@ class OAuthTokenResolver:
     Resolves an OAuth access token at pipeline runtime and emits it on the `access_token` output socket.
 
     The resolver component is a thin wrapper over a pluggable token source that decides *where* the token comes from:
-    a standalone OAuth refresh grant (`OAuthRefreshTokenSource`), a per-request token exchange
-    (`OAuthTokenExchangeSource`), a static long-lived token (`OAuthStaticTokenSource`), or a custom source you
-    provide. A downstream component (for
+    a standalone OAuth refresh grant (`OAuthRefreshTokenSource`), a client-credentials grant
+    (`OAuthClientCredentialsSource`), a per-request token exchange (`OAuthTokenExchangeSource`), a Microsoft Entra
+    Agent ID acting on behalf of a user (`EntraAgentOBOTokenSource`), a static long-lived token
+    (`OAuthStaticTokenSource`), or a custom source you provide. A downstream component (for
     example a SharePoint or Google Drive retriever) consumes the token via a normal connection and never knows how
     it was resolved.
 
