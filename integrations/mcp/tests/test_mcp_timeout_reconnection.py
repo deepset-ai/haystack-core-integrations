@@ -81,6 +81,29 @@ class TestMCPTimeoutReconnection:
             await client.call_tool("any", {})
 
     @pytest.mark.asyncio
+    async def test_call_tool_http_reconnects_dropped_session(self):
+        client = StreamableHttpServerInfo(url="http://x/mcp").create_client()
+        ok = types.CallToolResult(content=[types.TextContent(type="text", text="ok")], isError=False)
+        session = AsyncMock()
+        session.call_tool = AsyncMock(return_value=ok)
+
+        async def connect():
+            client.session = session
+
+        client.connect = AsyncMock(side_effect=connect)
+
+        assert "ok" in await client.call_tool("x", {})
+        client.connect.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_call_tool_http_failed_reconnect_raises_connection_error(self):
+        client = StreamableHttpServerInfo(url="http://x/mcp").create_client()
+        client.connect = AsyncMock(side_effect=RuntimeError("503"))
+
+        with pytest.raises(MCPConnectionError, match="reconnecting failed: 503"):
+            await client.call_tool("x", {})
+
+    @pytest.mark.asyncio
     async def test_call_tool_wraps_is_error_response_as_invocation_error(self):
         client = StdioClient(command="echo")
         client.session = AsyncMock()

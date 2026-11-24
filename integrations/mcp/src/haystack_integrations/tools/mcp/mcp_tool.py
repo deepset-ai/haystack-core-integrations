@@ -293,6 +293,7 @@ class MCPClient(ABC):
         self.max_delay = max_delay
         # OAuth for HTTP transports; created on first connect and reused on reconnects, so tokens are kept
         self._auth: _FailFastAuth | None = None
+        self._reconnect_lock = asyncio.Lock()
 
     @abstractmethod
     async def connect(self) -> list[types.Tool]:
@@ -315,8 +316,7 @@ class MCPClient(ABC):
         :raises MCPInvocationError: If the tool invocation fails
         """
         if not self.session:
-            message = "Not connected to an MCP server"
-            raise MCPConnectionError(message=message, operation="call_tool")
+            self.session = await self._reconnect_dropped_session()
 
         # Implement retry logic with exponential backoff for connection-related errors
         for attempt in range(self.max_retries + 1):  # +1 for initial attempt
@@ -386,6 +386,33 @@ class MCPClient(ABC):
 
         message = f"Tool '{tool_name}' failed unexpectedly after all retry attempts"
         raise MCPInvocationError(message, tool_name, tool_args)
+
+    async def _reconnect_dropped_session(self) -> ClientSession:
+        """
+        Reconnect an SSE/HTTP client whose session was torn down.
+
+        A failing transport task (e.g. a 503 while the server restarts) closes the session in the background.
+        Without this, every later call on a long-lived tool fails until the process restarts.
+
+        :returns: The new session
+        :raises MCPConnectionError: If this is not an SSE/HTTP client or reconnecting fails
+        """
+        message = "Not connected to an MCP server"
+        if not isinstance(self, SSEClient | StreamableHttpClient):
+            raise MCPConnectionError(message=message, operation="call_tool")
+
+        async with self._reconnect_lock:
+            if self.session:  # a concurrent call already reconnected
+                return self.session
+            logger.warning("MCP session was closed, reconnecting")
+            try:
+                await self.connect()
+            except Exception as e:
+                await self.aclose()
+                raise MCPConnectionError(message=f"{message}, reconnecting failed: {e}", operation="call_tool") from e
+        if not self.session:
+            raise MCPConnectionError(message=message, operation="call_tool")
+        return self.session
 
     async def aclose(self) -> None:
         """
