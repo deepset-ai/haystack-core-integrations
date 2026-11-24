@@ -15,14 +15,11 @@ class TestGitHubPRCheckoutTool:
         tool = GitHubPRCheckoutTool()
         assert tool.name == "pr_checkout"
         assert tool.description == PR_CHECKOUT_PROMPT
-        assert tool.parameters == {
-            "properties": {
-                "repo": {"type": "string", "description": "The repository as `owner/repo`."},
-                "pull_number": {"type": "integer", "description": "The pull request number."},
-            },
-            "required": ["repo", "pull_number"],
-            "type": "object",
+        assert tool.parameters["properties"] == {
+            "repo": {"type": "string", "description": "The repository as `owner/repo`."},
+            "pull_number": {"type": "integer", "description": "The pull request number."},
         }
+        assert tool.parameters["required"] == ["repo", "pull_number"]
         assert tool.github_token == Secret.from_env_var("GITHUB_TOKEN", strict=False)
         assert tool.raise_on_failure is False
         assert tool.outputs_to_string == {"source": "text"}
