@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import replace
 from typing import Any, Literal
 
+import httpx
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import (
@@ -55,13 +56,13 @@ def _is_retryable_exception(exc: BaseException) -> bool:
     Retries are attempted for:
     - HTTP 429 responses
     - HTTP 5xx responses
-    - transport-level connection/timeout errors
+    - connection errors and timeouts
     """
     if isinstance(exc, ResponseError):
         return exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS or (
             HTTP_STATUS_SERVER_ERROR_MIN <= exc.status_code < HTTP_STATUS_SERVER_ERROR_MAX_EXCLUSIVE
         )
-    return isinstance(exc, (ConnectionError, TimeoutError))
+    return isinstance(exc, (ConnectionError, TimeoutError, httpx.TimeoutException))
 
 
 def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any]:
@@ -272,7 +273,7 @@ class OllamaChatGenerator:
         model: str = "qwen3:0.6b",
         url: str = "http://localhost:11434",
         generation_kwargs: dict[str, Any] | None = None,
-        timeout: int = 120,
+        timeout: float = 120.0,
         max_retries: int = 0,
         keep_alive: float | str | None = None,
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
@@ -292,9 +293,10 @@ class OllamaChatGenerator:
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
-            The number of seconds before throwing a timeout error from the Ollama API.
+            HTTP timeout in seconds. During a read, this limits how long the client waits for the next data.
         :param max_retries:
-            Maximum number of retries to attempt for failed requests (HTTP 429, 5xx, connection/timeout errors).
+            Maximum number of retries for HTTP 429 and 5xx responses, connection errors, and timeouts.
+            Errors raised while iterating a streaming response propagate immediately.
             Uses exponential backoff between attempts. Set to 0 (default) to disable retries.
         :param think:
             If True, the model will "think" before producing a response.
