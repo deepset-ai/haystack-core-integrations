@@ -56,7 +56,7 @@ class OllamaDocumentEmbedder:
             See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
-            HTTP timeout in seconds. During a read, this limits how long the client waits for the next data.
+            The number of seconds before throwing a timeout error from the Ollama API.
         :param keep_alive:
             The option that controls how long the model will stay loaded into memory following the request.
             If not set, it will use the default value from the Ollama (5 minutes).

@@ -56,7 +56,7 @@ def _is_retryable_exception(exc: BaseException) -> bool:
     Retries are attempted for:
     - HTTP 429 responses
     - HTTP 5xx responses
-    - connection errors and timeouts
+    - transport-level connection/timeout errors
     """
     if isinstance(exc, ResponseError):
         return exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS or (
@@ -293,10 +293,9 @@ class OllamaChatGenerator:
             top_p, and others. See the available arguments in
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
-            HTTP timeout in seconds. During a read, this limits how long the client waits for the next data.
+            The number of seconds before throwing a timeout error from the Ollama API.
         :param max_retries:
-            Maximum number of retries for HTTP 429 and 5xx responses, connection errors, and timeouts.
-            Errors raised while iterating a streaming response propagate immediately.
+            Maximum number of retries to attempt for failed requests (HTTP 429, 5xx, connection/timeout errors).
             Uses exponential backoff between attempts. Set to 0 (default) to disable retries.
         :param think:
             If True, the model will "think" before producing a response.
