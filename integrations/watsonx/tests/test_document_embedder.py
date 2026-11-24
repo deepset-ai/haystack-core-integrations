@@ -8,6 +8,7 @@ import pytest
 from haystack import Document
 from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
+from httpx import Timeout
 
 from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonxDocumentEmbedder
 
@@ -15,7 +16,10 @@ from haystack_integrations.components.embedders.watsonx.document_embedder import
 @pytest.fixture
 def mock_embeddings():
     """Fixture for setting up common mocks"""
-    with patch("haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings") as embeddings:
+    with (
+        patch("haystack_integrations.components.embedders.watsonx.document_embedder.APIClient"),
+        patch("haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings") as embeddings,
+    ):
         yield embeddings.return_value
 
 
@@ -121,6 +125,7 @@ class TestComponentLifecycle:
     def test_warm_up_is_idempotent(self):
         with (
             patch("haystack_integrations.components.embedders.watsonx.document_embedder.Credentials") as credentials,
+            patch("haystack_integrations.components.embedders.watsonx.document_embedder.APIClient") as api_client,
             patch("haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings") as embeddings,
         ):
             embedder = WatsonxDocumentEmbedder(
@@ -130,6 +135,7 @@ class TestComponentLifecycle:
                 truncate_input_tokens=128,
                 batch_size=500,
                 concurrency_limit=3,
+                timeout=2.0,
                 max_retries=5,
             )
             embedder.warm_up()
@@ -137,9 +143,14 @@ class TestComponentLifecycle:
             embedder.warm_up()
 
         credentials.assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com")
+        api_client.assert_called_once()
+        kwargs = api_client.call_args.kwargs
+        assert kwargs["credentials"] is credentials.return_value
+        assert kwargs["httpx_client"].timeout == Timeout(2.0)
+        assert kwargs["async_httpx_client"].timeout == Timeout(2.0)
         embeddings.assert_called_once_with(
             model_id="ibm/slate-30m-english-rtrvr-v2",
-            credentials=credentials.return_value,
+            api_client=api_client.return_value,
             project_id="fake-project-id",
             params={"truncate_input_tokens": 128},
             batch_size=500,
