@@ -18,6 +18,12 @@ class TestGitHubPRCheckoutTool:
         assert tool.parameters["properties"] == {
             "repo": {"type": "string", "description": "The repository as `owner/repo`."},
             "pull_number": {"type": "integer", "description": "The pull request number."},
+            "files": {
+                "anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}],
+                "default": None,
+                "description": "Paths of changed files to show the diff of, such as files left out of an earlier call. "
+                "If set,\nthe guidelines are not returned and `excluded_files` does not apply.",
+            },
         }
         assert tool.parameters["required"] == ["repo", "pull_number"]
         assert tool.github_token == Secret.from_env_var("GITHUB_TOKEN", strict=False)

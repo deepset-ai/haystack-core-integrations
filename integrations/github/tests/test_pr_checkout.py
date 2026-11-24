@@ -130,17 +130,31 @@ class TestWarmUp:
         with pytest.raises(RuntimeError, match="needs the `git` command line tool"):
             GitHubPRCheckout().run(repo=REPO, pull_number=7)
 
+    def test_raises_an_informative_error_with_an_old_git(self, monkeypatch):
+        monkeypatch.setattr(
+            pr_checkout.subprocess,
+            "run",
+            lambda command, **_kwargs: subprocess.CompletedProcess(
+                command, 0, stdout="git version 2.30.9\n", stderr=""
+            ),
+        )
+        with pytest.raises(RuntimeError, match=r"needs git 2\.31 or later, but found git 2\.30"):
+            GitHubPRCheckout().warm_up()
+
     @pytest.mark.usefixtures("workspace")
     def test_passes_the_token_to_git_in_its_environment_only(self, monkeypatch):
         calls = []
 
         def run(command, **kwargs):
             calls.append((command, kwargs["env"]))
+            if command[1] == "init":
+                Path(command[-1], ".git").mkdir(parents=True)
             return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
         monkeypatch.setattr(pr_checkout.subprocess, "run", run)
         checkout = GitHubPRCheckout(github_token=Secret.from_token("secret-token"))
         checkout.warm_up()
+        calls.clear()
         checkout._checkout(REPO, "abc")
         credentials = base64.b64encode(b"x-access-token:secret-token").decode()
         for command, env in calls:
@@ -159,7 +173,7 @@ class TestWarmUp:
 class TestCheckout:
     @pytest.fixture
     def remote(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-        """A local repository that git fetches from in place of https://gh.ali360.cloudns.ch/owner/repo.git."""
+        """A local repository that git fetches from in place of https://github.com/owner/repo.git."""
         remote = tmp_path / "remote"
         remote.mkdir()
         git(remote, "init", "-q")
@@ -171,7 +185,7 @@ class TestCheckout:
         git(remote, "commit", "-q", "-m", "first")
         monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
         monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{remote.as_uri()}.insteadOf")
-        monkeypatch.setenv("GIT_CONFIG_VALUE_0", f"https://gh.ali360.cloudns.ch/{REPO}.git")
+        monkeypatch.setenv("GIT_CONFIG_VALUE_0", f"https://github.com/{REPO}.git")
         return remote
 
     @pytest.fixture
@@ -205,6 +219,14 @@ class TestCheckout:
         assert checkout._checkout(REPO, sha) == f"Checked out the head commit {sha} in ./repo."
         assert Path("repo/app.py").read_text() == "print('bye')\n"
 
+    def test_leaves_a_directory_it_did_not_create_untouched(self, remote, checkout):
+        Path("repo").mkdir()
+        git(Path("repo"), "init", "-q")
+        Path("repo/work.py").write_text("uncommitted")
+        result = checkout._checkout(REPO, git(remote, "rev-parse", "HEAD"))
+        assert result.startswith("Checking out the code failed: ./repo already exists and was not created by")
+        assert Path("repo/work.py").read_text() == "uncommitted"
+
     @pytest.mark.usefixtures("remote")
     def test_reports_a_failed_fetch(self, checkout):
         result = checkout._checkout(REPO, "0" * 40)
@@ -237,9 +259,15 @@ class TestGuidelines:
         github = FakeGitHub([], guidelines={"AGENTS.md": contents_entry("Use double backticks in release notes.")})
         component._api = github
         guidelines = component._guidelines(REPO, "base123")
+        assert "Follow these, not the copies in ./repo, which this pull request may have changed." in guidelines
         assert "### AGENTS.md\nUse double backticks in release notes." in guidelines
         assert "CLAUDE.md" not in guidelines
         assert all(params == {"ref": "base123"} for path, params in github.requests)
+
+    def test_marks_a_guideline_file_cut_at_the_limit(self, component, monkeypatch):
+        monkeypatch.setattr(pr_checkout, "_MAX_GUIDELINE_CHARS", 5)
+        component._api = FakeGitHub([], guidelines={"AGENTS.md": contents_entry("Use double backticks.")})
+        assert "### AGENTS.md\nUse d\n[truncated]" in component._guidelines(REPO, "base123")
 
     def test_skips_a_guideline_file_that_is_a_symlink(self, component):
         component._api = FakeGitHub([], guidelines={"AGENTS.md": contents_entry("/etc/passwd", entry_type="symlink")})
@@ -263,8 +291,8 @@ class TestRun:
         assert result["head_sha"] == "head123"
         assert result["text"].startswith("Checked out the head commit head123 in ./repo.")
         assert "### src/app.py (modified, +1 -1)\n@@ -1 +1 @@\n-|a\n+1|b" in result["text"]
-        left_out = "## Files not shown\nuv.lock (excluded)\nlogo.png (binary or too large for GitHub to show)"
-        assert left_out in result["text"]
+        assert "## Files not shown\nuv.lock (excluded, request it with `files`)\n" in result["text"]
+        assert "logo.png (binary or too large for GitHub to show)" in result["text"]
 
     def test_leaves_out_files_over_the_size_limit(self, component):
         component.max_diff_chars = 60
@@ -272,13 +300,24 @@ class TestRun:
         text = component.run(repo=REPO, pull_number=7)["text"]
         assert "### src/a.py" in text
         assert "### src/b.py" not in text
-        assert "src/b.py (over the size limit, read it in ./repo)" in text
+        assert "src/b.py (over the size limit, request it with `files`)" in text
 
     def test_reads_every_page_of_changed_files(self, component):
         component._api = FakeGitHub([changed_file(f"src/file_{index}.py") for index in range(101)])
         text = component.run(repo=REPO, pull_number=7)["text"]
         assert "The diff changes 202 lines in 101 files." in text
         assert "### src/file_100.py" in text
+
+    def test_shows_only_the_requested_files_without_guidelines(self, component):
+        component._api = FakeGitHub(
+            [changed_file("src/a.py"), changed_file("uv.lock")],
+            guidelines={"AGENTS.md": contents_entry("Some rules.")},
+        )
+        text = component.run(repo=REPO, pull_number=7, files=["uv.lock", "src/missing.py"])["text"]
+        assert "### uv.lock" in text
+        assert "### src/a.py" not in text
+        assert "## Repository guidelines" not in text
+        assert "## Files not shown\nsrc/missing.py (not changed in this pull request)" in text
 
     @pytest.mark.parametrize("repo", ["owner", "owner/repo/extra", "owner/../repo"])
     def test_rejects_an_invalid_repository(self, component, repo):

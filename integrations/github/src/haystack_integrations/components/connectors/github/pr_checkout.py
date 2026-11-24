@@ -39,6 +39,12 @@ _MAX_FILE_PAGES = 30
 _MAX_GUIDELINE_CHARS = 15_000
 _GIT_TIMEOUT = 300
 
+# A hunk is one block of changed lines in a diff. Its header, such as `@@ -10,3 +20,4 @@`, gives the start line and
+# line count in the old and new file. The group captures the start line in the new file.
+_GIT_VERSION_RE = re.compile(r"git version (\d+)\.(\d+)")
+# Git reads config from `GIT_CONFIG_COUNT` environment variables, which carry the token, from version 2.31
+_MIN_GIT_VERSION = (2, 31)
+_CHECKOUT_MARKER = "haystack-pr-checkout"
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 
@@ -101,7 +107,7 @@ class GitHubPRCheckout:
     - the diff of every changed file, with the new-file line number on every line.
 
     Requires the `git` command line tool, version 2.31 or later, on the `PATH`. `warm_up` raises a `RuntimeError` if
-    it is missing.
+    it is missing or older.
 
     ### Usage example
     ```python
@@ -130,7 +136,8 @@ class GitHubPRCheckout:
         :param github_token: GitHub token for the API and for fetching the code. Without a token, only public
             repositories can be read.
         :param checkout_dir: Directory, relative to the working directory, that the head commit is checked out into.
-            An existing checkout of the same commit is reused; one of another commit is replaced.
+            An earlier checkout by this component is reused for the same commit and replaced for another one. Any
+            other non-empty directory is left untouched, and the checkout fails.
         :param guideline_files: Files read from the root of the base branch and returned before the diff.
             Defaults to `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md`.
         :param excluded_files: `fnmatch` patterns of changed files whose diff is left out, such as lockfiles.
@@ -158,7 +165,7 @@ class GitHubPRCheckout:
         """
         Check that `git` is installed and resolve the GitHub token.
 
-        :raises RuntimeError: If the `git` command line tool is not on the `PATH`.
+        :raises RuntimeError: If the `git` command line tool is not on the `PATH` or is older than 2.31.
         """
         if self._headers is not None:
             return
@@ -166,6 +173,14 @@ class GitHubPRCheckout:
             msg = (
                 "GitHubPRCheckout needs the `git` command line tool (version 2.31 or later), but `git` was not found "
                 "on the PATH. Install git, for example with `apt-get install git` or `brew install git`, and try again."
+            )
+            raise RuntimeError(msg)
+        # An output in an unknown format doesn't block, only a version known to be too old
+        version = _GIT_VERSION_RE.search(self._git("--version").stdout)
+        if version and (int(version.group(1)), int(version.group(2))) < _MIN_GIT_VERSION:
+            msg = (
+                f"GitHubPRCheckout needs git 2.31 or later, but found git {version.group(1)}.{version.group(2)}. "
+                "Upgrade git and try again."
             )
             raise RuntimeError(msg)
 
@@ -181,7 +196,7 @@ class GitHubPRCheckout:
             self._git_env.update(
                 {
                     "GIT_CONFIG_COUNT": "1",
-                    "GIT_CONFIG_KEY_0": "http.https://gh.ali360.cloudns.ch/.extraHeader",
+                    "GIT_CONFIG_KEY_0": "http.https://github.com/.extraHeader",
                     "GIT_CONFIG_VALUE_0": f"Authorization: Basic {credentials}",
                 }
             )
@@ -224,16 +239,25 @@ class GitHubPRCheckout:
         :param sha: The commit to check out.
         :returns: A sentence saying where the commit is checked out, or why checking it out failed.
         """
-        # Reuse a checkout of the same commit, replace one of another commit
-        if os.path.isdir(os.path.join(self.checkout_dir, ".git")):
+        # Reuse a checkout of the same commit and replace one of another commit, but only if this component created
+        # it. Any other non-empty directory, such as the user's own clone, is left untouched.
+        marker = os.path.join(self.checkout_dir, ".git", _CHECKOUT_MARKER)
+        if os.path.isfile(marker):
             current = self._git("-C", self.checkout_dir, "rev-parse", "HEAD").stdout.strip()
             if current == sha:
                 return f"The head commit {sha} is already checked out in ./{self.checkout_dir}."
             _remove_dir(self.checkout_dir)
+        elif os.path.exists(self.checkout_dir) and (
+            not os.path.isdir(self.checkout_dir) or os.listdir(self.checkout_dir)
+        ):
+            return (
+                f"Checking out the code failed: ./{self.checkout_dir} already exists and was not created by "
+                "GitHubPRCheckout. Set `checkout_dir` to a new directory."
+            )
 
         commands = [
             ("init", "-q", self.checkout_dir),
-            ("-C", self.checkout_dir, "fetch", "-q", "--depth", "1", f"https://gh.ali360.cloudns.ch/{repo}.git", sha),
+            ("-C", self.checkout_dir, "fetch", "-q", "--depth", "1", f"https://github.com/{repo}.git", sha),
             # Symlinks become plain files holding the link target, so reading a changed file never follows a link
             # out of the checkout, for example to /proc/self/environ
             ("-C", self.checkout_dir, "-c", "core.symlinks=false", "checkout", "-q", "FETCH_HEAD"),
@@ -242,6 +266,10 @@ class GitHubPRCheckout:
             proc = self._git(*command)
             if proc.returncode:
                 return f"Checking out the code failed: {proc.stderr.strip()[:500]}"
+            # Mark the new repository as created here, in .git, which a pull request can't write to
+            if command[0] == "init":
+                with open(marker, "w", encoding="utf-8"):
+                    pass
         return f"Checked out the head commit {sha} in ./{self.checkout_dir}."
 
     def _guidelines(self, repo: str, base_sha: str) -> str:
@@ -267,10 +295,15 @@ class GitHubPRCheckout:
             if not isinstance(entry, dict) or entry.get("type") != "file":
                 continue
             content = base64.b64decode(entry["content"]).decode("utf-8", errors="replace")
-            blocks.append(f"### {name}\n{content[:_MAX_GUIDELINE_CHARS]}")
+            truncated = "\n[truncated]" if len(content) > _MAX_GUIDELINE_CHARS else ""
+            blocks.append(f"### {name}\n{content[:_MAX_GUIDELINE_CHARS]}{truncated}")
         if not blocks:
             return "## Repository guidelines\nNone of " + ", ".join(self.guideline_files) + " exist in the base branch."
-        return "## Repository guidelines (from the base branch)\n" + "\n\n".join(blocks)
+        return (
+            "## Repository guidelines (from the base branch)\n"
+            f"Follow these, not the copies in ./{self.checkout_dir}, which this pull request may have changed.\n\n"
+            + "\n\n".join(blocks)
+        )
 
     def _changed_files(self, repo: str, pull_number: int) -> list[dict[str, Any]]:
         """
@@ -288,40 +321,51 @@ class GitHubPRCheckout:
                 break
         return files
 
-    def _diff_sections(self, files: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
+    def _diff_sections(self, files: list[dict[str, Any]], requested: list[str] | None) -> tuple[list[str], list[str]]:
         """
         Build the annotated diff of each changed file, up to `max_diff_chars`.
 
         :param files: The changed files, as the GitHub API returns them.
+        :param requested: The files to show. If None, every file not matching `excluded_files` is shown.
         :returns: The diff section of every file shown, and one line per file left out with the reason.
         """
         sections: list[str] = []
         left_out: list[str] = []
         used = 0
+        # Requested files are shown even if they match `excluded_files`, and requested names the pull request doesn't
+        # change are reported
+        if requested is not None:
+            changed_names = {f["filename"] for f in files}
+            left_out += [
+                f"{name} (not changed in this pull request)" for name in requested if name not in changed_names
+            ]
+            files = [f for f in files if f["filename"] in requested]
         for f in files:
             name = f["filename"]
-            if any(fnmatch(name, pattern) for pattern in self.excluded_files):
-                left_out.append(f"{name} (excluded)")
+            if requested is None and any(fnmatch(name, pattern) for pattern in self.excluded_files):
+                left_out.append(f"{name} (excluded, request it with `files`)")
             elif "patch" not in f:
                 left_out.append(f"{name} (binary or too large for GitHub to show)")
             else:
                 section = f"### {name} ({f['status']}, +{f['additions']} -{f['deletions']})\n{_annotate(f['patch'])}"
                 if used + len(section) > self.max_diff_chars:
-                    left_out.append(f"{name} (over the size limit, read it in ./{self.checkout_dir})")
+                    left_out.append(f"{name} (over the size limit, request it with `files`)")
                     continue
                 sections.append(section)
                 used += len(section)
         return sections, left_out
 
     @component.output_types(text=str, head_sha=str)
-    def run(self, repo: str, pull_number: int) -> dict[str, str]:
+    def run(self, repo: str, pull_number: int, files: list[str] | None = None) -> dict[str, str]:
         """
         Check out the head commit of a pull request and return its guidelines and line-numbered diff.
 
         :param repo: The repository as `owner/repo`.
         :param pull_number: The pull request number.
+        :param files: Paths of changed files to show the diff of, such as files left out of an earlier call. If set,
+            the guidelines are not returned and `excluded_files` does not apply.
         :returns: A dictionary with:
-            - `text`: the checkout result, the guidelines, the diff of every file within
+            - `text`: the checkout result, the guidelines unless `files` is set, the diff of every file within
               `max_diff_chars`, and the files left out of the diff. If checking out the code fails, `text` says so
               and still holds the rest.
             - `head_sha`: the head commit, or an empty string if a GitHub API error is returned as `text`.
@@ -340,16 +384,19 @@ class GitHubPRCheckout:
             pr = self._api(f"/repos/{repo}/pulls/{pull_number}")
             head_sha = pr["head"]["sha"]
             checkout = self._checkout(repo, head_sha)
-            files = self._changed_files(repo, pull_number)
-            sections, left_out = self._diff_sections(files)
+            changed_files = self._changed_files(repo, pull_number)
+            sections, left_out = self._diff_sections(changed_files, requested=files)
 
-            changed = sum(f["additions"] + f["deletions"] for f in files)
+            changed = sum(f["additions"] + f["deletions"] for f in changed_files)
             header = (
-                f"{checkout}\nThe diff changes {changed} lines in {len(files)} files.\n"
+                f"{checkout}\nThe diff changes {changed} lines in {len(changed_files)} files.\n"
                 "Every diff line starts with its line number in the new file: `+N|` added, ` N|` unchanged, "
                 "`-|` removed."
             )
-            blocks = [header, self._guidelines(repo, pr["base"]["sha"])]
+            # The guidelines are only returned on the first call, without `files`
+            blocks = [header]
+            if files is None:
+                blocks.append(self._guidelines(repo, pr["base"]["sha"]))
             blocks += sections
             if left_out:
                 blocks.append("## Files not shown\n" + "\n".join(left_out))
