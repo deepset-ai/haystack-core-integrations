@@ -65,10 +65,13 @@ class VLLMSparseDocumentEmbedder:
     Pass vLLM-specific parameters via the `extra_parameters` dictionary. They are forwarded as `extra_body`
     to the OpenAI-compatible endpoint.
 
+    vLLM rejects texts longer than the model's context length, which is 512 tokens for BERT-based SPLADE models.
+    Set `truncate_prompt_tokens` to truncate longer texts instead:
+
     ```python
     document_embedder = VLLMSparseDocumentEmbedder(
         model="prithivida/Splade_PP_en_v1",
-        extra_parameters={"truncate_prompt_tokens": 256, "truncation_side": "right"},
+        extra_parameters={"truncate_prompt_tokens": 256},
     )
     ```
     """
@@ -111,10 +114,13 @@ class VLLMSparseDocumentEmbedder:
             `httpx.AsyncClient`. For more information, see the
             [HTTPX documentation](https://www.python-httpx.org/api/#client).
         :param raise_on_failure: Whether to raise an exception if the embedding request fails. If `False`,
-            the component logs the error and continues processing the remaining documents.
+            the component logs the error and continues processing the remaining documents. Documents of a
+            failed batch are returned without a sparse embedding.
         :param extra_parameters: Additional parameters forwarded as `extra_body` to the vLLM embeddings
             endpoint. Use this to pass parameters not part of the standard OpenAI Embeddings API, such as
-            `truncate_prompt_tokens` or `truncation_side`. See the
+            `truncate_prompt_tokens`. Leave `truncation_side` unset: with it, vLLM truncates after adding the
+            special tokens, and a SPLADE model returns weights unrelated to the text once the final `[SEP]`
+            token is cut off. See the
             [vLLM Embeddings API docs](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#openai-compatible-embeddings-api).
         """
         self.model = model
@@ -270,6 +276,8 @@ class VLLMSparseDocumentEmbedder:
         :returns: A dictionary with:
             - `documents`: The input documents with their `sparse_embedding` field populated.
             - `meta`: Information about the usage of the model.
+        :raises TypeError: `documents` is not a list of Documents.
+        :raises openai.APIError: An embedding request fails and `raise_on_failure` is `True`.
         """
         self._validate_documents(documents)
         if not documents:
@@ -298,6 +306,8 @@ class VLLMSparseDocumentEmbedder:
         :returns: A dictionary with:
             - `documents`: The input documents with their `sparse_embedding` field populated.
             - `meta`: Information about the usage of the model.
+        :raises TypeError: `documents` is not a list of Documents.
+        :raises openai.APIError: An embedding request fails and `raise_on_failure` is `True`.
         """
         self._validate_documents(documents)
         if not documents:

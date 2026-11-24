@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +15,7 @@ from openai.types.create_embedding_response import Usage
 
 from haystack_integrations.components.embedders.vllm import VLLMSparseDocumentEmbedder
 
-MODEL = "prithivida/Splade_PP_en_v1"
+MODEL = os.environ.get("VLLM_SPARSE_EMBEDDING_MODEL", "prithivida/Splade_PP_en_v1")
 API_BASE_URL = "http://localhost:8004/v1"
 
 
@@ -206,6 +207,22 @@ class TestComponentLifecycle:
         assert embedder._client is None
         assert embedder._async_client is None
 
+    @pytest.mark.asyncio
+    async def test_close_and_close_async_are_independent(self):
+        embedder = VLLMSparseDocumentEmbedder(model=MODEL)
+        sync_client = MagicMock()
+        async_client = MagicMock(close=AsyncMock())
+        embedder._client = sync_client
+        embedder._async_client = async_client
+
+        embedder.close()
+        assert embedder._client is None
+        assert embedder._async_client is async_client
+        async_client.close.assert_not_awaited()
+        await embedder.close_async()
+        assert embedder._async_client is None
+        sync_client.close.assert_called_once_with()
+
 
 class TestRun:
     def test_prepare_texts_to_embed(self):
@@ -338,6 +355,21 @@ class TestIntegration:
 
         cheese, cheddar, transformer = (doc.sparse_embedding for doc in docs_with_embeddings)
         assert _sparse_dot_product(cheese, cheddar) > _sparse_dot_product(cheese, transformer)
+
+    @pytest.mark.integration
+    def test_live_run_with_truncation(self):
+        """vLLM rejects a text over the model's 512-token context length unless `truncate_prompt_tokens` is set."""
+        embedder = VLLMSparseDocumentEmbedder(
+            model=MODEL, api_base_url=API_BASE_URL, extra_parameters={"truncate_prompt_tokens": 16}
+        )
+        cheese_doc, _, transformer_doc = self.DOCS
+        long_cheese_doc = Document(content="I love cheese. " * 300)
+
+        result = embedder.run([long_cheese_doc, cheese_doc, transformer_doc])
+
+        assert result["meta"]["usage"]["prompt_tokens"] <= 3 * 16
+        long_cheese, cheese, transformer = (doc.sparse_embedding for doc in result["documents"])
+        assert _sparse_dot_product(long_cheese, cheese) > _sparse_dot_product(long_cheese, transformer)
 
     @pytest.mark.integration
     @pytest.mark.asyncio

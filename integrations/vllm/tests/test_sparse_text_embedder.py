@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +13,7 @@ from openai.types.create_embedding_response import Usage
 
 from haystack_integrations.components.embedders.vllm import VLLMSparseTextEmbedder
 
-MODEL = "prithivida/Splade_PP_en_v1"
+MODEL = os.environ.get("VLLM_SPARSE_EMBEDDING_MODEL", "prithivida/Splade_PP_en_v1")
 API_BASE_URL = "http://localhost:8004/v1"
 
 
@@ -166,6 +167,22 @@ class TestComponentLifecycle:
         await embedder.close_async()
         assert embedder._client is None
         assert embedder._async_client is None
+
+    @pytest.mark.asyncio
+    async def test_close_and_close_async_are_independent(self):
+        embedder = VLLMSparseTextEmbedder(model=MODEL)
+        sync_client = MagicMock()
+        async_client = MagicMock(close=AsyncMock())
+        embedder._client = sync_client
+        embedder._async_client = async_client
+
+        embedder.close()
+        assert embedder._client is None
+        assert embedder._async_client is async_client
+        async_client.close.assert_not_awaited()
+        await embedder.close_async()
+        assert embedder._async_client is None
+        sync_client.close.assert_called_once_with()
 
 
 class TestRun:

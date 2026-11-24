@@ -54,10 +54,13 @@ class VLLMSparseTextEmbedder:
     Pass vLLM-specific parameters via the `extra_parameters` dictionary. They are forwarded as `extra_body`
     to the OpenAI-compatible endpoint.
 
+    vLLM rejects texts longer than the model's context length, which is 512 tokens for BERT-based SPLADE models.
+    Set `truncate_prompt_tokens` to truncate longer texts instead:
+
     ```python
     text_embedder = VLLMSparseTextEmbedder(
         model="prithivida/Splade_PP_en_v1",
-        extra_parameters={"truncate_prompt_tokens": 256, "truncation_side": "right"},
+        extra_parameters={"truncate_prompt_tokens": 256},
     )
     ```
     """
@@ -92,7 +95,9 @@ class VLLMSparseTextEmbedder:
             [HTTPX documentation](https://www.python-httpx.org/api/#client).
         :param extra_parameters: Additional parameters forwarded as `extra_body` to the vLLM embeddings
             endpoint. Use this to pass parameters not part of the standard OpenAI Embeddings API, such as
-            `truncate_prompt_tokens` or `truncation_side`. See the
+            `truncate_prompt_tokens`. Leave `truncation_side` unset: with it, vLLM truncates after adding the
+            special tokens, and a SPLADE model returns weights unrelated to the text once the final `[SEP]`
+            token is cut off. See the
             [vLLM Embeddings API docs](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#openai-compatible-embeddings-api).
         """
         self.model = model
@@ -175,6 +180,8 @@ class VLLMSparseTextEmbedder:
         :returns: A dictionary with:
             - `sparse_embedding`: The sparse embedding of the input text.
             - `meta`: Information about the usage of the model.
+        :raises TypeError: `text` is not a string.
+        :raises openai.APIError: The embedding request fails.
         """
         kwargs = self._prepare_input(text)
         self.warm_up()
@@ -191,6 +198,8 @@ class VLLMSparseTextEmbedder:
         :returns: A dictionary with:
             - `sparse_embedding`: The sparse embedding of the input text.
             - `meta`: Information about the usage of the model.
+        :raises TypeError: `text` is not a string.
+        :raises openai.APIError: The embedding request fails.
         """
         kwargs = self._prepare_input(text)
         await self.warm_up_async()
