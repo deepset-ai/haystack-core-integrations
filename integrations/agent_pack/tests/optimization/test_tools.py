@@ -64,7 +64,7 @@ class OnlyCheapEvaluator(AcceptEvaluator):
 def turn_start(yaml=None, candidates=None, base_id=None):
     """The draft and known configurations a turn starts from, as `propose_candidate` builds them."""
     yaml = yaml or agent_yaml()
-    reference_id = _configuration_id(yaml)
+    reference_id = _configuration_id(text=yaml)
     known = KnownConfigurations(reference_id=reference_id, yaml_by_id={reference_id: yaml, **(candidates or {})})
     parent_id = base_id or reference_id
     return ConfigurationDraft(yaml=known.yaml_by_id[parent_id], parent_id=parent_id), known
@@ -273,7 +273,7 @@ class TestSubmitCandidate:
 
     def test_refuses_known_configurations(self):
         cheap = model_yaml("cheap")
-        draft, known = turn_start(candidates={_configuration_id(cheap): cheap})
+        draft, known = turn_start(candidates={_configuration_id(text=cheap): cheap})
         # A formatting-only change is the same configuration as the reference
         commented = validated(edited(draft, draft.yaml, "# comment\n" + draft.yaml))
         with pytest.raises(ValueError, match="duplicate_or_no_op"):
@@ -287,7 +287,7 @@ class TestSubmitCandidate:
 class TestRestoreCandidate:
     def test_restores_the_reference_and_earlier_candidates(self):
         cheap = model_yaml("cheap")
-        cheap_id = _configuration_id(cheap)
+        cheap_id = _configuration_id(text=cheap)
         draft, known = turn_start(candidates={cheap_id: cheap}, base_id=cheap_id)
         restored = restore_candidate.function(
             candidate_id="reference", expected_revision=draft.revision, draft=draft, known=known
