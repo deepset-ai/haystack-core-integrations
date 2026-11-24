@@ -5,7 +5,7 @@ import copy
 
 from haystack.utils import Secret
 
-from haystack_integrations.prompts.github.pr_checkout_prompt import PR_CHECKOUT_PROMPT, PR_CHECKOUT_SCHEMA
+from haystack_integrations.prompts.github.pr_checkout_prompt import PR_CHECKOUT_PROMPT
 from haystack_integrations.tools.github.pr_checkout_tool import GitHubPRCheckoutTool
 
 
@@ -15,7 +15,14 @@ class TestGitHubPRCheckoutTool:
         tool = GitHubPRCheckoutTool()
         assert tool.name == "pr_checkout"
         assert tool.description == PR_CHECKOUT_PROMPT
-        assert tool.parameters == PR_CHECKOUT_SCHEMA
+        assert tool.parameters == {
+            "properties": {
+                "repo": {"type": "string", "description": "The repository as `owner/repo`."},
+                "pull_number": {"type": "integer", "description": "The pull request number."},
+            },
+            "required": ["repo", "pull_number"],
+            "type": "object",
+        }
         assert tool.github_token == Secret.from_env_var("GITHUB_TOKEN", strict=False)
         assert tool.raise_on_failure is False
         assert tool.outputs_to_string == {"source": "text"}
@@ -25,7 +32,6 @@ class TestGitHubPRCheckoutTool:
         monkeypatch.setattr(
             tool._component, "run", lambda repo, pull_number: {"text": f"{repo}#{pull_number}", "head_sha": "abc"}
         )
-
         assert tool.invoke(repo="owner/repo", pull_number=7) == {"text": "owner/repo#7", "head_sha": "abc"}
 
     def test_to_dict_from_dict(self, monkeypatch):
@@ -39,15 +45,13 @@ class TestGitHubPRCheckoutTool:
             max_diff_chars=500,
             raise_on_failure=True,
         )
-
         data = tool.to_dict()
-
         assert data == {
             "type": "haystack_integrations.tools.github.pr_checkout_tool.GitHubPRCheckoutTool",
             "data": {
                 "name": "checkout_pr",
                 "description": PR_CHECKOUT_PROMPT,
-                "parameters": PR_CHECKOUT_SCHEMA,
+                "parameters": tool.parameters,
                 "github_token": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
                 "checkout_dir": "code",
                 "guideline_files": ["AGENTS.md"],

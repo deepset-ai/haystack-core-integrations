@@ -103,9 +103,7 @@ class TestInit:
             max_diff_chars=500,
             raise_on_failure=False,
         )
-
         data = component_to_dict(checkout, "checkout")
-
         assert data == {
             "type": "haystack_integrations.components.connectors.github.pr_checkout.GitHubPRCheckout",
             "init_parameters": {
@@ -143,9 +141,7 @@ class TestWarmUp:
         monkeypatch.setattr(pr_checkout.subprocess, "run", run)
         checkout = GitHubPRCheckout(github_token=Secret.from_token("secret-token"))
         checkout.warm_up()
-
         checkout._checkout(REPO, "abc")
-
         credentials = base64.b64encode(b"x-access-token:secret-token").decode()
         for command, env in calls:
             assert not any("secret-token" in arg or credentials in arg for arg in command)
@@ -189,9 +185,7 @@ class TestCheckout:
 
     def test_checks_out_the_commit_with_symlinks_as_plain_files(self, remote, checkout):
         sha = git(remote, "rev-parse", "HEAD")
-
         assert checkout._checkout(REPO, sha) == f"Checked out the head commit {sha} in ./repo."
-
         assert Path("repo/app.py").read_text() == "print('hi')\n"
         assert not Path("repo/secret.py").is_symlink()
         assert Path("repo/secret.py").read_text() == "/proc/self/environ"
@@ -200,7 +194,6 @@ class TestCheckout:
         sha = git(remote, "rev-parse", "HEAD")
         checkout._checkout(REPO, sha)
         Path("repo/marker").write_text("kept")
-
         assert checkout._checkout(REPO, sha) == f"The head commit {sha} is already checked out in ./repo."
         assert Path("repo/marker").exists()
 
@@ -209,7 +202,6 @@ class TestCheckout:
         (remote / "app.py").write_text("print('bye')\n")
         git(remote, "commit", "-q", "-am", "second")
         sha = git(remote, "rev-parse", "HEAD")
-
         assert checkout._checkout(REPO, sha) == f"Checked out the head commit {sha} in ./repo."
         assert Path("repo/app.py").read_text() == "print('bye')\n"
 
@@ -244,9 +236,7 @@ class TestGuidelines:
     def test_reads_the_guideline_files_from_the_base_branch(self, component):
         github = FakeGitHub([], guidelines={"AGENTS.md": contents_entry("Use double backticks in release notes.")})
         component._api = github
-
         guidelines = component._guidelines(REPO, "base123")
-
         assert "### AGENTS.md\nUse double backticks in release notes." in guidelines
         assert "CLAUDE.md" not in guidelines
         assert all(params == {"ref": "base123"} for path, params in github.requests)
@@ -269,9 +259,7 @@ class TestRun:
         component._api = FakeGitHub(
             [changed_file("src/app.py"), changed_file("uv.lock"), changed_file("logo.png", patch=None)]
         )
-
         result = component.run(repo=REPO, pull_number=7)
-
         assert result["head_sha"] == "head123"
         assert result["text"].startswith("Checked out the head commit head123 in ./repo.")
         assert "### src/app.py (modified, +1 -1)\n@@ -1 +1 @@\n-|a\n+1|b" in result["text"]
@@ -281,18 +269,14 @@ class TestRun:
     def test_leaves_out_files_over_the_size_limit(self, component):
         component.max_diff_chars = 60
         component._api = FakeGitHub([changed_file("src/a.py"), changed_file("src/b.py")])
-
         text = component.run(repo=REPO, pull_number=7)["text"]
-
         assert "### src/a.py" in text
         assert "### src/b.py" not in text
         assert "src/b.py (over the size limit, read it in ./repo)" in text
 
     def test_reads_every_page_of_changed_files(self, component):
         component._api = FakeGitHub([changed_file(f"src/file_{index}.py") for index in range(101)])
-
         text = component.run(repo=REPO, pull_number=7)["text"]
-
         assert "The diff changes 202 lines in 101 files." in text
         assert "### src/file_100.py" in text
 
@@ -308,7 +292,5 @@ class TestRun:
             raise http_error(404)
 
         component._api = api
-
         result = component.run(repo=REPO, pull_number=7)
-
         assert result == {"text": f"Error checking out pull request {REPO}#7: 404 error", "head_sha": ""}

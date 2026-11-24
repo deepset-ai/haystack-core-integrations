@@ -8,12 +8,3 @@ Every diff line starts with its line number in the new file: `+N|` added, ` N|` 
 Files left out of the diff (lockfiles, binary files, or files over the size limit) are listed at the end. Read them, and
 the code around the change, in the checked-out directory.
 """
-
-PR_CHECKOUT_SCHEMA = {
-    "properties": {
-        "repo": {"type": "string", "description": "The repository as owner/repo."},
-        "pull_number": {"type": "integer", "description": "The pull request number."},
-    },
-    "required": ["repo", "pull_number"],
-    "type": "object",
-}

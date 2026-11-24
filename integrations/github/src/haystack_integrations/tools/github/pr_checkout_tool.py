@@ -9,7 +9,7 @@ from haystack.tools import ComponentTool
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.components.connectors.github.pr_checkout import GitHubPRCheckout
-from haystack_integrations.prompts.github.pr_checkout_prompt import PR_CHECKOUT_PROMPT, PR_CHECKOUT_SCHEMA
+from haystack_integrations.prompts.github.pr_checkout_prompt import PR_CHECKOUT_PROMPT
 from haystack_integrations.tools.github.utils import deserialize_handlers, serialize_handlers
 
 
@@ -25,7 +25,7 @@ class GitHubPRCheckoutTool(ComponentTool):
         *,
         name: str | None = "pr_checkout",
         description: str | None = PR_CHECKOUT_PROMPT,
-        parameters: dict[str, Any] | None = PR_CHECKOUT_SCHEMA,
+        parameters: dict[str, Any] | None = None,
         github_token: Secret | None = Secret.from_env_var("GITHUB_TOKEN", strict=False),
         checkout_dir: str = "repo",
         guideline_files: list[str] | None = None,
@@ -41,7 +41,8 @@ class GitHubPRCheckoutTool(ComponentTool):
 
         :param name: Optional name for the tool.
         :param description: Optional description.
-        :param parameters: Optional JSON schema defining the parameters expected by the Tool.
+        :param parameters: Optional JSON schema defining the parameters expected by the Tool. If None, it is generated
+            from the `GitHubPRCheckout.run` signature and docstring.
         :param github_token: GitHub token for the API and for fetching the code. Without a token, only public
             repositories can be read.
         :param checkout_dir: Directory, relative to the working directory, that the head commit is checked out into.
