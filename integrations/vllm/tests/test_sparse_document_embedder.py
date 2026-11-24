@@ -83,67 +83,39 @@ class TestInitializationAndSerialization:
         assert embedder.raise_on_failure is True
         assert embedder.extra_parameters == {"truncate_prompt_tokens": 256}
 
-    def test_to_dict(self):
-        component_dict = component_to_dict(VLLMSparseDocumentEmbedder(model=MODEL), "embedder")
-        assert component_dict == {
-            "type": (
-                "haystack_integrations.components.embedders.vllm.sparse_document_embedder.VLLMSparseDocumentEmbedder"
-            ),
-            "init_parameters": {
-                "api_key": {"env_vars": ["VLLM_API_KEY"], "strict": False, "type": "env_var"},
-                "model": MODEL,
-                "api_base_url": "http://localhost:8000/v1",
-                "prefix": "",
-                "suffix": "",
-                "batch_size": 32,
-                "progress_bar": True,
-                "meta_fields_to_embed": [],
-                "embedding_separator": "\n",
-                "timeout": None,
-                "max_retries": None,
-                "http_client_kwargs": None,
-                "raise_on_failure": False,
-                "extra_parameters": None,
-            },
+    def test_serialization_round_trip(self, monkeypatch):
+        monkeypatch.setenv("CUSTOM_VLLM_KEY", "secret-value")
+        init_parameters = {
+            "model": "custom-model",
+            "api_key": Secret.from_env_var("CUSTOM_VLLM_KEY"),
+            "api_base_url": "http://my-vllm-server:8000/v1",
+            "prefix": "passage: ",
+            "suffix": "!",
+            "batch_size": 16,
+            "progress_bar": False,
+            "meta_fields_to_embed": ["title"],
+            "embedding_separator": " | ",
+            "timeout": 12.5,
+            "max_retries": 2,
+            "http_client_kwargs": {"verify": False},
+            "raise_on_failure": True,
+            "extra_parameters": {"truncate_prompt_tokens": 128},
         }
+        embedder = VLLMSparseDocumentEmbedder(**init_parameters)
 
-    def test_from_dict(self):
-        data = {
+        serialized = component_to_dict(embedder, "embedder")
+        assert serialized == {
             "type": (
                 "haystack_integrations.components.embedders.vllm.sparse_document_embedder.VLLMSparseDocumentEmbedder"
             ),
             "init_parameters": {
-                "api_key": {"env_vars": ["VLLM_API_KEY"], "strict": False, "type": "env_var"},
-                "model": MODEL,
-                "api_base_url": "http://localhost:8000/v1",
-                "prefix": "",
-                "suffix": "",
-                "batch_size": 16,
-                "progress_bar": False,
-                "meta_fields_to_embed": ["title"],
-                "embedding_separator": "\n",
-                "timeout": None,
-                "max_retries": None,
-                "http_client_kwargs": None,
-                "raise_on_failure": False,
-                "extra_parameters": None,
+                **init_parameters,
+                "api_key": {"type": "env_var", "env_vars": ["CUSTOM_VLLM_KEY"], "strict": True},
             },
         }
-        embedder = component_from_dict(VLLMSparseDocumentEmbedder, data, "embedder")
-        assert embedder.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
-        assert embedder.model == MODEL
-        assert embedder.api_base_url == "http://localhost:8000/v1"
-        assert embedder.prefix == ""
-        assert embedder.suffix == ""
-        assert embedder.batch_size == 16
-        assert embedder.progress_bar is False
-        assert embedder.meta_fields_to_embed == ["title"]
-        assert embedder.embedding_separator == "\n"
-        assert embedder.timeout is None
-        assert embedder.max_retries is None
-        assert embedder.http_client_kwargs is None
-        assert embedder.raise_on_failure is False
-        assert embedder.extra_parameters is None
+        restored = component_from_dict(VLLMSparseDocumentEmbedder, serialized, "embedder")
+        assert component_to_dict(restored, "embedder") == serialized
+        assert restored.api_key.resolve_value() == "secret-value"
 
 
 class TestComponentLifecycle:

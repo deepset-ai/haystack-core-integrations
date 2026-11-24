@@ -63,48 +63,32 @@ class TestInitializationAndSerialization:
         assert embedder.http_client_kwargs == {"proxy": "https://proxy.example.com"}
         assert embedder.extra_parameters == {"truncate_prompt_tokens": 256}
 
-    def test_to_dict(self):
-        component_dict = component_to_dict(VLLMSparseTextEmbedder(model=MODEL), "embedder")
-        assert component_dict == {
-            "type": "haystack_integrations.components.embedders.vllm.sparse_text_embedder.VLLMSparseTextEmbedder",
-            "init_parameters": {
-                "api_key": {"env_vars": ["VLLM_API_KEY"], "strict": False, "type": "env_var"},
-                "model": MODEL,
-                "api_base_url": "http://localhost:8000/v1",
-                "prefix": "",
-                "suffix": "",
-                "timeout": None,
-                "max_retries": None,
-                "http_client_kwargs": None,
-                "extra_parameters": None,
-            },
+    def test_serialization_round_trip(self, monkeypatch):
+        monkeypatch.setenv("CUSTOM_VLLM_KEY", "secret-value")
+        init_parameters = {
+            "model": "custom-model",
+            "api_key": Secret.from_env_var("CUSTOM_VLLM_KEY"),
+            "api_base_url": "http://my-vllm-server:8000/v1",
+            "prefix": "query: ",
+            "suffix": "!",
+            "timeout": 12.5,
+            "max_retries": 2,
+            "http_client_kwargs": {"verify": False},
+            "extra_parameters": {"truncate_prompt_tokens": 128},
         }
+        embedder = VLLMSparseTextEmbedder(**init_parameters)
 
-    def test_from_dict(self):
-        data = {
+        serialized = component_to_dict(embedder, "embedder")
+        assert serialized == {
             "type": "haystack_integrations.components.embedders.vllm.sparse_text_embedder.VLLMSparseTextEmbedder",
             "init_parameters": {
-                "api_key": {"env_vars": ["VLLM_API_KEY"], "strict": False, "type": "env_var"},
-                "model": MODEL,
-                "api_base_url": "http://localhost:8000/v1",
-                "prefix": "query: ",
-                "suffix": "",
-                "timeout": None,
-                "max_retries": None,
-                "http_client_kwargs": None,
-                "extra_parameters": {"truncate_prompt_tokens": 256},
+                **init_parameters,
+                "api_key": {"type": "env_var", "env_vars": ["CUSTOM_VLLM_KEY"], "strict": True},
             },
         }
-        embedder = component_from_dict(VLLMSparseTextEmbedder, data, "embedder")
-        assert embedder.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
-        assert embedder.model == MODEL
-        assert embedder.api_base_url == "http://localhost:8000/v1"
-        assert embedder.prefix == "query: "
-        assert embedder.suffix == ""
-        assert embedder.timeout is None
-        assert embedder.max_retries is None
-        assert embedder.http_client_kwargs is None
-        assert embedder.extra_parameters == {"truncate_prompt_tokens": 256}
+        restored = component_from_dict(VLLMSparseTextEmbedder, serialized, "embedder")
+        assert component_to_dict(restored, "embedder") == serialized
+        assert restored.api_key.resolve_value() == "secret-value"
 
 
 class TestComponentLifecycle:
