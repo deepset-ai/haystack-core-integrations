@@ -4,8 +4,8 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/sqlalchemy/sqlalchemy\_table\_retriever.py |       72 |        1 |       16 |        3 |     95% |96-\>100, 106-\>104, 143 |
-| **TOTAL**                                                                                   |   **72** |    **1** |   **16** |    **3** | **95%** |           |
+| src/haystack\_integrations/components/retrievers/sqlalchemy/sqlalchemy\_table\_retriever.py |       73 |        1 |       16 |        3 |     96% |101-\>105, 111-\>109, 148 |
+| **TOTAL**                                                                                   |   **73** |    **1** |   **16** |    **3** | **96%** |           |
 
 
 ## Setup coverage badge
