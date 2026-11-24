@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "opendataloader-pdf>=2.1.0",]
+dependencies = ["haystack-ai>=2.1.0", "opendataloader-pdf>=2.1.0",]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opendataloader_pdf#readme"

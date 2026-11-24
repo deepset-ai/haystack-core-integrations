@@ -39,7 +39,7 @@ from azure.search.documents.indexes.models import (
     VectorSearchAlgorithmMetric,
     VectorSearchProfile,
 )
-from azure.search.documents.models import LookupDocument, VectorizedQuery
+from azure.search.documents.models import IndexingResult, LookupDocument, VectorizedQuery
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
@@ -51,6 +51,8 @@ from .filters import _normalize_filters
 
 USER_AGENT = "haystack-integrations/azure-ai-search"
 BIG_TOP_K = 100000
+# Azure AI Search rejects $skip values above this, so paging cannot reach results beyond it.
+MAX_SKIP = 100000
 
 type_mapping = {
     str: "Edm.String",
@@ -620,6 +622,8 @@ class AzureAISearchDocumentStore:
         :param policy: Policy to determine how duplicates are handled.
         :raises ValueError: If the documents are not of type Document.
         :raises TypeError: If the document ids are not strings.
+        :raises AzureAISearchDocumentStoreError: If Azure AI Search reports that any document was not indexed.
+            The documents it did index stay in the index.
         :return: the number of documents added to index.
         """
 
@@ -638,8 +642,27 @@ class AzureAISearchDocumentStore:
         documents_to_write = [self._convert_haystack_document_to_azure(doc) for doc in documents]
 
         if documents_to_write != []:
-            client.upload_documents(documents_to_write)
+            results = client.upload_documents(documents_to_write)
+            self._raise_on_failed_results(results, "written to")
         return len(documents_to_write)
+
+    def _raise_on_failed_results(self, results: list[IndexingResult], action: str) -> None:
+        """
+        Raise if Azure AI Search reported any document in a batch as not indexed.
+
+        The SDK does not raise for item-level failures: the service answers 207 Multi-Status and each
+        document gets an IndexingResult with `succeeded=False` (e.g. 409, 422 or 503).
+        """
+        failed = [result for result in results if not result.succeeded]
+        if failed:
+            shown = 10
+            errors = "\n".join(
+                f"Document '{result.key}': {result.status_code} {result.error_message}" for result in failed[:shown]
+            )
+            if len(failed) > shown:
+                errors += f"\n... and {len(failed) - shown} more"
+            msg = f"{len(failed)} of {len(results)} documents were not {action} index '{self._index_name}':\n{errors}"
+            raise AzureAISearchDocumentStoreError(msg)
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
@@ -729,6 +752,8 @@ class AzureAISearchDocumentStore:
         :param filters: The filters to apply to select documents for updating.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param meta: The fields to update. These fields must exist in the index schema.
+        :raises AzureAISearchDocumentStoreError: If the search or the update fails, including when Azure AI Search
+            reports that any matching document was not updated.
         :returns: The number of documents updated.
         """
         try:
@@ -751,7 +776,8 @@ class AzureAISearchDocumentStore:
                 update_doc.update(meta)
                 documents_to_update.append(update_doc)
 
-            self.client.merge_documents(documents=documents_to_update)
+            indexing_results = self.client.merge_documents(documents=documents_to_update)
+            self._raise_on_failed_results(indexing_results, "updated in")
 
             logger.info(
                 "Updated {n_docs} documents in index '{idx_name}' using filters.",
@@ -764,7 +790,7 @@ class AzureAISearchDocumentStore:
             # Re-raise ValueError for invalid fields without wrapping
             raise
         except Exception as e:
-            msg = f"Failed to delete documents by filter from Azure AI Search: {e!s}"
+            msg = f"Failed to update documents by filter in Azure AI Search: {e!s}"
             raise AzureAISearchDocumentStoreError(msg) from e
 
     def get_documents_by_id(self, document_ids: list[str]) -> list[Document]:
@@ -795,15 +821,23 @@ class AzureAISearchDocumentStore:
         Filters should be given as a dictionary supporting filtering by metadata. For details on
         filters, see the [metadata filtering documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
+        Azure AI Search pages through results with `$skip`, which is capped at 100,000. If that many documents
+        match, a warning is logged and the result may be incomplete; use a narrower filter to retrieve the rest.
+
         :param filters: the filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
-        if filters:
-            normalized_filters = _normalize_filters(filters)
-            result = self.client.search(filter=normalized_filters)
-            return self._convert_search_result_to_documents(list(result))
-        else:
-            return self.search_documents()
+        normalized_filters = _normalize_filters(filters) if filters else None
+        # No `top`: the SDK pager follows the service's continuation tokens until all matches are returned.
+        results = list(self.client.search(search_text="*", filter=normalized_filters))
+        if len(results) >= MAX_SKIP:
+            logger.warning(
+                "filter_documents returned {count} documents, which reaches the Azure AI Search $skip limit of "
+                "{limit}. The result may be incomplete; use a narrower filter to retrieve the remaining documents.",
+                count=len(results),
+                limit=MAX_SKIP,
+            )
+        return self._convert_search_result_to_documents(results)
 
     def _convert_search_result_to_documents(self, azure_docs: Sequence[Mapping[str, Any]]) -> list[Document]:
         """

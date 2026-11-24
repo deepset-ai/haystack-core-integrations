@@ -195,7 +195,7 @@ $ hatch version
 > Even when you see the version number ends with a suffix like `.dev...`, this doesn't necessarily mean the integration
 > has unreleased commits. In other words, despite what the version number says, you might be looking at the latest
 > released code. This is a side effect of working with a monorepo: hatch can't tell if a certain commit in the git
-> history is releated to one integration or the other.
+> history is related to one integration or the other.
 
 #### Run the linter
 

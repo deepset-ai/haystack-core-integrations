@@ -4,20 +4,13 @@
 
 import asyncio
 import inspect
-import json
 from dataclasses import replace
 from typing import Any
 
-from haystack import component, default_to_dict, logging
+from haystack import component
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.generators.chat.openai import (
-    _check_finish_reason,
     _convert_chat_completion_chunk_to_streaming_chunk,
-)
-from haystack.components.generators.utils import (
-    _convert_streaming_chunks_to_chat_message,
-    _normalize_messages,
-    _serialize_object,
 )
 from haystack.dataclasses import (
     ChatMessage,
@@ -26,17 +19,12 @@ from haystack.dataclasses import (
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
-    ToolCall,
-    select_streaming_callback,
 )
-from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets, serialize_tools_or_toolset
-from haystack.utils import serialize_callable
+from haystack.tools import ToolsType
 from haystack.utils.auth import Secret
 from openai import AsyncStream, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, ParsedChatCompletion
 from openai.types.chat.chat_completion import Choice
-
-logger = logging.getLogger(__name__)
 
 
 def _extract_reasoning(message: Any) -> ReasoningContent | None:
@@ -75,44 +63,6 @@ def _extract_reasoning(message: Any) -> ReasoningContent | None:
         extra["reasoning_details"] = details
 
     return ReasoningContent(reasoning_text=reasoning_text, extra=extra)
-
-
-def _convert_openrouter_completion_to_chat_message(
-    completion: ChatCompletion | ParsedChatCompletion, choice: Choice
-) -> ChatMessage:
-    """Convert an OpenRouter chat completion to a ChatMessage, including reasoning content."""
-    message = choice.message
-    text = message.content
-    tool_calls = []
-    if message.tool_calls:
-        for tc in message.tool_calls:
-            func = getattr(tc, "function", None)
-            if func is None:
-                continue
-            try:
-                arguments = json.loads(func.arguments)
-                tool_calls.append(ToolCall(id=tc.id, tool_name=func.name, arguments=arguments))
-            except json.JSONDecodeError:
-                logger.warning(
-                    "OpenRouter returned a malformed JSON string for tool call arguments. "
-                    "Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
-                    _id=tc.id,
-                    _name=func.name,
-                    _arguments=func.arguments,
-                )
-
-    logprobs = _serialize_object(choice.logprobs) if choice.logprobs else None
-    meta = {
-        "model": completion.model,
-        "index": choice.index,
-        "finish_reason": choice.finish_reason,
-        "usage": _serialize_object(completion.usage),
-    }
-    if logprobs:
-        meta["logprobs"] = logprobs
-
-    reasoning = _extract_reasoning(message)
-    return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning)
 
 
 def _convert_openrouter_chunk_to_streaming_chunks(
@@ -200,22 +150,6 @@ def _merge_reasoning_details(details: list[dict[str, Any]]) -> list[dict[str, An
             elif value is not None:
                 entry[field] = value
     return list(merged.values())
-
-
-def _convert_openrouter_streaming_chunks_to_chat_message(chunks: list[StreamingChunk]) -> ChatMessage:
-    """Connect OpenRouter streaming chunks into a single ChatMessage, keeping the merged `reasoning_details`."""
-    message = _convert_streaming_chunks_to_chat_message(chunks=chunks)
-    # the core helper only joins the reasoning text, but OpenRouter expects the details back in multi-turn conversations
-    details = [d for c in chunks if c.reasoning for d in c.reasoning.extra.get("reasoning_details", [])]
-    if not details:
-        return message
-    reasoning = ReasoningContent(
-        reasoning_text=message.reasoning.reasoning_text if message.reasoning else "",
-        extra={"reasoning_details": _merge_reasoning_details(details)},
-    )
-    return ChatMessage.from_assistant(
-        text=message.text, tool_calls=message.tool_calls, meta=message.meta, reasoning=reasoning
-    )
 
 
 @component
@@ -347,100 +281,58 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         :returns:
             The serialized component as a dictionary.
         """
-        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        data = super(OpenRouterChatGenerator, self).to_dict()  # noqa: UP008
+        init_parameters = inspect.signature(type(self).__init__).parameters
+        data["init_parameters"] = {
+            key: value for key, value in data["init_parameters"].items() if key in init_parameters
+        }
+        data["init_parameters"]["extra_headers"] = self.extra_headers
+        return data
 
-        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
-        # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
-        # the __init__)
-        # it would be hard to maintain the compatibility as superclass changes
-        return default_to_dict(
-            self,
-            model=self.model,
-            streaming_callback=callback_name,
-            api_base_url=self.api_base_url,
-            generation_kwargs=self.generation_kwargs,
-            api_key=self.api_key.to_dict(),
-            tools=serialize_tools_or_toolset(self.tools),
-            extra_headers=self.extra_headers,
-            timeout=self.timeout,
-            max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
+    def _adapt_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Send OpenRouter generation parameters in the request body with custom headers."""
+        return {"extra_body": dict(generation_kwargs), "extra_headers": dict(self.extra_headers or {})}
+
+    def _convert_message_to_api_format(self, message: ChatMessage) -> dict[str, Any]:
+        """Preserve reasoning details when sending messages back to OpenRouter."""
+        formatted = super(OpenRouterChatGenerator, self)._convert_message_to_api_format(message)  # noqa: UP008
+        if message.reasoning and message.reasoning.extra.get("reasoning_details"):
+            formatted["reasoning_details"] = message.reasoning.extra["reasoning_details"]
+        return formatted
+
+    def _convert_chat_completion_to_chat_message(
+        self, completion: ChatCompletion | ParsedChatCompletion, choice: Choice
+    ) -> ChatMessage:
+        """Convert a completion while preserving OpenRouter reasoning content and details."""
+        message = super(OpenRouterChatGenerator, self)._convert_chat_completion_to_chat_message(  # noqa: UP008
+            completion=completion, choice=choice
+        )
+        reasoning = _extract_reasoning(choice.message)
+        if reasoning is None:
+            return message
+        return ChatMessage.from_assistant(
+            text=message.text, tool_calls=message.tool_calls, meta=message.meta, reasoning=reasoning
         )
 
-    def _prepare_api_call(
-        self,
-        *,
-        messages: list[ChatMessage],
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        tools: ToolsType | None = None,
-        tools_strict: bool | None = None,
-    ) -> dict[str, Any]:
-        # update generation kwargs by merging with the generation kwargs passed to the run method
-        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        extra_headers = {**(self.extra_headers or {})}
-
-        is_streaming = streaming_callback is not None
-        num_responses = generation_kwargs.pop("n", 1)
-
-        if is_streaming and num_responses > 1:
-            msg = "Cannot stream multiple responses, please set n=1."
-            raise ValueError(msg)
-        response_format = generation_kwargs.pop("response_format", None)
-
-        # adapt ChatMessage(s) to the format expected by the OpenAI API
-        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
-
-        # OpenRouter expects reasoning_details to be sent back in multi-turn conversations, but
-        # to_openai_dict_format() strips reasoning, so we re-inject it into the formatted message dicts.
-        for i, chat_msg in enumerate(messages):
-            if chat_msg.reasoning and chat_msg.reasoning.extra.get("reasoning_details"):
-                openai_formatted_messages[i]["reasoning_details"] = chat_msg.reasoning.extra["reasoning_details"]
-
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
-        tools_strict = tools_strict if tools_strict is not None else self.tools_strict
-        _check_duplicate_tool_names(flattened_tools)
-
-        openai_tools = {}
-        if flattened_tools:
-            tool_definitions = []
-            for t in flattened_tools:
-                function_spec = {**t.tool_spec}
-                if tools_strict:
-                    function_spec["strict"] = True
-                    function_spec["parameters"]["additionalProperties"] = False
-                tool_definitions.append({"type": "function", "function": function_spec})
-            openai_tools = {"tools": tool_definitions}
-
-        base_args = {
-            "model": self.model,
-            "messages": openai_formatted_messages,
-            "n": num_responses,
-            **openai_tools,
-            "extra_headers": {**extra_headers},
-            "extra_body": {**generation_kwargs},
-        }
-
-        if response_format and not is_streaming:
-            # for structured outputs without streaming, we use openai's parse endpoint
-            # Note: `stream` cannot be passed to chat.completions.parse
-            # we pass a key `openai_endpoint` as a hint to the run method to use the parse endpoint
-            # this key will be removed before the API call is made
-            return {**base_args, "response_format": response_format, "openai_endpoint": "parse"}
-
-        # for structured outputs with streaming, we use openai's create endpoint
-        # we pass a key `openai_endpoint` as a hint to the run method to use the create endpoint
-        # this key will be removed before the API call is made
-        final_args = {**base_args, "stream": is_streaming, "openai_endpoint": "create"}
-
-        # We only set the response_format parameter if it's not None since None is not a valid value in the API.
-        if response_format:
-            final_args["response_format"] = response_format
-        return final_args
+    def _convert_streaming_chunks_to_chat_message(self, chunks: list[StreamingChunk]) -> ChatMessage:
+        """Connect OpenRouter streaming chunks into a single ChatMessage, keeping the merged `reasoning_details`."""
+        message = super(OpenRouterChatGenerator, self)._convert_streaming_chunks_to_chat_message(chunks=chunks)  # noqa: UP008
+        # OpenRouter needs reasoning details back in multi-turn conversations; core only joins the text.
+        details = [d for c in chunks if c.reasoning for d in c.reasoning.extra.get("reasoning_details", [])]
+        if not details:
+            return message
+        reasoning = ReasoningContent(
+            reasoning_text=message.reasoning.reasoning_text if message.reasoning else "",
+            extra={"reasoning_details": _merge_reasoning_details(details)},
+        )
+        return ChatMessage.from_assistant(
+            text=message.text, tool_calls=message.tool_calls, meta=message.meta, reasoning=reasoning
+        )
 
     def _handle_stream_response(
         self, chat_completion: Stream[ChatCompletionChunk], callback: SyncStreamingCallbackT
     ) -> list[ChatMessage]:
+        """Handle OpenRouter streams that can emit multiple chunks per API delta."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         for chunk in chat_completion:
@@ -450,11 +342,12 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             ):
                 chunks.append(streaming_chunk)
                 callback(streaming_chunk)
-        return [_convert_openrouter_streaming_chunks_to_chat_message(chunks=chunks)]
+        return [self._convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     async def _handle_async_stream_response(
         self, chat_completion: AsyncStream[ChatCompletionChunk], callback: StreamingCallbackT
     ) -> list[ChatMessage]:
+        """Handle async OpenRouter streams that can emit multiple chunks per API delta."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         try:
@@ -472,142 +365,4 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             # shield the close so the stream is released even though the task is being cancelled
             await asyncio.shield(chat_completion.close())
             raise
-        return [_convert_openrouter_streaming_chunks_to_chat_message(chunks=chunks)]
-
-    @component.output_types(replies=list[ChatMessage])
-    def run(
-        self,
-        messages: list[ChatMessage] | str,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        *,
-        tools: ToolsType | None = None,
-        tools_strict: bool | None = None,
-    ) -> dict[str, list[ChatMessage]]:
-        """
-        Invokes chat completion on the OpenRouter API.
-
-        :param messages:
-            A list of ChatMessage instances representing the input messages.
-            If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param streaming_callback:
-            A callback function that is called when a new token is received from the stream.
-        :param generation_kwargs:
-            Additional keyword arguments for text generation. These are merged per key with the
-            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
-            at initialization are kept.
-            For details on OpenRouter API parameters, see
-            [OpenRouter docs](https://openrouter.ai/docs/quickstart).
-        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter provided during initialization.
-        :param tools_strict:
-            Whether to enable strict schema adherence for tool calls.
-
-        :returns:
-            A dictionary with the following key:
-            - `replies`: A list containing the generated responses as ChatMessage instances.
-        """
-        messages = _normalize_messages(messages)
-        self.warm_up()
-
-        if len(messages) == 0:
-            return {"replies": []}
-
-        streaming_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
-        )
-
-        api_args = self._prepare_api_call(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
-        )
-        openai_endpoint = api_args.pop("openai_endpoint")
-        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
-        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
-
-        if streaming_callback is not None:
-            completions = self._handle_stream_response(chat_completion, streaming_callback)
-        else:
-            assert isinstance(chat_completion, ChatCompletion), "Unexpected response type for non-streaming request."
-            completions = [
-                _convert_openrouter_completion_to_chat_message(chat_completion, choice)
-                for choice in chat_completion.choices
-            ]
-
-        for message in completions:
-            _check_finish_reason(message.meta)
-
-        return {"replies": completions}
-
-    @component.output_types(replies=list[ChatMessage])
-    async def run_async(
-        self,
-        messages: list[ChatMessage] | str,
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        *,
-        tools: ToolsType | None = None,
-        tools_strict: bool | None = None,
-    ) -> dict[str, list[ChatMessage]]:
-        """
-        Asynchronously invokes chat completion on the OpenRouter API.
-
-        :param messages:
-            A list of ChatMessage instances representing the input messages.
-            If a string is provided, it is converted to a list containing a ChatMessage with user role.
-        :param streaming_callback:
-            A callback function that is called when a new token is received from the stream.
-            Must be a coroutine.
-        :param generation_kwargs:
-            Additional keyword arguments for text generation. These are merged per key with the
-            `generation_kwargs` passed at initialization: keys provided here take precedence, keys set only
-            at initialization are kept.
-        :param tools: A list of Tool and/or Toolset objects, or a single Toolset.
-        :param tools_strict:
-            Whether to enable strict schema adherence for tool calls.
-
-        :returns:
-            A dictionary with the following key:
-            - `replies`: A list containing the generated responses as ChatMessage instances.
-        """
-        messages = _normalize_messages(messages)
-        if hasattr(self, "warm_up_async"):
-            # haystack-ai >= 3.0 initializes the async client on the running event loop
-            await self.warm_up_async()
-        else:
-            self.warm_up()
-
-        if len(messages) == 0:
-            return {"replies": []}
-
-        streaming_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
-        )
-
-        api_args = self._prepare_api_call(
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
-        )
-        openai_endpoint = api_args.pop("openai_endpoint")
-        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
-        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
-
-        if streaming_callback is not None:
-            completions = await self._handle_async_stream_response(chat_completion, streaming_callback)
-        else:
-            assert isinstance(chat_completion, ChatCompletion), "Unexpected response type for non-streaming request."
-            completions = [
-                _convert_openrouter_completion_to_chat_message(chat_completion, choice)
-                for choice in chat_completion.choices
-            ]
-
-        for message in completions:
-            _check_finish_reason(message.meta)
-
-        return {"replies": completions}
+        return [self._convert_streaming_chunks_to_chat_message(chunks=chunks)]

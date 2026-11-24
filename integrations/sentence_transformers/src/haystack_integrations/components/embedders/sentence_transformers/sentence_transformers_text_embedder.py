@@ -94,6 +94,9 @@ class SentenceTransformersTextEmbedder:
         :param model_kwargs:
             Additional keyword arguments for `AutoModelForSequenceClassification.from_pretrained`
             when loading the model. Refer to specific model documentation for available kwargs.
+            With `backend="onnx"`, a `session_options` dict is turned into an `onnxruntime.SessionOptions` with
+            those attributes set, for example `{"session_options": {"intra_op_num_threads": 1}}` to limit
+            the threads each inference call uses.
         :param tokenizer_kwargs:
             Additional keyword arguments forwarded as `processor_kwargs` to the Sentence Transformers model
             when loading it. Refer to the

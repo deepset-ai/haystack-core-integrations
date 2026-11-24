@@ -515,6 +515,17 @@ class TestRun:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Async streaming response"
 
+    def test_prepare_api_call_empty_tools_overrides_init_tools(self, tools: list[Tool]) -> None:
+        generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            project_id=Secret.from_token("test-project"),
+            tools=tools,
+        )
+        # an empty list must disable tools for this call, not fall back to the init tools
+        api_call = generator._prepare_api_call(messages=[ChatMessage.from_user("Test prompt")], tools=[])
+
+        assert "tools" not in api_call
+
 
 class TestMessageConversionAndMultimodal:
     def test_prepare_api_call_with_image(self):

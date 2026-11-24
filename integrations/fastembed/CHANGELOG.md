@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/fastembed-v3.0.1] - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- FastEmbed - preserve falsy metadata in rankers (#4240)
+
+
 ## [integrations/fastembed-v3.0.0] - 2026-10-16
 
 ### ⚙️ CI

@@ -115,6 +115,20 @@ class TestGitHubIssueCommenter:
         with pytest.raises(ValueError):
             commenter._parse_github_url("https://github.com/invalid/url")
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/../evil/issues/1",
+            "https://github.com/owner/../issues/1",
+            "https://github.com/./repo/issues/1",
+        ],
+    )
+    def test_parse_github_url_rejects_dot_segments(self, url, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        commenter = GitHubIssueCommenter()
+        with pytest.raises(ValueError, match="Invalid repository owner or name"):
+            commenter._parse_github_url(url)
+
     def test_get_request_headers_with_empty_token(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "")
 

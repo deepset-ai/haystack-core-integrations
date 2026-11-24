@@ -27,6 +27,13 @@ def _is_scalar_string_value(value: Any) -> bool:
     return isinstance(value, str)
 
 
+def _is_content_phrase_list(field: str, value: list[Any]) -> bool:
+    # The content field is indexed as text, and YQL `in` compares each value against a single indexed term, so a
+    # value of more than one word never matches. Match each value with `contains` instead, as `==` and `!=` do,
+    # which matches it as a phrase.
+    return field == "content" and all(isinstance(item, str) for item in value)
+
+
 def _normalize_field_name(field: str, *, content_field: str) -> str:
     if field == "content":
         return content_field
@@ -103,12 +110,23 @@ def _convert_comparison(
         if not isinstance(value, list):
             msg = "'in' filter values must be lists"
             raise VespaDocumentStoreFilterError(msg)
+        # YQL rejects an empty `in ()`; an empty list matches nothing, like in the other Document Stores
+        if not value:
+            return "false"
+        if _is_content_phrase_list(field, value):
+            phrases = " or ".join(f"{normalized_field} contains {_format_yql_value(item)}" for item in value)
+            return f"( {phrases} )"
         values = ", ".join(_format_yql_value(item) for item in value)
         return f"{normalized_field} in ({values})"
     if operator == "not in":
         if not isinstance(value, list):
             msg = "'not in' filter values must be lists"
             raise VespaDocumentStoreFilterError(msg)
+        if not value:
+            return "true"
+        if _is_content_phrase_list(field, value):
+            phrases = " or ".join(f"{normalized_field} contains {_format_yql_value(item)}" for item in value)
+            return f"!( {phrases} )"
         values = ", ".join(_format_yql_value(item) for item in value)
         return f"!( {normalized_field} in ({values}) )"
     if operator == "contains":

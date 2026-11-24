@@ -46,6 +46,9 @@ class GoogleGenAIChatGenerator:
     Supports models like gemini-3.8-flash and other Gemini variants. For Gemini 2.5 series models,
     enables thinking features via `generation_kwargs={"thinking_budget": value}`.
 
+    This component uses the `generateContent` API. Some models and quotas, such as the free tier of newer Flash
+    models, are only available through the Interactions API: use `GoogleGenAIInteractionsChatGenerator` for those.
+
     ### Thinking Support (Gemini 2.5 and Gemini 3 Series)
     - **Reasoning transparency**: Models can show their reasoning process
     - **Thought signatures**: Maintains thought context across multi-turn conversations with tools
@@ -363,6 +366,7 @@ class GoogleGenAIChatGenerator:
         try:
             chunks = []
             tool_calls_seen = False
+            tool_call_count = 0
 
             for i, chunk in enumerate(response_stream):
                 streaming_chunk = _convert_google_chunk_to_streaming_chunk(
@@ -371,8 +375,10 @@ class GoogleGenAIChatGenerator:
                     component_info=component_info,
                     model=self._model,
                     tool_calls_seen=tool_calls_seen,
+                    tool_call_index_offset=tool_call_count,
                 )
                 tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
+                tool_call_count += len(streaming_chunk.tool_calls or [])
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
@@ -401,6 +407,7 @@ class GoogleGenAIChatGenerator:
         try:
             chunks = []
             tool_calls_seen = False
+            tool_call_count = 0
 
             i = 0
             chunk = None
@@ -411,8 +418,10 @@ class GoogleGenAIChatGenerator:
                     component_info=component_info,
                     model=self._model,
                     tool_calls_seen=tool_calls_seen,
+                    tool_call_index_offset=tool_call_count,
                 )
                 tool_calls_seen = tool_calls_seen or bool(streaming_chunk.tool_calls)
+                tool_call_count += len(streaming_chunk.tool_calls or [])
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
@@ -449,11 +458,12 @@ class GoogleGenAIChatGenerator:
         keys set only at initialization are kept. Supports `thinking_budget` for Gemini 2.5 series
         thinking configuration.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
-        default settings.
+        default settings. Pass an empty list to send no safety settings for this call.
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-        If provided, it will override the tools set during initialization.
+        If provided, it will override the tools set during initialization. Pass an empty list to disable tools for
+        this call.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
 
@@ -467,8 +477,8 @@ class GoogleGenAIChatGenerator:
         messages = _normalize_messages(messages)
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
-        safety_settings = safety_settings or self._safety_settings
-        tools = tools or self._tools
+        safety_settings = safety_settings if safety_settings is not None else self._safety_settings
+        tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)
@@ -567,11 +577,12 @@ class GoogleGenAIChatGenerator:
         thinking configuration.
         See https://ai.google.dev/gemini-api/docs/thinking for possible values.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
-        default settings.
+        default settings. Pass an empty list to send no safety settings for this call.
         :param streaming_callback: A callback function that is called when a new token is
         received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-        If provided, it will override the tools set during initialization.
+        If provided, it will override the tools set during initialization. Pass an empty list to disable tools for
+        this call.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated ChatMessage responses.
 
@@ -585,8 +596,8 @@ class GoogleGenAIChatGenerator:
         messages = _normalize_messages(messages)
         # Merge generation_kwargs with instance defaults; other configs fall back to instance defaults
         generation_kwargs = {**self._generation_kwargs, **(generation_kwargs or {})}
-        safety_settings = safety_settings or self._safety_settings
-        tools = tools or self._tools
+        safety_settings = safety_settings if safety_settings is not None else self._safety_settings
+        tools = tools if tools is not None else self._tools
 
         # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)

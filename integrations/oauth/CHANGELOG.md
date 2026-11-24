@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/oauth-v3.0.0] - 2026-11-19
+
+### 🐛 Bug Fixes
+
+- *(oauth)* [**breaking**] Emit the access token as a Secret (#4299)
+
+
 ## [integrations/oauth-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

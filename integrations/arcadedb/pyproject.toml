@@ -85,7 +85,8 @@ line-length = 120
 
 [tool.ruff.lint]
 select = [
-  "A", "ANN", "ARG", "B", "C", "DTZ", "E", "EM", "F", "FBT", "I", "ICN",
+  "A", "ANN", "ARG", "B", "C", "D102", "D103", "D205", "D209", "D213", "D417", "D419",
+  "DTZ", "E", "EM", "F", "FBT", "I", "ICN",
   "ISC", "N", "PLC", "PLE", "PLR", "PLW", "Q", "RUF", "S", "T",
   "TID", "UP", "W", "YTT",
 ]

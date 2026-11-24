@@ -91,11 +91,45 @@ def test_not_over_logical_operators():
 
     assert result.operator == _Operator.AND
     number_lte, number_not_in = result.filters
-    assert number_lte == weaviate.classes.query.Filter.by_property("number").less_or_equal(10)
+    assert number_lte.operator == _Operator.OR
+    assert number_lte.filters == [
+        weaviate.classes.query.Filter.by_property("number").less_or_equal(10),
+        weaviate.classes.query.Filter.by_property("number").is_none(True),
+    ]
     assert number_not_in.operator == _Operator.AND
     assert number_not_in.filters == [
         weaviate.classes.query.Filter.by_property("number").not_equal(1),
         weaviate.classes.query.Filter.by_property("number").not_equal(2),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("operator", "inverse"),
+    [(">", "less_or_equal"), (">=", "less_than"), ("<", "greater_or_equal"), ("<=", "greater_than")],
+)
+def test_not_over_range_operators_matches_documents_without_the_field(operator, inverse):
+    """A range comparison is false when the field is not set, so its negation must match those Documents."""
+    result = convert_filters(
+        {"operator": "NOT", "conditions": [{"field": "meta.number", "operator": operator, "value": 5}]}
+    )
+
+    assert result.operator == _Operator.OR
+    assert result.filters == [
+        getattr(weaviate.classes.query.Filter.by_property("number"), inverse)(5),
+        weaviate.classes.query.Filter.by_property("number").is_none(True),
+    ]
+
+
+def test_not_over_range_operator_with_none_value_matches_all_documents():
+    """A range comparison against None never matches, so its negation matches every Document."""
+    result = convert_filters(
+        {"operator": "NOT", "conditions": [{"field": "meta.number", "operator": ">", "value": None}]}
+    )
+
+    assert result.operator == _Operator.OR
+    assert result.filters == [
+        weaviate.classes.query.Filter.by_property("number").is_none(False),
+        weaviate.classes.query.Filter.by_property("number").is_none(True),
     ]
 
 

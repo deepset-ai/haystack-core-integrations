@@ -13,7 +13,7 @@ from openai.types.create_embedding_response import Usage
 from haystack_integrations.components.embedders.vllm import VLLMSparseTextEmbedder
 
 MODEL = "prithivida/Splade_PP_en_v1"
-API_BASE_URL = "http://localhost:8003/v1"
+API_BASE_URL = "http://localhost:8004/v1"
 
 
 def _fake_response(embeddings: list[list[float]], prompt_tokens: int = 5, total_tokens: int = 5):

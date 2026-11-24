@@ -705,6 +705,44 @@ class TestStreamingChunkConversion:
         assert "thought_signatures" in result.meta
         assert result.meta["thought_signatures"][0]["signature"] == "sig_xyz"
 
+    def test_aggregate_streaming_chunks_accumulates_thought_signatures_across_chunks(self):
+        """Signature deltas from earlier chunks must not be overwritten by later ones."""
+        model = "gemini-2.5-flash"
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator(model=model))
+        parts = [
+            types.Part(
+                text="Checking the weather.",
+                thought=True,
+                thought_signature=b"reasoning_signature",
+            ),
+            types.Part(
+                function_call=types.FunctionCall(name="get_weather", args={"city": "Paris"}),
+                thought_signature=b"tool_signature",
+            ),
+        ]
+        chunks = [
+            _convert_google_chunk_to_streaming_chunk(
+                chunk=types.GenerateContentResponse(
+                    candidates=[types.Candidate(content=types.Content(role="model", parts=[part]))]
+                ),
+                index=index,
+                component_info=component_info,
+                model=model,
+            )
+            for index, part in enumerate(parts)
+        ]
+
+        result = _aggregate_streaming_chunks_with_reasoning(chunks)
+
+        assert result.reasoning.reasoning_text == "Checking the weather."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].tool_name == "get_weather"
+        assert result.tool_calls[0].arguments == {"city": "Paris"}
+        assert [base64.b64decode(signature["signature"]) for signature in result.meta["thought_signatures"]] == [
+            b"reasoning_signature",
+            b"tool_signature",
+        ]
+
     def test_convert_google_chunk_to_streaming_chunk_with_cached_tokens(self, monkeypatch):
         """cached_content_token_count from usage_metadata is included in the streaming chunk's usage."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -977,6 +1015,42 @@ class TestConvertMessageToGoogleGenAI:
         assert google_content.parts[1].function_call.name == "weather"
         assert google_content.parts[1].function_call.args == {"city": "Paris"}
         assert google_content.parts[1].thought_signature == b"encrypted_mock_thought_signature_2"
+
+    def test_convert_message_keeps_parallel_tool_calls_without_thought_signatures(self):
+        """Gemini signs only the first parallel function call; unsigned siblings must still be replayed."""
+        paris = ToolCall(id="call_paris", tool_name="get_weather", arguments={"city": "Paris"})
+        london = ToolCall(id="call_london", tool_name="get_weather", arguments={"city": "London"})
+        thought_signatures = [
+            {
+                "part_index": 0,
+                "signature": base64.b64encode(b"sig_on_first_only").decode("utf-8"),
+                "has_text": False,
+                "has_function_call": True,
+                "is_thought": False,
+            },
+        ]
+
+        message = ChatMessage.from_assistant(
+            text="Checking both cities",
+            tool_calls=[paris, london],
+            meta={"thought_signatures": thought_signatures},
+        )
+
+        google_content = _convert_message_to_google_genai_format(message)
+
+        assert google_content.role == "model"
+        assert len(google_content.parts) == 3
+
+        assert google_content.parts[0].function_call.name == "get_weather"
+        assert google_content.parts[0].function_call.args == {"city": "Paris"}
+        assert google_content.parts[0].thought_signature == b"sig_on_first_only"
+
+        assert google_content.parts[1].function_call.name == "get_weather"
+        assert google_content.parts[1].function_call.args == {"city": "London"}
+        assert not google_content.parts[1].thought_signature
+
+        assert google_content.parts[2].text == "Checking both cities"
+        assert not google_content.parts[2].thought_signature
 
     def test_thought_signature_bytes_round_trip(self, monkeypatch):
         """Raw (non UTF-8) thought signature bytes are stored as base64 strings and restored as bytes."""

@@ -46,7 +46,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
     client = AnthropicVertexChatGenerator(
-                model="claude-sonnet-4-5@20250929",
+                model="claude-sonnet-5-5",
                 project_id="your-project-id", region="your-region"
             )
     response = client.run(messages)
@@ -57,7 +57,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.")],
-    >> _name=None, _meta={'model': 'claude-sonnet-4-5@20250929', 'index': 0, 'finish_reason': 'stop',
+    >> _name=None, _meta={'model': 'claude-sonnet-5-5', 'index': 0, 'finish_reason': 'stop',
     >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 64, 'cache_read_input_tokens': 0,
     >> 'cache_creation_input_tokens': 0, ...}})]}
     ```
@@ -77,6 +77,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-opus-4-5@20251101",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5@20250929",
@@ -89,7 +90,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self,
         region: str,
         project_id: str,
-        model: str = "claude-sonnet-4-5@20250929",
+        model: str = "claude-sonnet-5-5",
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
@@ -98,6 +99,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Creates an instance of AnthropicVertexChatGenerator.
@@ -141,6 +143,10 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
+        :param tools_strict:
+            Whether to enable strict tool use. If `True`, each tool is sent with `strict: true`, so the model's tool
+            calls are guaranteed to match the tool's `parameters` schema. The schema must stay within what strict
+            tool use supports. See [Anthropic strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.region = region or os.environ.get("REGION")
@@ -153,6 +159,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         self.anthropic_server_tools = anthropic_server_tools
         self.timeout = timeout
         self.max_retries = max_retries
+        self.tools_strict = tools_strict
 
         # mypy is not happy that the Vertex clients differ from the base Anthropic client types
         self.client = None  # type: ignore[assignment]
@@ -200,6 +207,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod

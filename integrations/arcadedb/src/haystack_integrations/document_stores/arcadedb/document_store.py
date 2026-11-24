@@ -308,6 +308,7 @@ class ArcadeDBDocumentStore:
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
         """
         Private helper to fetch sample documents for schema inference.
+
         Note: Does not `_ensure_initialized()`. To avoid redundant
         initialization checks during internal calls, the caller is responsible for
         ensuring the document store is initialized before invoking this method.
@@ -319,6 +320,7 @@ class ArcadeDBDocumentStore:
     def _infer_metadata_field_type(values: list[Any]) -> str:
         """
         Infers the metadata field type from a list of sampled values.
+
         :param values: A list of raw Python values sampled from the field.
         :returns: A type string — one of ``"boolean"``, ``"double"``, ``"long"``, or ``"keyword"``.
             Returns ``"keyword"`` if values are empty or of mixed types.
@@ -523,7 +525,8 @@ class ArcadeDBDocumentStore:
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
-        Counts the number of documents matching the provided filter
+        Counts the number of documents matching the provided filter.
+
         :param filters: The filters to apply to the documents
         :returns: The number of documents that match the filter
         """
@@ -545,6 +548,7 @@ class ArcadeDBDocumentStore:
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Counts unique values for each metadata field in documents matching the provided filters.
+
         :param filters: The filters to apply to the document list.
         :param metadata_fields: Metadata fields for which to count unique values.
         :returns: A dictionary where keys are metadata field names and values are the
@@ -576,6 +580,7 @@ class ArcadeDBDocumentStore:
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
         Returns the metadata fields and their corresponding types based on sampled documents.
+
         :returns: A dictionary mapping field names to dictionaries with a `type` key.
         """
         self._ensure_initialized()
@@ -602,6 +607,7 @@ class ArcadeDBDocumentStore:
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
         For a given metadata field, finds its min and max values.
+
         :param metadata_field: The metadata field to inspect.
         :returns: A dictionary with `min` and `max` keys and their corresponding values.
         """
@@ -626,8 +632,7 @@ class ArcadeDBDocumentStore:
         filters: dict[str, Any] | None = None,
     ) -> tuple[list[Any], int]:
         """
-        Retrieves unique values for a field matching a search term or all possible values
-        if no search term is given.
+        Retrieves unique values for a field matching a search term, or all values if no search term is given.
 
         **Note**: values of different types are kept distinct even when they compare equal in Python, so
         the int `1`, the float `1.0`, the bool `True` and the str `"1"` are returned as four separate

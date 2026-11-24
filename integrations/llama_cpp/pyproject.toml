@@ -64,6 +64,7 @@ dependencies = [
     "pip",
     "huggingface_hub",
     "transformers[sentencepiece]<5",
+    "sentencepiece>=0.2.3",  # Provides Python 3.15 wheels, avoiding GCC 15 build failures
 ]
 
 [tool.hatch.envs.test.scripts]

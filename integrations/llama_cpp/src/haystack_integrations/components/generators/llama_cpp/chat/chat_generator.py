@@ -381,7 +381,8 @@ class LlamaCppChatGenerator:
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during
-            component initialization.
+            component initialization. Pass an empty list to disable tools for this call; `None` uses the tools
+            set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             If set, it will override the `streaming_callback` parameter set during component initialization.
         :returns: A dictionary with the following keys:
@@ -397,7 +398,7 @@ class LlamaCppChatGenerator:
         updated_generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         formatted_messages = _convert_chat_history_to_llamacpp_format(messages=messages)
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
 
@@ -474,7 +475,8 @@ class LlamaCppChatGenerator:
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name. If set, it will override the `tools` parameter set during
-            component initialization.
+            component initialization. Pass an empty list to disable tools for this call; `None` uses the tools
+            set during component initialization.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             If set, it will override the `streaming_callback` parameter set during component initialization.
         :returns: A dictionary with the following keys:

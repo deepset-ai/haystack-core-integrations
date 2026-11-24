@@ -451,9 +451,14 @@ class ElasticsearchDocumentStore:
         """
         The main query method for the document store. It retrieves all documents that match the filters.
 
-        :param filters: A dictionary of filters to apply. For more information on the structure of the filters,
-            see the official Elasticsearch
-            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html)
+        :param filters: A dictionary of filters to apply. For the filter syntax, see the
+            [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            `content` is an analyzed text field, so filters on it with `==`, `!=`, `in` and `not in` don't test exact
+            equality: they match documents whose content contains the value as a phrase, that is, the same words in the
+            same order and next to each other, ignoring case and punctuation. For example, `==` with the value
+            `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
+            Filters on `content` are useful to select documents containing a phrase; for relevance-ranked text search,
+            use a retriever.
         :returns: List of `Document`s that match the filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:
@@ -469,9 +474,14 @@ class ElasticsearchDocumentStore:
         """
         Asynchronously retrieves all documents that match the filters.
 
-        :param filters: A dictionary of filters to apply. For more information on the structure of the filters,
-            see the official Elasticsearch
-            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html)
+        :param filters: A dictionary of filters to apply. For the filter syntax, see the
+            [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            `content` is an analyzed text field, so filters on it with `==`, `!=`, `in` and `not in` don't test exact
+            equality: they match documents whose content contains the value as a phrase, that is, the same words in the
+            same order and next to each other, ignoring case and punctuation. For example, `==` with the value
+            `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
+            Filters on `content` are useful to select documents containing a phrase; for relevance-ranked text search,
+            use a retriever.
         :returns: List of `Document`s that match the filters.
         """
         if filters and "operator" not in filters and "conditions" not in filters:
@@ -984,7 +994,9 @@ class ElasticsearchDocumentStore:
         Deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
             [Elasticsearch delete_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query#operation-delete-by-query-refresh).
@@ -1012,7 +1024,9 @@ class ElasticsearchDocumentStore:
         Asynchronously deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
             [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
@@ -1040,7 +1054,9 @@ class ElasticsearchDocumentStore:
         Updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param meta: The metadata fields to update.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request
             completes. If False, no refresh is performed. For more details, see the
@@ -1075,7 +1091,9 @@ class ElasticsearchDocumentStore:
         Asynchronously updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match the value as a phrase, not exact equality, so they can select documents whose
+            content only contains the value. See `filter_documents` for details.
         :param meta: The metadata fields to update.
         :param refresh: If True, Elasticsearch refreshes all shards involved in the update by query after the request
             completes. If False, no refresh is performed. For more details, see the

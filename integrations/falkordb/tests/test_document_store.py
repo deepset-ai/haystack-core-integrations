@@ -49,6 +49,8 @@ class TestFalkorDBDocumentStoreSerialization:
             embedding_dim=512,
             similarity="euclidean",
             verify_connectivity=False,
+            labels_metadata_field="kinds",
+            relationships_metadata_field="links",
         )
 
         data = store.to_dict()
@@ -64,6 +66,8 @@ class TestFalkorDBDocumentStoreSerialization:
         assert restored.graph_name == "test_graph"
         assert restored.embedding_dim == 512
         assert restored.similarity == "euclidean"
+        assert restored.labels_metadata_field == "kinds"
+        assert restored.relationships_metadata_field == "links"
 
 
 def _result(rows):
@@ -83,6 +87,10 @@ def mock_falkordb(monkeypatch):
 
 
 class TestFalkorDBDocumentStoreUnit:
+    def test_identical_graph_metadata_fields(self):
+        with pytest.raises(ValueError, match="distinct metadata fields"):
+            FalkorDBDocumentStore(labels_metadata_field="graph", relationships_metadata_field="graph")
+
     def test_init_rejects_invalid_similarity(self):
         with pytest.raises(ValueError, match="not supported"):
             FalkorDBDocumentStore(similarity="invalid")
@@ -295,12 +303,78 @@ class TestFalkorDBDocumentStoreUnit:
         assert docs[0].score == pytest.approx(expected_score)
         assert ("WHERE" in graph.query.call_args_list[-1].args[0]) is where_expected
 
+    def test_get_graph_schema(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        article = {
+            "labels": ["Article"],
+            "properties": [{"name": "title", "type": "String"}, {"name": "content", "type": "String"}],
+        }
+        cites = {"type": "CITES", "source_labels": ["Article"], "target_labels": ["Article"], "properties": []}
+        # Answer by query prefix: the number of sample queries depends on the catalogs
+        responses = {
+            "CALL db.labels()": [["Article"], ["Topic"]],
+            "CALL db.relationshipTypes()": [["CITES"]],
+            "CALL db.propertyKeys()": [["content"], ["title"]],
+            "MATCH (n:`Article`)": [[article], [article]],
+            "MATCH (n:`Topic`)": [],
+            "MATCH (source)-[r:`CITES`]->": [[cites], [cites]],
+        }
+        graph.ro_query.side_effect = lambda query, *_: _result(
+            next(rows for prefix, rows in responses.items() if query.startswith(prefix))
+        )
+        assert store._get_graph_schema(sample_size=7) == {
+            "labels": ["Article", "Topic"],
+            "relationship_types": ["CITES"],
+            "property_keys": ["content", "title"],
+            "node_samples": [
+                {
+                    "labels": ["Article"],
+                    "properties": [{"name": "content", "type": "String"}, {"name": "title", "type": "String"}],
+                }
+            ],
+            "relationship_samples": [cites],
+        }
+        # One query per catalog, label and relationship type; only sample queries take the limit
+        calls = [call.args for call in graph.ro_query.call_args_list]
+        assert len(calls) == len(responses)
+        for query, *params in calls:
+            assert params == ([{"sample_size": 7}] if query.startswith("MATCH") else [])
+        graph.query.assert_not_called()
+
+    def test_get_graph_schema_propagates_errors(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        error = ResponseError("metadata unavailable")
+        graph.ro_query.side_effect = error
+        with pytest.raises(ResponseError) as exc:
+            FalkorDBDocumentStore()._get_graph_schema()
+        assert exc.value is error
+
     def test_cypher_retrieval_returns_documents(self, mock_falkordb):
         _, _, graph = mock_falkordb
         node = SimpleNamespace(properties={"id": "n1", "content": "hello"})
         graph.query.side_effect = [_result([]), _result([]), _result([[node]])]
         docs = FalkorDBDocumentStore()._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1})
         assert docs[0].content == "hello"
+
+    def test_read_only_cypher_retrieval(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.ro_query.return_value = _result([[SimpleNamespace(properties={"id": "n1", "content": "hello"})]])
+        docs = store._cypher_retrieval("MATCH (d) RETURN d", parameters={"k": 1}, read_only=True, timeout=250)
+        assert docs[0].content == "hello"
+        graph.ro_query.assert_called_once_with("MATCH (d) RETURN d", {"k": 1}, timeout=250)
+        graph.query.assert_not_called()
+
+    def test_read_only_cypher_failure(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.ro_query.side_effect = ResponseError("Write commands are not allowed")
+        with pytest.raises(DocumentStoreError, match="Write commands are not allowed"):
+            FalkorDBDocumentStore()._cypher_retrieval("CREATE (:Document)", read_only=True)
 
     @pytest.mark.usefixtures("mock_falkordb")
     def test_write_documents_rejects_non_documents(self):
@@ -369,6 +443,135 @@ class TestFalkorDBDocumentStoreUnit:
         graph.query.side_effect = [_result([]), _result([]), Exception("boom")]
         with pytest.raises(DocumentStoreError, match="Failed to write documents"):
             FalkorDBDocumentStore().write_documents([Document(id="a", content="x")], policy=DuplicatePolicy.OVERWRITE)
+
+    def test_graph_metadata_queries_are_batched(self):
+        store = FalkorDBDocumentStore(
+            labels_metadata_field="labels", relationships_metadata_field="links", write_batch_size=2
+        )
+        documents = [
+            Document(id=str(i), meta={"labels": ["Article"], "links": [{"type": "LINK", "target_id": f"target-{i}"}]})
+            for i in range(3)
+        ]
+        prepared, labels, relationships = store._prepare_graph_documents(documents)
+        _, params = store._write_batch_query(prepared[:2], DuplicatePolicy.OVERWRITE, labels)
+        assert params["label_ids_0"] == ["0", "1"]
+        queries = list(store._relationship_queries(relationships))
+        assert [len(params["rows"]) for _, params in queries] == [2, 1]
+        assert [row["target_id"] for _, params in queries for row in params["rows"]] == [
+            "target-0",
+            "target-1",
+            "target-2",
+        ]
+
+    def test_graph_metadata_is_opt_in(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore()
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.query.return_value = _result([[1]])
+        document = Document(id="a", meta={"labels": ["Article"], "relationships": ["ordinary metadata"]})
+        assert store.write_documents([document], policy=DuplicatePolicy.OVERWRITE) == 1
+        assert graph.query.call_count == 1
+        assert graph.query.call_args.args[1]["docs"][0]["labels"] == ["Article"]
+        assert graph.query.call_args.args[1]["docs"][0]["relationships"] == ["ordinary metadata"]
+
+    def test_write_graph_metadata_across_batches(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore(
+            labels_metadata_field="kinds", relationships_metadata_field="links", write_batch_size=1
+        )
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.query.return_value = _result([[1]])
+        meta = {
+            "kinds": ["Article", "Article", "Research paper"],
+            "links": [{"target_id": "b", "type": "RELATED TO", "properties": {"weight": 0.5}}],
+            "year": 2024,
+        }
+        documents = [Document(id="a", content="A", meta=meta), Document(id="b", content="B")]
+        assert store.write_documents(documents, policy=DuplicatePolicy.OVERWRITE) == 2
+        calls = graph.query.call_args_list
+        assert len(calls) == 3
+        assert calls[0].args[1] == {
+            "docs": [{"id": "a", "content": "A", "year": 2024}],
+            "label_ids_0": ["a"],
+            "label_ids_1": ["a"],
+        }
+        assert calls[1].args[1] == {"docs": [{"id": "b", "content": "B"}]}
+        assert "SET d:`Article`" in calls[0].args[0]
+        assert "SET d:`Research paper`" in calls[0].args[0]
+        assert "MERGE (source)-[r:`RELATED TO`]->(target)" in calls[2].args[0]
+        assert calls[2].args[1] == {"rows": [{"source_id": "a", "target_id": "b", "properties": {"weight": 0.5}}]}
+        assert documents[0].meta == meta
+
+    @pytest.mark.parametrize(
+        "meta, error",
+        [
+            ({"labels": "Article"}, TypeError),
+            ({"labels": [1]}, TypeError),
+            ({"labels": [None]}, TypeError),
+            ({"labels": [""]}, ValueError),
+            ({"labels": ["bad`name"]}, ValueError),
+            ({"relationships": [{"type": 1, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": None, "target_id": "b"}]}, TypeError),
+            ({"relationships": [{"type": "", "target_id": "b"}]}, ValueError),
+            ({"relationships": [{"type": "bad`name", "target_id": "b"}]}, ValueError),
+            ({"relationships": {}}, TypeError),
+            ({"relationships": ["edge"]}, TypeError),
+            ({"relationships": [{"type": "LINK"}]}, ValueError),
+            ({"relationships": [{"target_id": "b"}]}, ValueError),
+            ({"relationships": [{"type": "LINK", "target_id": "b", "properties": []}]}, TypeError),
+        ],
+    )
+    def test_invalid_graph_metadata_before_writes(self, mock_falkordb, meta, error):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore(
+            labels_metadata_field="labels", relationships_metadata_field="relationships", write_batch_size=1
+        )
+        store.warm_up()
+        graph.query.reset_mock()
+        with pytest.raises(error):
+            store.write_documents(
+                [Document(id="valid"), Document(id="invalid", meta=meta)], policy=DuplicatePolicy.OVERWRITE
+            )
+        graph.query.assert_not_called()
+
+    @pytest.mark.parametrize("missing", [True, False])
+    def test_relationship_external_target(self, mock_falkordb, missing):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore(relationships_metadata_field="links")
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.query.side_effect = [_result([[1]]), _result([[0 if missing else 1]])]
+        document = Document(id="a", meta={"links": [{"type": "LINK", "target_id": "b"}]})
+        if missing:
+            with pytest.raises(DocumentStoreError, match="target documents are missing"):
+                store.write_documents([document], policy=DuplicatePolicy.OVERWRITE)
+        else:
+            assert store.write_documents([document], policy=DuplicatePolicy.OVERWRITE) == 1
+        assert graph.query.call_count == 2
+
+    def test_skip_does_not_change_graph_metadata(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore(labels_metadata_field="labels", relationships_metadata_field="links")
+        store.warm_up()
+        graph.query.reset_mock()
+        graph.query.return_value = _result([["a"]])
+        document = Document(id="a", meta={"labels": ["New"], "links": [{"type": "LINK", "target_id": "missing"}]})
+        assert store.write_documents([document], policy=DuplicatePolicy.SKIP) == 0
+        assert graph.query.call_count == 1
+
+    @pytest.mark.parametrize("failure_stage", ["labels", "relationships"])
+    def test_graph_write_backend_failures(self, mock_falkordb, failure_stage):
+        _, _, graph = mock_falkordb
+        store = FalkorDBDocumentStore(labels_metadata_field="labels", relationships_metadata_field="links")
+        store.warm_up()
+        error = ValueError("backend error")
+        graph.query.side_effect = [error] if failure_stage == "labels" else [_result([[1]]), error]
+        meta = {"labels": ["Article"], "links": [{"type": "LINK", "target_id": "a"}]}
+        with pytest.raises(DocumentStoreError, match="backend error") as exc:
+            store.write_documents([Document(id="a", meta=meta)], policy=DuplicatePolicy.OVERWRITE)
+        assert exc.value.__cause__ is error
 
     def test_delete_all_documents(self, mock_falkordb):
         _, _, graph = mock_falkordb
@@ -548,6 +751,139 @@ class TestDocumentStore(
             store.client.select_graph(graph_name).delete()
         except Exception:
             logger.debug("Could not delete graph %s during teardown", graph_name)
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "MATCH (d:Document) RETURN d.content",
+            "MATCH (d:Document) RETURN count(d)",
+            "MATCH (d:Document) RETURN d.missing_property",
+        ],
+    )
+    def test_cypher_retrieval_rejects_non_node_rows(self, document_store, query):
+        # Scalar results must fail instead of yielding empty Documents
+        document_store.write_documents([Document(content="The stars are bright.")])
+        with pytest.raises(DocumentStoreError, match="must be a node or a map"):
+            document_store._cypher_retrieval(query, read_only=True)
+
+    def test_sampled_graph_schema(self, document_store):
+        document_store.warm_up()
+        document_store.graph.query(
+            "CREATE (:Article {content: 'hello', count: 1})-[:REFERENCES {weight: 2}]->(:Topic {name: 'Graphs'}), "
+            "(:Article {title: 'untitled'})"
+        )
+        schema = document_store._get_graph_schema(sample_size=7)
+        assert {"Article", "Topic"} <= set(schema["labels"])
+        assert schema["relationship_types"] == ["REFERENCES"]
+        assert {
+            "labels": ["Article"],
+            "properties": [{"name": "content", "type": "String"}, {"name": "count", "type": "Integer"}],
+        } in schema["node_samples"]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "REFERENCES",
+                "source_labels": ["Article"],
+                "target_labels": ["Topic"],
+                "properties": [{"name": "weight", "type": "Integer"}],
+            }
+        ]
+        bounded = document_store._get_graph_schema(sample_size=1)
+        # The limit applies per label: only one of the two Article shapes is sampled
+        assert [sample["labels"] for sample in bounded["node_samples"]] == [["Article"], ["Topic"]]
+        assert len(bounded["relationship_samples"]) == 1
+
+    def test_graph_schema_samples_every_label_once(self, document_store):
+        # Documents written first fill the first `sample_size` nodes; Person must still be sampled, and
+        # identical shapes must appear once instead of once per sampled entity
+        document_store.write_documents(
+            [Document(content=f"doc {i}", meta={"topic": "astro", "year": 2000 + i}) for i in range(30)]
+        )
+        document_store.graph.query(
+            "MATCH (d:Document) CREATE (:Person {name: 'Ada', born: 1815})-[:WROTE {role: 'author'}]->(d)"
+        )
+        schema = document_store._get_graph_schema(sample_size=10)
+        assert schema["node_samples"] == [
+            {
+                "labels": ["Document"],
+                "properties": [
+                    {"name": "content", "type": "String"},
+                    {"name": "id", "type": "String"},
+                    {"name": "topic", "type": "String"},
+                    {"name": "year", "type": "Integer"},
+                ],
+            },
+            {
+                "labels": ["Person"],
+                "properties": [{"name": "born", "type": "Integer"}, {"name": "name", "type": "String"}],
+            },
+        ]
+        assert schema["relationship_samples"] == [
+            {
+                "type": "WROTE",
+                "source_labels": ["Person"],
+                "target_labels": ["Document"],
+                "properties": [{"name": "role", "type": "String"}],
+            }
+        ]
+
+    @pytest.mark.parametrize("batch_size", [1, 100])
+    def test_graph_metadata_writes_are_additive(self, document_store, batch_size):
+        document_store.labels_metadata_field = "labels"
+        document_store.relationships_metadata_field = "links"
+        document_store.write_batch_size = batch_size
+        document = Document(
+            id="a",
+            content="Article",
+            meta={
+                "labels": ["Research paper", "Article", "Article"],
+                "links": [
+                    {"type": "ABOUT", "target_id": "b", "properties": {"weight": 0.5, "source": "author"}},
+                    {"type": "ABOUT", "target_id": "b", "properties": {"tags": ["graph", "rag"]}},
+                    {"type": "SELF", "target_id": "a"},
+                ],
+                "year": 2024,
+            },
+        )
+        assert document_store.write_documents([document, Document(id="b", content="Topic")]) == 2
+        assert document_store.count_documents() == 2
+        stored = document_store.filter_documents({"field": "id", "operator": "==", "value": "a"})[0]
+        assert stored.meta == {"year": 2024}
+        assert "links" in document.meta
+        labels = document_store.graph.query("MATCH (d:Document {id: 'a'}) RETURN labels(d)").result_set[0][0]
+        assert set(labels) == {"Document", "Article", "Research paper"}
+        labels = document_store.graph.query("MATCH (d:Document {id: 'b'}) RETURN labels(d)")
+        assert labels.result_set == [[["Document"]]]
+        edges = document_store.graph.query(
+            "MATCH (a:Document {id: 'a'})-[r]->(b) RETURN type(r), b.id ORDER BY type(r)"
+        ).result_set
+        assert edges == [["ABOUT", "b"], ["SELF", "a"]]
+        update = Document(
+            id="a",
+            content="Updated",
+            meta={"labels": ["Updated"], "links": [{"type": "ABOUT", "target_id": "b", "properties": {"weight": 1}}]},
+        )
+        assert document_store.write_documents([update], policy=DuplicatePolicy.SKIP) == 0
+        assert document_store.filter_documents({"field": "id", "operator": "==", "value": "a"})[0].content == "Article"
+        for _ in range(2):
+            assert document_store.write_documents([update], policy=DuplicatePolicy.OVERWRITE) == 1
+        labels = document_store.graph.query("MATCH (d:Document {id: 'a'}) RETURN labels(d)").result_set[0][0]
+        assert set(labels) == {"Document", "Article", "Research paper", "Updated"}
+        edges = document_store.graph.query(
+            "MATCH (a:Document {id: 'a'})-[r]->(b) RETURN type(r), b.id ORDER BY type(r)"
+        ).result_set
+        assert edges == [["ABOUT", "b"], ["SELF", "a"]]
+        properties = document_store.graph.query("MATCH ()-[r:ABOUT]->() RETURN r.weight, r.source, r.tags").result_set
+        assert properties == [[1, "author", ["graph", "rag"]]]
+        assert document_store.filter_documents({"field": "id", "operator": "==", "value": "a"})[0].content == "Updated"
+
+    def test_graph_metadata_missing_target_leaves_partial_writes(self, document_store):
+        document_store.relationships_metadata_field = "links"
+        document = Document(id="a", meta={"links": [{"type": "LINK", "target_id": "missing"}]})
+        with pytest.raises(DocumentStoreError, match="target documents are missing"):
+            document_store.write_documents([document])
+        assert document_store.count_documents() == 1
+        assert document_store.filter_documents()[0].id == "a"
+        assert document_store.graph.query("MATCH ()-[r]->() RETURN count(r)").result_set == [[0]]
 
     def test_write_documents(self, document_store):
         """

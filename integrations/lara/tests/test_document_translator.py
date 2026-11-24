@@ -205,6 +205,31 @@ class TestLaraDocumentTranslator:
         assert call_kwargs["target"] == "es-ES"
         assert call_kwargs["style"] == "creative"
 
+    def test_run_falsy_overrides_from_init(self, mock_translation_response):
+        translator = LaraDocumentTranslator(
+            access_key_id=Secret.from_token("key-id"),
+            access_key_secret=Secret.from_token("key-secret"),
+            target_lang="fr-FR",
+            adapt_to=["memory-1"],
+            glossaries=["glossary-1"],
+            reasoning=True,
+        )
+        doc = Document(content="Hi")
+
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
+            mock_translator = MagicMock()
+            mock_translator.translate.return_value = mock_translation_response
+            mock_translator_cls.return_value = mock_translator
+
+            translator.run(documents=[doc], adapt_to=[], glossaries=[], reasoning=False)
+
+        call_kwargs = mock_translator.translate.call_args.kwargs
+        assert call_kwargs["reasoning"] is False
+        assert call_kwargs["adapt_to"] == []
+        assert call_kwargs["glossaries"] == []
+
     def test_run_no_documents(self):
         translator = LaraDocumentTranslator(
             access_key_id=Secret.from_token("key-id"),

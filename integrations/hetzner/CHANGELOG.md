@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/hetzner-v2.1.0] - 2026-11-04
+
+### 🐛 Bug Fixes
+
+- *(hetzner)* Update default API base URL to inference.hetzner.com/v1 (#4196)
+
+
 ## [integrations/hetzner-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

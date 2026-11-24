@@ -594,7 +594,7 @@ class HuggingFaceAPIChatGenerator:
 
         formatted_messages = [_convert_message_to_hf_format_with_json_tool_arguments(message) for message in messages]
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flat_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flat_tools)
 
@@ -653,7 +653,7 @@ class HuggingFaceAPIChatGenerator:
 
         formatted_messages = [_convert_message_to_hf_format_with_json_tool_arguments(message) for message in messages]
 
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flat_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flat_tools)
 

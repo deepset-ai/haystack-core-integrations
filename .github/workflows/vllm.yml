@@ -32,6 +32,7 @@ env:
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
   VLLM_RANKER_MODEL: "BAAI/bge-reranker-base"
+  VLLM_MULTIVECTOR_MODEL: "answerdotai/answerai-colbert-small-v1"
   VLLM_SPARSE_EMBEDDING_MODEL: "prithivida/Splade_PP_en_v1"
   VLLM_TARGET_DEVICE: "cpu"
   # KV cache in GiB, reserved by each vLLM server. 1 GiB holds ~9k tokens for the chat model,
@@ -73,7 +74,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -177,6 +178,31 @@ jobs:
           fi
 
           echo "vLLM ranker server started successfully."
+
+      - name: Start vLLM multivector server
+        run: |
+          nohup hatch run -- vllm serve ${{ env.VLLM_MULTIVECTOR_MODEL }} \
+            --port 8003 \
+            --runner pooling \
+            --pooler-config '{{"task":"token_embed"}}' \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM multivector server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8003/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM multivector server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM multivector server to start."
+            exit 1
+          fi
+
+          echo "vLLM multivector server started successfully."
+
       - name: Lint
         if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -188,7 +214,7 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
+        uses: py-cov-action/python-coverage-comment-action@281cb0dcb5b15d4773037d51873558fddc5a7df8 # v4.7
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/vllm
@@ -212,7 +238,7 @@ jobs:
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
+        uses: py-cov-action/python-coverage-comment-action@281cb0dcb5b15d4773037d51873558fddc5a7df8 # v4.7
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/vllm
@@ -235,7 +261,7 @@ jobs:
           hatch run test:unit
 
   sparse-embedders:
-    # Runs on its own runner so the SPLADE server doesn't compete for memory with the three vLLM servers in `run`.
+    # Runs on its own runner so the SPLADE server doesn't compete for memory with the four vLLM servers in `run`.
     name: Sparse embedders - Python ${{ matrix.python-version }} on Linux
     needs: compute-test-matrix
     permissions:
@@ -251,7 +277,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -290,7 +316,7 @@ jobs:
           # SPLADE checkpoints declare BertForMaskedLM, so vLLM needs the override to serve them as sparse embedders.
           # The braces are doubled because `hatch run` treats `{...}` as a context field.
           nohup hatch run -- vllm serve ${{ env.VLLM_SPARSE_EMBEDDING_MODEL }} \
-            --port 8003 \
+            --port 8004 \
             --runner pooling \
             --hf-overrides '{{"architectures": ["BertSpladeSparseEmbeddingModel"]}}' \
             --enforce-eager \
@@ -298,7 +324,7 @@ jobs:
 
           # Wait for the vLLM sparse embedding server to be ready with a timeout of 300 seconds
           timeout=300
-          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8003/health > /dev/null 2>&1; do
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8004/health > /dev/null 2>&1; do
             echo "Waiting for vLLM sparse embedding server to start..."
             sleep 10
             ((timeout-=10))

@@ -220,7 +220,7 @@ class TestDefaultDescriptionMatchesMonty:
             assert tool.invoke(code=f"import {module}") == "The code ran successfully and produced no output."
 
     # Commonly used standard library modules that Monty doesn't implement yet
-    @pytest.mark.parametrize("module", ["decimal", "enum", "heapq", "operator", "statistics", "string"])
+    @pytest.mark.parametrize("module", ["enum", "heapq", "operator", "statistics", "string"])
     def test_unlisted_modules_are_not_importable(self, tool, module):
         assert f"ModuleNotFoundError: No module named '{module}'" in tool.invoke(code=f"import {module}")
 

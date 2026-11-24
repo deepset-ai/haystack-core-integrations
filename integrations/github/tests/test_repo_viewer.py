@@ -103,11 +103,12 @@ class TestGitHubRepoViewer:
         assert result["documents"][0].meta["path"] == "README.md"
 
         mock_get.assert_called_once_with(
-            "https://api.github.com/repos/owner/repo/contents/README.md?ref=main",
+            "https://api.github.com/repos/owner/repo/contents/README.md",
             headers={
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "Haystack/GitHubRepoViewer",
             },
+            params={"ref": "main"},
             timeout=10,
         )
 
@@ -138,11 +139,12 @@ class TestGitHubRepoViewer:
         assert result["documents"][1].meta["type"] == "file"
 
         mock_get.assert_called_once_with(
-            "https://api.github.com/repos/owner/repo/contents/?ref=main",
+            "https://api.github.com/repos/owner/repo/contents/",
             headers={
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "Haystack/GitHubRepoViewer",
             },
+            params={"ref": "main"},
             timeout=10,
         )
 
@@ -174,6 +176,58 @@ class TestGitHubRepoViewer:
 
         with pytest.raises(ValueError):
             viewer._parse_repo("invalid_format")
+
+    @pytest.mark.parametrize("repo", ["../evil", "owner/..", "a/b/c", "."])
+    @patch("requests.get")
+    def test_run_rejects_invalid_repo(self, mock_get, repo, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        viewer = GitHubRepoViewer()
+        with pytest.raises(ValueError):
+            viewer.run(repo=repo, path="README.md")
+
+        mock_get.assert_not_called()
+
+    @pytest.mark.parametrize("path", ["../../other/repo/contents/x", "docs/../../../other/repo", "./x", "a//b"])
+    @patch("requests.get")
+    def test_run_rejects_invalid_path(self, mock_get, path, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        viewer = GitHubRepoViewer(raise_on_failure=False)
+        result = viewer.run(repo="owner/repo", path=path)
+        assert result["documents"][0].meta["type"] == "error"
+
+        viewer = GitHubRepoViewer(raise_on_failure=True)
+        with pytest.raises(ValueError, match="Invalid path"):
+            viewer.run(repo="owner/repo", path=path)
+
+        mock_get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "path,branch,expected_url",
+        [
+            # Same URLs as before ref was moved to `params`
+            ("", "main", "https://api.github.com/repos/owner/repo/contents/?ref=main"),
+            ("docs/", "main", "https://api.github.com/repos/owner/repo/contents/docs?ref=main"),
+            (
+                "docs/a b#1?.md",
+                "feature/#1",
+                "https://api.github.com/repos/owner/repo/contents/docs/a%20b%231%3F.md?ref=feature%2F%231",
+            ),
+        ],
+    )
+    @patch("requests.get")
+    def test_run_sends_encoded_path_and_ref(self, mock_get, path, branch, expected_url, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = []
+
+        viewer = GitHubRepoViewer()
+        viewer.run(repo="owner/repo", path=path, branch=branch)
+
+        url = mock_get.call_args.args[0]
+        params = mock_get.call_args.kwargs["params"]
+        assert params == {"ref": branch}
+        assert requests.Request("GET", url, params=params).prepare().url == expected_url
 
     def test_get_request_headers_with_empty_token(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "")

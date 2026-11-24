@@ -103,6 +103,9 @@ class OptimumDocumentEmbedder:
             Dictionary containing additional keyword arguments to pass to the model.
             In case of duplication, these kwargs override `model`, `onnx_execution_provider`
             and `token` initialization parameters.
+            A `session_options` dict is turned into an `onnxruntime.SessionOptions` with those attributes set,
+            for example `{"session_options": {"intra_op_num_threads": 1}}` to limit the threads each inference
+            call uses.
         :param working_dir:
             The directory to use for storing intermediate files
             generated during model optimization/quantization. Required

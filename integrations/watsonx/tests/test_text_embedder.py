@@ -185,7 +185,7 @@ class TestIntegration:
         with pytest.raises(ApiRequestFailure) as exc_info:
             embedder.run(very_long_text)
 
-        assert "Please reduce the length of the input." in str(exc_info.value)
+        assert "Please reduce the length of the input" in str(exc_info.value)
         assert "512" in str(exc_info.value)
 
     def test_text_truncation(self):

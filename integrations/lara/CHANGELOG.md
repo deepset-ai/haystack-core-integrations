@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/lara-v2.0.1] - 2026-10-28
+
+### 🐛 Bug Fixes
+
+- *(lara)* Respect falsy run() overrides in LaraDocumentTranslator (#4169)
+
+
 ## [integrations/lara-v2.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes

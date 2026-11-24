@@ -5,8 +5,8 @@
 import json
 import os
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import urlparse
 
 import pytest
 import requests
@@ -35,28 +35,43 @@ os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 os.environ.setdefault("LANGFUSE_HOST", "https://cloud.langfuse.com")
 
 
-def poll_langfuse(url: str):
+def poll_langfuse(trace_id: str, *, min_observations: int) -> list[dict[str, Any]]:
     """Utility function to poll Langfuse API until the trace is ready"""
-    # Initial wait for trace creation
-    time.sleep(30)
-
     auth = HTTPBasicAuth(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
 
-    attempts = 5
+    url = f"{os.environ['LANGFUSE_HOST']}/api/public/v2/observations"
+    now = datetime.now(UTC)
+    params = {
+        "traceId": trace_id,
+        "fromStartTime": (now - timedelta(hours=1)).isoformat(),
+        "toStartTime": now.isoformat(),
+        "fields": "core,basic,io,metadata,trace_context",
+    }
+    attempts = 7
     delay = 1
 
-    res = None
     while attempts > 0:
-        res = requests.get(url, auth=auth, timeout=60.0)
+        res = requests.get(url, params=params, auth=auth, timeout=60.0)
         if res.status_code == 200:
-            return res
+            observations = res.json()["data"]
+            root_io_ready = any(
+                obs["input"] is not None and obs["output"] is not None
+                for obs in observations
+                if obs["parentObservationId"] is None
+            )
+            if len(observations) >= min_observations and root_io_ready:
+                return observations
 
         attempts -= 1
         if attempts > 0:
             time.sleep(delay)
             delay *= 2
 
-    return res
+    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
+    pytest.fail(
+        f"Incomplete trace {trace_id}. Expected at least {min_observations} observations, "
+        f"got {len(observations)}. Root input and output available: {root_io_ready}."
+    )
 
 
 @pytest.fixture
@@ -101,22 +116,14 @@ def test_tracing_integration(env_var, expected_trace, basic_pipeline):
     assert response["tracer"]["trace_url"]
     assert response["tracer"]["trace_id"]
 
-    trace_url = response["tracer"]["trace_url"]
-    uuid = os.path.basename(urlparse(trace_url).path)
-    url = f"{os.environ['LANGFUSE_HOST']}/api/public/traces/{uuid}"
-
-    res = poll_langfuse(url)
-    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
-
-    res_json = res.json()
-    assert res_json["name"] == f"Chat example - {expected_trace}"
-    assert isinstance(res_json["input"], dict)
-    assert res_json["input"]["tracer"]["invocation_context"]["user_id"] == "user_42"
-    assert isinstance(res_json["output"], dict)
-    assert isinstance(res_json["metadata"], dict)
-    assert isinstance(res_json["observations"], list)
+    observations = poll_langfuse(response["tracer"]["trace_id"], min_observations=4)
+    (root,) = [obs for obs in observations if obs["parentObservationId"] is None]
+    assert root["traceName"] == f"Chat example - {expected_trace}"
+    assert json.loads(root["input"])["tracer"]["invocation_context"]["user_id"] == "user_42"
+    assert isinstance(json.loads(root["output"]), dict)
+    assert isinstance(root["metadata"], dict)
     # at least one observation should be a generation
-    assert any(obs["type"] == "GENERATION" for obs in res_json["observations"])
+    assert any(obs["type"] == "GENERATION" for obs in observations)
 
 
 @pytest.mark.skipif(
@@ -174,21 +181,13 @@ def test_tracing_with_sub_pipelines():
     assert response["tracer"]["trace_url"]
     assert response["tracer"]["trace_id"]
 
-    trace_url = response["tracer"]["trace_url"]
-    uuid = os.path.basename(urlparse(trace_url).path)
-    url = f"{os.environ['LANGFUSE_HOST']}/api/public/traces/{uuid}"
+    observations = poll_langfuse(response["tracer"]["trace_id"], min_observations=8)
+    (root,) = [obs for obs in observations if obs["parentObservationId"] is None]
+    assert root["traceName"] == "Sub-pipeline example"
+    assert isinstance(json.loads(root["input"]), dict)
+    assert isinstance(json.loads(root["output"]), dict)
+    assert isinstance(root["metadata"], dict)
 
-    res = poll_langfuse(url)
-    assert res.status_code == 200, f"Failed to retrieve data from Langfuse API: {res.status_code}"
-
-    res_json = res.json()
-    assert res_json["name"] == "Sub-pipeline example"
-    assert isinstance(res_json["input"], dict)
-    assert isinstance(res_json["output"], dict)
-    assert isinstance(res_json["metadata"], dict)
-    assert isinstance(res_json["observations"], list)
-
-    observations = res_json["observations"]
     assert len(observations) == 8
 
     haystack_pipeline_run_observations = [obs for obs in observations if obs["name"] == "haystack.pipeline.run"]

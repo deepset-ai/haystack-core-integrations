@@ -47,3 +47,14 @@ if (union == 0) return 0.0;
 
 return inter / (double) union;
 """
+
+
+# We use innerproduct, which produces positive scores:
+# https://docs.opensearch.org/latest/mappings/supported-field-types/knn-spaces/
+# We assign zero to documents without multivectors so we can exclude them later in the document store.
+MULTIVECTOR_SEARCH_SCRIPT = """
+if (params._source.multivector_embedding == null || params._source.multivector_embedding.isEmpty()) {
+    return 0.0;
+}
+return lateInteractionScore(params.query_vectors, 'multivector_embedding', params._source, 'innerproduct');
+"""

@@ -80,6 +80,7 @@ def test_to_dict(_mock_opensearch_client):
                     "verify_certs": None,
                     "timeout": None,
                     "nested_fields": None,
+                    "multivector_embedding_dim": None,
                 },
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },

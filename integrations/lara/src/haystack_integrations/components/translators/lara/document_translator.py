@@ -209,14 +209,14 @@ class LaraDocumentTranslator:
         if self._translator is None:
             self.warm_up()
 
-        source_lang = source_lang or self.source_lang
-        target_lang = target_lang or self.target_lang
-        context = context or self.context
-        instructions = instructions or self.instructions
-        style = style or self.style
-        adapt_to = adapt_to or self.adapt_to
-        glossaries = glossaries or self.glossaries
-        reasoning = reasoning or self.reasoning
+        source_lang = source_lang if source_lang is not None else self.source_lang
+        target_lang = target_lang if target_lang is not None else self.target_lang
+        context = context if context is not None else self.context
+        instructions = instructions if instructions is not None else self.instructions
+        style = style if style is not None else self.style
+        adapt_to = adapt_to if adapt_to is not None else self.adapt_to
+        glossaries = glossaries if glossaries is not None else self.glossaries
+        reasoning = reasoning if reasoning is not None else self.reasoning
 
         validated_params = self._validate_params(
             len(documents),

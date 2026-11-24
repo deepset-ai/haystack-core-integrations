@@ -371,3 +371,90 @@ class TestGitHubFileEditor:
         ):
             result = editor.run(command=command, payload=payload, repo="owner/repo", branch="main")
         assert "Error: API Error" in result["result"]
+
+    @pytest.mark.parametrize("path", ["../../../other/repo/contents/x", "a/../b", "./x", "a//b"])
+    @pytest.mark.parametrize(
+        "command,payload",
+        [
+            (Command.EDIT, {"original": "Hello", "replacement": "Hi", "message": "m"}),
+            (Command.CREATE, {"content": "x", "message": "m"}),
+            (Command.DELETE, {"message": "m"}),
+        ],
+    )
+    @patch("requests.delete")
+    @patch("requests.put")
+    @patch("requests.get")
+    def test_run_rejects_invalid_path(self, mock_get, mock_put, mock_delete, command, payload, path, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        payload = {**payload, "path": path}
+
+        editor = GitHubFileEditor(repo="owner/repo", raise_on_failure=False)
+        result = editor.run(command=command, payload=payload)
+        assert result["result"].startswith("Error")
+
+        editor = GitHubFileEditor(repo="owner/repo", raise_on_failure=True)
+        with pytest.raises(ValueError, match="Invalid path"):
+            editor.run(command=command, payload=payload)
+
+        mock_get.assert_not_called()
+        mock_put.assert_not_called()
+        mock_delete.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "path,expected_url",
+        [
+            ("src/app.py", "https://api.github.com/repos/owner/repo/contents/src/app.py"),
+            ("docs/a b#1?.md", "https://api.github.com/repos/owner/repo/contents/docs/a%20b%231%3F.md"),
+            # A literal "%2e%2e" is a file name, not an encoded dot segment
+            ("%2e%2e/x", "https://api.github.com/repos/owner/repo/contents/%252e%252e/x"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "command,payload",
+        [
+            (Command.EDIT, {"original": "Hello", "replacement": "Hi", "message": "m"}),
+            (Command.CREATE, {"content": "x", "message": "m"}),
+            (Command.DELETE, {"message": "m"}),
+        ],
+    )
+    @patch("requests.delete")
+    @patch("requests.put")
+    @patch("requests.get")
+    def test_run_encodes_path(self, mock_get, mock_put, mock_delete, command, payload, path, expected_url, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = {"content": "SGVsbG8gV29ybGQ=", "sha": "abc123"}
+
+        editor = GitHubFileEditor(repo="owner/repo")
+        editor.run(command=command, payload={**payload, "path": path})
+
+        urls = [call.args[0] for mock in (mock_get, mock_put, mock_delete) for call in mock.call_args_list]
+        assert urls
+        for url in urls:
+            assert url == expected_url
+            # requests/urllib3 normalize the URL before sending it, so check the URL that actually goes out
+            prepared_url = requests.Request("PUT", url).prepare().url
+            assert prepared_url.startswith("https://api.github.com/repos/owner/repo/contents/")
+            assert prepared_url == expected_url
+
+    @patch("requests.patch")
+    @patch("requests.get")
+    def test_run_undo_rejects_invalid_branch(self, mock_get, mock_patch, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        editor = GitHubFileEditor(repo="owner/repo", raise_on_failure=False)
+        result = editor.run(command=Command.UNDO, payload={"message": "m"}, branch="../../other/x")
+
+        assert result["result"].startswith("Error: Invalid branch")
+        mock_get.assert_not_called()
+        mock_patch.assert_not_called()
+
+    @pytest.mark.parametrize("repo", ["../evil", "owner/..", "a/b/c", "."])
+    @patch("requests.put")
+    def test_run_rejects_invalid_repo(self, mock_put, repo, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        editor = GitHubFileEditor(raise_on_failure=False)
+        with pytest.raises(ValueError):
+            editor.run(command=Command.CREATE, payload={"path": "x.txt", "content": "x", "message": "m"}, repo=repo)
+
+        mock_put.assert_not_called()

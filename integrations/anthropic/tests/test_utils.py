@@ -1440,6 +1440,26 @@ class TestConvertFileContentToAnthropicFormat:
         with pytest.raises(ValueError, match="Unsupported file format: image/png"):
             _convert_file_content_to_anthropic_format(file_content)
 
+    @pytest.mark.parametrize("mime_type", ["text/plain", "text/markdown", "text/csv"])
+    def test_convert_file_content_to_anthropic_format_with_text(self, mime_type):
+        text = "name,city\nAda,Zürich\n"
+        base64_data = base64.b64encode(text.encode("utf-8")).decode("utf-8")
+        file_content = FileContent(base64_data=base64_data, mime_type=mime_type, extra={"title": "People"})
+
+        assert _convert_file_content_to_anthropic_format(file_content) == {
+            "type": "document",
+            "source": {"type": "text", "media_type": "text/plain", "data": text},
+            "context": None,
+            "title": "People",
+        }
+
+    def test_convert_file_content_to_anthropic_format_with_non_utf8_text(self):
+        base64_data = base64.b64encode(b"\xff\xfe\x00bad").decode("utf-8")
+        file_content = FileContent(base64_data=base64_data, mime_type="text/plain")
+
+        with pytest.raises(ValueError, match="Could not decode file with MIME type text/plain as UTF-8 text"):
+            _convert_file_content_to_anthropic_format(file_content)
+
 
 class TestHasServerToolBlocks:
     def test_has_server_tool_blocks(self):

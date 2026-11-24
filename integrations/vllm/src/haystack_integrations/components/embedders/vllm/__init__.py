@@ -3,8 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .document_embedder import VLLMDocumentEmbedder
+from .multivector_document_embedder import VLLMMultivectorDocumentEmbedder
+from .multivector_text_embedder import VLLMMultivectorTextEmbedder
 from .sparse_document_embedder import VLLMSparseDocumentEmbedder
 from .sparse_text_embedder import VLLMSparseTextEmbedder
 from .text_embedder import VLLMTextEmbedder
 
-__all__ = ["VLLMDocumentEmbedder", "VLLMSparseDocumentEmbedder", "VLLMSparseTextEmbedder", "VLLMTextEmbedder"]
+__all__ = [
+    "VLLMDocumentEmbedder",
+    "VLLMMultivectorDocumentEmbedder",
+    "VLLMMultivectorTextEmbedder",
+    "VLLMSparseDocumentEmbedder",
+    "VLLMSparseTextEmbedder",
+    "VLLMTextEmbedder",
+]

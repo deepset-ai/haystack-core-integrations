@@ -10,6 +10,8 @@ from unittest import mock
 import pytest
 from chromadb.api.shared_system_client import SharedSystemClient
 from haystack.dataclasses import ByteStream, Document, SparseEmbedding
+from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     CountDocumentsByFilterTest,
@@ -313,6 +315,39 @@ class TestDocumentStore(
         ) as get_func:
             get_func.return_value = embedding_function
             return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
+
+    @pytest.mark.parametrize(
+        ("filters", "expected_ids"),
+        [
+            ({"field": "meta.id", "operator": "==", "value": "target"}, ["document-a"]),
+            ({"field": "meta.id", "operator": "!=", "value": "target"}, ["target"]),
+            ({"field": "id", "operator": "==", "value": "target"}, ["target"]),
+        ],
+        ids=["equal", "not_equal", "document_id"],
+    )
+    def test_metadata_id_filters_preserve_document_identity(
+        self, document_store: ChromaDocumentStore, filters, expected_ids
+    ):
+        document_store.write_documents(
+            [
+                Document(id="document-a", content="matching metadata", meta={"id": "target"}),
+                Document(id="target", content="nonmatching metadata", meta={"id": "other"}),
+            ]
+        )
+
+        assert [document.id for document in document_store.filter_documents(filters=filters)] == expected_ids
+
+    def test_delete_by_filter_metadata_id(self, document_store: ChromaDocumentStore):
+        document_store.write_documents(
+            [
+                Document(id="document-a", content="matching metadata", meta={"id": "target"}),
+                Document(id="target", content="nonmatching metadata", meta={"id": "other"}),
+            ]
+        )
+
+        filters = {"field": "meta.id", "operator": "==", "value": "target"}
+        assert document_store.delete_by_filter(filters=filters) == 1
+        assert [document.id for document in document_store.filter_documents()] == ["target"]
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
@@ -680,6 +715,30 @@ class TestDocumentStore(
         result_empty_filters = document_store.search_embeddings([query_embedding], filters={}, top_k=2)
         assert len(result_empty_filters) == 1
         assert len(result_empty_filters[0]) == 2
+
+    def test_write_documents_skip_drops_ids_repeated_in_the_batch(self, document_store: ChromaDocumentStore):
+        docs = [Document(content="refund policy"), Document(content="shipping"), Document(content="refund policy")]
+
+        assert document_store.write_documents(docs, policy=DuplicatePolicy.SKIP) == 2
+        assert document_store.count_documents() == 2
+
+    @pytest.mark.parametrize("policy", [DuplicatePolicy.FAIL, DuplicatePolicy.NONE])
+    def test_write_documents_fail_raises_on_ids_repeated_in_the_batch(
+        self, document_store: ChromaDocumentStore, policy: DuplicatePolicy
+    ):
+        docs = [Document(content="refund policy"), Document(content="shipping"), Document(content="refund policy")]
+
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents(docs, policy=policy)
+        assert document_store.count_documents() == 0
+
+    def test_write_documents_skip_with_repeated_ids_already_stored(self, document_store: ChromaDocumentStore):
+        stored = Document(content="refund policy")
+        document_store.write_documents([stored])
+
+        docs = [stored, Document(content="shipping"), stored]
+        assert document_store.write_documents(docs, policy=DuplicatePolicy.SKIP) == 1
+        assert document_store.count_documents() == 2
 
 
 @pytest.mark.integration

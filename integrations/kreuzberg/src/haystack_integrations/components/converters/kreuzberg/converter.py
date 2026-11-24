@@ -99,6 +99,7 @@ class KreuzbergConverter:
         store_full_path: bool = False,
         batch: bool = True,
         easyocr_kwargs: dict[str, Any] | None = None,
+        include_page_structure: bool = True,
     ) -> None:
         """
         Create a `KreuzbergConverter` component.
@@ -127,6 +128,13 @@ class KreuzbergConverter:
             and other EasyOCR-specific options.
             See the [EasyOCR documentation](https://www.jaided.ai/easyocr/documentation/)
             for the full list of supported arguments.
+        :param include_page_structure:
+            If `True`, the page structure kreuzberg returns when `PageConfig` is set
+            is stored under `meta["pages"]`: per-page byte boundaries, dimensions and
+            blank flags. Its size grows with the page count of the source and it is
+            copied into every Document produced from that source. Set to `False` to
+            leave it out, for example to keep the metadata of chunked or split
+            Documents small. `page_count` is kept either way.
         """
         if config is not None and config_path is not None:
             msg = "Cannot specify both 'config' and 'config_path'. Use one or the other."
@@ -137,6 +145,7 @@ class KreuzbergConverter:
         self.store_full_path = store_full_path
         self.batch = batch
         self.easyocr_kwargs = easyocr_kwargs
+        self.include_page_structure = include_page_structure
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -153,6 +162,7 @@ class KreuzbergConverter:
             store_full_path=self.store_full_path,
             batch=self.batch,
             easyocr_kwargs=self.easyocr_kwargs,
+            include_page_structure=self.include_page_structure,
         )
 
     @classmethod
@@ -264,14 +274,16 @@ class KreuzbergConverter:
                 continue
             results[idx] = result
 
-    @staticmethod
-    def _build_extraction_metadata(result: ExtractionResult) -> dict[str, Any]:
+    def _build_extraction_metadata(self, result: ExtractionResult) -> dict[str, Any]:
         """
         Build metadata dict from an `ExtractionResult`.
 
         Flattens kreuzberg's metadata fields and enriches with top-level result attributes.
+        The `pages` entry is left out when `include_page_structure` is `False`.
         """
         meta: dict[str, Any] = {k: v for k, v in result.metadata.items() if v is not None}
+        if not self.include_page_structure:
+            meta.pop("pages", None)
 
         if result.output_format:
             meta["output_format"] = result.output_format

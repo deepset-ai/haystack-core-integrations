@@ -262,6 +262,20 @@ class TestGitHubRepoForker:
         with pytest.raises(ValueError):
             forker._parse_github_url("https://github.com/invalid/url")
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/../evil/issues/1",
+            "https://github.com/owner/../issues/1",
+            "https://github.com/./repo/issues/1",
+        ],
+    )
+    def test_parse_github_url_rejects_dot_segments(self, url, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        forker = GitHubRepoForker()
+        with pytest.raises(ValueError, match="Invalid repository owner or name"):
+            forker._parse_github_url(url)
+
     def test_get_request_headers_with_empty_token(self, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "")
 
@@ -326,3 +340,16 @@ class TestGitHubRepoForker:
             else:
                 with pytest.raises(TimeoutError):
                     forker.run(url="https://github.com/owner/repo/issues/123")
+
+    @patch("requests.get")
+    @patch("requests.post")
+    def test_create_issue_branch_encodes_default_branch(self, mock_post, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        # Git allows `#` in branch names; unencoded, it would cut the URL off at `heads/release`
+        mock_get.return_value.json.side_effect = [{"default_branch": "release#2"}, {"object": {"sha": "abc123"}}]
+
+        GitHubRepoForker()._create_issue_branch("test_user/repo", "123")
+
+        get_calls = [call[0][0] for call in mock_get.call_args_list]
+        assert get_calls[1] == "https://api.github.com/repos/test_user/repo/git/ref/heads/release%232"
+        assert mock_post.call_args[1]["json"] == {"ref": "refs/heads/fix-123", "sha": "abc123"}

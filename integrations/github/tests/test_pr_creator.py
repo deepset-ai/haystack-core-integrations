@@ -150,6 +150,20 @@ class TestGitHubPRCreator:
         with pytest.raises(ValueError, match="Invalid GitHub issue URL format"):
             pr_creator._parse_issue_url("https://github.com/owner/repo/pull/1")
 
+    @pytest.mark.parametrize(
+        "issue_url",
+        [
+            "https://github.com/../evil/issues/1",
+            "https://github.com/owner/../issues/1",
+            "https://github.com/./repo/issues/1",
+        ],
+    )
+    def test_parse_issue_url_rejects_dot_segments(self, issue_url, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        pr_creator = GitHubPRCreator()
+        with pytest.raises(ValueError, match="Invalid repository owner or name"):
+            pr_creator._parse_issue_url(issue_url)
+
     @patch("requests.get")
     def test_run_returns_error_when_fork_not_found(self, mock_get, monkeypatch):
         monkeypatch.setenv("GITHUB_TOKEN", "test-token")
@@ -222,3 +236,36 @@ class TestGitHubPRCreator:
                 pr_creator._create_branch("owner", "repo", "feature", "main")
         else:
             assert pr_creator._create_branch("owner", "repo", "feature", "main") is False
+
+    @patch("requests.patch")
+    @patch("requests.post")
+    @patch("requests.get")
+    def test_branch_with_slash_in_ref_url(self, mock_get, mock_post, mock_patch, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = {"object": {"sha": "abc123"}}
+        mock_post.return_value.json.return_value = {"sha": "def456"}
+        ref_url = "https://api.github.com/repos/owner/repo/git/refs/heads/feature/x"
+
+        pr_creator = GitHubPRCreator()
+        assert pr_creator._create_branch("owner", "repo", "new-branch", "feature/x") is True
+        assert mock_get.call_args.args[0] == ref_url
+
+        assert pr_creator._create_commit("owner", "repo", "feature/x", "f.txt", "Y29udGVudA==", "m") is True
+        assert mock_get.call_args.args[0] == ref_url
+        assert mock_patch.call_args.args[0] == ref_url
+
+    @patch("requests.patch")
+    @patch("requests.post")
+    @patch("requests.get")
+    def test_invalid_branch_rejected_before_request(self, mock_get, mock_post, mock_patch, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        pr_creator = GitHubPRCreator()
+        with pytest.raises(ValueError, match="Invalid branch"):
+            pr_creator._create_branch("owner", "repo", "new-branch", "../x")
+        with pytest.raises(ValueError, match="Invalid branch"):
+            pr_creator._create_commit("owner", "repo", "../x", "f.txt", "Y29udGVudA==", "m")
+
+        mock_get.assert_not_called()
+        mock_post.assert_not_called()
+        mock_patch.assert_not_called()
