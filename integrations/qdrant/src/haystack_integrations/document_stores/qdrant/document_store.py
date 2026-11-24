@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # - Qdrant expects an integer and internally defaults to 3 when performing grouped queries.
 # - When group_by is specified but group_size is None, we use this value instead of passing None.
 DEFAULT_GROUP_SIZE = 3
-# Hybrid queries without `group_by` pass `top_k` times this many candidates per prefetch to RRF fusion
+# Multiple of `top_k` used as the default per-prefetch limit in hybrid queries
 DEFAULT_PREFETCH_LIMIT_FACTOR = 2
 
 
@@ -1866,7 +1866,8 @@ class QdrantDocumentStore:
         :param rrf_weights: Per-prefetch weights for RRF fusion. Must have 2 elements: [sparse_weight, dense_weight].
             Requires Qdrant server >= 1.17.0.
         :param prefetch_limit: Maximum number of candidates that each prefetch (sparse and dense) passes to RRF fusion.
-            If `None`, defaults to `2 * top_k`.
+            If `None`, defaults to `2 * top_k`. With `group_by`, `None` leaves the limit to Qdrant, which enlarges
+            the prefetches itself until the groups are filled.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
