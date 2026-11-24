@@ -37,7 +37,6 @@ class TestGitHubPRCheckoutTool:
             guideline_files=["AGENTS.md"],
             excluded_files=["*.lock"],
             max_diff_chars=500,
-            include_related_docs=True,
             raise_on_failure=True,
         )
 
@@ -54,7 +53,6 @@ class TestGitHubPRCheckoutTool:
                 "guideline_files": ["AGENTS.md"],
                 "excluded_files": ["*.lock"],
                 "max_diff_chars": 500,
-                "include_related_docs": True,
                 "raise_on_failure": True,
                 "outputs_to_string": {"source": "text"},
                 "inputs_from_state": None,

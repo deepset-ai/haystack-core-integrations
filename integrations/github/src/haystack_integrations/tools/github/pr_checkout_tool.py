@@ -31,7 +31,6 @@ class GitHubPRCheckoutTool(ComponentTool):
         guideline_files: list[str] | None = None,
         excluded_files: list[str] | None = None,
         max_diff_chars: int = 100_000,
-        include_related_docs: bool = False,
         raise_on_failure: bool = False,
         outputs_to_string: dict[str, str | Callable[[Any], str]] | None = None,
         inputs_from_state: dict[str, str] | None = None,
@@ -51,8 +50,6 @@ class GitHubPRCheckoutTool(ComponentTool):
         :param excluded_files: `fnmatch` patterns of changed files whose diff is left out.
             Defaults to common lockfiles and minified files.
         :param max_diff_chars: Maximum number of characters of diff to return.
-        :param include_related_docs: If True, list the docs pages outside the pull request that mention a class
-            defined in a changed source file.
         :param raise_on_failure: If True, errors from the GitHub API raise. If False (the default), the error message
             is returned to the Agent.
         :param outputs_to_string:
@@ -70,7 +67,6 @@ class GitHubPRCheckoutTool(ComponentTool):
         self.guideline_files = guideline_files
         self.excluded_files = excluded_files
         self.max_diff_chars = max_diff_chars
-        self.include_related_docs = include_related_docs
         self.raise_on_failure = raise_on_failure
 
         self.outputs_to_string = outputs_to_string or {"source": "text"}
@@ -83,7 +79,6 @@ class GitHubPRCheckoutTool(ComponentTool):
             guideline_files=guideline_files,
             excluded_files=excluded_files,
             max_diff_chars=max_diff_chars,
-            include_related_docs=include_related_docs,
             raise_on_failure=raise_on_failure,
         )
         super().__init__(
@@ -112,7 +107,6 @@ class GitHubPRCheckoutTool(ComponentTool):
             "guideline_files": self.guideline_files,
             "excluded_files": self.excluded_files,
             "max_diff_chars": self.max_diff_chars,
-            "include_related_docs": self.include_related_docs,
             "raise_on_failure": self.raise_on_failure,
             "outputs_to_string": self.outputs_to_string,
             "inputs_from_state": self.inputs_from_state,

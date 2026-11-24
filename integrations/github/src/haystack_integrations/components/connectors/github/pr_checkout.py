@@ -37,15 +37,9 @@ DEFAULT_EXCLUDED_FILES = [
 _FILES_PER_PAGE = 100
 _MAX_FILE_PAGES = 30
 _MAX_GUIDELINE_CHARS = 15_000
-_MAX_DOC_PAGES = 8
 _GIT_TIMEOUT = 300
 
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-_SOURCE_RE = re.compile(r"\.(py|ts|tsx|js|jsx|go|java|kt|rb|rs|cs)$")
-_TEST_RE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|[._-](test|spec)\.[a-z]+$")
-_CLASS_RE = re.compile(r"^(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:class|interface)\s+([A-Z]\w+)", re.MULTILINE)
-_CHANGELOG_RE = re.compile(r"(^|/)CHANGELOG", re.IGNORECASE)
-_DOCS_COPY_RE = re.compile(r"(^|/)(versioned_docs|reference_versioned_docs|reference|i18n|node_modules)/")
 
 
 def _make_writable_and_retry(func: Callable[[str], Any], path: str, _error: Any) -> None:
@@ -104,7 +98,6 @@ class GitHubPRCheckout:
     The head commit is fetched with `git` into `checkout_dir`, relative to the working directory, so an Agent can read
     the code around the change with other tools. The output text holds:
     - the repository's guideline files (such as AGENTS.md) from the base branch;
-    - optionally, the docs pages outside the pull request that mention classes defined in the changed source files;
     - the diff of every changed file, with the new-file line number on every line.
 
     Requires the `git` command line tool, version 2.31 or later, on the `PATH`. `warm_up` raises a `RuntimeError` if
@@ -129,7 +122,6 @@ class GitHubPRCheckout:
         guideline_files: list[str] | None = None,
         excluded_files: list[str] | None = None,
         max_diff_chars: int = 100_000,
-        include_related_docs: bool = False,
         raise_on_failure: bool = True,
     ) -> None:
         """
@@ -144,8 +136,6 @@ class GitHubPRCheckout:
         :param excluded_files: `fnmatch` patterns of changed files whose diff is left out, such as lockfiles.
             Defaults to common lockfiles and minified files.
         :param max_diff_chars: Maximum number of characters of diff to return. Files past the limit are listed by name.
-        :param include_related_docs: If True, list the Markdown, MDX and reStructuredText pages outside the pull
-            request that mention a class defined in a changed source file, pages named after the class first.
         :param raise_on_failure: If True, errors from the GitHub API raise. If False, the error message is returned
             as the `text` output.
         """
@@ -158,7 +148,6 @@ class GitHubPRCheckout:
         self.guideline_files = guideline_files if guideline_files is not None else list(DEFAULT_GUIDELINE_FILES)
         self.excluded_files = excluded_files if excluded_files is not None else list(DEFAULT_EXCLUDED_FILES)
         self.max_diff_chars = max_diff_chars
-        self.include_related_docs = include_related_docs
         self.raise_on_failure = raise_on_failure
 
         # Built by `warm_up`: the GitHub API request headers, and the environment additions for git
@@ -211,7 +200,6 @@ class GitHubPRCheckout:
             guideline_files=self.guideline_files,
             excluded_files=self.excluded_files,
             max_diff_chars=self.max_diff_chars,
-            include_related_docs=self.include_related_docs,
             raise_on_failure=self.raise_on_failure,
         )
 
@@ -311,57 +299,6 @@ class GitHubPRCheckout:
             return "## Repository guidelines\nNone of " + ", ".join(self.guideline_files) + " exist in the base branch."
         return "## Repository guidelines (from the base branch)\n" + "\n\n".join(blocks)
 
-    def _related_docs(self, changed: list[dict[str, Any]]) -> str:
-        """
-        List the docs pages outside the pull request that mention a class defined in a changed source file.
-
-        :param changed: The changed files, as the GitHub API returns them.
-        :returns: A Markdown section with up to 8 pages, pages named after a class first, then by number of matching
-            lines.
-        """
-        changed_paths = {f["filename"] for f in changed}
-
-        # Classes defined in changed, non-test source files, up to 5 per file
-        names: dict[str, str] = {}
-        for f in changed:
-            path = f["filename"]
-            if f["status"] == "removed" or not _SOURCE_RE.search(path) or _TEST_RE.search(path):
-                continue
-            try:
-                with open(os.path.join(self.checkout_dir, path), encoding="utf-8", errors="replace") as handle:
-                    content = handle.read()
-            except OSError:
-                continue
-            for name in _CLASS_RE.findall(content)[:5]:
-                names.setdefault(name, path)
-        if not names:
-            return "## Docs that mention the changed classes\nThe changed source files define no classes to look up."
-
-        # Matching lines per page, leaving out pages the pull request changes, changelogs and versioned copies
-        pages: dict[str, dict[str, Any]] = {}
-        for name in names:
-            proc = self._git("-C", self.checkout_dir, "grep", "-c", "-w", name, "--", "*.md", "*.mdx", "*.rst")
-            for line in proc.stdout.splitlines():
-                page, _, count = line.rpartition(":")
-                if page in changed_paths or _CHANGELOG_RE.search(page) or _DOCS_COPY_RE.search(page):
-                    continue
-                entry = pages.setdefault(page, {"names": [], "lines": 0, "named_after": False})
-                entry["names"].append(name)
-                entry["lines"] += int(count)
-                # A page named after the class (summarization-compactor.mdx for SummarizationCompactor) is its main page
-                stem = re.sub(r"[^a-z0-9]", "", page.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower())
-                entry["named_after"] |= stem == name.lower()
-        if not pages:
-            return "## Docs that mention the changed classes\nNo docs page outside the pull request mentions " + (
-                ", ".join(names) + "."
-            )
-
-        ranked = sorted(pages.items(), key=lambda item: (not item[1]["named_after"], -item[1]["lines"], item[0]))
-        lines = [f"{page}: {', '.join(entry['names'])} ({entry['lines']} matching lines)" for page, entry in ranked]
-        if len(lines) > _MAX_DOC_PAGES:
-            lines = [*lines[:_MAX_DOC_PAGES], f"... and {len(lines) - _MAX_DOC_PAGES} more pages"]
-        return "## Docs that mention the changed classes, most relevant first\n" + "\n".join(lines)
-
     def _changed_files(self, repo: str, pull_number: int) -> list[dict[str, Any]]:
         """
         Fetch every changed file of the pull request, with its patch.
@@ -411,7 +348,7 @@ class GitHubPRCheckout:
         :param repo: The repository as `owner/repo`.
         :param pull_number: The pull request number.
         :returns: A dictionary with:
-            - `text`: the checkout result, the guidelines, the related docs if enabled, the diff of every file within
+            - `text`: the checkout result, the guidelines, the diff of every file within
               `max_diff_chars`, and the files left out of the diff. If checking out the code fails, `text` says so
               and still holds the rest.
             - `head_sha`: the head commit, or an empty string if a GitHub API error is returned as `text`.
@@ -440,8 +377,6 @@ class GitHubPRCheckout:
                 "`-|` removed."
             )
             blocks = [header, self._guidelines(repo, pr["base"]["sha"])]
-            if self.include_related_docs:
-                blocks.append(self._related_docs(files))
             blocks += sections
             if left_out:
                 blocks.append("## Files not shown\n" + "\n".join(left_out))

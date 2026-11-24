@@ -86,7 +86,6 @@ class TestInit:
         assert checkout.guideline_files == ["AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md"]
         assert "*uv.lock" in checkout.excluded_files
         assert checkout.max_diff_chars == 100_000
-        assert checkout.include_related_docs is False
         assert checkout.raise_on_failure is True
 
     def test_init_rejects_a_token_that_is_not_a_secret(self):
@@ -101,7 +100,6 @@ class TestInit:
             guideline_files=["AGENTS.md"],
             excluded_files=["*.lock"],
             max_diff_chars=500,
-            include_related_docs=True,
             raise_on_failure=False,
         )
 
@@ -115,7 +113,6 @@ class TestInit:
                 "guideline_files": ["AGENTS.md"],
                 "excluded_files": ["*.lock"],
                 "max_diff_chars": 500,
-                "include_related_docs": True,
                 "raise_on_failure": False,
             },
         }
@@ -278,7 +275,6 @@ class TestRun:
         assert "### src/app.py (modified, +1 -1)\n@@ -1 +1 @@\n-|a\n+1|b" in result["text"]
         left_out = "## Files not shown\nuv.lock (excluded)\nlogo.png (binary or too large for GitHub to show)"
         assert left_out in result["text"]
-        assert "## Docs that mention the changed classes" not in result["text"]
 
     def test_leaves_out_files_over_the_size_limit(self, component):
         component.max_diff_chars = 60
@@ -314,54 +310,3 @@ class TestRun:
         result = component.run(repo=REPO, pull_number=7)
 
         assert result == {"text": f"Error checking out pull request {REPO}#7: 404 error", "head_sha": ""}
-
-
-class TestRelatedDocs:
-    @pytest.fixture
-    def checkout_repo(self, workspace: Path) -> Path:
-        repo = workspace / "repo"
-        repo.mkdir()
-        git(repo, "init", "-q")
-        return repo
-
-    def test_lists_the_page_named_after_a_changed_class_first(self, component, checkout_repo):
-        files = {
-            "src/compaction.py": "class SummarizationCompactor:\n    pass\n",
-            "docs/overview.mdx": "SummarizationCompactor\nSummarizationCompactor\nSummarizationCompactor\n",
-            "docs/compaction/summarization-compactor.mdx": "The SummarizationCompactor fails when ...",
-            "docs/versioned_docs/v1/summarization-compactor.mdx": "SummarizationCompactor",
-            "docs/changed-in-pr.mdx": "SummarizationCompactor",
-            "CHANGELOG.md": "SummarizationCompactor",
-            "docs/unrelated.mdx": "Nothing relevant here.",
-        }
-        for path, content in files.items():
-            (checkout_repo / path).parent.mkdir(parents=True, exist_ok=True)
-            (checkout_repo / path).write_text(content)
-        git(checkout_repo, "add", ".")
-        changed = [changed_file("src/compaction.py"), changed_file("docs/changed-in-pr.mdx")]
-
-        lines = component._related_docs(changed).split("\n")[1:]
-
-        assert lines == [
-            "docs/compaction/summarization-compactor.mdx: SummarizationCompactor (1 matching lines)",
-            "docs/overview.mdx: SummarizationCompactor (3 matching lines)",
-        ]
-
-    def test_ignores_classes_in_test_files(self, component, checkout_repo):
-        (checkout_repo / "test").mkdir()
-        (checkout_repo / "test" / "test_compaction.py").write_text("class TestCompaction:\n    pass\n")
-        (checkout_repo / "README.md").write_text("TestCompaction")
-        git(checkout_repo, "add", ".")
-
-        docs = component._related_docs([changed_file("test/test_compaction.py")])
-
-        assert docs.endswith("The changed source files define no classes to look up.")
-
-    @pytest.mark.usefixtures("checkout_repo")
-    def test_run_includes_related_docs_when_enabled(self, component):
-        component.include_related_docs = True
-        component._api = FakeGitHub([changed_file("src/app.py")])
-
-        text = component.run(repo=REPO, pull_number=7)["text"]
-
-        assert "## Docs that mention the changed classes" in text
