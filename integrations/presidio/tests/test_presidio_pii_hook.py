@@ -11,6 +11,7 @@ from haystack import component
 from haystack.components.agents import Agent
 from haystack.components.agents.state import State
 from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.tools import tool
 from presidio_analyzer import RecognizerResult
 from presidio_anonymizer import AnonymizerEngine
 
@@ -149,6 +150,7 @@ class TestRun:
         hook.run(state)
 
         assert state.data["messages"][0].text == "Hi, I'm <PERSON> from <LOCATION>."
+        assert state.data["messages"][0].meta["pii_checked"] is True
         assert hook._analyzer.analyze.call_args.kwargs["score_threshold"] == 0.3
 
     def test_block_mid_run_adds_reminder(self):
@@ -159,7 +161,10 @@ class TestRun:
 
         blocked, reminder = state.data["messages"]
         assert blocked.text == hook.block_message
+        assert blocked.meta["pii_checked"] is True
         assert reminder.meta["system_reminder"] is True
+        # The hook marks its own reminder as checked so it never analyzes it on a later run.
+        assert reminder.meta["pii_checked"] is True
         assert "CREDIT_CARD" in reminder.text
 
     def test_block_on_exit_replaces_reply_without_reminder(self):
@@ -171,7 +176,11 @@ class TestRun:
 
         messages = state.data["messages"]
         assert len(messages) == 2
+        # A message without PII keeps its text but is still marked as checked.
+        assert messages[0].text == user.text
+        assert messages[0].meta["pii_checked"] is True
         assert messages[1].text == hook.block_message
+        assert messages[1].meta["pii_checked"] is True
 
     def test_stop_redacts_and_sets_stop_run(self):
         hook = _hook({"DE89370400440532013000": ("IBAN_CODE", 1.0)}, entity_actions={"IBAN_CODE": "stop"})
@@ -180,6 +189,7 @@ class TestRun:
         hook.run(state)
 
         assert state.data["messages"][0].text == "Send it to <IBAN_CODE>"
+        assert state.data["messages"][0].meta["pii_checked"] is True
         assert state.data["stop_run"] == "pii_detected"
 
     def test_strictest_action_wins(self):
@@ -191,13 +201,19 @@ class TestRun:
 
         hook.run(state)
 
-        assert state.data["messages"][0].text == hook.block_message
+        blocked, reminder = state.data["messages"]
+        assert blocked.text == hook.block_message
+        assert blocked.meta["pii_checked"] is True
+        # The reminder lists every entity type found in the message, sorted, not only the one that caused the block.
+        assert "(CREDIT_CARD, PERSON)" in reminder.text
 
     def test_checks_each_message_once(self):
         hook = _hook({"John": ("PERSON", 0.9)})
         state = _state([ChatMessage.from_user("I'm John")])
 
         hook.run(state)
+        # The flag set by the first run is what makes the second run skip the message.
+        assert state.data["messages"][0].meta["pii_checked"] is True
         hook.run(state)
 
         assert hook._analyzer.analyze.call_count == 1
@@ -216,6 +232,8 @@ class TestRun:
         assert new_assistant.tool_call == call
         assert new_tool.tool_call_result.result == "Found <EMAIL_ADDRESS>"
         assert new_tool.tool_call_result.origin == call
+        assert new_assistant.meta["pii_checked"] is True
+        assert new_tool.meta["pii_checked"] is True
 
     def test_skips_system_reminders(self):
         hook = _hook({"John": ("PERSON", 0.9)})
@@ -225,6 +243,7 @@ class TestRun:
         hook.run(state)
 
         assert state.data["messages"] == [reminder]
+        assert "pii_checked" not in state.data["messages"][0].meta
         hook._analyzer.analyze.assert_not_called()
 
     @pytest.mark.parametrize(
@@ -240,6 +259,8 @@ class TestRun:
 
         assert (state.data["messages"][0].text == hook.block_message) is blocked
         assert (state.data.get("stop_run") == "pii_detected") is stopped
+        # Marked as checked in every mode, so a message Presidio failed on is not retried later in the run.
+        assert state.data["messages"][0].meta["pii_checked"] is True
         assert "Presidio failed" in caplog.text
 
     def test_records_decision_on_span(self):
@@ -283,6 +304,27 @@ class _RecordingChatGenerator:
         return {"replies": [ChatMessage.from_assistant(self.reply)]}
 
 
+@tool
+def lookup_customer(customer_id: str) -> str:
+    """Look up a customer by ID; the result contains a name, so it is PII."""
+    return f"Customer {customer_id} is Maria Garcia."
+
+
+@component
+class _ToolCallingChatGenerator:
+    """Always replies with a call to `lookup_customer`, optionally with text, and records the messages it was sent."""
+
+    def __init__(self, text: str | None = None) -> None:
+        self.text = text
+        self.received: list[list[ChatMessage]] = []
+
+    @component.output_types(replies=list[ChatMessage])
+    def run(self, messages: list[ChatMessage], tools: list | None = None) -> dict[str, list[ChatMessage]]:  # noqa: ARG002
+        self.received.append(list(messages))
+        call = ToolCall(tool_name="lookup_customer", arguments={"customer_id": "42"}, id="call_1")
+        return {"replies": [ChatMessage.from_assistant(self.text, tool_calls=[call])]}
+
+
 class TestWithAgent:
     def test_input_and_reply_are_redacted(self):
         hook = _hook({"John Smith": ("PERSON", 0.9), "Jane Doe": ("PERSON", 0.9)})
@@ -303,6 +345,52 @@ class TestWithAgent:
 
         assert generator.received == []
         assert result["messages"][-1].text == "IBAN <IBAN_CODE>"
+
+    def test_exit_condition_tool_result_is_redacted_by_after_run(self):
+        """
+        A tool listed in `exit_conditions` ends the run right after it executes.
+
+        No `before_llm` runs after it, so its result is never sent to the LLM, but it is in the messages returned to
+        the user. Only the `after_run` registration can redact it.
+        """
+        hook = _hook({"Maria Garcia": ("PERSON", 0.9)})
+        generator = _ToolCallingChatGenerator()
+        agent = Agent(
+            chat_generator=generator,
+            tools=[lookup_customer],
+            exit_conditions=["lookup_customer"],
+            hooks={"before_llm": [hook], "after_run": [hook]},
+        )
+
+        result = agent.run(messages=[ChatMessage.from_user("Who is customer 42?")])
+
+        # The run exited on the tool: one LLM call, and the tool result is the last returned message.
+        assert result["exit_reason"] == "lookup_customer"
+        assert len(generator.received) == 1
+        assert result["last_message"].tool_call_result.result == "Customer 42 is <PERSON>."
+
+    def test_max_agent_steps_output_is_redacted_by_after_run(self):
+        """
+        When the run hits `max_agent_steps`, the loop ends without another `before_llm` and without `on_exit`.
+
+        The last step's assistant text and tool result were never checked mid-run, so only the `after_run`
+        registration can redact them before they are returned to the user.
+        """
+        hook = _hook({"Maria Garcia": ("PERSON", 0.9)})
+        generator = _ToolCallingChatGenerator(text="Looking up Maria Garcia.")
+        agent = Agent(
+            chat_generator=generator,
+            tools=[lookup_customer],
+            max_agent_steps=1,
+            hooks={"before_llm": [hook], "after_run": [hook]},
+        )
+
+        result = agent.run(messages=[ChatMessage.from_user("Who is customer 42?")])
+
+        assert result["exit_reason"] == "max_agent_steps"
+        *_, assistant, tool_result = result["messages"]
+        assert assistant.text == "Looking up <PERSON>."
+        assert tool_result.tool_call_result.result == "Customer 42 is <PERSON>."
 
 
 @pytest.mark.integration

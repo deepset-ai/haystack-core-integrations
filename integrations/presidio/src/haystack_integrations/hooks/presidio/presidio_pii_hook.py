@@ -117,6 +117,19 @@ class PresidioPIIHook:
     - `"stop"`: The message is redacted and the run stops before the next LLM call, with `exit_reason` set to
       `"pii_detected"`.
 
+    Hooks at the same hook point run in list order, and any hook listed before this one sees unredacted messages.
+    List it first, for example ahead of a `CompactionHook` that summarizes the conversation with an LLM. To keep PII
+    out of a `ToolResultOffloadHook` store, also register it first at `after_tool`:
+
+    <!-- test-ignore -->
+    ```python
+    hooks = {
+        "after_tool": [pii_hook, offload_hook],
+        "before_llm": [pii_hook, compaction_hook],
+        "after_run": [pii_hook],
+    }
+    ```
+
     Limitations:
 
     - When the Agent or its chat generator has a `streaming_callback`, the reply streams to the user before any hook
@@ -127,6 +140,8 @@ class PresidioPIIHook:
     Each run records its decision on the hook's tracing span under `haystack.agent.hook.pii.*`: how many messages it
     checked, whether anything was found, the action taken, the count of each entity type, and whether Presidio failed.
     The checked and rewritten texts are recorded as content tags, so they are only emitted when content tracing is on.
+    With content tracing on, traces contain raw PII: this hook's input tag holds the original text, and the Agent's own
+    spans record messages before any hook redacts them.
     """
 
     allowed_hook_points: ClassVar[tuple[str, ...]] = ("before_run", "before_llm", "after_tool", "after_run")
