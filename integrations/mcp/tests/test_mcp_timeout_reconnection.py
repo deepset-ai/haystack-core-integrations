@@ -84,16 +84,33 @@ class TestMCPTimeoutReconnection:
     async def test_call_tool_http_reconnects_dropped_session(self):
         client = StreamableHttpServerInfo(url="http://x/mcp").create_client()
         ok = types.CallToolResult(content=[types.TextContent(type="text", text="ok")], isError=False)
-        session = AsyncMock()
-        session.call_tool = AsyncMock(return_value=ok)
+        closed = []
 
         async def connect():
+            session = AsyncMock()
+            session.call_tool = AsyncMock(return_value=ok)
+
+            async def close():
+                closed.append(session)
+
+            # register teardown on the exit stack like the real transport does
+            client.exit_stack.push_async_callback(close)
             client.session = session
 
         client.connect = AsyncMock(side_effect=connect)
 
+        await client.connect()
+        first_session = client.session
+
+        # what _MCPClientSessionManager does when the transport task fails in the background
+        await client.aclose()
+        assert client.session is None
+        assert closed == [first_session]
+
         assert "ok" in await client.call_tool("x", {})
-        client.connect.assert_awaited_once()
+        assert client.connect.await_count == 2
+        assert client.session is not first_session
+        client.session.call_tool.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_call_tool_http_failed_reconnect_raises_connection_error(self):
