@@ -9,8 +9,10 @@ from typing import Any
 
 from haystack import Document, component, default_to_dict
 from haystack.utils import Secret
-from ibm_watsonx_ai import Credentials
+from httpx import Timeout
+from ibm_watsonx_ai import APIClient, Credentials
 from ibm_watsonx_ai.foundation_models import Embeddings
+from ibm_watsonx_ai.utils.utils import HttpClientConfig
 
 
 @component
@@ -86,9 +88,9 @@ class WatsonxDocumentEmbedder:
         :param concurrency_limit:
             Number of parallel requests to make. Default is 5.
         :param timeout:
-            Timeout for API requests in seconds.
+            Timeout for API requests in seconds. When omitted, the IBM SDK uses its default timeout.
         :param max_retries:
-            Maximum number of retries for API requests.
+            Maximum number of retries for API requests. When omitted, the IBM SDK uses its default retry policy.
         """
 
         self.model = model
@@ -113,6 +115,11 @@ class WatsonxDocumentEmbedder:
             return
 
         credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
+        project_id = self.project_id.resolve_value()
+        client_kwargs: dict[str, Any] = {}
+        if self.timeout is not None:
+            config = HttpClientConfig(timeout=Timeout(self.timeout))
+            client_kwargs = {"httpx_client": config, "async_httpx_client": config}
 
         params = {}
         if self.truncate_input_tokens is not None:
@@ -120,8 +127,8 @@ class WatsonxDocumentEmbedder:
 
         self.embedder = Embeddings(
             model_id=self.model,
-            credentials=credentials,
-            project_id=self.project_id.resolve_value(),
+            api_client=APIClient(credentials=credentials, **client_kwargs),
+            project_id=project_id,
             params=params if params else None,  # type: ignore[arg-type]
             batch_size=self.batch_size,
             concurrency_limit=self.concurrency_limit,
