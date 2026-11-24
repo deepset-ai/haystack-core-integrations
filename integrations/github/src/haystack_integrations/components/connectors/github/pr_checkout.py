@@ -13,8 +13,8 @@ from fnmatch import fnmatch
 from typing import Any
 
 import requests
-from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import component, logging
+from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github.utils import _encode_path, _validate_repo_part
 
@@ -186,33 +186,6 @@ class GitHubPRCheckout:
                 }
             )
         self._headers = headers
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize the component to a dictionary.
-
-        :returns: Dictionary with serialized data.
-        """
-        return default_to_dict(
-            self,
-            github_token=self.github_token.to_dict() if self.github_token else None,
-            checkout_dir=self.checkout_dir,
-            guideline_files=self.guideline_files,
-            excluded_files=self.excluded_files,
-            max_diff_chars=self.max_diff_chars,
-            raise_on_failure=self.raise_on_failure,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GitHubPRCheckout":
-        """
-        Deserialize the component from a dictionary.
-
-        :param data: Dictionary to deserialize from.
-        :returns: Deserialized component.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["github_token"])
-        return default_from_dict(cls, data)
 
     def _api(self, path: str, params: dict[str, Any] | None = None) -> Any:
         """

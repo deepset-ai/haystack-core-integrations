@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 import requests
+from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.github import pr_checkout
@@ -103,7 +104,7 @@ class TestInit:
             raise_on_failure=False,
         )
 
-        data = checkout.to_dict()
+        data = component_to_dict(checkout, "checkout")
 
         assert data == {
             "type": "haystack_integrations.components.connectors.github.pr_checkout.GitHubPRCheckout",
@@ -116,7 +117,8 @@ class TestInit:
                 "raise_on_failure": False,
             },
         }
-        assert GitHubPRCheckout.from_dict(copy.deepcopy(data)).to_dict() == data
+        restored = component_from_dict(GitHubPRCheckout, copy.deepcopy(data), "checkout")
+        assert component_to_dict(restored, "checkout") == data
 
 
 class TestWarmUp:
