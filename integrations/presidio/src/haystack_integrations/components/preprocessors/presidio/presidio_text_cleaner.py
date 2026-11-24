@@ -6,10 +6,10 @@ from typing import ClassVar
 
 from haystack import component, logging
 from presidio_analyzer import AnalyzerEngine
-from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 
 from haystack_integrations.common.presidio.utils import SPACY_DEFAULT_MODELS as _SPACY_DEFAULT_MODELS
+from haystack_integrations.common.presidio.utils import build_analyzer_engine
 
 logger = logging.getLogger(__name__)
 
@@ -95,21 +95,9 @@ class PresidioTextCleaner:
         if self._is_warmed_up:
             return
 
-        models = self.models
-        if models is None:
-            if self.language not in self.SPACY_DEFAULT_MODELS:
-                supported = ", ".join(sorted(self.SPACY_DEFAULT_MODELS))
-                msg = (
-                    f"No default spaCy model is available for language '{self.language}'. "
-                    f"Use the `models` parameter to specify a custom model. "
-                    f"Languages with built-in support: {supported}."
-                )
-                raise ValueError(msg)
-            models = [{"lang_code": self.language, "model_name": self.SPACY_DEFAULT_MODELS[self.language]}]
-
-        nlp_engine = NlpEngineProvider(nlp_configuration={"nlp_engine_name": "spacy", "models": models}).create_engine()
-        supported_languages = [m["lang_code"] for m in models]
-        self._analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=supported_languages)
+        self._analyzer = build_analyzer_engine(
+            language=self.language, models=self.models, default_models=self.SPACY_DEFAULT_MODELS
+        )
         self._anonymizer = AnonymizerEngine()
 
         self._is_warmed_up = True
