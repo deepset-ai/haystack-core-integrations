@@ -443,6 +443,65 @@ class TestMCPToolset:
             assert any("unknown_tool" in record.message for record in caplog.records)
             toolset.close()
 
+    @pytest.mark.parametrize("eager_connect", [True, False])
+    async def test_toolset_tool_descriptions_override(self, eager_connect, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = mcp_tool_cleanup(
+            MCPToolset(
+                server_info=server_info,
+                eager_connect=eager_connect,
+                tool_descriptions={"add": "Custom add description."},
+            )
+        )
+        toolset.warm_up()
+
+        descriptions = {tool.name: tool.description for tool in toolset.tools}
+        assert descriptions["add"] == "Custom add description."
+        assert "Subtract integer b from integer a." in descriptions["subtract"]
+
+    async def test_toolset_tool_descriptions_unknown_tool_warning(self, caplog, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+
+        with caplog.at_level("WARNING"):
+            toolset = mcp_tool_cleanup(
+                MCPToolset(
+                    server_info=server_info,
+                    tool_names=["add"],
+                    eager_connect=True,
+                    tool_descriptions={"subtract": "Filtered out by tool_names."},
+                )
+            )
+
+        assert [tool.name for tool in toolset.tools] == ["add"]
+        assert any(
+            "tool_descriptions references unknown tools" in record.message and "subtract" in record.message
+            for record in caplog.records
+        )
+
+    async def test_toolset_tool_descriptions_serde(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = mcp_tool_cleanup(
+            MCPToolset(server_info=server_info, tool_descriptions={"add": "Custom add description."})
+        )
+
+        toolset_dict = toolset.to_dict()
+        assert toolset_dict["data"]["tool_descriptions"] == {"add": "Custom add description."}
+
+        new_toolset = mcp_tool_cleanup(MCPToolset.from_dict(toolset_dict))
+        assert new_toolset.tool_descriptions == {"add": "Custom add description."}
+
+        new_toolset.warm_up()
+        add_tool = next(tool for tool in new_toolset.tools if tool.name == "add")
+        assert add_tool.description == "Custom add description."
+
+    async def test_toolset_from_dict_without_tool_descriptions(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset_dict = MCPToolset(server_info=server_info).to_dict()
+        del toolset_dict["data"]["tool_descriptions"]
+
+        new_toolset = mcp_tool_cleanup(MCPToolset.from_dict(toolset_dict))
+        assert new_toolset.tool_descriptions == {}
+
     async def test_toolset_state_config_invalid_parameter_raises_error(self):
         """Test that ValueError is raised when inputs_from_state references non-existent parameter."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
