@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v8.0.0] - 2026-11-25
+
+### 🧹 Chores
+
+- [**breaking**] Google GenAI - attempts = max_retries + 1 (#4326)
+
+
 ## [integrations/google_genai-v7.2.2] - 2026-11-17
 
 ### 🐛 Bug Fixes
