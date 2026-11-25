@@ -6,7 +6,7 @@
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/embedders/ollama/document\_embedder.py    |       95 |       28 |       24 |        2 |     68% |135, 141-157, 210-211, 238-251, 271-289 |
 | src/haystack\_integrations/components/embedders/ollama/text\_embedder.py        |       40 |        0 |        8 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/ollama/chat/chat\_generator.py |      267 |        6 |       86 |        8 |     95% |165-\>167, 167-\>169, 169-\>177, 454-\>458, 522-523, 536-\>540, 544-546, 747 |
+| src/haystack\_integrations/components/generators/ollama/chat/chat\_generator.py |      267 |        6 |       86 |        8 |     95% |165-\>167, 167-\>169, 169-\>177, 453-\>457, 521-522, 535-\>539, 543-545, 746 |
 | **TOTAL**                                                                       |  **402** |   **34** |  **118** |   **10** | **90%** |           |
 
 
