@@ -97,8 +97,8 @@ class OllamaTextEmbedder:
         :param text:
             Text to be converted to an embedding.
         :param generation_kwargs:
-            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
-            top_p, etc. See the
+            Per-call overrides for Ollama inference options, merged on top of the `generation_kwargs` passed at
+            initialization. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :returns: A dictionary with the following keys:
             - `embedding`: The computed embeddings
@@ -110,7 +110,7 @@ class OllamaTextEmbedder:
         result = self._client.embed(
             model=self.model,
             input=text,
-            options=generation_kwargs,
+            options={**self.generation_kwargs, **(generation_kwargs or {})},
             keep_alive=self.keep_alive,
             dimensions=self.dimensions,
         )
@@ -127,8 +127,8 @@ class OllamaTextEmbedder:
         :param text:
             Text to be converted to an embedding.
         :param generation_kwargs:
-            Optional arguments to pass to the Ollama generation endpoint, such as temperature,
-            top_p, etc. See the
+            Per-call overrides for Ollama inference options, merged on top of the `generation_kwargs` passed at
+            initialization. See the
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :returns: A dictionary with the following keys:
             - `embedding`: The computed embeddings
@@ -140,7 +140,7 @@ class OllamaTextEmbedder:
         result = await self._async_client.embed(
             model=self.model,
             input=text,
-            options=generation_kwargs,
+            options={**self.generation_kwargs, **(generation_kwargs or {})},
             keep_alive=self.keep_alive,
             dimensions=self.dimensions,
         )
