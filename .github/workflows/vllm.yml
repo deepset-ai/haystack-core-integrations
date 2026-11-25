@@ -32,6 +32,7 @@ env:
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
   VLLM_RANKER_MODEL: "BAAI/bge-reranker-base"
+  VLLM_MULTIVECTOR_MODEL: "answerdotai/answerai-colbert-small-v1"
   VLLM_TARGET_DEVICE: "cpu"
   # KV cache in GiB, reserved by each of the three vLLM servers. 1 GiB holds ~9k tokens for the chat model,
   # well above its 1024-token context; larger values exhaust the runner's memory and the chat server gets killed.
@@ -176,6 +177,31 @@ jobs:
           fi
 
           echo "vLLM ranker server started successfully."
+
+      - name: Start vLLM multivector server
+        run: |
+          nohup hatch run -- vllm serve ${{ env.VLLM_MULTIVECTOR_MODEL }} \
+            --port 8003 \
+            --runner pooling \
+            --pooler-config '{{"task":"token_embed"}}' \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM multivector server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8003/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM multivector server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM multivector server to start."
+            exit 1
+          fi
+
+          echo "vLLM multivector server started successfully."
+
       - name: Lint
         if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -187,7 +213,7 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.11' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@07249dd712cd2464873eb8a59a24f97fd281e76f # v4.6
+        uses: py-cov-action/python-coverage-comment-action@281cb0dcb5b15d4773037d51873558fddc5a7df8 # v4.7
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/vllm
@@ -207,7 +233,7 @@ jobs:
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@07249dd712cd2464873eb8a59a24f97fd281e76f # v4.6
+        uses: py-cov-action/python-coverage-comment-action@281cb0dcb5b15d4773037d51873558fddc5a7df8 # v4.7
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/vllm

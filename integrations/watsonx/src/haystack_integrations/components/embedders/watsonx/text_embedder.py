@@ -6,8 +6,10 @@ from typing import Any
 
 from haystack import component, default_to_dict
 from haystack.utils import Secret
-from ibm_watsonx_ai import Credentials
+from httpx import Timeout
+from ibm_watsonx_ai import APIClient, Credentials
 from ibm_watsonx_ai.foundation_models import Embeddings
+from ibm_watsonx_ai.utils.utils import HttpClientConfig
 
 
 @component
@@ -74,9 +76,9 @@ class WatsonxTextEmbedder:
         :param suffix:
             A string to add at the end of each text to embed.
         :param timeout:
-            Timeout for API requests in seconds.
+            Timeout for API requests in seconds. When omitted, the IBM SDK uses its default timeout.
         :param max_retries:
-            Maximum number of retries for API requests.
+            Maximum number of retries for API requests. When omitted, the IBM SDK uses its default retry policy.
         """
 
         self.model = model
@@ -97,6 +99,11 @@ class WatsonxTextEmbedder:
             return
 
         credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
+        project_id = self.project_id.resolve_value()
+        client_kwargs: dict[str, Any] = {}
+        if self.timeout is not None:
+            config = HttpClientConfig(timeout=Timeout(self.timeout))
+            client_kwargs = {"httpx_client": config, "async_httpx_client": config}
 
         params = {}
         if self.truncate_input_tokens is not None:
@@ -104,8 +111,8 @@ class WatsonxTextEmbedder:
 
         self.embedder = Embeddings(
             model_id=self.model,
-            credentials=credentials,
-            project_id=self.project_id.resolve_value(),
+            api_client=APIClient(credentials=credentials, **client_kwargs),
+            project_id=project_id,
             params=params if params else None,  # type: ignore[arg-type]
             max_retries=self.max_retries,
         )

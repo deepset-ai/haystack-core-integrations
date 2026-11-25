@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/mcp-v2.2.0] - 2026-11-25
+
+### 🚀 Features
+
+- Add tool_descriptions to MCPToolset to override server tool descriptions (#4331)
+
+
+## [integrations/mcp-v2.1.2] - 2026-11-16
+
+### 🐛 Bug Fixes
+
+- MCP - serialize `outputs_to_string` / `outputs_to_state` handlers in `MCPTool` (#4268)
+
+
 ## [integrations/mcp-v2.1.1] - 2026-10-23
 
 ### 🐛 Bug Fixes

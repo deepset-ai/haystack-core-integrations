@@ -78,12 +78,12 @@ def _convert_hfapi_tool_calls(hfapi_tool_calls: list["ChatCompletionOutputToolCa
     for hfapi_tc in hfapi_tool_calls:
         hf_arguments = hfapi_tc.function.arguments
 
-        arguments = None
+        arguments: dict[str, Any] | None = None
         if isinstance(hf_arguments, dict):
             arguments = hf_arguments
         elif isinstance(hf_arguments, str):
             try:
-                arguments = json.loads(hf_arguments)
+                parsed_arguments = json.loads(hf_arguments) if hf_arguments else {}
             except json.JSONDecodeError:
                 logger.warning(
                     "HuggingFace API returned a malformed JSON string for tool call arguments. This tool call "
@@ -92,16 +92,28 @@ def _convert_hfapi_tool_calls(hfapi_tool_calls: list["ChatCompletionOutputToolCa
                     _name=hfapi_tc.function.name,
                     _arguments=hf_arguments,
                 )
+            else:
+                if isinstance(parsed_arguments, dict):
+                    arguments = parsed_arguments
+                else:
+                    logger.warning(
+                        "HuggingFace API returned tool call arguments that did not decode to a JSON object. This tool "
+                        "call will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                        _id=hfapi_tc.id,
+                        _name=hfapi_tc.function.name,
+                        _arguments=hf_arguments,
+                    )
         else:
             logger.warning(
                 "HuggingFace API returned tool call arguments of type {_type}. Valid types are dict and str. This tool "
                 "call will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                _type=type(hf_arguments).__name__,
                 _id=hfapi_tc.id,
                 _name=hfapi_tc.function.name,
                 _arguments=hf_arguments,
             )
 
-        if arguments:
+        if arguments is not None:
             tool_calls.append(ToolCall(tool_name=hfapi_tc.function.name, arguments=arguments, id=hfapi_tc.id))
 
     return tool_calls

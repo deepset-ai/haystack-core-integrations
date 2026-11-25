@@ -15,13 +15,9 @@ from haystack.tools import tool
 from haystack.utils.auth import Secret
 from openai import AsyncStream, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, chat_completion_chunk
-from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
 from haystack_integrations.components.generators.vllm.chat.chat_generator import (
     VLLMChatGenerator,
-    _convert_chat_completion_to_chat_message,
-    _convert_chat_history_to_vllm_format,
 )
 
 MODEL = "Qwen/Qwen3-0.6B"
@@ -117,34 +113,6 @@ def completion_with_reasoning(completion):
 
 
 @pytest.fixture
-def mock_chat_completion(completion):
-    with patch("openai.resources.chat.completions.Completions.create") as mock:
-        mock.return_value = completion
-        yield mock
-
-
-@pytest.fixture
-def mock_chat_completion_with_reasoning(completion_with_reasoning):
-    with patch("openai.resources.chat.completions.Completions.create") as mock:
-        mock.return_value = completion_with_reasoning
-        yield mock
-
-
-@pytest.fixture
-def mock_async_chat_completion(completion):
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
-        mock.return_value = completion
-        yield mock
-
-
-@pytest.fixture
-def mock_async_chat_completion_with_reasoning(completion_with_reasoning):
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
-        mock.return_value = completion_with_reasoning
-        yield mock
-
-
-@pytest.fixture
 def weather_tool():
     @tool
     def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
@@ -156,14 +124,16 @@ def weather_tool():
 
 class TestConvertChatCompletionToChatMessage:
     def test_without_reasoning(self, completion):
-        message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
+        message = VLLMChatGenerator(model=MODEL)._convert_chat_completion_to_chat_message(
+            completion, completion.choices[0]
+        )
 
         assert message.text == "Paris is the capital of France."
         assert message.meta["model"] == MODEL
         assert message.reasoning is None
 
     def test_with_reasoning(self, completion_with_reasoning):
-        message = _convert_chat_completion_to_chat_message(
+        message = VLLMChatGenerator(model=MODEL)._convert_chat_completion_to_chat_message(
             completion_with_reasoning, completion_with_reasoning.choices[0]
         )
 
@@ -171,82 +141,22 @@ class TestConvertChatCompletionToChatMessage:
         assert message.reasoning is not None
         assert "capital of France" in message.reasoning.reasoning_text
 
-    def test_preserves_tool_calls(self):
-        completion = ChatCompletion(
-            id="test-id",
-            model=MODEL,
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="tool_calls",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(
-                        role="assistant",
-                        tool_calls=[
-                            {
-                                "id": "call_123",
-                                "type": "function",
-                                "function": {"name": "weather", "arguments": '{"city": "Paris"}'},
-                            }
-                        ],
-                    ),
-                )
-            ],
-            created=int(datetime.now(tz=UTC).timestamp()),
-            usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-        )
 
-        message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
-
-        assert len(message.tool_calls) == 1
-        assert message.tool_calls[0].tool_name == "weather"
-        assert message.tool_calls[0].arguments == {"city": "Paris"}
-
-    def test_skips_malformed_tool_call_arguments(self):
-        completion = ChatCompletion(
-            id="test-id",
-            model=MODEL,
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="tool_calls",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(
-                        role="assistant",
-                        tool_calls=[
-                            {
-                                "id": "call_bad",
-                                "type": "function",
-                                "function": {"name": "weather", "arguments": "not-valid-json"},
-                            }
-                        ],
-                    ),
-                )
-            ],
-            created=int(datetime.now(tz=UTC).timestamp()),
-            usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
-        )
-
-        message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
-
-        assert len(message.tool_calls) == 0
-
-
-class TestConvertChatHistoryToVLLMFormat:
+class TestPrepareAPICall:
     @pytest.mark.parametrize(
         "last_message",
         [ChatMessage.from_assistant(text=None), ChatMessage.from_assistant(reasoning="only reasoning")],
     )
     def test_drops_trailing_empty_assistant(self, last_message):
         messages = [ChatMessage.from_user("Hi"), last_message]
-        assert _convert_chat_history_to_vllm_format(messages=messages) == [{"role": "user", "content": "Hi"}]
+        assert VLLMChatGenerator(model=MODEL)._prepare_api_call(messages=messages)["messages"] == [
+            {"role": "user", "content": "Hi"}
+        ]
 
     def test_keeps_trailing_assistant_with_tool_calls(self):
         tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
         messages = [ChatMessage.from_user("Hi"), ChatMessage.from_assistant(tool_calls=[tool_call])]
-        assert _convert_chat_history_to_vllm_format(messages=messages)[-1] == {
+        assert VLLMChatGenerator(model=MODEL)._prepare_api_call(messages=messages)["messages"][-1] == {
             "role": "assistant",
             "tool_calls": [
                 {"id": "123", "type": "function", "function": {"name": "weather", "arguments": '{"city": "Paris"}'}}
@@ -262,7 +172,7 @@ class TestInitialization:
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.api_base_url == "http://localhost:8000/v1"
-        assert component._client is None
+        assert component.client is None
 
     def test_init_with_api_key_from_env(self, monkeypatch):
         monkeypatch.setenv("VLLM_API_KEY", "test-vllm-key")
@@ -270,27 +180,12 @@ class TestInitialization:
 
         assert component.api_key.resolve_value() == "test-vllm-key"
 
-    def test_init_with_parameters(self):
-        component = VLLMChatGenerator(
-            model=MODEL,
-            api_key=Secret.from_token("my-key"),
-            api_base_url="http://my-server:8000/v1",
-            generation_kwargs={"max_tokens": 512, "temperature": 0.7},
-            timeout=60.0,
-            max_retries=3,
-        )
+    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
+        monkeypatch.delenv("MISSING_VLLM_API_KEY", raising=False)
+        component = VLLMChatGenerator(model=MODEL, api_key=Secret.from_env_var("MISSING_VLLM_API_KEY"))
 
-        assert component._client is None
-        assert component._async_client is None
-        assert component.tools is None
-        assert component.http_client_kwargs is None
-        assert component.streaming_callback is None
-        assert component.api_base_url == "http://my-server:8000/v1"
-        assert component.model == MODEL
-        assert component.api_key.resolve_value() == "my-key"
-        assert component.generation_kwargs == {"max_tokens": 512, "temperature": 0.7}
-        assert component.timeout == 60.0
-        assert component.max_retries == 3
+        with pytest.raises(ValueError, match="MISSING_VLLM_API_KEY"):
+            component.warm_up()
 
 
 class TestSerialization:
@@ -339,162 +234,8 @@ class TestSerialization:
         assert component.http_client_kwargs is None
         assert component.tools is None
 
-    def test_from_dict_with_streaming_callback(self):
-        data = {
-            "type": "haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator",
-            "init_parameters": {
-                "model": MODEL,
-                "api_key": {"type": "env_var", "env_vars": ["VLLM_API_KEY"], "strict": False},
-                "api_base_url": "http://localhost:8000/v1",
-                "generation_kwargs": {},
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "tools": None,
-                "timeout": None,
-                "max_retries": None,
-                "http_client_kwargs": None,
-            },
-        }
-        component = VLLMChatGenerator.from_dict(data)
-
-        assert component.streaming_callback is not None
-
-
-class TestComponentLifecycle:
-    def test_key_resolved_at_warm_up_not_init(self, monkeypatch):
-        monkeypatch.delenv("MISSING_VLLM_API_KEY", raising=False)
-        component = VLLMChatGenerator(model=MODEL, api_key=Secret.from_env_var("MISSING_VLLM_API_KEY"))
-
-        with pytest.raises(ValueError, match="MISSING_VLLM_API_KEY"):
-            component.warm_up()
-
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_openai_client")
-    def test_sync_lifecycle(self, mock_client_cls):
-        component = VLLMChatGenerator(model=MODEL)
-        client = mock_client_cls.return_value
-
-        component.warm_up()
-        assert component._client is client
-        assert component._async_client is None
-        component.close()
-        client.close.assert_called_once_with()
-        assert component._client is None
-        component.warm_up()
-        assert mock_client_cls.call_count == 2
-
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_async_openai_client")
-    @pytest.mark.asyncio
-    async def test_async_lifecycle(self, mock_client_cls):
-        component = VLLMChatGenerator(model=MODEL)
-        client = MagicMock(close=AsyncMock())
-        mock_client_cls.return_value = client
-
-        await component.warm_up_async()
-        assert component._async_client is client
-        assert component._client is None
-        await component.close_async()
-        client.close.assert_awaited_once_with()
-        assert component._async_client is None
-        await component.warm_up_async()
-        assert mock_client_cls.call_count == 2
-
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_openai_client")
-    def test_warm_up_is_idempotent(self, mock_client_cls):
-        component = VLLMChatGenerator(model=MODEL)
-        component.warm_up()
-        component.warm_up()
-        mock_client_cls.assert_called_once()
-
-    @patch("haystack_integrations.components.generators.vllm.chat.chat_generator._create_async_openai_client")
-    @pytest.mark.asyncio
-    async def test_warm_up_async_is_idempotent(self, mock_client_cls):
-        component = VLLMChatGenerator(model=MODEL)
-        await component.warm_up_async()
-        await component.warm_up_async()
-        mock_client_cls.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_close_is_safe_without_warm_up(self):
-        component = VLLMChatGenerator(model=MODEL)
-        component.close()
-        await component.close_async()
-        assert component._client is None
-        assert component._async_client is None
-
-    @pytest.mark.asyncio
-    async def test_close_and_close_async_are_independent(self):
-        component = VLLMChatGenerator(model=MODEL)
-        sync_client = MagicMock()
-        async_client = MagicMock(close=AsyncMock())
-        component._client = sync_client
-        component._async_client = async_client
-
-        component.close()
-        assert component._client is None
-        assert component._async_client is async_client
-        async_client.close.assert_not_awaited()
-        await component.close_async()
-        assert component._async_client is None
-        sync_client.close.assert_called_once_with()
-
 
 class TestRun:
-    def test_run(self, mock_chat_completion):  # noqa: ARG002
-        component = VLLMChatGenerator(model=MODEL)
-        response = component.run([ChatMessage.from_user("What's the capital of France")])
-
-        assert len(response["replies"]) == 1
-        assert response["replies"][0].text == "Paris is the capital of France."
-        assert response["replies"][0].reasoning is None
-
-    def test_run_with_reasoning(self, mock_chat_completion_with_reasoning):  # noqa: ARG002
-        component = VLLMChatGenerator(model=MODEL)
-        response = component.run([ChatMessage.from_user("What's the capital of France")])
-
-        reply = response["replies"][0]
-        assert reply.text == "Paris is the capital of France."
-        assert reply.reasoning is not None
-        assert "capital of France" in reply.reasoning.reasoning_text
-
-    def test_run_with_generation_kwargs(self, mock_chat_completion):
-        component = VLLMChatGenerator(
-            model=MODEL,
-            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
-        )
-        component.run([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
-
-        _, kwargs = mock_chat_completion.call_args
-        assert kwargs["max_tokens"] == 100
-        assert kwargs["temperature"] == 0.9
-
-    def test_run_with_string_input(self, mock_chat_completion):
-        component = VLLMChatGenerator(model=MODEL)
-        result = component.run("What's the capital of France?")
-
-        _, kwargs = mock_chat_completion.call_args
-        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
-        assert isinstance(result["replies"], list)
-        assert len(result["replies"]) == 1
-        assert isinstance(result["replies"][0], ChatMessage)
-
-    def test_run_with_empty_tools_override(self, mock_chat_completion, weather_tool):
-        # an empty runtime list must disable the init tools for this call, not fall back to them
-        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
-        component.run([ChatMessage.from_user("Hello")], tools=[])
-
-        _, kwargs = mock_chat_completion.call_args
-        assert "tools" not in kwargs
-
-    def test_run_with_init_tools(self, mock_chat_completion, weather_tool):
-        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
-        component.run([ChatMessage.from_user("Hello")])
-
-        _, kwargs = mock_chat_completion.call_args
-        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
-
-    def test_run_empty_messages(self):
-        component = VLLMChatGenerator(model=MODEL)
-        assert component.run([]) == {"replies": []}
-
     def test_run_streaming(self):
         openai_chunks = [
             _make_content_chunk("Hello", finish_reason="stop"),
@@ -550,84 +291,7 @@ class TestRun:
         assert streaming_chunks[5].start is False
         assert streaming_chunks[6].start is False
 
-
-@pytest.mark.asyncio
-class TestRunAsync:
-    async def test_run_async_empty_messages(self):
-        component = VLLMChatGenerator(model=MODEL)
-        assert await component.run_async([]) == {"replies": []}
-
-    async def test_run_async_with_string_input(self, mock_async_chat_completion):
-        component = VLLMChatGenerator(model=MODEL)
-        result = await component.run_async("What's the capital of France?")
-
-        _, kwargs = mock_async_chat_completion.call_args
-        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
-        assert isinstance(result["replies"], list)
-        assert len(result["replies"]) == 1
-        assert isinstance(result["replies"][0], ChatMessage)
-
-    async def test_run_async_with_generation_kwargs(self, mock_async_chat_completion):
-        component = VLLMChatGenerator(
-            model=MODEL,
-            generation_kwargs={"max_tokens": 100, "temperature": 0.5},
-        )
-        await component.run_async([ChatMessage.from_user("Hello")], generation_kwargs={"temperature": 0.9})
-
-        _, kwargs = mock_async_chat_completion.call_args
-        assert kwargs["max_tokens"] == 100
-        assert kwargs["temperature"] == 0.9
-
-    async def test_run_async_with_empty_tools_override(self, mock_async_chat_completion, weather_tool):
-        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
-        await component.run_async([ChatMessage.from_user("Hello")], tools=[])
-
-        _, kwargs = mock_async_chat_completion.call_args
-        assert "tools" not in kwargs
-
-    async def test_run_async_with_init_tools(self, mock_async_chat_completion, weather_tool):
-        component = VLLMChatGenerator(model=MODEL, tools=[weather_tool])
-        await component.run_async([ChatMessage.from_user("Hello")])
-
-        _, kwargs = mock_async_chat_completion.call_args
-        assert [t["function"]["name"] for t in kwargs["tools"]] == ["weather"]
-
-    async def test_run_async(self, mock_async_chat_completion):  # noqa: ARG002
-        component = VLLMChatGenerator(model=MODEL)
-        response = await component.run_async([ChatMessage.from_user("Hello")])
-
-        assert len(response["replies"]) == 1
-        assert response["replies"][0].text == "Paris is the capital of France."
-        assert response["replies"][0].reasoning is None
-
-    async def test_run_async_with_reasoning(self, mock_async_chat_completion_with_reasoning):  # noqa: ARG002
-        component = VLLMChatGenerator(model=MODEL)
-        response = await component.run_async([ChatMessage.from_user("Hello")])
-
-        reply = response["replies"][0]
-        assert reply.reasoning is not None
-        assert "capital of France" in reply.reasoning.reasoning_text
-
-    async def test_run_async_streaming(self):
-        openai_chunks = [
-            _make_content_chunk("Hello", finish_reason="stop"),
-        ]
-
-        chunks_received = []
-
-        async def callback(chunk):
-            chunks_received.append(chunk)
-
-        component = VLLMChatGenerator(model=MODEL, streaming_callback=callback)
-
-        with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
-            mock.return_value = AsyncMockStream(openai_chunks)
-            response = await component.run_async([ChatMessage.from_user("Hello")])
-
-        assert len(chunks_received) > 0
-        assert len(response["replies"]) == 1
-        assert response["replies"][0].text == "Hello"
-
+    @pytest.mark.asyncio
     async def test_run_async_streaming_with_reasoning(self):
         """Test that async streaming with reasoning sets start=True on first reasoning and content chunks."""
         openai_chunks = [

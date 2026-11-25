@@ -142,8 +142,7 @@ class GoogleDriveFetcher:
         Fetch the content of Google Drive files and return them as `ByteStream`s.
 
         :param access_token: A delegated Google OAuth bearer token for the user whose files are fetched, typically
-            wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also accepted and
-            resolved internally.
+            wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
         :param targets: The files to fetch, as either `Document`s emitted by `GoogleDriveRetriever` or raw Google
             Drive file ids / URLs (the two may also be mixed in one list). For a `Document`, the `file_id` in its
             meta is fetched and `mime_type`, `file_name`, and `web_url` are reused when present. For a raw string,
@@ -176,8 +175,7 @@ class GoogleDriveFetcher:
         Asynchronously fetch the content of Google Drive files and return them as `ByteStream`s.
 
         :param access_token: A delegated Google OAuth bearer token for the user whose files are fetched, typically
-            wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also accepted and
-            resolved internally.
+            wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
         :param targets: The files to fetch, as either `Document`s emitted by `GoogleDriveRetriever` or raw Google
             Drive file ids / URLs (the two may also be mixed in one list). For a `Document`, the `file_id` in its
             meta is fetched and `mime_type`, `file_name`, and `web_url` are reused when present. For a raw string,

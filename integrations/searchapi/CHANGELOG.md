@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/searchapi-v2.2.0] - 2026-11-23
+
+### 🐛 Bug Fixes
+
+- *(searchapi)* Keep Google's AI overview and skip empty related-question documents (#4264)
+
+
 ## [integrations/searchapi-v2.1.0] - 2026-11-13
 
 ### 🚀 Features

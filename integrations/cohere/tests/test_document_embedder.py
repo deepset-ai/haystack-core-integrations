@@ -5,6 +5,7 @@ import os
 from unittest.mock import patch
 
 import pytest
+from cohere import ApiMeta, ApiMetaBilledUnits
 from haystack import Document
 from haystack.utils import Secret
 
@@ -259,7 +260,7 @@ class TestRun:
         class _Response:
             def __init__(self, n: int) -> None:
                 self.embeddings = [("float", [[0.1, 0.2, 0.3]] * n)]
-                self.meta = None
+                self.meta = ApiMeta(billed_units=ApiMetaBilledUnits(input_tokens=10 * n))
 
         async def fake_embed(*, texts, **_kwargs):
             batch_sizes.append(len(texts))
@@ -273,6 +274,7 @@ class TestRun:
         result = await embedder.run_async(docs)
 
         assert batch_sizes == [2, 2, 1]
+        assert result["meta"]["billed_units"]["input_tokens"] == 50
         assert len(result["documents"]) == 5
         assert all(doc.embedding == [0.1, 0.2, 0.3] for doc in result["documents"])
 

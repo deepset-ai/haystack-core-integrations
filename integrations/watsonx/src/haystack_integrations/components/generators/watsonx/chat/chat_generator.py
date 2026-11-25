@@ -32,8 +32,10 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
-from ibm_watsonx_ai import Credentials
+from httpx import Timeout
+from ibm_watsonx_ai import APIClient, Credentials
 from ibm_watsonx_ai.foundation_models import ModelInference
+from ibm_watsonx_ai.utils.utils import HttpClientConfig
 
 logger = logging.getLogger(__name__)
 
@@ -155,10 +157,6 @@ class WatsonxChatGenerator:
         """
         Creates an instance of WatsonxChatGenerator.
 
-        Before initializing the component, you can set environment variables:
-        - `WATSONX_TIMEOUT` to override the default timeout
-        - `WATSONX_MAX_RETRIES` to override the default retry count
-
         :param api_key: IBM Cloud API key for watsonx.ai access.
             Can be set via `WATSONX_API_KEY` environment variable or passed directly.
         :param model: The model ID to use for completions. Defaults to "ibm/granite-4-h-small".
@@ -179,9 +177,9 @@ class WatsonxChatGenerator:
             - `stop_sequences`: List of sequences where generation should stop
             - `random_seed`: Seed for reproducible results
         :param timeout: Timeout in seconds for API requests.
-            Defaults to environment variable `WATSONX_TIMEOUT` or 30 seconds.
+            When omitted, the IBM SDK uses its default timeout.
         :param max_retries: Maximum number of retry attempts for failed requests.
-            Defaults to environment variable `WATSONX_MAX_RETRIES` or 5.
+            When omitted, the IBM SDK uses its default retry policy.
         :param verify: SSL verification setting. Can be:
             - True: Verify SSL certificates (default)
             - False: Skip verification (insecure)
@@ -208,12 +206,17 @@ class WatsonxChatGenerator:
         if self.client is not None:
             return
 
-        credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url)
+        credentials = Credentials(api_key=self.api_key.resolve_value(), url=self.api_base_url, verify=self.verify)
+        project_id = self.project_id.resolve_value()
+        client_kwargs: dict[str, Any] = {}
+        if self.timeout is not None:
+            config = HttpClientConfig(timeout=Timeout(self.timeout))
+            client_kwargs = {"httpx_client": config, "async_httpx_client": config}
+
         self.client = ModelInference(
             model_id=self.model,
-            credentials=credentials,
-            project_id=self.project_id.resolve_value(),
-            verify=self.verify,
+            api_client=APIClient(credentials=credentials, **client_kwargs),
+            project_id=project_id,
             max_retries=self.max_retries,
         )
 

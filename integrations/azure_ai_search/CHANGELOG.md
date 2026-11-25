@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/azure_ai_search-v6.1.0] - 2026-11-16
+
+### 🐛 Bug Fixes
+
+- Azure AI Search - don't merge init filters with themselves (#4254)
+- Azure AI Search - return all documents from filter_documents whe… (#4277)
+
+
 ## [integrations/azure_ai_search-v6.0.0] - 2026-11-09
 
 ### 🐛 Bug Fixes
