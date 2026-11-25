@@ -555,6 +555,24 @@ class TestValkeyDocumentStore(
         assert len(even) == 5001
         assert all(doc.score is None for doc in even)
 
+    def test_filter_documents_raises_when_the_server_caps_the_results(self, document_store):
+        # Lower the server-wide cap so the test doesn't need 100000 documents; restored in `finally`.
+        client = document_store._get_connection()
+        config = ValkeyDocumentStore._NONVECTOR_RESULTS_CAP_CONFIG
+        original = client.config_get([config])[config.encode()]
+        document_store.write_documents(
+            [Document(id=str(i), content=f"doc {i}", meta={"category": "news"}) for i in range(20)]
+            + [Document(id="s", content="sports doc", meta={"category": "sports"})]
+        )
+        client.config_set({config: "10"})
+        try:
+            with pytest.raises(ValkeyDocumentStoreError, match="may be incomplete"):
+                document_store.filter_documents({"field": "meta.category", "operator": "==", "value": "news"})
+            sports = document_store.filter_documents({"field": "meta.category", "operator": "==", "value": "sports"})
+            assert [doc.id for doc in sports] == ["s"]
+        finally:
+            client.config_set({config: original})
+
     def test_filter_documents_complex_nested(self, document_store):
         docs = [
             Document(id="c1", content="doc 1", meta={"category": "news", "priority": 1, "status": "active"}),
@@ -1494,6 +1512,42 @@ class TestValkeyDocumentStoreErrorPaths:
         ):
             assert await unit_store.filter_documents_async() == []
         search.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "config, expected",
+        [
+            ({b"search.max-nonvector-search-results-fetched": b"500"}, 500),
+            ({b"search.max-nonvector-search-results-fetched": b"0"}, None),  # 0 disables the cap
+            ({}, None),  # Valkey Search < 1.2.0 has no cap
+            (None, 100_000),  # CONFIG GET failed: assume the default
+        ],
+    )
+    def test_parse_nonvector_results_cap(self, config, expected):
+        assert ValkeyDocumentStore._parse_nonvector_results_cap(config) == expected
+
+    def test_filter_documents_raises_when_the_results_reach_the_server_cap(self, unit_store):
+        unit_store._client = MagicMock()
+        unit_store._client.config_get.return_value = {b"search.max-nonvector-search-results-fetched": b"1"}
+        with (
+            patch.object(unit_store, "count_documents", return_value=5),
+            patch.object(ds_module, "sync_ft") as mock_ft,
+        ):
+            mock_ft.search.return_value = self._ft_search_result({"id": "a", "content": "doc a", "meta": {}})
+            with pytest.raises(ValkeyDocumentStoreError, match="may be incomplete"):
+                unit_store.filter_documents()
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_async_raises_when_the_results_reach_the_server_cap(self, unit_store):
+        client = MagicMock()
+        client.config_get = AsyncMock(return_value={b"search.max-nonvector-search-results-fetched": b"1"})
+        search = AsyncMock(return_value=self._ft_search_result({"id": "a", "content": "doc a", "meta": {}}))
+        with (
+            patch.object(unit_store, "count_documents_async", AsyncMock(return_value=5)),
+            patch.object(unit_store, "_get_connection_async", AsyncMock(return_value=client)),
+            patch.object(ds_module.ft, "search", search),
+        ):
+            with pytest.raises(ValkeyDocumentStoreError, match="may be incomplete"):
+                await unit_store.filter_documents_async()
 
     def test_write_documents_empty_list_returns_zero(self, unit_store, caplog):
         assert unit_store.write_documents([]) == 0
