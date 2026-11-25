@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import patch
 
 import pytest
@@ -98,5 +102,5 @@ def test_get_client_forwards_timeout_and_max_retries(monkeypatch):
         assert isinstance(kwargs["http_options"], types.HttpOptions)
         assert kwargs["http_options"].timeout == 30000
         assert kwargs["http_options"].retry_options is not None
-        assert kwargs["http_options"].retry_options.attempts == 5
+        assert kwargs["http_options"].retry_options.attempts == 6
     assert client is not None
