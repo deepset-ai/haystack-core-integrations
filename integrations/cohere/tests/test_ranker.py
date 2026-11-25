@@ -252,6 +252,28 @@ class TestRun:
         ]
         assert top_k == 10
 
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            ({"field": 0}, "0\ncontent"),
+            ({"field": 0.0}, "0.0\ncontent"),
+            ({"field": False}, "False\ncontent"),
+            ({"field": ""}, "\ncontent"),
+            ({"field": None}, "content"),
+            ({}, "content"),
+        ],
+    )
+    def test_prepare_cohere_input_docs_keeps_falsy_metadata(self, monkeypatch, meta, expected):
+        """
+        Falsy metadata values such as 0 and False are sent to the model; only missing keys and None are skipped.
+        """
+        monkeypatch.setenv("CO_API_KEY", "test-api-key")
+        component = CohereRanker(meta_fields_to_embed=["field"])
+
+        texts, _ = component._prepare_cohere_input_docs(documents=[Document(content="content", meta=meta)])
+
+        assert texts == [expected]
+
     def test_prepare_cohere_input_docs_no_docs(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker(meta_fields_to_embed=["meta_field_1", "meta_field_2"], meta_data_separator=" ")
