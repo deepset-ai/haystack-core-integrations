@@ -55,6 +55,19 @@ class TestFAISSDocumentStoreUnit:
         with pytest.raises(DuplicateDocumentError, match="already exists"):
             ds.write_documents([Document(id="dup", content="second")], policy=DuplicatePolicy.FAIL)
 
+    def test_write_documents_fail_policy_raises_on_duplicate_in_same_batch(self):
+        ds = FAISSDocumentStore(embedding_dim=2)
+        docs = [
+            Document(id="a", content="old", embedding=[0.0, 0.0]),
+            Document(id="a", content="new", embedding=[0.1, 0.1]),
+        ]
+        with pytest.raises(DuplicateDocumentError, match="already exists"):
+            ds.write_documents(docs, policy=DuplicatePolicy.FAIL)
+
+        # The check runs before anything is written, so a failed batch leaves the store untouched
+        assert ds.count_documents() == 0
+        assert ds.index.ntotal == 0
+
     def test_write_documents_overwrite_duplicate_in_same_batch_leaves_no_orphan_vector(self):
         ds = FAISSDocumentStore(embedding_dim=2)
         docs = [
