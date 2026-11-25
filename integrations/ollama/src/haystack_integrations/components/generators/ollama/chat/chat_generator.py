@@ -233,9 +233,8 @@ def _build_chunk(
                     index=tool_call_index,
                     id=tool_call.get("id"),
                     tool_name=tool_call["function"]["name"],
-                    arguments=json.dumps(tool_call["function"]["arguments"])
-                    if tool_call["function"]["arguments"]
-                    else "",
+                    # a tool without parameters is called with `{}`, which must stay valid JSON
+                    arguments=json.dumps(tool_call["function"]["arguments"]),
                 )
             )
 

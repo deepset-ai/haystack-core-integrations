@@ -595,6 +595,24 @@ class TestUtils:
         assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
         assert result["replies"][0].tool_calls[1].id is None
 
+    def test_handle_streaming_response_tool_call_without_arguments(self):
+        call = Message.ToolCall(function=Message.ToolCall.Function(name="get_current_time", arguments={}))
+        ollama_chunks = [
+            ChatResponse(done=False, message=Message(role="assistant", content="", tool_calls=[call])),
+            ChatResponse(
+                done=True,
+                done_reason="stop",
+                prompt_eval_count=143,
+                eval_count=17,
+                message=Message(role="assistant", content=""),
+            ),
+        ]
+        streaming_chunks = []
+        result = OllamaChatGenerator()._handle_streaming_response(ollama_chunks, streaming_chunks.append)
+
+        assert streaming_chunks[0].tool_calls[0].arguments == "{}"
+        assert result["replies"][0].tool_calls == [ToolCall(tool_name="get_current_time", arguments={})]
+
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
             ChatResponse(
