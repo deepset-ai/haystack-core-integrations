@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import replace
 from typing import Any, Literal
 
+import httpx
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import (
@@ -61,7 +62,7 @@ def _is_retryable_exception(exc: BaseException) -> bool:
         return exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS or (
             HTTP_STATUS_SERVER_ERROR_MIN <= exc.status_code < HTTP_STATUS_SERVER_ERROR_MAX_EXCLUSIVE
         )
-    return isinstance(exc, (ConnectionError, TimeoutError))
+    return isinstance(exc, (ConnectionError, TimeoutError, httpx.TimeoutException))
 
 
 def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any]:
@@ -272,7 +273,7 @@ class OllamaChatGenerator:
         model: str = "qwen3:0.6b",
         url: str = "http://localhost:11434",
         generation_kwargs: dict[str, Any] | None = None,
-        timeout: int = 120,
+        timeout: float = 120,
         max_retries: int = 0,
         keep_alive: float | str | None = None,
         streaming_callback: Callable[[StreamingChunk], None] | None = None,

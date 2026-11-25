@@ -2,6 +2,7 @@ import json
 from typing import Annotated
 from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
@@ -1177,8 +1178,11 @@ class TestRun:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
+    @pytest.mark.parametrize(
+        "error", [ResponseError("temporary failure", status_code=500), httpx.ReadTimeout("timed out")]
+    )
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
-    def test_run_retries_after_failure(self, mock_client):
+    def test_run_retries_after_failure(self, mock_client, error):
         generator = OllamaChatGenerator(max_retries=1)
 
         mock_response = ChatResponse(
@@ -1191,7 +1195,7 @@ class TestRun:
         )
 
         mock_client_instance = mock_client.return_value
-        mock_client_instance.chat.side_effect = [ResponseError("temporary failure", status_code=500), mock_response]
+        mock_client_instance.chat.side_effect = [error, mock_response]
 
         result = generator.run(messages=[ChatMessage.from_user("Hello!")])
 
@@ -1233,8 +1237,11 @@ class TestRun:
         assert mock_async_client_instance.chat.call_count == 1
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error", [ResponseError("temporary failure", status_code=500), httpx.ReadTimeout("timed out")]
+    )
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
-    async def test_run_async_retries_after_failure(self, mock_async_client):
+    async def test_run_async_retries_after_failure(self, mock_async_client, error):
         generator = OllamaChatGenerator(max_retries=1)
 
         mock_response = ChatResponse(
@@ -1247,9 +1254,7 @@ class TestRun:
         )
 
         mock_async_client_instance = mock_async_client.return_value
-        mock_async_client_instance.chat = AsyncMock(
-            side_effect=[ResponseError("temporary failure", status_code=500), mock_response]
-        )
+        mock_async_client_instance.chat = AsyncMock(side_effect=[error, mock_response])
 
         result = await generator.run_async(messages=[ChatMessage.from_user("Hello!")])
 
