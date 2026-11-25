@@ -103,6 +103,7 @@ async def calculator_toolset_with_state_config(mcp_tool_cleanup):
         outputs_to_string={
             "add": {"source": "content", "handler": format_result},
         },
+        tool_descriptions={"add": "Custom add description."},
     )
 
     return mcp_tool_cleanup(toolset)
@@ -225,6 +226,10 @@ class TestMCPToolset:
         assert toolset_dict["data"]["invocation_timeout"] == 60
         assert isinstance(toolset_dict["data"]["server_info"], dict)
         assert toolset_dict["data"]["tool_names"] is None
+        assert toolset_dict["data"]["tool_descriptions"] is None
+
+        # A serialized toolset without the tool_descriptions key still loads
+        del toolset_dict["data"]["tool_descriptions"]
 
         with patch("haystack_integrations.tools.mcp.mcp_toolset.MCPToolset.__init__", return_value=None) as mock_init:
             MCPToolset.from_dict(toolset_dict)
@@ -234,6 +239,7 @@ class TestMCPToolset:
             assert kwargs["connection_timeout"] == 45
             assert kwargs["invocation_timeout"] == 60
             assert kwargs["tool_names"] is None
+            assert kwargs["tool_descriptions"] is None
 
     async def test_toolset_serde_with_tool_names(self, calculator_toolset_with_tool_filter):
         """Test serialization and deserialization of MCPToolset with tool_names parameter."""
@@ -403,6 +409,7 @@ class TestMCPToolset:
         assert toolset_dict["data"]["outputs_to_string"] is not None
         # Handler should be serialized as a string
         assert isinstance(toolset_dict["data"]["outputs_to_string"]["add"]["handler"], str)
+        assert toolset_dict["data"]["tool_descriptions"] == {"add": "Custom add description."}
 
         # Test deserialization with full roundtrip
         new_toolset = MCPToolset.from_dict(toolset_dict)
@@ -417,6 +424,7 @@ class TestMCPToolset:
         assert "add" in new_toolset.outputs_to_string
         # Handler should be deserialized back to a callable
         assert callable(new_toolset.outputs_to_string["add"]["handler"])
+        assert new_toolset.tool_descriptions == {"add": "Custom add description."}
 
     async def test_toolset_state_config_unknown_tool_warning(self, caplog):
         """Test that a warning is logged when state config references unknown tools.
@@ -477,30 +485,6 @@ class TestMCPToolset:
             "tool_descriptions references unknown tools" in record.message and "subtract" in record.message
             for record in caplog.records
         )
-
-    async def test_toolset_tool_descriptions_serde(self, mcp_tool_cleanup):
-        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
-        toolset = mcp_tool_cleanup(
-            MCPToolset(server_info=server_info, tool_descriptions={"add": "Custom add description."})
-        )
-
-        toolset_dict = toolset.to_dict()
-        assert toolset_dict["data"]["tool_descriptions"] == {"add": "Custom add description."}
-
-        new_toolset = mcp_tool_cleanup(MCPToolset.from_dict(toolset_dict))
-        assert new_toolset.tool_descriptions == {"add": "Custom add description."}
-
-        new_toolset.warm_up()
-        add_tool = next(tool for tool in new_toolset.tools if tool.name == "add")
-        assert add_tool.description == "Custom add description."
-
-    async def test_toolset_from_dict_without_tool_descriptions(self, mcp_tool_cleanup):
-        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
-        toolset_dict = MCPToolset(server_info=server_info).to_dict()
-        del toolset_dict["data"]["tool_descriptions"]
-
-        new_toolset = mcp_tool_cleanup(MCPToolset.from_dict(toolset_dict))
-        assert new_toolset.tool_descriptions == {}
 
     async def test_toolset_state_config_invalid_parameter_raises_error(self):
         """Test that ValueError is raised when inputs_from_state references non-existent parameter."""
