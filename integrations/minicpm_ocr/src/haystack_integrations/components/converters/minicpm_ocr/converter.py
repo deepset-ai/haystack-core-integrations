@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal, get_args
 
 import minicpmvocr
+import pypdfium2 as pdfium
 from haystack import Document, component, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
@@ -44,6 +45,8 @@ _SDK_CONFIG_PATH = Path(minicpmvocr.__file__).parent / "configs" / "minicpmvocr.
 _DEFAULT_LAYOUT_MODEL_DIR = Path.home() / ".cache" / "minicpm-ocr" / "layout"
 # Form feed separates pages, so `DocumentSplitter(split_by="page")` can split the output.
 _PAGE_SEPARATOR = "\f"
+# Same scale the SDK uses when it renders PDFs itself (`PDF_RENDER_ZOOM`).
+_PDF_RENDER_SCALE = 2.0
 
 
 def _resolve_suffix(source: str | Path | ByteStream, mime_type: str | None) -> str | None:
@@ -71,6 +74,33 @@ def _resolve_suffix(source: str | Path | ByteStream, mime_type: str | None) -> s
     if mime_type:
         return _SUFFIX_BY_MIME.get(mime_type.lower())
     return None
+
+
+def _render_pdf_pages(pdf_path: Path, output_dir: Path) -> None:
+    """
+    Render every page of a PDF to a PNG file.
+
+    The SDK renders PDFs with PyMuPDF, which is AGPL-licensed, so PDFs are rasterized here with
+    pypdfium2 and handed to the SDK as a folder of page images instead.
+
+    :param pdf_path:
+        PDF file to render.
+    :param output_dir:
+        Directory that receives one zero-padded `page_NNNNN.png` per page, so filename order is page order.
+    :raises pypdfium2.PdfiumError:
+        If the file is not a readable PDF.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pdf = pdfium.PdfDocument(pdf_path)
+    try:
+        for index, page in enumerate(pdf):
+            try:
+                bitmap = page.render(scale=_PDF_RENDER_SCALE)
+                bitmap.to_pil().save(output_dir / f"page_{index + 1:05d}.png")
+            finally:
+                page.close()
+    finally:
+        pdf.close()
 
 
 @component
@@ -281,22 +311,27 @@ class MiniCPMOCRDocumentConverter:
             Resolved API key, or None.
         :returns:
             The page Markdown joined with `\\f` and the page count.
+        :raises pypdfium2.PdfiumError:
+            If a PDF source cannot be opened.
         :raises RuntimeError:
             If the SDK produced no pages for the file.
         """
+        run_tag = f"haystack_{uuid.uuid4().hex}"
+        input_config = {"file_path": str(file_path), "manifest": "", "image_dir": "", "files_dir": "", "limit": 0}
+        if file_path.suffix == ".pdf":
+            # Pass the pages as images so the SDK never needs PyMuPDF (see `_render_pdf_pages`).
+            # The SDK treats an image folder as one document and orders its pages by filename.
+            pages_dir = temp_dir / f"{run_tag}_pages"
+            _render_pdf_pages(file_path, pages_dir)
+            input_config.update({"file_path": "", "image_dir": str(pages_dir)})
+
         overrides = {
             "run": {
-                "run_tag": f"haystack_{uuid.uuid4().hex}",
+                "run_tag": run_tag,
                 "run_root": str(temp_dir),
                 "mode": "oneshot_file",
             },
-            "input": {
-                "file_path": str(file_path),
-                "manifest": "",
-                "image_dir": "",
-                "files_dir": "",
-                "limit": 0,
-            },
+            "input": input_config,
             "layout": {
                 "enabled": True,
                 "model_dir": str(self._layout_model_path),
