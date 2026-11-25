@@ -5,12 +5,12 @@
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/qdrant/multivector\_retriever.py |       44 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/qdrant/retriever.py              |      129 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/qdrant/retriever.py              |      130 |        0 |       12 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/qdrant/utils.py                  |       17 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/qdrant/converters.py                  |       51 |        0 |       22 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/qdrant/document\_store.py             |      871 |       34 |      252 |       25 |     95% |469-470, 528-529, 570-571, 612, 627-629, 647, 662-664, 769-\>766, 790-\>785, 848, 868-\>854, 888-890, 913, 932-\>918, 936, 952-954, 1149-\>1139, 1193-\>1183, 1231-\>1221, 1269-\>1259, 1309-\>1299, 1353-\>1343, 1407-\>1397, 1463-\>1453, 2289-2290, 2308-2310, 2739, 2758-2759, 2818-2819, 2826-2827 |
+| src/haystack\_integrations/document\_stores/qdrant/document\_store.py             |      874 |       33 |      252 |       24 |     95% |471-472, 530-531, 572-573, 614, 629-631, 649, 664-666, 771-\>768, 792-\>787, 850, 870-\>856, 890-892, 915, 934-\>920, 938, 954-956, 1151-\>1141, 1195-\>1185, 1233-\>1223, 1271-\>1261, 1311-\>1301, 1355-\>1345, 1409-\>1399, 1465-\>1455, 2313-2314, 2332-2334, 2782-2783, 2842-2843, 2850-2851 |
 | src/haystack\_integrations/document\_stores/qdrant/filters.py                     |      126 |        5 |       60 |        6 |     94% |48-\>40, 52-\>40, 74, 86, 105, 133-134 |
-| **TOTAL**                                                                         | **1238** |   **39** |  **358** |   **31** | **96%** |           |
+| **TOTAL**                                                                         | **1242** |   **38** |  **358** |   **30** | **96%** |           |
 
 
 ## Setup coverage badge
