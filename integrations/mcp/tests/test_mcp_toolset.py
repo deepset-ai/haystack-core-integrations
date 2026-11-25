@@ -2,7 +2,6 @@ import json
 import os
 from unittest.mock import patch
 
-import httpx
 import pytest
 import pytest_asyncio
 from haystack.components.agents import Agent
@@ -12,6 +11,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
 from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
+from haystack_integrations.tools.mcp.compatibility_layer import http_lib
 from haystack_integrations.tools.mcp.mcp_tool import (
     MCPConnectionError,
     MCPToolNotFoundError,
@@ -530,13 +530,21 @@ class TestMCPToolset:
             assert tool.outputs_to_state is None
             assert tool.outputs_to_string is None
 
-    async def test_toolset_streamable_http_connect_error_reports_host_and_port(self):
-        server_info = StreamableHttpServerInfo(url="http://host.example:12345/mcp")
+    @pytest.mark.parametrize(
+        "url, expected_port",
+        [
+            ("http://host.example:12345/mcp", "12345"),
+            ("http://host.example/mcp", "80 (default)"),
+            ("https://host.example/mcp", "443 (default)"),
+        ],
+    )
+    async def test_toolset_streamable_http_connect_error_reports_host_and_port(self, url, expected_port):
+        server_info = StreamableHttpServerInfo(url=url)
 
         with (
             patch(
                 "haystack_integrations.tools.mcp.mcp_toolset._MCPClientSessionManager",
-                side_effect=httpx.ConnectError("refused"),
+                side_effect=http_lib.ConnectError("refused"),
             ),
             pytest.raises(MCPConnectionError) as exc_info,
         ):
@@ -544,8 +552,8 @@ class TestMCPToolset:
 
         msg = str(exc_info.value)
         assert "streamable HTTP" in msg
-        assert "host.example" in msg
-        assert "12345" in msg
+        assert f"The address 'host.example' and port '{expected_port}'" in msg
+        assert "firewall or network connectivity issues" in msg
 
     async def test_toolset_sse_connect_error_tags_sse_transport(self):
         server_info = SSEServerInfo(url="https://host.example/sse")
