@@ -9,10 +9,10 @@
 | src/haystack\_integrations/components/embedders/cohere/embedding\_types.py          |       17 |        3 |        2 |        1 |     79% | 25, 35-36 |
 | src/haystack\_integrations/components/embedders/cohere/text\_embedder.py            |       54 |        9 |        6 |        1 |     83% |109-\>exit, 169-181, 202-215 |
 | src/haystack\_integrations/components/embedders/cohere/utils.py                     |       41 |       12 |       24 |        2 |     66% |78-\>76, 81-\>63, 115-142 |
-| src/haystack\_integrations/components/generators/cohere/chat/chat\_generator.py     |      267 |       56 |      122 |       23 |     74% |80-83, 95, 103-110, 134-\>131, 142-155, 175-\>181, 177-\>176, 183-190, 194-\>196, 204, 246-250, 253-\>256, 260-\>318, 263-\>318, 266-\>318, 270-\>318, 285-\>318, 287-\>318, 298-302, 379-407, 586, 609, 696-703, 766-773 |
+| src/haystack\_integrations/components/generators/cohere/chat/chat\_generator.py     |      262 |       55 |      120 |       22 |     74% |77-80, 92, 100-107, 131-\>128, 139-152, 172-\>178, 174-\>173, 180-187, 191-\>193, 201, 243-247, 250-\>253, 257-\>315, 260-\>315, 263-\>315, 267-\>315, 282-\>315, 284-\>315, 295-299, 376-404, 603, 690-697, 760-767 |
 | src/haystack\_integrations/components/rankers/cohere/ranker.py                      |       73 |        2 |       14 |        1 |     97% |   152-157 |
 | src/haystack\_integrations/utils/cohere/api\_base\_url.py                           |       11 |        0 |        2 |        0 |    100% |           |
-| **TOTAL**                                                                           |  **653** |   **83** |  **212** |   **29** | **84%** |           |
+| **TOTAL**                                                                           |  **648** |   **82** |  **210** |   **28** | **84%** |           |
 
 
 ## Setup coverage badge
