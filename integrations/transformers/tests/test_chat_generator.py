@@ -575,6 +575,15 @@ class TestValidationAndTools:
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
 
+    def test_run_empty_tools_overrides_init_tools(self, mock_pipeline_with_tokenizer, tools):
+        generator = TransformersChatGenerator(model="Qwen/Qwen3-0.6B", tools=tools)
+        generator.pipeline = mock_pipeline_with_tokenizer
+
+        # an empty list must disable tools for this call, not fall back to the init tools
+        generator.run(messages=[ChatMessage.from_user("What's the weather in Paris?")], tools=[])
+
+        assert mock_pipeline_with_tokenizer.tokenizer.apply_chat_template.call_args.kwargs["tools"] is None
+
     def test_run_with_tools_and_tool_response(self):
         generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf")
 

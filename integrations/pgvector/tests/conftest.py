@@ -1,4 +1,5 @@
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 import pytest
 from psycopg import AsyncConnection, Connection
@@ -77,6 +78,44 @@ def document_store_w_halfvec_hnsw_index(request, monkeypatch):
     # During test execution, the tested methods are expected to call _ensure_db_setup() themselves.
     store._ensure_db_setup()
     store.delete_table()
+
+
+@pytest.fixture
+def make_staging_store():
+    """
+    Build staging stores compatible with an active store, for `replace_table` tests.
+
+    Names are unique per call unless overridden. On teardown, each store drops the table it points at, which is
+    the backup table after a successful swap.
+    """
+    created = []
+
+    def _make(active_store: PgvectorDocumentStore, **overrides) -> PgvectorDocumentStore:
+        suffix = uuid4().hex[:8]
+        params = {
+            "connection_string": active_store.connection_string,
+            "schema_name": active_store.schema_name,
+            "embedding_dimension": active_store.embedding_dimension,
+            "vector_type": active_store.vector_type,
+            "vector_function": active_store.vector_function,
+            "language": active_store.language,
+            "search_strategy": active_store.search_strategy,
+            "hnsw_index_creation_kwargs": active_store.hnsw_index_creation_kwargs,
+            "table_name": f"stage_{suffix}",
+            "keyword_index_name": f"stage_kw_{suffix}",
+            "hnsw_index_name": f"stage_hnsw_{suffix}",
+            **overrides,
+        }
+        store = PgvectorDocumentStore(**params)
+        created.append(store)
+        return store
+
+    yield _make
+
+    for store in created:
+        store._ensure_db_setup()
+        store.delete_table()
+        store.close()
 
 
 @pytest.fixture

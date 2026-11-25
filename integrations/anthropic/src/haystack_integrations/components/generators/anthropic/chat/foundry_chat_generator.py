@@ -55,7 +55,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
 
     client = AnthropicFoundryChatGenerator(
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-5-5",
         api_key=Secret.from_env_var("ANTHROPIC_FOUNDRY_API_KEY"),
         resource="my-resource",
     )
@@ -67,7 +67,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     >> focuses on enabling computers to understand, interpret, and generate human language. It involves developing
     >> techniques and algorithms to analyze and process text or speech data, allowing machines to comprehend and
     >> communicate in natural languages like English, Spanish, or Chinese.")],
-    >> _name=None, _meta={'model': 'claude-sonnet-4-5', 'index': 0, 'finish_reason': 'stop',
+    >> _name=None, _meta={'model': 'claude-sonnet-5-5', 'index': 0, 'finish_reason': 'stop',
     >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 64, 'cache_read_input_tokens': 0,
     >> 'cache_creation_input_tokens': 0, ...}})]}
     ```
@@ -84,6 +84,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-opus-4-5",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5",
@@ -98,7 +99,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         api_key: Secret | None = Secret.from_env_var("ANTHROPIC_FOUNDRY_API_KEY", strict=True),  # noqa: B008
         resource: str | None = None,
         endpoint: str | None = None,
-        model: str = "claude-sonnet-4-5",
+        model: str = "claude-sonnet-5-5",
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
@@ -107,6 +108,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         azure_ad_token_provider: Callable[[], str] | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Creates an instance of AnthropicFoundryChatGenerator.
@@ -159,6 +161,10 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             Can be used instead of `api_key` for enhanced security.
             See [Azure Identity documentation](https://learn.microsoft.com/en-us/azure/developer/python/sdk/authentication/overview)
             for more details.
+        :param tools_strict:
+            Whether to enable strict tool use. If `True`, each tool is sent with `strict: true`, so the model's tool
+            calls are guaranteed to match the tool's `parameters` schema. The schema must stay within what strict
+            tool use supports. See [Anthropic strict tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use).
         """
         if api_key is None and azure_ad_token_provider is None:
             msg = "Please provide an API key or an azure_ad_token_provider."
@@ -178,6 +184,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         self.timeout = timeout
         self.max_retries = max_retries
         self.azure_ad_token_provider = azure_ad_token_provider
+        self.tools_strict = tools_strict
 
         if not self.resource and not self.endpoint:
             msg = (
@@ -246,6 +253,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             timeout=self.timeout,
             max_retries=self.max_retries,
             azure_ad_token_provider=azure_ad_token_provider_name,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod

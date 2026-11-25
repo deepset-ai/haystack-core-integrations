@@ -71,6 +71,43 @@ def tools():
     return [weather_tool]
 
 
+def _empty_tool_call_setup(arguments):
+    get_time_tool = Tool(
+        name="get_time",
+        description="Get current time",
+        parameters={"type": "object", "properties": {}},
+        function=lambda: "12:00",
+    )
+    completion = ChatCompletionOutput(
+        choices=[
+            ChatCompletionOutputComplete(
+                finish_reason="tool_calls",
+                index=0,
+                message=ChatCompletionOutputMessage(
+                    role="assistant",
+                    content=None,
+                    tool_calls=[
+                        ChatCompletionOutputToolCall(
+                            function=ChatCompletionOutputFunctionDefinition(
+                                arguments=arguments, name="get_time", description=None
+                            ),
+                            id="0",
+                            type="function",
+                        )
+                    ],
+                ),
+                logprobs=None,
+            )
+        ],
+        created=1729074760,
+        id="",
+        model="meta-llama/Llama-3.1-70B-Instruct",
+        system_fingerprint="2.3.2-dev0-sha-28bb7ae",
+        usage=ChatCompletionOutputUsage(completion_tokens=10, prompt_tokens=100, total_tokens=110),
+    )
+    return get_time_tool, completion
+
+
 @pytest.fixture
 def mock_check_valid_model():
     with (
@@ -749,6 +786,38 @@ class TestRun:
             "usage": {"completion_tokens": 30, "prompt_tokens": 426},
         }
 
+    @pytest.mark.parametrize("arguments", [{}, "{}", ""], ids=["empty_dict", "empty_json", "empty_string"])
+    def test_run_with_empty_tool_arguments(self, mock_check_valid_model, arguments):
+        get_time_tool, completion = _empty_tool_call_setup(arguments)
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-3.1-70B-Instruct"},
+            tools=[get_time_tool],
+        )
+
+        with patch("huggingface_hub.InferenceClient.chat_completion", autospec=True) as mock_chat_completion:
+            mock_chat_completion.return_value = completion
+            response = generator.run(messages=[ChatMessage.from_user("What time is it?")])
+
+        reply = response["replies"][0]
+        assert reply.tool_calls == [ToolCall(id="0", tool_name="get_time", arguments={})]
+        assert reply.meta["finish_reason"] == "tool_calls"
+
+    def test_run_empty_tools_list_overrides_init_tools(
+        self, mock_check_valid_model, mock_chat_completion, chat_messages, tools
+    ):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            tools=tools,
+        )
+
+        generator.run(messages=chat_messages, tools=[])
+
+        # an empty list must disable tools for this call, not fall back to the init tools
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["tools"] is None
+
     @pytest.mark.parametrize("tools_at_init", [True, False], ids=["init_tools", "runtime_tools"])
     def test_run_with_streaming_tool_calls(
         self,
@@ -925,7 +994,7 @@ class TestSyncIntegration:
     def test_live_run_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"max_tokens": 20},
         )
 
@@ -947,13 +1016,13 @@ class TestSyncIntegration:
         assert meta["usage"]["prompt_tokens"] > 0
         assert "completion_tokens" in meta["usage"]
         assert meta["usage"]["completion_tokens"] > 0
-        assert meta["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+        assert meta["model"] == "google/gemma-4-26B-A4B-it"
         assert meta["finish_reason"] is not None
 
     def test_live_run_serverless_streaming(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"max_tokens": 20},
             streaming_callback=streaming_callback_handler,
         )
@@ -979,7 +1048,7 @@ class TestSyncIntegration:
         assert response_meta["usage"]["prompt_tokens"] >= 0
         assert "completion_tokens" in response_meta["usage"]
         assert response_meta["usage"]["completion_tokens"] >= 0
-        assert response_meta["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+        assert response_meta["model"] == "google/gemma-4-26B-A4B-it"
         assert response_meta["finish_reason"] is not None
 
     @pytest.mark.parametrize("streaming", [False, True])
@@ -991,7 +1060,7 @@ class TestSyncIntegration:
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"temperature": 0.5},
             streaming_callback=print_streaming_chunk if streaming else None,
         )
@@ -1230,6 +1299,40 @@ class TestRunAsync:
         }
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("arguments", [{}, "{}", ""], ids=["empty_dict", "empty_json", "empty_string"])
+    async def test_run_async_with_empty_tool_arguments(self, mock_check_valid_model, arguments):
+        get_time_tool, completion = _empty_tool_call_setup(arguments)
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-3.1-70B-Instruct"},
+            tools=[get_time_tool],
+        )
+
+        with patch("huggingface_hub.AsyncInferenceClient.chat_completion", autospec=True) as mock_chat_completion_async:
+            mock_chat_completion_async.return_value = completion
+            response = await generator.run_async(messages=[ChatMessage.from_user("What time is it?")])
+
+        reply = response["replies"][0]
+        assert reply.tool_calls == [ToolCall(id="0", tool_name="get_time", arguments={})]
+        assert reply.meta["finish_reason"] == "tool_calls"
+
+    @pytest.mark.asyncio
+    async def test_run_async_empty_tools_list_overrides_init_tools(
+        self, mock_check_valid_model, mock_chat_completion_async, chat_messages, tools
+    ):
+        generator = HuggingFaceAPIChatGenerator(
+            api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
+            api_params={"model": "meta-llama/Llama-2-13b-chat-hf"},
+            tools=tools,
+        )
+
+        await generator.run_async(messages=chat_messages, tools=[])
+
+        # an empty list must disable tools for this call, not fall back to the init tools
+        _, kwargs = mock_chat_completion_async.call_args
+        assert kwargs["tools"] is None
+
+    @pytest.mark.asyncio
     async def test_run_async_with_sync_streaming_callback(
         self, mock_check_valid_model, mock_chat_completion_async, hf_stream_chunk
     ):
@@ -1300,7 +1403,7 @@ class TestAsyncIntegration:
     async def test_live_run_async_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
             api_type=HFGenerationAPIType.SERVERLESS_INFERENCE_API,
-            api_params={"model": "Qwen/Qwen3-4B-Instruct-2507", "provider": "nscale"},
+            api_params={"model": "google/gemma-4-26B-A4B-it", "provider": "deepinfra"},
             generation_kwargs={"max_tokens": 20},
         )
 
@@ -1322,7 +1425,7 @@ class TestAsyncIntegration:
             assert meta["usage"]["prompt_tokens"] > 0
             assert "completion_tokens" in meta["usage"]
             assert meta["usage"]["completion_tokens"] > 0
-            assert meta["model"] == "Qwen/Qwen3-4B-Instruct-2507"
+            assert meta["model"] == "google/gemma-4-26B-A4B-it"
             assert meta["finish_reason"] is not None
         finally:
             await generator.close_async()

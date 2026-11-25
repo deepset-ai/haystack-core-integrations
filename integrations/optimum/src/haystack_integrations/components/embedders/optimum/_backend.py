@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, overload
 
 import numpy as np
+import onnxruntime as ort
 import torch
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
@@ -102,15 +103,17 @@ class _EmbedderParams:
 
     @classmethod
     def deserialize_inplace(cls, data: dict[str, Any]) -> dict[str, Any]:
-        if data["pooling_mode"] is not None:
+        # Keys left out of the data (e.g. in hand-written YAML) keep their `__init__` defaults
+        if data.get("pooling_mode") is not None:
             data["pooling_mode"] = OptimumEmbedderPooling.from_str(data["pooling_mode"])
-        if data["optimizer_settings"] is not None:
+        if data.get("optimizer_settings") is not None:
             data["optimizer_settings"] = OptimumEmbedderOptimizationConfig.from_dict(data["optimizer_settings"])
-        if data["quantizer_settings"] is not None:
+        if data.get("quantizer_settings") is not None:
             data["quantizer_settings"] = OptimumEmbedderQuantizationConfig.from_dict(data["quantizer_settings"])
 
         deserialize_secrets_inplace(data, keys=["token"])
-        deserialize_hf_model_kwargs(data["model_kwargs"])
+        if data.get("model_kwargs") is not None:
+            deserialize_hf_model_kwargs(data["model_kwargs"])
         return data
 
 
@@ -155,6 +158,14 @@ class _EmbedderBackend:
 
         assert self.params.model_kwargs
         model_kwargs = copy.deepcopy(self.params.model_kwargs)
+
+        # Build ONNX Runtime session options from a plain dict, e.g. `{"intra_op_num_threads": 1}`
+        if isinstance(model_kwargs.get("session_options"), dict):
+            session_options = ort.SessionOptions()
+            for name, value in model_kwargs["session_options"].items():
+                setattr(session_options, name, value)
+            model_kwargs["session_options"] = session_options
+
         model = ORTModelForFeatureExtraction.from_pretrained(**model_kwargs, export=True)
 
         # Model ID will be passed explicitly if optimization/quantization is enabled.

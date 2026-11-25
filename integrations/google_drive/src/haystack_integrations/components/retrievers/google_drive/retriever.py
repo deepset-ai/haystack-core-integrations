@@ -149,9 +149,8 @@ class GoogleDriveRetriever:
 
         :param query: The search query string, matched against the full text of files via
             `fullText contains`.
-        :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched,
-            typically wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also
-            accepted and resolved internally.
+        :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched, typically
+            wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises GoogleDriveConfigError: If `access_token` is a `Secret` that does not resolve to a string.
@@ -186,9 +185,8 @@ class GoogleDriveRetriever:
 
         :param query: The search query string, matched against the full text of files via
             `fullText contains`.
-        :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched,
-            typically wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also
-            accepted and resolved internally.
+        :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched, typically
+            wired from an upstream `OAuthTokenResolver`, which emits a `Secret`. A plain `str` is also accepted.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises GoogleDriveConfigError: If `access_token` is a `Secret` that does not resolve to a string.

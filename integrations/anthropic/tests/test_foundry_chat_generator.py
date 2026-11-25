@@ -18,12 +18,20 @@ class TestUnit:
         # No old claude-3 models
         assert not any("claude-3" in m for m in AnthropicFoundryChatGenerator.SUPPORTED_MODELS)
 
+    def test_tools_strict_marks_every_tool_strict(self, monkeypatch, tools):
+        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
+        component = AnthropicFoundryChatGenerator(resource="my-resource", tools=tools, tools_strict=True)
+
+        *_, anthropic_tools = component._prepare_request_params([ChatMessage.from_user("hi")])
+
+        assert [tool["strict"] for tool in anthropic_tools] == [True] * len(tools)
+
     def test_init_with_api_key_and_resource(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
         component = AnthropicFoundryChatGenerator(resource="my-resource")
         assert component.resource == "my-resource"
         assert component.endpoint is None
-        assert component.model == "claude-sonnet-4-5"
+        assert component.model == "claude-sonnet-5-5"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.ignore_tools_thinking_messages
@@ -78,7 +86,7 @@ class TestUnit:
                 "api_key": {"env_vars": ["ANTHROPIC_FOUNDRY_API_KEY"], "strict": True, "type": "env_var"},
                 "resource": "my-resource",
                 "endpoint": None,
-                "model": "claude-sonnet-4-5",
+                "model": "claude-sonnet-5-5",
                 "streaming_callback": None,
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
@@ -87,6 +95,7 @@ class TestUnit:
                 "timeout": None,
                 "max_retries": None,
                 "azure_ad_token_provider": None,
+                "tools_strict": False,
             },
         }
 
@@ -121,6 +130,7 @@ class TestUnit:
                 "timeout": 10.0,
                 "max_retries": 1,
                 "azure_ad_token_provider": None,
+                "tools_strict": False,
             },
         }
 
@@ -287,7 +297,7 @@ class TestIntegration:
 
     def test_live_run(self, chat_messages):
         client = AnthropicFoundryChatGenerator(
-            resource=os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"), model="claude-sonnet-4-5"
+            resource=os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"), model="claude-sonnet-5-5"
         )
         response = client.run(chat_messages)
 
@@ -306,7 +316,7 @@ class TestIntegration:
     async def test_live_run_async(self):
         component = AnthropicFoundryChatGenerator(
             resource=os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"),
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-5-5",
         )
         results = await component.run_async(messages=[ChatMessage.from_user("What's the capital of France?")])
         assert len(results["replies"]) == 1

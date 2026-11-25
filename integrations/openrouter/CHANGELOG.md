@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/openrouter-v2.1.0] - 2026-11-19
+
+### 🐛 Bug Fixes
+
+- OpenRouter - respect an empty runtime tools list (#4223)
+
+### 🚜 Refactor
+
+- Simplify `OpenRouterChatGenerator` (#4287)
+
+
 ## [integrations/openrouter-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

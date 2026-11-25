@@ -11,6 +11,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
+from httpx import Timeout
 
 from haystack_integrations.components.generators.watsonx.chat.chat_generator import WatsonxChatGenerator
 
@@ -41,7 +42,10 @@ def tools():
 @pytest.fixture
 def mock_watsonx() -> Generator[dict[str, MagicMock], None]:
     """Fixture for setting up common mocks"""
-    with patch("haystack_integrations.components.generators.watsonx.chat.chat_generator.ModelInference") as mock_model:
+    with (
+        patch("haystack_integrations.components.generators.watsonx.chat.chat_generator.APIClient"),
+        patch("haystack_integrations.components.generators.watsonx.chat.chat_generator.ModelInference") as mock_model,
+    ):
         mock_model_instance = MagicMock()
         mock_model_instance.chat = MagicMock(
             return_value={
@@ -309,6 +313,7 @@ class TestComponentLifecycle:
     def test_warm_up_is_idempotent(self):
         with (
             patch("haystack_integrations.components.generators.watsonx.chat.chat_generator.Credentials") as credentials,
+            patch("haystack_integrations.components.generators.watsonx.chat.chat_generator.APIClient") as api_client,
             patch(
                 "haystack_integrations.components.generators.watsonx.chat.chat_generator.ModelInference"
             ) as model_inference,
@@ -318,18 +323,23 @@ class TestComponentLifecycle:
                 project_id=Secret.from_token("fake-project-id"),
                 api_base_url="https://custom-url.ibm.com",
                 verify=False,
+                timeout=2.0,
                 max_retries=5,
             )
             generator.warm_up()
             client = generator.client
             generator.warm_up()
 
-        credentials.assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com")
+        credentials.assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com", verify=False)
+        api_client.assert_called_once()
+        kwargs = api_client.call_args.kwargs
+        assert kwargs["credentials"] is credentials.return_value
+        assert kwargs["httpx_client"].timeout == Timeout(2.0)
+        assert kwargs["async_httpx_client"].timeout == Timeout(2.0)
         model_inference.assert_called_once_with(
             model_id="ibm/granite-4-h-small",
-            credentials=credentials.return_value,
+            api_client=api_client.return_value,
             project_id="fake-project-id",
-            verify=False,
             max_retries=5,
         )
         assert generator.client is client
@@ -514,6 +524,17 @@ class TestRun:
 
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Async streaming response"
+
+    def test_prepare_api_call_empty_tools_overrides_init_tools(self, tools: list[Tool]) -> None:
+        generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            project_id=Secret.from_token("test-project"),
+            tools=tools,
+        )
+        # an empty list must disable tools for this call, not fall back to the init tools
+        api_call = generator._prepare_api_call(messages=[ChatMessage.from_user("Test prompt")], tools=[])
+
+        assert "tools" not in api_call
 
 
 class TestMessageConversionAndMultimodal:

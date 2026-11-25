@@ -71,7 +71,11 @@ class TestGitHubIssueCommenterTool:
         tool = GitHubIssueCommenterTool(
             name="test_issue_commenter",
             description="Test description",
-            parameters={"type": "object", "properties": {}},
+            parameters={
+                "type": "object",
+                "properties": {"comment": {"type": "string"}},
+                "required": ["comment"],
+            },
             github_token=None,
             raise_on_failure=False,
             retry_attempts=3,
@@ -83,7 +87,11 @@ class TestGitHubIssueCommenterTool:
         assert tool_dict["type"] == "haystack_integrations.tools.github.issue_commenter_tool.GitHubIssueCommenterTool"
         assert tool_dict["data"]["name"] == "test_issue_commenter"
         assert tool_dict["data"]["description"] == "Test description"
-        assert tool_dict["data"]["parameters"] == {"type": "object", "properties": {}}
+        assert tool_dict["data"]["parameters"] == {
+            "type": "object",
+            "properties": {"comment": {"type": "string"}},
+            "required": ["comment"],
+        }
         assert tool_dict["data"]["github_token"] is None
         assert tool_dict["data"]["raise_on_failure"] is False
         assert tool_dict["data"]["retry_attempts"] == 3
@@ -105,7 +113,11 @@ class TestGitHubIssueCommenterTool:
             "data": {
                 "name": "test_issue_commenter",
                 "description": "Test description",
-                "parameters": {"type": "object", "properties": {}},
+                "parameters": {
+                    "type": "object",
+                    "properties": {"comment": {"type": "string"}},
+                    "required": ["comment"],
+                },
                 "github_token": None,
                 "raise_on_failure": False,
                 "retry_attempts": 3,
@@ -122,7 +134,11 @@ class TestGitHubIssueCommenterTool:
         tool = GitHubIssueCommenterTool.from_dict(tool_dict)
         assert tool.name == "test_issue_commenter"
         assert tool.description == "Test description"
-        assert tool.parameters == {"type": "object", "properties": {}}
+        assert tool.parameters == {
+            "type": "object",
+            "properties": {"comment": {"type": "string"}},
+            "required": ["comment"],
+        }
         assert tool.github_token is None
         assert tool.raise_on_failure is False
         assert tool.retry_attempts == 3

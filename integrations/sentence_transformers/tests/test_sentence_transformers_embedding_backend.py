@@ -5,9 +5,11 @@
 from unittest.mock import patch
 
 import numpy as np
+import onnxruntime as ort
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.embedders.sentence_transformers.embedding_backend.backend import (
+    _resolve_onnx_session_options,
     _SentenceTransformersEmbeddingBackendFactory,
 )
 
@@ -56,6 +58,29 @@ def test_model_initialization(mock_sentence_transformer):
         config_kwargs=None,
         backend="torch",
     )
+
+
+def test_resolve_onnx_session_options():
+    model_kwargs = {"file_name": "onnx/model.onnx", "session_options": {"intra_op_num_threads": 1}}
+
+    resolved = _resolve_onnx_session_options(model_kwargs=model_kwargs)
+
+    assert isinstance(resolved["session_options"], ort.SessionOptions)
+    assert resolved["session_options"].intra_op_num_threads == 1
+    assert resolved["file_name"] == "onnx/model.onnx"
+    # the component's own model_kwargs stay serializable
+    assert model_kwargs["session_options"] == {"intra_op_num_threads": 1}
+
+
+@patch("haystack_integrations.components.embedders.sentence_transformers.embedding_backend.backend.SentenceTransformer")
+def test_model_initialization_onnx_session_options(mock_sentence_transformer):
+    _SentenceTransformersEmbeddingBackendFactory.get_embedding_backend(
+        model="onnx_session_model", model_kwargs={"session_options": {"intra_op_num_threads": 2}}, backend="onnx"
+    )
+
+    session_options = mock_sentence_transformer.call_args.kwargs["model_kwargs"]["session_options"]
+    assert isinstance(session_options, ort.SessionOptions)
+    assert session_options.intra_op_num_threads == 2
 
 
 @patch("haystack_integrations.components.embedders.sentence_transformers.embedding_backend.backend.SentenceTransformer")

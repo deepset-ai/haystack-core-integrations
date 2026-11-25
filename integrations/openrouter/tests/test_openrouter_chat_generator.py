@@ -1,11 +1,13 @@
+# SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import os
-from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
-import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole, ReasoningContent, StreamingChunk, ToolCall
@@ -21,7 +23,6 @@ from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
-    _convert_openrouter_completion_to_chat_message,
     _extract_reasoning,
     _merge_reasoning_details,
 )
@@ -41,11 +42,6 @@ class CalendarEvent(BaseModel):
     event_name: str
     event_date: str
     event_location: str
-
-
-@pytest.fixture
-def calendar_event_model():
-    return CalendarEvent
 
 
 class CollectorCallback:
@@ -86,32 +82,6 @@ def tools():
     return [tool]
 
 
-@pytest.fixture
-def mock_chat_completion():
-    """
-    Mock the OpenAI API completion response and reuse it for tests
-    """
-    with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
-        completion = ChatCompletion(
-            id="foo",
-            model="openai/gpt-5-mini",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
-        )
-
-        mock_chat_completion_create.return_value = completion
-        yield mock_chat_completion_create
-
-
 class TestOpenRouterChatGeneratorUnit:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key")
@@ -121,19 +91,6 @@ class TestOpenRouterChatGeneratorUnit:
         assert component.api_base_url == "https://openrouter.ai/api/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
-
-    def test_warm_up(self, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key")
-        component = OpenRouterChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = OpenRouterChatGenerator()
-            component.warm_up()
 
     def test_init_with_parameters(self):
         component = OpenRouterChatGenerator(
@@ -242,70 +199,15 @@ class TestOpenRouterChatGeneratorUnit:
         assert component.timeout == 10
         assert component.max_retries == 10
 
-    def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator()
-        response = component.run(chat_messages)
+    def test_prepare_api_call_with_generation_kwargs(self, chat_messages):
+        component = OpenRouterChatGenerator(
+            generation_kwargs={"max_tokens": 10, "temperature": 0.5},
+            extra_headers={"HTTP-Referer": "https://example.com", "X-Title": "Test application"},
+        )
+        kwargs = component._prepare_api_call(messages=chat_messages, generation_kwargs={"temperature": 0.9})
 
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
-        response = component.run(chat_messages)
-
-        # check that the component calls the OpenAI API with the correct parameters
-        # for OpenRouter, these are passed in the extra_body parameter
-        _, kwargs = mock_chat_completion.call_args
-        assert kwargs["extra_body"]["max_tokens"] == 10
-        assert kwargs["extra_body"]["temperature"] == 0.5
-        # check that the component returns the correct response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    def test_run_with_generation_kwargs(self, chat_messages, mock_chat_completion, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(generation_kwargs={"max_tokens": 10, "temperature": 0.5})
-        component.run(chat_messages, generation_kwargs={"temperature": 0.9})
-
-        _, kwargs = mock_chat_completion.call_args
-        assert kwargs["extra_body"]["max_tokens"] == 10
-        assert kwargs["extra_body"]["temperature"] == 0.9
-
-    def test_prepare_api_call_with_tools_strict(self, chat_messages, tools, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(tools=tools)
-        api_args = component._prepare_api_call(messages=chat_messages, tools_strict=True)
-
-        assert api_args["tools"][0]["type"] == "function"
-        function_spec = api_args["tools"][0]["function"]
-        assert function_spec["name"] == "weather"
-        assert function_spec["strict"] is True
-        assert function_spec["parameters"]["additionalProperties"] is False
-
-    def test_prepare_api_call_raises_when_streaming_with_multiple_responses(self, chat_messages, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator(generation_kwargs={"n": 2})
-        with pytest.raises(ValueError, match="Cannot stream multiple responses"):
-            component._prepare_api_call(messages=chat_messages, streaming_callback=print_streaming_chunk)
-
-    def test_prepare_api_call_with_response_format_and_streaming(self, chat_messages, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        response_format = {"type": "json_schema", "json_schema": {"name": "Foo", "schema": {"type": "object"}}}
-        component = OpenRouterChatGenerator(generation_kwargs={"response_format": response_format})
-        api_args = component._prepare_api_call(messages=chat_messages, streaming_callback=print_streaming_chunk)
-
-        assert api_args["stream"] is True
-        assert api_args["openai_endpoint"] == "create"
-        assert api_args["response_format"] == response_format
+        assert kwargs["extra_body"] == {"max_tokens": 10, "temperature": 0.9}
+        assert kwargs["extra_headers"] == {"HTTP-Referer": "https://example.com", "X-Title": "Test application"}
 
     def test_serde_in_pipeline(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
@@ -531,7 +433,7 @@ class TestOpenRouterChatGeneratorIntegration:
         assert "france" in msg["country"].lower(), f"Expected 'France' in country field, got: {msg['country']}"
         assert message.meta["finish_reason"] == "stop"
 
-    def test_live_run_with_response_format_pydantic_model(self, calendar_event_model):
+    def test_live_run_with_response_format_pydantic_model(self):
         # Use a more explicit prompt that emphasizes JSON structure requirement
         chat_messages = [
             ChatMessage.from_user(
@@ -541,7 +443,7 @@ class TestOpenRouterChatGeneratorIntegration:
             )
         ]
         component = OpenRouterChatGenerator(
-            model="openai/gpt-5-mini", generation_kwargs={"response_format": calendar_event_model, "max_tokens": 1000}
+            model="openai/gpt-5-mini", generation_kwargs={"response_format": CalendarEvent, "max_tokens": 1000}
         )
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
@@ -1043,11 +945,11 @@ class TestReasoningSupport:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            created=1750162525,
             usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
         )
 
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        result = OpenRouterChatGenerator()._convert_chat_completion_to_chat_message(completion, completion.choices[0])
         assert result.text is None
         assert result.reasoning is not None
         assert result.reasoning.reasoning_text == "I need to check the weather."
@@ -1074,11 +976,11 @@ class TestReasoningSupport:
                     ),
                 )
             ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            created=1750162525,
             usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
         )
 
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        result = OpenRouterChatGenerator()._convert_chat_completion_to_chat_message(completion, completion.choices[0])
         assert result.text == "The answer is 42."
         assert result.reasoning is not None
         assert result.reasoning.reasoning_text == "Let me think about this..."
@@ -1101,88 +1003,13 @@ class TestReasoningSupport:
                     message=ChatCompletionMessage(content="Hello!", role="assistant"),
                 )
             ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            created=1750162525,
             usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
 
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        result = OpenRouterChatGenerator()._convert_chat_completion_to_chat_message(completion, completion.choices[0])
         assert result.text == "Hello!"
         assert result.reasoning is None
-
-    def test_run_with_reasoning(self, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-
-        with patch("openai.resources.chat.completions.Completions.create") as mock_create:
-            completion = ChatCompletion(
-                id="test-run-reasoning",
-                model="deepseek/deepseek-r1",
-                object="chat.completion",
-                choices=[
-                    Choice(
-                        finish_reason="stop",
-                        logprobs=None,
-                        index=0,
-                        message=ChatCompletionMessage(
-                            content="Paris is the capital of France.",
-                            role="assistant",
-                            reasoning="The user asked about capitals. France's capital is Paris.",
-                            reasoning_details=[
-                                {
-                                    "type": "reasoning.text",
-                                    "text": "The user asked about capitals. France's capital is Paris.",
-                                }
-                            ],
-                        ),
-                    )
-                ],
-                created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-                usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
-            )
-            mock_create.return_value = completion
-
-            component = OpenRouterChatGenerator(
-                model="deepseek/deepseek-r1",
-                generation_kwargs={"reasoning": {"effort": "high"}},
-            )
-            response = component.run([ChatMessage.from_user("What's the capital of France?")])
-
-            assert len(response["replies"]) == 1
-            reply = response["replies"][0]
-            assert reply.text == "Paris is the capital of France."
-            assert reply.reasoning is not None
-            assert "capitals" in reply.reasoning.reasoning_text
-            assert reply.reasoning.extra["reasoning_details"][0]["type"] == "reasoning.text"
-
-    def test_run_with_string_input(self, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-
-        with patch("openai.resources.chat.completions.Completions.create") as mock_create:
-            completion = ChatCompletion(
-                id="test-string-input",
-                model="openai/gpt-5-mini",
-                object="chat.completion",
-                choices=[
-                    Choice(
-                        finish_reason="stop",
-                        logprobs=None,
-                        index=0,
-                        message=ChatCompletionMessage(content="Paris.", role="assistant"),
-                    )
-                ],
-                created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-            )
-            mock_create.return_value = completion
-
-            component = OpenRouterChatGenerator()
-            response = component.run("What's the capital of France?")
-
-            # the backend should receive exactly one user message
-            _, kwargs = mock_create.call_args
-            assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
-
-            assert len(response["replies"]) == 1
-            assert response["replies"][0].text == "Paris."
 
     def test_handle_stream_response_with_reasoning(self):
         # mirrors OpenRouter's stream shape: `role` on every chunk, reasoning in both `reasoning` and
@@ -1402,68 +1229,3 @@ class TestReasoningSupport:
         assert formatted[1]["reasoning_details"] == [{"type": "reasoning.text", "text": "Step by step analysis..."}]
         assert "reasoning_details" not in formatted[0]
         assert "reasoning_details" not in formatted[2]
-
-    def test_run_empty_messages(self, monkeypatch):
-        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        component = OpenRouterChatGenerator()
-        response = component.run([])
-        assert response == {"replies": []}
-
-    def test_convert_completion_with_logprobs(self):
-        completion = ChatCompletion(
-            id="test-logprobs",
-            model="openai/gpt-5-mini",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs={
-                        "content": [
-                            {"token": "Hello", "logprob": -0.5, "top_logprobs": [], "bytes": [72, 101, 108, 108, 111]}
-                        ]
-                    },
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
-        )
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
-        assert result.text == "Hello!"
-        assert "logprobs" in result.meta
-
-    def test_convert_completion_malformed_tool_call_json(self):
-        completion = ChatCompletion(
-            id="test-bad-json",
-            model="openai/gpt-5-mini",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="tool_calls",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(
-                        content=None,
-                        role="assistant",
-                        tool_calls=[
-                            {
-                                "id": "call_bad",
-                                "type": "function",
-                                "function": {"name": "weather", "arguments": "{invalid json}"},
-                            },
-                            {
-                                "id": "call_good",
-                                "type": "function",
-                                "function": {"name": "weather", "arguments": '{"city": "Paris"}'},
-                            },
-                        ],
-                    ),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
-        )
-        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
-        assert len(result.tool_calls) == 1
-        assert result.tool_calls[0].id == "call_good"

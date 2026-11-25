@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/faiss-v3.0.1] - 2026-11-09
+
+### 🐛 Bug Fixes
+
+- *(faiss)* Don't leave orphaned vectors when a batch repeats a document ID (#4180)
+
+
 ## [integrations/faiss-v3.0.0] - 2026-10-16
 
 ### 🧪 Testing

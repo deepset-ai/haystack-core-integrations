@@ -1,6 +1,7 @@
 loaders:
   - modules:
       - haystack_integrations.components.retrievers.opensearch.bm25_retriever
+      - haystack_integrations.components.retrievers.opensearch.multivector_retriever
       - haystack_integrations.components.retrievers.opensearch.embedding_retriever
       - haystack_integrations.components.retrievers.opensearch.metadata_retriever
       - haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever

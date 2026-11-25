@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/valkey-v1.1.0] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- Valkey - list every document in filter_documents without a KNN query (#4260)
+
+
 ## [integrations/valkey-v1.0.0] - 2026-10-16
 
 ### 🧹 Chores

@@ -49,7 +49,6 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
     Separates filters into ids, metadata filters, and content filters to be passed to chroma as ids, where,
     and where_document clauses respectively.
     """
-
     # Chroma applies `where` and `where_document` together, so a top-level AND that mixes content and
     # metadata conditions is split into the two clauses, whatever the order of the conditions.
     if filters.get("operator") == "AND" and isinstance(filters.get("conditions"), list):
@@ -79,8 +78,8 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
         where_document.update(_create_where_document_filter(field, value))
         if where_document:
             continue
-        # if field is "id", it'll be passed to Chroma's ids filter
-        elif field == "id":
+        # Only the unprefixed id field targets Chroma document IDs.
+        elif field == "id" and filters.get("field") == "id":
             if "$eq" not in value or not value["$eq"]:
                 msg = f"id filter only supports '==' operator, got {value}"
                 raise ChromaDocumentStoreFilterError(msg)

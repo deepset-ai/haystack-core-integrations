@@ -1,5 +1,38 @@
 # Changelog
 
+## [integrations/google_genai-v8.0.0] - 2026-11-25
+
+### 🧹 Chores
+
+- [**breaking**] Google GenAI - attempts = max_retries + 1 (#4326)
+
+
+## [integrations/google_genai-v7.2.2] - 2026-11-17
+
+### 🐛 Bug Fixes
+
+- Google GenAI - respect an empty runtime tools list (#4246)
+- Google GenAI - respect an empty runtime safety_settings list (#4274)
+
+### 🧪 Testing
+
+- Google GenAI - use gemini-3.8-flash instead of gemini-3-flash-preview in tests (#4229)
+
+
+## [integrations/google_genai-v7.2.1] - 2026-11-06
+
+### 🐛 Bug Fixes
+
+- Keep parallel Gemini tool calls when replaying thought signatures (#4167)
+
+
+## [integrations/google_genai-v7.2.0] - 2026-11-06
+
+### 🚀 Features
+
+- *(google_genai)* Add `GoogleGenAIInteractionsChatGenerator` for the Gemini Interactions API (#4199)
+
+
 ## [integrations/google_genai-v7.1.0] - 2026-11-02
 
 ### 🐛 Bug Fixes

@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
+from httpx import Timeout
 from ibm_watsonx_ai.wml_client_error import ApiRequestFailure
 
 from haystack_integrations.components.embedders.watsonx.text_embedder import WatsonxTextEmbedder
@@ -103,6 +104,7 @@ class TestComponentLifecycle:
     def test_warm_up_is_idempotent(self):
         with (
             patch("haystack_integrations.components.embedders.watsonx.text_embedder.Credentials") as credentials,
+            patch("haystack_integrations.components.embedders.watsonx.text_embedder.APIClient") as api_client,
             patch("haystack_integrations.components.embedders.watsonx.text_embedder.Embeddings") as embeddings,
         ):
             embedder = WatsonxTextEmbedder(
@@ -111,6 +113,7 @@ class TestComponentLifecycle:
                 api_base_url="https://custom-url.ibm.com",
                 project_id=Secret.from_token("fake-project-id"),
                 truncate_input_tokens=128,
+                timeout=2.0,
                 max_retries=5,
             )
             embedder.warm_up()
@@ -118,9 +121,14 @@ class TestComponentLifecycle:
             embedder.warm_up()
 
         credentials.assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com")
+        api_client.assert_called_once()
+        kwargs = api_client.call_args.kwargs
+        assert kwargs["credentials"] is credentials.return_value
+        assert kwargs["httpx_client"].timeout == Timeout(2.0)
+        assert kwargs["async_httpx_client"].timeout == Timeout(2.0)
         embeddings.assert_called_once_with(
             model_id="ibm/slate-125m-english-rtrvr",
-            credentials=credentials.return_value,
+            api_client=api_client.return_value,
             project_id="fake-project-id",
             params={"truncate_input_tokens": 128},
             max_retries=5,
@@ -185,7 +193,7 @@ class TestIntegration:
         with pytest.raises(ApiRequestFailure) as exc_info:
             embedder.run(very_long_text)
 
-        assert "Please reduce the length of the input." in str(exc_info.value)
+        assert "Please reduce the length of the input" in str(exc_info.value)
         assert "512" in str(exc_info.value)
 
     def test_text_truncation(self):

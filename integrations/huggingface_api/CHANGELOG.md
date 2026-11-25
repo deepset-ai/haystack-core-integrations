@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/huggingface_api-v3.1.2] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- Preserve empty tool call arguments in HuggingFaceAPIChatGenerator (#4297)
+
 ## [integrations/huggingface_api-v3.1.0] - 2026-10-20
 
 ### 🚀 Features

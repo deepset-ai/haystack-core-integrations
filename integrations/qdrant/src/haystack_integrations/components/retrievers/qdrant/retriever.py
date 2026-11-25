@@ -1,17 +1,20 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
-from haystack.document_stores.types.filter_policy import apply_filter_policy
 from qdrant_client.http import models
 
-from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-
-FILTER_POLICY_MERGE_ERROR_MESSAGE = (
-    "Native Qdrant filters cannot be used with filter_policy set to MERGE. "
-    "Set filter_policy to REPLACE or use Haystack filters instead."
+from haystack_integrations.components.retrievers.qdrant.utils import (
+    _deserialize_filters,
+    _resolve_filters,
+    _serialize_filters,
 )
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 @component
@@ -99,7 +102,7 @@ class QdrantEmbeddingRetriever:
         d = default_to_dict(
             self,
             document_store=self._document_store,
-            filters=self._filters,
+            filters=_serialize_filters(self._filters),
             top_k=self._top_k,
             filter_policy=self._filter_policy.value,
             scale_score=self._scale_score,
@@ -128,6 +131,7 @@ class QdrantEmbeddingRetriever:
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+        data["init_parameters"]["filters"] = _deserialize_filters(data["init_parameters"].get("filters"))
         return default_from_dict(cls, data)
 
     def close(self) -> None:
@@ -172,16 +176,8 @@ class QdrantEmbeddingRetriever:
 
         :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        if self._filter_policy == FilterPolicy.MERGE and (
-            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
-        ):
-            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
-
-        # Replacing filters works with native Qdrant filters even if the type is wrong
-        filters = apply_filter_policy(
-            filter_policy=self._filter_policy,
-            init_filters=self._filters,  # type: ignore[arg-type]
-            runtime_filters=filters,  # type: ignore[arg-type]
+        filters = _resolve_filters(
+            filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
         docs = self._document_store._query_by_embedding(
@@ -227,16 +223,8 @@ class QdrantEmbeddingRetriever:
 
         :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        if self._filter_policy == FilterPolicy.MERGE and (
-            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
-        ):
-            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
-
-        # Replacing filters works with native Qdrant filters even if the type is wrong
-        filters = apply_filter_policy(
-            filter_policy=self._filter_policy,
-            init_filters=self._filters,  # type: ignore[arg-type]
-            runtime_filters=filters,  # type: ignore[arg-type]
+        filters = _resolve_filters(
+            filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
         docs = await self._document_store._query_by_embedding_async(
@@ -339,7 +327,7 @@ class QdrantSparseEmbeddingRetriever:
         d = default_to_dict(
             self,
             document_store=self._document_store,
-            filters=self._filters,
+            filters=_serialize_filters(self._filters),
             top_k=self._top_k,
             scale_score=self._scale_score,
             filter_policy=self._filter_policy.value,
@@ -368,6 +356,7 @@ class QdrantSparseEmbeddingRetriever:
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+        data["init_parameters"]["filters"] = _deserialize_filters(data["init_parameters"].get("filters"))
         return default_from_dict(cls, data)
 
     def close(self) -> None:
@@ -417,16 +406,8 @@ class QdrantSparseEmbeddingRetriever:
 
         :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        if self._filter_policy == FilterPolicy.MERGE and (
-            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
-        ):
-            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
-
-        # Replacing filters works with native Qdrant filters even if the type is wrong
-        filters = apply_filter_policy(
-            filter_policy=self._filter_policy,
-            init_filters=self._filters,  # type: ignore[arg-type]
-            runtime_filters=filters,  # type: ignore[arg-type]
+        filters = _resolve_filters(
+            filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
         docs = self._document_store._query_by_sparse(
@@ -477,16 +458,8 @@ class QdrantSparseEmbeddingRetriever:
 
         :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        if self._filter_policy == FilterPolicy.MERGE and (
-            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
-        ):
-            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
-
-        # Replacing filters works with native Qdrant filters even if the type is wrong
-        filters = apply_filter_policy(
-            filter_policy=self._filter_policy,
-            init_filters=self._filters,  # type: ignore[arg-type]
-            runtime_filters=filters,  # type: ignore[arg-type]
+        filters = _resolve_filters(
+            filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
         docs = await self._document_store._query_by_sparse_async(
@@ -549,6 +522,7 @@ class QdrantHybridRetriever:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> None:
         """
         Create a QdrantHybridRetriever component.
@@ -573,6 +547,8 @@ class QdrantHybridRetriever:
         :param rrf_weights: Per-prefetch weights for RRF fusion — `[sparse_weight, dense_weight]`.
             See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Maximum number of candidates that each prefetch (sparse and dense) passes to RRF fusion.
+            If `None`, defaults to `2 * top_k`. With `group_by`, `None` leaves the limit to Qdrant.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
@@ -593,6 +569,7 @@ class QdrantHybridRetriever:
         self._group_size = group_size
         self._rrf_k = rrf_k
         self._rrf_weights = rrf_weights
+        self._prefetch_limit = prefetch_limit
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -604,7 +581,7 @@ class QdrantHybridRetriever:
         return default_to_dict(
             self,
             document_store=self._document_store.to_dict(),
-            filters=self._filters,
+            filters=_serialize_filters(self._filters),
             top_k=self._top_k,
             filter_policy=self._filter_policy.value,
             return_embedding=self._return_embedding,
@@ -613,6 +590,7 @@ class QdrantHybridRetriever:
             group_size=self._group_size,
             rrf_k=self._rrf_k,
             rrf_weights=self._rrf_weights,
+            prefetch_limit=self._prefetch_limit,
         )
 
     @classmethod
@@ -631,6 +609,7 @@ class QdrantHybridRetriever:
         # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
+        data["init_parameters"]["filters"] = _deserialize_filters(data["init_parameters"].get("filters"))
         return default_from_dict(cls, data)
 
     def close(self) -> None:
@@ -658,6 +637,7 @@ class QdrantHybridRetriever:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the Hybrid Retriever on the given input data.
@@ -684,21 +664,14 @@ class QdrantHybridRetriever:
         :param rrf_weights: Override the init-time `rrf_weights` for this run.
             See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Override the init-time `prefetch_limit` for this run.
         :returns:
             The retrieved documents.
 
         :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        if self._filter_policy == FilterPolicy.MERGE and (
-            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
-        ):
-            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
-
-        # Replacing filters works with native Qdrant filters even if the type is wrong
-        filters = apply_filter_policy(
-            filter_policy=self._filter_policy,
-            init_filters=self._filters,  # type: ignore[arg-type]
-            runtime_filters=filters,  # type: ignore[arg-type]
+        filters = _resolve_filters(
+            filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
         docs = self._document_store._query_hybrid(
@@ -712,6 +685,7 @@ class QdrantHybridRetriever:
             group_size=group_size or self._group_size,
             rrf_k=rrf_k if rrf_k is not None else self._rrf_k,
             rrf_weights=rrf_weights if rrf_weights is not None else self._rrf_weights,
+            prefetch_limit=prefetch_limit if prefetch_limit is not None else self._prefetch_limit,
         )
 
         return {"documents": docs}
@@ -729,6 +703,7 @@ class QdrantHybridRetriever:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously run the Hybrid Retriever on the given input data.
@@ -755,21 +730,14 @@ class QdrantHybridRetriever:
         :param rrf_weights: Override the init-time `rrf_weights` for this run.
             See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Override the init-time `prefetch_limit` for this run.
         :returns:
             The retrieved documents.
 
         :raises ValueError: If 'filter_policy' is set to 'MERGE' and 'filters' is a native Qdrant filter.
         """
-        if self._filter_policy == FilterPolicy.MERGE and (
-            isinstance(self._filters, models.Filter) or isinstance(filters, models.Filter)
-        ):
-            raise ValueError(FILTER_POLICY_MERGE_ERROR_MESSAGE)
-
-        # Replacing filters works with native Qdrant filters even if the type is wrong
-        filters = apply_filter_policy(
-            filter_policy=self._filter_policy,
-            init_filters=self._filters,  # type: ignore[arg-type]
-            runtime_filters=filters,  # type: ignore[arg-type]
+        filters = _resolve_filters(
+            filter_policy=self._filter_policy, init_filters=self._filters, runtime_filters=filters
         )
 
         docs = await self._document_store._query_hybrid_async(
@@ -783,6 +751,7 @@ class QdrantHybridRetriever:
             group_size=group_size or self._group_size,
             rrf_k=rrf_k if rrf_k is not None else self._rrf_k,
             rrf_weights=rrf_weights if rrf_weights is not None else self._rrf_weights,
+            prefetch_limit=prefetch_limit if prefetch_limit is not None else self._prefetch_limit,
         )
 
         return {"documents": docs}

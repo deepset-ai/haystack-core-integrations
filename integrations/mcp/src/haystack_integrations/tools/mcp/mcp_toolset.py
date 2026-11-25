@@ -178,6 +178,20 @@ class MCPToolset(Toolset):
     )
     ```
 
+    Example overriding the descriptions the server gives its tools:
+    ```python
+    from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
+
+    # Tools listed in tool_descriptions get the given description; the others keep the server's
+    toolset = MCPToolset(
+        server_info=StdioServerInfo(command="uvx", args=["mcp-server-git"]),
+        tool_names=["git_status", "git_diff", "git_log"],
+        tool_descriptions={
+            "git_diff": "Show unstaged changes. Call this before git_log when reviewing local work.",
+        },
+    )
+    ```
+
     Example using SSE (deprecated):
     ```python
     from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
@@ -202,6 +216,7 @@ class MCPToolset(Toolset):
         inputs_from_state: dict[str, dict[str, str]] | None = None,
         outputs_to_state: dict[str, dict[str, dict[str, Any]]] | None = None,
         outputs_to_string: dict[str, dict[str, Any]] | None = None,
+        tool_descriptions: dict[str, str] | None = None,
     ) -> None:
         """
         Initialize the MCP toolset.
@@ -230,6 +245,11 @@ class MCPToolset(Toolset):
                                  Tool names should match available tools from the server; a warning is logged for
                                  unknown tools.
                                  Example: `{"git_diff": {"source": "diff", "handler": format_diff}}`
+        :param tool_descriptions: Optional dictionary mapping tool names to the description to use instead of
+                                 the one the server provides. Tools not in the mapping keep the server's description.
+                                 Tool names should match available tools from the server; a warning is logged for
+                                 unknown tools.
+                                 Example: `{"git_diff": "Show unstaged changes in the repository."}`
         :raises MCPToolNotFoundError: If any of the specified tool names are not found on the server
         :raises ValueError: If parameter names in inputs_from_state are invalid (Haystack >= 2.22.0 only)
         """
@@ -242,6 +262,7 @@ class MCPToolset(Toolset):
         self.inputs_from_state = inputs_from_state or {}
         self.outputs_to_state = outputs_to_state or {}
         self.outputs_to_string = outputs_to_string or {}
+        self.tool_descriptions = tool_descriptions or {}
         self._warmup_called = False
         self._worker: _MCPClientSessionManager | None = None
 
@@ -349,7 +370,7 @@ class MCPToolset(Toolset):
                 tool_outputs_to_state = self.outputs_to_state.get(tool_info.name)
                 tool = Tool(
                     name=tool_info.name,
-                    description=tool_info.description or "",
+                    description=self.tool_descriptions.get(tool_info.name) or tool_info.description or "",
                     parameters=mcp_field_value(model=tool_info, name="input_schema"),
                     function=create_invoke_tool(
                         self, client, tool_info.name, self.invocation_timeout, tool_outputs_to_state
@@ -360,7 +381,7 @@ class MCPToolset(Toolset):
                 )
                 haystack_tools.append(tool)
 
-            # Validate state configs reference known tools
+            # Validate per-tool configs reference known tools
             self._validate_state_configs({tool.name for tool in haystack_tools})
 
             return haystack_tools
@@ -429,9 +450,9 @@ class MCPToolset(Toolset):
 
     def _validate_state_configs(self, available_tool_names: set[str]) -> None:
         """
-        Validate that state configuration tool names exist in the toolset.
+        Validate that tool names in the per-tool configs exist in the toolset.
 
-        Logs a warning for any tool names in the state configs that don't match
+        Logs a warning for any tool names in the per-tool configs that don't match
         available tools in the toolset.
 
         :param available_tool_names: Set of tool names that are available in the toolset
@@ -440,6 +461,7 @@ class MCPToolset(Toolset):
             ("inputs_from_state", self.inputs_from_state),
             ("outputs_to_state", self.outputs_to_state),
             ("outputs_to_string", self.outputs_to_string),
+            ("tool_descriptions", self.tool_descriptions),
         ]
         for config_name, config in configs:
             if config:
@@ -469,6 +491,7 @@ class MCPToolset(Toolset):
                 "inputs_from_state": self.inputs_from_state if self.inputs_from_state else None,
                 "outputs_to_state": _serialize_outputs_to_state(self.outputs_to_state),
                 "outputs_to_string": _serialize_outputs_to_string(self.outputs_to_string),
+                "tool_descriptions": self.tool_descriptions if self.tool_descriptions else None,
             },
         }
 
@@ -502,6 +525,7 @@ class MCPToolset(Toolset):
             inputs_from_state=inputs_from_state if inputs_from_state else None,
             outputs_to_state=outputs_to_state if outputs_to_state else None,
             outputs_to_string=outputs_to_string if outputs_to_string else None,
+            tool_descriptions=inner_data.get("tool_descriptions"),
         )
 
     def close(self) -> None:

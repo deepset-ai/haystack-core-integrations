@@ -2,6 +2,8 @@ loaders:
   - modules:
       - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_text_embedder
       - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_document_embedder
+      - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_multivector_text_embedder
+      - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_multivector_document_embedder
       - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_sparse_text_embedder
       - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_sparse_document_embedder
       - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_doc_image_embedder

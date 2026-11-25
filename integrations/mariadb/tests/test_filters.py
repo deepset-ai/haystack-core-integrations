@@ -163,6 +163,17 @@ class TestFilterConversion:
                 "must not be empty",
             ),
             ({"field": "meta.bad; DROP TABLE t", "operator": "==", "value": 1}, "Invalid meta field name"),
+            ({"field": "meta.author\n", "operator": "==", "value": 1}, "Invalid meta field name"),
+            ({"field": "id` OR 1=1 --", "operator": "==", "value": 1}, "Invalid document field name"),
+            (
+                {"field": "content`; DROP TABLE documents; --", "operator": "==", "value": 1},
+                "Invalid document field name",
+            ),
+            (
+                {"field": "id` UNION SELECT * FROM information_schema.tables --", "operator": "==", "value": 1},
+                "Invalid document field name",
+            ),
+            ({"field": "id\n", "operator": "==", "value": 1}, "Invalid document field name"),
             ({"field": "meta.x", "operator": "in", "value": "not-a-list"}, None),
             ({"field": "meta.x", "operator": "like", "value": 5}, None),
             ({"field": "meta.x", "operator": "not like", "value": 5}, None),

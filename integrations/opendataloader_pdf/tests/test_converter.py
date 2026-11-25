@@ -1,15 +1,25 @@
+# SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import json
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
 
 import pytest
+from haystack.components.preprocessors import DocumentSplitter
 from haystack.dataclasses import ByteStream
 
 import haystack_integrations.components.converters.opendataloader_pdf.converter as converter_module
 from haystack_integrations.components.converters.opendataloader_pdf import (
     OpenDataLoaderConverter,
 )
+
+_SAMPLE_JSON = json.loads((Path(__file__).parent / "test_files" / "sample.json").read_text(encoding="utf-8"))
+# OpenDataLoader puts the page separator before every page, including the first
+_SAMPLE_MARKDOWN = "\f# Report\n\nPage one content\f## Results\n\nPage two content"
 
 
 @pytest.fixture
@@ -39,21 +49,27 @@ def _mock_opendataloader(monkeypatch):
             }
         )
         output_dir = Path(output_dir)
-        extension = {
-            "markdown": "md",
-            "text": "txt",
-            "html": "html",
-            "json": "json",
-        }[kwargs["format"]]
+        formats = kwargs["format"]
+        if isinstance(formats, str):
+            formats = [formats]
 
         for pdf in input_path:
             pdf_path = Path(pdf)
-            output_file = output_dir / f"{pdf_path.stem}.{extension}"
-
-            output_file.write_text(
-                "This is extracted PDF content",
-                encoding="utf-8",
-            )
+            for output_format in formats:
+                extension = {
+                    "markdown": "md",
+                    "text": "txt",
+                    "html": "html",
+                    "json": "json",
+                }[output_format]
+                if output_format == "json":
+                    text = json.dumps(_SAMPLE_JSON)
+                elif output_format == "markdown" and "json" in formats:
+                    text = _SAMPLE_MARKDOWN
+                else:
+                    text = "This is extracted PDF content"
+                output_file = output_dir / f"{pdf_path.stem}.{extension}"
+                output_file.write_text(text, encoding="utf-8")
 
             if kwargs["image_output"] == "external":
                 image_dir = Path(kwargs["image_dir"])
@@ -429,6 +445,156 @@ def test_converter_empty_sources_returns_both_outputs_without_conversion(tmp_pat
     assert not (tmp_path / "images").exists()
 
 
+def test_converter_bisects_failed_batches_and_cleans_partial_outputs(
+    tmp_path, _mock_opendataloader, monkeypatch, caplog
+):
+    files = [tmp_path / name for name in ("good.pdf", "bad.pdf", "another.pdf", "fourth.pdf", "fifth.pdf")]
+    for pdf in files:
+        pdf.write_bytes(b"%PDF fake pdf")
+    convert = converter_module.opendataloader_pdf.convert
+    calls = []
+
+    def failing_convert(input_path, output_dir, **kwargs):
+        calls.append([Path(path).stem for path in input_path])
+        assert kwargs["format"] == "text"
+        assert kwargs["language"] == "en"
+        convert(input_path, output_dir, **kwargs)
+        if "document_1" in calls[-1]:
+            (Path(kwargs["image_dir"]) / "partial.png").write_bytes(b"partial")
+            message = "corrupt PDF"
+            raise RuntimeError(message)
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", failing_convert)
+    converter = OpenDataLoaderConverter(
+        skip_failed_pdfs=True,
+        extract_images=True,
+        image_output_dir=tmp_path / "images",
+        output_format="text",
+        convert_kwargs={"language": "en"},
+    )
+    result = converter.run(sources=files, meta=[{"index": index} for index in range(len(files))])
+
+    assert calls == [
+        ["document_0", "document_1", "document_2", "document_3", "document_4"],
+        ["document_0", "document_1"],
+        ["document_0"],
+        ["document_1"],
+        ["document_2", "document_3", "document_4"],
+    ]
+    assert [document.meta["file_path"] for document in result["documents"]] == [
+        "good.pdf",
+        "another.pdf",
+        "fourth.pdf",
+        "fifth.pdf",
+    ]
+    assert [document.meta["index"] for document in result["documents"]] == [0, 2, 3, 4]
+    assert all(document.meta["output_format"] == "text" for document in result["documents"])
+    image_paths = [Path(document.meta["file_path"]) for document in result["image_documents"]]
+    assert len(image_paths) == 4
+    assert {path.name for path in image_paths} == {f"document_{index}_image_1.png" for index in (0, 2, 3, 4)}
+    assert set((tmp_path / "images").rglob("*.png")) == set(image_paths)
+    assert all(path.read_bytes() == b"fake image" for path in image_paths)
+    assert "Skipping PDF bad.pdf" in caplog.text
+    assert "splitting into smaller batches" in caplog.text
+
+
+def test_converter_default_propagates_batch_failure(tmp_path, _mock_opendataloader, monkeypatch):
+    pdf_file = tmp_path / "bad.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    calls = []
+
+    def fail_convert(*, input_path, **_kwargs):
+        calls.append(input_path)
+        message = "corrupt PDF"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", fail_convert)
+    with pytest.raises(RuntimeError, match="corrupt PDF"):
+        OpenDataLoaderConverter().run(sources=[pdf_file])
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("count", "bad_indices", "expected_calls"),
+    [(8, (), 1), (1024, (513,), 21), (5, (1, 3), 9), (4, (0, 1, 2, 3), 7), (1, (0,), 1)],
+)
+def test_converter_bisection_call_count(count, bad_indices, expected_calls, _mock_opendataloader, monkeypatch, caplog):
+    convert = converter_module.opendataloader_pdf.convert
+    calls = []
+    sources = [
+        ByteStream(data=b"%PDF fake pdf", meta={"file_path": f"upload/{index}.pdf", "index": index})
+        for index in range(count)
+    ]
+
+    def failing_convert(input_path, output_dir, **kwargs):
+        calls.append(input_path)
+        if any(Path(path).stem == f"document_{index}" for path in input_path for index in bad_indices):
+            message = "corrupt PDF"
+            raise subprocess.CalledProcessError(returncode=1, cmd=["java"], stderr=message)
+        convert(input_path, output_dir, **kwargs)
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", failing_convert)
+    result = OpenDataLoaderConverter(skip_failed_pdfs=True).run(sources=sources, meta={"category": "test"})
+
+    assert len(calls) == expected_calls
+    assert [document.meta for document in result["documents"]] == [
+        {"file_path": f"upload/{index}.pdf", "index": index, "category": "test", "output_format": "markdown"}
+        for index in range(count)
+        if index not in bad_indices
+    ]
+    assert all(document.content == "This is extracted PDF content" for document in result["documents"])
+    assert result["image_documents"] == []
+    for index in bad_indices:
+        assert f"Skipping PDF upload/{index}.pdf" in caplog.text
+
+
+@pytest.mark.parametrize("count", [1, 4])
+def test_converter_all_failed_batches_leave_no_images(count, tmp_path, _mock_opendataloader, monkeypatch):
+    convert = converter_module.opendataloader_pdf.convert
+
+    def fail_after_writing_output(input_path, output_dir, **kwargs):
+        convert(input_path, output_dir, **kwargs)
+        message = "corrupt PDF"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", fail_after_writing_output)
+    image_output_dir = tmp_path / "images"
+    converter = OpenDataLoaderConverter(skip_failed_pdfs=True, extract_images=True, image_output_dir=image_output_dir)
+    result = converter.run(sources=[ByteStream(data=b"%PDF fake pdf") for _ in range(count)])
+
+    assert result == {"documents": [], "image_documents": []}
+    assert not list(image_output_dir.rglob("*.png"))
+
+
+@pytest.mark.parametrize("raw_json", [False, True])
+@pytest.mark.parametrize("missing_output", [False, True])
+def test_converter_json_retries_preserve_content_and_metadata(
+    raw_json, missing_output, _mock_opendataloader, monkeypatch
+):
+    converter = OpenDataLoaderConverter(
+        output_format="json", raw_json=raw_json, include_layout=True, skip_failed_pdfs=True
+    )
+    good = ByteStream(data=b"%PDF good", meta={"file_path": "good.pdf"})
+    bad = ByteStream(data=b"%PDF bad", meta={"file_path": "bad.pdf"})
+    expected = converter.run(sources=[good], meta={"title": "User Title"})
+    convert = converter_module.opendataloader_pdf.convert
+
+    def failing_convert(input_path, output_dir, **kwargs):
+        convert(input_path, output_dir, **kwargs)
+        for pdf in input_path:
+            if Path(pdf).read_bytes() == bad.data:
+                if missing_output:
+                    extension = "json" if raw_json else "md"
+                    (Path(output_dir) / f"{Path(pdf).stem}.{extension}").unlink()
+                else:
+                    raise subprocess.CalledProcessError(returncode=1, cmd=["java"])
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", failing_convert)
+
+    assert converter.run(sources=[good, bad], meta={"title": "User Title"}) == expected
+    assert len(_mock_opendataloader) == 4  # baseline, failed batch, and two halves
+
+
 def test_converter_serialization(tmp_path):
     image_output_dir = tmp_path / "images"
     converter = OpenDataLoaderConverter(
@@ -436,15 +602,141 @@ def test_converter_serialization(tmp_path):
         convert_kwargs={"hybrid": "docling-fast"},
         extract_images=True,
         image_output_dir=image_output_dir,
+        raw_json=True,
+        include_layout=True,
+        skip_failed_pdfs=True,
     )
     data = converter.to_dict()
     restored = OpenDataLoaderConverter.from_dict(data)
 
     assert data["init_parameters"]["image_output_dir"] == str(image_output_dir)
+    assert data["init_parameters"]["raw_json"] is True
+    assert data["init_parameters"]["include_layout"] is True
     assert restored.output_format == "text"
     assert restored.convert_kwargs["hybrid"] == "docling-fast"
     assert restored.extract_images is True
     assert restored.image_output_dir == image_output_dir
+    assert restored.skip_failed_pdfs is True
+    assert restored.raw_json is True
+    assert restored.include_layout is True
+
+    # pipelines serialized before these parameters existed
+    data["init_parameters"].pop("raw_json")
+    data["init_parameters"].pop("include_layout")
+    restored = OpenDataLoaderConverter.from_dict(data)
+    assert restored.raw_json is False
+    assert restored.include_layout is False
+
+
+def test_converter_json_puts_markdown_in_content(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json")
+
+    result = converter.run(sources=[pdf_file], meta={"title": "User Title"})
+    call = _mock_opendataloader[0]
+    document = result["documents"][0]
+
+    assert call["format"] == ["json", "markdown"]
+    assert call["markdown_page_separator"] == "\f"
+    assert document.content == _SAMPLE_MARKDOWN.removeprefix("\f")
+    assert document.meta == {
+        "file_path": "document.pdf",
+        "output_format": "json",
+        "title": "User Title",
+        "creation_date": "2024-01-01T09:30:00+00:00",
+        "modification_date": "2024-06-01T12:00:00+02:00",
+        "page_count": 2,
+    }
+
+
+def test_converter_json_separates_pages_with_form_feed(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    document = OpenDataLoaderConverter(output_format="json").run(sources=[pdf_file])["documents"][0]
+
+    # one segment per page, with no empty leading one, so page-based splitting starts at page 1
+    assert document.content.split("\f") == ["# Report\n\nPage one content", "## Results\n\nPage two content"]
+
+
+def test_converter_json_keeps_custom_page_separator(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json", convert_kwargs={"markdown_page_separator": "---"})
+
+    document = converter.run(sources=[pdf_file])["documents"][0]
+
+    assert _mock_opendataloader[0]["markdown_page_separator"] == "---"
+    # content is left as produced; the mock ignores the separator option
+    assert document.content == _SAMPLE_MARKDOWN
+
+
+def test_converter_json_include_layout(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json", include_layout=True)
+
+    document = converter.run(sources=[pdf_file])["documents"][0]
+
+    # reading order, including list items, table cells, and their nested content; rows have no position
+    assert document.meta["layout"] == [
+        {"type": "heading", "page_number": 1, "bounding_box": [72, 700, 510, 740], "heading_level": 1},
+        {"type": "list", "page_number": 1, "bounding_box": [72, 500, 510, 680]},
+        {"type": "list item", "page_number": 1, "bounding_box": [72, 600, 510, 680]},
+        {"type": "paragraph", "page_number": 1, "bounding_box": [90, 600, 510, 640]},
+        {"type": "image", "page_number": 1, "bounding_box": [72, 400, 200, 500]},
+        {"type": "table", "page_number": 2, "bounding_box": [72, 300, 510, 600]},
+        {"type": "table cell", "page_number": 2, "bounding_box": [72, 500, 290, 600]},
+        {"type": "paragraph", "page_number": 2, "bounding_box": [80, 520, 280, 580]},
+        {"type": "heading", "page_number": 2, "bounding_box": [72, 200, 510, 240], "heading_level": 2},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("pdf_date", "expected"),
+    [
+        ("D:20160319061844Z00'00'", "2016-03-19T06:18:44+00:00"),
+        ("D:20160319061844Z", "2016-03-19T06:18:44+00:00"),
+        ("D:20240601120000+02'00'", "2024-06-01T12:00:00+02:00"),
+        ("D:20240601120000-05'30'", "2024-06-01T12:00:00-05:30"),
+        ("D:20240601120000", "2024-06-01T12:00:00"),
+        ("D:2024", "2024-01-01T00:00:00"),
+        ("20240601", "2024-06-01T00:00:00"),
+        ("not a date", "not a date"),
+        ("D:20241399000000", "D:20241399000000"),
+    ],
+)
+def test_parse_pdf_date(pdf_date, expected):
+    assert OpenDataLoaderConverter._parse_pdf_date(pdf_date) == expected
+
+
+def test_converter_json_raises_when_markdown_is_missing(tmp_path, _mock_opendataloader, monkeypatch):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+
+    def fake_convert_json_only(input_path, output_dir, **_kwargs):
+        for pdf in input_path:
+            (Path(output_dir) / f"{Path(pdf).stem}.json").write_text(json.dumps(_SAMPLE_JSON), encoding="utf-8")
+
+    monkeypatch.setattr(converter_module.opendataloader_pdf, "convert", fake_convert_json_only)
+
+    with pytest.raises(RuntimeError, match=r"did not create expected file: .*\.md"):
+        OpenDataLoaderConverter(output_format="json").run(sources=[pdf_file])
+
+
+def test_converter_raw_json(tmp_path, _mock_opendataloader):
+    pdf_file = tmp_path / "document.pdf"
+    pdf_file.write_bytes(b"%PDF fake pdf")
+    converter = OpenDataLoaderConverter(output_format="json", raw_json=True, include_layout=True)
+
+    result = converter.run(sources=[pdf_file])
+    call = _mock_opendataloader[0]
+    document = result["documents"][0]
+
+    assert call["format"] == "json"
+    assert "markdown_page_separator" not in call
+    assert json.loads(document.content) == _SAMPLE_JSON
+    assert document.meta == {"file_path": "document.pdf", "output_format": "json"}
 
 
 @pytest.mark.integration
@@ -461,6 +753,49 @@ def test_real_pdf_conversion():
     assert document.content
     assert document.meta["file_path"] == "hello_world.pdf"
     assert document.meta["output_format"] == "markdown"
+
+
+@pytest.mark.integration
+def test_real_pdf_json_conversion():
+    pdf_file = Path(__file__).parent / "test_files" / "hello_world.pdf"
+    converter = OpenDataLoaderConverter(output_format="json", include_layout=True)
+    result = converter.run(sources=[pdf_file])
+
+    assert len(result["documents"]) == 1
+    document = result["documents"][0]
+    assert document.content
+    assert not document.content.lstrip().startswith(("{", "\f"))
+    assert document.meta["file_path"] == "hello_world.pdf"
+    assert document.meta["output_format"] == "json"
+    assert document.meta["page_count"] == 3
+    assert {item["page_number"] for item in document.meta["layout"]} == {1, 2, 3}
+
+    chunks = DocumentSplitter(split_by="page", split_length=1).run([document])["documents"]
+    assert [chunk.meta["page_number"] for chunk in chunks] == [1, 2, 3]
+    assert "# Sample PDF" in chunks[0].content
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("extract_images", [False, True])
+def test_real_pdf_conversion_skips_corrupt_pdf(tmp_path, extract_images):
+    good_pdf = Path(__file__).parent / "test_files" / ("pdf_with_image.pdf" if extract_images else "hello_world.pdf")
+    bad_pdf = tmp_path / "corrupt.pdf"
+    bad_pdf.write_bytes(b"not a PDF")
+    converter = OpenDataLoaderConverter(
+        skip_failed_pdfs=True,
+        extract_images=extract_images,
+        image_output_dir=tmp_path / "images" if extract_images else None,
+    )
+
+    result = converter.run(sources=[good_pdf, bad_pdf])
+
+    assert [document.meta["file_path"] for document in result["documents"]] == [good_pdf.name]
+    assert result["documents"][0].content
+    if extract_images:
+        assert result["image_documents"]
+        assert all(Path(document.meta["file_path"]).exists() for document in result["image_documents"])
+    else:
+        assert result["image_documents"] == []
 
 
 @pytest.mark.integration

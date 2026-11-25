@@ -11,6 +11,9 @@ from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 from haystack.utils.misc import _deduplicate_documents
 
+from haystack_integrations.components.embedders.sentence_transformers.embedding_backend.backend import (
+    _resolve_onnx_session_options,
+)
 from sentence_transformers import SentenceTransformer
 
 
@@ -162,6 +165,9 @@ class SentenceTransformersDiversityRanker:
         :param model_kwargs:
             Additional keyword arguments for `AutoModelForSequenceClassification.from_pretrained`
             when loading the model. Refer to specific model documentation for available kwargs.
+            With `backend="onnx"`, a `session_options` dict is turned into an `onnxruntime.SessionOptions` with
+            those attributes set, for example `{"session_options": {"intra_op_num_threads": 1}}` to limit
+            the threads each inference call uses.
         :param tokenizer_kwargs:
             Additional keyword arguments forwarded as `processor_kwargs` to the Sentence Transformers model
             when loading it. Refer to the
@@ -206,7 +212,11 @@ class SentenceTransformersDiversityRanker:
                 model_name_or_path=self.model_name_or_path,
                 device=self.device.to_torch_str(),
                 token=self.token.resolve_value() if self.token else None,
-                model_kwargs=self.model_kwargs,
+                model_kwargs=(
+                    _resolve_onnx_session_options(model_kwargs=self.model_kwargs)
+                    if self.backend == "onnx"
+                    else self.model_kwargs
+                ),
                 # `tokenizer_kwargs` was renamed to `processor_kwargs` in sentence-transformers 5.4.0
                 processor_kwargs=self.tokenizer_kwargs,
                 config_kwargs=self.config_kwargs,

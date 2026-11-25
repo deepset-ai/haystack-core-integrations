@@ -43,7 +43,7 @@ class STACKITChatGenerator(VLLMChatGenerator):
         "Qwen/Qwen3.6-27B",
         "cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic",
         "openai/gpt-oss-120b",
-        "google/gemma-3-27b-it",
+        "google/gemma-4-31B-it",
         "openai/gpt-oss-20b",
     ]
     """A non-exhaustive list of chat models supported by this component.

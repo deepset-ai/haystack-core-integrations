@@ -5,6 +5,7 @@
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import onnxruntime as ort
 import pytest
 import torch
 from haystack import Document
@@ -67,6 +68,26 @@ class TestSentenceTransformersSimilarityRanker:
             config_kwargs=None,
             backend="onnx",
         )
+
+    @patch(
+        "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.CrossEncoder"
+    )
+    def test_from_dict_warm_up_onnx_session_options(self, mocked_cross_encoder):
+        ranker = SentenceTransformersSimilarityRanker.from_dict(
+            {
+                "type": "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.SentenceTransformersSimilarityRanker",
+                "init_parameters": {
+                    "backend": "onnx",
+                    "model_kwargs": {"session_options": {"intra_op_num_threads": 1}},
+                },
+            }
+        )
+        ranker.warm_up()
+
+        session_options = mocked_cross_encoder.call_args.kwargs["model_kwargs"]["session_options"]
+        assert isinstance(session_options, ort.SessionOptions)
+        assert session_options.intra_op_num_threads == 1
+        assert ranker.to_dict()["init_parameters"]["model_kwargs"]["session_options"] == {"intra_op_num_threads": 1}
 
     @patch(
         "haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity.CrossEncoder"

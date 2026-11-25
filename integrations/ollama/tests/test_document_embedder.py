@@ -132,17 +132,17 @@ class TestComponentLifecycle:
 
     @patch("haystack_integrations.components.embedders.ollama.document_embedder.Client")
     def test_warm_up_is_idempotent(self, mock_client_cls):
-        embedder = OllamaDocumentEmbedder()
+        embedder = OllamaDocumentEmbedder(timeout=0.5)
         embedder.warm_up()
         embedder.warm_up()
-        mock_client_cls.assert_called_once_with(host=embedder.url, timeout=embedder.timeout)
+        mock_client_cls.assert_called_once_with(host=embedder.url, timeout=0.5)
 
     @patch("haystack_integrations.components.embedders.ollama.document_embedder.AsyncClient")
     async def test_warm_up_async_is_idempotent(self, mock_client_cls):
-        embedder = OllamaDocumentEmbedder()
+        embedder = OllamaDocumentEmbedder(timeout=0.5)
         await embedder.warm_up_async()
         await embedder.warm_up_async()
-        mock_client_cls.assert_called_once_with(host=embedder.url, timeout=embedder.timeout)
+        mock_client_cls.assert_called_once_with(host=embedder.url, timeout=0.5)
 
     async def test_close_is_safe_without_warm_up(self):
         embedder = OllamaDocumentEmbedder()
