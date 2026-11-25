@@ -560,6 +560,26 @@ class TestDocumentStore(
             [doc for doc in filterable_docs if doc.content and ("FOO" in doc.content or "BAR" not in doc.content)],
         )
 
+    @pytest.mark.parametrize("content_first", [True, False])
+    def test_contains_and_metadata_filter(
+        self, document_store: ChromaDocumentStore, filterable_docs: list[Document], content_first
+    ):
+        document_store.write_documents(filterable_docs)
+        # Each condition alone matches documents the other one excludes, so the result shows that
+        # Chroma applied both `where_document` and `where`.
+        content = {"field": "content", "operator": "contains", "value": "Foo"}
+        meta = {"field": "meta.chapter", "operator": "==", "value": "conclusion"}
+        conditions = [content, meta] if content_first else [meta, content]
+        result = document_store.filter_documents(filters={"operator": "AND", "conditions": conditions})
+        self.assert_documents_are_equal(
+            result,
+            [
+                doc
+                for doc in filterable_docs
+                if doc.content and "Foo" in doc.content and doc.meta.get("chapter") == "conclusion"
+            ],
+        )
+
     def test_nested_logical_filters(self, document_store: ChromaDocumentStore, filterable_docs: list[Document]):
         document_store.write_documents(filterable_docs)
         filters = {
