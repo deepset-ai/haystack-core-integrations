@@ -141,8 +141,8 @@ class MSSharePointRetriever:
             `path:"https://contoso.sharepoint.com/sites/Team"`. See the
             [KQL syntax reference](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
         :param access_token: A Microsoft Graph bearer token. For delegated auth, pass a per-user token wired from
-            an upstream `OAuthResolver`. For app-only (client-credentials) auth, pass an application token and set
-            `region` at init time. A `Secret` is also accepted and resolved internally.
+            an upstream `OAuthTokenResolver`, which emits a `Secret`. For app-only (client-credentials) auth, pass
+            an application token and set `region` at init time. A plain `str` is also accepted.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.
@@ -178,8 +178,8 @@ class MSSharePointRetriever:
             `path:"https://contoso.sharepoint.com/sites/Team"`. See the
             [KQL syntax reference](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
         :param access_token: A Microsoft Graph bearer token. For delegated auth, pass a per-user token wired from
-            an upstream `OAuthResolver`. For app-only (client-credentials) auth, pass an application token and set
-            `region` at init time. A `Secret` is also accepted and resolved internally.
+            an upstream `OAuthTokenResolver`, which emits a `Secret`. For app-only (client-credentials) auth, pass
+            an application token and set `region` at init time. A plain `str` is also accepted.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.

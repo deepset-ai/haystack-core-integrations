@@ -5,6 +5,7 @@
 from .bm25_retriever import OpenSearchBM25Retriever
 from .embedding_retriever import OpenSearchEmbeddingRetriever
 from .metadata_retriever import OpenSearchMetadataRetriever
+from .multivector_retriever import OpenSearchMultivectorEmbeddingRetriever
 from .open_search_hybrid_retriever import OpenSearchHybridRetriever
 from .sql_retriever import OpenSearchSQLRetriever
 
@@ -13,5 +14,6 @@ __all__ = [
     "OpenSearchEmbeddingRetriever",
     "OpenSearchHybridRetriever",
     "OpenSearchMetadataRetriever",
+    "OpenSearchMultivectorEmbeddingRetriever",
     "OpenSearchSQLRetriever",
 ]

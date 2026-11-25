@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/sqlalchemy-v1.0.1] - 2026-11-24
+
+### 🐛 Bug Fixes
+
+- *(sqlalchemy)* Keep colons in SQL string literals literal (#4279)
+
+
 ## [integrations/sqlalchemy-v1.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/github-v3.1.0] - 2026-11-25
+
+### 🚀 Features
+
+- *(github)* Add GitHubPRCheckout component and GitHubPRCheckoutTool (#4320)
+
+### 🧪 Testing
+
+- Fix incomplete schemas in Github tests (#4190)
+
+
 ## [integrations/github-v3.0.1] - 2026-11-02
 
 ### 🚀 Features

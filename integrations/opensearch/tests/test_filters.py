@@ -116,8 +116,8 @@ filters_data = [
         },
     ),
     (
-        {"operator": "AND", "conditions": [{"field": "text", "operator": "==", "value": "A Foo Document 1"}]},
-        {"bool": {"must": [{"match": {"text": {"query": "A Foo Document 1", "minimum_should_match": "100%"}}}]}},
+        {"operator": "AND", "conditions": [{"field": "content", "operator": "==", "value": "A Foo Document 1"}]},
+        {"bool": {"must": [{"match_phrase": {"content": "A Foo Document 1"}}]}},
     ),
     (
         {
@@ -460,6 +460,50 @@ nested_filters_data = [
 def test_normalize_filters(filters, expected):
     result = normalize_filters(filters)
     assert result == expected
+
+
+def test_not_equal_none_list_text_and_term():
+    ne_none = normalize_filters({"field": "meta.k", "operator": "!=", "value": None})
+    assert ne_none == {"bool": {"must": {"exists": {"field": "k"}}}}
+    ne_list = normalize_filters({"field": "meta.k", "operator": "!=", "value": [1, 2]})
+    assert ne_list == {"bool": {"must": {"bool": {"must_not": {"terms": {"k": [1, 2]}}}}}}
+
+    ne_text = normalize_filters({"field": "content", "operator": "!=", "value": "hello"})
+    assert ne_text == {"bool": {"must": {"bool": {"must_not": {"match_phrase": {"content": "hello"}}}}}}
+
+    ne_term = normalize_filters({"field": "meta.k", "operator": "!=", "value": "v"})
+    assert ne_term == {"bool": {"must": {"bool": {"must_not": {"term": {"k": "v"}}}}}}
+
+
+@pytest.mark.parametrize(
+    ("operator", "value", "expected"),
+    [
+        (
+            "in",
+            ["a b", "c"],
+            {
+                "bool": {
+                    "should": [
+                        {"match_phrase": {"content": "a b"}},
+                        {"match_phrase": {"content": "c"}},
+                    ]
+                }
+            },
+        ),
+        (
+            "not in",
+            ["a b"],
+            {"bool": {"must_not": [{"match_phrase": {"content": "a b"}}]}},
+        ),
+        # An empty `should` would match every document, so an empty list falls back to `terms`
+        ("in", [], {"terms": {"content": []}}),
+        ("not in", [], {"bool": {"must_not": {"terms": {"content": []}}}}),
+    ],
+    ids=["in", "not_in", "in_empty", "not_in_empty"],
+)
+def test_in_and_not_in_on_content(operator, value, expected):
+    result = normalize_filters({"field": "content", "operator": operator, "value": value})
+    assert result == {"bool": {"must": expected}}
 
 
 def test_equal_with_list_passes_field_as_script_param():

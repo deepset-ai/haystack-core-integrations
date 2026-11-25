@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/vespa-v3.0.0] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Vespa - match content phrases in in/not in filters (#4300)
+
+### 📚 Documentation
+
+- Document content filter semantics in full-text document stores (#4301)
+
+
 ## [integrations/vespa-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/chroma-v5.1.1] - 2026-11-19
+
+### 🐛 Bug Fixes
+
+- Chroma - handle IDs repeated within a write_documents batch (#4241)
+
+
 ## [integrations/chroma-v5.1.0] - 2026-11-11
 
 ### 🐛 Bug Fixes
