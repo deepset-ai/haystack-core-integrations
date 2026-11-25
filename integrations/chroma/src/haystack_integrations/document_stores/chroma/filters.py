@@ -51,10 +51,12 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
     """
     # Chroma applies `where` and `where_document` together, so a top-level AND that mixes content and
     # metadata conditions is split into the two clauses, whatever the order of the conditions.
+    # If the metadata part still contains a content condition (for example nested under OR), it can't go
+    # to `where`, so the filter is converted as before.
     if filters.get("operator") == "AND" and isinstance(filters.get("conditions"), list):
         content_conditions = [c for c in filters["conditions"] if c.get("field") == "content"]
         other_conditions = [c for c in filters["conditions"] if c.get("field") != "content"]
-        if content_conditions and other_conditions:
+        if content_conditions and other_conditions and not any(_has_content_condition(c) for c in other_conditions):
             content_filter = _convert_filters(_combine_with_and(content_conditions))
             other_filter = _convert_filters(_combine_with_and(other_conditions))
             if other_filter.where_document is None:
@@ -103,6 +105,13 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
 
 def _combine_with_and(conditions: list[dict[str, Any]]) -> dict[str, Any]:
     return conditions[0] if len(conditions) == 1 else {"operator": "AND", "conditions": conditions}
+
+
+def _has_content_condition(condition: dict[str, Any]) -> bool:
+    if "field" in condition:
+        return condition["field"] == "content"
+    conditions = condition.get("conditions")
+    return isinstance(conditions, list) and any(isinstance(c, dict) and _has_content_condition(c) for c in conditions)
 
 
 def _convert_filter_clause(filters: dict[str, Any]) -> dict[str, Any]:
