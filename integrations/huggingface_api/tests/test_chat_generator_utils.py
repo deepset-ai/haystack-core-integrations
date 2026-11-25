@@ -129,7 +129,7 @@ class TestConvertHfapiToolCalls:
             pytest.param("invalid JSON", "malformed JSON", id="invalid_json"),
             pytest.param("null", "did not decode to a JSON object", id="json_null"),
             pytest.param("[1]", "did not decode to a JSON object", id="json_list"),
-            pytest.param(["invalid", "shape"], "Valid types are dict and str", id="unsupported_type"),
+            pytest.param(["invalid", "shape"], "of type list", id="unsupported_type"),
         ],
     )
     def test_invalid_tool_call_is_skipped_with_warning(self, arguments, warning, caplog):

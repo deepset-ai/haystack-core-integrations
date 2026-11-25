@@ -107,6 +107,7 @@ def _convert_hfapi_tool_calls(hfapi_tool_calls: list["ChatCompletionOutputToolCa
             logger.warning(
                 "HuggingFace API returned tool call arguments of type {_type}. Valid types are dict and str. This tool "
                 "call will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                _type=type(hf_arguments).__name__,
                 _id=hfapi_tc.id,
                 _name=hfapi_tc.function.name,
                 _arguments=hf_arguments,
