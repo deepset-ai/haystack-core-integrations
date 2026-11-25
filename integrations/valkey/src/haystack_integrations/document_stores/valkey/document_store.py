@@ -137,6 +137,11 @@ class ValkeyDocumentStore(DocumentStore):
         "ip": DistanceMetricType.IP,
     }
     _DUMMY_VALUE = -10.0
+    # "id is X or id is not X" holds for every document, including one whose id really is X.
+    _MATCH_ALL_QUERY = "(@id:{__haystack_match_all__} | -@id:{__haystack_match_all__})"
+    # Valkey Search (>= 1.2.0) stops a filter-only query after this many matches, silently, whatever its LIMIT.
+    _NONVECTOR_RESULTS_CAP_CONFIG = "search.max-nonvector-search-results-fetched"
+    _DEFAULT_NONVECTOR_RESULTS_CAP = 100_000
 
     def __init__(
         self,
@@ -205,6 +210,9 @@ class ValkeyDocumentStore(DocumentStore):
         self._batch_size: int = batch_size
         self._client: SyncGlideClient | SyncGlideClusterClient | None = None
         self._async_client: GlideClient | GlideClusterClient | None = None
+        # read lazily from the server the first time a filter-only search might have been capped
+        self._nonvector_results_cap: int | None = None
+        self._nonvector_results_cap_loaded: bool = False
 
     def _get_connection(self) -> SyncGlideClient | SyncGlideClusterClient:
         if self._client:
@@ -496,8 +504,11 @@ class ValkeyDocumentStore(DocumentStore):
         Filter documents by metadata without vector search.
 
         This method retrieves documents based on metadata filters without performing vector similarity search.
-        Since Valkey Search requires vector queries, this method uses a dummy vector internally and removes
-        the similarity scores from results.
+        It runs a filter-only search, so every matching document is returned.
+
+        Filter-only searches require Valkey Search 1.1.0 or later. From Valkey Search 1.2.0, the server stops
+        collecting matches after `search.max-nonvector-search-results-fetched` (100000 by default); raise that
+        server setting to filter larger result sets.
 
         :param filters: Optional metadata filters in Haystack format. Supports filtering on:
             - meta.category (string equality)
@@ -506,7 +517,8 @@ class ValkeyDocumentStore(DocumentStore):
             - meta.score (numeric comparisons)
             - meta.timestamp (numeric comparisons)
         :return: List of documents matching the filters, with score set to None.
-        :raises ValkeyDocumentStoreError: If there's an error filtering documents.
+        :raises ValkeyDocumentStoreError: If there's an error filtering documents, or if the matches reach the
+            server's `search.max-nonvector-search-results-fetched` limit, so the result could be incomplete.
 
         Example:
         ```python
@@ -524,20 +536,27 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
 
         try:
-            # Valkey only performs vector similarity search
-            # here we are querying with a dummy vector and the current number of documents as limit
             limit = self.count_documents()
-            documents = self._embedding_retrieval(self._dummy_vector, filters, limit)
+            if limit == 0:
+                return []
+            query, query_options = self._build_filter_query_and_options(
+                filters, limit, supported_fields=self._metadata_fields
+            )
+            results = sync_ft.search(self._get_connection(), self._index_name, query, query_options)
+            documents = self._parse_documents_from_ft(results, with_embedding=True)
+
+            # if every document came back, nothing can have been cut off by the server-side cap
+            if len(documents) < limit:
+                self._raise_if_nonvector_results_capped(len(documents), self._get_nonvector_results_cap())
 
             # when simply filtering, we don't want to return any scores
-            # furthermore, we are querying with a dummy vector, so the scores are meaningless
             docs_no_score = []
             for doc in documents:
                 docs_no_score.append(replace(doc, score=None))
 
             return docs_no_score
 
-        except FilterError:
+        except (FilterError, ValkeyDocumentStoreError):
             raise
         except Exception as e:
             msg = f"Error filtering documents in index '{self._index_name}'"
@@ -548,8 +567,12 @@ class ValkeyDocumentStore(DocumentStore):
         Asynchronously filter documents by metadata without vector search.
 
         This is the async version of filter_documents(). It retrieves documents based on metadata filters
-        without performing vector similarity search. Since Valkey Search requires vector queries, this method
-        uses a dummy vector internally and removes the similarity scores from results.
+        without performing vector similarity search. It runs a filter-only search, so every matching document
+        is returned.
+
+        Filter-only searches require Valkey Search 1.1.0 or later. From Valkey Search 1.2.0, the server stops
+        collecting matches after `search.max-nonvector-search-results-fetched` (100000 by default); raise that
+        server setting to filter larger result sets.
 
         :param filters: Optional metadata filters in Haystack format. Supports filtering on:
             - meta.category (string equality)
@@ -558,7 +581,8 @@ class ValkeyDocumentStore(DocumentStore):
             - meta.score (numeric comparisons)
             - meta.timestamp (numeric comparisons)
         :return: List of documents matching the filters, with score set to None.
-        :raises ValkeyDocumentStoreError: If there's an error filtering documents.
+        :raises ValkeyDocumentStoreError: If there's an error filtering documents, or if the matches reach the
+            server's `search.max-nonvector-search-results-fetched` limit, so the result could be incomplete.
 
         Example:
         ```python
@@ -576,20 +600,28 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
 
         try:
-            # Valkey only performs vector similarity search
-            # here we are querying with a dummy vector and the max compatible limit
             limit = await self.count_documents_async()
-            documents = await self._embedding_retrieval_async(self._dummy_vector, filters, limit)
+            if limit == 0:
+                return []
+            query, query_options = self._build_filter_query_and_options(
+                filters, limit, supported_fields=self._metadata_fields
+            )
+            client = await self._get_connection_async()
+            results = await ft.search(client, self._index_name, query, query_options)
+            documents = self._parse_documents_from_ft(results, with_embedding=True)
+
+            # if every document came back, nothing can have been cut off by the server-side cap
+            if len(documents) < limit:
+                self._raise_if_nonvector_results_capped(len(documents), await self._get_nonvector_results_cap_async())
 
             # when simply filtering, we don't want to return any scores
-            # furthermore, we are querying with a dummy vector, so the scores are meaningless
             docs_no_score = []
             for doc in documents:
                 docs_no_score.append(replace(doc, score=None))
 
             return docs_no_score
 
-        except FilterError:
+        except (FilterError, ValkeyDocumentStoreError):
             raise
         except Exception as e:
             msg = f"Error filtering documents in index '{self._index_name}'"
@@ -1389,6 +1421,90 @@ class ValkeyDocumentStore(DocumentStore):
             documents.append(doc)
 
         return documents
+
+    @staticmethod
+    def _parse_nonvector_results_cap(config: Any) -> int | None:
+        """
+        Read the filter-only results cap from a `CONFIG GET` reply.
+
+        Returns `None` when the server has no such cap (Valkey Search older than 1.2.0, or a value of 0), and
+        the default cap when the reply can't be read, e.g. because `CONFIG` is disabled.
+        """
+        if not isinstance(config, dict):
+            return ValkeyDocumentStore._DEFAULT_NONVECTOR_RESULTS_CAP
+        value = config.get(ValkeyDocumentStore._NONVECTOR_RESULTS_CAP_CONFIG.encode())
+        if value is None:
+            return None
+        try:
+            cap = int(value)
+        except (TypeError, ValueError):
+            return ValkeyDocumentStore._DEFAULT_NONVECTOR_RESULTS_CAP
+        return cap if cap > 0 else None
+
+    def _get_nonvector_results_cap(self) -> int | None:
+        if not self._nonvector_results_cap_loaded:
+            try:
+                config = self._get_connection().config_get([self._NONVECTOR_RESULTS_CAP_CONFIG])
+            except Exception:
+                # managed services often disable CONFIG; fall back to the default cap
+                config = None
+            self._nonvector_results_cap = self._parse_nonvector_results_cap(config)
+            self._nonvector_results_cap_loaded = True
+        return self._nonvector_results_cap
+
+    async def _get_nonvector_results_cap_async(self) -> int | None:
+        if not self._nonvector_results_cap_loaded:
+            try:
+                client = await self._get_connection_async()
+                config = await client.config_get([self._NONVECTOR_RESULTS_CAP_CONFIG])
+            except Exception:
+                # managed services often disable CONFIG; fall back to the default cap
+                config = None
+            self._nonvector_results_cap = self._parse_nonvector_results_cap(config)
+            self._nonvector_results_cap_loaded = True
+        return self._nonvector_results_cap
+
+    def _raise_if_nonvector_results_capped(self, num_results: int, cap: int | None) -> None:
+        # The server reports the capped count as the total, so reaching the cap is the only sign of truncation.
+        # `==` rather than `>=`: if the cap is only a fallback guess, more results than it means nothing was cut.
+        if cap is not None and num_results == cap:
+            msg = (
+                f"Filter-only search on index '{self._index_name}' returned {num_results} documents, the limit set "
+                f"by Valkey Search's '{self._NONVECTOR_RESULTS_CAP_CONFIG}', so the result may be incomplete. "
+                "Narrow the filters or raise that server setting."
+            )
+            raise ValkeyDocumentStoreError(msg)
+
+    @staticmethod
+    def _build_filter_query_and_options(
+        filters: dict[str, Any] | None,
+        limit: int,
+        *,
+        supported_fields: dict[str, str],
+    ) -> tuple[str, FtSearchOptions]:
+        """
+        Build a filter-only FT.SEARCH query that returns every matching document.
+
+        Listing documents with a KNN query is approximate (HNSW) and capped at `search.max-vector-knn`
+        (10000 by default), so documents can be silently dropped. A filter-only query has neither problem.
+        Callers validate `filters` beforehand.
+        """
+        if filters:
+            query = _normalize_filters(filters, supported_fields)
+        else:
+            # Valkey Search rejects "*" without a KNN clause, so match every document through the id tag instead.
+            query = ValkeyDocumentStore._MATCH_ALL_QUERY
+
+        return_fields = [
+            ReturnField("$.id", alias="id"),
+            ReturnField("$.payload", alias="payload"),
+            ReturnField("$.vector", alias="vector"),
+        ]
+        query_options = FtSearchOptions(
+            return_fields=return_fields,
+            limit=FtSearchLimit(offset=0, count=limit),
+        )
+        return query, query_options
 
     @staticmethod
     def _build_search_query_and_options(
