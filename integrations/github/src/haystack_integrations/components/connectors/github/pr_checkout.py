@@ -39,7 +39,13 @@ _MAX_FILE_PAGES = 30
 _MAX_GUIDELINE_CHARS = 15_000
 _GIT_TIMEOUT = 300
 
+_GIT_VERSION_RE = re.compile(r"git version (\d+)\.(\d+)")
+# Git reads config from `GIT_CONFIG_COUNT` environment variables, which carry the token, from version 2.31
+_MIN_GIT_VERSION = (2, 31)
+_CHECKOUT_MARKER = "haystack-pr-checkout"
 # A hunk is one block of changed lines in a diff. Its header, such as `@@ -10,3 +20,4 @@`, gives the start line and
+# line count in the old and new file. The group captures the start line in the new file.
+_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 # line count in the old and new file. The group captures the start line in the new file.
 _GIT_VERSION_RE = re.compile(r"git version (\d+)\.(\d+)")
 # Git reads config from `GIT_CONFIG_COUNT` environment variables, which carry the token, from version 2.31
