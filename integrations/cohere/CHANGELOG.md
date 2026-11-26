@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/cohere-v11.0.2] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- Cohere - sum billed usage across embedding batches (#4255)
+- Use SDK retries in `CohereChatGenerator` (#4325)
+
+
+## [integrations/cohere-v11.0.1] - 2026-11-11
+
+### 🐛 Bug Fixes
+
+- Cohere - respect an empty runtime tools list (#4238)
+
+
 ## [integrations/cohere-v11.0.0] - 2026-10-16
 
 ### 🧪 Testing

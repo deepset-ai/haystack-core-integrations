@@ -24,9 +24,6 @@ from haystack.tools import (
 )
 from haystack.utils import Secret
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
-from httpx import AsyncClient as AsyncHTTPXClient
-from httpx import AsyncHTTPTransport, HTTPTransport
-from httpx import Client as HTTPXClient
 
 from cohere import AsyncClientV2, ChatResponse, ClientV2, StreamedChatResponseV2
 from haystack_integrations.utils.cohere import validate_api_base_url
@@ -575,7 +572,7 @@ class CohereChatGenerator:
         self.client: ClientV2 | None = None
         self.async_client: AsyncClientV2 | None = None
 
-    def _client_kwargs(self, *, async_client: bool) -> dict[str, Any]:
+    def _client_kwargs(self) -> dict[str, Any]:
         """Build the keyword arguments used to create a Cohere client."""
         client_kwargs: dict[str, Any] = {
             "api_key": self.api_key.resolve_value(),
@@ -586,21 +583,18 @@ class CohereChatGenerator:
             client_kwargs["timeout"] = self.timeout
 
         if self.max_retries is not None:
-            if async_client:
-                client_kwargs["httpx_client"] = AsyncHTTPXClient(transport=AsyncHTTPTransport(retries=self.max_retries))
-            else:
-                client_kwargs["httpx_client"] = HTTPXClient(transport=HTTPTransport(retries=self.max_retries))
+            client_kwargs["max_retries"] = self.max_retries
         return client_kwargs
 
     def warm_up(self) -> None:
         """Create the synchronous Cohere client."""
         if self.client is None:
-            self.client = ClientV2(**self._client_kwargs(async_client=False))
+            self.client = ClientV2(**self._client_kwargs())
 
     async def warm_up_async(self) -> None:
         """Create the asynchronous Cohere client."""
         if self.async_client is None:
-            self.async_client = AsyncClientV2(**self._client_kwargs(async_client=True))
+            self.async_client = AsyncClientV2(**self._client_kwargs())
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -664,7 +658,8 @@ class CohereChatGenerator:
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter set during component initialization.
+            If set, it will override the `tools` parameter set during component initialization. Pass an empty
+            list to disable tools for this call.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
 
@@ -679,7 +674,7 @@ class CohereChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         if flattened_tools:
             _check_duplicate_tool_names(flattened_tools)
@@ -735,7 +730,8 @@ class CohereChatGenerator:
             For more details on the parameters supported by the Cohere API, refer to the
             Cohere [documentation](https://docs.cohere.com/reference/chat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            If set, it will override the `tools` parameter set during component initialization.
+            If set, it will override the `tools` parameter set during component initialization. Pass an empty
+            list to disable tools for this call.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
@@ -748,7 +744,7 @@ class CohereChatGenerator:
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         if flattened_tools:
             _check_duplicate_tool_names(flattened_tools)

@@ -288,6 +288,21 @@ class TestFilterTranslatorErrorHandling:
         with pytest.raises(FilterError, match="must include a 'field' key"):
             _translate({"field": "", "operator": "==", "value": "test"})
 
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "meta.author' RETURNING VARCHAR(1000)) = 'x' OR 1=1 --",
+            "author') = 'x' OR 1=1 --",
+            "meta.a; DROP TABLE documents",
+            "field with spaces",
+            "meta.author\n",
+            "author\n",
+        ],
+    )
+    def test_invalid_field_path_rejected(self, field):
+        with pytest.raises(FilterError, match="Invalid metadata field name"):
+            _translate({"field": field, "operator": "==", "value": "Alice"})
+
     def test_missing_operator_key(self):
         """Test that missing 'operator' key raises FilterError."""
         with pytest.raises(FilterError, match="must include an 'operator' key"):

@@ -291,6 +291,44 @@ class TestFastembedRanker:
             parallel=None,
         )
 
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            ({"field": 0}, "0\ncontent"),
+            ({"field": 0.0}, "0.0\ncontent"),
+            ({"field": False}, "False\ncontent"),
+            ({"field": ""}, "\ncontent"),
+            ({"field": "value"}, "value\ncontent"),
+            ({"field": None}, "content"),
+            ({}, "content"),
+        ],
+    )
+    def test_prepare_input_docs_keeps_falsy_metadata(self, meta, expected):
+        """
+        Falsy metadata values such as 0 and False are embedded; only missing keys and None are skipped.
+        """
+        ranker = FastembedRanker(meta_fields_to_embed=["field"])
+        document = Document(content="content", meta=meta)
+
+        assert ranker._prepare_fastembed_input_docs([document]) == [expected]
+
+    def test_run_embeds_falsy_metadata(self):
+        """
+        Falsy metadata values reach the model through run().
+        """
+        ranker = FastembedRanker(meta_fields_to_embed=["stock", "available"], meta_data_separator=" | ")
+        ranker._model = MagicMock()
+        ranker._model.rerank.return_value = [0.5]
+
+        ranker.run(query="test", documents=[Document(content="product", meta={"stock": 0, "available": False})])
+
+        ranker._model.rerank.assert_called_once_with(
+            query="test",
+            documents=["0 | False | product"],
+            batch_size=64,
+            parallel=None,
+        )
+
     def test_run_with_score_threshold(self):
         """
         Tests that documents below score_threshold are filtered out.

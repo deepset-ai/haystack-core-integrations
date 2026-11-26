@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/sentence_transformers-v2.2.0] - 2026-11-10
+
+### 🚀 Features
+
+- Add Sentence Transformers multivector embedders (#4208)
+
+
 ## [integrations/sentence_transformers-v2.1.0] - 2026-11-06
 
 ### 🚀 Features

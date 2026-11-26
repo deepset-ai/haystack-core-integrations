@@ -1,9 +1,12 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
-from qdrant_client.http import models as rest
 
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantHybridRetriever,
@@ -30,6 +33,7 @@ class TestQdrantHybridRetriever:
         assert retriever._group_size is None
         assert retriever._rrf_k is None
         assert retriever._rrf_weights is None
+        assert retriever._prefetch_limit is None
 
         retriever = QdrantHybridRetriever(document_store=document_store, filter_policy="replace")
         assert retriever._filter_policy == FilterPolicy.REPLACE
@@ -82,6 +86,7 @@ class TestQdrantHybridRetriever:
                         "scroll_size": 10000,
                         "payload_fields_to_index": None,
                         "client_kwargs": {},
+                        "multivector_embedding_dim": None,
                     },
                 },
                 "filters": None,
@@ -93,6 +98,7 @@ class TestQdrantHybridRetriever:
                 "group_size": None,
                 "rrf_k": None,
                 "rrf_weights": None,
+                "prefetch_limit": None,
             },
         }
 
@@ -102,6 +108,17 @@ class TestQdrantHybridRetriever:
         res = retriever.to_dict()
         assert res["init_parameters"]["rrf_k"] == 20
         assert res["init_parameters"]["rrf_weights"] == [2.0, 1.0]
+
+    def test_to_dict_from_dict_with_prefetch_limit(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantHybridRetriever(document_store=document_store, prefetch_limit=50)
+        assert retriever._prefetch_limit == 50
+
+        data = retriever.to_dict()
+        assert data["init_parameters"]["prefetch_limit"] == 50
+
+        restored = QdrantHybridRetriever.from_dict(data)
+        assert restored._prefetch_limit == 50
 
     def test_from_dict(self):
         data = {
@@ -130,6 +147,7 @@ class TestQdrantHybridRetriever:
         assert retriever._score_threshold is None
         assert retriever._group_by is None
         assert retriever._group_size is None
+        assert retriever._prefetch_limit is None
 
     def test_from_dict_no_filter_policy(self):
         data = {
@@ -229,6 +247,41 @@ class TestQdrantHybridRetriever:
         call_args = mock_store._query_hybrid.call_args
         assert call_args[1]["rrf_k"] == 100
         assert call_args[1]["rrf_weights"] == [3.0, 1.0]
+
+    @pytest.mark.parametrize(
+        ("init_prefetch_limit", "run_prefetch_limit", "expected"),
+        [(None, None, None), (50, None, 50), (50, 100, 100)],
+    )
+    def test_run_passes_prefetch_limit(self, init_prefetch_limit, run_prefetch_limit, expected):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_hybrid.return_value = []
+
+        retriever = QdrantHybridRetriever(document_store=mock_store, prefetch_limit=init_prefetch_limit)
+        retriever.run(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+            prefetch_limit=run_prefetch_limit,
+        )
+
+        assert mock_store._query_hybrid.call_args[1]["prefetch_limit"] == expected
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("init_prefetch_limit", "run_prefetch_limit", "expected"),
+        [(None, None, None), (50, None, 50), (50, 100, 100)],
+    )
+    async def test_run_async_passes_prefetch_limit(self, init_prefetch_limit, run_prefetch_limit, expected):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_hybrid_async = AsyncMock(return_value=[])
+
+        retriever = QdrantHybridRetriever(document_store=mock_store, prefetch_limit=init_prefetch_limit)
+        await retriever.run_async(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+            prefetch_limit=run_prefetch_limit,
+        )
+
+        assert mock_store._query_hybrid_async.call_args[1]["prefetch_limit"] == expected
 
     def test_run_falsy_runtime_values_override_init(self):
         mock_store = Mock(spec=QdrantDocumentStore)
@@ -343,24 +396,3 @@ class TestQdrantHybridRetriever:
         assert result["documents"][0].content == "Test doc"
         assert result["documents"][0].embedding == [0.1, 0.2]
         assert result["documents"][0].sparse_embedding == sparse_embedding
-
-    def test_run_raises_when_merge_with_native_filter(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantHybridRetriever(
-            document_store=document_store,
-            filters=rest.Filter(must=[]),
-            filter_policy=FilterPolicy.MERGE,
-        )
-        sparse = SparseEmbedding(indices=[0], values=[0.1])
-        with pytest.raises(ValueError, match="Native Qdrant filters"):
-            retriever.run(query_embedding=[0.1], query_sparse_embedding=sparse)
-
-    @pytest.mark.asyncio
-    async def test_run_async_raises_when_merge_with_native_filter(self):
-        document_store = QdrantDocumentStore(location=":memory:", index="test")
-        retriever = QdrantHybridRetriever(document_store=document_store, filter_policy=FilterPolicy.MERGE)
-        sparse = SparseEmbedding(indices=[0], values=[0.1])
-        with pytest.raises(ValueError, match="Native Qdrant filters"):
-            await retriever.run_async(
-                query_embedding=[0.1], query_sparse_embedding=sparse, filters=rest.Filter(must=[])
-            )

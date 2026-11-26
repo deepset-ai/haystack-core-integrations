@@ -86,11 +86,13 @@ class TestLiteLLMChatGeneratorInit:
             model="anthropic/claude-sonnet-4-20250514",
             api_key=Secret.from_token("sk-test"),
             api_base_url="https://proxy.local",
+            timeout=2.5,
             generation_kwargs={"temperature": 0.5, "max_tokens": 100},
         )
         assert gen.model == "anthropic/claude-sonnet-4-20250514"
         assert gen.api_key.resolve_value() == "sk-test"
         assert gen.api_base_url == "https://proxy.local"
+        assert gen.timeout == 2.5
         assert gen.generation_kwargs["temperature"] == 0.5
 
 
@@ -98,10 +100,12 @@ class TestSerialization:
     def test_to_dict(self):
         gen = LiteLLMChatGenerator(
             model="openai/gpt-4o",
+            timeout=2.5,
             generation_kwargs={"temperature": 0.7},
         )
         d = gen.to_dict()
         assert d["init_parameters"]["model"] == "openai/gpt-4o"
+        assert d["init_parameters"]["timeout"] == 2.5
         assert d["init_parameters"]["generation_kwargs"]["temperature"] == 0.7
 
     def test_from_dict(self):
@@ -200,6 +204,21 @@ class TestRun:
             gen.run(messages=[ChatMessage.from_user("hi")])
             call_kwargs = fake_litellm.completion.call_args
             assert call_kwargs.kwargs["api_base"] == "https://proxy.local"
+
+    @pytest.mark.parametrize("timeout", [2.5, None])
+    def test_timeout_forwarded_when_set(self, timeout):
+        gen = LiteLLMChatGenerator(timeout=timeout)
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=_make_mock_response())
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            gen.run(messages=[ChatMessage.from_user("hi")])
+
+        kwargs = fake_litellm.completion.call_args.kwargs
+        if timeout is None:
+            assert "timeout" not in kwargs
+        else:
+            assert kwargs["timeout"] == timeout
 
     def test_run_with_generation_kwargs(self):
         gen = LiteLLMChatGenerator(
@@ -401,17 +420,31 @@ class TestRun:
             assert len(call_kwargs.kwargs["tools"]) == 1
             assert call_kwargs.kwargs["tools"][0]["function"]["name"] == "weather"
 
+    def test_empty_tools_overrides_init_tools(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o", tools=[_weather_tool()])
+        # an empty list must disable tools for this call, not fall back to the init tools
+        kwargs = gen._build_litellm_kwargs(
+            messages=[ChatMessage.from_user("weather in Paris?")],
+            streaming_callback=None,
+            generation_kwargs=None,
+            tools=[],
+        )
+
+        assert kwargs["tools"] is None
+
 
 class TestSerializationRoundTrip:
     def test_round_trip_basic(self):
         gen = LiteLLMChatGenerator(
             model="anthropic/claude-sonnet-4-20250514",
             api_base_url="https://proxy.local",
+            timeout=2.5,
             generation_kwargs={"temperature": 0.8, "max_tokens": 200},
         )
         restored = LiteLLMChatGenerator.from_dict(gen.to_dict())
         assert restored.model == gen.model
         assert restored.api_base_url == gen.api_base_url
+        assert restored.timeout == 2.5
         assert restored.generation_kwargs == gen.generation_kwargs
 
     def test_round_trip_with_secret(self):

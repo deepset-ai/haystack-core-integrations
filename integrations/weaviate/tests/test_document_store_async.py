@@ -195,6 +195,22 @@ class TestWeaviateDocumentStoreAsync(
         assert await document_store.count_documents_async() == 0
 
     @pytest.mark.asyncio
+    async def test_separate_grpc_host_async(self, request):
+        # `localhost` and `127.0.0.1` are different host strings for the same container, which is enough to
+        # exercise the `grpc_host` path; writes and filters go over gRPC, so they prove the channel works.
+        collection_settings = {"class": request.node.name, "invertedIndexConfig": {"indexNullState": True}}
+        store = WeaviateDocumentStore(
+            url="http://localhost:8080", grpc_host="127.0.0.1", collection_settings=collection_settings
+        )
+        try:
+            assert store._connection_params().grpc.host == "127.0.0.1"
+            assert await store.write_documents_async([Document(content="hello grpc")]) == 1
+            assert [doc.content for doc in await store.filter_documents_async()] == ["hello grpc"]
+        finally:
+            await (await store.async_client).collections.delete(collection_settings["class"])
+            await store.close_async()
+
+    @pytest.mark.asyncio
     async def test_filter_documents_with_blob_data_async(
         self, document_store: WeaviateDocumentStore, test_files_path: Path
     ) -> None:

@@ -64,6 +64,8 @@ COMPARISON_INVERSE = {
     "not in": "in",
 }
 
+RANGE_OPERATORS = (">", ">=", "<", "<=")
+
 
 def _validate_logical_condition(condition: dict[str, Any]) -> None:
     if "operator" not in condition:
@@ -97,7 +99,15 @@ def _negate(condition: dict[str, Any]) -> FilterReturn:
     if "field" in condition:
         operator = condition.get("operator")
         if operator in COMPARISON_INVERSE:
-            return _parse_comparison_condition({**condition, "operator": COMPARISON_INVERSE[operator]})
+            inverse = _parse_comparison_condition({**condition, "operator": COMPARISON_INVERSE[operator]})
+            if operator in RANGE_OPERATORS:
+                # A range comparison is false for documents without the field (and for a None value), so its
+                # negation must match them too. The inverse operator alone would drop them.
+                field = condition["field"].replace("meta.", "")
+                if condition.get("value") is None:
+                    return _match_all_documents(field)
+                return inverse | weaviate.classes.query.Filter.by_property(field).is_none(True)
+            return inverse
         # Operators like `contains` have no invertible counterpart, so we fall back to Weaviate's
         # native NOT, which requires Weaviate 1.33 or later.
         # Unknown operators raise a FilterError while parsing the condition.
@@ -312,3 +322,14 @@ def _match_no_document(field: str) -> FilterReturn:
 
     operands = [weaviate.classes.query.Filter.by_property(field).is_none(val) for val in [False, True]]
     return Filter.all_of(operands)
+
+
+def _match_all_documents(field: str) -> FilterReturn:
+    """
+    Returns a filter that will match every Document.
+
+    It is the negation of `_match_no_document`.
+    """
+
+    operands = [weaviate.classes.query.Filter.by_property(field).is_none(val) for val in [False, True]]
+    return Filter.any_of(operands)

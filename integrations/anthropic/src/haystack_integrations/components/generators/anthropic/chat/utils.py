@@ -1,3 +1,4 @@
+import base64
 import json
 from copy import deepcopy
 from typing import Any, Literal, TypeAlias, cast, get_args
@@ -26,6 +27,7 @@ from anthropic.types import (
     DocumentBlockParam,
     ImageBlockParam,
     MessageParam,
+    PlainTextSourceParam,
     RedactedThinkingBlockParam,
     TextBlockParam,
     ThinkingBlockParam,
@@ -150,15 +152,30 @@ def _convert_file_content_to_anthropic_format(file_content: FileContent) -> Docu
     """
     Convert a FileContent to the format expected by Anthropic Chat API.
     """
-    if file_content.mime_type != "application/pdf":
-        msg = f"Unsupported file format: {file_content.mime_type}. Anthropic supports only PDF files."
-        raise ValueError(msg)
+    mime_type = file_content.mime_type or ""
+    source: Base64PDFSourceParam | PlainTextSourceParam
 
-    source = Base64PDFSourceParam(
-        type="base64",
-        media_type="application/pdf",
-        data=file_content.base64_data,
-    )
+    # PDFs are sent as base64
+    if mime_type == "application/pdf":
+        source = Base64PDFSourceParam(
+            type="base64",
+            media_type="application/pdf",
+            data=file_content.base64_data,
+        )
+    # Text files (plain text, Markdown, CSV, ...) are decoded and sent as a plain text document
+    elif mime_type.startswith("text/"):
+        try:
+            text = base64.b64decode(file_content.base64_data).decode("utf-8")
+        except UnicodeDecodeError as e:
+            msg = f"Could not decode file with MIME type {mime_type} as UTF-8 text."
+            raise ValueError(msg) from e
+        source = PlainTextSourceParam(type="text", media_type="text/plain", data=text)
+    else:
+        msg = (
+            f"Unsupported file format: {file_content.mime_type}. "
+            "Anthropic supports only PDF and text files (MIME types starting with 'text/')."
+        )
+        raise ValueError(msg)
 
     return DocumentBlockParam(
         type="document",

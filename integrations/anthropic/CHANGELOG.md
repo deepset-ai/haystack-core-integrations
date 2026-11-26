@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/anthropic-v8.2.0] - 2026-11-23
+
+### 🚀 Features
+
+- Support text files in FileContent for AnthropicChatGenerator (#4305)
+
+### 🐛 Bug Fixes
+
+- Update default Anthropic model from claude-sonnet-4-5 to claude-sonnet-5-5 (#4289)
+
+
+## [integrations/anthropic-v8.1.0] - 2026-11-09
+
+### 🚀 Features
+
+- Add tools_strict to Anthropic and Amazon Bedrock chat generators (#4113)
+- Add cache_control support to Anthropic and Amazon Bedrock chat generators (#4213)
+
+
 ## [integrations/anthropic-v8.0.1] - 2026-10-23
 
 ### 🐛 Bug Fixes

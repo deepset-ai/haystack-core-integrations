@@ -32,12 +32,13 @@ from haystack_integrations.common.amazon_bedrock.errors import (
 )
 from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+    _format_cache_point,
     _format_messages,
     _format_tools,
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
-    _validate_and_format_cache_point,
+    _validate_cache_point,
     _validate_guardrail_config,
 )
 
@@ -199,6 +200,7 @@ class AmazonBedrockChatGenerator:
         guardrail_config: dict[str, str] | None = None,
         tools_cachepoint_config: dict[str, str] | None = None,
         system_cachepoint_config: dict[str, str] | None = None,
+        tools_strict: bool = False,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters.
@@ -223,6 +225,13 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `cache_control`: A dictionary of cache control options.
+                See [Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
+                for more details on cache control options.
+                To enable automatic prompt caching, pass `{"cache_control": {"type": "ephemeral"}}`.
+            - `cache_control_ttl`: Shortcut to set the cache `ttl` (e.g. `"5m"` or `"1h"`) without building the
+                `cache_control` dict yourself. It is merged into `cache_control`, overriding any `ttl` set there,
+                and `type` defaults to `"ephemeral"` if not set.
             - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
                 - `schema` (required): a JSON Schema dict describing the expected output structure.
                 - `name` (optional): a name for the schema, defaults to ``"response_schema"``.
@@ -278,6 +287,10 @@ class AmazonBedrockChatGenerator:
             The dictionary must match the
             [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
             Example: `{"type": "default", "ttl": "5m"}`
+        :param tools_strict: Whether to enable strict tool use. If `True`, each tool spec is sent with `strict: true`,
+            so the model's tool calls are enforced against the tool's `parameters` schema. Only Haystack `tools` are
+            affected, not a `toolConfig` passed in `generation_kwargs`. See the
+            [ToolSpecification reference](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ToolSpecification.html).
 
 
         :raises ValueError: If the model name is empty or None.
@@ -298,16 +311,16 @@ class AmazonBedrockChatGenerator:
 
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.tools = tools
+        self.tools_strict = tools_strict
 
         _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
 
-        self.tools_cachepoint_config = (
-            _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
-        )
-        self.system_cachepoint_config = (
-            _validate_and_format_cache_point(system_cachepoint_config) if system_cachepoint_config else None
-        )
+        # store the configs as given; they are wrapped in {"cachePoint": ...} only when building the request
+        _validate_cache_point(tools_cachepoint_config)
+        _validate_cache_point(system_cachepoint_config)
+        self.tools_cachepoint_config = tools_cachepoint_config or None
+        self.system_cachepoint_config = system_cachepoint_config or None
 
         self.client: Any = None
         self.generation_kwargs = generation_kwargs or {}
@@ -403,6 +416,7 @@ class AmazonBedrockChatGenerator:
             guardrail_config=self.guardrail_config,
             tools_cachepoint_config=self.tools_cachepoint_config,
             system_cachepoint_config=self.system_cachepoint_config,
+            tools_strict=self.tools_strict,
         )
 
     @classmethod
@@ -464,14 +478,18 @@ class AmazonBedrockChatGenerator:
         }
 
         # Handle tools - either toolConfig or Haystack Tool objects but not both
-        tools = tools or self.tools
+        tools = tools if tools is not None else self.tools
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
         response_format = merged_kwargs.pop("response_format", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
+            tool_config = _format_tools(
+                flattened_tools,
+                tools_cachepoint_config=_format_cache_point(self.tools_cachepoint_config),
+                strict=self.tools_strict,
+            )
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
@@ -498,7 +516,7 @@ class AmazonBedrockChatGenerator:
 
         # Format messages to Bedrock format
         system_prompts, messages_list = _format_messages(
-            messages, system_cachepoint_config=self.system_cachepoint_config
+            messages, system_cachepoint_config=_format_cache_point(self.system_cachepoint_config)
         )
 
         # Build API parameters
@@ -565,6 +583,14 @@ class AmazonBedrockChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
+
+        cache_control_ttl = generation_kwargs.pop("cache_control_ttl", None)
+        if cache_control_ttl is not None:
+            # copy so we don't mutate the nested dict shared with self.generation_kwargs
+            cache_control = dict(generation_kwargs.get("cache_control") or {})
+            cache_control["ttl"] = cache_control_ttl
+            cache_control.setdefault("type", "ephemeral")  # only supported value
+            generation_kwargs["cache_control"] = cache_control
 
         for nested_name in ("tool_choice", "thinking", "output_config"):
             prefix = f"{nested_name}_"

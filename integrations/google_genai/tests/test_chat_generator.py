@@ -459,7 +459,7 @@ class TestGoogleGenAIChatGeneratorRun:
         assert results["replies"][0].tool_calls[0].tool_name == "weather"
 
     def test_run_streaming_parallel_tool_calls_in_separate_chunks(self):
-        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview")
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash")
         component._client = MagicMock()
         component._client.models.generate_content_stream = Mock(return_value=iter(_parallel_call_stream_chunks()))
 
@@ -504,6 +504,19 @@ class TestGoogleGenAIChatGeneratorRun:
         call_kwargs = component._client.models.generate_content.call_args
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.tools is not None
+
+    def test_run_with_empty_tools_override(self, mock_response, tools):
+        # an empty runtime list must disable the init tools for this call, not fall back to them;
+        # generation_kwargs keeps a config object in the request so its tools can be inspected
+        component = GoogleGenAIChatGenerator(tools=tools, generation_kwargs={"temperature": 0.5})
+        component._client = MagicMock()
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        component.run([ChatMessage.from_user("Weather in Paris?")])
+        assert component._client.models.generate_content.call_args.kwargs["config"].tools is not None
+
+        component.run([ChatMessage.from_user("Weather in Paris?")], tools=[])
+        assert component._client.models.generate_content.call_args.kwargs["config"].tools is None
 
     def test_run_with_safety_settings(self, mock_response):
         safety = [{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}]
@@ -629,6 +642,45 @@ class TestGoogleGenAIChatGeneratorRun:
         assert config.max_output_tokens == 100
 
     @pytest.mark.asyncio
+    async def test_run_async_with_empty_tools_override(self, mock_response, tools):
+        component = GoogleGenAIChatGenerator(tools=tools, generation_kwargs={"temperature": 0.5})
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
+
+        await component.run_async([ChatMessage.from_user("Weather in Paris?")])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].tools is not None
+
+        await component.run_async([ChatMessage.from_user("Weather in Paris?")], tools=[])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].tools is None
+
+    def test_run_with_empty_safety_settings_override(self, mock_response):
+        # an empty runtime list must send no safety settings for this call, not fall back to the init ones;
+        # generation_kwargs keeps a config object in the request so its safety settings can be inspected
+        safety_settings = [{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_LOW_AND_ABOVE"}]
+        component = GoogleGenAIChatGenerator(safety_settings=safety_settings, generation_kwargs={"temperature": 0.5})
+        component._client = MagicMock()
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        component.run([ChatMessage.from_user("Hello")])
+        assert component._client.models.generate_content.call_args.kwargs["config"].safety_settings is not None
+
+        component.run([ChatMessage.from_user("Hello")], safety_settings=[])
+        assert component._client.models.generate_content.call_args.kwargs["config"].safety_settings is None
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_empty_safety_settings_override(self, mock_response):
+        safety_settings = [{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_LOW_AND_ABOVE"}]
+        component = GoogleGenAIChatGenerator(safety_settings=safety_settings, generation_kwargs={"temperature": 0.5})
+        component._async_client = MagicMock()
+        component._async_client.models.generate_content = AsyncMock(return_value=mock_response)
+
+        await component.run_async([ChatMessage.from_user("Hello")])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].safety_settings is not None
+
+        await component.run_async([ChatMessage.from_user("Hello")], safety_settings=[])
+        assert component._async_client.models.generate_content.call_args.kwargs["config"].safety_settings is None
+
+    @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_streaming_chunk):
         component = GoogleGenAIChatGenerator()
         component._async_client = MagicMock()
@@ -680,7 +732,7 @@ class TestGoogleGenAIChatGeneratorRun:
 
     @pytest.mark.asyncio
     async def test_run_async_streaming_parallel_tool_calls_in_separate_chunks(self):
-        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview")
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash")
         component._async_client = MagicMock()
 
         async def mock_stream():
@@ -928,7 +980,7 @@ class TestGoogleGenAIChatGeneratorInference:
                 "What's the weather like in Paris and Berlin? Produce a separate tool call for each city."
             )
         ]
-        component = GoogleGenAIChatGenerator(model="gemini-3-flash-preview", tools=tools)
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", tools=tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) == 1
@@ -972,9 +1024,7 @@ class TestGoogleGenAIChatGeneratorInference:
         """
         # We use a model that supports the thinking feature
         chat_messages = [ChatMessage.from_user("Why is the sky blue? Explain in one sentence.")]
-        component = GoogleGenAIChatGenerator(
-            model="gemini-3-flash-preview", generation_kwargs={"thinking_level": "low"}
-        )
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", generation_kwargs={"thinking_level": "medium"})
         results = component.run(chat_messages)
 
         assert len(results["replies"]) == 1
@@ -999,7 +1049,7 @@ class TestGoogleGenAIChatGeneratorInference:
         """
         # Use a model that supports thinking with tools
         component = GoogleGenAIChatGenerator(
-            model="gemini-3-flash-preview",
+            model="gemini-3.8-flash",
             tools=tools,
             generation_kwargs={"thinking_level": "low"},  # Dynamic allocation
         )
@@ -1105,7 +1155,7 @@ class TestGoogleGenAIChatGeneratorInference:
         )
 
         agent = Agent(
-            chat_generator=GoogleGenAIChatGenerator(model="gemini-3-flash-preview"),
+            chat_generator=GoogleGenAIChatGenerator(model="gemini-3.8-flash"),
             system_prompt="You are an Agent that can retrieve and analyze images and documents.",
             tools=[multimodal_retriever_tool],
         )
@@ -1188,9 +1238,7 @@ class TestAsyncGoogleGenAIChatGeneratorInference:
         Async integration test for the thinking feature.
         """
         chat_messages = [ChatMessage.from_user("Why is the sky blue? Explain in one sentence.")]
-        component = GoogleGenAIChatGenerator(
-            model="gemini-3-flash-preview", generation_kwargs={"thinking_level": "low"}
-        )
+        component = GoogleGenAIChatGenerator(model="gemini-3.8-flash", generation_kwargs={"thinking_level": "medium"})
         results = await component.run_async(chat_messages)
 
         assert len(results["replies"]) == 1

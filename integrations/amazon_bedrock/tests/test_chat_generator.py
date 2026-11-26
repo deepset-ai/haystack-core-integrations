@@ -18,7 +18,7 @@ from haystack.dataclasses import (
     TextContent,
     ToolCall,
 )
-from haystack.tools import Tool, Toolset, create_tool_from_function
+from haystack.tools import Tool, Toolset, create_tool_from_function, tool
 from haystack.utils import Secret
 
 from haystack_integrations.common.amazon_bedrock.errors import (
@@ -204,6 +204,7 @@ class TestAmazonBedrockChatGenerator:
                 "guardrailIdentifier": "test",
                 "guardrailVersion": "test",
             },
+            tools_strict=True,
         )
         expected_dict = {
             "type": CLASS_TYPE,
@@ -244,6 +245,7 @@ class TestAmazonBedrockChatGenerator:
                 },
                 "tools_cachepoint_config": None,
                 "system_cachepoint_config": None,
+                "tools_strict": True,
             },
         }
 
@@ -290,12 +292,14 @@ class TestAmazonBedrockChatGenerator:
                     "tools": None,
                     "stop_words": ["stop"],  # this parameter will be ignored
                     "guardrail_config": None,
+                    "tools_strict": True,
                 },
             }
         )
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
+        assert generator.tools_strict is True
 
     def test_from_dict_aws_region_name(self):
         """
@@ -416,6 +420,7 @@ class TestAmazonBedrockChatGenerator:
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
                         "system_cachepoint_config": None,
+                        "tools_strict": False,
                     },
                 }
             },
@@ -441,6 +446,29 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["toolConfig"] == top_song_tool_config
 
+    def test_prepare_request_params_empty_tools_overrides_init_tools(self, tools):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6", tools=tools)
+        # an empty list must disable tools for this call, not fall back to the init tools
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("What's the capital of France?")],
+            tools=[],
+        )
+
+        assert "toolConfig" not in request_params
+
+    def test_prepare_request_params_wraps_cachepoint_configs(self, tools):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            tools=tools,
+            tools_cachepoint_config={"type": "default", "ttl": "5m"},
+            system_cachepoint_config={"type": "default", "ttl": "1h"},
+        )
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_system("Be brief."), ChatMessage.from_user("Hi")],
+        )
+        assert request_params["toolConfig"]["tools"][-1] == {"cachePoint": {"type": "default", "ttl": "5m"}}
+        assert request_params["system"][-1] == {"cachePoint": {"type": "default", "ttl": "1h"}}
+
     def test_prepare_request_params_guardrail_config(self):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
@@ -463,7 +491,7 @@ class TestAmazonBedrockChatGenerator:
             model="global.anthropic.claude-sonnet-4-6",
             system_cachepoint_config={"type": "default"},
         )
-        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default"}}
+        assert generator.system_cachepoint_config == {"type": "default"}
 
     def test_to_dict_with_system_cachepoint_config(self):
         generator = AmazonBedrockChatGenerator(
@@ -471,7 +499,17 @@ class TestAmazonBedrockChatGenerator:
             system_cachepoint_config={"type": "default"},
         )
         serialized = generator.to_dict()
-        assert serialized["init_parameters"]["system_cachepoint_config"] == {"cachePoint": {"type": "default"}}
+        assert serialized["init_parameters"]["system_cachepoint_config"] == {"type": "default"}
+
+    def test_cachepoint_config_round_trip(self):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            tools_cachepoint_config={"type": "default", "ttl": "5m"},
+            system_cachepoint_config={"type": "default", "ttl": "1h"},
+        )
+        restored = AmazonBedrockChatGenerator.from_dict(generator.to_dict())
+        assert restored.tools_cachepoint_config == {"type": "default", "ttl": "5m"}
+        assert restored.system_cachepoint_config == {"type": "default", "ttl": "1h"}
 
     def test_prepare_request_params_response_format(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -609,6 +647,31 @@ class TestAmazonBedrockChatGenerator:
             ]
         }
 
+    def test_prepare_request_params_tools_strict(self):
+        weather_tool = Tool(
+            name="weather",
+            description="Weather lookup",
+            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            function=lambda city: city,
+        )
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", tools=[weather_tool], tools_strict=True
+        )
+
+        request_params, _ = generator._prepare_request_params(messages=[ChatMessage.from_user("Weather in Paris?")])
+
+        assert request_params["toolConfig"]["tools"][0]["toolSpec"]["strict"] is True
+
+    def test_tools_strict_leaves_a_tool_config_in_generation_kwargs_as_given(self):
+        tool_config = {"tools": [{"toolSpec": {"name": "weather", "inputSchema": {"json": {"type": "object"}}}}]}
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", generation_kwargs={"toolConfig": tool_config}, tools_strict=True
+        )
+
+        request_params, _ = generator._prepare_request_params(messages=[ChatMessage.from_user("Weather in Paris?")])
+
+        assert request_params["toolConfig"] == tool_config
+
     @pytest.mark.parametrize(
         "generation_kwargs,additional_model_request_fields",
         [
@@ -727,6 +790,21 @@ class TestAmazonBedrockChatGenerator:
                     "output_config": {"effort": "high"},
                 },
             ),
+            (
+                # cache_control is forwarded unchanged
+                {"cache_control": {"type": "ephemeral"}},
+                {"cache_control": {"type": "ephemeral"}},
+            ),
+            (
+                # cache_control_ttl is merged into cache_control, defaulting the type to ephemeral
+                {"cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
+            (
+                # cache_control_ttl overrides the ttl of an existing cache_control
+                {"cache_control": {"type": "ephemeral", "ttl": "5m"}, "cache_control_ttl": "1h"},
+                {"cache_control": {"type": "ephemeral", "ttl": "1h"}},
+            ),
         ],
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(
@@ -782,6 +860,22 @@ class TestAmazonBedrockChatGenerator:
             "output_config": {"effort": "low"},
         }
 
+    def test_cache_control_ttl_does_not_mutate_init_cache_control(self):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            generation_kwargs={"cache_control": {"type": "ephemeral", "ttl": "5m"}},
+        )
+        messages = [ChatMessage.from_user("What's the capital of France?")]
+
+        first_params, _ = generator._prepare_request_params(
+            messages=messages, generation_kwargs={"cache_control_ttl": "1h"}
+        )
+        assert first_params["additionalModelRequestFields"] == {"cache_control": {"type": "ephemeral", "ttl": "1h"}}
+
+        second_params, _ = generator._prepare_request_params(messages=messages)
+        assert second_params["additionalModelRequestFields"] == {"cache_control": {"type": "ephemeral", "ttl": "5m"}}
+        assert generator.generation_kwargs == {"cache_control": {"type": "ephemeral", "ttl": "5m"}}
+
     def test_get_async_session_creates_and_caches(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         session1 = generator._get_async_session()
@@ -836,7 +930,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+        assert generator.tools_cachepoint_config == {"type": "default", "ttl": "1h"}
 
     def test_from_dict_resolves_tools_cachepoint_config_ttl_preserves_existing_type(self):
         generator = AmazonBedrockChatGenerator.from_dict(
@@ -849,7 +943,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
+        assert generator.tools_cachepoint_config == {"type": "default", "ttl": "5m"}
 
     def test_from_dict_resolves_system_cachepoint_config_ttl(self):
         generator = AmazonBedrockChatGenerator.from_dict(
@@ -861,7 +955,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+        assert generator.system_cachepoint_config == {"type": "default", "ttl": "1h"}
 
     def test_from_dict_resolves_system_cachepoint_config_ttl_preserves_existing_type(self):
         generator = AmazonBedrockChatGenerator.from_dict(
@@ -874,7 +968,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
+        assert generator.system_cachepoint_config == {"type": "default", "ttl": "5m"}
 
     def test_run_completion(self):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -1260,6 +1354,30 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
         assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
+
+    def test_live_run_with_tools_strict_and_decorated_tool(self):
+        """
+        Strict tool use rejects schemas without `additionalProperties: false`, which `@tool` does not set.
+        """
+
+        @tool
+        def get_weather(city: str, days: int = 1) -> str:
+            """Get the weather forecast for a city.
+
+            :param city: The city to look up.
+            :param days: Number of forecast days.
+            """
+            return f"sunny in {city} for {days} days"
+
+        component = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", tools=[get_weather], tools_strict=True
+        )
+        results = component.run(messages=[ChatMessage.from_user("What's the weather like in Paris?")])
+
+        message = results["replies"][0]
+        assert message.tool_call is not None
+        assert message.tool_call.tool_name == "get_weather"
+        assert message.tool_call.arguments["city"] == "Paris"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
     def test_live_run_with_multi_tool_calls(self, model_name, tools):

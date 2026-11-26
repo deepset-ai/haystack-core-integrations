@@ -25,7 +25,7 @@ class OllamaTextEmbedder:
         model: str = "nomic-embed-text",
         url: str = "http://localhost:11434",
         generation_kwargs: dict[str, Any] | None = None,
-        timeout: int = 120,
+        timeout: float = 120,
         keep_alive: float | str | None = None,
         dimensions: int | None = None,
     ) -> None:

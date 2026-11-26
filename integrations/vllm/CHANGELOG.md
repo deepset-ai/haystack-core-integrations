@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/vllm-v3.2.0] - 2026-11-17
+
+### 🚜 Refactor
+
+- Simplify VLLMChatGenerator (#4283)
+
+
+## [integrations/vllm-v3.1.0] - 2026-11-16
+
+### 🚀 Features
+
+- Add `VLLMMultivectorDocumentEmbedder` and `VLLMMultivectorTextEmbedder` components (#4014)
+
+
 ## [integrations/vllm-v3.0.1] - 2026-10-20
 
 ### 🐛 Bug Fixes

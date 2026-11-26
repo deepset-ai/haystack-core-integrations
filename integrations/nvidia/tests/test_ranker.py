@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from haystack import Document
+from haystack import Document, Pipeline
 from haystack.core.serialization import component_from_dict
 from haystack.utils import Secret
 
@@ -62,6 +62,18 @@ class TestSerialization:
                 "timeout": 60.0,
             },
         }
+
+    def test_to_dict_with_truncate(self) -> None:
+        client = NvidiaRanker(truncate="END")
+        data = client.to_dict()
+        assert data["init_parameters"]["truncate"] == "END"
+        assert type(data["init_parameters"]["truncate"]) is str
+
+    def test_pipeline_yaml_roundtrip_with_truncate(self) -> None:
+        pipeline = Pipeline()
+        pipeline.add_component("ranker", NvidiaRanker(truncate=RankerTruncateMode.END))
+        loaded = Pipeline.loads(pipeline.dumps())
+        assert loaded.get_component("ranker").truncate == RankerTruncateMode.END
 
     def test_from_dict(self) -> None:
         client = component_from_dict(
@@ -132,6 +144,32 @@ class TestComponentLifecycle:
 
 
 class TestRun:
+    @pytest.mark.parametrize(
+        ("metadata", "expected_text"),
+        [
+            ({"value": 0}, "0 | document"),
+            ({"value": 0.0}, "0.0 | document"),
+            ({"value": False}, "False | document"),
+            ({"value": ""}, " | document"),
+            ({"value": "value"}, "value | document"),
+            ({"value": None}, "document"),
+            ({}, "document"),
+        ],
+    )
+    def test_metadata_in_ranking_request(self, requests_mock, metadata, expected_text):
+        requests_mock.post(re.compile(r".*ranking"), json={"rankings": [{"index": 0, "logit": 1.0}]})
+        ranker = NvidiaRanker(
+            model=_DEFAULT_MODEL,
+            api_key=Secret.from_token("fake-api-key"),
+            meta_fields_to_embed=["value"],
+            embedding_separator=" | ",
+            document_prefix="passage: ",
+        )
+
+        ranker.run(query="query", documents=[Document(content="document", meta=metadata)])
+
+        assert requests_mock.last_request.json()["passages"] == [{"text": f"passage: {expected_text}"}]
+
     @pytest.mark.parametrize(
         "truncate",
         [

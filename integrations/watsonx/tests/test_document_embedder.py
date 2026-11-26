@@ -8,6 +8,7 @@ import pytest
 from haystack import Document
 from haystack.core.serialization import component_from_dict
 from haystack.utils.auth import Secret
+from httpx import Timeout
 
 from haystack_integrations.components.embedders.watsonx.document_embedder import WatsonxDocumentEmbedder
 
@@ -15,7 +16,10 @@ from haystack_integrations.components.embedders.watsonx.document_embedder import
 @pytest.fixture
 def mock_embeddings():
     """Fixture for setting up common mocks"""
-    with patch("haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings") as embeddings:
+    with (
+        patch("haystack_integrations.components.embedders.watsonx.document_embedder.APIClient"),
+        patch("haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings") as embeddings,
+    ):
         yield embeddings.return_value
 
 
@@ -121,6 +125,7 @@ class TestComponentLifecycle:
     def test_warm_up_is_idempotent(self):
         with (
             patch("haystack_integrations.components.embedders.watsonx.document_embedder.Credentials") as credentials,
+            patch("haystack_integrations.components.embedders.watsonx.document_embedder.APIClient") as api_client,
             patch("haystack_integrations.components.embedders.watsonx.document_embedder.Embeddings") as embeddings,
         ):
             embedder = WatsonxDocumentEmbedder(
@@ -130,6 +135,7 @@ class TestComponentLifecycle:
                 truncate_input_tokens=128,
                 batch_size=500,
                 concurrency_limit=3,
+                timeout=2.0,
                 max_retries=5,
             )
             embedder.warm_up()
@@ -137,9 +143,14 @@ class TestComponentLifecycle:
             embedder.warm_up()
 
         credentials.assert_called_once_with(api_key="fake-api-key", url="https://custom-url.ibm.com")
+        api_client.assert_called_once()
+        kwargs = api_client.call_args.kwargs
+        assert kwargs["credentials"] is credentials.return_value
+        assert kwargs["httpx_client"].timeout == Timeout(2.0)
+        assert kwargs["async_httpx_client"].timeout == Timeout(2.0)
         embeddings.assert_called_once_with(
             model_id="ibm/slate-30m-english-rtrvr-v2",
-            credentials=credentials.return_value,
+            api_client=api_client.return_value,
             project_id="fake-project-id",
             params={"truncate_input_tokens": 128},
             batch_size=500,
@@ -161,6 +172,45 @@ class TestRun:
             [Document(content="The food was delicious", meta={"source": "test"})]
         )
         assert prepared_text == ["prefix test\nThe food was delicious suffix"]
+
+    @pytest.mark.parametrize(
+        "meta, expected",
+        [
+            ({"field": 0}, "0\ncontent"),
+            ({"field": 0.0}, "0.0\ncontent"),
+            ({"field": False}, "False\ncontent"),
+            ({"field": ""}, "\ncontent"),
+            ({"field": "value"}, "value\ncontent"),
+            ({"field": None}, "content"),
+            ({}, "content"),
+        ],
+    )
+    def test_prepare_texts_to_embed_keeps_falsy_metadata(self, meta, expected):
+        """
+        Falsy metadata values such as 0 and False are embedded; only missing keys and None are skipped.
+        """
+        embedder = WatsonxDocumentEmbedder(
+            project_id=Secret.from_token("fake-project-id"),
+            meta_fields_to_embed=["field"],
+        )
+        document = Document(content="content", meta=meta)
+
+        assert embedder._prepare_texts_to_embed([document]) == [expected]
+
+    def test_run_embeds_falsy_metadata(self, mock_embeddings):
+        """
+        Falsy metadata values reach the model through run().
+        """
+        embedder = WatsonxDocumentEmbedder(
+            api_key=Secret.from_token("fake-api-key"),
+            project_id=Secret.from_token("fake-project-id"),
+            meta_fields_to_embed=["stock", "available"],
+        )
+        mock_embeddings.embed_documents.return_value = [[0.1, 0.2]]
+
+        embedder.run(documents=[Document(content="product", meta={"stock": 0, "available": False})])
+
+        mock_embeddings.embed_documents.assert_called_once_with(["0\nFalse\nproduct"])
 
     def test_run_wrong_input_format(self):
         embedder = WatsonxDocumentEmbedder(project_id=Secret.from_token("fake-project-id"))

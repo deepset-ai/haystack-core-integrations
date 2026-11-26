@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/oauth-v3.1.0] - 2026-11-24
+
+### 🚀 Features
+
+- *(oauth)* Add token sources for the Entra Agent ID on-behalf-of flow (#4311)
+
+
+## [integrations/oauth-v3.0.0] - 2026-11-19
+
+### 🐛 Bug Fixes
+
+- *(oauth)* [**breaking**] Emit the access token as a Secret (#4299)
+
+
 ## [integrations/oauth-v2.0.0] - 2026-10-16
 
 ### 🧪 Testing

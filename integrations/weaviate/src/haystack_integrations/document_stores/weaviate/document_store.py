@@ -9,6 +9,7 @@ import json
 from contextlib import suppress
 from dataclasses import asdict
 from typing import Any, NoReturn
+from urllib.parse import urlparse
 
 from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
@@ -119,6 +120,20 @@ class WeaviateDocumentStore:
 
     document_store = WeaviateDocumentStore(url="http://localhost:8080")
     ```
+
+    Usage example with REST and gRPC served on different hosts:
+    ```python
+    from haystack_integrations.document_stores.weaviate.document_store import (
+        WeaviateDocumentStore,
+    )
+
+    document_store = WeaviateDocumentStore(
+        url="https://weaviate.example.com",
+        grpc_host="weaviate.grpc.example.com",
+        grpc_port=443,
+        grpc_secure=True,
+    )
+    ```
     """
 
     def __init__(
@@ -130,6 +145,7 @@ class WeaviateDocumentStore:
         additional_headers: dict | None = None,
         embedded_options: EmbeddedOptions | None = None,
         additional_config: AdditionalConfig | None = None,
+        grpc_host: str | None = None,
         grpc_port: int = 50051,
         grpc_secure: bool = False,
     ) -> None:
@@ -174,18 +190,33 @@ class WeaviateDocumentStore:
             `weaviate.embedded.EmbeddedOptions`.
         :param additional_config:
             Additional and advanced configuration options for weaviate.
+        :param grpc_host:
+            The host serving the gRPC API, when it differs from the one in `url`. If `None`, the gRPC
+            connection reuses the host parsed from `url`. Only used for custom, local or Docker
+            deployments: it is ignored, with a warning, when `url` is not set and for Weaviate Cloud URLs,
+            which `weaviate.connect_to_weaviate_cloud` configures on its own.
+            Setting it also changes how `grpc_secure` is interpreted, see below.
         :param grpc_port:
             The port to use for the gRPC connection.
         :param grpc_secure:
-            Whether to use a secure channel for the underlying gRPC API.
+            Whether to use a secure channel for the underlying gRPC API. Without `grpc_host` an `https`
+            `url` implies a secure gRPC channel even when this is `False`, because both protocols then
+            share a host. With `grpc_host` set, the two endpoints are independent and this flag alone
+            decides whether the gRPC channel uses TLS.
         """
         self._url = url
         self._auth_client_secret = auth_client_secret
         self._additional_headers = additional_headers
         self._embedded_options = embedded_options
         self._additional_config = additional_config
+        self._grpc_host = grpc_host
         self._grpc_port = grpc_port
         self._grpc_secure = grpc_secure
+        if grpc_host and (not url or url.endswith((".weaviate.network", ".weaviate.cloud"))):
+            logger.warning(
+                "`grpc_host` is ignored when `url` is not set or points to Weaviate Cloud. Got grpc_host={grpc_host}.",
+                grpc_host=grpc_host,
+            )
         self._client: weaviate.WeaviateClient | None = None
         self._async_client: weaviate.WeaviateAsyncClient | None = None
         self._collection: weaviate.Collection | None = None
@@ -206,6 +237,50 @@ class WeaviateDocumentStore:
         # Set the properties if they're not set
         self._collection_settings["properties"] = self._collection_settings.get(
             "properties", DOCUMENT_COLLECTION_PROPERTIES
+        )
+
+    def _connection_params(self) -> weaviate.connect.base.ConnectionParams | None:
+        """
+        Build the connection parameters for a custom, local or Docker deployment.
+
+        Returns `None` if no `url` is set, so that the client falls back to `embedded_options`.
+
+        :raises ValueError:
+            If `url` has a scheme other than `http` or `https`, or no host can be parsed from it.
+        """
+        if not self._url:
+            return None
+
+        if not self._grpc_host:
+            # `from_url` derives the gRPC host from `url`, which is what we want here.
+            return weaviate.connect.base.ConnectionParams.from_url(
+                url=self._url, grpc_port=self._grpc_port, grpc_secure=self._grpc_secure
+            )
+
+        # `from_url` cannot express a separate gRPC host: it reuses the host from `url` for gRPC, and
+        # `ConnectionParams` then refuses that pair when the two ports also match. That is exactly the
+        # ingress setup `grpc_host` exists for, with REST and gRPC both published on 443, so the HTTP
+        # side is derived here by the same rules `from_url` applies and both sides are passed
+        # explicitly. `from_params` runs the same collision check, so a genuine same-host/same-port
+        # misconfiguration still fails.
+        parsed_url = urlparse(self._url)
+        if parsed_url.scheme not in ("http", "https"):
+            msg = f"Unsupported scheme: {parsed_url.scheme}"
+            raise ValueError(msg)
+        if parsed_url.hostname is None:
+            msg = f"Could not parse a host out of url: {self._url}"
+            raise ValueError(msg)
+        http_secure = parsed_url.scheme == "https"
+        return weaviate.connect.base.ConnectionParams.from_params(
+            http_host=parsed_url.hostname,
+            http_port=parsed_url.port if parsed_url.port is not None else (443 if http_secure else 80),
+            http_secure=http_secure,
+            grpc_host=self._grpc_host,
+            grpc_port=self._grpc_port,
+            # Unlike `from_url`, the scheme of `url` says nothing about the gRPC endpoint here: it is a
+            # different host, so it can terminate TLS independently. `grpc_secure` is therefore taken
+            # literally, as `from_params` and `weaviate.connect_to_custom` both require it to be.
+            grpc_secure=self._grpc_secure,
         )
 
     def _connection_headers(self) -> dict[str, Any]:
@@ -252,13 +327,7 @@ class WeaviateDocumentStore:
             # proxies, timeout_config, trust_env are part of additional_config now
             # startup_period has been removed
             self._client = weaviate.WeaviateClient(
-                connection_params=(
-                    weaviate.connect.base.ConnectionParams.from_url(
-                        url=self._url, grpc_port=self._grpc_port, grpc_secure=self._grpc_secure
-                    )
-                    if self._url
-                    else None
-                ),
+                connection_params=self._connection_params(),
                 auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
                 additional_config=self._additional_config,
                 additional_headers=self._connection_headers(),
@@ -297,13 +366,7 @@ class WeaviateDocumentStore:
             # proxies, timeout_config, trust_env are part of additional_config now
             # startup_period has been removed
             self._async_client = weaviate.WeaviateAsyncClient(
-                connection_params=(
-                    weaviate.connect.base.ConnectionParams.from_url(
-                        url=self._url, grpc_port=self._grpc_port, grpc_secure=self._grpc_secure
-                    )
-                    if self._url
-                    else None
-                ),
+                connection_params=self._connection_params(),
                 auth_client_secret=self._auth_client_secret.resolve_value() if self._auth_client_secret else None,
                 additional_config=self._additional_config,
                 additional_headers=self._connection_headers(),
@@ -373,6 +436,7 @@ class WeaviateDocumentStore:
         return default_to_dict(
             self,
             url=self._url,
+            grpc_host=self._grpc_host,
             grpc_port=self._grpc_port,
             grpc_secure=self._grpc_secure,
             collection_settings=self._collection_settings,
@@ -994,7 +1058,15 @@ class WeaviateDocumentStore:
         Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
         native ``NOT``, which requires Weaviate 1.33 or later.
 
+        Note: With the default `word` tokenization, filters on `content` with `==`, `!=`, `in` and
+        `not in` don't test exact equality or match a phrase: `==` matches documents whose content contains
+        all the words of the value, in any order, ignoring case and punctuation, so `"New York"` also matches
+        `"York and New Jersey"`. `in` matches each of its values the same way. `!=` and `not in` exclude
+        documents whose content contains any of the words. Filters on `content` are useful to select documents
+        containing words; for relevance-ranked text search, use a retriever.
+
         :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: A list of Documents that match the given filters.
         """
         validate_filters(filters)
@@ -1020,7 +1092,15 @@ class WeaviateDocumentStore:
         Note: ``NOT`` over the ``contains`` operator is translated to Weaviate's
         native ``NOT``, which requires Weaviate 1.33 or later.
 
+        Note: With the default `word` tokenization, filters on `content` with `==`, `!=`, `in` and
+        `not in` don't test exact equality or match a phrase: `==` matches documents whose content contains
+        all the words of the value, in any order, ignoring case and punctuation, so `"New York"` also matches
+        `"York and New Jersey"`. `in` matches each of its values the same way. `!=` and `not in` exclude
+        documents whose content contains any of the words. Filters on `content` are useful to select documents
+        containing words; for relevance-ranked text search, use a retriever.
+
         :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
         :returns: A list of Documents that match the given filters.
         """
         validate_filters(filters)
@@ -1365,7 +1445,9 @@ class WeaviateDocumentStore:
         Deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :returns: The number of documents deleted.
         """
         validate_filters(filters)
@@ -1392,7 +1474,9 @@ class WeaviateDocumentStore:
         Asynchronously deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :returns: The number of documents deleted.
         """
         validate_filters(filters)
@@ -1420,7 +1504,9 @@ class WeaviateDocumentStore:
         Updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :param meta: The metadata fields to update. These will be merged with existing metadata.
         :returns: The number of documents updated.
         """
@@ -1492,7 +1578,9 @@ class WeaviateDocumentStore:
         Asynchronously updates the metadata of all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for updating.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+            Filters on `content` match words, not exact values, so they also select documents whose content
+            contains the words of the value within longer text, in any order. See `filter_documents` for details.
         :param meta: The metadata fields to update. These will be merged with existing metadata.
         :returns: The number of documents updated.
         """

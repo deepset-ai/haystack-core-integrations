@@ -116,7 +116,6 @@ class AzureAISearchEmbeddingRetriever:
         """
 
         top_k = top_k or self._top_k
-        filters = filters or self._filters
 
         normalized_filters = ""
         applied_filters = apply_filter_policy(self._filter_policy, self._filters, filters)

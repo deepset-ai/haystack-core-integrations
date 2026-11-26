@@ -173,3 +173,19 @@ class TestSQLAlchemyTableRetrieverRun:
         result = retriever.run(query="SELECT 1 AS x")
         assert retriever._warmed_up
         assert not result["dataframe"].empty
+
+    def test_colons_in_string_literals_are_not_bind_parameters(self):
+        retriever = SQLAlchemyTableRetriever(
+            drivername="sqlite",
+            database=":memory:",
+            init_script=[
+                "CREATE TABLE notes (id INTEGER, body TEXT)",
+                "INSERT INTO notes VALUES (1, 'see :ref'), (2, '{\"k\":1}')",
+            ],
+        )
+        retriever.warm_up()
+
+        result = retriever.run(query="SELECT id FROM notes WHERE body = 'see :ref' OR body = '{\"k\":1}' ORDER BY id")
+
+        assert result["error"] == ""
+        assert result["dataframe"]["id"].tolist() == [1, 2]
