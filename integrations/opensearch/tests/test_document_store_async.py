@@ -29,6 +29,20 @@ from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("scale_score, expected_score", [(False, 8.0), (True, pytest.approx(0.7310585786300049))])
+async def test_bm25_retrieval_async_scale_score(scale_score, expected_score):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._async_client = AsyncMock()
+    store._async_client.search.return_value = {
+        "hits": {"hits": [{"_source": {"id": "1", "content": "doc"}, "_score": 8.0}]}
+    }
+
+    results = await store._bm25_retrieval_async("doc", scale_score=scale_score)
+
+    assert results[0].score == expected_score
+
+
+@pytest.mark.asyncio
 async def test_close_async():
     store = OpenSearchDocumentStore(hosts="testhost", http_auth=("a", "b"))
     mock_client = AsyncMock()
