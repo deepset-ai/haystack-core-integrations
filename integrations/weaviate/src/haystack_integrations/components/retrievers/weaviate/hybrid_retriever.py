@@ -26,6 +26,7 @@ class WeaviateHybridRetriever:
         alpha: float = 0.7,
         max_vector_distance: float | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
+        vector_weights: dict[str, float] | None = None,
     ) -> None:
         """
         Creates a new instance of WeaviateHybridRetriever.
@@ -64,6 +65,9 @@ class WeaviateHybridRetriever:
             - [Hybrid Search](https://docs.weaviate.io/weaviate/concepts/search/hybrid-search)
         :param filter_policy:
             Policy to determine how filters are applied.
+        :param vector_weights:
+            Relative-score weights keyed by `default` and `multi_vector`. Ignored for single-target queries.
+            `None` weights both targets equally.
         """
 
         if not 0.0 <= alpha <= 1.0:
@@ -75,6 +79,7 @@ class WeaviateHybridRetriever:
         self._top_k = top_k
         self._alpha = alpha
         self._max_vector_distance = max_vector_distance
+        self._vector_weights = dict(vector_weights) if vector_weights is not None else None
         self._filter_policy = (
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
@@ -92,6 +97,7 @@ class WeaviateHybridRetriever:
             top_k=self._top_k,
             alpha=self._alpha,
             max_vector_distance=self._max_vector_distance,
+            vector_weights=self._vector_weights,
             filter_policy=self._filter_policy.value,
             document_store=self._document_store.to_dict(),
         )
@@ -131,11 +137,14 @@ class WeaviateHybridRetriever:
     def run(
         self,
         query: str,
-        query_embedding: list[float],
+        query_embedding: list[float] | None = None,
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
         alpha: float | None = None,
         max_vector_distance: float | None = None,
+        *,
+        query_multivector_embedding: list[list[float]] | None = None,
+        vector_weights: dict[str, float] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Retrieves documents from Weaviate using hybrid search.
@@ -143,7 +152,11 @@ class WeaviateHybridRetriever:
         :param query:
             The query text.
         :param query_embedding:
-            Embedding of the query.
+            Dense query vector. Required when `query_multivector_embedding` is omitted.
+        :param query_multivector_embedding:
+            Token-vector matrix for the configured multivector index. Pass with a dense vector to search both.
+        :param vector_weights:
+            Overrides the initialization weights for relative-score fusion of the two vector targets.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
@@ -178,6 +191,9 @@ class WeaviateHybridRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of documents returned by the search engine.
         """
+        if query_embedding is None and query_multivector_embedding is None:
+            msg = "Provide query_embedding or query_multivector_embedding."
+            raise ValueError(msg)
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = self._top_k if top_k is None else top_k
         alpha = self._alpha if alpha is None else alpha
@@ -190,6 +206,8 @@ class WeaviateHybridRetriever:
         documents = self._document_store._hybrid_retrieval(
             query=query,
             query_embedding=query_embedding,
+            query_multivector_embedding=query_multivector_embedding,
+            vector_weights=self._vector_weights if vector_weights is None else vector_weights,
             filters=filters,
             top_k=top_k,
             alpha=alpha,
@@ -201,11 +219,14 @@ class WeaviateHybridRetriever:
     async def run_async(
         self,
         query: str,
-        query_embedding: list[float],
+        query_embedding: list[float] | None = None,
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
         alpha: float | None = None,
         max_vector_distance: float | None = None,
+        *,
+        query_multivector_embedding: list[list[float]] | None = None,
+        vector_weights: dict[str, float] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieves documents from Weaviate using hybrid search.
@@ -213,7 +234,11 @@ class WeaviateHybridRetriever:
         :param query:
             The query text.
         :param query_embedding:
-            Embedding of the query.
+            Dense query vector. Required when `query_multivector_embedding` is omitted.
+        :param query_multivector_embedding:
+            Token-vector matrix for the configured multivector index. Pass with a dense vector to search both.
+        :param vector_weights:
+            Overrides the initialization weights for relative-score fusion of the two vector targets.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
                         the `filter_policy` chosen at retriever initialization. See init method docstring for more
                         details.
@@ -248,6 +273,9 @@ class WeaviateHybridRetriever:
         :returns: A dictionary with the following keys:
             - `documents`: List of documents returned by the search engine.
         """
+        if query_embedding is None and query_multivector_embedding is None:
+            msg = "Provide query_embedding or query_multivector_embedding."
+            raise ValueError(msg)
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
         top_k = self._top_k if top_k is None else top_k
         alpha = self._alpha if alpha is None else alpha
@@ -260,6 +288,8 @@ class WeaviateHybridRetriever:
         documents = await self._document_store._hybrid_retrieval_async(
             query=query,
             query_embedding=query_embedding,
+            query_multivector_embedding=query_multivector_embedding,
+            vector_weights=self._vector_weights if vector_weights is None else vector_weights,
             filters=filters,
             top_k=top_k,
             alpha=alpha,

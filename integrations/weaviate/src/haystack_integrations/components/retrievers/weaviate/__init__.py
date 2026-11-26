@@ -5,5 +5,11 @@
 from .bm25_retriever import WeaviateBM25Retriever
 from .embedding_retriever import WeaviateEmbeddingRetriever
 from .hybrid_retriever import WeaviateHybridRetriever
+from .multivector_embedding_retriever import WeaviateMultivectorEmbeddingRetriever
 
-__all__ = ["WeaviateBM25Retriever", "WeaviateEmbeddingRetriever", "WeaviateHybridRetriever"]
+__all__ = [
+    "WeaviateBM25Retriever",
+    "WeaviateEmbeddingRetriever",
+    "WeaviateHybridRetriever",
+    "WeaviateMultivectorEmbeddingRetriever",
+]

@@ -5,6 +5,7 @@ loaders:
       - haystack_integrations.components.retrievers.weaviate.bm25_retriever
       - haystack_integrations.components.retrievers.weaviate.embedding_retriever
       - haystack_integrations.components.retrievers.weaviate.hybrid_retriever
+      - haystack_integrations.components.retrievers.weaviate.multivector_embedding_retriever
     search_path: [../src]
 processors:
   - type: filter
