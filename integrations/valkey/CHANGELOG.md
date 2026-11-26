@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/valkey-v1.1.1] - 2026-11-26
+
+### 🐛 Bug Fixes
+
+- Valkey - escape | and backslash in tag filter values (#4298)
+
+
 ## [integrations/valkey-v1.1.0] - 2026-11-25
 
 ### 🐛 Bug Fixes
