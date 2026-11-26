@@ -91,6 +91,8 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
     if tool_call_results:
         # Ollama does not provide a way to communicate errors in tool invocations, so we ignore the error field
         ollama_msg["content"] = tool_call_results[0].result
+        # `tool_name` tells the model which tool produced the result
+        ollama_msg["tool_name"] = tool_call_results[0].origin.tool_name
         return ollama_msg
 
     if text_contents:

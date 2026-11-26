@@ -82,6 +82,7 @@ class TestUtils:
         assert _convert_chatmessage_to_ollama_format(message) == {
             "role": "tool",
             "content": tool_result,
+            "tool_name": "weather",
         }
 
     def test_convert_chatmessage_to_ollama_format_image(self):
