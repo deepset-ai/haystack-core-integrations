@@ -31,6 +31,14 @@ _SYSTEM_REMINDER_META_KEY = "system_reminder"
 _STOP_REASON = "pii_detected"
 _SEVERITY: dict[str, int] = {"none": 0, "pass": 0, "redact": 1, "block": 2, "stop": 3}
 _DEFAULT_BLOCK_MESSAGE = "[This message was removed because it contained sensitive information.]"
+_PII_REMINDER = (
+    "A message was removed because it contained sensitive information ({entities}). "
+    "Do not ask for, repeat, or guess this information. If the user provided it, tell them it cannot be accepted."
+)
+_ERROR_REMINDER = (
+    "A message was removed because it could not be checked for sensitive information. "
+    "Continue without it, and do not ask for it to be repeated."
+)
 
 
 def _map_texts(message: ChatMessage, fn: Callable[[str], str]) -> list[Any]:
@@ -104,7 +112,8 @@ class PresidioPIIHook:
     an action, and a message takes the strictest action among its entities:
 
     - `"redact"` (default): Presidio's anonymizer replaces each entity with a placeholder such as `<PERSON>`.
-    - `"block"`: The message's text is replaced with `block_message`, which both the model and the user may see.
+    - `"block"`: The message's text is replaced with `block_message`. Mid-run, a system reminder is added telling the
+      model the message was removed; once the run is exiting, the reply is replaced without a reminder.
     - `"stop"`: The message is redacted and the run stops before the next LLM call, with `exit_reason` set to
       `"pii_detected"`.
 
@@ -245,7 +254,10 @@ class PresidioPIIHook:
         if not to_check:
             return
 
+        # Exit hooks run after the final reply; a reminder appended then would become the Agent's last message.
+        mid_run = state.data.get("exit_reason") is None
         rewritten = list(messages)
+        reminders: list[ChatMessage] = []
         entity_counts: Counter[str] = Counter()
         run_action = "none"
         errored = False
@@ -270,6 +282,8 @@ class PresidioPIIHook:
                 action: str = self.on_error
                 if action != "pass":
                     rewritten[index] = self._replace_content(message=message, replacements=repeat(self.block_message))
+                    if mid_run:
+                        reminders.append(self._reminder(text=_ERROR_REMINDER))
             else:
                 found = Counter(result.entity_type for results in findings for result in results)
                 entity_counts.update(found)
@@ -280,6 +294,9 @@ class PresidioPIIHook:
                 )
                 if action == "block":
                     rewritten[index] = self._replace_content(message=message, replacements=repeat(self.block_message))
+                    if mid_run:
+                        entity_list = ", ".join(sorted(found))
+                        reminders.append(self._reminder(text=_PII_REMINDER.format(entities=entity_list)))
                 elif action in ("redact", "stop"):
                     anonymized = [self._anonymize(text=t, results=r) for t, r in zip(texts, findings, strict=True)]
                     rewritten[index] = self._replace_content(message=message, replacements=anonymized)
@@ -291,7 +308,7 @@ class PresidioPIIHook:
                 rewritten[index] = replace(message, _meta={**message.meta, _CHECKED_META_KEY: True})
             outputs.extend(_checked_texts(message=rewritten[index]))
 
-        state.set("messages", rewritten, handler_override=replace_values)
+        state.set("messages", rewritten + reminders, handler_override=replace_values)
         self._trace(
             checked=len(to_check),
             action=run_action,
@@ -374,6 +391,11 @@ class PresidioPIIHook:
         replacement_iter = iter(replacements)
         content = _map_texts(message=message, fn=lambda _: next(replacement_iter))
         return replace(message, _content=content, _meta={**message.meta, _CHECKED_META_KEY: True})
+
+    @staticmethod
+    def _reminder(text: str) -> ChatMessage:
+        """Build a system reminder the hook itself will skip on later runs."""
+        return ChatMessage.from_user(text, meta={_SYSTEM_REMINDER_META_KEY: True, _CHECKED_META_KEY: True})
 
     @staticmethod
     def _trace(
