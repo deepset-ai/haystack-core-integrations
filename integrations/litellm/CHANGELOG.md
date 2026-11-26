@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/litellm-v2.1.0] - 2026-11-26
+
+### 🚀 Features
+
+- LiteLLM - expose timeout (#4335)
+
+### 🐛 Bug Fixes
+
+- Respect an empty tools override in AIMLAPI, Bedrock, LiteLLM, Transformers and watsonx chat generators (#4252)
+
+### 🧹 Chores
+
+- Enforce ruff docstring rules in remaining integrations (#4175)
+
+
 ## [integrations/litellm-v2.0.0] - 2026-10-16
 
 ### 🐛 Bug Fixes
