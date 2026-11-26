@@ -85,7 +85,7 @@ def _get_client(
         timeout_ms = int(timeout * 1000)
 
     if max_retries is not None:
-        retry_options = types.HttpRetryOptions(attempts=max_retries)
+        retry_options = types.HttpRetryOptions(attempts=max_retries + 1)
 
     if timeout_ms is not None or retry_options is not None:
         http_options = types.HttpOptions(timeout=timeout_ms, retry_options=retry_options)

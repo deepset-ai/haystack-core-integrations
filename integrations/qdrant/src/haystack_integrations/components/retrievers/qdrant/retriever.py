@@ -522,6 +522,7 @@ class QdrantHybridRetriever:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> None:
         """
         Create a QdrantHybridRetriever component.
@@ -546,6 +547,8 @@ class QdrantHybridRetriever:
         :param rrf_weights: Per-prefetch weights for RRF fusion — `[sparse_weight, dense_weight]`.
             See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Maximum number of candidates that each prefetch (sparse and dense) passes to RRF fusion.
+            If `None`, defaults to `2 * top_k`. With `group_by`, `None` leaves the limit to Qdrant.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
         """
@@ -566,6 +569,7 @@ class QdrantHybridRetriever:
         self._group_size = group_size
         self._rrf_k = rrf_k
         self._rrf_weights = rrf_weights
+        self._prefetch_limit = prefetch_limit
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -586,6 +590,7 @@ class QdrantHybridRetriever:
             group_size=self._group_size,
             rrf_k=self._rrf_k,
             rrf_weights=self._rrf_weights,
+            prefetch_limit=self._prefetch_limit,
         )
 
     @classmethod
@@ -632,6 +637,7 @@ class QdrantHybridRetriever:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the Hybrid Retriever on the given input data.
@@ -658,6 +664,7 @@ class QdrantHybridRetriever:
         :param rrf_weights: Override the init-time `rrf_weights` for this run.
             See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Override the init-time `prefetch_limit` for this run.
         :returns:
             The retrieved documents.
 
@@ -678,6 +685,7 @@ class QdrantHybridRetriever:
             group_size=group_size or self._group_size,
             rrf_k=rrf_k if rrf_k is not None else self._rrf_k,
             rrf_weights=rrf_weights if rrf_weights is not None else self._rrf_weights,
+            prefetch_limit=prefetch_limit if prefetch_limit is not None else self._prefetch_limit,
         )
 
         return {"documents": docs}
@@ -695,6 +703,7 @@ class QdrantHybridRetriever:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> dict[str, list[Document]]:
         """
         Asynchronously run the Hybrid Retriever on the given input data.
@@ -721,6 +730,7 @@ class QdrantHybridRetriever:
         :param rrf_weights: Override the init-time `rrf_weights` for this run.
             See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Override the init-time `prefetch_limit` for this run.
         :returns:
             The retrieved documents.
 
@@ -741,6 +751,7 @@ class QdrantHybridRetriever:
             group_size=group_size or self._group_size,
             rrf_k=rrf_k if rrf_k is not None else self._rrf_k,
             rrf_weights=rrf_weights if rrf_weights is not None else self._rrf_weights,
+            prefetch_limit=prefetch_limit if prefetch_limit is not None else self._prefetch_limit,
         )
 
         return {"documents": docs}

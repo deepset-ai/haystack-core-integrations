@@ -2,6 +2,7 @@ import json
 from typing import Annotated
 from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
@@ -613,6 +614,24 @@ class TestUtils:
         assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
         assert result["replies"][0].tool_calls[1].id is None
 
+    def test_handle_streaming_response_tool_call_without_arguments(self):
+        call = Message.ToolCall(function=Message.ToolCall.Function(name="get_current_time", arguments={}))
+        ollama_chunks = [
+            ChatResponse(done=False, message=Message(role="assistant", content="", tool_calls=[call])),
+            ChatResponse(
+                done=True,
+                done_reason="stop",
+                prompt_eval_count=143,
+                eval_count=17,
+                message=Message(role="assistant", content=""),
+            ),
+        ]
+        streaming_chunks = []
+        result = OllamaChatGenerator()._handle_streaming_response(ollama_chunks, streaming_chunks.append)
+
+        assert streaming_chunks[0].tool_calls[0].arguments == "{}"
+        assert result["replies"][0].tool_calls == [ToolCall(tool_name="get_current_time", arguments={})]
+
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
             ChatResponse(
@@ -1196,8 +1215,11 @@ class TestRun:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
+    @pytest.mark.parametrize(
+        "error", [ResponseError("temporary failure", status_code=500), httpx.ReadTimeout("timed out")]
+    )
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
-    def test_run_retries_after_failure(self, mock_client):
+    def test_run_retries_after_failure(self, mock_client, error):
         generator = OllamaChatGenerator(max_retries=1)
 
         mock_response = ChatResponse(
@@ -1210,7 +1232,7 @@ class TestRun:
         )
 
         mock_client_instance = mock_client.return_value
-        mock_client_instance.chat.side_effect = [ResponseError("temporary failure", status_code=500), mock_response]
+        mock_client_instance.chat.side_effect = [error, mock_response]
 
         result = generator.run(messages=[ChatMessage.from_user("Hello!")])
 
@@ -1252,8 +1274,11 @@ class TestRun:
         assert mock_async_client_instance.chat.call_count == 1
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error", [ResponseError("temporary failure", status_code=500), httpx.ReadTimeout("timed out")]
+    )
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
-    async def test_run_async_retries_after_failure(self, mock_async_client):
+    async def test_run_async_retries_after_failure(self, mock_async_client, error):
         generator = OllamaChatGenerator(max_retries=1)
 
         mock_response = ChatResponse(
@@ -1266,9 +1291,7 @@ class TestRun:
         )
 
         mock_async_client_instance = mock_async_client.return_value
-        mock_async_client_instance.chat = AsyncMock(
-            side_effect=[ResponseError("temporary failure", status_code=500), mock_response]
-        )
+        mock_async_client_instance.chat = AsyncMock(side_effect=[error, mock_response])
 
         result = await generator.run_async(messages=[ChatMessage.from_user("Hello!")])
 

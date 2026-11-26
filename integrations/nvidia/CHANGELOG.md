@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/nvidia-v3.0.2] - 2026-11-26
+
+### 🐛 Bug Fixes
+
+- Preserve falsy metadata in NvidiaRanker (#4233)
+- Nvidia - serialize NvidiaRanker truncate as a string (#4321)
+
+
 ## [integrations/nvidia-v3.0.1] - 2026-11-17
 
 

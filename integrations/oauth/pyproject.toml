@@ -29,6 +29,9 @@ classifiers = [
 ]
 dependencies = ["haystack-ai>=2.31.0", "httpx>=0.28.0"]
 
+[project.optional-dependencies]
+jwt = ["PyJWT[crypto]>=2.8.0"]
+
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/oauth#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
@@ -62,6 +65,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "PyJWT[crypto]>=2.8.0",
 ]
 
 [tool.hatch.envs.test.scripts]

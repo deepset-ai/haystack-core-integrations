@@ -8,7 +8,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 from pandas import DataFrame
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.engine import URL, Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import StaticPool
@@ -16,6 +16,11 @@ from sqlalchemy.pool import StaticPool
 logger = logging.getLogger(__name__)
 
 MAX_SYS_ROWS = 10_000
+
+
+# Run SQL strings as written: `text()` would treat ":name" (even inside string literals) as a bind parameter.
+# `no_parameters` stops drivers such as psycopg2 from treating "%" as a parameter marker.
+_RAW_SQL_OPTIONS = {"no_parameters": True}
 
 
 @component
@@ -104,7 +109,7 @@ class SQLAlchemyTableRetriever:
                 for stmt in self.init_script:
                     stripped = stmt.strip()
                     if stripped:
-                        conn.execute(text(stripped))
+                        conn.exec_driver_sql(stripped, execution_options=_RAW_SQL_OPTIONS)
                 conn.commit()
 
         self._warmed_up = True
@@ -174,7 +179,7 @@ class SQLAlchemyTableRetriever:
 
         try:
             with self._engine.connect() as conn:
-                result = conn.execute(text(query))
+                result = conn.exec_driver_sql(query, execution_options=_RAW_SQL_OPTIONS)
                 rows = result.fetchmany(MAX_SYS_ROWS)
                 columns = list(result.keys())
             df = DataFrame(rows, columns=columns)

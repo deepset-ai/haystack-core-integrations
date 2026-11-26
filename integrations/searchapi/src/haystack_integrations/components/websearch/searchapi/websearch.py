@@ -39,6 +39,10 @@ class SearchApiWebSearch:
     `{"engine": "chatgpt"}`, `{"engine": "gemini"}` or `{"engine": "bing_copilot"}`, the first document holds the
     synthesized answer as Markdown. The following documents and `links` hold the reference links it cites and,
     for `google_ai_mode` and `chatgpt`, the web results the engine retrieved.
+
+    With the default `google` engine, an AI overview included in the response becomes the first document, with
+    `meta["type"] == "ai_answer"`, followed by the answer box, knowledge graph, organic results and answered
+    related questions.
     """
 
     def __init__(
@@ -55,8 +59,9 @@ class SearchApiWebSearch:
         :param top_k: Number of documents to return.
         :param allowed_domains: List of domains to limit the search to.
         :param search_params: Additional parameters passed to the SearchApi API.
-            For example, you can set 'num' to 100 to increase the number of search results.
-            See the [SearchApi website](https://www.searchapi.io/) for more details.
+            For example, you can set `gl` and `hl` to localize results, or `page` to fetch further results.
+            See the [SearchApi documentation](https://www.searchapi.io/docs/google) for the parameters each
+            engine supports.
 
             The default search engine is Google, however, users can change it by setting the `engine`
             parameter in the `search_params`.
@@ -211,20 +216,40 @@ class SearchApiWebSearch:
                 )
             ]
 
+        # Google's AI overview, when it is part of the response. If Google defers it, SearchApi returns only
+        # `error` and `page_token` under `ai_overview`, so there is no answer to add.
+        ai_overview = []
+        overview_markdown = (json_result.get("ai_overview") or {}).get("markdown")
+        if overview_markdown:
+            ai_overview = [
+                Document.from_dict(
+                    {
+                        "content": overview_markdown,
+                        "engine": json_result.get("search_parameters", {}).get("engine", ""),
+                        "type": "ai_answer",
+                    }
+                )
+            ]
+
         related_questions = []
         if "related_questions" in json_result:
             for result in json_result["related_questions"]:
+                answer = result.get("answer") or result.get("answer_highlight")
+                # Google often loads these answers asynchronously, in which case SearchApi returns the question
+                # with an `error` and a `page_token` but no answer; a document without content adds nothing.
+                if not answer:
+                    continue
                 related_questions.append(
                     Document.from_dict(
                         {
                             "title": result["question"],
-                            "content": result["answer"] if result.get("answer") else result.get("answer_highlight", ""),
+                            "content": answer,
                             "link": result.get("source", {}).get("link", ""),
                         }
                     )
                 )
 
-        documents = answer_box + knowledge_graph + organic_results + related_questions
+        documents = ai_overview + answer_box + knowledge_graph + organic_results + related_questions
 
         links = [result["link"] for result in json_result.get("organic_results", [])]
         return documents, links

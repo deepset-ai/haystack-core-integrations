@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mcp-v2.2.0] - 2026-11-25
+
+### 🚀 Features
+
+- Add tool_descriptions to MCPToolset to override server tool descriptions (#4331)
+
+
 ## [integrations/mcp-v2.1.2] - 2026-11-16
 
 ### 🐛 Bug Fixes

@@ -336,6 +336,16 @@ def test_special_character_escaping():
     assert result == expected
 
 
+def test_pipe_and_backslash_are_escaped():
+    # `|` is the tag union operator, so a raw one would also match either side of it
+    pipe = _normalize_filters({"field": "meta.category", "operator": "==", "value": "a|b"}, DEFAULT_SUPPORTED_FIELDS)
+    assert pipe == "@meta_category:{a\\|b}"
+    backslash = _normalize_filters(
+        {"field": "meta.category", "operator": "==", "value": "a\\b"}, DEFAULT_SUPPORTED_FIELDS
+    )
+    assert backslash == "@meta_category:{a\\\\b}"
+
+
 def test_direct_comparison_condition():
     # Test single comparison condition without logical wrapper
     result = _normalize_filters({"field": "meta.category", "operator": "==", "value": "news"}, DEFAULT_SUPPORTED_FIELDS)

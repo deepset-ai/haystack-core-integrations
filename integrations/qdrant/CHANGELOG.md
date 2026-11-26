@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/qdrant-v14.0.0] - 2026-11-25
+
+### 🚀 Features
+
+- [**breaking**] Qdrant - add prefetch_limit to hybrid retrieval (#4295)
+
+### 🐛 Bug Fixes
+
+- *(qdrant)* Accept the meta. prefix in count_unique_metadata_by_filter (#4250)
+
+
 ## [integrations/qdrant-v13.2.0] - 2026-11-11
 
 ### 🚀 Features

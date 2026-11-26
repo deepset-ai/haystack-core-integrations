@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 # - Qdrant expects an integer and internally defaults to 3 when performing grouped queries.
 # - When group_by is specified but group_size is None, we use this value instead of passing None.
 DEFAULT_GROUP_SIZE = 3
+# Multiple of `top_k` used as the default per-prefetch limit in hybrid queries
+DEFAULT_PREFETCH_LIMIT_FACTOR = 2
 
 
 class QdrantStoreError(DocumentStoreError):
@@ -1837,6 +1839,7 @@ class QdrantDocumentStore:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> list[Document]:
         """
         Retrieves documents based on dense and sparse embeddings and fuses the results using Reciprocal Rank Fusion.
@@ -1862,6 +1865,9 @@ class QdrantDocumentStore:
             Requires Qdrant server >= 1.16.0.
         :param rrf_weights: Per-prefetch weights for RRF fusion. Must have 2 elements: [sparse_weight, dense_weight].
             Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Maximum number of candidates that each prefetch (sparse and dense) passes to RRF fusion.
+            If `None`, defaults to `2 * top_k`. With `group_by`, `None` leaves the limit to Qdrant, which enlarges
+            the prefetches itself until the groups are filled.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -1884,6 +1890,9 @@ class QdrantDocumentStore:
 
         qdrant_filters = convert_filters_to_qdrant(filters)
         rrf_query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
+        ungrouped_prefetch_limit = (
+            prefetch_limit if prefetch_limit is not None else DEFAULT_PREFETCH_LIMIT_FACTOR * top_k
+        )
 
         try:
             if group_by:
@@ -1897,11 +1906,13 @@ class QdrantDocumentStore:
                             ),
                             using=SPARSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=prefetch_limit,
                         ),
                         rest.Prefetch(
                             query=query_embedding,
                             using=DENSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=prefetch_limit,
                         ),
                     ],
                     query=rrf_query,
@@ -1923,11 +1934,13 @@ class QdrantDocumentStore:
                             ),
                             using=SPARSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=ungrouped_prefetch_limit,
                         ),
                         rest.Prefetch(
                             query=query_embedding,
                             using=DENSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=ungrouped_prefetch_limit,
                         ),
                     ],
                     query=rrf_query,
@@ -2146,6 +2159,7 @@ class QdrantDocumentStore:
         group_size: int | None = None,
         rrf_k: int | None = None,
         rrf_weights: list[float] | None = None,
+        prefetch_limit: int | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents based on dense and sparse embeddings.
@@ -2171,6 +2185,9 @@ class QdrantDocumentStore:
         :param group_size: Maximum amount of points to return per group. Default is 3.
         :param rrf_k: The `k` constant for Reciprocal Rank Fusion. Requires Qdrant server >= 1.16.0.
         :param rrf_weights: Per-prefetch weights for RRF fusion. Requires Qdrant server >= 1.17.0.
+        :param prefetch_limit: Maximum number of candidates that each prefetch (sparse and dense) passes to RRF fusion.
+            If `None`, defaults to `2 * top_k`. With `group_by`, `None` leaves the limit to Qdrant, which enlarges
+            the prefetches itself until the groups are filled.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -2190,6 +2207,9 @@ class QdrantDocumentStore:
 
         qdrant_filters = convert_filters_to_qdrant(filters)
         rrf_query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
+        ungrouped_prefetch_limit = (
+            prefetch_limit if prefetch_limit is not None else DEFAULT_PREFETCH_LIMIT_FACTOR * top_k
+        )
 
         try:
             if group_by:
@@ -2203,11 +2223,13 @@ class QdrantDocumentStore:
                             ),
                             using=SPARSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=prefetch_limit,
                         ),
                         rest.Prefetch(
                             query=query_embedding,
                             using=DENSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=prefetch_limit,
                         ),
                     ],
                     query=rrf_query,
@@ -2230,11 +2252,13 @@ class QdrantDocumentStore:
                             ),
                             using=SPARSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=ungrouped_prefetch_limit,
                         ),
                         rest.Prefetch(
                             query=query_embedding,
                             using=DENSE_VECTORS_NAME,
                             filter=qdrant_filters,
+                            limit=ungrouped_prefetch_limit,
                         ),
                     ],
                     query=rrf_query,

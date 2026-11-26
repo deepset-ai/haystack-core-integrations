@@ -556,6 +556,8 @@ class OpenSearchDocumentStore:
             equality: they match documents whose content contains the value as a phrase, that is, the same words in the
             same order and next to each other, ignoring case and punctuation. For example, `==` with the value
             `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
+            Filters on `content` are useful to select documents containing a phrase; for relevance-ranked text search,
+            use a retriever.
         :returns: A list of Documents that match the given filters.
         """
         self._ensure_initialized()
@@ -573,6 +575,8 @@ class OpenSearchDocumentStore:
             equality: they match documents whose content contains the value as a phrase, that is, the same words in the
             same order and next to each other, ignoring case and punctuation. For example, `==` with the value
             `"Foo Document"` matches a document with the content `"A foo document."`, and `!=` excludes it.
+            Filters on `content` are useful to select documents containing a phrase; for relevance-ranked text search,
+            use a retriever.
         :returns: A list of Documents that match the given filters.
         """
         await self._ensure_initialized_async()
