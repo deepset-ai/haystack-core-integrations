@@ -56,7 +56,7 @@ def fake_soffice() -> Generator[SimpleNamespace, None]:
         if fake.returncode and check:
             raise subprocess.CalledProcessError(fake.returncode, args)
 
-    async def _exec(*args: str) -> AsyncMock:
+    async def _exec(*args: str, **_kwargs: object) -> AsyncMock:
         _convert(list(args))
         process = AsyncMock()
         process.wait = AsyncMock(return_value=fake.returncode)

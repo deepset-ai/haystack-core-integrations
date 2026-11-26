@@ -5,9 +5,13 @@
 import mimetypes
 import os
 import shutil
+import signal
 import subprocess
-from asyncio import create_subprocess_exec
+import sys
+from asyncio import CancelledError, create_subprocess_exec, create_task, shield
+from asyncio.subprocess import Process
 from collections.abc import Iterable
+from contextlib import suppress
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, ClassVar, Literal, Self, TypedDict, get_args
@@ -38,6 +42,74 @@ OUTPUT_FILE_TYPE = Literal[
 
 class LibreOfficeFileConverterOutput(TypedDict):
     output: list[ByteStream]
+
+
+def _conversion_subprocess_kwargs() -> dict[str, Any]:
+    """
+    Start soffice in its own session so the launcher and soffice.bin share one group.
+
+    On Windows the process tree is grouped instead; `start_new_session` is POSIX-only.
+    """
+    if sys.platform == "win32":  # pragma: no cover
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def _kill_process_group(process: Process) -> None:
+    """
+    Kill the conversion leader and the descendants it started.
+
+    `soffice` is a launcher: it starts `oosplash`, which starts `soffice.bin`. Killing
+    only the leader leaves `soffice.bin` running and writing into the workspace.
+    """
+    if sys.platform == "win32":  # pragma: no cover
+        # /T walks the parent/child tree. CREATE_NEW_PROCESS_GROUP does not by itself.
+        subprocess.run(  # noqa: S603
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],  # noqa: S607
+            check=False,
+            capture_output=True,
+        )
+        return
+    # The leader's pid is the process-group id when start_new_session=True.
+    with suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGKILL)
+
+
+async def _reap_conversion_process(process: Process) -> None:
+    """
+    Kill and reap a conversion process group so cancellation cannot leave it running.
+
+    Further cancellation is absorbed until the leader has been waited on. Callers
+    remove the temporary workspace only after this returns.
+    """
+    if process.returncode is None:
+        _kill_process_group(process)
+    if process.returncode is not None:
+        return
+
+    waiter = create_task(process.wait())
+    while not waiter.done():
+        try:
+            await shield(waiter)
+        except CancelledError:
+            # The shielded wait keeps running; a second cancel must not delete
+            # the workspace before the leader has been reaped.
+            continue
+    waiter.result()
+
+
+async def _run_soffice(args: list[str]) -> None:
+    """
+    Run one soffice conversion, reaping its process group if this task is cancelled.
+    """
+    process = await create_subprocess_exec(*args, **_conversion_subprocess_kwargs())
+    try:
+        returncode = await process.wait()
+    except CancelledError:
+        await _reap_conversion_process(process)
+        raise
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, args)
 
 
 @component
@@ -295,7 +367,7 @@ class LibreOfficeFileConverter:
                     self._validate_args(resolved_output_file_type)
                     output_path, args = self._get_conversion_args(tmp_path, tmpdir, resolved_output_file_type)
 
-                    subprocess.run(args, check=True)  # noqa: S603 - ruff doesn't know the arguments have been validated
+                    subprocess.run(args, check=True, **_conversion_subprocess_kwargs())  # noqa: S603
                     outputs.append(
                         ByteStream(
                             data=output_path.read_bytes(),
@@ -307,7 +379,7 @@ class LibreOfficeFileConverter:
                 self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
                 output_path, args = self._get_conversion_args(source, tmpdir, resolved_output_file_type)
 
-                subprocess.run(args, check=True)  # noqa: S603
+                subprocess.run(args, check=True, **_conversion_subprocess_kwargs())  # noqa: S603
                 outputs.append(
                     ByteStream(
                         data=output_path.read_bytes(),
@@ -327,6 +399,9 @@ class LibreOfficeFileConverter:
         Asynchronously convert office files to the specified output format using LibreOffice.
 
         This is the asynchronous version of the `run` method with the same parameters and return values.
+        Cancelling it kills the in-flight conversion process group, including processes the
+        soffice launcher started, and waits for the leader to exit before the temporary
+        workspace is removed.
 
         :param sources:
             List of sources to convert. Each source can be a file path (`str` or
@@ -364,10 +439,8 @@ class LibreOfficeFileConverter:
                     self._validate_args(resolved_output_file_type)
                     output_path, args = self._get_conversion_args(tmp_path, tmpdir, resolved_output_file_type)
 
-                    process = await create_subprocess_exec(*args)
-                    # Wait for process to complete as only one instance of soffice can occur at once
-                    if returncode := await process.wait():
-                        raise subprocess.CalledProcessError(returncode, args)
+                    # Wait for this conversion before the next: only one soffice instance can run at once.
+                    await _run_soffice(args)
                     outputs.append(
                         ByteStream(
                             data=output_path.read_bytes(),
@@ -379,10 +452,8 @@ class LibreOfficeFileConverter:
                 self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
                 output_path, args = self._get_conversion_args(source, tmpdir, resolved_output_file_type)
 
-                process = await create_subprocess_exec(*args)
-                # Wait for process to complete as only one instance of soffice can occur at once
-                if returncode := await process.wait():
-                    raise subprocess.CalledProcessError(returncode, args)
+                # Wait for this conversion before the next: only one soffice instance can run at once.
+                await _run_soffice(args)
 
                 outputs.append(
                     ByteStream(

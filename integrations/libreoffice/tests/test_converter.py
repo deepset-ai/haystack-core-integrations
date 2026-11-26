@@ -2,8 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
+import os
+import signal
 import subprocess
+import sys
+import time
+from contextlib import ExitStack, suppress
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -12,8 +19,14 @@ import pytest
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.libreoffice import LibreOfficeFileConverter
+from haystack_integrations.components.converters.libreoffice.converter import (
+    _conversion_subprocess_kwargs,
+    _kill_process_group,
+    _reap_conversion_process,
+)
 
 TYPE = "haystack_integrations.components.converters.libreoffice.converter.LibreOfficeFileConverter"
+CONVERTER_MODULE = "haystack_integrations.components.converters.libreoffice.converter"
 
 
 def _converted_to(args: list[str]) -> str:
@@ -186,6 +199,223 @@ class TestConvert:
 
         with pytest.raises(subprocess.CalledProcessError):
             await _convert(mock_converter, is_async, [source], output_file_type="pdf")
+
+
+class TestAsyncCancellation:
+    """Cancelling `run_async` must reap the soffice child before its workspace disappears."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("as_bytestream", [False, True], ids=["path", "bytestream"])
+    @pytest.mark.parametrize("cancel_again", [False, True], ids=["once", "again"])
+    async def test_cancelling_reaps_the_child_before_removing_its_workspace(
+        self,
+        mock_converter: LibreOfficeFileConverter,
+        tmp_path: Path,
+        as_bytestream: bool,
+        cancel_again: bool,
+    ) -> None:
+        # A real interpreter process stands in for soffice and blocks until it is killed.
+        # No LibreOffice binary is involved.
+        started = asyncio.Event()
+        children: list[asyncio.subprocess.Process] = []
+        tasks: list[asyncio.Task[Any]] = []
+        reaped_before_cleanup: list[bool] = []
+        workspaces: list[str] = []
+
+        async def launch(*_args: str, **_kwargs: object) -> asyncio.subprocess.Process:
+            # Same session/group setup as production, so the group kill reaches this child.
+            child = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                "import time; time.sleep(3600)",
+                **_conversion_subprocess_kwargs(),
+            )
+            children.append(child)
+            started.set()
+            return child
+
+        class _Workspace(TemporaryDirectory):
+            def __enter__(self) -> str:
+                path = super().__enter__()
+                workspaces.append(path)
+                return path
+
+            def __exit__(self, *args: object) -> bool | None:
+                # Cleanup is the moment the workspace goes away; the child must already be gone.
+                reaped_before_cleanup.append(bool(children) and children[0].returncode is not None)
+                return super().__exit__(*args)
+
+        path = tmp_path / "sample.doc"
+        path.write_bytes(b"doc")
+        source: Path | ByteStream = ByteStream(data=b"raw doc bytes") if as_bytestream else path
+
+        def kill_and_cancel(process: asyncio.subprocess.Process) -> None:
+            _kill_process_group(process)
+            # Second cancellation arrives while the coroutine is reaping the leader,
+            # which is the case that drops an unshielded `process.wait()`.
+            tasks[0].cancel()
+
+        patches = [
+            patch(f"{CONVERTER_MODULE}.create_subprocess_exec", side_effect=launch),
+            patch(f"{CONVERTER_MODULE}.TemporaryDirectory", _Workspace),
+        ]
+        if cancel_again:
+            patches.append(patch(f"{CONVERTER_MODULE}._kill_process_group", side_effect=kill_and_cancel))
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            task = asyncio.create_task(mock_converter.run_async([source], output_file_type="pdf"))
+            tasks.append(task)
+            await started.wait()
+            task.cancel()
+            try:
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+                assert reaped_before_cleanup == [True]
+                assert children[0].returncode is not None
+                assert workspaces and not Path(workspaces[0]).exists()
+            finally:
+                # If the converter leaked the child, don't leave the sleeper behind.
+                if children and children[0].returncode is None:
+                    _stop_process_tree(children[0])
+                    await children[0].wait()
+
+    @pytest.mark.asyncio
+    async def test_reap_leaves_a_child_that_has_already_exited(self) -> None:
+        # Cancellation can arrive after the child has already been reaped. That path
+        # must return without waiting again.
+        child = await asyncio.create_subprocess_exec(sys.executable, "-c", "import sys; sys.exit(0)")
+        await child.wait()
+        assert child.returncode == 0
+
+        async def wait() -> int:
+            msg = "already exited"
+            raise AssertionError(msg)
+
+        child.wait = wait  # type: ignore[method-assign]
+        await _reap_conversion_process(child)
+        assert child.returncode == 0
+
+    @pytest.mark.asyncio
+    async def test_cancelling_kills_a_grandchild_started_by_the_launcher(
+        self, mock_converter: LibreOfficeFileConverter, tmp_path: Path
+    ) -> None:
+        # soffice is a launcher: the direct child starts soffice.bin and waits.
+        # Killing only the launcher used to leave that grandchild running.
+        pidfile = tmp_path / "grandchild.pid"
+        children: list[asyncio.subprocess.Process] = []
+        path = tmp_path / "sample.doc"
+        path.write_bytes(b"doc")
+
+        async def launch(*_args: str, **kwargs: Any) -> asyncio.subprocess.Process:
+            child = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                _LAUNCHER,
+                str(pidfile),
+                **kwargs,
+            )
+            children.append(child)
+            return child
+
+        with patch(f"{CONVERTER_MODULE}.create_subprocess_exec", side_effect=launch):
+            task = asyncio.create_task(mock_converter.run_async([path], output_file_type="pdf"))
+            try:
+                grandchild_pid = await _wait_for_pid(pidfile)
+                task.cancel()
+                done, _pending = await asyncio.wait({task}, timeout=5)
+                if task not in done:
+                    pytest.fail("cancelled conversion did not finish")
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+                assert children[0].returncode is not None
+                _wait_until_stopped(grandchild_pid)
+            finally:
+                if children and children[0].returncode is None:
+                    _stop_process_tree(children[0])
+                    await children[0].wait()
+                text = pidfile.read_text(encoding="utf-8").strip() if pidfile.exists() else ""
+                if text and _pid_is_running(int(text)):
+                    _stop_pid(int(text))
+
+
+def _stop_pid(pid: int) -> None:
+    """Best-effort kill for a grandchild whose leader is already gone."""
+    if sys.platform == "win32":
+        subprocess.run(  # noqa: S603
+            ["taskkill", "/F", "/PID", str(pid)],  # noqa: S607
+            check=False,
+            capture_output=True,
+        )
+        return
+    with suppress(ProcessLookupError):
+        os.kill(pid, signal.SIGKILL)
+
+
+def _stop_process_tree(process: asyncio.subprocess.Process) -> None:
+    """Stop a leaked leader and anything it started, matching the production kill."""
+    if sys.platform == "win32":
+        subprocess.run(  # noqa: S603
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],  # noqa: S607
+            check=False,
+            capture_output=True,
+        )
+        return
+    with suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGKILL)
+
+
+def _pid_is_running(pid: int) -> bool:
+    """True when `pid` still exists. A zombie counts until init reaps it; callers poll."""
+    if sys.platform == "win32":
+        result = subprocess.run(  # noqa: S603
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],  # noqa: S607
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return any(part == str(pid) for line in result.stdout.splitlines() for part in line.split())
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+async def _wait_for_pid(pidfile: Path) -> int:
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if pidfile.exists():
+            text = pidfile.read_text(encoding="utf-8").strip()
+            if text:
+                return int(text)
+        await asyncio.sleep(0.02)
+    msg = "launcher did not record the grandchild pid"
+    raise AssertionError(msg)
+
+
+def _wait_until_stopped(pid: int) -> None:
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if not _pid_is_running(pid):
+            return
+        time.sleep(0.02)
+    msg = f"process {pid} was still running"
+    raise AssertionError(msg)
+
+
+# Stands in for the soffice launcher: start a long-running grandchild, record its pid, and wait.
+_LAUNCHER = """
+import subprocess
+import sys
+
+grandchild = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(3600)"])
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    handle.write(str(grandchild.pid))
+grandchild.wait()
+"""
 
 
 class TestResolveMimeType:
