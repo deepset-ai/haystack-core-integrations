@@ -790,6 +790,25 @@ def test_get_metadata_field_unique_values_pagination_edge_cases(document_store: 
     assert len(set(unique_values_single1 + unique_values_single2 + unique_values_single3)) == 3
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("search_term", "expected"),
+    [("50%", {"50% off"}), ("a_b", {"a_b"}), ("A\\B", {"a\\b"})],
+    ids=["percent", "underscore", "backslash"],
+)
+def test_get_metadata_field_unique_values_search_term_is_literal(
+    document_store: PgvectorDocumentStore, search_term: str, expected: set[str]
+):
+    docs = [
+        Document(content="doc", meta={"label": value}) for value in ["50% off", "500 off", "a_b", "axb", "a\\b", "ab"]
+    ]
+    document_store.write_documents(docs)
+
+    values, total = document_store.get_metadata_field_unique_values("meta.label", search_term, 0, 10)
+    assert set(values) == expected
+    assert total == len(expected)
+
+
 def _index_names(store: PgvectorDocumentStore, table_name: str) -> set[str]:
     store._ensure_db_setup()
     assert store._connection is not None

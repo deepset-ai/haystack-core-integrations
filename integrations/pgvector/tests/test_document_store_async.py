@@ -668,3 +668,23 @@ async def test_prepare_async_store_never_recreates_or_initializes_tables(monkeyp
     assert seen == {"recreate": False, "recreate_hnsw": False, "initialized": True}
     # Afterwards, and also when connecting fails, the caller's settings are restored
     assert (store.recreate_table, store.hnsw_recreate_index_if_exists, store._table_initialized) == (True, True, False)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("search_term", "expected"),
+    [("50%", {"50% off"}), ("a_b", {"a_b"}), ("A\\B", {"a\\b"})],
+    ids=["percent", "underscore", "backslash"],
+)
+async def test_get_metadata_field_unique_values_search_term_is_literal_async(
+    document_store: PgvectorDocumentStore, search_term: str, expected: set[str]
+):
+    docs = [
+        Document(content="doc", meta={"label": value}) for value in ["50% off", "500 off", "a_b", "axb", "a\\b", "ab"]
+    ]
+    await document_store.write_documents_async(docs)
+
+    values, total = await document_store.get_metadata_field_unique_values_async("meta.label", search_term, 0, 10)
+    assert set(values) == expected
+    assert total == len(expected)

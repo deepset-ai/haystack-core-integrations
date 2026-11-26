@@ -2183,8 +2183,8 @@ class PgvectorDocumentStore:
 
         if search_term:
             # Case-insensitive substring match against the metadata field's own (text) value.
-            sql_where += SQL(" AND meta->>{} ILIKE %s").format(field_literal)
-            params += (f"%{search_term}%",)
+            sql_where += SQL(" AND strpos(lower(meta->>{}), lower(%s)) > 0").format(field_literal)
+            params += (search_term,)
 
         # count query
         sql_count = SQL("SELECT COUNT(DISTINCT meta->{} ) AS total").format(field_literal)
