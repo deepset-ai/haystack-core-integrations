@@ -153,21 +153,17 @@ class TestRun:
         assert state.data["messages"][0].meta["pii_checked"] is True
         assert hook._analyzer.analyze.call_args.kwargs["score_threshold"] == 0.3
 
-    def test_block_mid_run_adds_reminder(self):
+    def test_block_replaces_text_without_adding_messages(self):
         hook = _hook({"4111 1111 1111 1111": ("CREDIT_CARD", 1.0)}, entity_actions={"CREDIT_CARD": "block"})
         state = _state([ChatMessage.from_user("My card is 4111 1111 1111 1111")])
 
         hook.run(state)
 
-        blocked, reminder = state.data["messages"]
+        [blocked] = state.data["messages"]
         assert blocked.text == hook.block_message
         assert blocked.meta["pii_checked"] is True
-        assert reminder.meta["system_reminder"] is True
-        # The hook marks its own reminder as checked so it never analyzes it on a later run.
-        assert reminder.meta["pii_checked"] is True
-        assert "CREDIT_CARD" in reminder.text
 
-    def test_block_on_exit_replaces_reply_without_reminder(self):
+    def test_block_on_exit_replaces_reply(self):
         hook = _hook({"4111 1111 1111 1111": ("CREDIT_CARD", 1.0)}, entity_actions={"CREDIT_CARD": "block"})
         user = ChatMessage.from_user("What card did I use?")
         state = _state([user, ChatMessage.from_assistant("You used 4111 1111 1111 1111.")], exit_reason="text")
@@ -201,11 +197,9 @@ class TestRun:
 
         hook.run(state)
 
-        blocked, reminder = state.data["messages"]
+        [blocked] = state.data["messages"]
         assert blocked.text == hook.block_message
         assert blocked.meta["pii_checked"] is True
-        # The reminder lists every entity type found in the message, sorted, not only the one that caused the block.
-        assert "(CREDIT_CARD, PERSON)" in reminder.text
 
     def test_checks_each_message_once(self):
         hook = _hook({"John": ("PERSON", 0.9)})
@@ -369,6 +363,25 @@ class TestWithAgent:
         assert len(generator.received) == 1
         assert result["last_message"].tool_call_result.result == "Customer 42 is <PERSON>."
 
+    def test_blocked_exit_condition_tool_result_stays_last_message(self):
+        """
+        `after_tool` hooks run before the Agent sets `exit_reason` for an exit-condition tool.
+
+        Blocking the tool result there must not append any message, so the blocked result is still `last_message`.
+        """
+        hook = _hook({"Maria Garcia": ("PERSON", 0.9)}, entity_actions={"PERSON": "block"})
+        agent = Agent(
+            chat_generator=_ToolCallingChatGenerator(),
+            tools=[lookup_customer],
+            exit_conditions=["lookup_customer"],
+            hooks={"after_tool": [hook], "before_llm": [hook], "after_run": [hook]},
+        )
+
+        result = agent.run(messages=[ChatMessage.from_user("Who is customer 42?")])
+
+        assert result["exit_reason"] == "lookup_customer"
+        assert result["last_message"].tool_call_result.result == hook.block_message
+
     def test_max_agent_steps_output_is_redacted_by_after_run(self):
         """
         When the run hits `max_agent_steps`, the loop ends without another `before_llm` and without `on_exit`.
@@ -407,8 +420,7 @@ class TestIntegration:
 
         hook.run(state)
 
-        redacted, blocked, reminder = state.data["messages"]
+        redacted, blocked = state.data["messages"]
         assert "Alice" not in redacted.text
         assert "212-555-5678" not in redacted.text
         assert blocked.text == hook.block_message
-        assert reminder.meta["system_reminder"] is True
