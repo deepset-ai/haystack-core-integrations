@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/watsonx-v3.2.0] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- Watsonx - preserve falsy metadata in the document embedder (#4259)
+
+
 ## [integrations/watsonx-v3.1.0] - 2026-11-24
 
 ### 🐛 Bug Fixes

@@ -22,9 +22,9 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.23.0",
-  "minicpm-ocr[layout,pdf]>=1.0.5",
+  "minicpm-ocr[layout]>=1.0.5",
   "paddlepaddle>=3.0",
-  # paddlex's layout pipeline needs pypdfium2 even for images, but minicpm-ocr[layout] installs bare paddlex
+  # renders PDF pages; paddlex's layout pipeline also needs it, but minicpm-ocr[layout] installs bare paddlex
   "pypdfium2>=4",
 ]
 
@@ -76,6 +76,10 @@ install_types = true
 non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["pypdfium2.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
