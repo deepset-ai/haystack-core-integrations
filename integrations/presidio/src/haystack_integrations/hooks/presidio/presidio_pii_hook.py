@@ -136,6 +136,9 @@ class PresidioPIIHook:
       runs, so PII in the reply cannot be stopped in that mode.
     - Because the model only sees placeholders, the tool-call arguments it writes contain placeholders too, so a tool
       that needs the real value (for example, an email address to send to) receives `<EMAIL_ADDRESS>`.
+    - If the hook runs at `after_tool` and blocks the result of a tool in `exit_conditions`, the reminder becomes the
+      Agent's last message. Read the tool result from `result["messages"]` instead of `result["last_message"]`.
+    - After an `on_exit` hook keeps the run going, messages blocked later in the run get no reminder.
 
     Each run records its decision on the hook's tracing span under `haystack.agent.hook.pii.*`: how many messages it
     checked, whether anything was found, the action taken, the count of each entity type, and whether Presidio failed.
