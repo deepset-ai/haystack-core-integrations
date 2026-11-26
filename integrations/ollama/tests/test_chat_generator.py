@@ -278,6 +278,25 @@ class TestUtils:
         assert chunk.meta["done"] is False
         assert "tool_calls" not in chunk.meta
 
+    @pytest.mark.parametrize(("done_reason", "expected"), [("stop", "stop"), ("length", "length"), ("load", None)])
+    def test_finish_reason_mapping(self, done_reason, expected):
+        ollama_response = ChatResponse(
+            model="some_model",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Hello"},
+            done=True,
+            done_reason=done_reason,
+            prompt_eval_count=26,
+            eval_count=298,
+        )
+        component_info = ComponentInfo.from_component(OllamaChatGenerator())
+
+        message = _convert_ollama_response_to_chatmessage(ollama_response)
+        chunk = _build_chunk(ollama_response, component_info, index=0, tool_call_index=0)
+
+        assert message.meta["finish_reason"] == expected
+        assert chunk.finish_reason == expected
+
     def test_handle_streaming_response(self):
         ollama_chunks = [
             ChatResponse(
