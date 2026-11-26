@@ -12,7 +12,7 @@
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run all integration tests locally, you need four vLLM servers running in parallel: chat generation on port `8000`, embeddings on port `8001`, ranking on port `8002`, and multivector embeddings on port `8003`. Refer to the [workflow file](https://github.com/deepset-ai/haystack-core-integrations/blob/main/.github/workflows/vllm.yml) for more details.
+To run all integration tests locally, you need five vLLM servers running in parallel: chat generation on port `8000`, embeddings on port `8001`, ranking on port `8002`, multivector embeddings on port `8003`, and sparse embeddings on port `8004`. Refer to the [workflow file](https://github.com/deepset-ai/haystack-core-integrations/blob/main/.github/workflows/vllm.yml) for more details.
 
 For example, on macOs, you can install [vLLM-metal](https://github.com/vllm-project/vllm-metal) and start the chat generator server with:
 
@@ -42,4 +42,12 @@ To run the pooling server, use CPU Docker image:
 docker run --rm -p 8003:8000 -e VLLM_CPU_OMP_THREADS_BIND=0-3 vllm/vllm-openai-cpu:latest \
     --model answerdotai/answerai-colbert-small-v1 --runner pooling \
     --pooler-config '{"task":"token_embed"}' --enforce-eager
+```
+
+To run the sparse embedders server, use CPU Docker image. SPLADE checkpoints need the `--hf-overrides` flag to be served as sparse embedding models:
+```bash
+# sparse embedders server (port 8004)
+docker run --rm -p 8004:8000 --shm-size=1g -e VLLM_CPU_KVCACHE_SPACE=1 vllm/vllm-openai-cpu:latest \
+    prithivida/Splade_PP_en_v1 --runner pooling \
+    --hf-overrides '{"architectures": ["BertSpladeSparseEmbeddingModel"]}' --enforce-eager
 ```
