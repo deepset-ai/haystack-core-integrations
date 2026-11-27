@@ -100,6 +100,11 @@ class TestConvertFiltersToQdrantUnit:
                 (None, models.MatchValue(value=True)),
             ]
 
+    def test_in_empty_list_matches_nothing(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "in", "field": "meta.x", "value": []})
+        # an empty `should` would match every point
+        assert qdrant_filter == models.Filter(must=[models.FieldCondition(key="meta.x", match=models.MatchAny(any=[]))])
+
     def test_ne_float(self):
         qdrant_filter = convert_filters_to_qdrant({"operator": "!=", "field": "meta.x", "value": 4.5})
         assert qdrant_filter.must_not[0].range == models.Range(gte=4.5, lte=4.5)
@@ -177,6 +182,18 @@ class TestQdrantFilters(FilterDocumentsTest):
         )
 
         assert sorted(doc.meta["name"] for doc in result) == ["New York City", "newsletter"]
+
+    def test_in_empty_list_matches_no_documents(self, document_store):
+        docs = [Document(content=name, meta={"name": name}) for name in ["news", "New York"]]
+        document_store.write_documents(docs)
+        empty_in = {"field": "meta.name", "operator": "in", "value": []}
+
+        assert document_store.filter_documents(filters=empty_in) == []
+        assert document_store.count_documents_by_filter(filters=empty_in) == 0
+        not_empty_in = document_store.filter_documents(filters={"operator": "NOT", "conditions": [empty_in]})
+        self.assert_documents_are_equal(not_empty_in, docs)
+        assert document_store.delete_by_filter(filters=empty_in) == 0
+        assert document_store.count_documents() == 2
 
     def test_filter_documents_with_qdrant_filters(self, document_store, filterable_docs):
         document_store.write_documents(filterable_docs)

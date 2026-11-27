@@ -156,6 +156,9 @@ def _build_in_condition(key: str, value: list[models.ValueVariants]) -> models.C
     if not isinstance(value, list):
         msg = f"Value {value} is not a list"
         raise FilterError(msg)
+    if not value:
+        # An empty `should` matches every point, but `in []` must match none, like the other Document Stores.
+        return models.FieldCondition(key=key, match=models.MatchAny(any=[]))
     return models.Filter(should=[_build_eq_condition(key, item) for item in value])
 
 
