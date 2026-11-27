@@ -251,8 +251,9 @@ class FAISSDocumentStore:
         # Since FAISS `IndexIDMap` doesn't support pre-filtering natively comfortably
         # without `RangeSearch` or specialized impls, we fetch more and filter post-retrieval.
 
-        # If too few of the fetched neighbours match the filters, search again with a larger k (up to the whole
-        # index), so matching documents further away are not missed.
+        # If too few of the fetched neighbours match the filters, search once more over the whole index, so matching
+        # documents further away are not missed. One full search is cheaper than growing k step by step: exhaustive
+        # indexes like "Flat" compare against every vector whatever k is, and each retry re-filters the same hits.
         fetch_k = top_k
         if filters:
             fetch_k = min(self.index.ntotal, top_k * 10)
@@ -285,7 +286,7 @@ class FAISSDocumentStore:
 
             if not filters or len(results) >= top_k or fetch_k >= self.index.ntotal:
                 return results
-            fetch_k = min(self.index.ntotal, fetch_k * 2)
+            fetch_k = self.index.ntotal
 
     def _check_condition(self, doc: Document, condition: dict[str, Any]) -> bool:
         if "operator" not in condition and "conditions" not in condition:
