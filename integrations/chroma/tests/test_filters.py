@@ -92,3 +92,93 @@ def test_invalid_filters_wrap_chroma_validation_errors(condition, category):
         _convert_filters(condition)
 
     assert isinstance(exception_info.value.__cause__, ValueError)
+
+
+@pytest.mark.parametrize("content_first", [True, False])
+def test_and_filter_mixing_content_and_metadata(content_first):
+    content = {"field": "content", "operator": "contains", "value": "x"}
+    meta = {"field": "meta.a", "operator": "==", "value": 1}
+    conditions = [content, meta] if content_first else [meta, content]
+    result = _convert_filters({"operator": "AND", "conditions": conditions})
+    assert result.ids == []
+    assert result.where == {"a": {"$eq": 1}}
+    assert result.where_document == {"$contains": "x"}
+
+
+def test_and_filter_mixing_content_and_several_metadata_conditions():
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.a", "operator": "==", "value": 1},
+            {"field": "content", "operator": "contains", "value": "x"},
+            {"field": "meta.b", "operator": ">", "value": 2},
+        ],
+    }
+    result = _convert_filters(filters)
+    assert result.where == {"$and": [{"a": {"$eq": 1}}, {"b": {"$gt": 2}}]}
+    assert result.where_document == {"$contains": "x"}
+
+
+def test_and_filter_with_content_nested_in_or_is_not_split():
+    filters = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.a", "operator": "==", "value": 1},
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "content", "operator": "contains", "value": "x"},
+                    {"field": "meta.b", "operator": "==", "value": 2},
+                ],
+            },
+        ],
+    }
+    result = _convert_filters(filters)
+    # No content condition at the top level, so the filter is converted as before the split was added
+    assert result.where == {"$and": [{"a": {"$eq": 1}}, {"$or": [{"content": {"$contains": "x"}}, {"b": {"$eq": 2}}]}]}
+    assert result.where_document is None
+
+
+@pytest.mark.parametrize(
+    "metadata_part",
+    [
+        [
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "content", "operator": "contains", "value": "x"},
+                    {"field": "meta.b", "operator": "==", "value": 2},
+                ],
+            }
+        ],
+        [
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.b", "operator": "==", "value": 2},
+                    {"field": "content", "operator": "contains", "value": "x"},
+                ],
+            }
+        ],
+        [
+            {"field": "meta.a", "operator": "==", "value": 1},
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "content", "operator": "contains", "value": "x"},
+                    {"field": "meta.b", "operator": "==", "value": 2},
+                ],
+            },
+        ],
+    ],
+    ids=["content_first_in_or", "content_last_in_or", "next_to_metadata_condition"],
+)
+def test_and_filter_is_not_split_when_metadata_part_has_content_condition(metadata_part):
+    # Splitting would send the nested content condition to `where` as a metadata key. The filter goes through
+    # the previous conversion instead, which rejects a content condition mixed with metadata conditions.
+    filters = {
+        "operator": "AND",
+        "conditions": [{"field": "content", "operator": "contains", "value": "y"}, *metadata_part],
+    }
+    with pytest.raises(ChromaDocumentStoreFilterError):
+        _convert_filters(filters)
