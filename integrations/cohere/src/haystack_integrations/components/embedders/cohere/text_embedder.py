@@ -24,7 +24,7 @@ class CohereTextEmbedder:
 
     text_to_embed = "I love pizza!"
 
-    text_embedder = CohereTextEmbedder()
+    text_embedder = CohereTextEmbedder(model="embed-v5.0-pro")
 
     print(text_embedder.run(text_to_embed))
 
@@ -34,6 +34,8 @@ class CohereTextEmbedder:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "embed-v5.0-pro",
+        "embed-v5.0-fast",
         "embed-v4.0",
         "embed-english-v3.0",
         "embed-english-light-v3.0",
@@ -52,6 +54,7 @@ class CohereTextEmbedder:
         truncate: str = "END",
         timeout: float = 120.0,
         embedding_type: EmbeddingTypes | None = None,
+        embedding_dimension: int | None = None,
     ) -> None:
         """
         Initialize the CohereTextEmbedder.
@@ -69,6 +72,9 @@ class CohereTextEmbedder:
         :param timeout: request timeout in seconds.
         :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
             Note that int8, uint8, binary, and ubinary are only valid for v3 models.
+        :param embedding_dimension: the dimension of the embeddings to return. Only valid for v4 and newer models.
+            If `None`, the model's default dimension is used. Use the same value for the document and query
+            embedders so the embeddings can be compared.
 
         :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
@@ -81,6 +87,7 @@ class CohereTextEmbedder:
         self.truncate = truncate
         self.timeout = timeout
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
+        self.embedding_dimension = embedding_dimension
 
         self._client: ClientV2 | None = None
         self._async_client: AsyncClientV2 | None = None
@@ -129,6 +136,7 @@ class CohereTextEmbedder:
             truncate=self.truncate,
             timeout=self.timeout,
             embedding_type=self.embedding_type.value,
+            embedding_dimension=self.embedding_dimension,
         )
 
     @classmethod
@@ -176,6 +184,7 @@ class CohereTextEmbedder:
             input_type=self.input_type,
             truncate=self.truncate,
             embedding_type=self.embedding_type,
+            embedding_dimension=self.embedding_dimension,
         )
 
         return {"embedding": embedding[0], "meta": metadata}
@@ -210,6 +219,7 @@ class CohereTextEmbedder:
             input_type=self.input_type,
             truncate=self.truncate,
             embedding_type=self.embedding_type,
+            embedding_dimension=self.embedding_dimension,
         )
 
         return {"embedding": embedding[0], "meta": metadata}

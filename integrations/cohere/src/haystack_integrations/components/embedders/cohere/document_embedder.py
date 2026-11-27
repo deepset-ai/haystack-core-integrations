@@ -28,7 +28,7 @@ class CohereDocumentEmbedder:
 
     doc = Document(content="I love pizza!")
 
-    document_embedder = CohereDocumentEmbedder()
+    document_embedder = CohereDocumentEmbedder(model="embed-v5.0-pro")
 
     result = document_embedder.run([doc])
     print(result['documents'][0].embedding)
@@ -38,6 +38,8 @@ class CohereDocumentEmbedder:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "embed-v5.0-pro",
+        "embed-v5.0-fast",
         "embed-v4.0",
         "embed-english-v3.0",
         "embed-english-light-v3.0",
@@ -60,6 +62,7 @@ class CohereDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         embedding_type: EmbeddingTypes | None = None,
+        embedding_dimension: int | None = None,
     ) -> None:
         """
         Initialize the CohereDocumentEmbedder.
@@ -82,6 +85,9 @@ class CohereDocumentEmbedder:
         :param embedding_separator: separator used to concatenate the meta fields to the Document text.
         :param embedding_type: the type of embeddings to return. Defaults to float embeddings.
             Note that int8, uint8, binary, and ubinary are only valid for v3 models.
+        :param embedding_dimension: the dimension of the embeddings to return. Only valid for v4 and newer models.
+            If `None`, the model's default dimension is used. Use the same value for the document and query
+            embedders so the embeddings can be compared.
 
         :raises ValueError: If `api_base_url` is a full endpoint URL rather than a base URL.
         """
@@ -98,6 +104,7 @@ class CohereDocumentEmbedder:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.embedding_separator = embedding_separator
         self.embedding_type = embedding_type or EmbeddingTypes.FLOAT
+        self.embedding_dimension = embedding_dimension
 
         self._client: ClientV2 | None = None
         self._async_client: AsyncClientV2 | None = None
@@ -142,6 +149,7 @@ class CohereDocumentEmbedder:
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
             embedding_type=self.embedding_type.value,
+            embedding_dimension=self.embedding_dimension,
         )
 
     @classmethod
@@ -216,6 +224,7 @@ class CohereDocumentEmbedder:
             self.batch_size,
             self.progress_bar,
             self.embedding_type,
+            self.embedding_dimension,
         )
 
         new_documents = []
@@ -254,6 +263,7 @@ class CohereDocumentEmbedder:
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             embedding_type=self.embedding_type,
+            embedding_dimension=self.embedding_dimension,
         )
 
         new_documents = []

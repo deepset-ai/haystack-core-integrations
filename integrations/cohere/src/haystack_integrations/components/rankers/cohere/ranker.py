@@ -24,7 +24,7 @@ class CohereRanker:
     from haystack import Document
     from haystack_integrations.components.rankers.cohere import CohereRanker
 
-    ranker = CohereRanker(model="rerank-v3.5", top_k=2)
+    ranker = CohereRanker(model="rerank-v5.0-fast", top_k=2)
 
     docs = [Document(content="Paris"), Document(content="Berlin")]
     query = "What is the capital of germany?"

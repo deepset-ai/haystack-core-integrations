@@ -16,7 +16,7 @@ document_store = InMemoryDocumentStore()
 document_store.write_documents(docs)
 
 retriever = InMemoryBM25Retriever(document_store=document_store)
-ranker = CohereRanker(model="rerank-english-v2.0")
+ranker = CohereRanker(model="rerank-v5.0-fast")
 
 document_ranker_pipeline = Pipeline()
 document_ranker_pipeline.add_component(instance=retriever, name="retriever")

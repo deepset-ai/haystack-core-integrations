@@ -40,7 +40,7 @@ class CohereDocumentImageEmbedder:
     from haystack import Document
     from haystack_integrations.components.embedders.cohere import CohereDocumentImageEmbedder
 
-    embedder = CohereDocumentImageEmbedder(model="embed-v4.0")
+    embedder = CohereDocumentImageEmbedder(model="embed-v5.0-pro")
 
     documents = [
         Document(content="A photo of a cat", meta={"file_path": "cat.jpg"}),
@@ -61,6 +61,8 @@ class CohereDocumentImageEmbedder:
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "embed-v5.0-pro",
+        "embed-v5.0-fast",
         "embed-v4.0",
         "embed-english-v3.0",
         "embed-english-light-v3.0",
