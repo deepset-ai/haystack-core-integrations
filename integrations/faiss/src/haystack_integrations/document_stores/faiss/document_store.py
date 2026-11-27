@@ -246,41 +246,43 @@ class FAISSDocumentStore:
         # Ensure embedding format
         query_vec = np.array([query_embedding], dtype="float32")
 
-        # Search in FAISS
-        # Valid strategy for pre-filtering vs post-filtering:
-        # Since FAISS `IndexIDMap` doesn't support pre-filtering natively comfortably
-        # without `RangeSearch` or specialized impls, we fetch more and filter post-retrieval.
-
+        # Filters are checked in Python on the documents, so they are applied to the FAISS hits (post-filtering).
+        # If too few of the fetched neighbours match the filters, search once more over the whole index, so matching
+        # documents further away are not missed. One full search is cheaper than growing k step by step: exhaustive
+        # indexes like "Flat" compare against every vector whatever k is, and each retry re-filters the same hits.
         fetch_k = top_k
         if filters:
-            fetch_k = min(self.index.ntotal, top_k * 10)  # Simple heuristic
+            fetch_k = min(self.index.ntotal, top_k * 10)
 
-        distances, indices = self.index.search(query_vec, fetch_k)
+        while True:
+            distances, indices = self.index.search(query_vec, fetch_k)
 
-        results = []
-        for dist, int_id in zip(distances[0], indices[0], strict=False):
-            if int_id == -1:
-                continue
+            results = []
+            for dist, int_id in zip(distances[0], indices[0], strict=False):
+                if int_id == -1:
+                    continue
 
-            doc_id = self.id_map.get(int_id)
-            if not doc_id or doc_id not in self.documents:
-                continue
+                doc_id = self.id_map.get(int_id)
+                if not doc_id or doc_id not in self.documents:
+                    continue
 
-            doc = self.documents[doc_id]
+                doc = self.documents[doc_id]
 
-            if filters and not self._matches_filters(doc, filters):
-                continue
+                if filters and not self._matches_filters(doc, filters):
+                    continue
 
-            # Build a new instance instead of mutating score in place.
-            score = float(1 / (1 + dist)) if self.index_string == "Flat" else float(dist)
-            result_doc = replace(doc, score=score)
+                # Build a new instance instead of mutating score in place.
+                score = float(1 / (1 + dist)) if self.index_string == "Flat" else float(dist)
+                result_doc = replace(doc, score=score)
 
-            results.append(result_doc)
+                results.append(result_doc)
 
-            if len(results) >= top_k:
-                break
+                if len(results) >= top_k:
+                    break
 
-        return results
+            if not filters or len(results) >= top_k or fetch_k >= self.index.ntotal:
+                return results
+            fetch_k = self.index.ntotal
 
     def _check_condition(self, doc: Document, condition: dict[str, Any]) -> bool:
         if "operator" not in condition and "conditions" not in condition:

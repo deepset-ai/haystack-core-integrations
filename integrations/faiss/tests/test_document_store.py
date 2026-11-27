@@ -85,6 +85,17 @@ class TestFAISSDocumentStoreUnit:
         with pytest.raises(FilterError, match=error_match):
             ds.filter_documents(filters=filters)
 
+    def test_search_with_filters_finds_match_outside_first_candidates(self):
+        # The only matching document is the farthest one, outside the first `top_k * 10` neighbours.
+        ds = FAISSDocumentStore(embedding_dim=2)
+        docs = [Document(id=f"en{i}", embedding=[1.0, i / 100], meta={"lang": "en"}) for i in range(30)]
+        docs.append(Document(id="de", embedding=[-1.0, 0.0], meta={"lang": "de"}))
+        ds.write_documents(docs)
+
+        results = ds.search([1.0, 0.0], top_k=1, filters={"field": "meta.lang", "operator": "==", "value": "de"})
+
+        assert [doc.id for doc in results] == ["de"]
+
 
 @pytest.mark.integration
 class TestFAISSDocumentStore(
