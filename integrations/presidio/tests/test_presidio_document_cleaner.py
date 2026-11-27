@@ -58,12 +58,8 @@ class TestPresidioDocumentCleaner:
         cleaner = PresidioDocumentCleaner(language="en")
         mock_nlp_engine = MagicMock()
         with (
-            patch(
-                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.NlpEngineProvider"
-            ) as mock_provider_cls,
-            patch(
-                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnalyzerEngine"
-            ) as mock_analyzer_cls,
+            patch("haystack_integrations.common.presidio.utils.NlpEngineProvider") as mock_provider_cls,
+            patch("haystack_integrations.common.presidio.utils.AnalyzerEngine") as mock_analyzer_cls,
             patch("haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnonymizerEngine"),
         ):
             mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
@@ -86,12 +82,8 @@ class TestPresidioDocumentCleaner:
         cleaner = PresidioDocumentCleaner(language="fr", models=models)
         mock_nlp_engine = MagicMock()
         with (
-            patch(
-                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.NlpEngineProvider"
-            ) as mock_provider_cls,
-            patch(
-                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnalyzerEngine"
-            ) as mock_analyzer_cls,
+            patch("haystack_integrations.common.presidio.utils.NlpEngineProvider") as mock_provider_cls,
+            patch("haystack_integrations.common.presidio.utils.AnalyzerEngine") as mock_analyzer_cls,
             patch("haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnonymizerEngine"),
         ):
             mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
