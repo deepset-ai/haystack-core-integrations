@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -56,6 +57,49 @@ class TestQdrantDocumentStoreAsyncUnit:
 
         assert client.call_args.kwargs["check_compatibility"] is False
         assert client.call_args.kwargs["port"] == 8333
+
+    async def test_in_memory_store_warns_when_async_client_follows_sync(self, caplog):
+        document_store = QdrantDocumentStore(location=":memory:")
+        document_store.write_documents([Document(content="test", embedding=[0.1] * 768)])
+
+        with caplog.at_level(logging.WARNING):
+            assert await document_store.count_documents_async() == 0
+            await document_store.count_documents_async()
+
+        warnings = [record for record in caplog.records if "don't share data" in record.getMessage()]
+        assert len(warnings) == 1
+
+    async def test_in_memory_store_warns_when_sync_client_follows_async(self, caplog):
+        document_store = QdrantDocumentStore(location=":memory:")
+        await document_store.count_documents_async()
+
+        with caplog.at_level(logging.WARNING):
+            document_store.count_documents()
+
+        assert "don't share data" in caplog.text
+
+    async def test_in_memory_store_does_not_warn_for_a_single_client(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            QdrantDocumentStore(location=":memory:").count_documents()
+            await QdrantDocumentStore(location=":memory:").count_documents_async()
+
+        assert "don't share data" not in caplog.text
+
+    async def test_server_store_does_not_warn_when_clients_are_mixed(self, caplog):
+        document_store = QdrantDocumentStore(url="http://localhost:6333")
+        module = "haystack_integrations.document_stores.qdrant.document_store.qdrant_client"
+
+        with (
+            patch(f"{module}.QdrantClient"),
+            patch(f"{module}.AsyncQdrantClient"),
+            patch.object(document_store, "_set_up_collection"),
+            patch.object(document_store, "_set_up_collection_async", new_callable=AsyncMock),
+            caplog.at_level(logging.WARNING),
+        ):
+            document_store._initialize_client()
+            await document_store._initialize_async_client()
+
+        assert "don't share data" not in caplog.text
 
     async def test_query_hybrid_search_batch_failure_async(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
