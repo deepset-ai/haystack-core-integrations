@@ -4,11 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/common/presidio/utils.py                                         |        1 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/extractors/presidio/presidio\_entity\_extractor.py    |       49 |        2 |       12 |        2 |     93% |  101, 133 |
-| src/haystack\_integrations/components/preprocessors/presidio/presidio\_document\_cleaner.py |       50 |        2 |       12 |        2 |     94% |   99, 131 |
-| src/haystack\_integrations/components/preprocessors/presidio/presidio\_text\_cleaner.py     |       48 |        2 |       10 |        2 |     93% |   96, 128 |
-| **TOTAL**                                                                                   |  **148** |    **6** |   **34** |    **6** | **93%** |           |
+| src/haystack\_integrations/common/presidio/utils.py                                         |       13 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/components/extractors/presidio/presidio\_entity\_extractor.py    |       40 |        2 |        8 |        2 |     92% |  101, 121 |
+| src/haystack\_integrations/components/preprocessors/presidio/presidio\_document\_cleaner.py |       41 |        2 |        8 |        2 |     92% |   99, 119 |
+| src/haystack\_integrations/components/preprocessors/presidio/presidio\_text\_cleaner.py     |       39 |        2 |        6 |        2 |     91% |   96, 116 |
+| src/haystack\_integrations/hooks/presidio/presidio\_pii\_hook.py                            |      165 |        4 |       54 |        6 |     95% |64, 247, 288-\>307, 367-\>exit, 388, 416 |
+| **TOTAL**                                                                                   |  **298** |   **10** |   **80** |   **12** | **94%** |           |
 
 
 ## Setup coverage badge
