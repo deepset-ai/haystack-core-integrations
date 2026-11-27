@@ -58,6 +58,22 @@ class TestNormalizeFilters:
             ),
             ({"field": "meta.page", "operator": "in", "value": ["1", "2"]}, "content", 'page in ("1", "2")'),
             ({"field": "meta.page", "operator": "not in", "value": ["1"]}, "content", '!( page in ("1") )'),
+            # YQL `in` only accepts string and integer fields, so other values are matched with `=` each
+            (
+                {"field": "meta.featured", "operator": "in", "value": [True, False]},
+                "content",
+                "( featured = true or featured = false )",
+            ),
+            (
+                {"field": "meta.rating", "operator": "not in", "value": [0.5, 3]},
+                "content",
+                "!( rating = 0.5 or rating = 3 )",
+            ),
+            (
+                {"field": "meta.number", "operator": "in", "value": [1, 2.5]},
+                "content",
+                "( number = 1 or number = 2.5 )",
+            ),
             # the content field is indexed as text, so each value is matched as a phrase with `contains`
             (
                 {"field": "content", "operator": "in", "value": ["a b", "c"]},

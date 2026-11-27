@@ -370,6 +370,39 @@ class TestVespaDocumentStoreIntegration(
 
         assert sorted(doc.content for doc in result) == expected
 
+    @pytest.mark.parametrize(
+        ("field", "operator", "value", "expected"),
+        [
+            ("meta.featured", "in", [True], ["a"]),
+            ("meta.featured", "not in", [True], ["b", "c"]),
+            ("meta.rating", "in", [0.5, 3.0], ["a", "b"]),
+            ("meta.rating", "not in", [0.5], ["b", "c"]),
+            ("meta.rating", "in", [3], ["b"]),
+            ("meta.number", "in", [1.0, 3], ["a", "c"]),
+        ],
+        ids=[
+            "bool_in",
+            "bool_not_in",
+            "double_in",
+            "double_not_in",
+            "int_value_on_double_field",
+            "float_value_on_int_field",
+        ],
+    )
+    def test_filter_documents_in_on_non_string_fields(self, document_store, field, operator, value, expected):
+        # YQL `in` only accepts string and integer fields, so these lists must not be sent as `in`.
+        document_store.write_documents(
+            [
+                Document(id="a", content="first", meta={"featured": True, "rating": 0.5, "number": 1}),
+                Document(id="b", content="second", meta={"featured": False, "rating": 3.0, "number": 2}),
+                Document(id="c", content="third", meta={"featured": False, "rating": 1.25, "number": 3}),
+            ]
+        )
+
+        result = document_store.filter_documents(filters={"field": field, "operator": operator, "value": value})
+
+        assert sorted(doc.id for doc in result) == expected
+
     def test_delete_by_filter_content_in_empty_list_deletes_nothing(self, document_store):
         document_store.write_documents([Document(content="A Foo Document"), Document(content="Another Bar Text")])
 
