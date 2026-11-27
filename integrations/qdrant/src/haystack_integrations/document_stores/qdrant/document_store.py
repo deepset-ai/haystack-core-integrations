@@ -325,6 +325,7 @@ class QdrantDocumentStore:
                 self.on_disk,
                 self.payload_fields_to_index,
             )
+            self._warn_if_in_memory_clients_are_mixed()
 
     async def _initialize_async_client(self) -> None:
         """
@@ -344,6 +345,21 @@ class QdrantDocumentStore:
                 self.sparse_idf,
                 self.on_disk,
                 self.payload_fields_to_index,
+            )
+            self._warn_if_in_memory_clients_are_mixed()
+
+    def _warn_if_in_memory_clients_are_mixed(self) -> None:
+        """
+        Warns when an in-memory store ends up with both a synchronous and an asynchronous client.
+
+        In qdrant-client's local mode each `:memory:` client is its own instance, so the two clients don't share data.
+        """
+        if self.location == ":memory:" and self._client is not None and self._async_client is not None:
+            logger.warning(
+                "QdrantDocumentStore with location=':memory:' is being used with both sync and async methods. "
+                "The sync and async clients are separate in-memory instances and don't share data, so documents "
+                "written with one are not visible to the other. To mix sync and async calls, connect to a Qdrant "
+                "server via `url` or `host`.",
             )
 
     def close(self) -> None:
