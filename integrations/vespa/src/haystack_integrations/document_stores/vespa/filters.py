@@ -76,6 +76,25 @@ def _validate_ordered_filter_value(operator: str, value: Any) -> None:
     raise FilterError(msg)
 
 
+def _convert_in(field: str, normalized_field: str, value: list[Any], *, content_field: str) -> tuple[str, bool]:
+    """
+    Convert a non-empty `in` list to a YQL condition.
+
+    YQL `in` only accepts string and integer fields, so a list of anything but strings (floats, booleans, or
+    integers compared against a double field) is matched as `==` per value instead, which every field type
+    supports. Content phrases are matched with `contains` for the same reason as `==` does.
+
+    :returns: the condition, and whether it is a disjunction that needs parentheses to be combined.
+    """
+    if _is_content_phrase_list(field, value):
+        return " or ".join(f"{normalized_field} contains {_format_yql_value(item)}" for item in value), True
+    if all(isinstance(item, str) for item in value):
+        values = ", ".join(_format_yql_value(item) for item in value)
+        return f"{normalized_field} in ({values})", False
+    equalities = " or ".join(_convert_comparison(field, "==", item, content_field=content_field) for item in value)
+    return equalities, True
+
+
 def _convert_comparison(
     field: str,
     operator: str,
@@ -113,22 +132,16 @@ def _convert_comparison(
         # YQL rejects an empty `in ()`; an empty list matches nothing, like in the other Document Stores
         if not value:
             return "false"
-        if _is_content_phrase_list(field, value):
-            phrases = " or ".join(f"{normalized_field} contains {_format_yql_value(item)}" for item in value)
-            return f"( {phrases} )"
-        values = ", ".join(_format_yql_value(item) for item in value)
-        return f"{normalized_field} in ({values})"
+        condition, is_disjunction = _convert_in(field, normalized_field, value, content_field=content_field)
+        return f"( {condition} )" if is_disjunction else condition
     if operator == "not in":
         if not isinstance(value, list):
             msg = "'not in' filter values must be lists"
             raise VespaDocumentStoreFilterError(msg)
         if not value:
             return "true"
-        if _is_content_phrase_list(field, value):
-            phrases = " or ".join(f"{normalized_field} contains {_format_yql_value(item)}" for item in value)
-            return f"!( {phrases} )"
-        values = ", ".join(_format_yql_value(item) for item in value)
-        return f"!( {normalized_field} in ({values}) )"
+        condition, _ = _convert_in(field, normalized_field, value, content_field=content_field)
+        return f"!( {condition} )"
     if operator == "contains":
         return f"{normalized_field} contains {_format_yql_value(value)}"
     if operator == "not contains":
